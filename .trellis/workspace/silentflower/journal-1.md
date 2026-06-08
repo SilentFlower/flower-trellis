@@ -38,3 +38,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: ft 短命令 + init/update 自身版本自动检测
+
+**Date**: 2026-06-08
+**Task**: ft 短命令 + init/update 自身版本自动检测
+**Branch**: `main`
+
+### Summary
+
+为 flower-trellis 新增 2 功能:(1) bin 注册 ft 短别名(等价 flower-trellis/ftl);(2) init/update 启动时尽力而为联网检测自身 npm latest——新增 src/lib/update-check.js(AbortController 2.5s 超时 + 三道防线静默降级;发现新版交互态询问升级,成功后退出提示重跑,-y/非TTY 仅提示;npx/--no-update-check/FLOWER_NO_UPDATE_CHECK 跳过)。同步 OWN_FLAGS/parse、README/help,并沉淀 config-and-state#Network Probe 契约 spec。check-all 三维通过,0 P0/P1。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4659bbe` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
