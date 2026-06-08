@@ -1,18 +1,38 @@
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import { runTrellis } from "../lib/trellis-runner.js";
 import { applyEnhancements } from "../lib/apply-enhancements.js";
 import { pickPlatforms } from "../lib/pick-platforms.js";
+import { printBanner } from "../lib/banner.js";
 import { PLATFORM_FLAGS } from "../constants.js";
+
+/** 解析开发者名:优先 -u/--user 的取值,否则回退到目标仓库的 git config user.name。 */
+function getDeveloper(passthrough, target) {
+  const i = passthrough.findIndex((a) => a === "-u" || a === "--user");
+  if (i >= 0) {
+    const v = passthrough[i + 1];
+    if (v && !v.startsWith("-")) return v;
+  }
+  try {
+    return (
+      execFileSync("git", ["-C", target, "config", "user.name"], {
+        encoding: "utf8",
+      }).trim() || null
+    );
+  } catch {
+    return null;
+  }
+}
 
 /**
  * flower-trellis init:驱动 `trellis init`,随后叠加强化包。
  *
  * 平台选择:
  * - 用户显式传了平台 flag(--claude/--codex/...)→ 原样透传,不弹菜单。
- * - 未传平台 + 交互模式 → 弹 flower 平台多选菜单(默认勾 codex + claude),选完转 flag。
- * - 未传平台 + 非交互(-y)→ 无法弹菜单,用默认 codex + claude。
+ * - 未传平台 + 交互模式 → 打印品牌头部 + 弹 flower 平台多选菜单(默认勾 codex + claude)。
+ * - 未传平台 + 非交互(-y)→ 用默认 codex + claude。
  *
- * @param {object} ctx 见 cli.js 的 parse():{ target, passthrough, enhance, enhanceOnly, skills, variant }
+ * @param {object} ctx 见 cli.js 的 parse()
  */
 export async function init(ctx) {
   const { target } = ctx;
@@ -29,8 +49,9 @@ export async function init(ctx) {
       passthrough.push("--codex", "--claude");
       console.log("· 非交互(-y):默认平台 codex + claude");
     } else {
-      // flower 自己出菜单(默认勾 codex + claude);Trellis 原生菜单默认勾选写死为
-      // claude+cursor,改不了,故由 flower 接管平台选择再把 flag 透传给 trellis。
+      // flower 自己出菜单(默认勾 codex + claude);先打印品牌头部。
+      // Trellis 原生菜单默认勾选写死为 claude+cursor,改不了,故由 flower 接管平台选择。
+      printBanner(getDeveloper(passthrough, target));
       const picked = await pickPlatforms();
       const flags = picked.length ? picked : ["--codex", "--claude"];
       passthrough.push(...flags);
