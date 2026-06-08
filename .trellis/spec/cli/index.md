@@ -16,6 +16,9 @@
 | `src/commands/*.js` | 子命令编排层(init / update / uninstall) |
 | `src/lib/*.js` | 单一职责的工具/逻辑模块 |
 | `scripts/sync-enhancements.mjs` | 开发期脚本(打快照,最终用户不运行) |
+| `scripts/check-snapshot.mjs` / `extract-changelog.mjs` | 发布期脚本(快照一致性断言 / CHANGELOG 抽段) |
+| `vendor/skill-garden` | 强化包同步源(git submodule,不进 npm 包) |
+| `.github/workflows/release.yml` | tag 触发的发布工作流(OIDC + provenance) |
 | `enhancements/<variant>/` | 随包发布的 skill-garden 强化包快照 |
 
 > 本项目**没有** React / 组件 / Hook / 前端状态 / TypeScript。任何来自前端模板的
@@ -66,6 +69,7 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [CLI Output](./cli-output.md) | 横幅、进度行、错误与退出码 |
 | [Config & State](./config-and-state.md) | 常量、路径、版本、manifest 状态 |
 | [Enhancements Model](./enhancements-model.md) | 强化包快照与叠加流水线 |
+| [Release & Publishing](./release-and-publishing.md) | 发版流程、CI 发布(OIDC)、CHANGELOG 约定 |
 | [Quality Guidelines](./quality-guidelines.md) | 必守模式、禁用模式、评审清单 |
 
 ---

@@ -21,6 +21,13 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   `.agents` / `.claude` / `overrides`,并写 `MANIFEST.json` 记录 `syncedAt` /
   `sourceCommit` 供溯源。
 - 随包发布靠 `package.json` 的 `files: ["bin","src","enhancements","README.md"]`。
+- **同步源 = git submodule `vendor/skill-garden`**(不在 `files` 白名单,不进 npm tarball)。
+  `sync-enhancements.mjs` 三级路径解析:`SKILL_GARDEN_DIR` 环境变量 → `PKG_ROOT/vendor/skill-garden`
+  → 都缺则 `exit(1)` 提示 `git submodule update --init --recursive`。
+- **CI 幂等**:源 `.trellis` 缺失但 `enhancements/MANIFEST.json` 已存在(如 CI 未拉 submodule)→
+  警告 `exit(0)` 沿用已提交快照;源与快照都无才 `exit(1)`。使 `prepublishOnly` 在"快照已提交、
+  发布不拉 submodule"的 CI 场景不致失败。`syncedFrom` 记相对仓库根路径(避免绝对路径写进随包快照)。
+- 发布前快照与 submodule pin 的一致性断言见 [Release & Publishing](./release-and-publishing.md)。
 
 ---
 
