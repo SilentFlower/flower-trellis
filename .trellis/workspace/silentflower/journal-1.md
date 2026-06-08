@@ -71,3 +71,42 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: 发版流程 + skill-garden submodule 化(发布 v0.2.2)
+
+**Date**: 2026-06-09
+**Task**: 发版流程 + skill-garden submodule 化(发布 v0.2.2)
+**Branch**: `main`
+
+### Summary
+
+建立混合发布链路:本地 npm run release(check-snapshot 断言 + commit-and-tag-version bump/CHANGELOG/tag)→ push tag → CI 经 npm OIDC Trusted Publishing 发布(带 provenance、免 token)+ gh release create。skill-garden 改为 vendor/skill-garden submodule,sync 三级路径 + CI 幂等。CHANGELOG 用 Conventional Commits 分组。修正 release.yml Node 22(OIDC 要求 ≥22.14)。沉淀 cli/release-and-publishing.md。首版 v0.2.2 已发布 npm。monorepo 化(config.yaml 多仓库 + spec 按包重组)拆为后续独立任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b73602e` | (see git log) |
+| `e5c1c89` | (see git log) |
+| `bf6d1c7` | (see git log) |
+| `39db270` | (see git log) |
+| `80b8ef9` | (see git log) |
+| `d80b76b` | (see git log) |
+| `8e44924` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

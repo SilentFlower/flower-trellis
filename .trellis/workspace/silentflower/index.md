@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 2
-- **Last Active**: 2026-06-08
+- **Total Sessions**: 3
+- **Last Active**: 2026-06-09
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~73 | Active |
+| `journal-1.md` | ~112 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 3 | 2026-06-09 | 发版流程 + skill-garden submodule 化(发布 v0.2.2) | `b73602e`, `e5c1c89`, `bf6d1c7`, `39db270`, `80b8ef9`, `d80b76b`, `8e44924` | `main` |
 | 2 | 2026-06-08 | ft 短命令 + init/update 自身版本自动检测 | `4659bbe` | `main` |
 | 1 | 2026-06-08 | 重构 spec 层 frontend→cli 并填充 Node-CLI 规范 | `b5e9135` | `main` |
 <!-- @@@/auto:session-history -->
