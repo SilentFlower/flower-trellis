@@ -108,15 +108,56 @@ flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo 
 
 ## 开发
 
+skill-garden 强化包源以 **git submodule** 形式挂在 `vendor/skill-garden`,克隆时需一并拉取:
+
+```bash
+# 首次克隆(连同 submodule)
+git clone --recurse-submodules https://github.com/SilentFlower/flower-trellis.git
+
+# 已普通克隆过、vendor/skill-garden 为空时补拉
+git submodule update --init --recursive
+```
+
 ```bash
 npm install                                    # 安装依赖
-npm run sync                                   # 从 skill-garden 同步强化包快照到 enhancements/
+npm run sync                                   # 从 vendor/skill-garden 同步强化包快照到 enhancements/
 node bin/flower-trellis.js init -u you --target /tmp/test-project   # 本地试跑(勿在本仓库根直接 init)
 ```
 
-修改强化包后务必重新 `npm run sync`,再发布新版本。
+> `npm run sync` 默认从 submodule `vendor/skill-garden` 读取;可用环境变量 `SKILL_GARDEN_DIR=/path/to/skill-garden` 覆盖到外部副本(旧布局逃生通道)。
+
+**更新强化包**(skill-garden 有新提交时,先动 pin 再重建快照):
+
+```bash
+cd vendor/skill-garden && git fetch && git checkout origin/main && cd ../..
+git add vendor/skill-garden            # 登记新的 submodule pin
+npm run sync                           # 重建 enhancements/ 快照(sourceCommit 跟随新 pin)
+git add enhancements && git commit -m "chore: 更新强化包快照到 <sha>"
+```
 
 > **维护约束**:`workflow.md` 的旧块清理依赖 `src/lib/workflow-inject.js` 中硬编码的 sentinel 名单。修改现有块的内容无需改动名单;但当 skill-garden **新增一种 workflow 块类型**(新的 `BEGIN/END` 名)时,必须同步更新该名单,否则旧块无法被清除。
+
+## 发布
+
+采用「本地把关 + CI 发布」的混合流程,版本更新内容以 `CHANGELOG.md`(由 Conventional Commits 自动生成)为唯一来源:
+
+```bash
+# 1) 本地:按约定式提交自动定版本号 + 写 CHANGELOG + 打 tag(不 push、不 publish)
+npm run release          # = check-snapshot(校验快照一致)+ commit-and-tag-version
+npm run release:dry      # 仅预览版本号与 CHANGELOG,不落盘
+
+# 2) 检查 CHANGELOG / package.json 版本 diff,确认无误后连 tag 一起推送
+git push --follow-tags origin main
+```
+
+推送 `vX.Y.Z` tag 后,GitHub Actions(`.github/workflows/release.yml`)自动完成:
+
+- **`npm publish`** —— 经 npm **OIDC Trusted Publishing** 发布,自动带 provenance 来源证明,**无需** `NPM_TOKEN`。
+- **`gh release create`** —— 创建 GitHub Release,notes 取自 `CHANGELOG.md` 对应版本段(与 CHANGELOG 同源)。
+
+> **一次性前置**:首次发布前需在 [npmjs.com](https://www.npmjs.com) 的本包设置里配置 **Trusted Publisher**,绑定 `SilentFlower/flower-trellis` 仓库与 `release.yml`,否则 OIDC 发布会失败。
+>
+> **发布前自检**:`npm run release` 会先跑 `scripts/check-snapshot.mjs`,确保 `enhancements/` 快照与 `vendor/skill-garden` 当前 pin 一致且已提交,杜绝发布陈旧快照。
 
 ## 相关项目
 
