@@ -1,113 +1,120 @@
-# 🌸 flower-trellis
+# flower-trellis
 
-> 一条命令装好 [Trellis](https://docs.trytrellis.app/) 工程框架,并自动融合 **skill-garden** 的强化包。
+[![npm version](https://img.shields.io/npm/v/flower-trellis.svg)](https://www.npmjs.com/package/flower-trellis)
+[![node](https://img.shields.io/node/v/flower-trellis.svg)](https://nodejs.org)
+[![license](https://img.shields.io/npm/l/flower-trellis.svg)](./LICENSE)
 
-## 这是什么
+> 一条命令装好 [Trellis](https://docs.trytrellis.app/) 工程框架,并自动融合 **skill-garden** 强化包。
 
-`flower-trellis` 是一个 Node CLI(npm 包),把原本要分两步做的事合并成一键完成:
+`flower-trellis` 是 Trellis 的 npm 封装 CLI,把原本要分两步的工作合并为一键完成:安装/升级 Trellis 本体,并在其上叠加 skill-garden 的强化包(一组 `trellis-*` 技能与 workflow override)。强化包以快照形式随包发布,安装过程**零网络依赖**。
 
-1. **装/升级 Trellis 本体** —— [trytrellis.app](https://docs.trytrellis.app/) 出品的 AI 编程工程框架,
-   把 specs / tasks / memory 持久化进你的仓库,让任意 AI 编程 Agent 都遵循你的工程规范。
-   底层调用官方 `@mindfoldhq/trellis` 的 `init` / `update`。
-2. **叠加强化包** —— 自动套用 skill-garden 的强化补充包
-   (按目标项目的 Trellis 版本智能选择 `old / 0.5 / 0.6` variant),
-   内含一组 `trellis-*` 技能与 workflow override。强化包随本包发布,安装零网络。
+底层调用官方 `@mindfoldhq/trellis` 的 `init` / `update`,并按目标项目的 Trellis 版本自动选择匹配的强化包变体(`old` / `0.5` / `0.6`)。
 
-> **命名由来**:取自 skill-garden 的「园艺」主题 —— trellis 是花园里供藤蔓攀爬的棚架,
-> `flower-trellis` 即「开满花的棚架」:框架装好、强化包到位,即开即用。
+> **命名由来**:`flower-` 是这一系列 AI 工程工具的统一前缀(flower 系列),`trellis` 表示本工具负责包装 Trellis 框架。
+
+## 安装
+
+```bash
+# 全局安装(推荐),之后可用 flower-trellis 或简写 ftl
+npm i -g flower-trellis
+
+# 升级到最新版
+npm i -g flower-trellis@latest
+```
+
+也可**免安装**通过 `npx flower-trellis <命令>` 直接运行(每次执行拉取最新版,适合临时试用)。
+
+**环境要求**:Node.js ≥ 18.17.0。
 
 ## 用法
 
 ```bash
-# 交互安装:flower 平台菜单(默认勾 codex + claude)→ Trellis 原生模板/monorepo 菜单
-npx flower-trellis init -u your-name
+# 交互安装:平台多选菜单 → Trellis 原生模板/monorepo 菜单
+flower-trellis init -u <your-name>
 
-# 指定平台(透传 trellis,跳过平台菜单),例如只装 claude
-npx flower-trellis init -u your-name --claude
+# 指定平台,跳过平台菜单(透传给 trellis)
+flower-trellis init -u <your-name> --claude
 
-# 完全非交互(平台默认 codex + claude;模板用空白默认)
-npx flower-trellis init -u your-name -y
+# 完全非交互(平台默认 codex + claude)
+flower-trellis init -u <your-name> -y
 
-# 升级 Trellis 并按新版本重新套用强化包
-npx flower-trellis update
+# 升级 Trellis 并按新版本重新叠加强化包
+flower-trellis update
 
 # 卸载:移除 Trellis 本体并清理强化包残留
-npx flower-trellis uninstall
-
-# 只装 Trellis 不叠加强化包 / 已有项目只重叠加
-npx flower-trellis init --no-enhance
-npx flower-trellis init --enhance-only
-
-# 其它 trellis 子命令一律透传(面向未来,零维护)
-npx flower-trellis <任意 trellis 命令>
+flower-trellis uninstall
 
 # 查看版本(flower-trellis 自身 + 捆绑的 Trellis)
-npx flower-trellis -v
+flower-trellis -v
 ```
 
-## 交互流程(`init`)
+> 已全局安装时可直接写 `flower-trellis` 或 `ftl`;未安装则在命令前加 `npx`。
+
+### 命令
+
+| 命令 | 说明 |
+|------|------|
+| `init` | 安装 Trellis 并叠加强化包(默认命令,裸跑等同 `init`) |
+| `update` | 升级 Trellis,并按新版本重新叠加强化包 |
+| `uninstall` | 移除 Trellis 本体并清理强化包残留(支持 `-y` / `--dry-run`) |
+| `<其它命令>` | 原样透传给 Trellis,覆盖其现有及未来子命令 |
+| `-v` / `-h` | 打印版本 / 帮助 |
+
+### 选项
+
+| 选项 | 说明 |
+|------|------|
+| `--no-enhance` | 只安装 Trellis,不叠加强化包 |
+| `--enhance-only` | 跳过 Trellis,仅叠加强化包(用于已有项目) |
+| `--skills <a,b,...>` | 只安装指定技能(可省略 `trellis-` 前缀) |
+| `--variant <old\|0.5\|0.6>` | 强制指定强化包变体(默认按 `.trellis/.version` 自动选) |
+| `--target <dir>` | 目标目录(默认当前目录) |
+
+未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` 等指定,或用 `-y` 跳过菜单。其余未识别的 flag(如 `-u`、`-f`、`--template`)一律透传给 Trellis。
+
+## 工作原理
+
+`init` 的执行流程:
 
 ```
-🌸 FLOWER 品牌头部(ASCII logo + 👤 Developer)
-   ↓
-? 选择 AI 工具(flower 菜单,默认勾 Claude Code + Codex)
-   ↓
-? Select a spec template / monorepo 识别 …(Trellis 原生交互,原样保留)
-   ↓
-叠加 skill-garden 强化包 + codex 后处理 → 完成
+flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo / 冲突)→ 叠加强化包 → codex 后处理
 ```
 
-全程**只有 flower 一个 banner**:Trellis 子进程在伪终端(node-pty)里运行,
-它原生的模板 / monorepo / 冲突等交互完整保留,而它重复打印的启动 banner / Developer 被过滤掉。
+- **统一品牌头部**:Trellis 子进程在伪终端(`node-pty`)中运行,其原生的模板 / monorepo / 冲突等交互完整保留,但重复打印的启动 banner 被过滤,全程只呈现一个 flower banner。
+- **按平台铺设技能**:Claude 铺到 `.claude/skills`,Codex / Gemini 等铺到 `.agents/skills`;并对 codex 做后处理(注释 `config.toml` 的 `[features.multi_agent_v2]`、补全 `hooks.json` 的 `SessionStart`)。
+- **幂等执行**:`workflow.md` 注入前先按 `BEGIN/END` 标记清除旧块再重注入(块数恒定,不会翻倍,首次注入前备份 `.bak`);技能文件覆盖式铺设,并通过 `.trellis/.flower-manifest.json` 记录已铺路径,升级时删除已淘汰项。
+- **安全中止**:`Ctrl+C` 取消后不会继续叠加。
 
-## 状态
+## 强化包与更新
 
-✅ **可用** —— 核心功能已实现并端到端验证。当前捆绑 Trellis `0.6.0-beta.8`。
+强化包以**快照**形式打包在 `enhancements/`(由 `npm run sync` 从 skill-garden 同步),随 npm 发布。因此两者更新节奏不同:
 
-## 功能
+- **Trellis 本体**:`update` 实时升级(由 Trellis 自身拉取最新)。
+- **强化包**:使用当前安装版本内置的快照。要跟进 skill-garden 的迭代,需升级 flower-trellis 本身:
 
-- [x] `init` / `update` / `uninstall`,其它 trellis 子命令兜底透传
-- [x] flower 品牌 banner(`init` 交互 + `update`)
-- [x] flower 平台多选菜单,默认勾 **codex + claude**;或 `-y` 用默认、传 `--claude/--codex/--cursor` 等指定
-- [x] 用 **node-pty** 在伪终端运行 trellis,完整保留其模板 / monorepo / 冲突等原生交互,同时过滤掉重复 banner / Developer
-- [x] 自动识别 Trellis 版本,选择匹配的强化包 variant(`old / 0.5 / 0.6`)
-- [x] 强化 skill 跟随平台铺设(claude→`.claude/skills`,codex/gemini 等→`.agents/skills`)
-- [x] codex 后处理:注释 `config.toml` 的 `[features.multi_agent_v2]`、补全 `hooks.json` 的 `SessionStart`
-- [x] workflow override 幂等注入(先清旧块再注入 + 备份 `.bak`)
-- [x] 升级时清理过期强化项(`0.5`/`old` → `0.6` 删除淘汰的 skill/command,基于 flower manifest,只删自己铺过的)
-- [x] `Ctrl+C` 安全中止(取消时不会继续叠加)
-- [x] `-v` 同时打印 flower-trellis 与捆绑 Trellis 版本
-- [x] 幂等执行:重复运行安全
-
-## 强化包与更新机制
-
-强化包以**快照**形式打包在本仓库 `enhancements/`(由 `npm run sync` 从 skill-garden 同步),随 npm 发布,安装零网络。因此:
-
-- **Trellis 本体**:`update` 实时升级(trellis 自己拉最新)。
-- **强化包**:用当前安装的 flower-trellis 版本里的那份快照。要跟上 skill-garden 后续迭代,流程为:
-  `skill-garden 改动 → npm run sync + 发新版 → npm i -g flower-trellis@latest → flower-trellis update`。
-
-**重复安装 / 升级的正确性**(已实测,不会出现重复块或残留):
-
-1. **skill 文件**:覆盖式铺设 + `.trellis/.flower-manifest.json` 记录上次铺过的路径,删除本次不再包含的项。
-2. **`workflow.md`**:每次注入前先 strip 掉所有旧的 skill-garden 块(按 `BEGIN/END` 标记整段删),再重注入 —— 块数恒定、绝不翻倍;首次注入前备份 `.bak`。
-3. **升级清理**:跨 variant / 跨快照版本删除淘汰的 skill / command。
-
-> ⚠️ **维护约束**:`workflow.md` 的 strip 依赖 `src/lib/workflow-inject.js` 里硬编码的 sentinel 名单。改现有块的**内容**无需动名单;但 skill-garden **新增一种 workflow 块类型**(新的 `BEGIN/END` 名)时,必须同步更新该名单,否则旧块清不掉。
+  ```bash
+  npm i -g flower-trellis@latest && flower-trellis update
+  ```
 
 ## 开发
 
 ```bash
-npm install                 # 安装依赖
-npm run sync                # 从 skill-garden 同步强化包快照到 enhancements/
-node bin/flower-trellis.js init -u you --target /某测试目录   # 本地试跑(勿在本仓库根直接 init)
+npm install                                    # 安装依赖
+npm run sync                                   # 从 skill-garden 同步强化包快照到 enhancements/
+node bin/flower-trellis.js init -u you --target /tmp/test-project   # 本地试跑(勿在本仓库根直接 init)
 ```
 
-运行时依赖:`@mindfoldhq/trellis`(捆绑的 Trellis 本体)、`node-pty`(伪终端,保留 trellis 交互)、`inquirer`(平台菜单)、`figlet` + `chalk`(banner)。
+修改强化包后务必重新 `npm run sync`,再发布新版本。
+
+> **维护约束**:`workflow.md` 的旧块清理依赖 `src/lib/workflow-inject.js` 中硬编码的 sentinel 名单。修改现有块的内容无需改动名单;但当 skill-garden **新增一种 workflow 块类型**(新的 `BEGIN/END` 名)时,必须同步更新该名单,否则旧块无法被清除。
 
 ## 相关项目
 
 | 项目 | 作用 |
 |------|------|
-| [Trellis](https://docs.trytrellis.app/)(`@mindfoldhq/trellis`) | AI 编程工程框架本体,本包作为 wrapper 调用其 `init`/`update`/`uninstall` 等 |
-| skill-garden | 强化补充包的来源(`.trellis/` 下 `old/0.5/0.6` 各 variant) |
+| [Trellis](https://docs.trytrellis.app/)(`@mindfoldhq/trellis`) | AI 编程工程框架本体,本包作为 wrapper 调用其 `init` / `update` / `uninstall` |
+| skill-garden | 强化包来源,提供 `old` / `0.5` / `0.6` 各变体 |
+
+## 许可证
+
+[MIT](./LICENSE)
