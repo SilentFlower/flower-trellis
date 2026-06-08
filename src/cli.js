@@ -39,13 +39,13 @@ function printHelp() {
 flower 自有 flag:
   --no-enhance             只跑 trellis,不叠加强化包
   --enhance-only           跳过 trellis,只叠加(用于已有项目)
-  --pick                   进入 Trellis 原生平台多选菜单自选(否则默认 codex + claude)
   --skills <a,b,...>       只装指定技能(支持去 trellis- 前缀匹配)
   --variant <old|0.5|0.6>  强制强化包变体(默认按 .trellis/.version 自动选)
   --target <dir>           目标目录(默认当前目录)
 
-平台默认 codex + claude;想自选加 --pick,或直接传 --cursor / --gemini 等。
-其余 flag 原样透传给 trellis(如 -u <name> -y -f --registry --template 等)。`);
+平台选择:未指定平台时,交互模式会弹出多选菜单(默认勾 Claude Code + Codex);
+也可直接传 --claude / --codex / --cursor 等指定,或用 -y 跳过菜单(默认 codex + claude)。
+其余 flag 原样透传给 trellis(如 -u <name> -f --registry --template 等)。`);
 }
 
 /** 解析 argv → { command, ctx }。 */
@@ -53,7 +53,6 @@ function parse(argv) {
   let command = null;
   let enhance = true;
   let enhanceOnly = false;
-  let pick = false;
   let variant = null;
   let target = process.cwd();
   const skills = [];
@@ -72,9 +71,6 @@ function parse(argv) {
         break;
       case "--enhance-only":
         enhanceOnly = true;
-        break;
-      case "--pick":
-        pick = true;
         break;
       case "--skills": {
         const v = argv[++i] || "";
@@ -99,7 +95,6 @@ function parse(argv) {
       passthrough,
       enhance,
       enhanceOnly,
-      pick,
       skills,
       variant,
     },
