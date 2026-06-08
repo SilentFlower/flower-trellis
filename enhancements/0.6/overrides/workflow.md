@@ -6,7 +6,7 @@
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 2.1 / 2.2 / 3.1 dispatch routing, Phase 3.5 finish-work bookkeeping, and push-progress recovery / snapshot reminders. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
+**Scope**: Phase 2.1 / 2.2 / 3.1 dispatch routing, Phase 3.4 code-commit/push via trellis-push, Phase 3.5 finish-work bookkeeping, and push-progress recovery / snapshot reminders. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
@@ -27,22 +27,19 @@ At phase boundaries, do not ask meta continuation questions such as "continue?",
 
 Check routing has no 4h preference file. Before `trellis-check`, `trellis-check-all`, or either check sub-agent, route every time so the user can choose check-all vs lightweight and inline vs subagent.
 
-#### Finish-work Bookkeeping Guard
+#### Code Commit Confirmation Gate
 
-`session_auto_commit` governs ONLY the script-managed bookkeeping commits that `task.py archive` and `add_session.py` make for their own files (`.trellis/tasks/**` archive moves and `.trellis/workspace/**` journal/index). It is NOT a global auto-commit switch, and it has NO authority over code commits.
+Every code commit — and its push — belongs to Phase 3.4 and MUST go through `trellis-push`, mirroring how implement/check must go through `trellis-route`. From the main session the agent never runs bare `git commit` / `git push` on code to bypass it.
 
-Code commits always belong to Phase 3.4: the agent drafts the batched commit plan and commits only after the user confirms — in EVERY case, whether `session_auto_commit` is `true` or `false`. Never treat `session_auto_commit: true` as permission to auto-commit code, to skip the Phase 3.4 confirmation prompt, or to commit any path outside the two scripts' own bookkeeping files. The two are independent: this switch never decides whether code is committed, and it never decides whether to ask first.
+`trellis-push` IS the confirmation mechanism: its Step 2.2 stages only an explicit, user-approved file list (never `git add -A` / `git add .`); its Step 2.3 shows the drafted commit message for approval. "Confirmed" means the user saw that concrete file list + message inside `trellis-push` and approved it. A preference-style choice does NOT count — e.g. an `AskUserQuestion` "split / single commit" option only picks a strategy, and an option label/description never substitutes for the real file-list + message display.
 
-When `session_auto_commit: true` (the default): `task.py archive` produces a `chore(task): archive ...` commit and `add_session.py` produces a `chore: record journal` commit, each touching only its own bookkeeping files. Code stays dirty for the Phase 3.4 plan.
+For Phase 3.4 "commit now, push later", invoke `trellis-push` in commit-only mode (commit without pushing); the later push also goes through `trellis-push`.
 
-When `.trellis/config.yaml` sets `session_auto_commit: false`, finish-work must treat archive and journal writes as disk-only bookkeeping:
+This gate is independent of `session_auto_commit`: that switch never authorizes a code commit and never waives going through `trellis-push`. The only bare-`git` commits allowed are the two bookkeeping scripts below, which manage their own `.trellis/**` files.
 
-- Running `python3 ./.trellis/scripts/task.py archive <task>` may move task files, but must not be described as producing a `chore(task): archive ...` commit.
-- Running `python3 ./.trellis/scripts/add_session.py ...` may write workspace journal/index files, but must not be described as producing a `chore: record journal` commit.
-- Do not run a compensating `git add` / `git commit` for `.trellis/tasks/**` or `.trellis/workspace/**` just because those scripts skipped auto-commit.
-- Report the resulting `.trellis/tasks/**` and `.trellis/workspace/**` dirty paths to the user as bookkeeping changes for manual review.
+#### Bookkeeping Auto-commit Scope
 
-This guard scopes `session_auto_commit` to the two bookkeeping commits above; Phase 3.4 code-work commits stay confirmation-gated regardless of its value.
+`session_auto_commit` only governs the bookkeeping commits `task.py archive` / `add_session.py` make for their own `.trellis/tasks/**` and `.trellis/workspace/**` files — never code (gated above). When `false`, those archive/journal writes stay disk-only (no compensating `git commit`).
 
 #### Push Progress Recovery / Snapshot
 
