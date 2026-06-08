@@ -39,21 +39,21 @@ function printHelp() {
 flower 自有 flag:
   --no-enhance             只跑 trellis,不叠加强化包
   --enhance-only           跳过 trellis,只叠加(用于已有项目)
+  --pick                   进入 Trellis 原生平台多选菜单自选(否则默认 codex + claude)
   --skills <a,b,...>       只装指定技能(支持去 trellis- 前缀匹配)
   --variant <old|0.5|0.6>  强制强化包变体(默认按 .trellis/.version 自动选)
   --target <dir>           目标目录(默认当前目录)
 
+平台默认 codex + claude;想自选加 --pick,或直接传 --cursor / --gemini 等。
 其余 flag 原样透传给 trellis(如 -u <name> -y -f --registry --template 等)。`);
 }
-
-/** 已知的增强子命令。 */
-const ENHANCED = new Set(["init", "update", "uninstall"]);
 
 /** 解析 argv → { command, ctx }。 */
 function parse(argv) {
   let command = null;
   let enhance = true;
   let enhanceOnly = false;
+  let pick = false;
   let variant = null;
   let target = process.cwd();
   const skills = [];
@@ -72,6 +72,9 @@ function parse(argv) {
         break;
       case "--enhance-only":
         enhanceOnly = true;
+        break;
+      case "--pick":
+        pick = true;
         break;
       case "--skills": {
         const v = argv[++i] || "";
@@ -96,6 +99,7 @@ function parse(argv) {
       passthrough,
       enhance,
       enhanceOnly,
+      pick,
       skills,
       variant,
     },
@@ -103,6 +107,9 @@ function parse(argv) {
 }
 
 async function main() {
+  // Ctrl+C:父进程也立即退出,绝不在子进程被取消后继续叠加
+  process.on("SIGINT", () => process.exit(130));
+
   const argv = process.argv.slice(2);
 
   // 顶层 -v / -h 仅在作为首个参数时拦截;子命令的 --help/--version 透传给 trellis
@@ -118,7 +125,8 @@ async function main() {
   const { command, ctx } = parse(argv);
   const cmd = command || "init"; // 裸跑等同 init
 
-  if (enhanceConflict(ctx)) {
+  // 互斥校验
+  if (ctx.enhanceOnly && !ctx.enhance) {
     console.error("❌ --enhance-only 与 --no-enhance 互斥");
     process.exit(2);
   }
@@ -143,11 +151,6 @@ async function main() {
     if (process.env.DEBUG || process.env.FLOWER_DEBUG) console.error(err.stack);
     process.exit(1);
   }
-}
-
-/** --enhance-only 与 --no-enhance 不能同时给(仅对增强命令有意义)。 */
-function enhanceConflict(ctx) {
-  return ctx.enhanceOnly && !ctx.enhance;
 }
 
 main();

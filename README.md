@@ -19,14 +19,17 @@
 ## 用法
 
 ```bash
-# 一键安装(交互选平台 + 自动叠加强化包)
+# 一键安装(默认平台 codex + claude,自动叠加强化包)
 npx flower-trellis init -u your-name
 
-# 非交互安装(-y 跳过所有提示;未指定平台时默认 codex + claude)
-npx flower-trellis init -u your-name -y
+# 自己选平台:进入 Trellis 原生多选菜单
+npx flower-trellis init -u your-name --pick
 
 # 指定平台(透传给 trellis),例如只装 claude
 npx flower-trellis init -u your-name --claude
+
+# 完全非交互(跳过所有提示;平台仍默认 codex + claude)
+npx flower-trellis init -u your-name -y
 
 # 升级 Trellis 并按新版本重新套用强化包
 npx flower-trellis update
@@ -56,7 +59,7 @@ npx flower-trellis -v
 - [x] `uninstall`:透传 `trellis uninstall` + 补删强化包残留
 - [x] 其它 trellis 子命令兜底透传
 - [x] 自动识别 Trellis 版本,选择匹配的强化包 variant(`old / 0.5 / 0.6`)
-- [x] 平台自己选:交互时弹 Trellis 原生多选菜单;`-y` 非交互时默认 codex + claude
+- [x] 平台默认 codex + claude;`--pick` 进 Trellis 原生菜单自选,或传 `--cursor` 等指定
 - [x] 强化 skill 跟随平台铺设(claude→`.claude/skills`,codex/gemini 等→`.agents/skills`)
 - [x] codex 后处理:注释 `config.toml` 的 `[features.multi_agent_v2]`、补全 `hooks.json` 的 `SessionStart`
 - [x] workflow override 幂等注入(先清旧块再注入 + 备份 `.bak`)

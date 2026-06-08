@@ -15,14 +15,14 @@ export async function init(ctx) {
   }
 
   const passthrough = [...ctx.passthrough];
-  // 默认平台:仅在【非交互(-y/--yes)且未指定平台】时补 --codex --claude。
-  // 交互模式(无 -y)下不补 —— 让 Trellis 弹出原生平台多选菜单,由用户自己选。
-  const nonInteractive =
-    passthrough.includes("-y") || passthrough.includes("--yes");
   const hasPlatform = passthrough.some((a) => PLATFORM_FLAGS.includes(a));
-  if (nonInteractive && !hasPlatform) {
+  if (ctx.pick) {
+    // 想用 Trellis 原生平台菜单自选:不补默认平台,把选择权交给 trellis 交互
+    console.log("· --pick:进入 Trellis 平台选择菜单");
+  } else if (!hasPlatform) {
+    // 默认平台 codex + claude(省事);想自选用 --pick,想要其它平台直接传 --cursor 等
     passthrough.push("--codex", "--claude");
-    console.log("· 非交互模式未指定平台,默认使用 --codex --claude");
+    console.log("· 默认平台 codex + claude(加 --pick 可进 Trellis 菜单自选)");
   }
 
   if (!ctx.enhanceOnly) {

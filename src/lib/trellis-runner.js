@@ -41,6 +41,11 @@ export function runTrellis(args, cwd) {
       env: process.env,
     });
     child.on("error", reject);
-    child.on("exit", (code) => resolve(code ?? 0));
+    child.on("exit", (code, signal) => {
+      // 被信号终止(如 Ctrl+C → SIGINT)时 code 为 null;返回非 0,
+      // 让上层中止、绝不把「取消」误判为成功而继续叠加。
+      if (signal) resolve(128);
+      else resolve(code ?? 0);
+    });
   });
 }
