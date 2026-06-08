@@ -59,7 +59,14 @@ export async function init(ctx) {
   }
 
   if (!ctx.enhanceOnly) {
-    const code = await runTrellis(["init", ...passthrough], target);
+    // flower 已接管平台选择,给 trellis 加 -y 让它静默非交互执行,
+    // 并过滤掉它重复打印的启动 banner / Developer(flower 自己已显示品牌头部)。
+    if (!passthrough.includes("-y") && !passthrough.includes("--yes")) {
+      passthrough.push("-y");
+    }
+    const code = await runTrellis(["init", ...passthrough], target, {
+      stripBanner: true,
+    });
     // init 失败必须中止,绝不在半成品上叠加
     if (code !== 0) {
       throw new Error(`trellis init 失败(退出码 ${code}),已中止,未叠加强化包`);
