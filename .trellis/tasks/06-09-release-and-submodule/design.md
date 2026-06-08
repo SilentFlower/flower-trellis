@@ -28,7 +28,7 @@ permissions:
   id-token: write      # OIDC 必需
 jobs.release (ubuntu-latest):
   1. actions/checkout@v4            # 默认:不拉 submodule
-  2. actions/setup-node@v4          # node 20 + registry-url=https://registry.npmjs.org
+  2. actions/setup-node@v4          # node 22(trusted publishing 要求 Node ≥ 22.14.0)+ registry-url
   3. npm i -g npm@latest            # OIDC 需 npm ≥ 11.5.1
   4. npm publish                    # OIDC 自动带 provenance,不设 NODE_AUTH_TOKEN
                                     # 不跑 npm ci:publish 无需依赖,prepublishOnly 的 sync 只用项目源码

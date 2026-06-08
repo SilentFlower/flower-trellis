@@ -30,10 +30,11 @@ jobs:
       - name: 配置 Node 与 npm registry
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: "https://registry.npmjs.org"
 
-      # OIDC Trusted Publishing 需 npm ≥ 11.5.1;Node 20 自带 npm 10.x,需升级
+      # OIDC Trusted Publishing 要求 Node ≥ 22.14.0 且 npm ≥ 11.5.1;
+      # Node 22 自带 npm 10.x,故仍需升级到最新 npm
       - name: 升级 npm 至最新
         run: npm install -g npm@latest
 
