@@ -4,15 +4,11 @@ import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import figlet from "figlet";
+import * as pty from "node-pty";
 
 /**
  * 定位捆绑的 @mindfoldhq/trellis 可执行 bin 的绝对路径。
- *
- * 关键:解析依赖的 `package.json`(必随包发布)再读其 `bin` 字段,
- * 而不是 `require.resolve("@mindfoldhq/trellis")` —— 后者解析的是 main
- * (dist/index.js),不是 CLI 入口。
- *
- * @returns {string} bin 的绝对路径
+ * 解析依赖的 package.json(必随包发布)再读其 bin 字段,而非 main。
  */
 export function resolveTrellisBin() {
   const require = createRequire(import.meta.url);
@@ -45,19 +41,33 @@ function trellisBannerLines() {
 }
 
 /**
- * 用当前 node 执行 trellis bin,透传子命令与参数。
+ * 判断 trellis 输出的一行属于「头部」的哪类:
+ *  - "skip":banner 实体行 / 空行 / 副标题 / Developer / Mode → 过滤掉
+ *  - "keep":proxy 行 → 保留输出,但仍处于头部(继续过滤后续 Mode/Developer)
+ *  - "content":其它 → 头部结束,正文开始
+ */
+function classifyHeaderLine(line, bannerSet) {
+  const plain = stripAnsi(line);
+  const t = plain.trim();
+  const key = plain.replace(/\s+$/, "");
+  if (!t) return "skip";
+  if (bannerSet.has(key)) return "skip";
+  if (t.startsWith("All-in-one AI framework")) return "skip";
+  if (t.startsWith("👤 Developer:")) return "skip";
+  if (t.startsWith("Mode:")) return "skip";
+  if (t.startsWith("Using proxy:")) return "keep";
+  return "content";
+}
+
+/**
+ * 用当前 node 执行 trellis bin(普通 spawn),透传子命令与参数。
  *
- * - 用 `process.execPath` 直接跑 bin 的 .js,不依赖 PATH / .cmd / shebang,跨平台最稳。
- * - 默认 `stdio: "inherit"`:trellis 的交互与输出直达终端,行为与手动运行一致。
- * - 返回退出码(被信号终止返回 128),由调用方决定是否中止后续叠加。
+ * 用于:兜底透传其它命令(inherit);或非交互场景下捕获 stdout 过滤 banner(pipe)。
  *
- * @param {string[]} args trellis 子命令及参数,如 ["init","--claude","-y"]
- * @param {string} cwd 目标项目目录
- * @param {object} [opts]
- * @param {boolean} [opts.stripBanner] 捕获 stdout 并过滤掉 trellis 的启动 banner /
- *   副标题 / Developer / Mode 行(flower 自己已显示品牌头部时用)。要求 trellis 非交互
- *   (调用方需确保已传 -y),否则管道会破坏其交互菜单。
- * @returns {Promise<number>} 子进程退出码
+ * @param {string[]} args
+ * @param {string} cwd
+ * @param {object} [opts] { stripBanner }
+ * @returns {Promise<number>} 退出码(信号终止返回 128)
  */
 export function runTrellis(args, cwd, opts = {}) {
   const bin = resolveTrellisBin();
@@ -66,32 +76,115 @@ export function runTrellis(args, cwd, opts = {}) {
     const child = spawn(process.execPath, [bin, ...args], {
       cwd,
       stdio: strip ? ["inherit", "pipe", "inherit"] : "inherit",
-      // 管道下 chalk 默认不上色;强制上色以保留 trellis 后续输出的颜色
       env: strip ? { ...process.env, FORCE_COLOR: "1" } : process.env,
     });
-
     if (strip && child.stdout) {
       const banner = trellisBannerLines();
       const rl = createInterface({ input: child.stdout });
       rl.on("line", (line) => {
-        const plain = stripAnsi(line);
-        const t = plain.trim();
-        if (!t) return; // 跳过空行(含 banner 周围的彩色空行),输出更紧凑
-        const key = plain.replace(/\s+$/, "");
-        if (banner.has(key)) return; // Trellis banner 实体行
-        if (t.startsWith("All-in-one AI framework")) return; // 副标题
-        if (t.startsWith("👤 Developer:")) return; // 开发者(flower 已显示)
-        if (t.startsWith("Mode:")) return; // -y 的 "Mode: Non-interactive" 提示
+        const kind = classifyHeaderLine(line, banner);
+        // 普通(非 pty)场景一直按行过滤即可:trellis 此时是 -y 非交互,无 inquirer
+        if (kind === "skip") return;
         process.stdout.write(line + "\n");
       });
     }
-
     child.on("error", reject);
     child.on("exit", (code, signal) => {
-      // 被信号终止(如 Ctrl+C → SIGINT)时 code 为 null;返回非 0,
-      // 让上层中止、绝不把「取消」误判为成功而继续叠加。
       if (signal) resolve(128);
       else resolve(code ?? 0);
+    });
+  });
+}
+
+/**
+ * 在伪终端(node-pty)里运行 trellis,**保留其全部交互**(模板 / monorepo / 冲突菜单),
+ * 同时过滤掉它开头重复打印的启动 banner / 副标题 / Developer / Mode。
+ *
+ * 过滤只作用于「头部阶段」:逐行识别 banner 类行并丢弃(proxy 保留),
+ * 一旦遇到正文行或 inquirer 渲染(隐藏光标序列 ESC[?25l)立即停止过滤、转为完全透传,
+ * 以免破坏交互菜单的光标控制。
+ *
+ * @param {string[]} args
+ * @param {string} cwd
+ * @param {object} [opts] { stripBanner }
+ * @returns {Promise<number>} 退出码(信号终止返回 128)
+ */
+export function runTrellisPty(args, cwd, opts = {}) {
+  const bin = resolveTrellisBin();
+  return new Promise((resolve, reject) => {
+    let child;
+    try {
+      child = pty.spawn(process.execPath, [bin, ...args], {
+        name: "xterm-256color",
+        cols: process.stdout.columns || 80,
+        rows: process.stdout.rows || 30,
+        cwd,
+        env: { ...process.env, FORCE_COLOR: "1" },
+      });
+    } catch (e) {
+      reject(e);
+      return;
+    }
+
+    const bannerSet = trellisBannerLines();
+    let filtering = !!opts.stripBanner;
+    let buf = "";
+
+    child.onData((data) => {
+      if (!filtering) {
+        process.stdout.write(data);
+        return;
+      }
+      // inquirer 开始渲染(隐藏光标)→ 立即停止过滤,整体透传,保住交互菜单
+      if (data.includes("\x1b[?25l")) {
+        filtering = false;
+        process.stdout.write(buf + data);
+        buf = "";
+        return;
+      }
+      buf += data;
+      const parts = buf.split(/\r?\n/);
+      buf = parts.pop(); // 末尾不完整行留待下次
+      for (const line of parts) {
+        const kind = classifyHeaderLine(line, bannerSet);
+        if (kind === "skip") continue;
+        if (kind === "keep") {
+          process.stdout.write(line + "\r\n");
+          continue;
+        }
+        filtering = false; // 正文开始
+        process.stdout.write(line + "\r\n");
+      }
+      if (!filtering && buf) {
+        process.stdout.write(buf);
+        buf = "";
+      }
+    });
+
+    // 把真终端的输入转发进 pty(让用户能操作 trellis 的交互菜单)
+    const stdin = process.stdin;
+    const wasRaw = !!stdin.isRaw;
+    if (stdin.isTTY) stdin.setRawMode(true);
+    stdin.resume();
+    const onStdin = (d) => child.write(d.toString("utf8"));
+    stdin.on("data", onStdin);
+
+    const onResize = () => {
+      try {
+        child.resize(process.stdout.columns || 80, process.stdout.rows || 30);
+      } catch {
+        // 忽略 resize 失败
+      }
+    };
+    process.stdout.on("resize", onResize);
+
+    child.onExit(({ exitCode, signal }) => {
+      stdin.off("data", onStdin);
+      if (stdin.isTTY) stdin.setRawMode(wasRaw);
+      stdin.pause();
+      process.stdout.off("resize", onResize);
+      if (signal) resolve(128);
+      else resolve(exitCode ?? 0);
     });
   });
 }

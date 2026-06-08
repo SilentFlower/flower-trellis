@@ -1,36 +1,18 @@
 import fs from "node:fs";
-import { execFileSync } from "node:child_process";
-import { runTrellis } from "../lib/trellis-runner.js";
+import { runTrellisPty } from "../lib/trellis-runner.js";
 import { applyEnhancements } from "../lib/apply-enhancements.js";
 import { pickPlatforms } from "../lib/pick-platforms.js";
-import { printBanner } from "../lib/banner.js";
+import { printBanner, getDeveloper } from "../lib/banner.js";
 import { PLATFORM_FLAGS } from "../constants.js";
-
-/** 解析开发者名:优先 -u/--user 的取值,否则回退到目标仓库的 git config user.name。 */
-function getDeveloper(passthrough, target) {
-  const i = passthrough.findIndex((a) => a === "-u" || a === "--user");
-  if (i >= 0) {
-    const v = passthrough[i + 1];
-    if (v && !v.startsWith("-")) return v;
-  }
-  try {
-    return (
-      execFileSync("git", ["-C", target, "config", "user.name"], {
-        encoding: "utf8",
-      }).trim() || null
-    );
-  } catch {
-    return null;
-  }
-}
 
 /**
  * flower-trellis init:驱动 `trellis init`,随后叠加强化包。
  *
- * 平台选择:
- * - 用户显式传了平台 flag(--claude/--codex/...)→ 原样透传,不弹菜单。
- * - 未传平台 + 交互模式 → 打印品牌头部 + 弹 flower 平台多选菜单(默认勾 codex + claude)。
- * - 未传平台 + 非交互(-y)→ 用默认 codex + claude。
+ * - 非交互(-y):打印简短提示,平台默认 codex + claude(或用户显式平台)。
+ * - 交互:打印 flower 品牌头部;未指定平台则弹 flower 平台多选菜单(默认勾 codex+claude)。
+ *
+ * trellis init 在伪终端(pty)里运行,**保留它原生的模板 / monorepo 等交互**,
+ * 同时由 flower 过滤掉它重复打印的启动 banner / Developer。
  *
  * @param {object} ctx 见 cli.js 的 parse()
  */
@@ -44,14 +26,18 @@ export async function init(ctx) {
   const hasPlatform = passthrough.some((a) => PLATFORM_FLAGS.includes(a));
   const nonInteractive =
     passthrough.includes("-y") || passthrough.includes("--yes");
+
+  // 交互模式打印一次 flower 品牌头部(非交互/脚本场景不打扰)
+  if (!nonInteractive) {
+    printBanner(getDeveloper(passthrough, target));
+  }
+
   if (!hasPlatform) {
     if (nonInteractive) {
       passthrough.push("--codex", "--claude");
       console.log("· 非交互(-y):默认平台 codex + claude");
     } else {
-      // flower 自己出菜单(默认勾 codex + claude);先打印品牌头部。
-      // Trellis 原生菜单默认勾选写死为 claude+cursor,改不了,故由 flower 接管平台选择。
-      printBanner(getDeveloper(passthrough, target));
+      // flower 自己出平台菜单(默认勾 codex + claude),选完转 flag 透传给 trellis
       const picked = await pickPlatforms();
       const flags = picked.length ? picked : ["--codex", "--claude"];
       passthrough.push(...flags);
@@ -59,15 +45,10 @@ export async function init(ctx) {
   }
 
   if (!ctx.enhanceOnly) {
-    // flower 已接管平台选择,给 trellis 加 -y 让它静默非交互执行,
-    // 并过滤掉它重复打印的启动 banner / Developer(flower 自己已显示品牌头部)。
-    if (!passthrough.includes("-y") && !passthrough.includes("--yes")) {
-      passthrough.push("-y");
-    }
-    const code = await runTrellis(["init", ...passthrough], target, {
+    // 伪终端运行:保留 trellis 的模板 / monorepo 交互 + 过滤其重复 banner
+    const code = await runTrellisPty(["init", ...passthrough], target, {
       stripBanner: true,
     });
-    // init 失败必须中止,绝不在半成品上叠加
     if (code !== 0) {
       throw new Error(`trellis init 失败(退出码 ${code}),已中止,未叠加强化包`);
     }
