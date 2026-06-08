@@ -15,7 +15,7 @@
 ## 安装
 
 ```bash
-# 全局安装(推荐),之后可用 flower-trellis 或简写 ftl
+# 全局安装(推荐),之后可用 flower-trellis 或简写 ftl / ft
 npm i -g flower-trellis
 
 # 升级到最新版
@@ -48,7 +48,7 @@ flower-trellis uninstall
 flower-trellis -v
 ```
 
-> 已全局安装时可直接写 `flower-trellis` 或 `ftl`;未安装则在命令前加 `npx`。
+> 已全局安装时可直接写 `flower-trellis`、`ftl` 或 `ft`(三者等价);未安装则在命令前加 `npx`。
 
 ### 命令
 
@@ -69,8 +69,18 @@ flower-trellis -v
 | `--skills <a,b,...>` | 只安装指定技能(可省略 `trellis-` 前缀) |
 | `--variant <old\|0.5\|0.6>` | 强制指定强化包变体(默认按 `.trellis/.version` 自动选) |
 | `--target <dir>` | 目标目录(默认当前目录) |
+| `--no-update-check` | 本次跳过 flower-trellis 新版本检测(等价环境变量 `FLOWER_NO_UPDATE_CHECK=1`) |
 
 未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` 等指定,或用 `-y` 跳过菜单。其余未识别的 flag(如 `-u`、`-f`、`--template`)一律透传给 Trellis。
+
+### 自动版本检测
+
+运行 `init` / `update` 时,flower-trellis 会顺带检测**自身**在 npm 上是否有新版本:
+
+- **联网、尽力而为**:带 2.5s 超时,离线 / 超时 / 失败一律静默跳过,绝不阻断安装/升级主流程。
+- **发现新版**(交互终端):提示并询问是否立即升级;同意则执行 `npm i -g flower-trellis@latest`,成功后请按提示重新运行命令(升级后强化包随新版更新,可再跑一次 `ft update` 重新叠加)。
+- **非交互**(`-y` 或非 TTY):仅打印一行升级提示,不弹确认、不阻塞。
+- **跳过检测**:经 `npx` 运行(本就是最新版)、或显式 `--no-update-check` / `FLOWER_NO_UPDATE_CHECK=1` 时不检测。
 
 ## 工作原理
 

@@ -1,6 +1,7 @@
 import { runTrellisPty } from "../lib/trellis-runner.js";
 import { applyEnhancements } from "../lib/apply-enhancements.js";
 import { printBanner, getDeveloper } from "../lib/banner.js";
+import { checkForUpdate } from "../lib/update-check.js";
 
 /**
  * flower-trellis update:驱动 `trellis update`,随后按(可能已升级的)版本重新叠加强化包。
@@ -16,6 +17,9 @@ export async function update(ctx) {
   const dryRun = ctx.passthrough.includes("--dry-run");
 
   printBanner(getDeveloper(ctx.passthrough, target));
+
+  // 主操作前尽力而为地检测 flower-trellis 自身新版本(失败静默;用户确认升级成功会直接退出)
+  await checkForUpdate(ctx, "update");
 
   if (!ctx.enhanceOnly) {
     const code = await runTrellisPty(["update", ...ctx.passthrough], target, {

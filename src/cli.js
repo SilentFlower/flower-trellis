@@ -42,6 +42,10 @@ flower 自有 flag:
   --skills <a,b,...>       只装指定技能(支持去 trellis- 前缀匹配)
   --variant <old|0.5|0.6>  强制强化包变体(默认按 .trellis/.version 自动选)
   --target <dir>           目标目录(默认当前目录)
+  --no-update-check        本次跳过 flower-trellis 新版本检测(等价 FLOWER_NO_UPDATE_CHECK=1)
+
+命令别名:flower-trellis 可简写为 ftl 或 ft(三者完全等价)。
+init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联网、带超时,失败静默)。
 
 平台选择:未指定平台时,交互模式会弹出多选菜单(默认勾 Claude Code + Codex);
 也可直接传 --claude / --codex / --cursor 等指定,或用 -y 跳过菜单(默认 codex + claude)。
@@ -55,6 +59,7 @@ function parse(argv) {
   let enhanceOnly = false;
   let variant = null;
   let target = process.cwd();
+  let updateCheck = true;
   const skills = [];
   const passthrough = [];
 
@@ -83,6 +88,9 @@ function parse(argv) {
       case "--target":
         target = path.resolve(argv[++i] || ".");
         break;
+      case "--no-update-check":
+        updateCheck = false;
+        break;
       default:
         passthrough.push(a);
     }
@@ -97,6 +105,7 @@ function parse(argv) {
       enhanceOnly,
       skills,
       variant,
+      updateCheck,
     },
   };
 }

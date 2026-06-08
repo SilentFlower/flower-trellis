@@ -47,4 +47,5 @@ export const OWN_FLAGS = {
   "--skills": true,
   "--variant": true,
   "--target": true,
+  "--no-update-check": false,
 };

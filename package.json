@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {
     "flower-trellis": "./bin/flower-trellis.js",
-    "ftl": "./bin/flower-trellis.js"
+    "ftl": "./bin/flower-trellis.js",
+    "ft": "./bin/flower-trellis.js"
   },
   "engines": {
     "node": ">=18.17.0"

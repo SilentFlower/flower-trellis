@@ -45,6 +45,38 @@ flower-trellis 自身几乎无内存态:配置是一组**集中常量**,运行�
 
 ---
 
+## Network Probe (尽力而为联网探测)
+
+> flower 自身几乎零网络依赖;**唯一**的对外探测是 `init` / `update` 启动时查 npm 上
+> flower-trellis 自身的最新版(`src/lib/update-check.js`)。任何联网探测都必须「尽力而为」:
+> 带超时、失败静默、**绝不阻断主流程**。这是「Version Reading」降级约定在网络场景的延伸。
+
+- **签名 / 契约**:`fetchLatestVersion(): Promise<string|null>` —— 成功返回版本串,
+  **任何失败一律 `null`**(调用方据此「拿不到就当没这回事」继续)。请求
+  `GET https://registry.npmjs.org/flower-trellis/latest`,读 `.version`。
+- **超时**:用 `AbortController` + `setTimeout(ac.abort, 2500)`,`signal` 传入内置 `fetch`;
+  `finally` 里 `clearTimeout` 防句柄泄漏(否则 timer 可能拖住进程不退出)。
+- **三道防线 → `null`**:① `!res.ok`(非 200);② `catch`(AbortError 超时 / `fetch failed`
+  离线 / JSON 解析失败);③ 字段类型不符(`typeof json.version !== "string"`)。
+- **编排短路**:`checkForUpdate(ctx, label)` 顺序短路——关闭开关
+  (`ctx.updateCheck===false` 或 `process.env.FLOWER_NO_UPDATE_CHECK` 非空)→ npx
+  (`isRunningViaNpx()`,路径含 `_npx`)→ 探测失败 → 已最新,任一命中即静默返回。
+- **不引重依赖**:不引 `update-notifier` / `semver`;版本比较自己拆三段数值(比较对象是
+  `latest` dist-tag,天然规避预发布),与 `variant.js`「剥 `-beta.x` 再比数值」一致。
+
+| 失败条件 | 行为 |
+|---|---|
+| 离线 / DNS 失败 / 超时(>2.5s) | `catch` → `null` → 不打印,主流程继续 |
+| 非 200(404/5xx) | `null` → 静默 |
+| 响应无 `version` 字段 | `null` → 静默 |
+| 关闭开关 / npx | 不发请求,直接返回 |
+
+**Wrong**:`const v = (await fetch(url)).json(); return v.version;` —— 无超时(离线时挂起)、
+无 try/catch(失败抛进 init/update 主流程)、无字段校验。
+**Correct**:见 `src/lib/update-check.js#fetchLatestVersion`(AbortController + 三道防线 + `finally` 清 timer)。
+
+---
+
 ## Variant Selection (`src/lib/variant.js`)
 
 - `selectVariant(target)` 读目标 `.trellis/.version` → 返回 `{ variant, version }`。
@@ -73,4 +105,6 @@ flower 自己的安装清单,是「精确升级清理」的依据:
 - 在多个模块各自重算包根路径 —— 应统一用 `paths.js` 的 `PKG_ROOT` / `ENHANCEMENTS_ROOT`。
 - 新增自有 flag 只改了 `parse()` 没更 `OWN_FLAGS`(或反之)—— 两处必须同步。
 - 把版本/manifest 读取失败当致命错误抛出 —— 这类应容错降级。
+- 联网探测(版本检测)漏写超时或 try/catch —— 离线时会挂起或把错误抛进主流程,见
+  [Network Probe](#network-probe-尽力而为联网探测)。
 - 凭 manifest 之外的猜测去删除目标文件 —— 清理只认 manifest 里的精确 `paths`。

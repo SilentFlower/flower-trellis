@@ -3,6 +3,7 @@ import { runTrellisPty } from "../lib/trellis-runner.js";
 import { applyEnhancements } from "../lib/apply-enhancements.js";
 import { pickPlatforms } from "../lib/pick-platforms.js";
 import { printBanner, getDeveloper } from "../lib/banner.js";
+import { checkForUpdate } from "../lib/update-check.js";
 import { PLATFORM_FLAGS } from "../constants.js";
 
 /**
@@ -31,6 +32,10 @@ export async function init(ctx) {
   if (!nonInteractive) {
     printBanner(getDeveloper(passthrough, target));
   }
+
+  // 主操作前尽力而为地检测 flower-trellis 自身新版本(失败静默;用户确认升级成功会直接退出)
+  // 放在平台菜单之前:若用户选择升级,不必先让他挑完平台再退出做无用功
+  await checkForUpdate(ctx, "init");
 
   if (!hasPlatform) {
     if (nonInteractive) {
