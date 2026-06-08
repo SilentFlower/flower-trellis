@@ -52,6 +52,7 @@ npx flower-trellis -v
 - [x] 自动识别 Trellis 版本,选择匹配的强化包 variant(`old / 0.5 / 0.6`)
 - [x] 强化 skill 双铺到 `.claude/skills` 与 `.agents/skills`
 - [x] workflow override 幂等注入(先清旧块再注入 + 备份 `.bak`)
+- [x] 升级时清理过期强化项(`0.5`/`old` → `0.6` 自动删除淘汰的 skill/command,基于 flower manifest,只删自己铺过的)
 - [x] `-v` 同时打印 flower-trellis 与捆绑 Trellis 版本
 - [x] 幂等执行:重复运行安全
 

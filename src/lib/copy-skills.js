@@ -22,10 +22,13 @@ function shouldInstall(name, skills) {
  *
  * 目标三个目录一律先 mkdir -p(不假设 trellis init 已建)。
  *
- * @returns {string[]} 实际铺设的条目名(去重)
+ * @returns {{ installed: string[], paths: string[] }}
+ *   installed: 实际铺设的条目名(去重,用于显示)
+ *   paths: 实际铺设文件的相对 posix 路径(用于 manifest 与升级清理)
  */
 export function copySkills(target, variantDir, variant, skills) {
   const installed = new Set();
+  const paths = [];
 
   const agentsSrc = path.join(variantDir, ".agents", "skills");
   const claudeSrc = path.join(variantDir, ".claude", "skills");
@@ -42,6 +45,7 @@ export function copySkills(target, variantDir, variant, skills) {
       path.join(target, ".agents", "skills", name),
     );
     installed.add(name);
+    paths.push(`.agents/skills/${name}`);
   }
 
   // .claude/skills/<name>/ —— 0.5/0.6 源自带;old 用 .agents 镜像
@@ -54,6 +58,7 @@ export function copySkills(target, variantDir, variant, skills) {
       path.join(target, ".claude", "skills", name),
     );
     installed.add(name);
+    paths.push(`.claude/skills/${name}`);
   }
 
   // .claude/commands/trellis/*.md(old 变体)
@@ -68,8 +73,9 @@ export function copySkills(target, variantDir, variant, skills) {
         path.join(target, ".claude", "commands", "trellis", file),
       );
       installed.add(name);
+      paths.push(`.claude/commands/trellis/${file}`);
     }
   }
 
-  return [...installed];
+  return { installed: [...installed], paths };
 }

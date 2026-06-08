@@ -5,16 +5,37 @@ import { ENHANCEMENTS_ROOT } from "./paths.js";
 import { VARIANTS } from "../constants.js";
 import { copySkills } from "./copy-skills.js";
 import { injectWorkflow } from "./workflow-inject.js";
+import { readManifest, writeManifest } from "./manifest.js";
+import { rmrf } from "./fs-utils.js";
+
+/** 清理升级后可能变空的强化目录(深 → 浅)。 */
+function pruneEmptyDirs(target) {
+  for (const d of [
+    ".agents/skills",
+    ".agents",
+    ".claude/commands/trellis",
+    ".claude/commands",
+  ]) {
+    const abs = path.join(target, ...d.split("/"));
+    try {
+      if (fs.readdirSync(abs).length === 0) fs.rmdirSync(abs);
+    } catch {
+      // 不存在或非空,忽略
+    }
+  }
+}
 
 /**
  * 叠加强化包 —— init / update 共享。
  *
- * 流程:校验是 Trellis 项目 → 选变体 → 铺 skill → 注入 workflow override。
+ * 流程:校验是 Trellis 项目 → 选变体 → 铺 skill → 升级清理(删过期)→ 注入 workflow。
+ *
+ * 升级清理:用 flower manifest 记录上次全装铺过的精确路径,本次全装时删除
+ * 「上次有、这次变体不含」的过期项(覆盖 0.5/old → 0.6 升级)。仅全装(无 --skills)
+ * 时维护 manifest 与清理;带 --skills 为精细操作,不动 manifest、不清理。
  *
  * @param {string} target 目标项目根
- * @param {object} [opts]
- * @param {string} [opts.variant] 强制变体(覆盖按版本自动选择)
- * @param {string[]} [opts.skills] 技能名过滤;空=全装
+ * @param {object} [opts] { variant?, skills?[] }
  * @returns {{variant: string, installed: string[]}}
  */
 export function applyEnhancements(target, opts = {}) {
@@ -44,10 +65,39 @@ export function applyEnhancements(target, opts = {}) {
   );
 
   const skills = opts.skills || [];
-  const installed = copySkills(target, variantDir, variant, skills);
+  const { installed, paths: newPaths } = copySkills(
+    target,
+    variantDir,
+    variant,
+    skills,
+  );
   console.log(
     `  ✓ 铺设 ${installed.length} 个强化技能 → .claude/skills + .agents/skills`,
   );
+
+  // 升级清理 + manifest(仅全装时维护)
+  if (skills.length === 0) {
+    const old = readManifest(target);
+    if (old && Array.isArray(old.paths)) {
+      const keep = new Set(newPaths);
+      const stale = old.paths.filter((p) => !keep.has(p));
+      let removed = 0;
+      for (const rel of stale) {
+        const abs = path.join(target, ...rel.split("/"));
+        if (fs.existsSync(abs)) {
+          rmrf(abs);
+          removed++;
+        }
+      }
+      if (removed > 0) {
+        console.log(
+          `  ✓ 清理 ${removed} 个过期强化项(${old.variant || "?"} → ${variant})`,
+        );
+        pruneEmptyDirs(target);
+      }
+    }
+    writeManifest(target, { variant, version, skills: installed, paths: newPaths });
+  }
 
   // workflow 注入:无过滤名(全装)或显式指定 workflow-enhancement/finish-work-enhancement 时执行
   const wantWorkflow =
