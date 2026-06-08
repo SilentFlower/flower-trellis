@@ -1,0 +1,109 @@
+{
+  "syncedAt": "2026-06-08T08:52:14.748Z",
+  "syncedFrom": "/root/project/skill-garden/.trellis",
+  "sourceCommit": "824727cb279202c65bb653529fc84f5e135c25e2",
+  "variants": {
+    "old": {
+      "claudeSkills": [],
+      "agentsSkills": [
+        "analyze-task",
+        "check-all",
+        "check-impl",
+        "check-prd",
+        "check-prd-impl",
+        "create-prd",
+        "draw-uml",
+        "plan-version",
+        "push",
+        "re-implement",
+        "sync-prd"
+      ],
+      "commands": [
+        "analyze-task.md",
+        "check-all.md",
+        "check-impl.md",
+        "check-prd-impl.md",
+        "check-prd.md",
+        "create-prd.md",
+        "draw-uml.md",
+        "plan-version.md",
+        "push.md",
+        "re-implement.md",
+        "sync-prd.md"
+      ],
+      "overrides": [],
+      "workflowStates": []
+    },
+    "0.5": {
+      "claudeSkills": [
+        "trellis-analyze-task",
+        "trellis-check-all",
+        "trellis-create-command",
+        "trellis-create-prd",
+        "trellis-draw-uml",
+        "trellis-migrate-skill",
+        "trellis-plan-version",
+        "trellis-push",
+        "trellis-re-implement",
+        "trellis-route",
+        "trellis-run-full-chain",
+        "trellis-sync-prd",
+        "trellis-verify-prd"
+      ],
+      "agentsSkills": [
+        "trellis-analyze-task",
+        "trellis-check-all",
+        "trellis-create-command",
+        "trellis-create-prd",
+        "trellis-draw-uml",
+        "trellis-migrate-skill",
+        "trellis-plan-version",
+        "trellis-push",
+        "trellis-re-implement",
+        "trellis-route",
+        "trellis-run-full-chain",
+        "trellis-sync-prd",
+        "trellis-verify-prd"
+      ],
+      "commands": [],
+      "overrides": [
+        "trellis-route.md"
+      ],
+      "workflowStates": []
+    },
+    "0.6": {
+      "claudeSkills": [
+        "trellis-check-all",
+        "trellis-create-command",
+        "trellis-draw-uml",
+        "trellis-extract-prd",
+        "trellis-plan-version",
+        "trellis-push",
+        "trellis-route",
+        "trellis-run-full-chain",
+        "trellis-verify-task"
+      ],
+      "agentsSkills": [
+        "trellis-check-all",
+        "trellis-create-command",
+        "trellis-draw-uml",
+        "trellis-extract-prd",
+        "trellis-plan-version",
+        "trellis-push",
+        "trellis-route",
+        "trellis-run-full-chain",
+        "trellis-verify-task"
+      ],
+      "commands": [],
+      "overrides": [
+        "workflow.md"
+      ],
+      "workflowStates": [
+        "in_progress-inline.md",
+        "in_progress.md",
+        "no_task.md",
+        "planning.md"
+      ]
+    }
+  }
+}
