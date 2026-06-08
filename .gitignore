@@ -33,6 +33,15 @@ temp/
 test-target/
 *.local
 
+# 防止在本仓库根目录误跑 (flower-)trellis init 产生的自测产物被提交。
+# 本项目是工具本身、不是 trellis 项目;用根锚定 `/` 仅匹配仓库根,
+# 不影响 enhancements/ 下打包的 .claude / .agents 快照。
+/.trellis/
+/.claude/
+/.agents/
+/.codex/
+/AGENTS.md
+
 # ===== 环境与密钥 =====
 .env
 .env.*
