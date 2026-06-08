@@ -1,0 +1,42 @@
+# ===== 操作系统 =====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ===== 编辑器 / IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ===== 日志与临时文件 =====
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+tmp/
+temp/
+.cache/
+
+# ===== 本地测试 / 安装产物 =====
+# 脚本运行时 clone 的临时仓库、下载缓存、本地测试目标目录
+.trellis-tmp/
+test-target/
+*.local
+
+# ===== 环境与密钥 =====
+.env
+.env.*
+!.env.example
+
+# ===== 依赖(若后续引入 Node 工具链) =====
+node_modules/
