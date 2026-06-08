@@ -71,8 +71,12 @@ export function applyEnhancements(target, opts = {}) {
     variant,
     skills,
   );
+  const where = [];
+  if (newPaths.some((p) => p.startsWith(".claude/skills"))) where.push(".claude/skills");
+  if (newPaths.some((p) => p.startsWith(".agents/skills"))) where.push(".agents/skills");
+  if (newPaths.some((p) => p.startsWith(".claude/commands"))) where.push(".claude/commands/trellis");
   console.log(
-    `  ✓ 铺设 ${installed.length} 个强化技能 → .claude/skills + .agents/skills`,
+    `  ✓ 铺设 ${installed.length} 个强化技能 → ${where.join(" + ") || "(无平台目录)"}`,
   );
 
   // 升级清理 + manifest(仅全装时维护)

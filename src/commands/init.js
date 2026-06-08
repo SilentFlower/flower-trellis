@@ -15,10 +15,10 @@ export async function init(ctx) {
   }
 
   const passthrough = [...ctx.passthrough];
-  // 默认平台(决策2):未显式指定任何平台 flag 时补 --claude
+  // 默认平台:未显式指定任何平台 flag 时,默认 codex + claude(平台仍可自己选,透传给 trellis)
   if (!passthrough.some((a) => PLATFORM_FLAGS.includes(a))) {
-    passthrough.push("--claude");
-    console.log("· 未指定平台,默认使用 --claude");
+    passthrough.push("--codex", "--claude");
+    console.log("· 未指定平台,默认使用 --codex --claude");
   }
 
   if (!ctx.enhanceOnly) {
