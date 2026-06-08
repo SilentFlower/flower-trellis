@@ -5,6 +5,7 @@ import { ENHANCEMENTS_ROOT } from "./paths.js";
 import { VARIANTS } from "../constants.js";
 import { copySkills } from "./copy-skills.js";
 import { injectWorkflow } from "./workflow-inject.js";
+import { applyCodexTweaks } from "./codex-tweaks.js";
 import { readManifest, writeManifest } from "./manifest.js";
 import { rmrf } from "./fs-utils.js";
 
@@ -117,6 +118,15 @@ export function applyEnhancements(target, opts = {}) {
     } else {
       console.log(`  ✓ workflow.md 已注入强化块(${r.action})${r.backupNote}`);
     }
+  }
+
+  // codex 平台后处理:注释 config.toml 的 multi_agent_v2 + 挂上 SessionStart hook(仅当 .codex/ 存在)
+  const codex = applyCodexTweaks(target);
+  if (codex.applied) {
+    const seg = codex.tomlChanged
+      ? "config.toml 已注释 multi_agent_v2"
+      : "config.toml(multi_agent_v2 已是注释态)";
+    console.log(`  ✓ codex 调整:${seg};hooks.json = SessionStart + UserPromptSubmit`);
   }
 
   return { variant, installed };

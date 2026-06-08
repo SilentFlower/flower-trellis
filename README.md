@@ -19,8 +19,11 @@
 ## 用法
 
 ```bash
-# 在当前项目里一键安装(默认 codex + claude,平台可自己选;自动叠加强化包)
+# 一键安装(交互选平台 + 自动叠加强化包)
 npx flower-trellis init -u your-name
+
+# 非交互安装(-y 跳过所有提示;未指定平台时默认 codex + claude)
+npx flower-trellis init -u your-name -y
 
 # 指定平台(透传给 trellis),例如只装 claude
 npx flower-trellis init -u your-name --claude
@@ -53,7 +56,9 @@ npx flower-trellis -v
 - [x] `uninstall`:透传 `trellis uninstall` + 补删强化包残留
 - [x] 其它 trellis 子命令兜底透传
 - [x] 自动识别 Trellis 版本,选择匹配的强化包 variant(`old / 0.5 / 0.6`)
-- [x] 平台自己选,默认 codex + claude;强化 skill 跟随平台铺设(claude→`.claude/skills`,codex/gemini 等→`.agents/skills`)
+- [x] 平台自己选:交互时弹 Trellis 原生多选菜单;`-y` 非交互时默认 codex + claude
+- [x] 强化 skill 跟随平台铺设(claude→`.claude/skills`,codex/gemini 等→`.agents/skills`)
+- [x] codex 后处理:注释 `config.toml` 的 `[features.multi_agent_v2]`、补全 `hooks.json` 的 `SessionStart`
 - [x] workflow override 幂等注入(先清旧块再注入 + 备份 `.bak`)
 - [x] 升级时清理过期强化项(`0.5`/`old` → `0.6` 自动删除淘汰的 skill/command,基于 flower manifest,只删自己铺过的)
 - [x] `-v` 同时打印 flower-trellis 与捆绑 Trellis 版本
