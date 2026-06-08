@@ -1,0 +1,55 @@
+# 发布工作流:推送 vX.Y.Z tag 时触发,发布到 npm(OIDC + provenance)并创建 GitHub Release。
+#
+# 职责边界:版本号与 CHANGELOG 由本地 `npm run release`(commit-and-tag-version)生成并经人工
+# 把关,这里只做「发出去」的机械动作。本地 push tag 即触发本流程。
+#
+# 一次性前置(否则首次 npm publish 会因缺少可信发布者而失败):
+#   在 npmjs.com 的本包设置里配置 Trusted Publisher,绑定 SilentFlower/flower-trellis 仓库
+#   与本 workflow 文件(release.yml)。配好后无需任何 NPM_TOKEN。
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # 创建 GitHub Release
+  id-token: write # npm OIDC Trusted Publishing 签发短时令牌(provenance 必需)
+
+jobs:
+  release:
+    # 仅在主仓库触发,避免 fork 推 tag 误跑发布
+    if: github.repository == 'SilentFlower/flower-trellis'
+    runs-on: ubuntu-latest
+    steps:
+      # 不拉 submodule:发布只依赖已提交的 enhancements/ 快照(prepublishOnly 的 sync 会幂等跳过)
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 配置 Node 与 npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      # OIDC Trusted Publishing 需 npm ≥ 11.5.1;Node 20 自带 npm 10.x,需升级
+      - name: 升级 npm 至最新
+        run: npm install -g npm@latest
+
+      # 不跑 npm ci:publish 只需源码 + prepublishOnly 的 sync(仅用项目内 src/lib + node 内置,
+      # 无外部依赖),省去 node-pty 等原生模块在 CI 的编译,更快更稳。
+      # OIDC 模式自动带 provenance,无需 --provenance,也无需 NODE_AUTH_TOKEN
+      - name: 发布到 npm
+        run: npm publish
+
+      - name: 从 CHANGELOG 抽取本版本段落作为 Release notes
+        run: node scripts/extract-changelog.mjs "${GITHUB_REF_NAME}" "${RUNNER_TEMP}/release-notes.md"
+
+      - name: 创建 GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          --title "${GITHUB_REF_NAME}"
+          --notes-file "${RUNNER_TEMP}/release-notes.md"
