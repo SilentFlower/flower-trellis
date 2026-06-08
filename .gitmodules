@@ -1,0 +1,3 @@
+[submodule "vendor/skill-garden"]
+	path = vendor/skill-garden
+	url = https://github.com/SilentFlower/skill-garden.git

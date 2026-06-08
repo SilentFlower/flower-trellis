@@ -16,17 +16,29 @@ import { listDirs, listFiles } from "../src/lib/fs-utils.js";
 const here = path.dirname(fileURLToPath(import.meta.url)); // scripts/
 const PKG_ROOT = path.resolve(here, "..");
 
-// 源:skill-garden 的 .trellis 目录(可由环境变量覆盖 skill-garden 根)
+// 源:skill-garden 的 .trellis 目录。路径三级解析(优先级从高到低):
+//   1. SKILL_GARDEN_DIR 环境变量 —— 显式覆盖,保留逃生通道(如独立 clone 的旧布局)
+//   2. 仓库内 submodule vendor/skill-garden —— 默认源,跟随仓库走,换机/CI 稳定
+//   3. 两者都无 .trellis 源 —— 视快照是否已存在,决定「幂等跳过」或「报错中止」
 const GARDEN_ROOT = process.env.SKILL_GARDEN_DIR
   ? path.resolve(process.env.SKILL_GARDEN_DIR)
-  : "/root/project/skill-garden";
+  : path.join(PKG_ROOT, "vendor", "skill-garden");
 const SRC = path.join(GARDEN_ROOT, ".trellis");
 const DST = path.join(PKG_ROOT, "enhancements");
+const MANIFEST_PATH = path.join(DST, "MANIFEST.json");
 const VARIANTS = ["old", "0.5", "0.6"];
 
 if (!fs.existsSync(SRC)) {
+  // CI 幂等:源不可用(如 CI 未拉 submodule)但快照已提交 → 沿用快照、跳过重建。
+  // 这让 prepublishOnly 在「快照已提交、发布不拉 submodule」的 CI 场景下不致失败。
+  if (fs.existsSync(MANIFEST_PATH)) {
+    console.log(`⚠ 跳过 sync:未找到强化包源(${SRC}),沿用已提交的 enhancements/ 快照`);
+    process.exit(0);
+  }
+  // 既无源又无快照 —— 真正的异常,明确报错并给出可执行修复指引。
   console.error(`❌ 找不到强化包源目录:${SRC}`);
-  console.error("   请确认 skill-garden 路径,或设置 SKILL_GARDEN_DIR 环境变量。");
+  console.error("   请执行 git submodule update --init --recursive 拉取 vendor/skill-garden,");
+  console.error("   或设置 SKILL_GARDEN_DIR 指向 skill-garden 根。");
   process.exit(1);
 }
 
@@ -46,7 +58,9 @@ try {
 
 const manifest = {
   syncedAt: new Date().toISOString(),
-  syncedFrom: SRC,
+  // 记录相对仓库根的 POSIX 路径,避免把维护者机器的绝对路径写进随包发布的快照
+  // (换机/CI sync 后 MANIFEST 的路径部分保持一致;真正的溯源锚点是 sourceCommit)。
+  syncedFrom: path.relative(PKG_ROOT, SRC).split(path.sep).join("/"),
   sourceCommit,
   variants: {},
 };
@@ -91,10 +105,7 @@ for (const v of VARIANTS) {
   );
 }
 
-fs.writeFileSync(
-  path.join(DST, "MANIFEST.json"),
-  JSON.stringify(manifest, null, 2) + "\n",
-);
+fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2) + "\n");
 
 console.log(`\n强化包快照已生成 → ${DST}`);
 if (sourceCommit) console.log(`源 commit: ${sourceCommit}`);
