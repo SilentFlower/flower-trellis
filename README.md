@@ -19,16 +19,13 @@
 ## 用法
 
 ```bash
-# 一键安装(默认平台 codex + claude,自动叠加强化包)
+# 交互安装:flower 平台菜单(默认勾 codex + claude)→ Trellis 原生模板/monorepo 菜单
 npx flower-trellis init -u your-name
 
-# 自己选平台:进入 Trellis 原生多选菜单
-npx flower-trellis init -u your-name --pick
-
-# 指定平台(透传给 trellis),例如只装 claude
+# 指定平台(透传 trellis,跳过平台菜单),例如只装 claude
 npx flower-trellis init -u your-name --claude
 
-# 完全非交互(跳过所有提示;平台仍默认 codex + claude)
+# 完全非交互(平台默认 codex + claude;模板用空白默认)
 npx flower-trellis init -u your-name -y
 
 # 升级 Trellis 并按新版本重新套用强化包
@@ -48,22 +45,37 @@ npx flower-trellis <任意 trellis 命令>
 npx flower-trellis -v
 ```
 
+## 交互流程(`init`)
+
+```
+🌸 FLOWER 品牌头部(ASCII logo + 👤 Developer)
+   ↓
+? 选择 AI 工具(flower 菜单,默认勾 Claude Code + Codex)
+   ↓
+? Select a spec template / monorepo 识别 …(Trellis 原生交互,原样保留)
+   ↓
+叠加 skill-garden 强化包 + codex 后处理 → 完成
+```
+
+全程**只有 flower 一个 banner**:Trellis 子进程在伪终端(node-pty)里运行,
+它原生的模板 / monorepo / 冲突等交互完整保留,而它重复打印的启动 banner / Developer 被过滤掉。
+
 ## 状态
 
-✅ **可用** —— 核心功能已实现,端到端验证通过(0.5 / 0.6 两条 variant、跟随平台、幂等、update、uninstall、打包)。当前捆绑 Trellis `0.6.0-beta.8`。
+✅ **可用** —— 核心功能已实现并端到端验证。当前捆绑 Trellis `0.6.0-beta.8`。
 
 ## 功能
 
-- [x] `init`:调用 `trellis init` + 自动叠加强化包
-- [x] `update`:调用 `trellis update` + 按新版本重新叠加
-- [x] `uninstall`:透传 `trellis uninstall` + 补删强化包残留
-- [x] 其它 trellis 子命令兜底透传
+- [x] `init` / `update` / `uninstall`,其它 trellis 子命令兜底透传
+- [x] flower 品牌 banner(`init` 交互 + `update`)
+- [x] flower 平台多选菜单,默认勾 **codex + claude**;或 `-y` 用默认、传 `--claude/--codex/--cursor` 等指定
+- [x] 用 **node-pty** 在伪终端运行 trellis,完整保留其模板 / monorepo / 冲突等原生交互,同时过滤掉重复 banner / Developer
 - [x] 自动识别 Trellis 版本,选择匹配的强化包 variant(`old / 0.5 / 0.6`)
-- [x] 平台默认 codex + claude;`--pick` 进 Trellis 原生菜单自选,或传 `--cursor` 等指定
 - [x] 强化 skill 跟随平台铺设(claude→`.claude/skills`,codex/gemini 等→`.agents/skills`)
 - [x] codex 后处理:注释 `config.toml` 的 `[features.multi_agent_v2]`、补全 `hooks.json` 的 `SessionStart`
 - [x] workflow override 幂等注入(先清旧块再注入 + 备份 `.bak`)
-- [x] 升级时清理过期强化项(`0.5`/`old` → `0.6` 自动删除淘汰的 skill/command,基于 flower manifest,只删自己铺过的)
+- [x] 升级时清理过期强化项(`0.5`/`old` → `0.6` 删除淘汰的 skill/command,基于 flower manifest,只删自己铺过的)
+- [x] `Ctrl+C` 安全中止(取消时不会继续叠加)
 - [x] `-v` 同时打印 flower-trellis 与捆绑 Trellis 版本
 - [x] 幂等执行:重复运行安全
 
@@ -82,6 +94,16 @@ npx flower-trellis -v
 3. **升级清理**:跨 variant / 跨快照版本删除淘汰的 skill / command。
 
 > ⚠️ **维护约束**:`workflow.md` 的 strip 依赖 `src/lib/workflow-inject.js` 里硬编码的 sentinel 名单。改现有块的**内容**无需动名单;但 skill-garden **新增一种 workflow 块类型**(新的 `BEGIN/END` 名)时,必须同步更新该名单,否则旧块清不掉。
+
+## 开发
+
+```bash
+npm install                 # 安装依赖
+npm run sync                # 从 skill-garden 同步强化包快照到 enhancements/
+node bin/flower-trellis.js init -u you --target /某测试目录   # 本地试跑(勿在本仓库根直接 init)
+```
+
+运行时依赖:`@mindfoldhq/trellis`(捆绑的 Trellis 本体)、`node-pty`(伪终端,保留 trellis 交互)、`inquirer`(平台菜单)、`figlet` + `chalk`(banner)。
 
 ## 相关项目
 
