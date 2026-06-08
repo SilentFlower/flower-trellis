@@ -174,18 +174,20 @@ Check routing has no 4h preference file. Before `trellis-check`, `trellis-check-
 
 #### Finish-work Bookkeeping Guard
 
-`session_auto_commit` only controls script-managed bookkeeping commits for Trellis task archives and workspace journals. It does not disable Phase 3.4 code-work commits that the user explicitly confirms.
+`session_auto_commit` governs ONLY the script-managed bookkeeping commits that `task.py archive` and `add_session.py` make for their own files (`.trellis/tasks/**` archive moves and `.trellis/workspace/**` journal/index). It is NOT a global auto-commit switch, and it has NO authority over code commits.
 
-If `.trellis/config.yaml` contains `session_auto_commit: false`, finish-work must treat archive and journal writes as disk-only bookkeeping:
+Code commits always belong to Phase 3.4: the agent drafts the batched commit plan and commits only after the user confirms — in EVERY case, whether `session_auto_commit` is `true` or `false`. Never treat `session_auto_commit: true` as permission to auto-commit code, to skip the Phase 3.4 confirmation prompt, or to commit any path outside the two scripts' own bookkeeping files. The two are independent: this switch never decides whether code is committed, and it never decides whether to ask first.
+
+When `session_auto_commit: true` (the default): `task.py archive` produces a `chore(task): archive ...` commit and `add_session.py` produces a `chore: record journal` commit, each touching only its own bookkeeping files. Code stays dirty for the Phase 3.4 plan.
+
+When `.trellis/config.yaml` sets `session_auto_commit: false`, finish-work must treat archive and journal writes as disk-only bookkeeping:
 
 - Running `python3 ./.trellis/scripts/task.py archive <task>` may move task files, but must not be described as producing a `chore(task): archive ...` commit.
 - Running `python3 ./.trellis/scripts/add_session.py ...` may write workspace journal/index files, but must not be described as producing a `chore: record journal` commit.
 - Do not run a compensating `git add` / `git commit` for `.trellis/tasks/**` or `.trellis/workspace/**` just because those scripts skipped auto-commit.
 - Report the resulting `.trellis/tasks/**` and `.trellis/workspace/**` dirty paths to the user as bookkeeping changes for manual review.
 
-Phase 3.4 code-work commits are unchanged. If code files from the task are dirty, the agent may still present the normal one-shot commit plan and commit only after the user confirms.
-
-This guard only prevents archive/journal bookkeeping commits from being forced when `session_auto_commit: false`.
+This guard scopes `session_auto_commit` to the two bookkeeping commits above; Phase 3.4 code-work commits stay confirmation-gated regardless of its value.
 
 #### Push Progress Recovery / Snapshot
 
@@ -225,6 +227,8 @@ HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (no_task):
 Creating/resuming a task is not implementation permission.
 After PRD ready and task started, next implementation action = `trellis-route(implement)`.
 If no active task exists, scan `.trellis/tasks/*/task.json` once per session for in-progress tasks with `last_push_snapshot`; surface completed_steps + next_step and suggest rebinding the active task before resuming.
+Do NOT use the harness built-in plan mode (`EnterPlanMode` / `ExitPlanMode`) as a substitute for this gate. Planning is Trellis-only: classify the turn, ask for task-creation consent, then `trellis-brainstorm` for complex work.
+If the turn is a meta edit to Trellis itself (Trellis tracking would be overkill), say so and ask to skip Trellis — never silently swap built-in plan mode in for the consent gate.
 <!-- END skill-garden workflow-state no_task v0.6 -->
 
 No active task. First classify the current turn and ask for task-creation consent before creating any Trellis task.
