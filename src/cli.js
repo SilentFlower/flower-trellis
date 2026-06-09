@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { flowerVersion, trellisVersion } from "./lib/versions.js";
 import { selectVariant } from "./lib/variant.js";
+import { readManifest } from "./lib/manifest.js";
 import { runTrellis } from "./lib/trellis-runner.js";
 
 /**
@@ -21,6 +22,10 @@ function printVersion(cwd) {
       const { version } = selectVariant(cwd);
       if (version) console.log(`project .trellis  ${version}`);
     }
+    // 项目里 flower 上次铺包时戳入的自身版本(来自 .flower-manifest.json);
+    // 与首行「当前工具版本」对比即可看出该项目是否需要重新 update。
+    const mf = readManifest(cwd);
+    if (mf && mf.flowerVersion) console.log(`project flower    ${mf.flowerVersion}`);
   } catch {
     // 忽略:版本读取失败不应影响 -v 输出
   }
