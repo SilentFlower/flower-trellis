@@ -110,3 +110,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: 修复平台多选菜单 WSL 闪屏:迁移 @inquirer/prompts
+
+**Date**: 2026-06-09
+**Task**: 修复平台多选菜单 WSL 闪屏:迁移 @inquirer/prompts
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+将 ft init 平台多选(checkbox)与升级确认(confirm)从经典 inquirer 迁移到 @inquirer/prompts(@inquirer/core 增量重绘内核),并移除经典 inquirer 依赖,消除 WSL2/ConPTY 下上下切换平台的整屏闪烁。伪终端冒烟 + 用户真实终端实测确认;check-all 三维全绿。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2df7e41` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
