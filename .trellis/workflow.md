@@ -151,7 +151,7 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 2.1 / 2.2 / 3.1 dispatch routing, Phase 3.4 code-commit/push via trellis-push, Phase 3.5 finish-work bookkeeping, and push-progress recovery / snapshot reminders. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
+**Scope**: Phase 2.1 / 2.2 / 3.1 dispatch routing, post-check stop, Phase 3.4 code commit/push via trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
@@ -159,7 +159,7 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 
 Before any implement/check agent or check skill runs from the main session, the immediately preceding routing decision must come from `trellis-route` or from the same numbered fallback choices shown in normal chat when the helper is unavailable.
 
-`trellis-route` returns 4 modes for `target=check` (check-all/check x inline/subagent) and 2 for `target=implement`. Step 1.7's recommendation is generated inside the skill and surfaced via Step 2's `AskUserQuestion`; that is the only prompt point.
+`trellis-route` returns 4 modes for `target=check` (check-all/check x inline/subagent) and 2 for `target=implement`. The route prompt is the only place to ask this choice.
 
 If the platform cannot call `AskUserQuestion` / `request_user_input`, ask the same numbered choices in normal chat and wait for the user's reply. Tool unavailability is not permission to record inline/subagent or to dispatch a sub-agent directly.
 
@@ -172,15 +172,19 @@ At phase boundaries, do not ask meta continuation questions such as "continue?",
 
 Check routing has no 4h preference file. Before `trellis-check`, `trellis-check-all`, or either check sub-agent, route every time so the user can choose check-all vs lightweight and inline vs subagent.
 
+#### Post-Check Stop Gate
+
+After `trellis-check` or `trellis-check-all` finishes, stop and report the result. Do not run `/trellis:finish-work`, do not archive the task, and do not imply the task is ready to wrap up solely because checks passed.
+
+If checks pass, the next allowed workflow steps are Phase 3.3 `trellis-update-spec` and Phase 3.4 `trellis-push`/commit confirmation. `/trellis:finish-work` is explicit-only: run it only after Phase 3.4 is complete and the user asks to wrap up, archive, or finish the task.
+
 #### Code Commit Confirmation Gate
 
-Every code commit — and its push — belongs to Phase 3.4 and MUST go through `trellis-push`, mirroring how implement/check must go through `trellis-route`. From the main session the agent never runs bare `git commit` / `git push` on code to bypass it.
+Code commit/push belongs only to Phase 3.4 and must go through `trellis-push`; the main session must not run bare `git commit` / `git push` for code.
 
-`trellis-push` IS the confirmation mechanism: its Step 2.2 stages only an explicit, user-approved file list (never `git add -A` / `git add .`); its Step 2.3 shows the drafted commit message for approval. "Confirmed" means the user saw that concrete file list + message inside `trellis-push` and approved it. A preference-style choice does NOT count — e.g. an `AskUserQuestion` "split / single commit" option only picks a strategy, and an option label/description never substitutes for the real file-list + message display.
+`trellis-push` confirmation must show both the exact file list to stage and the drafted commit message. Before the user approves that concrete list + message, do not `git add`, commit, or push; never use `git add -A` / `git add .`.
 
-For Phase 3.4 "commit now, push later", invoke `trellis-push` in commit-only mode (commit without pushing); the later push also goes through `trellis-push`.
-
-This gate is independent of `session_auto_commit`: that switch never authorizes a code commit and never waives going through `trellis-push`. The only bare-`git` commits allowed are the two bookkeeping scripts below, which manage their own `.trellis/**` files.
+For "commit now, push later", use `trellis-push` commit-only mode; the later push still goes through `trellis-push`. `session_auto_commit` never authorizes code commits; it only affects bookkeeping commits below.
 
 #### Bookkeeping Auto-commit Scope
 
@@ -287,6 +291,8 @@ HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress):
 At Phase 2.1/2.2/3.1, invoke `trellis-route(implement|check)` first, including every check / check-all path.
 Do not spawn `trellis-implement`, `trellis-check`, or `trellis-check-all` directly unless `trellis-route` just selected subagent mode.
 If routing helper is unavailable, ask the same numbered route choices in normal chat and wait for the user's selection.
+After `trellis-check` / `trellis-check-all`, stop and report; do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
+This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, code commit/push goes through `trellis-push` (commit-only mode for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).
 If active task.json has `last_push_snapshot`, relay `partial_step` + `next_step` once before starting new work.
 <!-- END skill-garden workflow-state in_progress v0.6 -->
@@ -305,6 +311,8 @@ Dispatch prompt starts with `Active task: <task path from task.py current>`. Rea
 <!-- BEGIN skill-garden workflow-state in_progress_inline v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress-inline):
 Inline mode means the main session edits directly, but check still routes before `trellis-check` / `trellis-check-all`.
+After `trellis-check` / `trellis-check-all`, stop and report; do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
+This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, code commit/push still goes through `trellis-push` (commit-only for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).
 If active task.json has `last_push_snapshot`, relay `partial_step` + `next_step` once before starting new work.
 <!-- END skill-garden workflow-state in_progress_inline v0.6 -->
