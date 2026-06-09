@@ -43,7 +43,7 @@ For "commit now, push later", use `trellis-push` commit-only mode; the later pus
 
 #### Bookkeeping Auto-commit Scope
 
-`session_auto_commit` only controls auto-commits made by `task.py archive` / `add_session.py` for `.trellis/tasks/**` and `.trellis/workspace/**`; it never authorizes code commits. When `false`, those bookkeeping writes remain uncommitted and must not be manually compensated with a git commit.
+`session_auto_commit` only governs the bookkeeping commits `task.py archive` / `add_session.py` make for their own `.trellis/tasks/**` and `.trellis/workspace/**` files — never code (gated above). When `false`, those archive/journal writes stay disk-only (no compensating `git commit`).
 
 #### Push Progress Recovery / Snapshot
 
