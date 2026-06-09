@@ -7,6 +7,7 @@ import { copySkills } from "./copy-skills.js";
 import { injectWorkflow } from "./workflow-inject.js";
 import { applyCodexTweaks } from "./codex-tweaks.js";
 import { readManifest, writeManifest } from "./manifest.js";
+import { flowerVersion } from "./versions.js";
 import { rmrf } from "./fs-utils.js";
 
 /** 清理升级后可能变空的强化目录(深 → 浅)。 */
@@ -101,7 +102,15 @@ export function applyEnhancements(target, opts = {}) {
         pruneEmptyDirs(target);
       }
     }
-    writeManifest(target, { variant, version, skills: installed, paths: newPaths });
+    // 写 manifest 时同时戳入 flower-trellis 自身版本(flowerVersion),与 version(项目 Trellis
+    // 版本)区分开:前者答「上次是哪个 flower 铺的包」,服务后续升级/维护判断。
+    writeManifest(target, {
+      flowerVersion: flowerVersion(),
+      variant,
+      version,
+      skills: installed,
+      paths: newPaths,
+    });
   }
 
   // workflow 注入:无过滤名(全装)或显式指定 workflow-enhancement/finish-work-enhancement 时执行
