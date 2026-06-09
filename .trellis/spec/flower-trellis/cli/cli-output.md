@@ -73,14 +73,19 @@
 
 ## Interactive vs Non-Interactive
 
+- **交互 prompt 用 `@inquirer/prompts`**:flower 自身的多选 / 确认一律用 `@inquirer/prompts`
+  的 `checkbox` / `confirm`(现代 `@inquirer/core` 内核),**不用经典 `inquirer`**——后者在
+  WSL/ConPTY 下整屏重绘会闪屏;库选择与理由见 [module-guidelines](./module-guidelines.md)
+  的「交互式 Prompt」节。
 - **非 TTY 必须有回退**:`pick-platforms.js` 在 `!process.stdin.isTTY` 时直接返回默认
-  `["--codex","--claude"]`,不阻塞等待输入。
+  `["--codex","--claude"]`,不阻塞等待输入(现代 prompt 在非 TTY 会抛错,回退须前置)。
 - `-y` / `--yes`:跳过菜单走默认平台,并打印一行说明(`init.js:36-38`)。
 - **联网探测同样判 `-y` / 非 TTY**:版本检测(`update-check.js`)发现新版时,交互 TTY 才
-  弹 inquirer 询问升级;`-y` / 非 TTY 仅打印一行升级提示,不弹确认、不阻塞(降级模式)。
+  弹确认询问升级(`@inquirer/confirm`);`-y` / 非 TTY 仅打印一行升级提示,不弹确认、不阻塞(降级模式)。
 - 跑 trellis 原生交互时用 `node-pty` 保留其菜单/光标控制,只过滤开头重复的 banner
-  (`trellis-runner.js` 的 `runTrellisPty`);一旦检测到 inquirer 渲染(`ESC[?25l`)
-  立即停止过滤、整体透传,避免破坏交互。
+  (`trellis-runner.js` 的 `runTrellisPty`);一旦检测到 **子进程交互渲染**(`ESC[?25l`
+  隐藏光标)立即停止过滤、整体透传,避免破坏交互。该检测针对 trellis 子进程输出,与 flower
+  自己用哪个 prompt 库无关。
 
 ---
 

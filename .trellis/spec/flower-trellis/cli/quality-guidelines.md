@@ -36,6 +36,7 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 | 让装饰性环节(banner / git 读取)抛错中断主流程 | 必须 try/catch 降级 |
 | `require` / `__dirname` / default export | 纯 ESM,见 [module-guidelines](./module-guidelines.md) |
 | 为小功能引入重依赖(如 commander) | 保持 KISS:argv 在 `cli.js` 里手解析,依赖维持精简 |
+| 用经典 `inquirer` 做交互 prompt | WSL/ConPTY 下整屏重绘闪屏,改用 `@inquirer/prompts`,见 [module-guidelines](./module-guidelines.md) |
 | 把 flower 自有 flag 透传给 trellis | 必须在 `OWN_FLAGS` 登记并在 `parse()` 剔除 |
 | 改移植逻辑而不核对上游 install.sh | 会导致升级行为与 skill-garden 漂移 |
 

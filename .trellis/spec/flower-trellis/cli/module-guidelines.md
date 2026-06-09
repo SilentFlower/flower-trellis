@@ -74,3 +74,26 @@
 | 相对 import 漏写 `.js` 后缀 | ESM 解析会失败 |
 | 在 `cli.js` / 命令层堆通用逻辑 | 下沉到 `src/lib/` |
 | 复制常量名单到多处 | 收敛到 `src/constants.js` |
+| 经典 `inquirer` 包(`import inquirer from "inquirer"`) | WSL/ConPTY 下整屏重绘闪屏;交互 prompt 一律用 `@inquirer/prompts`(见下「交互式 Prompt」) |
+
+---
+
+## 交互式 Prompt
+
+- **统一用 `@inquirer/prompts`**(现代 `@inquirer/core` 内核),**禁止经典 `inquirer` 包**。
+
+  ```js
+  import { checkbox, confirm } from "@inquirer/prompts";
+  const tools = await checkbox({ message, choices, loop: false }); // Promise<选中 value 数组>
+  const ok = await confirm({ message, default: true });            // Promise<boolean>
+  ```
+
+- **为什么**:经典 `inquirer` 的 `ScreenManager.render` 每次重绘都「整块清屏 → 整块重写」,
+  在 WSL2 / Windows Terminal(ConPTY)下清空与重画之间有一帧空白,多选 / 长列表上下切换时
+  整屏闪烁,且属架构性问题、调 `pageSize` 等参数无法消除;`@inquirer/core` 改为带 diff 的
+  增量重绘 + 同 tick 渲染合并,可消除该闪烁。本仓已在 `pick-platforms.js`(checkbox)与
+  `update-check.js`(confirm)完成迁移并移除经典 `inquirer` 依赖。
+- **非 TTY 必须前置回退**:现代 prompt 在非 TTY 会抛错,调用前先判 `process.stdin.isTTY`
+  并返回默认值(见 `pick-platforms.js:41`、[cli-output](./cli-output.md) 的 Interactive 节)。
+- **不要混淆**:`trellis-runner.js` 对 **pty 子进程 trellis 自带菜单** 靠 `ESC[?25l` 判断的
+  过滤逻辑,针对的是子进程输出特征,与 flower 自己用哪个 prompt 库无关。
