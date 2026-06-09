@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import inquirer from "inquirer";
+import { confirm } from "@inquirer/prompts";
 import chalk from "chalk";
 import { flowerVersion } from "./versions.js";
 
@@ -95,7 +95,7 @@ export function isRunningViaNpx() {
  * 网络探测失败、已是最新或本地更高。
  *
  * 发现新版时的行为:
- *  - 交互 TTY:打印通知 → inquirer 询问是否升级 → 同意则执行 `npm i -g flower-trellis@latest`;
+ *  - 交互 TTY:打印通知 → confirm 询问是否升级 → 同意则执行 `npm i -g flower-trellis@latest`;
  *    成功后打印「请重新运行」并 **process.exit(0)**(不做 re-exec 自动重跑),失败则降级为
  *    打印手动升级命令并继续主流程;拒绝则继续主流程。
  *  - 非交互(`-y`/`--yes` 或非 TTY):仅打印通知 + 升级命令,不弹确认、不阻塞。
@@ -136,15 +136,11 @@ export async function checkForUpdate(ctx, commandLabel) {
     return;
   }
 
-  // 7. 交互:询问是否升级
-  const { doUpgrade } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "doUpgrade",
-      message: `是否现在升级到 ${latest}?(升级后需重新运行命令)`,
-      default: true,
-    },
-  ]);
+  // 7. 交互:询问是否升级(@inquirer/confirm,返回 boolean)
+  const doUpgrade = await confirm({
+    message: `是否现在升级到 ${latest}?(升级后需重新运行命令)`,
+    default: true,
+  });
   if (!doUpgrade) {
     console.log("  · 已跳过升级");
     return;

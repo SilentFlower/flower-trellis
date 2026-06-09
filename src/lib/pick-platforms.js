@@ -1,4 +1,4 @@
-import inquirer from "inquirer";
+import { checkbox } from "@inquirer/prompts";
 
 /**
  * 平台多选清单 —— flower 自己的平台选择菜单。
@@ -39,19 +39,21 @@ const PLATFORMS = [
  */
 export async function pickPlatforms() {
   if (!process.stdin.isTTY) return ["--codex", "--claude"];
-  const { tools } = await inquirer.prompt([
-    {
-      type: "checkbox",
-      name: "tools",
-      message:
-        "选择要配置的 AI 工具(空格勾选 / 回车确认,默认已勾 Claude Code + Codex):",
-      choices: PLATFORMS.map((p) => ({
-        name: p.name,
-        value: p.value,
-        checked: !!p.checked,
-      })),
-      loop: false,
-    },
-  ]);
+  // 用 @inquirer/checkbox(现代 @inquirer/core 增量重绘内核)替代经典 inquirer。
+  // 为什么换:经典 inquirer 每次重绘都「整块清屏 → 整块重写」,在 WSL2 / ConPTY 终端下
+  // 清空与重画之间有一帧空白,上下切换平台时肉眼可见闪屏;新内核按差异增量重绘可消闪。
+  // pageSize 取平台总数,一屏展示全部、避免滚动带来的二次重绘;loop:false 保持首尾不循环。
+  // 返回值即选中的 value 数组(["--claude","--codex", ...]),对调用方契约不变。
+  const tools = await checkbox({
+    message:
+      "选择要配置的 AI 工具(空格勾选 / 回车确认,默认已勾 Claude Code + Codex):",
+    choices: PLATFORMS.map((p) => ({
+      name: p.name,
+      value: p.value,
+      checked: !!p.checked,
+    })),
+    loop: false,
+    pageSize: PLATFORMS.length,
+  });
   return tools;
 }
