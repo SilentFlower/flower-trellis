@@ -77,6 +77,22 @@ max_journal_lines: 2000
 # default_package: frontend
 
 #-------------------------------------------------------------------------------
+# Active package declaration(本仓正式 monorepo 化,2026-06-09)
+#-------------------------------------------------------------------------------
+# 主包 flower-trellis:path: . 指向主仓自身;设为 default_package,兜底未标 package 的任务。
+# skill-garden 为 git submodule:type=submodule 在 PACKAGES 列表加标签,
+# git=true 让 session context 展示其独立 git 状态 / 最近 commits。
+packages:
+  flower-trellis:
+    path: .
+  skill-garden:
+    path: vendor/skill-garden
+    type: submodule
+    git: true
+
+default_package: flower-trellis
+
+#-------------------------------------------------------------------------------
 # Codex (dispatch behavior)
 #-------------------------------------------------------------------------------
 # Codex-only knob; other platforms ignore it. Default ("inline") makes the
