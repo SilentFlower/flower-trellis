@@ -1,0 +1,2 @@
+{"file": ".claude/skills/trellis-meta/references/local-architecture/spec-system.md", "reason": "spec/package 路径模型与按包扫描机制,本任务重组 spec 的核心规范"}
+{"file": ".claude/skills/trellis-meta/references/local-architecture/task-system.md", "reason": "task.json package 字段语义与 default_package 兜底,决定迁移后任务归属行为"}

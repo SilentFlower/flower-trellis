@@ -1,0 +1,2 @@
+{"file": ".claude/skills/trellis-meta/references/local-architecture/spec-system.md", "reason": "核对 monorepo spec 重组(spec/flower-trellis/cli/)是否符合 spec 系统约定"}
+{"file": ".trellis/spec/guides/index.md", "reason": "确认共享 guides 层未受迁移影响,仍可被发现"}
