@@ -1,0 +1,42 @@
+{
+  "id": "beta-release-channel",
+  "name": "beta-release-channel",
+  "title": "brainstorm: beta release channel",
+  "description": "规划 flower-trellis beta 发布通道与升级检测策略",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-06-15",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-15T08:14:08.657228Z",
+    "branch": "main",
+    "pushed_commits": {
+      "flower-trellis": "4f5a274"
+    },
+    "completed_steps": [
+      "完成 beta 发布 workflow 与稳定版 workflow 分流",
+      "完成 update-check latest/beta 通道检测与推荐逻辑",
+      "完成 README 与 CLI spec 同步",
+      "完成 Check-all inline 验证",
+      "完成 trellis-push 提交与推送"
+    ],
+    "next_step": "等待用户显式执行 trellis-finish-work 归档任务",
+    "notes": "默认 trellis-push；无 merge 目标；snapshot 记录本次业务 commit。"
+  }
+}
