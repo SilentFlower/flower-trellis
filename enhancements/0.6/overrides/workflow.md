@@ -14,18 +14,24 @@
 
 Before any implement/check agent or check skill runs from the main session, the immediately preceding routing decision must come from `trellis-route` or from the same numbered fallback choices shown in normal chat when the helper is unavailable.
 
-`trellis-route` returns 4 modes for `target=check` (check-all/check x inline/subagent) and 2 for `target=implement`. The route prompt is the only place to ask this choice.
+`trellis-route` may use the gitignored personal preference file `.trellis/.route-prefs.tmp` to skip repeated prompts. This file is developer-local state and must never be staged or committed.
+
+Personal route preferences are execution-mode preferences only, never authorization to start work; `trellis-route` may read them only after the workflow already permits the requested target.
+
+`trellis-route` returns 2 normal modes for `target=implement` (inline/subagent) and 2 normal modes for `target=check` (check-all inline/check-all subagent). Lightweight `trellis-check` is a hidden escape hatch only when the user explicitly asks for `light check` / `轻量检查`; it is not shown in normal check options.
 
 If the platform cannot call `AskUserQuestion` / `request_user_input`, ask the same numbered choices in normal chat and wait for the user's reply. Tool unavailability is not permission to record inline/subagent or to dispatch a sub-agent directly.
 
 Before invoking the skill, never:
 - write pre-questions ("ready to start? / shall I proceed?")
 - state "I lean towards X" or preview the inline/subagent options
-- surface Step 1.7 rationale ahead of time
+- surface route options ahead of time
 
 At phase boundaries, do not ask meta continuation questions such as "continue?", "what's next?", or "X or Y?" when the answer determines the next workflow phase. Invoke `trellis-route(implement|check)` first, or ask the same numbered route choices if the helper is unavailable.
 
-Check routing has no 4h preference file. Before `trellis-check`, `trellis-check-all`, or either check sub-agent, route every time so the user can choose check-all vs lightweight and inline vs subagent.
+If the user says "temporary override", "reselect", "use X this time", "clear route default", or equivalent, the personal preference file must not take priority. `trellis-route` must show the override options again and let the user choose whether the choice is one-time, saved as the new default, or clears the default.
+
+For normal check routing, default to `trellis-check-all` paths. Do not route to lightweight `trellis-check` unless the user explicitly asks for the hidden light-check escape hatch.
 
 #### Post-Check Stop Gate
 
