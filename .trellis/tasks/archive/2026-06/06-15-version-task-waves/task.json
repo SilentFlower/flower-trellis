@@ -1,0 +1,45 @@
+{
+  "id": "version-task-waves",
+  "name": "version-task-waves",
+  "title": "brainstorm: version task waves",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-06-15",
+  "completedAt": "2026-06-15",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-15T15:19:44+08:00",
+    "branch": "main",
+    "pushed_commits": {
+      "skill-garden": "cbe89cb",
+      "flower-trellis": "ab6f085"
+    },
+    "completed_steps": [
+      "确认最终模型：版本可拆多个内聚 task，wave 是版本级批次",
+      "更新任务三件套",
+      "更新 trellis-plan-version",
+      "更新 trellis-extract-prd",
+      "更新 trellis-verify-task",
+      "同步 .agents、.claude、enhancements/0.6、vendor/skill-garden",
+      "完成 diff / task / 副本一致性校验"
+    ],
+    "next_step": "Phase 3.5：如用户明确要求，执行 finish-work 归档任务",
+    "notes": "check-snapshot 之前因 enhancements 未提交失败；本次提交快照后应满足该发布门禁。"
+  }
+}
