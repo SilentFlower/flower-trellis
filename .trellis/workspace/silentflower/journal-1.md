@@ -180,3 +180,39 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: 优化 trellis-route 个人路由偏好
+
+**Date**: 2026-06-15
+**Task**: 优化 trellis-route 个人路由偏好
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+优化 trellis-route 交互：引入 gitignored 个人路由偏好，check 普通入口收敛为 check-all，轻量 check 作为隐藏逃生口，并同步 workflow override、enhancements 快照和任务 push snapshot。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f95ea85` | (see git log) |
+| `d660f4c` | (see git log) |
+| `04e0465` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
