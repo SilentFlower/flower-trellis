@@ -252,3 +252,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Beta 发布通道与升级检测
+
+**Date**: 2026-06-15
+**Task**: Beta 发布通道与升级检测
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+新增 flower-trellis beta 发布通道、beta workflow、latest/beta 升级检测逻辑，并同步 README 与 CLI release/network spec。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4f5a274` | (see git log) |
+| `67cf1be` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
+- **Total Sessions**: 8
 - **Last Active**: 2026-06-15
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~254 | Active |
+| `journal-1.md` | ~289 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-06-15 | Beta 发布通道与升级检测 | `4f5a274`, `67cf1be` | `main` |
 | 7 | 2026-06-15 | 优化版本 task wave 规划 | `ab6f085`, `b420b5c`, `cbe89cb` | `main` |
 | 6 | 2026-06-15 | 优化 trellis-route 个人路由偏好 | `f95ea85`, `d660f4c`, `04e0465` | `main` |
 | 5 | 2026-06-15 | 优化 trellis-push 统一确认流程 | `2bc6863`, `c33ec7c`, `c7836b8` | `main` |
