@@ -173,13 +173,13 @@ npm run release -- --prerelease beta
 # 方式二:明确指定 beta 版本
 npm run release -- --release-as 0.3.0-beta.1
 
-# 确认 diff 后推送 main 与 tag
-git push --follow-tags origin main
+# 确认 diff 后推送发布分支与 tag
+git push --follow-tags origin <branch>
 ```
 
-推送 `vX.Y.Z-beta.N` tag 后,GitHub Actions(`.github/workflows/release-beta.yml`)自动执行 `npm publish --tag beta`,并创建 GitHub prerelease。稳定版 workflow 会跳过带 prerelease 后缀的 tag,避免 beta 误发到 `latest`。
+推送 `vX.Y.Z-beta.N` tag 后,同一个 GitHub Actions(`.github/workflows/release.yml`)会自动执行 `npm publish --tag beta`,并创建 GitHub prerelease。workflow 会根据 tag 是否包含 `-beta.` 选择 `latest` 或 `beta` 通道,避免 beta 误发到 `latest`。
 
-> **一次性前置**:首次发布前需在 [npmjs.com](https://www.npmjs.com) 的本包设置里配置 **Trusted Publisher**,分别绑定 `SilentFlower/flower-trellis` 仓库与 `release.yml` / `release-beta.yml`,否则对应 workflow 的 OIDC 发布会失败。
+> **一次性前置**:首次发布前需在 [npmjs.com](https://www.npmjs.com) 的本包设置里配置 **Trusted Publisher**,绑定 `SilentFlower/flower-trellis` 仓库与唯一 workflow `release.yml`,否则 OIDC 发布会失败。
 >
 > **发布前自检**:`npm run release` 会先跑 `scripts/check-snapshot.mjs`,确保 `enhancements/` 快照与 `vendor/skill-garden` 当前 pin 一致且已提交,杜绝发布陈旧快照。
 
