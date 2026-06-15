@@ -216,3 +216,39 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: 优化版本 task wave 规划
+
+**Date**: 2026-06-15
+**Task**: 优化版本 task wave 规划
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+完成版本需求拆分与 wave 规划优化：将 trellis-plan-version 调整为输出内聚 task 候选和 version waves，将 trellis-extract-prd 绑定版本规划 task 边界与 wave 归属，将 trellis-verify-task 增加 task 粒度、过散/过大、wave 可提测性校验；同步 skill-garden、.agents、.claude 与 enhancements，并完成推送快照。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ab6f085` | (see git log) |
+| `b420b5c` | (see git log) |
+| `cbe89cb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
