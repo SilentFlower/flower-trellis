@@ -20,6 +20,9 @@ npm i -g flower-trellis
 
 # 升级到最新版
 npm i -g flower-trellis@latest
+
+# 体验 beta 预发布版(显式 opt-in)
+npm i -g flower-trellis@beta
 ```
 
 也可**免安装**通过 `npx flower-trellis <命令>` 直接运行(每次执行拉取最新版,适合临时试用)。
@@ -78,7 +81,9 @@ flower-trellis -v
 运行 `init` / `update` 时,flower-trellis 会顺带检测**自身**在 npm 上是否有新版本:
 
 - **联网、尽力而为**:带 2.5s 超时,离线 / 超时 / 失败一律静默跳过,绝不阻断安装/升级主流程。
-- **发现新版**(交互终端):提示并询问是否立即升级;同意则执行 `npm i -g flower-trellis@latest`,成功后请按提示重新运行命令(升级后强化包随新版更新,可再跑一次 `ft update` 重新叠加)。
+- **稳定版安装**:只跟随 npm `latest` 通道;发现稳定新版时提示 `npm i -g flower-trellis@latest`。
+- **beta 版安装**:版本号形如 `0.3.0-beta.1`,会同时检查 `beta` 与 `latest`;若 `latest` 已高于当前 beta,优先提示 `npm i -g flower-trellis@latest`,否则提示更新到 `npm i -g flower-trellis@beta`。
+- **发现新版**(交互终端):提示并询问是否立即升级;同意则执行推荐的安装命令,成功后请按提示重新运行命令(升级后强化包随新版更新,可再跑一次 `ft update` 重新叠加)。
 - **非交互**(`-y` 或非 TTY):仅打印一行升级提示,不弹确认、不阻塞。
 - **跳过检测**:经 `npx` 运行(本就是最新版)、或显式 `--no-update-check` / `FLOWER_NO_UPDATE_CHECK=1` 时不检测。
 
@@ -150,12 +155,31 @@ npm run release:dry      # 仅预览版本号与 CHANGELOG,不落盘
 git push --follow-tags origin main
 ```
 
+### 稳定版发布
+
 推送 `vX.Y.Z` tag 后,GitHub Actions(`.github/workflows/release.yml`)自动完成:
 
-- **`npm publish`** —— 经 npm **OIDC Trusted Publishing** 发布,自动带 provenance 来源证明,**无需** `NPM_TOKEN`。
+- **`npm publish`** —— 发布到 npm `latest` dist-tag,经 npm **OIDC Trusted Publishing** 发布,自动带 provenance 来源证明,**无需** `NPM_TOKEN`。
 - **`gh release create`** —— 创建 GitHub Release,notes 取自 `CHANGELOG.md` 对应版本段(与 CHANGELOG 同源)。
 
-> **一次性前置**:首次发布前需在 [npmjs.com](https://www.npmjs.com) 的本包设置里配置 **Trusted Publisher**,绑定 `SilentFlower/flower-trellis` 仓库与 `release.yml`,否则 OIDC 发布会失败。
+### Beta 发布
+
+beta 版本必须使用 semver prerelease,例如 `0.3.0-beta.1`,并发布到 npm `beta` dist-tag:
+
+```bash
+# 方式一:让 commit-and-tag-version 生成下一个 beta 版本
+npm run release -- --prerelease beta
+
+# 方式二:明确指定 beta 版本
+npm run release -- --release-as 0.3.0-beta.1
+
+# 确认 diff 后推送 main 与 tag
+git push --follow-tags origin main
+```
+
+推送 `vX.Y.Z-beta.N` tag 后,GitHub Actions(`.github/workflows/release-beta.yml`)自动执行 `npm publish --tag beta`,并创建 GitHub prerelease。稳定版 workflow 会跳过带 prerelease 后缀的 tag,避免 beta 误发到 `latest`。
+
+> **一次性前置**:首次发布前需在 [npmjs.com](https://www.npmjs.com) 的本包设置里配置 **Trusted Publisher**,分别绑定 `SilentFlower/flower-trellis` 仓库与 `release.yml` / `release-beta.yml`,否则对应 workflow 的 OIDC 发布会失败。
 >
 > **发布前自检**:`npm run release` 会先跑 `scripts/check-snapshot.mjs`,确保 `enhancements/` 快照与 `vendor/skill-garden` 当前 pin 一致且已提交,杜绝发布陈旧快照。
 
