@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.2.5-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.2.5-beta.1...v0.2.5-beta.2) (2026-06-16)
+
+
+### 📝 文档 Docs
+
+* **release:** 记录发版前 changelog 预览门禁 ([7126598](https://github.com/SilentFlower/flower-trellis/commit/71265980a94e09ba11aa690bd51ecec58b0d625c))
+* **workflow:** 明确 inline 模式仍需路由 ([be2c4e7](https://github.com/SilentFlower/flower-trellis/commit/be2c4e749f65aa3f5557ac9bc6c14c3e0af45ba1))
+
 ## [0.2.5-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.2.5-beta.0...v0.2.5-beta.1) (2026-06-15)
 
 
