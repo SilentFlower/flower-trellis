@@ -28,6 +28,12 @@ dist-tag;beta 预发布版发布到 npm `beta` dist-tag。
 beta 版完整发布动作:`npm run release -- --prerelease beta` 或
 `npm run release -- --release-as X.Y.Z-beta.N` → 检查 diff → `git push --follow-tags origin <branch>`。
 
+### 发版前 CHANGELOG 预览门禁
+- 正式执行 `npm run release...` 前,必须先执行对应的 dry-run 命令并展示将生成的版本号与 CHANGELOG 段落。
+- 稳定版预览:`npm run release:dry`;beta 预览:`npm run release:dry -- --prerelease beta` 或与正式命令一致的 `--release-as X.Y.Z-beta.N`。
+- 预览后必须等待用户明确确认,才能执行真实 `npm run release...`。用户未确认时,不得修改 `package.json`、`package-lock.json`、`CHANGELOG.md`,不得 commit/tag。
+- 用户确认后,真实 release 命令必须使用与 dry-run 相同的版本策略参数,避免预览的 CHANGELOG 与实际生成内容不一致。
+
 ---
 
 ## Contracts
@@ -67,6 +73,8 @@ beta 版完整发布动作:`npm run release -- --prerelease beta` 或
 
 | 条件 | 行为 |
 |------|------|
+| 未先展示 dry-run CHANGELOG 就准备执行真实 release | 停止;先运行对应 `npm run release:dry...`,展示版本号与 CHANGELOG 段落并等待确认 |
+| dry-run 参数与计划执行的真实 release 参数不一致 | 停止;重新用真实计划参数 dry-run 并展示更新后的 CHANGELOG |
 | `MANIFEST.sourceCommit` ≠ `vendor/skill-garden` HEAD | check-snapshot `exit(1)`:提示先 `npm run sync` 重建并提交快照 |
 | `enhancements/` 有未提交改动 | check-snapshot `exit(1)`:提示先提交快照 |
 | CHANGELOG 缺目标版本段 | extract-changelog `exit(1)`(等价"漏更新 CHANGELOG 就打 tag"的拦截) |
@@ -86,12 +94,14 @@ beta 版完整发布动作:`npm run release -- --prerelease beta` 或
 - beta 分支另建 `release-beta.yml` → npm 单包只能信任一个 workflow,容易造成 beta OIDC 404。
 - beta tag 里写裸 `npm publish` → prerelease 可能污染默认 `latest` 通道。
 - 改了 submodule pin 不 `npm run sync` 就发布 → 发布陈旧快照(check-snapshot 会拦)。
+- 用户还没看过 dry-run CHANGELOG 就直接跑 `npm run release` → 版本号和发布说明未经确认,容易把不符合预期的条目写入正式 tag。
 
 ### Correct
 - 本地只 bump+CHANGELOG+tag(人工把关),push tag 由 CI 用 OIDC 发布(自动 provenance、免 token)。
 - `node-version: 22` + `npm i -g npm@latest`,不跑 npm ci。
 - 发布前 check-snapshot 断言快照与 submodule pin 一致且已提交。
 - beta 版使用 `X.Y.Z-beta.N` 版本号、`vX.Y.Z-beta.N` tag、同一 `release.yml` 内的 `npm publish --tag beta`。
+- 真实 release 前先用相同参数跑 `npm run release:dry...`,把将生成的 CHANGELOG 段落展示给用户,得到明确确认后再执行真实 release。
 
 ---
 
