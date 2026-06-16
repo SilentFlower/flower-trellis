@@ -321,3 +321,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: 放宽 trellis-push snapshot 脏工作区规则
+
+**Date**: 2026-06-16
+**Task**: 放宽 trellis-push snapshot 脏工作区规则
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+调整 trellis-push 0.6 snapshot bookkeeping 规则：允许父仓存在无关未暂存 dirty，bookkeeping commit 只提交当前任务 task.json；保留无关 staged、冲突、目标文件预脏的阻塞保护。同步 skill-garden 源、flower-trellis 当前副本与 enhancements 快照，验证副本一致、语法检查、git diff --check、check-snapshot 和 git commit --only 行为。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `33baf94` | (see git log) |
+| `d05cb9d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
