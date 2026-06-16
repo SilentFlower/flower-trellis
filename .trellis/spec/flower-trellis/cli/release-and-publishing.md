@@ -24,15 +24,25 @@ dist-tag;beta 预发布版发布到 npm `beta` dist-tag。
 | `scripts/extract-changelog.mjs <version\|tag> <outFile>` | 抽 CHANGELOG 指定版本段供 Release notes(标题正则兼容 h2/h3) |
 | `.github/workflows/release.yml` | 稳定版 tag `vX.Y.Z` 与 beta tag `vX.Y.Z-beta.N`;按 tag 选择 `npm publish` 到 `latest` 或 `npm publish --tag beta`(OIDC)+ 创建 GitHub Release/Prerelease |
 
-稳定版完整发布动作:`npm run release` → 检查 diff → `git push --follow-tags origin main`。
-beta 版完整发布动作:`npm run release -- --prerelease beta` 或
-`npm run release -- --release-as X.Y.Z-beta.N` → 检查 diff → `git push --follow-tags origin <branch>`。
+稳定版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` 快照 →
+`npm run release` → 检查 diff → `git push --follow-tags origin main`。
+beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` 快照 →
+`npm run release -- --prerelease beta` 或 `npm run release -- --release-as X.Y.Z-beta.N`
+→ 检查 diff → `git push --follow-tags origin <branch>`。
 
 ### 发版前 CHANGELOG 预览门禁
 - 正式执行 `npm run release...` 前,必须先执行对应的 dry-run 命令并展示将生成的版本号与 CHANGELOG 段落。
 - 稳定版预览:`npm run release:dry`;beta 预览:`npm run release:dry -- --prerelease beta` 或与正式命令一致的 `--release-as X.Y.Z-beta.N`。
 - 预览后必须等待用户明确确认,才能执行真实 `npm run release...`。用户未确认时,不得修改 `package.json`、`package-lock.json`、`CHANGELOG.md`,不得 commit/tag。
 - 用户确认后,真实 release 命令必须使用与 dry-run 相同的版本策略参数,避免预览的 CHANGELOG 与实际生成内容不一致。
+- 用户确认后,真实 release 前必须先跑 `npm run sync`。如果该命令产生 `enhancements/` diff,先展示新增审核项并提交快照;不要把 `check-snapshot` 失败当作正常 release 步骤的一部分。
+
+### 发版前快照门禁
+- `npm run release...` 会先执行 `scripts/check-snapshot.mjs`;它是最后防线,不是常规修复入口。正常流程应在真实 release 前主动完成 `npm run sync` 和快照提交。
+- `npm run sync` 后若只有 `enhancements/MANIFEST.json` 的 `syncedAt` / `sourceCommit` 变化,说明快照内容未变、仅把随包发布的 source commit 指针补到当前 `vendor/skill-garden` pin;仍必须作为独立 `chore(snapshot): ...` 提交。
+- `npm run sync` 后若出现除 `MANIFEST.json` 以外的快照文件变化,必须把文件列表和摘要展示给用户审核,确认后再提交。
+- 快照提交完成后先跑 `node scripts/check-snapshot.mjs`;只有通过后才能继续执行真实 `npm run release...`。
+- 如果真实 `npm run release...` 已经被 `check-snapshot` 阻断,停止发布流程,展示阻断原因和修复 diff;完成 `npm run sync` + 快照提交 + `check-snapshot` 通过后,重新从 release 命令开始。
 
 ---
 
@@ -77,6 +87,8 @@ beta 版完整发布动作:`npm run release -- --prerelease beta` 或
 | dry-run 参数与计划执行的真实 release 参数不一致 | 停止;重新用真实计划参数 dry-run 并展示更新后的 CHANGELOG |
 | `MANIFEST.sourceCommit` ≠ `vendor/skill-garden` HEAD | check-snapshot `exit(1)`:提示先 `npm run sync` 重建并提交快照 |
 | `enhancements/` 有未提交改动 | check-snapshot `exit(1)`:提示先提交快照 |
+| `npm run sync` 只改 `MANIFEST.syncedAt` / `sourceCommit` | 展示为快照指针更新,独立提交后再跑 `node scripts/check-snapshot.mjs` |
+| 真实 release 已被快照门禁阻断 | 不继续 tag/push;按 `npm run sync` → 审核 diff → 提交快照 → `check-snapshot` 通过 → 重跑 release |
 | CHANGELOG 缺目标版本段 | extract-changelog `exit(1)`(等价"漏更新 CHANGELOG 就打 tag"的拦截) |
 | Trusted Publisher 配置不匹配 | CI `npm publish` 报 **404**:逐字核对 org/repo/workflow/environment |
 | Node < 22.14.0 或 npm < 11.5.1 | OIDC publish 失败 |
@@ -95,11 +107,12 @@ beta 版完整发布动作:`npm run release -- --prerelease beta` 或
 - beta tag 里写裸 `npm publish` → prerelease 可能污染默认 `latest` 通道。
 - 改了 submodule pin 不 `npm run sync` 就发布 → 发布陈旧快照(check-snapshot 会拦)。
 - 用户还没看过 dry-run CHANGELOG 就直接跑 `npm run release` → 版本号和发布说明未经确认,容易把不符合预期的条目写入正式 tag。
+- 真实 release 被 `check-snapshot` 阻断后继续尝试 tag/push → 跳过了快照审核,应先补 `npm run sync` 与快照提交。
 
 ### Correct
 - 本地只 bump+CHANGELOG+tag(人工把关),push tag 由 CI 用 OIDC 发布(自动 provenance、免 token)。
 - `node-version: 22` + `npm i -g npm@latest`,不跑 npm ci。
-- 发布前 check-snapshot 断言快照与 submodule pin 一致且已提交。
+- 真实 release 前先 `npm run sync`;如有快照 diff,审核并提交后再用 check-snapshot 断言快照与 submodule pin 一致且已提交。
 - beta 版使用 `X.Y.Z-beta.N` 版本号、`vX.Y.Z-beta.N` tag、同一 `release.yml` 内的 `npm publish --tag beta`。
 - 真实 release 前先用相同参数跑 `npm run release:dry...`,把将生成的 CHANGELOG 段落展示给用户,得到明确确认后再执行真实 release。
 
