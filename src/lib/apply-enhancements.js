@@ -129,13 +129,13 @@ export function applyEnhancements(target, opts = {}) {
     }
   }
 
-  // codex 平台后处理:注释 config.toml 的 multi_agent_v2 + 挂上 SessionStart hook(仅当 .codex/ 存在)
+  // codex 平台后处理:旧 multi_agent_v2 兼容清理 + 合并 SessionStart hook(仅当 .codex/ 存在)
   const codex = applyCodexTweaks(target);
   if (codex.applied) {
     const seg = codex.tomlChanged
-      ? "config.toml 已注释 multi_agent_v2"
-      : "config.toml(multi_agent_v2 已是注释态)";
-    console.log(`  ✓ codex 调整:${seg};hooks.json = SessionStart + UserPromptSubmit`);
+      ? "config.toml 已清理旧 multi_agent_v2"
+      : "config.toml 无需清理 multi_agent_v2";
+    console.log(`  ✓ codex 调整:${seg};hooks.json 已合并 SessionStart`);
   }
 
   return { variant, installed };

@@ -53,8 +53,8 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 4. **升级清理 + manifest**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,
    删除本次变体不含的过期项,再写新 manifest。带 `--skills` 是精细操作,不动 manifest、不清理。
 5. **注入 workflow**(`workflow-inject.js`):全装,或显式指定 workflow 相关 skill 时执行。
-6. **codex 后处理**(`codex-tweaks.js`):仅当目标存在 `.codex/` 时,注释 `config.toml`
-   的 `multi_agent_v2` 段 + 覆盖 `hooks.json` 挂上 SessionStart。
+6. **codex 后处理**(`codex-tweaks.js`):仅当目标存在 `.codex/` 时,兼容清理旧
+   `config.toml` 的 `multi_agent_v2` 段,并在保留上游 hooks 的基础上合并 SessionStart。
 
 ---
 
@@ -67,7 +67,8 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 - `workflow-inject`:先 `stripBlocks` 清掉所有旧 skill-garden 段(SECTION + sentinel)
   再重新注入;处理后内容与原文件相同则**不写盘**;首次注入前备份 `.bak`(已存在则保留,
   保证 `.bak` 永远是首次注入前的原文)。
-- `codex-tweaks`:`config.toml` 段头已注释则不再处理;`hooks.json` 内容一致则不写。
+- `codex-tweaks`:`config.toml` 段头已注释/不存在则不再处理;`hooks.json` 合并后的
+  内容一致则不写,避免覆盖 Trellis 上游 hook 参数。
 
 ---
 

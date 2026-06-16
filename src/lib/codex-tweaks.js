@@ -6,37 +6,12 @@ import path from "node:path";
  *
  * 仅当目标项目已配置 codex 平台(存在 .codex/)时生效;在 init / update 叠加阶段调用,幂等。
  * 做两件事:
- *   1. 注释掉 .codex/config.toml 的 [features.multi_agent_v2] 段;
- *   2. 用指定内容覆盖 .codex/hooks.json —— 在 Trellis 默认(仅 UserPromptSubmit)基础上挂 SessionStart。
+ *   1. 兼容旧 Trellis:注释掉 .codex/config.toml 的 [features.multi_agent_v2] 段;
+ *   2. 合并 .codex/hooks.json —— 保留 Trellis 上游 hook 设置,只补 flower 需要的 SessionStart。
  */
 
-// 期望的 .codex/hooks.json。两个脚本均由 Trellis codex configurator 写入 .codex/hooks/。
-const CODEX_HOOKS = {
-  hooks: {
-    SessionStart: [
-      {
-        hooks: [
-          {
-            type: "command",
-            command: "python3 .codex/hooks/session-start.py",
-            timeout: 5,
-          },
-        ],
-      },
-    ],
-    UserPromptSubmit: [
-      {
-        hooks: [
-          {
-            type: "command",
-            command: "python3 .codex/hooks/inject-workflow-state.py",
-            timeout: 5,
-          },
-        ],
-      },
-    ],
-  },
-};
+const WORKFLOW_HOOK_SCRIPT = ".codex/hooks/inject-workflow-state.py";
+const SESSION_START_SCRIPT = ".codex/hooks/session-start.py";
 
 /**
  * 注释掉 config.toml 里的 [features.multi_agent_v2] 段(段头 + 段内键,直到下一个 section)。
@@ -82,17 +57,82 @@ function commentMultiAgentV2(tomlPath) {
 }
 
 /**
- * 用 flower 指定内容覆盖 .codex/hooks.json。幂等:内容一致则不写。
+ * 容错读取 JSON 文件;缺失或格式异常时返回空 hooks 壳。
+ * @param {string} hooksPath .codex/hooks.json 路径
+ * @returns {{hooks: object}}
+ */
+function readHooksConfig(hooksPath) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(hooksPath, "utf8"));
+    if (parsed && typeof parsed === "object") {
+      const hooks = parsed.hooks && typeof parsed.hooks === "object" ? parsed.hooks : {};
+      return { ...parsed, hooks };
+    }
+  } catch {
+    // 缺失或损坏时用空壳重建,避免 init/update 后处理失败中断主流程
+  }
+  return { hooks: {} };
+}
+
+/**
+ * 从上游 UserPromptSubmit hook 推导 SessionStart 命令。
+ *
+ * Trellis 会按平台写入 Python 命令前缀和 UTF-8 参数;复用该命令能避免 flower
+ * 在 Windows / Linux / 未来模板之间写死不同的 Python 调用方式。
+ *
+ * @param {{hooks: object}} config hooks.json 配置
+ * @returns {string} SessionStart command
+ */
+function sessionStartCommand(config) {
+  const groups = Array.isArray(config.hooks.UserPromptSubmit)
+    ? config.hooks.UserPromptSubmit
+    : [];
+  for (const group of groups) {
+    const hooks = Array.isArray(group?.hooks) ? group.hooks : [];
+    for (const hook of hooks) {
+      if (hook?.type !== "command" || typeof hook.command !== "string") continue;
+      if (hook.command.includes(WORKFLOW_HOOK_SCRIPT)) {
+        return hook.command.replace(WORKFLOW_HOOK_SCRIPT, SESSION_START_SCRIPT);
+      }
+    }
+  }
+  return `python3 -X utf8 ${SESSION_START_SCRIPT}`;
+}
+
+/**
+ * 构造 flower 额外需要的 SessionStart hook。UserPromptSubmit 由 Trellis 上游维护,这里不覆盖。
+ * @param {{hooks: object}} config hooks.json 配置
+ * @returns {Array<object>} SessionStart hook 数组
+ */
+function sessionStartHook(config) {
+  return [
+    {
+      hooks: [
+        {
+          type: "command",
+          command: sessionStartCommand(config),
+          timeout: 30,
+        },
+      ],
+    },
+  ];
+}
+
+/**
+ * 合并 flower 需要的 SessionStart hook,保留 Trellis 上游 UserPromptSubmit 设置。
+ *
+ * Trellis 0.6.0 已把 UserPromptSubmit 的 UTF-8 与 timeout 策略写进模板;flower 只负责
+ * 补上 SessionStart,否则整文件覆盖会让上游模板改进在 update 后丢失。
+ *
+ * @param {string} hooksPath .codex/hooks.json 路径
  * @returns {boolean} 是否写入
  */
-function rewriteHooks(hooksPath) {
-  const desired = JSON.stringify(CODEX_HOOKS, null, 2) + "\n";
-  let current = null;
-  try {
-    current = fs.readFileSync(hooksPath, "utf8");
-  } catch {
-    // 文件不存在,视为需要写
-  }
+function mergeHooks(hooksPath) {
+  const config = readHooksConfig(hooksPath);
+  config.hooks.SessionStart = sessionStartHook(config);
+
+  const desired = JSON.stringify(config, null, 2) + "\n";
+  const current = fs.existsSync(hooksPath) ? fs.readFileSync(hooksPath, "utf8") : "";
   if (current === desired) return false;
   fs.writeFileSync(hooksPath, desired);
   return true;
@@ -107,6 +147,6 @@ export function applyCodexTweaks(target) {
   const codexDir = path.join(target, ".codex");
   if (!fs.existsSync(codexDir)) return { applied: false };
   const tomlChanged = commentMultiAgentV2(path.join(codexDir, "config.toml"));
-  const hooksWritten = rewriteHooks(path.join(codexDir, "hooks.json"));
+  const hooksWritten = mergeHooks(path.join(codexDir, "hooks.json"));
   return { applied: true, tomlChanged, hooksWritten };
 }

@@ -96,7 +96,7 @@ flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo 
 ```
 
 - **统一品牌头部**:Trellis 子进程在伪终端(`node-pty`)中运行,其原生的模板 / monorepo / 冲突等交互完整保留,但重复打印的启动 banner 被过滤,全程只呈现一个 flower banner。
-- **按平台铺设技能**:Claude 铺到 `.claude/skills`,Codex / Gemini 等铺到 `.agents/skills`;并对 codex 做后处理(注释 `config.toml` 的 `[features.multi_agent_v2]`、补全 `hooks.json` 的 `SessionStart`)。
+- **按平台铺设技能**:Claude 铺到 `.claude/skills`,Codex / Gemini 等铺到 `.agents/skills`;并对 codex 做后处理(兼容清理旧 `config.toml` 的 `[features.multi_agent_v2]`,在保留上游 hooks 的基础上补全 `SessionStart`)。
 - **幂等执行**:`workflow.md` 注入前先按 `BEGIN/END` 标记清除旧块再重注入(块数恒定,不会翻倍,首次注入前备份 `.bak`);技能文件覆盖式铺设,并通过 `.trellis/.flower-manifest.json` 记录已铺路径,升级时删除已淘汰项。
 - **安全中止**:`Ctrl+C` 取消后不会继续叠加。
 
