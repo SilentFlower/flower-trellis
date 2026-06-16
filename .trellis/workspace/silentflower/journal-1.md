@@ -356,3 +356,39 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: 强制 Codex sub-agent 调度
+
+**Date**: 2026-06-16
+**Task**: 强制 Codex sub-agent 调度
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+为 Codex 目标强制写入 codex.dispatch_mode: sub-agent，补强 trellis-route 与 in_progress-inline 路由语义，并同步 skill-garden 与 enhancements 快照。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bd81154` | (see git log) |
+| `987263b` | (see git log) |
+| `e96853b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
