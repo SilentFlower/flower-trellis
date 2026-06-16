@@ -5,13 +5,153 @@ import path from "node:path";
  * flower-trellis 对 Trellis 生成的 codex 配置的定制后处理。
  *
  * 仅当目标项目已配置 codex 平台(存在 .codex/)时生效;在 init / update 叠加阶段调用,幂等。
- * 做两件事:
+ * 做三件事:
  *   1. 兼容旧 Trellis:注释掉 .codex/config.toml 的 [features.multi_agent_v2] 段;
  *   2. 合并 .codex/hooks.json —— 保留 Trellis 上游 hook 设置,只补 flower 需要的 SessionStart。
+ *   3. 强制 .trellis/config.yaml 的 codex.dispatch_mode 为 sub-agent。
  */
 
 const WORKFLOW_HOOK_SCRIPT = ".codex/hooks/inject-workflow-state.py";
 const SESSION_START_SCRIPT = ".codex/hooks/session-start.py";
+const CODEX_DISPATCH_MODE = "sub-agent";
+
+/** 返回一行开头的空白缩进。 */
+function leadingWhitespace(line) {
+  return line.match(/^\s*/)?.[0] || "";
+}
+
+/** 判断一行是否是未注释的顶层 YAML key。 */
+function isTopLevelKey(line) {
+  const trimmed = line.trim();
+  return Boolean(trimmed && !trimmed.startsWith("#") && !leadingWhitespace(line) && /^[^:#]+:/.test(trimmed));
+}
+
+/** 找到未注释的顶层 `codex:` 块行号。 */
+function findCodexBlockStart(lines) {
+  return lines.findIndex((line) => {
+    const trimmed = line.trim();
+    return isTopLevelKey(line) && /^codex\s*:/.test(trimmed);
+  });
+}
+
+/** 找到 YAML 顶层块结束位置,注释和空行不结束当前块。 */
+function findTopLevelBlockEnd(lines, start) {
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (isTopLevelKey(lines[i])) return i;
+  }
+  return lines.length;
+}
+
+/** 按逗号拆分 YAML inline map 内容,保留引号内逗号。 */
+function splitInlineMapItems(content) {
+  const items = [];
+  let quote = "";
+  let token = "";
+  for (const ch of content) {
+    if (quote) {
+      token += ch;
+      if (ch === quote) quote = "";
+      continue;
+    }
+    if (ch === "\"" || ch === "'") {
+      quote = ch;
+      token += ch;
+      continue;
+    }
+    if (ch === ",") {
+      if (token.trim()) items.push(token.trim());
+      token = "";
+      continue;
+    }
+    token += ch;
+  }
+  if (token.trim()) items.push(token.trim());
+  return items;
+}
+
+/** 解析简单 YAML inline map,失败时返回 null。 */
+function parseInlineMapEntries(value) {
+  if (!value.startsWith("{") || !value.endsWith("}")) return null;
+  const body = value.slice(1, -1).trim();
+  if (!body) return [];
+  const entries = [];
+  for (const item of splitInlineMapItems(body)) {
+    const [key, ...rest] = item.split(":");
+    if (!key || rest.length === 0) return null;
+    entries.push({ key: key.trim(), value: rest.join(":").trim() });
+  }
+  return entries;
+}
+
+/**
+ * 强制目标项目 `.trellis/config.yaml` 使用 Codex sub-agent 调度。
+ *
+ * Trellis 默认缺失该字段时按 inline 注入 `<codex-mode>`,会让 route 误判 subagent
+ * 不可执行。flower 在 Codex 目标上直接写真实配置,避免依赖注释示例或模型推断。
+ *
+ * @param {string} configPath 目标项目 `.trellis/config.yaml` 路径
+ * @returns {boolean} 是否写入
+ */
+function forceCodexDispatchMode(configPath) {
+  const current = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf8") : "";
+  const normalized = current.replace(/\r\n/g, "\n");
+  const hadFinalNewline = normalized.endsWith("\n");
+  const lines = normalized.length === 0
+    ? []
+    : normalized.replace(/\n$/, "").split("\n");
+
+  const codexStart = findCodexBlockStart(lines);
+  if (codexStart === -1) {
+    if (lines.length > 0 && lines[lines.length - 1].trim()) lines.push("");
+    lines.push("codex:", `  dispatch_mode: ${CODEX_DISPATCH_MODE}`);
+  } else {
+    const blockEnd = findTopLevelBlockEnd(lines, codexStart);
+    const codexMatch = lines[codexStart].match(/^(\s*)codex\s*:\s*(.*)$/);
+    const codexIndent = codexMatch?.[1] || "";
+    const codexValue = (codexMatch?.[2] || "").trim();
+    const inlineEntries = parseInlineMapEntries(codexValue);
+    if (inlineEntries) {
+      const nextLines = [`${codexIndent}codex:`];
+      let hasDispatchMode = false;
+      for (const entry of inlineEntries) {
+        if (entry.key === "dispatch_mode") {
+          hasDispatchMode = true;
+          nextLines.push(`${codexIndent}  dispatch_mode: ${CODEX_DISPATCH_MODE}`);
+        } else {
+          nextLines.push(`${codexIndent}  ${entry.key}: ${entry.value}`);
+        }
+      }
+      if (!hasDispatchMode) {
+        nextLines.splice(1, 0, `${codexIndent}  dispatch_mode: ${CODEX_DISPATCH_MODE}`);
+      }
+      lines.splice(codexStart, 1, ...nextLines);
+    } else if (codexValue && !codexValue.startsWith("#")) {
+      lines[codexStart] = `${codexIndent}codex:`;
+    }
+
+    const nextBlockEnd = inlineEntries
+      ? findTopLevelBlockEnd(lines, codexStart)
+      : blockEnd;
+    const dispatchIndex = lines.findIndex((line, index) => {
+      if (index <= codexStart || index >= nextBlockEnd) return false;
+      const trimmed = line.trim();
+      return Boolean(trimmed && !trimmed.startsWith("#") && /^dispatch_mode\s*:/.test(trimmed));
+    });
+
+    if (dispatchIndex === -1) {
+      lines.splice(codexStart + 1, 0, `${codexIndent}  dispatch_mode: ${CODEX_DISPATCH_MODE}`);
+    } else {
+      const indent = leadingWhitespace(lines[dispatchIndex]);
+      lines[dispatchIndex] = `${indent}dispatch_mode: ${CODEX_DISPATCH_MODE}`;
+    }
+  }
+
+  const desired = lines.join("\n") + (hadFinalNewline || lines.length > 0 ? "\n" : "");
+  if (current === desired) return false;
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, desired);
+  return true;
+}
 
 /**
  * 注释掉 config.toml 里的 [features.multi_agent_v2] 段(段头 + 段内键,直到下一个 section)。
@@ -141,12 +281,13 @@ function mergeHooks(hooksPath) {
 /**
  * codex 平台后处理入口。仅当 .codex/ 存在时执行。
  * @param {string} target 目标项目根
- * @returns {{applied: boolean, tomlChanged?: boolean, hooksWritten?: boolean}}
+ * @returns {{applied: boolean, tomlChanged?: boolean, hooksWritten?: boolean, dispatchModeChanged?: boolean}}
  */
 export function applyCodexTweaks(target) {
   const codexDir = path.join(target, ".codex");
   if (!fs.existsSync(codexDir)) return { applied: false };
   const tomlChanged = commentMultiAgentV2(path.join(codexDir, "config.toml"));
   const hooksWritten = mergeHooks(path.join(codexDir, "hooks.json"));
-  return { applied: true, tomlChanged, hooksWritten };
+  const dispatchModeChanged = forceCodexDispatchMode(path.join(target, ".trellis", "config.yaml"));
+  return { applied: true, tomlChanged, hooksWritten, dispatchModeChanged };
 }

@@ -129,13 +129,16 @@ export function applyEnhancements(target, opts = {}) {
     }
   }
 
-  // codex 平台后处理:旧 multi_agent_v2 兼容清理 + 合并 SessionStart hook(仅当 .codex/ 存在)
+  // codex 平台后处理:旧 multi_agent_v2 兼容清理 + 合并 SessionStart hook + 强制 sub-agent 调度
   const codex = applyCodexTweaks(target);
   if (codex.applied) {
     const seg = codex.tomlChanged
       ? "config.toml 已清理旧 multi_agent_v2"
       : "config.toml 无需清理 multi_agent_v2";
-    console.log(`  ✓ codex 调整:${seg};hooks.json 已合并 SessionStart`);
+    const dispatch = codex.dispatchModeChanged
+      ? "dispatch_mode 已强制为 sub-agent"
+      : "dispatch_mode 已是 sub-agent";
+    console.log(`  ✓ codex 调整:${seg};hooks.json 已合并 SessionStart;${dispatch}`);
   }
 
   return { variant, installed };
