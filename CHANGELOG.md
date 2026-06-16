@@ -4,6 +4,18 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.3.0-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.2.5-beta.2...v0.3.0-beta.0) (2026-06-16)
+
+
+### ✨ 新功能 Features
+
+* **trellis:** 升级 Trellis 0.6.0 ([173a145](https://github.com/SilentFlower/flower-trellis/commit/173a14505d98bdb8149a27d1f8d96fa50dec802a))
+
+
+### 🐛 修复 Bug Fixes
+
+* **trellis-push:** 放宽 snapshot bookkeeping 脏工作区规则 ([33baf94](https://github.com/SilentFlower/flower-trellis/commit/33baf9459371f1d7b43c2d4df09ff9bfe5e52e17))
+
 ## [0.2.5-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.2.5-beta.1...v0.2.5-beta.2) (2026-06-16)
 
 
