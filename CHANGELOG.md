@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.3.0-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.3.0-beta.0...v0.3.0-beta.1) (2026-06-16)
+
+
+### ✨ 新功能 Features
+
+* **codex:** 强制 Codex sub-agent 调度 ([bd81154](https://github.com/SilentFlower/flower-trellis/commit/bd811545adfe70ed8c367c9a582a3f07a27dcf01))
+
 ## [0.3.0-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.2.5-beta.2...v0.3.0-beta.0) (2026-06-16)
 
 
