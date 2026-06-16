@@ -22,5 +22,28 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-16T10:51:39.311Z",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "main"
+    },
+    "pushed_commits": {
+      "flower-trellis": "bd81154",
+      "skill-garden": "987263b"
+    },
+    "completed_steps": [
+      "启动任务",
+      "实现 Codex dispatch_mode 强制写入",
+      "补强 trellis-route skill",
+      "调整 in_progress-inline workflow-state",
+      "同步 enhancements/0.6 快照",
+      "完成语法、diff、行为验证",
+      "提交并推送 skill-garden 与 flower-trellis 业务变更"
+    ],
+    "partial_step": "",
+    "next_step": "等待 trellis-finish-work 归档",
+    "notes": "已推送业务提交；snapshot bookkeeping 单独提交。"
+  }
 }
