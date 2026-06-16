@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "检查本任务是否遵守 CLI 项目校验和同步约束。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查 enhancements 快照是否与 skill-garden 源保持一致。"}
+{"file": ".trellis/tasks/archive/2026-06/06-15-optimize-trellis-push/design.md", "reason": "检查修正后的 bookkeeping dirty 规则是否与上一轮设计的 task-only commit 边界一致。"}

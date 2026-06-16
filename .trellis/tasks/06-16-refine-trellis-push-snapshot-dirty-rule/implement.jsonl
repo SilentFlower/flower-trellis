@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "本任务修改 flower-trellis CLI/强化包同步相关文件，实施前必须遵守 CLI 分层、同步和校验约束。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "本任务会同步 skill-garden 强化包到 enhancements 快照，需要遵守快照叠加和校验规则。"}
+{"file": ".trellis/tasks/archive/2026-06/06-15-optimize-trellis-push/prd.md", "reason": "上一轮 trellis-push 统一确认流程的需求背景和边界。"}
+{"file": ".trellis/tasks/archive/2026-06/06-15-optimize-trellis-push/design.md", "reason": "上一轮设计已声明父仓 bookkeeping 只处理目标 task.json，本任务修正与该设计冲突的 Step 5.2。"}
