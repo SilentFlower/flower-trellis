@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
-- **Last Active**: 2026-06-15
+- **Total Sessions**: 9
+- **Last Active**: 2026-06-16
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~289 | Active |
+| `journal-1.md` | ~323 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-06-16 | 升级 flower-trellis 到 Trellis 0.6.0 | `173a145` | `beta` |
 | 8 | 2026-06-15 | Beta 发布通道与升级检测 | `4f5a274`, `67cf1be` | `main` |
 | 7 | 2026-06-15 | 优化版本 task wave 规划 | `ab6f085`, `b420b5c`, `cbe89cb` | `main` |
 | 6 | 2026-06-15 | 优化 trellis-route 个人路由偏好 | `f95ea85`, `d660f4c`, `04e0465` | `main` |

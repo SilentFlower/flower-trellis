@@ -287,3 +287,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: 升级 flower-trellis 到 Trellis 0.6.0
+
+**Date**: 2026-06-16
+**Task**: 升级 flower-trellis 到 Trellis 0.6.0
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 @mindfoldhq/trellis 0.6.0 升级，合并上游模板与本仓定制，调整 Codex hooks 合并逻辑，保留 packages/default_package 与 channel worker guard；完成语法、版本、dry-run、snapshot 与 trellis channel 验证，并已通过 trellis-push 推送。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `173a145` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
