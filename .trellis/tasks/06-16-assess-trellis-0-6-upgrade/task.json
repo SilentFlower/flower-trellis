@@ -22,5 +22,23 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-16T15:19:31+08:00",
+    "branch": "beta",
+    "pushed_commits": {
+      "flower-trellis": "173a145"
+    },
+    "completed_steps": [
+      "读取相关 spec 与本地实现入口",
+      "升级 npm 依赖到 @mindfoldhq/trellis@0.6.0",
+      "调整 Codex 后处理为 hook 合并逻辑",
+      "跑 Trellis 0.6.0 本地 update，并手动合并冲突文件",
+      "重新叠加 flower 增强，确认 .trellis/config.yaml 与 .codex/hooks.json 不丢本仓定制",
+      "运行质量检查",
+      "回答 last_push_snapshot dirty 保护的设计原因"
+    ],
+    "next_step": "等待用户确认 push 结果，后续可归档任务",
+    "notes": "Trellis 0.6.0 升级与兼容修正已完成并验证。"
+  }
 }
