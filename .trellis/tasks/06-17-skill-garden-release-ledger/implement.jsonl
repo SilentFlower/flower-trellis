@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "flower-trellis CLI 改动前入口规范与质量检查"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "skill-garden 源、enhancements 快照和 workflow 注入同步规则"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "幂等、不误伤、快照同步和验证要求"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "如需改 JS 辅助逻辑时遵循 ESM/JSDoc 约定"}

@@ -79,7 +79,7 @@ for (const v of VARIANTS) {
     }
   }
 
-  // 统计(供人工核对:old=11 命令 / 0.5=13 skill / 0.6=9 skill + hub + 4 state)
+  // 统计(供人工核对:old=11 命令 / 0.5=13 skill / 0.6=10 skill + hub + 4 state + 1 skill override)
   const claudeSkills = listDirs(path.join(DST, v, ".claude", "skills"));
   const agentsSkills = listDirs(path.join(DST, v, ".agents", "skills"));
   const commands = listFiles(
@@ -91,17 +91,23 @@ for (const v of VARIANTS) {
     path.join(DST, v, "overrides", "workflow-states"),
     ".md",
   );
+  const skillOverrides = listFiles(
+    path.join(DST, v, "overrides", "skills"),
+    ".md",
+  );
   manifest.variants[v] = {
     claudeSkills,
     agentsSkills,
     commands,
     overrides,
     workflowStates: states,
+    skillOverrides,
   };
 
   console.log(
     `✓ ${v}: claude/skills=${claudeSkills.length} agents/skills=${agentsSkills.length} ` +
-      `commands=${commands.length} overrides=${overrides.length} states=${states.length}`,
+      `commands=${commands.length} overrides=${overrides.length} states=${states.length} ` +
+      `skillOverrides=${skillOverrides.length}`,
   );
 }
 

@@ -5,6 +5,7 @@ import { ENHANCEMENTS_ROOT } from "./paths.js";
 import { VARIANTS } from "../constants.js";
 import { copySkills } from "./copy-skills.js";
 import { injectWorkflow } from "./workflow-inject.js";
+import { injectSkillOverrides } from "./skill-override-inject.js";
 import { applyCodexTweaks } from "./codex-tweaks.js";
 import { readManifest, writeManifest } from "./manifest.js";
 import { flowerVersion } from "./versions.js";
@@ -30,7 +31,8 @@ function pruneEmptyDirs(target) {
 /**
  * 叠加强化包 —— init / update 共享。
  *
- * 流程:校验是 Trellis 项目 → 选变体 → 铺 skill → 升级清理(删过期)→ 注入 workflow。
+ * 流程:校验是 Trellis 项目 → 选变体 → 铺 skill → 升级清理(删过期)
+ * → 注入 workflow → 注入 skill override。
  *
  * 升级清理:用 flower manifest 记录上次全装铺过的精确路径,本次全装时删除
  * 「上次有、这次变体不含」的过期项(覆盖 0.5/old → 0.6 升级)。仅全装(无 --skills)
@@ -113,11 +115,9 @@ export function applyEnhancements(target, opts = {}) {
     });
   }
 
-  // workflow 注入:无过滤名(全装)或显式指定 workflow-enhancement/finish-work-enhancement 时执行
+  // workflow 注入:无过滤名(全装)或显式指定 workflow-enhancement 时执行。
   const wantWorkflow =
-    skills.length === 0 ||
-    skills.includes("workflow-enhancement") ||
-    skills.includes("finish-work-enhancement");
+    skills.length === 0 || skills.includes("workflow-enhancement");
   if (wantWorkflow) {
     const r = injectWorkflow(target, variantDir, variant);
     if (r.skipped) {
@@ -126,6 +126,25 @@ export function applyEnhancements(target, opts = {}) {
       console.log(`  ✓ workflow.md 强化块已是最新${r.backupNote}`);
     } else {
       console.log(`  ✓ workflow.md 已注入强化块(${r.action})${r.backupNote}`);
+    }
+  }
+
+  const wantSkillOverrides =
+    skills.length === 0 ||
+    skills.includes("finish-work-enhancement") ||
+    skills.includes("trellis-finish-work") ||
+    skills.includes("finish-work");
+  if (wantSkillOverrides) {
+    const r = injectSkillOverrides(target, variantDir, skills);
+    if (r.skipped) {
+      console.log(`  · skill override 注入跳过(${r.reason})`);
+    } else if (r.changed === 0 && r.unchanged === 0) {
+      console.log(`  · skill override 注入跳过(目标缺少可注入的上游入口)`);
+    } else if (r.changed === 0) {
+      console.log(`  ✓ skill override 已是最新(${r.unchanged} 个入口)`);
+    } else {
+      const note = r.backupNotes.length ? r.backupNotes.join("") : "";
+      console.log(`  ✓ skill override 已注入 ${r.changed} 个入口${note}`);
     }
   }
 

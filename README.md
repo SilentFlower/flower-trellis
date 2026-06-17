@@ -6,7 +6,7 @@
 
 > 一条命令装好 [Trellis](https://docs.trytrellis.app/) 工程框架,并自动融合 **skill-garden** 强化包。
 
-`flower-trellis` 是 Trellis 的 npm 封装 CLI,把原本要分两步的工作合并为一键完成:安装/升级 Trellis 本体,并在其上叠加 skill-garden 的强化包(一组 `trellis-*` 技能与 workflow override)。强化包以快照形式随包发布,安装过程**零网络依赖**。
+`flower-trellis` 是 Trellis 的 npm 封装 CLI,把原本要分两步的工作合并为一键完成:安装/升级 Trellis 本体,并在其上叠加 skill-garden 的强化包(一组 `trellis-*` 技能与 workflow / skill override)。强化包以快照形式随包发布,安装过程**零网络依赖**。
 
 底层调用官方 `@mindfoldhq/trellis` 的 `init` / `update`,并按目标项目的 Trellis 版本自动选择匹配的强化包变体(`old` / `0.5` / `0.6`)。
 
@@ -106,6 +106,7 @@ flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo 
 - **统一品牌头部**:Trellis 子进程在伪终端(`node-pty`)中运行,其原生的模板 / monorepo / 冲突等交互完整保留,但重复打印的启动 banner 被过滤,全程只呈现一个 flower banner。
 - **按平台铺设技能**:Claude 铺到 `.claude/skills`,Codex / Gemini 等铺到 `.agents/skills`;并对 codex 做后处理(兼容清理旧 `config.toml` 的 `[features.multi_agent_v2]`,在保留上游 hooks 的基础上补全 `SessionStart`)。
 - **幂等执行**:`workflow.md` 注入前先按 `BEGIN/END` 标记清除旧块再重注入(块数恒定,不会翻倍,首次注入前备份 `.bak`);技能文件覆盖式铺设,并通过 `.trellis/.flower-manifest.json` 记录已铺路径,升级时删除已淘汰项。
+- **上线事项账本**:强化包通过 finish-work skill override 在归档前智能识别 SQL、配置、批处理 / 部署脚本 / 数据修复、外部系统 / 依赖平台等上线事项,必要时写入任务 `release.md`;`trellis-release` 可在正式上线前汇总多个任务的 `release.md` 生成版本 / 批次操作单。
 - **安全中止**:`Ctrl+C` 取消后不会继续叠加。
 
 ## 强化包与更新

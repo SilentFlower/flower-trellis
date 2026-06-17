@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "检查 flower-trellis CLI 改动是否符合入口规范"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查 skill-garden 源与 enhancements 快照一致性"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "检查幂等、不误伤、验证命令和发布前要求"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "检查 sync、snapshot 和发布快照流程是否符合规范"}

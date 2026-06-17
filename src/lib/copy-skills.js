@@ -1,17 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { copyPath, listDirs, listFiles, ensureDir } from "./fs-utils.js";
-
-/**
- * 技能名过滤(移植 install.sh 的 should_install)。
- * 空清单 → 全装;否则精确匹配,或「去掉 trellis- 前缀后」匹配
- * (例:传 analyze-task 也命中 trellis-analyze-task)。
- */
-function shouldInstall(name, skills) {
-  if (!skills || skills.length === 0) return true;
-  const stripped = name.replace(/^trellis-/, "");
-  return skills.some((f) => f === name || f === stripped);
-}
+import { shouldInstallName } from "./skill-filter.js";
 
 /**
  * 把指定变体的强化 skill / command 铺到目标项目,**跟随平台**。
@@ -45,7 +35,7 @@ export function copySkills(target, variantDir, variant, skills) {
   if (needAgents) {
     ensureDir(path.join(target, ".agents", "skills"));
     for (const name of listDirs(agentsSrc)) {
-      if (!shouldInstall(name, skills)) continue;
+      if (!shouldInstallName(name, skills)) continue;
       copyPath(
         path.join(agentsSrc, name),
         path.join(target, ".agents", "skills", name),
@@ -61,7 +51,7 @@ export function copySkills(target, variantDir, variant, skills) {
     const claudeNames = listDirs(claudeSrc);
     const claudeSource = claudeNames.length > 0 ? claudeSrc : agentsSrc;
     for (const name of listDirs(claudeSource)) {
-      if (!shouldInstall(name, skills)) continue;
+      if (!shouldInstallName(name, skills)) continue;
       copyPath(
         path.join(claudeSource, name),
         path.join(target, ".claude", "skills", name),
@@ -76,7 +66,7 @@ export function copySkills(target, variantDir, variant, skills) {
       ensureDir(path.join(target, ".claude", "commands", "trellis"));
       for (const file of cmds) {
         const name = file.replace(/\.md$/, "");
-        if (!shouldInstall(name, skills)) continue;
+        if (!shouldInstallName(name, skills)) continue;
         copyPath(
           path.join(cmdSrc, file),
           path.join(target, ".claude", "commands", "trellis", file),
