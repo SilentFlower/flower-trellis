@@ -427,3 +427,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: 精简 post-check 后 trellis-push 引导
+
+**Date**: 2026-06-17
+**Task**: 精简 post-check 后 trellis-push 引导
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+更新 skill-garden 0.6 注入源，在 post-check 停止报告中精简提示 Phase 3.4 使用 trellis-push；同步 enhancements 快照，验证当前 workflow 注入结果，并完成子模块与父仓推送。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b47e445` | (see git log) |
+| `101fed6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
