@@ -22,5 +22,26 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-17T09:18:02.676Z",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "main"
+    },
+    "pushed_commits": {
+      "flower-trellis": "535efcd",
+      "skill-garden": "dff0eb0"
+    },
+    "completed_steps": [
+      "撤回 workflow release 注入",
+      "新增 finish-work skill override",
+      "新增 trellis-release skill",
+      "同步 enhancements 和当前项目副本",
+      "完成验证"
+    ],
+    "partial_step": "Phase 3.4 trellis-push",
+    "next_step": "运行 /trellis:finish-work 归档任务",
+    "notes": "finish-work release inference 改为 skill override 注入；workflow 不再承载 release inference。"
+  }
 }
