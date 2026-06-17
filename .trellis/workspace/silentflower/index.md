@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
-- **Last Active**: 2026-06-16
+- **Total Sessions**: 12
+- **Last Active**: 2026-06-17
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~394 | Active |
+| `journal-1.md` | ~429 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-06-17 | 修正 trellis-route 2.2 边界 | `da8ffe7`, `d521f18` | `beta` |
 | 11 | 2026-06-16 | 强制 Codex sub-agent 调度 | `bd81154`, `987263b`, `e96853b` | `beta` |
 | 10 | 2026-06-16 | 放宽 trellis-push snapshot 脏工作区规则 | `33baf94`, `d05cb9d` | `beta` |
 | 9 | 2026-06-16 | 升级 flower-trellis 到 Trellis 0.6.0 | `173a145` | `beta` |

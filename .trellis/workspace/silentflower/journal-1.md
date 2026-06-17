@@ -392,3 +392,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: 修正 trellis-route 2.2 边界
+
+**Date**: 2026-06-17
+**Task**: 修正 trellis-route 2.2 边界
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+修正 0.6 主路径中 trellis-route 与 Phase 2.2 的边界：2.1 仅路由 implement，2.2 作为 implement-loop 质量检查直接执行，3.1 再路由最终 check/check-all；同步 skill-garden 源、当前 .agents/.claude 副本、workflow 注入段与 enhancements 快照，并通过 2.2 检查、快照一致性检查和推送。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `da8ffe7` | (see git log) |
+| `d521f18` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
