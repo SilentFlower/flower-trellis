@@ -462,3 +462,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: 按 Wave 排序版本 Task 创建
+
+**Date**: 2026-06-17
+**Task**: 按 Wave 排序版本 Task 创建
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成版本规划 task 创建顺序优化：在 plan-version 输出 Task 创建顺序，extract-prd 按 wave-aware slug 批量创建，verify-task 校验创建顺序和目录排序；同步 0.6 skill 副本、skill-garden 与 flower-trellis 快照并完成推送。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `88edc3a` | (see git log) |
+| `2dc4f0c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

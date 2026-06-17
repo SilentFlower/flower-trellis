@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
+- **Total Sessions**: 14
 - **Last Active**: 2026-06-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~464 | Active |
+| `journal-1.md` | ~499 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-06-17 | 按 Wave 排序版本 Task 创建 | `88edc3a`, `2dc4f0c` | `beta` |
 | 13 | 2026-06-17 | 精简 post-check 后 trellis-push 引导 | `b47e445`, `101fed6` | `beta` |
 | 12 | 2026-06-17 | 修正 trellis-route 2.2 边界 | `da8ffe7`, `d521f18` | `beta` |
 | 11 | 2026-06-16 | 强制 Codex sub-agent 调度 | `bd81154`, `987263b`, `e96853b` | `beta` |
