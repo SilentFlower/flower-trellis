@@ -4,6 +4,27 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.3.0-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.3.0-beta.1...v0.3.0-beta.2) (2026-06-17)
+
+
+### ✨ 新功能 Features
+
+* **cli:** 同步全局 Trellis 版本 ([e20508d](https://github.com/SilentFlower/flower-trellis/commit/e20508d18470cd5bb664903baff10bf0e7986651))
+* **trellis-release:** 新增上线批次汇总技能 ([34ed425](https://github.com/SilentFlower/flower-trellis/commit/34ed425119f14540fe7b924e8ec2cb3f599ee424))
+* **trellis:** 注入 finish-work 上线事项覆写 ([535efcd](https://github.com/SilentFlower/flower-trellis/commit/535efcd87cd77f9f5f7dd38232f2d581b2918018))
+
+
+### 🐛 修复 Bug Fixes
+
+* **route:** 修正 2.2 检查路由边界 ([da8ffe7](https://github.com/SilentFlower/flower-trellis/commit/da8ffe7b13adbb652afec769152f06f43e691b9a))
+* **trellis:** 修正检查路由阶段边界 ([efaeea3](https://github.com/SilentFlower/flower-trellis/commit/efaeea38a71be4a5294a1868e21e9796abc754d2))
+* **workflow:** 精简 post-check 后 trellis-push 引导 ([101fed6](https://github.com/SilentFlower/flower-trellis/commit/101fed6d2d66fcb08aa036bb6c86b71f795a73c2))
+
+
+### 📝 文档 Docs
+
+* **trellis:** 按 wave 排序 task 创建顺序 ([2dc4f0c](https://github.com/SilentFlower/flower-trellis/commit/2dc4f0ce845178fc9221f06152fbce2c5f26c671))
+
 ## [0.3.0-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.3.0-beta.0...v0.3.0-beta.1) (2026-06-16)
 
 
