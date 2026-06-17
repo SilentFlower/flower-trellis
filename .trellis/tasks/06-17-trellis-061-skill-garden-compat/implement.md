@@ -1,11 +1,11 @@
-# 实施计划：Trellis 0.6.1 + skill-garden 兼容
+# 实施计划：Trellis 0.6.2 + skill-garden 兼容
 
 ## 步骤
 
 1. 升级 Trellis 依赖与项目版本
-   - 将 `@mindfoldhq/trellis` 升级到 `0.6.1`。
+   - 将 `@mindfoldhq/trellis` 升级到 `0.6.2`。
    - 更新 lockfile。
-   - 运行 0.6.1 `trellis update`，对冲突文件选择保留 / 手工合并，不覆盖本仓本地配置。
+   - 运行 0.6.2 `trellis update`，对冲突文件选择保留 / 手工合并，不覆盖本仓本地配置。
 
 2. 合并 0.6.1 workflow 语义
    - `.trellis/workflow.md` 删除常规 `3.1 Quality verification` 表述。
@@ -29,6 +29,10 @@
    - 排除历史任务、普通模板副本、intentional local config，以及用户要求暂不修的 `trellis-continue` 上游残留。
    - 记录最终结论。
 
+6. 补齐 0.6.2 continue 修复
+   - 通过 `trellis update` 自动刷新 `.agents/skills/trellis-continue/SKILL.md` 与 `.claude/commands/trellis/continue.md`。
+   - 验证 `check passed` 不再路由到 3.1，而是路由到 Phase 3.3 → 3.4。
+
 ## 验证命令
 
 ```bash
@@ -38,7 +42,7 @@ node --check src/cli.js
 for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done
 git diff --check
 python3 ./.trellis/scripts/task.py validate 06-17-trellis-061-skill-garden-compat
-npx --yes @mindfoldhq/trellis@0.6.1 update --dry-run
+npx --yes @mindfoldhq/trellis@0.6.2 update --dry-run
 ```
 
 ## 重点文件
@@ -55,3 +59,5 @@ npx --yes @mindfoldhq/trellis@0.6.1 update --dry-run
 - `enhancements/0.6/**`
 - `.agents/skills/trellis-route/SKILL.md`
 - `.claude/skills/trellis-route/SKILL.md`
+- `.agents/skills/trellis-continue/SKILL.md`
+- `.claude/commands/trellis/continue.md`

@@ -4,7 +4,7 @@
 
 本任务分两层处理：
 
-1. Trellis 版本层：将本仓依赖和 `.trellis/.version` 升级到 0.6.1，使用 0.6.1 update 刷新可自动更新的模板文件。
+1. Trellis 版本层：将本仓依赖和 `.trellis/.version` 升级到 0.6.2，使用 0.6.2 update 刷新可自动更新的模板文件。
 2. skill-garden 强化层：保留本仓已有的 workflow override、finish-work release override、`trellis-route`、`trellis-push` 等强化能力，但把其中 Trellis 0.6.0 的 `Phase 3.1 final verification` 表述改为 0.6.1 语义。
 
 ## 0.6.1 目标语义
@@ -21,6 +21,10 @@ skill-garden 的覆盖规则应基于这个模型，但不在每次注入的 wor
 - 若需要最终复查，应表达为“提交前或检查后变更触发的 on-demand re-check”，触发后回到 Phase 2.2 / check route，而不是进入 3.1。
 - 0.6.1 的 full-scope final pass 和 spec-sync preamble 保留在 workflow 正文与 skill-garden hub；`workflow-states/in_progress*.md` 只保留 route / post-check / commit gate 短守卫。
 
+## 0.6.2 follow-up
+
+Trellis 0.6.2 只补 0.6.1 漏掉的 `/continue` 路由模板：`status=in_progress + check passed` 不再恢复到已删除的 3.1，而是恢复到 Phase 3.3（spec update）→ 3.4（commit）。本仓应允许 `trellis update` 自动更新 `.agents/skills/trellis-continue/SKILL.md` 与 `.claude/commands/trellis/continue.md`，继续保留 `.trellis/workflow.md`、finish-work override、`.trellis/config.yaml`、`.codex/hooks.json` 等本地改动。
+
 ## 修改范围
 
 ### 版本与模板
@@ -29,6 +33,8 @@ skill-garden 的覆盖规则应基于这个模型，但不在每次注入的 wor
 - `package-lock.json`
 - `.trellis/.version`
 - `trellis update` 自动更新的 `trellis-meta` change-workflow 文档
+- `trellis update` 自动更新的 `.agents/skills/trellis-continue/SKILL.md`
+- `trellis update` 自动更新的 `.claude/commands/trellis/continue.md`
 
 ### skill-garden 源
 
@@ -69,6 +75,6 @@ skill-garden 的覆盖规则应基于这个模型，但不在每次注入的 wor
 
 ## 回滚方案
 
-- 回退 `package.json` / lockfile / `.trellis/.version` 到 0.6.0。
+- 回退 `package.json` / lockfile / `.trellis/.version` 到 0.6.1 或 0.6.0，视需要回退的范围决定。
 - 回退 vendor/skill-garden 对应提交，重新运行 `npm run sync`。
 - 恢复 `.trellis/workflow.md` 中旧的 skill-garden 注入块和当前 route skill 副本。
