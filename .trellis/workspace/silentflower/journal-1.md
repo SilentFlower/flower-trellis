@@ -531,3 +531,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: 修正检查路由阶段边界
+
+**Date**: 2026-06-17
+**Task**: 修正检查路由阶段边界
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+修正 Trellis 0.6 skill-garden 覆盖语义：2.2 恢复为 check route/执行点，3.1 改为最终确认；同步 vendor/skill-garden 源、enhancements 快照、当前 workflow 和 trellis-route skill，并补充 enhancements 同步规范。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `efaeea3` | (see git log) |
+| `87cb9f7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
