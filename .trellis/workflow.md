@@ -335,7 +335,7 @@ If active task.json has `last_push_snapshot`, relay `partial_step` + `next_step`
 <!-- END skill-garden workflow-state in_progress_inline v0.6 -->
 
 Flow: `trellis-before-dev` -> edit -> `trellis-check` -> validation -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
-Default flow is inline unless `trellis-route` immediately selects subagent for this step; never dispatch implement/check sub-agents without that route decision.
+Do not dispatch implement/check sub-agents in inline mode.
 Read context: `prd.md` -> `design.md if present` -> `implement.md if present`, plus relevant spec/research loaded by skills.
 [/workflow-state:in_progress-inline]
 
