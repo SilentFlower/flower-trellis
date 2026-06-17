@@ -1,0 +1,5 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "CLI 分层、强化包快照与验证入口"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "skill-garden 快照、安装与覆盖同步模型"}
+{"file": ".trellis/spec/guides/index.md", "reason": "共享思考指南入口"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "Trellis 版本、manifest 与配置状态规则"}

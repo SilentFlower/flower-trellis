@@ -6,7 +6,7 @@
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 2.1 implement routing, Phase 2.2 check/check-all routing, Phase 3.1 final verification, post-check stop, Phase 3.4 code commit/push via trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
+**Scope**: Phase 2.1 implement routing, Phase 2.2 check/check-all routing, post-check stop, Phase 3.4 code commit/push via trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
@@ -14,9 +14,7 @@
 
 Before Phase 2.1 implementation mode selection or Phase 2.2 check/check-all execution runs from the main session, the immediately preceding routing decision must come from `trellis-route` or from the same numbered fallback choices shown in normal chat when the helper is unavailable.
 
-Phase 2.2 is the normal Trellis check execution point. It may dispatch `trellis-check` / `trellis-check-all` only when `trellis-route(target=check)` just selected a subagent mode.
-
-Phase 3.1 final verification is not the normal check routing entry. Confirm Phase 2.2 passed and no relevant code changed after that check; rerun check only when the Phase 2.2 result is missing, code changed after check, risk is high, or the user explicitly asks for final re-check.
+Phase 2.2 is the normal Trellis check execution point. It may dispatch `trellis-check` / `trellis-check-all` only when `trellis-route(target=check)` just selected a subagent mode. If a pre-commit re-check is needed because the Phase 2.2 result is missing, code changed after check, risk is high, or the user explicitly asks for final re-check, return to Phase 2.2 and invoke `trellis-route(check)`.
 
 `trellis-route` may use the gitignored personal preference file `.trellis/.route-prefs.tmp` to skip repeated prompts. This file is developer-local state and must never be staged or committed.
 
