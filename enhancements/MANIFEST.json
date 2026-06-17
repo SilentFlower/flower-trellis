@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-06-17T03:22:44.612Z",
+  "syncedAt": "2026-06-17T04:43:41.903Z",
   "syncedFrom": "vendor/skill-garden/.trellis",
-  "sourceCommit": "d521f182a584d99eb0e324df6c7d06813506d368",
+  "sourceCommit": "b47e445403fdc84945e11fa0bb203ae1863d1221",
   "variants": {
     "old": {
       "claudeSkills": [],

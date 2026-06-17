@@ -37,7 +37,7 @@ For normal check routing, default to `trellis-check-all` paths. Do not route to 
 
 #### Post-Check Stop Gate
 
-After `trellis-check` or `trellis-check-all` finishes, stop and report the result. Do not run `/trellis:finish-work`, do not archive the task, and do not imply the task is ready to wrap up solely because checks passed.
+After `trellis-check` or `trellis-check-all` finishes, stop and report the result; point the user to Phase 3.4 `trellis-push` (or commit-only when needed). Do not run `/trellis:finish-work`, do not archive the task, and do not imply the task is ready to wrap up solely because checks passed.
 
 If checks pass, the next allowed workflow steps are Phase 3.3 `trellis-update-spec` and Phase 3.4 `trellis-push`/commit confirmation. `/trellis:finish-work` is explicit-only: run it only after Phase 3.4 is complete and the user asks to wrap up, archive, or finish the task.
 
