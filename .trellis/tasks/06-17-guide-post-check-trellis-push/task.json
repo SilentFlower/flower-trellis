@@ -22,5 +22,26 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-17T04:44:34.695Z",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "main"
+    },
+    "pushed_commits": {
+      "flower-trellis": "101fed6",
+      "skill-garden": "b47e445"
+    },
+    "completed_steps": [
+      "更新 skill-garden 0.6 英文注入源",
+      "同步 enhancements 快照",
+      "验证当前项目 workflow 注入结果",
+      "精简 post-check trellis-push 引导文案",
+      "提交并推送 skill-garden 与 flower-trellis 业务变更"
+    ],
+    "partial_step": "Phase 3.4 snapshot bookkeeping 执行中",
+    "next_step": "Phase 3.5：如用户明确要求，运行 finish-work 归档任务",
+    "notes": "子模块先提交并推送，再同步父仓快照；父仓业务提交 101fed6 已推送。"
+  }
 }
