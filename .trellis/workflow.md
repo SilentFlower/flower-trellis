@@ -151,13 +151,15 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 2.1 / 2.2 / 3.1 dispatch routing, post-check stop, Phase 3.4 code commit/push via trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
+**Scope**: Phase 2.1 implement routing, Phase 3.1 final check/check-all routing, post-check stop, Phase 3.4 code commit/push via trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
 #### Routing Gate
 
-Before any implement/check agent or check skill runs from the main session, the immediately preceding routing decision must come from `trellis-route` or from the same numbered fallback choices shown in normal chat when the helper is unavailable.
+Before Phase 2.1 implementation mode selection or Phase 3.1 final check/check-all verification runs from the main session, the immediately preceding routing decision must come from `trellis-route` or from the same numbered fallback choices shown in normal chat when the helper is unavailable.
+
+Phase 2.2 quality check stays inside the implement loop. It must still run, fix findings, and repeat until green, but it does not independently invoke `trellis-route(target=check)`.
 
 `trellis-route` may use the gitignored personal preference file `.trellis/.route-prefs.tmp` to skip repeated prompts. This file is developer-local state and must never be staged or committed.
 
@@ -172,7 +174,7 @@ Before invoking the skill, never:
 - state "I lean towards X" or preview the inline/subagent options
 - surface route options ahead of time
 
-At phase boundaries, do not ask meta continuation questions such as "continue?", "what's next?", or "X or Y?" when the answer determines the next workflow phase. Invoke `trellis-route(implement|check)` first, or ask the same numbered route choices if the helper is unavailable.
+At Phase 2.1 and Phase 3.1 boundaries, do not ask meta continuation questions such as "continue?", "what's next?", or "X or Y?" when the answer determines the next workflow phase. Invoke `trellis-route(implement|check)` first, or ask the same numbered route choices if the helper is unavailable.
 
 If the user says "temporary override", "reselect", "use X this time", "clear route default", or equivalent, the personal preference file must not take priority. `trellis-route` must show the override options again and let the user choose whether the choice is one-time, saved as the new default, or clears the default.
 
@@ -304,9 +306,11 @@ Sub-agent dispatch protocol applies to all platforms and all sub-agents, includi
 [workflow-state:in_progress]
 <!-- BEGIN skill-garden workflow-state in_progress v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress):
-At Phase 2.1/2.2/3.1, invoke `trellis-route(implement|check)` first, including every check / check-all path.
-Do not spawn `trellis-implement`, `trellis-check`, or `trellis-check-all` directly unless `trellis-route` just selected subagent mode.
-If routing helper is unavailable, ask the same numbered route choices in normal chat and wait for the user's selection.
+At Phase 2.1, invoke `trellis-route(implement)` first.
+At Phase 2.2, run the implement-loop quality check directly; do not upgrade this step into `trellis-route(check)`.
+At Phase 3.1 final verification, invoke `trellis-route(check)` first for check/check-all routing.
+Do not spawn `trellis-implement` at Phase 2.1 or final `trellis-check` / `trellis-check-all` at Phase 3.1 unless `trellis-route` just selected subagent mode; Phase 2.2 implement-loop checks follow the normal quality-check step without standalone route.
+If routing helper is unavailable at the Phase 2.1 or Phase 3.1 route boundary, ask the same numbered route choices in normal chat and wait for the user's selection.
 After `trellis-check` / `trellis-check-all`, stop and report; do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
 This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, code commit/push goes through `trellis-push` (commit-only mode for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).
@@ -327,7 +331,7 @@ Dispatch prompt starts with `Active task: <task path from task.py current>`. Rea
 [workflow-state:in_progress-inline]
 <!-- BEGIN skill-garden workflow-state in_progress_inline v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress-inline):
-Inline mode does not skip or constrain `trellis-route`: before implementation, route `implement` first; before checking, route `check` first. The default inline flow is direct main-session work, but if the immediate route decision selects subagent, that decision permits dispatch for this step.
+Inline mode does not skip or constrain `trellis-route`: at Phase 2.1, route `implement` first; at Phase 2.2, run the implement-loop quality check directly without standalone check routing; at Phase 3.1 final verification, route `check` first. The default inline flow is direct main-session work, but if the immediate route decision selects subagent, that decision permits dispatch for this step.
 After `trellis-check` / `trellis-check-all`, stop and report; do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
 This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, code commit/push still goes through `trellis-push` (commit-only for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).

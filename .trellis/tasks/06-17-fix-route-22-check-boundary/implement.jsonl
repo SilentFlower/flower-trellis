@@ -1,0 +1,15 @@
+{"file": ".trellis/tasks/06-17-fix-route-22-check-boundary/prd.md", "reason": "本任务需求、验收标准与 0.6 主路径范围决策。"}
+{"file": ".trellis/tasks/06-17-fix-route-22-check-boundary/design.md", "reason": "实现边界、目标语义、同步策略和兼容性说明。"}
+{"file": ".trellis/tasks/06-17-fix-route-22-check-boundary/implement.md", "reason": "有序实现清单、验证命令和风险点。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "说明 skill-garden 强化包到 enhancements 快照的同步模型与校验要求。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "涉及 src/lib 注入逻辑判断时需要遵守模块边界和注释规范。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "规定快照一致性、diff 检查和上游 skill-garden 对齐要求。"}
+{"file": "vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-route/SKILL.md", "reason": "0.6 route skill 源头之一，需要修改 Phase 2.2 触发边界。"}
+{"file": "vendor/skill-garden/.trellis/0.6/.claude/skills/trellis-route/SKILL.md", "reason": "0.6 route skill Claude 副本，需要与 agents 副本保持一致。"}
+{"file": "vendor/skill-garden/.trellis/0.6/overrides/workflow.md", "reason": "skill-garden workflow hub 源头，需要修正 routing scope。"}
+{"file": "vendor/skill-garden/.trellis/0.6/overrides/workflow-states/in_progress.md", "reason": "in_progress 状态注入源，需要区分 2.1、2.2、3.1 行为。"}
+{"file": "vendor/skill-garden/.trellis/0.6/overrides/workflow-states/in_progress-inline.md", "reason": "Codex inline 状态注入源，需要避免 before checking 泛化误触发 2.2 route。"}
+{"file": ".trellis/workflow.md", "reason": "当前项目已注入 workflow，需要同步 0.6 新语义。"}
+{"file": "enhancements/0.6/overrides/workflow.md", "reason": "发布快照中的 workflow hub，npm run sync 后应与源一致。"}
+{"file": "enhancements/0.6/overrides/workflow-states/in_progress.md", "reason": "发布快照中的 in_progress state，npm run sync 后应与源一致。"}
+{"file": "enhancements/0.6/overrides/workflow-states/in_progress-inline.md", "reason": "发布快照中的 inline state，npm run sync 后应与源一致。"}

@@ -1,0 +1,15 @@
+{"file": ".trellis/tasks/06-17-fix-route-22-check-boundary/prd.md", "reason": "检查实现是否满足需求和验收标准。"}
+{"file": ".trellis/tasks/06-17-fix-route-22-check-boundary/design.md", "reason": "检查实现是否符合目标语义、同步策略和兼容范围。"}
+{"file": ".trellis/tasks/06-17-fix-route-22-check-boundary/implement.md", "reason": "检查执行清单和验证命令是否完成。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查 skill-garden 源与 enhancements 快照是否按模型同步。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "检查质量门、快照一致性和 diff 校验要求。"}
+{"file": "vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-route/SKILL.md", "reason": "核对 0.6 route skill 源头语义。"}
+{"file": "vendor/skill-garden/.trellis/0.6/.claude/skills/trellis-route/SKILL.md", "reason": "核对 route skill 平台副本一致性。"}
+{"file": ".agents/skills/trellis-route/SKILL.md", "reason": "核对当前 Codex 共享 skill 副本一致性。"}
+{"file": ".claude/skills/trellis-route/SKILL.md", "reason": "核对当前 Claude skill 副本一致性。"}
+{"file": "vendor/skill-garden/.trellis/0.6/overrides/workflow.md", "reason": "核对 workflow hub 源头 route scope。"}
+{"file": ".trellis/workflow.md", "reason": "核对当前项目已注入 workflow 是否同步新语义。"}
+{"file": "enhancements/0.6/overrides/workflow.md", "reason": "核对发布快照 workflow hub 是否与源一致。"}
+{"file": "src/lib/legacy-blocks.js", "reason": "确认 0.5 / legacy 文案未被本任务修改。"}
+{"file": "vendor/skill-garden/scripts/install.sh", "reason": "确认 0.5 / legacy install.sh 文案未被本任务修改。"}
+{"file": "enhancements/0.5/overrides/trellis-route.md", "reason": "确认 0.5 override 未被本任务修改。"}
