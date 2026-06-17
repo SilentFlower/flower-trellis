@@ -20,6 +20,13 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   `prepublishOnly`),**最终用户不会运行它**。脚本会先整体清旧快照再全量递归拷贝
   `.agents` / `.claude` / `overrides`,并写 `MANIFEST.json` 记录 `syncedAt` /
   `sourceCommit` 供溯源。
+- **改 0.6 强化 skill / workflow 覆盖时,先改源再同步**:`vendor/skill-garden/.trellis/0.6/`
+  是 `npm run sync` 的真实输入。不要只改 `enhancements/0.6/` 或当前项目 `.agents/` /
+  `.claude/`;否则下一次 sync 会把改动覆盖回源里的旧版本。正确顺序是:
+  1. 改 `vendor/skill-garden/.trellis/0.6/.agents` / `.claude` / `overrides` 对应源文件;
+  2. 运行 `npm run sync`;
+  3. 用 `diff -u vendor/... enhancements/...` 验证发布快照与源一致;
+  4. 必要时再同步当前项目已安装副本(如 `.agents/skills/...`、`.claude/skills/...`)。
 - 随包发布靠 `package.json` 的 `files: ["bin","src","enhancements","README.md"]`。
 - **同步源 = git submodule `vendor/skill-garden`**(不在 `files` 白名单,不进 npm tarball)。
   `sync-enhancements.mjs` 三级路径解析:`SKILL_GARDEN_DIR` 环境变量 → `PKG_ROOT/vendor/skill-garden`
@@ -87,6 +94,8 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 ## Common Mistakes
 
 - 改了叠加逻辑却不跑 `npm run sync` 重建快照,或反过来改了快照不对应上游版本。
+- 只改 `enhancements/0.6/` 中的 skill / workflow 覆盖,没有改
+  `vendor/skill-garden/.trellis/0.6/` 源 —— 下一次 `npm run sync` 会覆盖掉手工快照改动。
 - 在 `--skills` 精细模式下触发 manifest 清理 —— 清理只允许全装。
 - 注入/写盘类新逻辑没做「内容相同则不写」的幂等判断。
 - 移植上游逻辑时「优化」掉了与 install.sh 的一致性,导致升级行为漂移。

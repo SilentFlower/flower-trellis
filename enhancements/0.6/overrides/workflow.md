@@ -6,15 +6,17 @@
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 2.1 implement routing, Phase 3.1 final check/check-all routing, post-check stop, Phase 3.4 code commit/push via trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
+**Scope**: Phase 2.1 implement routing, Phase 2.2 check/check-all routing, Phase 3.1 final verification, post-check stop, Phase 3.4 code commit/push via trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
 #### Routing Gate
 
-Before Phase 2.1 implementation mode selection or Phase 3.1 final check/check-all verification runs from the main session, the immediately preceding routing decision must come from `trellis-route` or from the same numbered fallback choices shown in normal chat when the helper is unavailable.
+Before Phase 2.1 implementation mode selection or Phase 2.2 check/check-all execution runs from the main session, the immediately preceding routing decision must come from `trellis-route` or from the same numbered fallback choices shown in normal chat when the helper is unavailable.
 
-Phase 2.2 quality check stays inside the implement loop. It must still run, fix findings, and repeat until green, but it does not independently invoke `trellis-route(target=check)`.
+Phase 2.2 is the normal Trellis check execution point. It may dispatch `trellis-check` / `trellis-check-all` only when `trellis-route(target=check)` just selected a subagent mode.
+
+Phase 3.1 final verification is not the normal check routing entry. Confirm Phase 2.2 passed and no relevant code changed after that check; rerun check only when the Phase 2.2 result is missing, code changed after check, risk is high, or the user explicitly asks for final re-check.
 
 `trellis-route` may use the gitignored personal preference file `.trellis/.route-prefs.tmp` to skip repeated prompts. This file is developer-local state and must never be staged or committed.
 
@@ -29,7 +31,7 @@ Before invoking the skill, never:
 - state "I lean towards X" or preview the inline/subagent options
 - surface route options ahead of time
 
-At Phase 2.1 and Phase 3.1 boundaries, do not ask meta continuation questions such as "continue?", "what's next?", or "X or Y?" when the answer determines the next workflow phase. Invoke `trellis-route(implement|check)` first, or ask the same numbered route choices if the helper is unavailable.
+At Phase 2.1 and Phase 2.2 boundaries, do not ask meta continuation questions such as "continue?", "what's next?", or "X or Y?" when the answer determines the next workflow phase. Invoke `trellis-route(implement|check)` first, or ask the same numbered route choices if the helper is unavailable.
 
 If the user says "temporary override", "reselect", "use X this time", "clear route default", or equivalent, the personal preference file must not take priority. `trellis-route` must show the override options again and let the user choose whether the choice is one-time, saved as the new default, or clears the default.
 

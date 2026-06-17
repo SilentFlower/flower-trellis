@@ -4,14 +4,14 @@ description: |
   Route trellis-implement / trellis-check execution mode with a gitignored personal preference file.
   Implement can route inline or subagent. Check defaults to check-all inline/subagent; lightweight
   trellis-check is hidden and only available when the user explicitly requests "light check" / "轻量检查".
-  Invoked from Phase 2.1 target=implement and Phase 3.1 target=check/check-all of the routing-aware workflow.
-  Phase 2.2 runs implement-loop quality checks and is not a standalone route entry. Skip in non-trellis projects
+  Invoked from Phase 2.1 target=implement and Phase 2.2 target=check/check-all of the routing-aware workflow.
+  Phase 3.1 is final verification and does not normally route check again. Skip in non-trellis projects
   (no .trellis/). Not for other subagents (trellis-research / trellis-debug).
 ---
 
 # Trellis 路由器：implement / check 执行模式选择
 
-主 agent 进入 Phase 2.1 的实现路由或 Phase 3.1 的最终检查路由时调用本 skill，决定 implement / check 的执行模式。Phase 2.2 属于 implement 闭环内质量检查，不是独立 route 入口。核心目标是减少重复打断：正常路由优先读取个人本地配置；用户要求临时改、重新选择或清除默认时，必须绕过配置并重新展示选项。
+主 agent 进入 Phase 2.1 的实现路由或 Phase 2.2 的检查路由时调用本 skill，决定 implement / check 的执行模式。Phase 3.1 属于最终确认节点，通常只确认 Phase 2.2 已通过，不作为普通 check route 入口。核心目标是减少重复打断：正常路由优先读取个人本地配置；用户要求临时改、重新选择或清除默认时，必须绕过配置并重新展示选项。
 
 个人配置只写入 `.trellis/.route-prefs.tmp`。该文件匹配 `.trellis/.gitignore` 的 `*.tmp` 规则，属于开发者本地偏好，不纳入 git，也不影响其他开发者。
 
@@ -19,7 +19,7 @@ description: |
 
 ## Step 0: 识别目标与用户意图
 
-个人 route 配置只决定“已获准执行后的模式”，不是开工授权。读取 `.trellis/.route-prefs.tmp` 前，必须确认当前 workflow 已允许进入对应 target：implement 需要任务已完成规划确认并处于 `in_progress`；check 仅用于 Phase 3.1 最终质量验证，或用户明确要求最终检查 / 轻量检查。Phase 2.2 的实现内质量检查必须执行，但不单独进入 `trellis-route(target=check)`。如果仍在 planning、等待用户确认，或用户表达“等一下 / 我再想想”，停止，不读取个人配置。
+个人 route 配置只决定“已获准执行后的模式”，不是开工授权。读取 `.trellis/.route-prefs.tmp` 前，必须确认当前 workflow 已允许进入对应 target：implement 需要任务已完成规划确认并处于 `in_progress`；check 用于 Phase 2.2 检查执行，或用户明确要求最终复查 / 轻量检查。Phase 3.1 只有在 Phase 2.2 结果缺失、check 后代码变更、风险较高或用户明确要求复查时才重新进入 check 路由。如果仍在 planning、等待用户确认，或用户表达“等一下 / 我再想想”，停止，不读取个人配置。
 
 Codex inline mode 只表示主会话默认直接执行，不是 route 选项过滤器。即使当前上下文出现 `<codex-mode>inline...do not dispatch...</codex-mode>` 或 `workflow-state:in_progress-inline`，也不能推断“只能 inline”或跳过 subagent 选项；仍必须读取 `.trellis/.route-prefs.tmp`，或在无有效配置时展示正常 inline/subagent 选项。若本 skill 的紧邻路由决定是 subagent，本步骤允许主 agent dispatch 对应 implement/check sub-agent；禁止的是绕过 `trellis-route` 直接 dispatch。
 
