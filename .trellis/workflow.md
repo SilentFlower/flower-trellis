@@ -669,9 +669,10 @@ Goal: ensure code quality, capture lessons, record the work.
 
 #### 3.1 Quality verification `[required · repeatable]`
 
-Confirm the Phase 2.2 check passed and no relevant code changed after that check:
-- If Phase 2.2 passed and no code changed after it, proceed to Phase 3.3.
-- If the Phase 2.2 result is missing, code changed after check, risk is high, or the user explicitly asks for final re-check, run final verification for spec compliance, lint / type-check / tests, and cross-layer consistency when relevant.
+Load the `trellis-check` skill and do a final verification:
+- Spec compliance
+- lint / type-check / tests
+- Cross-layer consistency (when changes span layers)
 
 If issues are found → fix → re-check, until green.
 
