@@ -22,10 +22,12 @@
     "bin",
     "src",
     "enhancements",
+    "scripts/sync-global-trellis.mjs",
     "README.md"
   ],
   "scripts": {
     "sync": "node scripts/sync-enhancements.mjs",
+    "postinstall": "node scripts/sync-global-trellis.mjs",
     "prepublishOnly": "node scripts/sync-enhancements.mjs",
     "release": "node scripts/check-snapshot.mjs && commit-and-tag-version",
     "release:dry": "commit-and-tag-version --dry-run"

@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { confirm } from "@inquirer/prompts";
 import chalk from "chalk";
+import { isRunningViaNpx } from "./runtime-env.js";
 import { flowerVersion } from "./versions.js";
 
 /**
@@ -174,24 +174,6 @@ export function getUpdateRecommendation(current, tags) {
 }
 
 /**
- * 判断当前是否经 npx 执行。
- *
- * 经 npx 跑的永远是临时拉取的最新版,检测无意义,应跳过。最可靠的信号是执行路径里含
- * npx 缓存目录标记 `_npx`(`~/.npm/_npx/<hash>/...`,跨平台一致);辅以 `npm_command==='exec'`
- * (`npm exec` / npx)。全局安装直跑(flower-trellis / ftl / ft)时两者皆否。
- * @returns {boolean}
- */
-export function isRunningViaNpx() {
-  try {
-    const selfPath = fileURLToPath(import.meta.url);
-    if (selfPath.includes("_npx")) return true;
-  } catch {
-    // 路径解析失败不应影响主流程;退而判 npm_command
-  }
-  return process.env.npm_command === "exec";
-}
-
-/**
  * 检测 flower-trellis 自身是否有新版本,并按场景提示/引导升级。在 init / update 的
  * 品牌头部之后、主操作之前调用。
  *
@@ -213,7 +195,7 @@ export async function checkForUpdate(ctx, commandLabel) {
   // 1. 关闭开关:显式 flag 或环境变量
   if (ctx.updateCheck === false || process.env.FLOWER_NO_UPDATE_CHECK) return;
   // 2. npx 本就是最新版,跳过(连通知都不打,避免误导)
-  if (isRunningViaNpx()) return;
+  if (isRunningViaNpx(import.meta.url)) return;
 
   // 3. 尽力而为取 dist-tags;拿不到就静默退出
   const tags = await fetchPackageDistTags();

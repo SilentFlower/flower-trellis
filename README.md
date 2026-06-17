@@ -29,6 +29,14 @@ npm i -g flower-trellis@beta
 
 **环境要求**:Node.js ≥ 18.17.0。
 
+全局安装 / 升级 `flower-trellis` 时会同步全局 `@mindfoldhq/trellis` 到当前捆绑版本,因此直接运行 `trellis ...` 也会与 `flower-trellis -v` 中的 `trellis (bundled)` 保持一致。若全局 npm 目录权限不足导致同步失败,安装会中止并提示手动执行的命令,例如:
+
+```bash
+npm install -g @mindfoldhq/trellis@<版本号>
+```
+
+`npx flower-trellis ...` 属于临时免安装运行,不会改写本机全局 `trellis`。
+
 ## 用法
 
 ```bash
