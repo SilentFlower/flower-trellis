@@ -22,5 +22,25 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-17T05:22:27.832740+00:00",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "main"
+    },
+    "pushed_commits": {
+      "flower-trellis": "2dc4f0c",
+      "skill-garden": "88edc3a"
+    },
+    "completed_steps": [
+      "确认 slug 策略",
+      "更新三份 skill",
+      "同步 0.6 副本",
+      "通过最终 check-all",
+      "提交并推送 skill-garden 与 flower-trellis"
+    ],
+    "next_step": "Phase 3.5 wrap-up / finish-work（如需要）",
+    "notes": "trellis-push 默认模式：已提交并推送 skill-garden 与 flower-trellis；未执行 merge。"
+  }
 }
