@@ -497,3 +497,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: 同步全局 Trellis 版本
+
+**Date**: 2026-06-17
+**Task**: 同步全局 Trellis 版本
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+实现 flower-trellis 全局安装和 update 时同步 @mindfoldhq/trellis 到捆绑版本；新增共享 npx 判定、postinstall 同步脚本、update 前置同步，并完成临时 prefix 安装、失败路径、update 路径和打包验证。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e20508d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
