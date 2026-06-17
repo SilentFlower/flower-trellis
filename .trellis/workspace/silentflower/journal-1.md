@@ -566,3 +566,41 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: Trellis 0.6.2 beta 发布与任务归档
+
+**Date**: 2026-06-17
+**Task**: Trellis 0.6.2 beta 发布与任务归档
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 finish-work release override 与 trellis-release 能力、升级到 Trellis 0.6.2 并修正 continue 路由，发布 flower-trellis 0.3.0-beta.3，归档相关两个任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `535efcd` | (see git log) |
+| `34ed425` | (see git log) |
+| `e5a6cd6` | (see git log) |
+| `4dffb9f` | (see git log) |
+| `abeb450` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
