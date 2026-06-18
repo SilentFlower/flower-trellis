@@ -604,3 +604,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: craft-slides 内置精选主题升级
+
+**Date**: 2026-06-18
+**Task**: craft-slides 内置精选主题升级
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主题,做演示前先列清单让用户选;新增 5 份每主题适配模板(theme+colorSchema+中文系统字回退),slidev.sh 补主题映射与按主题选模板,SKILL.md 加选主题约定。逐套 new→install→dev 实测通过(修复 nord 默认 cover 空白、geist statement 顶边裁字)。.claude/.codex 两平台 + 全局安装均同步。子模块 ab389b3、父仓 11f1b20 已推 origin/main。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `11f1b20` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
