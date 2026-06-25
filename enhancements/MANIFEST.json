@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-06-25T16:01:21.350Z",
+  "syncedAt": "2026-06-25T18:07:44.357Z",
   "syncedFrom": "vendor/skill-garden/.trellis",
-  "sourceCommit": "97cb5d7e8bfda2c6504790e10cc2bf08e2f2d8fb",
+  "sourceCommit": "2dd4bfbcee4a622fb642d8114b6a2504cdeead64",
   "variants": {
     "old": {
       "claudeSkills": [],
@@ -84,6 +84,7 @@
         "trellis-release",
         "trellis-route",
         "trellis-run-full-chain",
+        "trellis-task-brief",
         "trellis-verify-task"
       ],
       "agentsSkills": [
@@ -96,6 +97,7 @@
         "trellis-release",
         "trellis-route",
         "trellis-run-full-chain",
+        "trellis-task-brief",
         "trellis-verify-task"
       ],
       "commands": [],
@@ -106,6 +108,7 @@
         "in_progress-inline.md",
         "in_progress.md",
         "no_task.md",
+        "planning-inline.md",
         "planning.md"
       ],
       "skillOverrides": [

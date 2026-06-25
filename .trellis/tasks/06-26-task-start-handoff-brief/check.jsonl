@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "检查 workflow / skill / enhancements 改动是否符合 CLI 工程约定。"}
+{"file": ".trellis/spec/guides/index.md", "reason": "检查交接摘要方案是否覆盖跨层注入、复用和漂移风险。"}

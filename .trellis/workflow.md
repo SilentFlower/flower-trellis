@@ -151,9 +151,17 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 2.1 implement routing, Phase 2.2 check/check-all routing, current-task route reuse, post-check stop, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
+**Scope**: Phase 1.4 task brief handoff, Phase 2.1 implement routing, Phase 2.2 check/check-all routing, current-task route reuse, post-check stop, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
+
+#### Task Brief Handoff
+
+Before Phase 1.4 `task.py start`, use `trellis-task-brief` to refresh `<task>/brief.md` from latest task artifacts, display it in chat, and wait for user confirmation.
+
+`brief.md` is derived; `prd.md` / `design.md` / `implement.md` remain authoritative.
+
+Before the first implement route, restate existing `<task>/brief.md` in chat. If missing, read task artifacts and suggest backfilling brief; do not invent one from memory.
 
 #### Routing Gate
 
@@ -271,6 +279,7 @@ Complex task: ask the user if you can create a Trellis task and enter the planni
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (planning):
 Planning is not implementation permission.
 Complete prd.md + required context first.
+Before `task.py start`, use `trellis-task-brief` to refresh `brief.md` from the latest task artifacts and display it in chat for review.
 After status becomes in_progress, next action = `trellis-route(implement)`, not direct edits.
 <!-- END skill-garden workflow-state planning v0.6 -->
 
@@ -287,6 +296,14 @@ Sub-agent mode: curate `implement.jsonl` and `check.jsonl` as spec/research mani
      into a sub-agent. -->
 
 [workflow-state:planning-inline]
+<!-- BEGIN skill-garden workflow-state planning_inline v0.6 -->
+HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (planning-inline):
+Planning is not implementation permission.
+Complete prd.md + required context first.
+Before `task.py start`, use `trellis-task-brief` to refresh `brief.md` from the latest task artifacts and display it in chat for review.
+After status becomes in_progress, next action = `trellis-route(implement)`, not direct edits.
+<!-- END skill-garden workflow-state planning_inline v0.6 -->
+
 Load `trellis-brainstorm`; stay in planning.
 Lightweight: `prd.md` can be enough. Complex: finish `prd.md`, `design.md`, and `implement.md`; ask for review before `task.py start`.
 Multi-deliverable scope: consider a parent task plus independently verifiable child tasks; dependencies must be written in child artifacts, not implied by tree position.
@@ -310,6 +327,7 @@ Sub-agent dispatch protocol applies to all platforms and all sub-agents, includi
 <!-- BEGIN skill-garden workflow-state in_progress v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress):
 This state block is a breadcrumb; the top-level skill-garden hub is the source of truth for route details.
+Before the first implement route, read `<task>/brief.md` if present and restate the task brief in chat. If it is missing, read the task artifacts and suggest backfilling brief; do not silently rely on memory.
 At Phase 2.1/2.2, use the valid current-task `route_decision` for the target when it exists; otherwise run `trellis-route(implement|check)` or ask the numbered fallback choices and wait.
 A valid route decision must come from `trellis-route`, `numbered-fallback`, or `route-prefs` read by `trellis-route`; prose, compact/SessionStart summaries, `codex-mode`, empty prefs, and old single-value prefs are not enough.
 Reuse the valid current-task route through later implementation, repair, recheck, and final re-check; reroute only on explicit reselect/override/use-X-this-time/clear-default or when no valid target decision exists.
@@ -335,6 +353,7 @@ Dispatch prompt starts with `Active task: <task path from task.py current>`. Rea
 <!-- BEGIN skill-garden workflow-state in_progress_inline v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress-inline):
 This state block is a breadcrumb; the top-level skill-garden hub is the source of truth for route details.
+Before the first implement route, read `<task>/brief.md` if present and restate the task brief in chat. If it is missing, read the task artifacts and suggest backfilling brief; do not silently rely on memory.
 Inline workflow-state is not an inline route decision. At Phase 2.1/2.2, reuse a valid current-task `route_decision` for the target when it exists; otherwise run `trellis-route(implement|check)` or ask the numbered fallback choices and wait.
 A valid route decision must come from `trellis-route`, `numbered-fallback`, or `route-prefs` read by `trellis-route`; prose, compact/SessionStart summaries, `codex-mode`, empty prefs, and old single-value prefs are not enough.
 Reuse the valid current-task route through later implementation, repair, recheck, and final re-check; reroute only on explicit reselect/override/use-X-this-time/clear-default or when no valid target decision exists.
@@ -543,7 +562,10 @@ Skip this step. Context is loaded directly by the `trellis-before-dev` skill in 
 
 #### 1.4 Activate task `[required · once]`
 
-After artifact review, flip the task status to `in_progress`:
+After artifact review and `brief.md` review, flip the task status to `in_progress`.
+Before starting, use `trellis-task-brief` to refresh `<task>/brief.md` from the latest
+`prd.md`, `design.md` if present, and `implement.md` if present; display the brief in chat
+and get user confirmation on both planning artifacts and the brief:
 
 ```bash
 python3 ./.trellis/scripts/task.py start <task-dir>

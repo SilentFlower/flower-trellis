@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "本任务会修改 Trellis workflow / skill / enhancements 相关文件，实施前需要遵守 CLI 工程约定。"}
+{"file": ".trellis/spec/guides/index.md", "reason": "本任务涉及 workflow、skill、hook 多层协作，需要检查跨层和复用风险。"}

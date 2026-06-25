@@ -79,7 +79,7 @@ for (const v of VARIANTS) {
     }
   }
 
-  // 统计(供人工核对:old=11 命令 / 0.5=13 skill / 0.6=10 skill + hub + 4 state + 1 skill override)
+  // 统计(供人工核对:old=11 命令 / 0.5=13 skill / 0.6=11 skill + hub + 5 state + 1 skill override)
   const claudeSkills = listDirs(path.join(DST, v, ".claude", "skills"));
   const agentsSkills = listDirs(path.join(DST, v, ".agents", "skills"));
   const commands = listFiles(
