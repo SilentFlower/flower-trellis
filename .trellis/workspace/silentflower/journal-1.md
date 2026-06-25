@@ -642,3 +642,39 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: 优化 trellis-release 与 finish-work 上线核对规则
+
+**Date**: 2026-06-25
+**Task**: 优化 trellis-release 与 finish-work 上线核对规则
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+强化 trellis-release 的上线前证据核对、release 文件命名和漂移风险标记；强化 finish-work 注入在上下文压缩后重新读取任务文件与 git 证据；同步 skill-garden 源、enhancements 快照、当前 .agents/.claude 副本，并完成 check-all 与 push。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `13f109a` | (see git log) |
+| `588fc23` | (see git log) |
+| `884cfbd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
