@@ -1,0 +1,4 @@
+{"file":".trellis/tasks/06-25-optimize-release-audit-rules/prd.md","reason":"验收标准来源。"}
+{"file":".trellis/tasks/06-25-optimize-release-audit-rules/design.md","reason":"核对设计边界和同步范围。"}
+{"file":".trellis/tasks/06-25-optimize-release-audit-rules/implement.md","reason":"核对实施清单和验证命令。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查是否遵守 vendor 源优先和快照同步规则。"}
