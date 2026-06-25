@@ -5,14 +5,14 @@ description: |
   Implement can route inline or subagent. Check defaults to check-all inline/subagent; lightweight
   trellis-check is hidden and only available when the user explicitly requests "light check" / "轻量检查".
   Invoked from Phase 2.1 target=implement and Phase 2.2 target=check/check-all of the routing-aware workflow.
-  Same-cycle repair/recheck loops reuse the latest route decision instead of prompting again.
+  Current-task repair/recheck loops reuse the latest valid route decision instead of prompting again.
   Final re-checks return to Phase 2.2 before commit.
   Skip in non-trellis projects (no .trellis/). Not for other subagents (trellis-research / trellis-debug).
 ---
 
 # Trellis 路由器：implement / check 执行模式选择
 
-主 agent 进入 Phase 2.1 实现路由或 Phase 2.2 检查路由时调用本 skill。check 失败后的同轮修复/重检复用最近路由，不重新调用本 skill。提交前确实需要最终复查时，回到 Phase 2.2 再执行 check 路由。
+主 agent 进入 Phase 2.1 实现路由或 Phase 2.2 检查路由时调用本 skill。当前任务内已有合法来源的最近 route 决策时，后续实现、修复、重检默认复用该决策；没有合法决策时才进入本 skill 或同编号 fallback。提交前确实需要最终复查时，回到 Phase 2.2 并复用当前任务的合法 check route，除非用户明确要求重选。
 
 个人配置只写入 `.trellis/.route-prefs.tmp`。该文件匹配 `.trellis/.gitignore` 的 `*.tmp` 规则，属于开发者本地偏好，不纳入 git，也不影响其他开发者。
 
@@ -20,9 +20,11 @@ description: |
 
 ## Step 0: 识别目标与用户意图
 
-个人 route 配置只决定“已获准执行后的模式”，不是开工授权。读取 `.trellis/.route-prefs.tmp` 前，必须确认当前 workflow 已允许进入对应 target：implement 需要任务已完成规划确认并处于 `in_progress`；check 用于 Phase 2.2 首次检查执行，或用户明确要求最终复查 / 轻量检查。最终复查只有在 Phase 2.2 结果缺失、check 后代码在同轮修复闭环外发生变化、风险较高或用户明确要求复查时才回到 Phase 2.2 并重新进入 check 路由。如果仍在 planning、等待用户确认，或用户表达“等一下 / 我再想想”，停止，不读取个人配置。
+个人 route 配置只决定“已获准执行后的模式”，不是开工授权。读取 `.trellis/.route-prefs.tmp` 前，必须确认当前 workflow 已允许进入对应 target：implement 需要任务已完成规划确认并处于 `in_progress`；check 用于 Phase 2.2 检查执行，或用户明确要求最终复查 / 轻量检查。最终复查只有在 Phase 2.2 结果缺失、风险较高或用户明确要求复查时才回到 Phase 2.2；回到 Phase 2.2 后优先复用当前任务的合法 check route，除非用户明确要求重选/临时改/清除默认。如果仍在 planning、等待用户确认，或用户表达“等一下 / 我再想想”，停止，不读取个人配置。
 
-check 刚发现问题或用户指出刚检查过的实现有问题时，同轮修复/重检复用最近 implement/check 路由；除非用户明确要求重选/临时改/清除默认，不再调用本 skill。
+合法 route 决策必须能追溯到 `trellis-route`、同编号 fallback 选项，或由本 skill 读取到的有效 `.trellis/.route-prefs.tmp` 配置。用户自然语言说过“inline/subagent”、compact summary、SessionStart 摘要、`codex-mode`、空 `.route-prefs.tmp`、旧单值偏好，都不能单独作为有效 route 决策。
+
+当前任务内已有 target 匹配且来源合法的 route 决策时，后续实现、check 发现问题、用户指出刚检查过的实现有问题、修复后重检、提交前复查均默认复用最近 implement/check 路由；除非用户明确要求重选/临时改/清除默认，不再调用本 skill。
 
 Codex inline mode 只表示主会话默认直接执行，不是 route 选项过滤器。即使当前上下文出现 `<codex-mode>inline...do not dispatch...</codex-mode>` 或 `workflow-state:in_progress-inline`，也不能推断“只能 inline”或跳过 subagent 选项；仍必须读取 `.trellis/.route-prefs.tmp`，或在无有效配置时展示正常 inline/subagent 选项。若本 skill 的紧邻路由决定是 subagent，本步骤允许主 agent dispatch 对应 implement/check sub-agent；禁止的是绕过 `trellis-route` 直接 dispatch。
 
@@ -224,6 +226,13 @@ OLD_CHECK=$(awk -F= '$1=="check"{print $2}' "$PREF_FILE" 2>/dev/null | tail -n 1
 [来自个人 route 配置：`.trellis/.route-prefs.tmp` (<key>=<value>)。]
 [说明：用户明确请求轻量检查，使用隐藏逃生口。]
 
+route_decision:
+  target: <implement | check>
+  mode: <inline | subagent | check-all-inline | check-all-subagent | check-inline | check-subagent>
+  source: <trellis-route | route-prefs | numbered-fallback>
+  scope: task
+  task: <task.py current 的任务路径或 current>
+
 接下来主 agent 应当：
 - <路由表里对应的工具调用形式>
 - [若 implement subagent 且 subagent_skip_compile=true：附加“跳过编译”prompt 段]
@@ -232,7 +241,7 @@ OLD_CHECK=$(awk -F= '$1=="check"{print $2}' "$PREF_FILE" 2>/dev/null | tail -n 1
 - <要避免的工具调用>
 ```
 
-中括号内行为条件性出现：仅命中个人配置时显示配置行；仅轻量 check 时显示隐藏逃生口说明；仅 implement subagent + skip_compile=true 时附加“跳过编译”段。
+中括号内行为条件性出现：仅命中个人配置时显示配置行；仅轻量 check 时显示隐藏逃生口说明；仅 implement subagent + skip_compile=true 时附加“跳过编译”段。`route_decision` 必须保留在回复、交接摘要或 compact summary 中；没有 `source` 的自然语言偏好不能被后续 agent 复用为 route。
 
 ---
 
@@ -241,7 +250,7 @@ OLD_CHECK=$(awk -F= '$1=="check"{print $2}' "$PREF_FILE" 2>/dev/null | tail -n 1
 1. **个人配置私有**：`.trellis/.route-prefs.tmp` 是本地偏好，gitignored，不能进入提交计划。
 2. **正常路由少打断**：命中个人配置时直接输出路由决定，不再重复询问。
 3. **显式覆盖优先于配置**：用户要求临时改、重新选择或清除默认时，必须重新展示选项，不能让配置优先。
-4. **失败闭环复用路由**：check 发现问题后的同一轮修复/重检沿用最近一次 implement/check 路由，不再次询问模式。
+4. **当前任务复用路由**：当前任务内已有合法来源的最近 implement/check 路由时，后续实现、修复、重检和复查默认沿用，不再次询问模式。
 5. **check 默认全面检查**：普通 check 路由只展示 `check-all` inline/subagent，不推荐轻量 `trellis-check`。
 6. **轻量 check 是隐藏逃生口**：只有用户明确请求 `light check` / `轻量检查` 时才可走轻量 `trellis-check`。
 7. **决策与执行分离**：本 skill 只输出指令，下一轮由主 agent 调工具。
@@ -259,7 +268,8 @@ OLD_CHECK=$(awk -F= '$1=="check"{print $2}' "$PREF_FILE" 2>/dev/null | tail -n 1
 - 没有用户明确请求时，把 check 降级到轻量 `trellis-check`。
 - `AskUserQuestion` / `request_user_input` 不可用时，记录为 inline 或 subagent 路径并继续。
 - 没有有效 check 配置、用户选择或最近本轮 check 路由决定时，自动执行 inline check。
-- check 发现问题后，把同一轮修复/重检当成新的 route 边界再次询问模式。
+- 没有 `source` 合法的 `route_decision`，就把“用户说过 inline/subagent”或 compact summary 当成已路由。
+- check 发现问题后，把当前任务内已有合法 route 的修复/重检当成新的 route 边界再次询问模式。
 - 给 check 任何模式附加“跳过编译”指令。
 - 询问后忽视用户答案默认 subagent。
 - 因 `<codex-mode>` 或 `in_progress-inline` 提到 inline，就自行把无配置 route 结果改成 inline 或隐藏 subagent 选项。

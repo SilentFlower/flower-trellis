@@ -151,38 +151,37 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 2.1 implement routing, Phase 2.2 check/check-all routing, same-cycle repair/recheck route reuse, post-check stop, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
+**Scope**: Phase 2.1 implement routing, Phase 2.2 check/check-all routing, current-task route reuse, post-check stop, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
 #### Routing Gate
 
-Before the initial Phase 2.1 implement route or initial Phase 2.2 check/check-all route, the immediately preceding routing decision must come from `trellis-route` or the same numbered fallback choices.
+A route decision is valid only when it is a current-task decision for the requested target (`implement` or `check`) and its structured `route_decision.source` is one of: `trellis-route`, `numbered-fallback`, or `route-prefs`.
 
-Phase 2.2 is the normal check execution point. Dispatch `trellis-check` / `trellis-check-all` only when `trellis-route(target=check)` selected subagent for this check cycle.
+`route-prefs` is valid only when read by `trellis-route` after the workflow has already reached Phase 2.1 or Phase 2.2. The gitignored personal preference file `.trellis/.route-prefs.tmp` is developer-local execution-mode state; it must never be staged or committed, and it is never authorization to start work.
 
-On check failure or a user-reported issue in the just-checked work, stay in the same repair/recheck loop and reuse the latest implement/check route. Do not rerun `trellis-route` just because check failed.
+Before Phase 2.1 implement or Phase 2.2 check/check-all execution, use this order:
 
-Rerun `trellis-route(check)` only for a new independent check stage: missing 2.2 result, code changed outside the same repair loop, high risk, explicit final re-check, or explicit route reselect/override/clear.
+1. Reuse the valid current-task route decision for the requested target when one exists.
+2. If the user explicitly asks to reselect, override, use another mode this time, or clear the default, ignore stored preferences for this decision and rerun `trellis-route` / the numbered fallback.
+3. If no valid current-task decision exists for the target, run `trellis-route(target=implement|check)`. If the helper cannot ask through `AskUserQuestion` / `request_user_input`, ask the same numbered choices in normal chat and wait.
 
-`trellis-route` may use the gitignored personal preference file `.trellis/.route-prefs.tmp` to skip repeated prompts. This file is developer-local state and must never be staged or committed.
+These are not valid route decisions by themselves: user prose such as "inline" or "I choose inline"; compact summaries; SessionStart summaries; `codex-mode`; empty `.trellis/.route-prefs.tmp`; old single-value prefs; and any remembered or summarized prior choice that does not carry a valid structured `route_decision`.
 
-Personal route preferences are execution-mode preferences only, never authorization to start work; `trellis-route` may read them only after the workflow already permits the requested target.
+When a valid current-task implement/check decision exists, reuse it for later implementation in the same task, check failures, user-reported issues in the just-checked work, repair, recheck, and final re-check. Do not rerun `trellis-route` merely because check failed, code was repaired, or a final re-check is needed.
 
-`trellis-route` returns 2 normal modes for `target=implement` (inline/subagent) and 2 normal modes for `target=check` (check-all inline/check-all subagent). Lightweight `trellis-check` is a hidden escape hatch only when the user explicitly asks for `light check` / `轻量检查`; it is not shown in normal check options.
+Phase 2.2 is the normal check execution point. Normal check routing returns only `trellis-check-all` paths: check-all inline or check-all subagent. Lightweight `trellis-check` is a hidden escape hatch only when the user explicitly asks for `light check` / `轻量检查`; it is not shown in normal check options.
 
-If `AskUserQuestion` / `request_user_input` is unavailable, ask the same numbered choices in normal chat and wait. Tool unavailability is not permission to choose inline/subagent, dispatch directly, or run inline check by default.
+`trellis-route` returns 2 normal modes for `target=implement` (inline/subagent) and 2 normal modes for `target=check` (check-all inline/check-all subagent).
+Dispatch `trellis-implement`, `trellis-check`, or `trellis-check-all` only when the valid route decision selected subagent. If the valid route decision selected inline, execute inline in the main session.
 
 Before invoking the skill, never:
 - write pre-questions ("ready to start? / shall I proceed?")
 - state "I lean towards X" or preview the inline/subagent options
 - surface route options ahead of time
 
-At initial Phase 2.1/2.2 boundaries, do not ask meta continuation questions. Invoke `trellis-route(implement|check)` first, or ask the numbered route choices if the helper is unavailable. Inside same-cycle repair/recheck, reuse the existing route.
-
-If the user says "temporary override", "reselect", "use X this time", "clear route default", or equivalent, the personal preference file must not take priority. `trellis-route` must show the override options again and let the user choose whether the choice is one-time, saved as the new default, or clears the default.
-
-For normal check routing, default to `trellis-check-all` paths. Do not route to lightweight `trellis-check` unless the user explicitly asks for the hidden light-check escape hatch.
+At Phase 2.1/2.2 boundaries, do not ask meta continuation questions. Either reuse the valid current-task route decision for the target, or obtain a new valid decision through `trellis-route` / numbered fallback.
 
 #### Post-Check Stop Gate
 
@@ -245,11 +244,11 @@ Create new children with `task.py create "<title>" --slug <name> --parent <paren
 [workflow-state:no_task]
 <!-- BEGIN skill-garden workflow-state no_task v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (no_task):
-Creating/resuming a task is not implementation permission.
-After PRD ready and task started, next implementation action = `trellis-route(implement)`.
-If no active task exists, scan `.trellis/tasks/*/task.json` once per session for in-progress tasks with `last_push_snapshot`; surface completed_steps + next_step and suggest rebinding the active task before resuming.
-Do NOT use the harness built-in plan mode (`EnterPlanMode` / `ExitPlanMode`) as a substitute for this gate. Planning is Trellis-only: classify the turn, ask for task-creation consent, then `trellis-brainstorm` for complex work.
-If the turn is a meta edit to Trellis itself (Trellis tracking would be overkill), say so and ask to skip Trellis — never silently swap built-in plan mode in for the consent gate.
+Creating or resuming a task is not implementation permission.
+After PRD is ready and the task is started, the next implementation action is Phase 2.1 `trellis-route(implement)` unless a valid current-task implement route decision already exists.
+If no active task exists, scan `.trellis/tasks/*/task.json` once per session for in-progress tasks with `last_push_snapshot`; surface `completed_steps` + `next_step` and suggest rebinding the active task before resuming.
+Do NOT call the harness built-in plan mode (`EnterPlanMode` / `ExitPlanMode`) for Trellis planning. It is not a substitute for Trellis task-creation consent, Trellis planning, or the route gate. For complex work, classify the turn, ask for task-creation consent, then use `trellis-brainstorm`.
+If the turn is a meta edit to Trellis itself and Trellis tracking would be overkill, say so and ask to skip Trellis; never silently swap built-in plan mode in for the consent gate.
 <!-- END skill-garden workflow-state no_task v0.6 -->
 
 No active task. First classify the current turn and ask for task-creation consent before creating any Trellis task.
@@ -310,11 +309,11 @@ Sub-agent dispatch protocol applies to all platforms and all sub-agents, includi
 [workflow-state:in_progress]
 <!-- BEGIN skill-garden workflow-state in_progress v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress):
-Phase 2.1: run `trellis-route(implement)` first.
-Phase 2.2: run `trellis-route(check)` before check/check-all.
-On check failure or a user-reported issue in the just-checked work, reuse the latest implement/check route; reroute only on explicit reselect/override or a new independent check stage.
-Do not spawn `trellis-implement` or `trellis-check*` unless route selected subagent, including a reused same-cycle subagent route.
-If the helper is unavailable, ask numbered route choices and wait; do not default to inline check.
+This state block is a breadcrumb; the top-level skill-garden hub is the source of truth for route details.
+At Phase 2.1/2.2, use the valid current-task `route_decision` for the target when it exists; otherwise run `trellis-route(implement|check)` or ask the numbered fallback choices and wait.
+A valid route decision must come from `trellis-route`, `numbered-fallback`, or `route-prefs` read by `trellis-route`; prose, compact/SessionStart summaries, `codex-mode`, empty prefs, and old single-value prefs are not enough.
+Reuse the valid current-task route through later implementation, repair, recheck, and final re-check; reroute only on explicit reselect/override/use-X-this-time/clear-default or when no valid target decision exists.
+Do not spawn `trellis-implement` or `trellis-check*` unless the valid route decision selected subagent. If the helper is unavailable, do not default to inline; ask the numbered route choices and wait.
 After `trellis-check` / `trellis-check-all`, stop and report; point the user to Phase 3.4 `trellis-push` (or commit-only when needed). Do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
 This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, code commit/push goes through `trellis-push` (commit-only mode for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).
@@ -335,9 +334,11 @@ Dispatch prompt starts with `Active task: <task path from task.py current>`. Rea
 [workflow-state:in_progress-inline]
 <!-- BEGIN skill-garden workflow-state in_progress_inline v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress-inline):
-Inline mode does not skip or constrain route: Phase 2.1 routes `implement`; Phase 2.2 routes `check` before check/check-all.
-On check failure or a user-reported issue in the just-checked work, reuse the latest implement/check route; reroute only on explicit reselect/override or a new independent check stage.
-No valid check route/preference -> ask numbered route choices and wait; inline mode is not permission to default to inline check.
+This state block is a breadcrumb; the top-level skill-garden hub is the source of truth for route details.
+Inline workflow-state is not an inline route decision. At Phase 2.1/2.2, reuse a valid current-task `route_decision` for the target when it exists; otherwise run `trellis-route(implement|check)` or ask the numbered fallback choices and wait.
+A valid route decision must come from `trellis-route`, `numbered-fallback`, or `route-prefs` read by `trellis-route`; prose, compact/SessionStart summaries, `codex-mode`, empty prefs, and old single-value prefs are not enough.
+Reuse the valid current-task route through later implementation, repair, recheck, and final re-check; reroute only on explicit reselect/override/use-X-this-time/clear-default or when no valid target decision exists.
+Do not default to inline just because this state is inline or the helper is unavailable. Dispatch subagents only when the valid route decision selected subagent; otherwise execute inline in the main session.
 After `trellis-check` / `trellis-check-all`, stop and report; point the user to Phase 3.4 `trellis-push` (or commit-only when needed). Do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
 This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, code commit/push still goes through `trellis-push` (commit-only for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).
