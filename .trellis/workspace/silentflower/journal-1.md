@@ -678,3 +678,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 20: 统一路由状态复用机制
+
+**Date**: 2026-06-25
+**Task**: 统一路由状态复用机制
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+统一 trellis-route 的任务内 route_decision 复用语义，补强 compact/SessionStart/用户自然语言无效来源规则，精简 0.6 workflow override/state guard，并同步 skill-garden、enhancements 和当前 dogfood workflow。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `43fd7ef` | (see git log) |
+| `97cb5d7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
