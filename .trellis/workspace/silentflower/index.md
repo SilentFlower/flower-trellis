@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 17
-- **Last Active**: 2026-06-17
+- **Total Sessions**: 18
+- **Last Active**: 2026-06-25
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~606 | Active |
+| `journal-1.md` | ~644 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 18 | 2026-06-25 | 修正 check 后路由规则并发布 beta | `d0749e1`, `26a0f2f`, `cc85282`, `b479ea4`, `4cc4386` | `beta` |
 | 17 | 2026-06-17 | Trellis 0.6.2 beta 发布与任务归档 | `535efcd`, `34ed425`, `e5a6cd6`, `4dffb9f`, `abeb450` | `beta` |
 | 16 | 2026-06-17 | 修正检查路由阶段边界 | `efaeea3`, `87cb9f7` | `beta` |
 | 15 | 2026-06-17 | 同步全局 Trellis 版本 | `e20508d` | `beta` |

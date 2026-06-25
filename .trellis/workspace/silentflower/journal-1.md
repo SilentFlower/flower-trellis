@@ -604,3 +604,41 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: 修正 check 后路由规则并发布 beta
+
+**Date**: 2026-06-25
+**Task**: 修正 check 后路由规则并发布 beta
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+修正 Trellis 0.6 check 后修复/复查时 implement/check 路由复用规则；同步 skill-garden 与 enhancements 快照；发布 flower-trellis 0.3.1-beta.0，并将错误 beta 0.3.0-beta.4 记录为被替代版本。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d0749e1` | (see git log) |
+| `26a0f2f` | (see git log) |
+| `cc85282` | (see git log) |
+| `b479ea4` | (see git log) |
+| `4cc4386` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
