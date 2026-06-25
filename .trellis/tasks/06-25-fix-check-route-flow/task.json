@@ -22,5 +22,26 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-25T14:13:50+08:00",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "beta"
+    },
+    "pushed_commits": {
+      "flower-trellis": "d0749e1",
+      "skill-garden": "26a0f2f"
+    },
+    "completed_steps": [
+      "Step 1",
+      "Step 2",
+      "Step 3",
+      "Step 4",
+      "Step 5",
+      "Step 6"
+    ],
+    "next_step": "完成 push",
+    "notes": "已提交并推送 route/check 修复与 0.6 快照。"
+  },
   "meta": {}
 }
