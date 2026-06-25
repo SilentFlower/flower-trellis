@@ -22,5 +22,23 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-25T10:37:38.122349Z",
+    "branch": "beta",
+    "pushed_commits": {
+      "flower-trellis": "13f109a",
+      "skill-garden": "884cfbd"
+    },
+    "completed_steps": [
+      "Step 1",
+      "Step 2",
+      "Step 3",
+      "Step 4",
+      "Step 5",
+      "Step 6"
+    ],
+    "next_step": "Phase 3.5 finish-work",
+    "notes": "已完成 trellis-release / finish-work 上线核对规则优化、快照同步、README 漂移修复和 check-all 修复。"
+  }
 }
