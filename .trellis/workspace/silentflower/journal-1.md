@@ -713,3 +713,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: 完成任务交接摘要与 diff brief beta 发布
+
+**Date**: 2026-06-26
+**Task**: 完成任务交接摘要与 diff brief beta 发布
+**Branch**: `beta`
+
+### Summary
+
+完成 Trellis task brief handoff：新增 trellis-task-brief、brief.md 交接规则和 workflow 状态提示；按用户反馈压缩 workflow hub 文案。新增 trellis-diff-brief 按需 skill，用于 push/check/review 前解释当前任务与 git diff 的实际改动，并同步 skill-garden、enhancements、.agents、.claude。发布 flower-trellis 0.3.1-beta.4，中文 CHANGELOG 已包含 task brief handoff 和 diff brief 两项新功能。当前任务 06-26-task-start-handoff-brief 已归档；未识别 dirty .trellis/.flower-manifest.json 与 .trellis/config.yaml 保留未提交。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `350f254` | (see git log) |
+| `8ba0720` | (see git log) |
+| `edb20b6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

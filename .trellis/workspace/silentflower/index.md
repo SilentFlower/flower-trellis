@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 20
-- **Last Active**: 2026-06-25
+- **Total Sessions**: 21
+- **Last Active**: 2026-06-26
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~715 | Active |
+| `journal-1.md` | ~750 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 21 | 2026-06-26 | 完成任务交接摘要与 diff brief beta 发布 | `350f254`, `8ba0720`, `edb20b6` | `beta` |
 | 20 | 2026-06-25 | 统一路由状态复用机制 | `43fd7ef`, `97cb5d7` | `beta` |
 | 19 | 2026-06-25 | 优化 trellis-release 与 finish-work 上线核对规则 | `13f109a`, `588fc23`, `884cfbd` | `beta` |
 | 18 | 2026-06-25 | 修正 check 后路由规则并发布 beta | `d0749e1`, `26a0f2f`, `cc85282`, `b479ea4`, `4cc4386` | `beta` |
