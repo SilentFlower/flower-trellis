@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import chalk from "chalk";
 import { flowerVersion, trellisVersion } from "./lib/versions.js";
 import { selectVariant } from "./lib/variant.js";
 import { readManifest } from "./lib/manifest.js";
@@ -13,22 +14,50 @@ import { runTrellis } from "./lib/trellis-runner.js";
  * - 其它子命令 → 兜底透传给 trellis(覆盖现有及未来命令)。
  */
 
-/** 打印版本:flower-trellis 自身 + 捆绑的 Trellis;若在 Trellis 项目内附带项目版本。 */
+/**
+ * 格式化版本行。
+ * @param {string} label 版本标签
+ * @param {string} version 版本号
+ * @param {{indent?: boolean, muted?: boolean}} options 显示选项
+ * @returns {string}
+ */
+function versionLine(label, version, options = {}) {
+  const prefix = options.indent ? "  " : "";
+  const labelWidth = options.indent ? 14 : 16;
+  const paddedLabel = label.padEnd(labelWidth);
+  const styledLabel = options.muted ? chalk.gray(paddedLabel) : chalk.hex("#ff6fb5").bold(paddedLabel);
+  return `${prefix}${styledLabel}${version}`;
+}
+
+/** 打印版本:flower-trellis 自身 + 项目版本 + 捆绑的 Trellis。 */
 function printVersion(cwd) {
-  console.log(`flower-trellis    ${flowerVersion()}`);
-  console.log(`trellis (bundled) ${trellisVersion()}`);
+  console.log(versionLine("flower-trellis", flowerVersion()));
+
+  const projectRows = [];
   try {
     if (fs.existsSync(path.join(cwd, ".trellis", ".version"))) {
       const { version } = selectVariant(cwd);
-      if (version) console.log(`project .trellis  ${version}`);
+      if (version) projectRows.push([".trellis", version]);
     }
-    // 项目里 flower 上次铺包时戳入的自身版本(来自 .flower-manifest.json);
+    // 项目里 flower 上次铺包时戳入的自身版本(来自 .trellis/.flower-manifest.json);
     // 与首行「当前工具版本」对比即可看出该项目是否需要重新 update。
     const mf = readManifest(cwd);
-    if (mf && mf.flowerVersion) console.log(`project flower    ${mf.flowerVersion}`);
+    if (mf && mf.flowerVersion) projectRows.unshift(["flower", mf.flowerVersion]);
   } catch {
     // 忽略:版本读取失败不应影响 -v 输出
   }
+
+  if (projectRows.length) {
+    console.log("");
+    console.log(chalk.gray("project"));
+    for (const [label, version] of projectRows) {
+      console.log(versionLine(label, version, { indent: true, muted: true }));
+    }
+  }
+
+  console.log("");
+  console.log(chalk.gray("bundled"));
+  console.log(versionLine("trellis", trellisVersion(), { indent: true, muted: true }));
 }
 
 function printHelp() {
