@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.3.1-beta.3](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.2...v0.3.1-beta.3) (2026-06-25)
+
+
+### 🐛 修复 Bug Fixes
+
+* **route:** 统一任务内路由决策复用机制 ([43fd7ef](https://github.com/SilentFlower/flower-trellis/commit/43fd7ef9a773888a0e5249f021a985efa1435823))
+
 ## [0.3.1-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.1...v0.3.1-beta.2) (2026-06-25)
 
 
