@@ -22,5 +22,24 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-25T18:39:29Z",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "beta"
+    },
+    "pushed_commits": {
+      "flower-trellis": "8ba0720",
+      "skill-garden": "c00e63a"
+    },
+    "completed_steps": [
+      "完成 trellis-task-brief 与 workflow handoff",
+      "按 review 反馈压缩 workflow hub 文案",
+      "新增 trellis-diff-brief 按需 skill，并同步 vendor / enhancements / .agents / .claude",
+      "完成并记录语法、快照一致性相关验证"
+    ],
+    "next_step": "Phase 3.5 wrap-up，需用户显式触发 finish-work",
+    "notes": "本次推送包含新增 trellis-diff-brief；.trellis/.flower-manifest.json 与 .trellis/config.yaml 保留未提交。"
+  },
   "meta": {}
 }
