@@ -106,3 +106,4 @@
 ## Notes
 
 - 当前方案：先做轻量 skill + `brief.md`，并在 workflow-state / Phase 1.4 文案中要求 start 前生成或校验；如果体验仍不够稳定，再把读取 `brief.md` 接入 SessionStart / task-status 自动注入。
+- 后续补充：新增按需 `trellis-diff-brief` skill，用于用户在 check / push / review 前主动查看“这轮实际改了什么”。该 skill 只读 git diff 和任务上下文并在对话中输出摘要，不写文件、不做 check、不接入固定 workflow gate。

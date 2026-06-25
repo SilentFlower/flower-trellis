@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-06-25T18:07:44.357Z",
+  "syncedAt": "2026-06-25T18:38:19.361Z",
   "syncedFrom": "vendor/skill-garden/.trellis",
-  "sourceCommit": "2dd4bfbcee4a622fb642d8114b6a2504cdeead64",
+  "sourceCommit": "c00e63a517927bfbbca56b6b3223a27a1c9fbd01",
   "variants": {
     "old": {
       "claudeSkills": [],
@@ -77,6 +77,7 @@
       "claudeSkills": [
         "trellis-check-all",
         "trellis-create-command",
+        "trellis-diff-brief",
         "trellis-draw-uml",
         "trellis-extract-prd",
         "trellis-plan-version",
@@ -90,6 +91,7 @@
       "agentsSkills": [
         "trellis-check-all",
         "trellis-create-command",
+        "trellis-diff-brief",
         "trellis-draw-uml",
         "trellis-extract-prd",
         "trellis-plan-version",

@@ -25,6 +25,7 @@
 - [x] 清理 `implement.jsonl` / `check.jsonl` 示例行并写入真实上下文。
 - [x] 验证新增 skill 文案不会与 `trellis-brainstorm`、`trellis-continue`、`trellis-route` 触发边界冲突。
 - [x] 验证旧任务缺少 `brief.md` 时不会阻断执行，只会提示读取三件套并回补。
+- [x] 新增按需 `trellis-diff-brief` skill，用于 push / check / review 前解释实际 diff，不写文件、不接入固定 workflow gate。
 
 ## Validation
 
@@ -53,6 +54,7 @@
 - `/root/.codex/skills/.system/skill-creator/scripts/quick_validate.py` 逐个校验 vendor / enhancements / 当前 `.agents` / `.claude` 的 `trellis-task-brief` skill 目录通过。
 - Phase 2.2 检查时补强了 `trellis-task-brief` 的 in_progress 缺失 brief 分支：默认只读三件套并建议回补，只有用户明确要求当场回补并 review 时才写回；同时明确 brief / 对话展示不能机械限长。
 - 按 review 反馈压缩了 workflow hub 的 `Task Brief Handoff` 段：hub 只保留 start 前门禁、三件套权威性、实现前重述/缺失回退；同步型更新、冲突处理、展示完整性等细节保留在 `trellis-task-brief` skill 中。
+- 按后续讨论新增 `trellis-diff-brief`，并同步到 vendor / enhancements / 当前 `.agents` / `.claude`；`quick_validate.py` 校验通过。
 - `node scripts/check-snapshot.mjs` 当前预期失败：该检查要求 `enhancements/` 无未提交改动；本任务正引入并等待提交这些快照改动。
 
 ## Risk Notes

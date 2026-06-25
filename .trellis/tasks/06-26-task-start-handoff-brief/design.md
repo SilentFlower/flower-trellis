@@ -150,6 +150,7 @@ Phase 1.4 start review 时，主 agent 应在对话中展示：
 - `brief.md` 增加一个任务文件，但换来可读、可 review、低风险的交接层。
 - 第一版不做自动 SessionStart 注入，可靠性不如 hook 方案，但实现简单，不会把未经 review 的摘要塞入执行上下文。
 - `task.json.meta` 暂不承载正文，避免污染生命周期元数据。
+- “实现后到底改了什么”不作为必经流程落 `changes.md`，而是提供按需 `trellis-diff-brief` skill。这样用户可在 push 前主动查看 diff 摘要，不拉长默认流程。
 
 ## Rollback
 
