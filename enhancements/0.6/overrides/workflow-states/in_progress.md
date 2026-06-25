@@ -1,9 +1,10 @@
 <!-- BEGIN skill-garden workflow-state in_progress v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress):
-At Phase 2.1, invoke `trellis-route(implement)` first.
-At Phase 2.2, invoke `trellis-route(check)` before running or dispatching check/check-all.
-Do not spawn `trellis-implement` at Phase 2.1 or `trellis-check` / `trellis-check-all` at Phase 2.2 unless `trellis-route` just selected subagent mode.
-If routing helper is unavailable at the Phase 2.1 or Phase 2.2 route boundary, ask the same numbered route choices in normal chat and wait for the user's selection.
+Phase 2.1: run `trellis-route(implement)` first.
+Phase 2.2: run `trellis-route(check)` before check/check-all.
+On check failure or a user-reported issue in the just-checked work, reuse the latest implement/check route; reroute only on explicit reselect/override or a new independent check stage.
+Do not spawn `trellis-implement` or `trellis-check*` unless route selected subagent, including a reused same-cycle subagent route.
+If the helper is unavailable, ask numbered route choices and wait; do not default to inline check.
 After `trellis-check` / `trellis-check-all`, stop and report; point the user to Phase 3.4 `trellis-push` (or commit-only when needed). Do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
 This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, code commit/push goes through `trellis-push` (commit-only mode for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).

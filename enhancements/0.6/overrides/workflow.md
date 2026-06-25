@@ -6,15 +6,19 @@
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 2.1 implement routing, Phase 2.2 check/check-all routing, post-check stop, Phase 3.4 code commit/push via trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
+**Scope**: Phase 2.1 implement routing, Phase 2.2 check/check-all routing, same-cycle repair/recheck route reuse, post-check stop, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
 #### Routing Gate
 
-Before Phase 2.1 implementation mode selection or Phase 2.2 check/check-all execution runs from the main session, the immediately preceding routing decision must come from `trellis-route` or from the same numbered fallback choices shown in normal chat when the helper is unavailable.
+Before the initial Phase 2.1 implement route or initial Phase 2.2 check/check-all route, the immediately preceding routing decision must come from `trellis-route` or the same numbered fallback choices.
 
-Phase 2.2 is the normal Trellis check execution point. It may dispatch `trellis-check` / `trellis-check-all` only when `trellis-route(target=check)` just selected a subagent mode. If a pre-commit re-check is needed because the Phase 2.2 result is missing, code changed after check, risk is high, or the user explicitly asks for final re-check, return to Phase 2.2 and invoke `trellis-route(check)`.
+Phase 2.2 is the normal check execution point. Dispatch `trellis-check` / `trellis-check-all` only when `trellis-route(target=check)` selected subagent for this check cycle.
+
+On check failure or a user-reported issue in the just-checked work, stay in the same repair/recheck loop and reuse the latest implement/check route. Do not rerun `trellis-route` just because check failed.
+
+Rerun `trellis-route(check)` only for a new independent check stage: missing 2.2 result, code changed outside the same repair loop, high risk, explicit final re-check, or explicit route reselect/override/clear.
 
 `trellis-route` may use the gitignored personal preference file `.trellis/.route-prefs.tmp` to skip repeated prompts. This file is developer-local state and must never be staged or committed.
 
@@ -22,14 +26,14 @@ Personal route preferences are execution-mode preferences only, never authorizat
 
 `trellis-route` returns 2 normal modes for `target=implement` (inline/subagent) and 2 normal modes for `target=check` (check-all inline/check-all subagent). Lightweight `trellis-check` is a hidden escape hatch only when the user explicitly asks for `light check` / `轻量检查`; it is not shown in normal check options.
 
-If the platform cannot call `AskUserQuestion` / `request_user_input`, ask the same numbered choices in normal chat and wait for the user's reply. Tool unavailability is not permission to record inline/subagent or to dispatch a sub-agent directly.
+If `AskUserQuestion` / `request_user_input` is unavailable, ask the same numbered choices in normal chat and wait. Tool unavailability is not permission to choose inline/subagent, dispatch directly, or run inline check by default.
 
 Before invoking the skill, never:
 - write pre-questions ("ready to start? / shall I proceed?")
 - state "I lean towards X" or preview the inline/subagent options
 - surface route options ahead of time
 
-At Phase 2.1 and Phase 2.2 boundaries, do not ask meta continuation questions such as "continue?", "what's next?", or "X or Y?" when the answer determines the next workflow phase. Invoke `trellis-route(implement|check)` first, or ask the same numbered route choices if the helper is unavailable.
+At initial Phase 2.1/2.2 boundaries, do not ask meta continuation questions. Invoke `trellis-route(implement|check)` first, or ask the numbered route choices if the helper is unavailable. Inside same-cycle repair/recheck, reuse the existing route.
 
 If the user says "temporary override", "reselect", "use X this time", "clear route default", or equivalent, the personal preference file must not take priority. `trellis-route` must show the override options again and let the user choose whether the choice is one-time, saved as the new default, or clears the default.
 
