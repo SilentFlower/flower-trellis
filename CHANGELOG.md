@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.3.1-beta.4](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.3...v0.3.1-beta.4) (2026-06-25)
+
+### ✨ 新功能 Features
+
+* 新增任务启动交接摘要流程：在 planning 切到 in_progress 前生成并展示 `brief.md`，实现前重述任务交接摘要，降低重新细读三件套的成本。([350f254](https://github.com/SilentFlower/flower-trellis/commit/350f254b1f5a12b0277b3437b5e540217f9b9216))
+* 新增 `trellis-diff-brief` 按需技能：在 check / push / review 前读取当前任务和 git diff，在对话中解释本轮实际改动，不拉长默认 workflow。([8ba0720](https://github.com/SilentFlower/flower-trellis/commit/8ba0720bb94ddb601ce2c687a0c35a1baacd9636))
+
 ## [0.3.1-beta.3](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.2...v0.3.1-beta.3) (2026-06-25)
 
 
