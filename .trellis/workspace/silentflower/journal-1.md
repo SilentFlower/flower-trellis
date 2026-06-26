@@ -853,3 +853,39 @@ Implemented session-scoped trellis-route state recovery with route_state.py, syn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 25: 优化 route_state 输出并补充发版规范
+
+**Date**: 2026-06-26
+**Task**: 优化 route_state 输出并补充发版规范
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 route_state.py 默认输出精简与 --verbose 诊断输出，同步 trellis-route skill 多份副本、enhancements 快照和 helper 输出契约 spec；随后补充发版规范，要求 CHANGELOG 普通说明条目使用中文。已完成检查、推送并归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `afa9282` | (see git log) |
+| `57bac13` | (see git log) |
+| `2e6cb15` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
