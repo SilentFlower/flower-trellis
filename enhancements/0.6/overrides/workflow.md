@@ -25,11 +25,13 @@ Phase 2.1 implement and Phase 2.2 check/check-all require route evidence before 
 At each route boundary:
 
 1. Reuse only an explicit, target-matched `route_decision` already present in the current context.
-2. Otherwise you MUST load/read/use `trellis-route(target=implement|check)` before deciding. `trellis-route` owns history recovery, `.route-prefs.tmp`, evidence grading, fallback choices, and dispatch mapping.
+2. Otherwise you MUST load/read/use `trellis-route(target=implement|check)` before deciding. `trellis-route` owns session runtime recovery, `.route-prefs.tmp`, fallback choices, runtime-state writes, and dispatch mapping.
 3. If the platform cannot invoke skills directly, open the local `trellis-route/SKILL.md` copy first, then follow its numbered fallback choices in normal chat and wait.
 4. If the route helper cannot ask through `AskUserQuestion` / `request_user_input`, ask the same numbered choices from `trellis-route` in normal chat and wait.
 
-Plain user preference, ordinary compact/SessionStart summary, `codex-mode`, or empty/old prefs are not route evidence by themselves.
+Plain user preference, ordinary compact/SessionStart summary, `codex-mode`, empty/old prefs, and raw `.trellis/.runtime/sessions/*` `route_decisions` content that has not been validated by `trellis-route` are not route evidence by themselves.
+
+User reselect/override/use-X-this-time/clear-default wins over remembered route evidence, runtime state, and personal prefs.
 
 At Phase 2.1/2.2, this gate overrides lower "Active Task Routing" rows that say to dispatch `trellis-implement` / `trellis-check` directly. Do not ask meta continuation questions, and dispatch subagents only when the resolved route selected subagent.
 
