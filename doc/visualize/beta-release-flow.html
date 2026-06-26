@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flower Trellis Beta 发版流程</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      margin-bottom: 2rem;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .pulse-dot {
+      width: 12px;
+      height: 12px;
+      background: #22d3ee;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      font-size: 0.875rem;
+      margin-left: 1.75rem;
+    }
+
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+
+    svg {
+      width: 100%;
+      min-width: 1000px;
+      display: block;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .card-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+
+    .card h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .card ul {
+      list-style: none;
+      color: #94a3b8;
+      font-size: 0.75rem;
+    }
+
+    .card li {
+      margin-bottom: 0.375rem;
+      line-height: 1.45;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      color: #475569;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Flower Trellis Beta 发版流程</h1>
+      </div>
+      <p class="subtitle">本地把关版本与 CHANGELOG；推送 beta tag 后由 GitHub Actions 通过 npm OIDC 发布。</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1120 760">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+          </marker>
+          <marker id="arrowhead-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <rect x="30" y="48" width="500" height="555" rx="12" fill="rgba(120, 53, 15, 0.08)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="46" y="68" fill="#fbbf24" font-size="10" font-weight="600">本地门禁：维护者机器</text>
+
+        <rect x="590" y="48" width="500" height="555" rx="12" fill="rgba(6, 78, 59, 0.08)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="606" y="68" fill="#34d399" font-size="10" font-weight="600">CI 门禁：GitHub Actions release.yml</text>
+
+        <line x1="142" y1="150" x2="228" y2="150" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="362" y1="150" x2="448" y2="150" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="510" y1="150" x2="618" y2="150" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <text x="564" y="141" fill="#94a3b8" font-size="9" text-anchor="middle">git push --follow-tags</text>
+        <line x1="750" y1="150" x2="832" y2="150" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="964" y1="150" x2="1030" y2="150" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <line x1="300" y1="200" x2="300" y2="264" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <text x="318" y="234" fill="#94a3b8" font-size="9">参数一致</text>
+        <line x1="300" y1="344" x2="300" y2="408" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <text x="318" y="378" fill="#94a3b8" font-size="9">人工确认</text>
+        <path d="M 300 488 L 300 532 Q 300 552 320 552 L 636 552" fill="none" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <text x="470" y="543" fill="#94a3b8" font-size="9" text-anchor="middle">commit 和 tag 只在本地产生</text>
+
+        <path d="M 430 318 L 520 318 Q 542 318 542 296 L 542 224 Q 542 202 520 202 L 392 202" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrowhead-rose)"/>
+        <text x="536" y="306" fill="#fb7185" font-size="8">快照或 CHANGELOG 偏移</text>
+
+        <path d="M 842 196 L 842 270" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrowhead-rose)"/>
+        <text x="858" y="236" fill="#fb7185" font-size="8">不支持的预发布 tag</text>
+        <path d="M 972 404 L 1008 404 Q 1030 404 1030 382 L 1030 206" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrowhead-rose)"/>
+        <text x="1036" y="310" fill="#fb7185" font-size="8">发布或 Release 创建失败</text>
+
+        <rect x="56" y="105" width="86" height="90" rx="6" fill="#0f172a"/>
+        <rect x="56" y="105" width="86" height="90" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="99" y="132" fill="white" font-size="11" font-weight="600" text-anchor="middle">维护者</text>
+        <text x="99" y="150" fill="#94a3b8" font-size="8" text-anchor="middle">选择 beta</text>
+        <text x="99" y="164" fill="#94a3b8" font-size="8" text-anchor="middle">确认范围</text>
+        <text x="99" y="180" fill="#22d3ee" font-size="7" text-anchor="middle">人工门禁</text>
+
+        <rect x="228" y="105" width="134" height="90" rx="6" fill="#0f172a"/>
+        <rect x="228" y="105" width="134" height="90" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="295" y="128" fill="white" font-size="11" font-weight="600" text-anchor="middle">同步快照</text>
+        <text x="295" y="147" fill="#94a3b8" font-size="8" text-anchor="middle">npm run sync</text>
+        <text x="295" y="161" fill="#94a3b8" font-size="8" text-anchor="middle">有 diff 则提交</text>
+        <text x="295" y="178" fill="#a78bfa" font-size="7" text-anchor="middle">enhancements sourceCommit</text>
+
+        <rect x="228" y="264" width="134" height="80" rx="6" fill="#0f172a"/>
+        <rect x="228" y="264" width="134" height="80" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="295" y="288" fill="white" font-size="11" font-weight="600" text-anchor="middle">dry-run 预览</text>
+        <text x="295" y="307" fill="#94a3b8" font-size="8" text-anchor="middle">release:dry</text>
+        <text x="295" y="321" fill="#94a3b8" font-size="8" text-anchor="middle">版本参数一致</text>
+        <text x="295" y="337" fill="#fb923c" font-size="7" text-anchor="middle">展示 CHANGELOG</text>
+
+        <rect x="228" y="408" width="134" height="80" rx="6" fill="#0f172a"/>
+        <rect x="228" y="408" width="134" height="80" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="295" y="432" fill="white" font-size="11" font-weight="600" text-anchor="middle">真实 release</text>
+        <text x="295" y="451" fill="#94a3b8" font-size="8" text-anchor="middle">check-snapshot</text>
+        <text x="295" y="465" fill="#94a3b8" font-size="8" text-anchor="middle">版本号 + changelog</text>
+        <text x="295" y="481" fill="#22d3ee" font-size="7" text-anchor="middle">tag vX-beta.N</text>
+
+        <rect x="448" y="105" width="100" height="90" rx="6" fill="#0f172a"/>
+        <rect x="448" y="105" width="100" height="90" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="498" y="130" fill="white" font-size="11" font-weight="600" text-anchor="middle">推送 tag</text>
+        <text x="498" y="149" fill="#94a3b8" font-size="8" text-anchor="middle">origin beta</text>
+        <text x="498" y="163" fill="#94a3b8" font-size="8" text-anchor="middle">--follow-tags</text>
+        <text x="498" y="180" fill="#34d399" font-size="7" text-anchor="middle">触发 CI</text>
+
+        <rect x="618" y="105" width="132" height="90" rx="6" fill="#0f172a"/>
+        <rect x="618" y="105" width="132" height="90" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="684" y="128" fill="white" font-size="11" font-weight="600" text-anchor="middle">release.yml</text>
+        <text x="684" y="147" fill="#94a3b8" font-size="8" text-anchor="middle">监听 v* tag</text>
+        <text x="684" y="161" fill="#94a3b8" font-size="8" text-anchor="middle">仅主仓库</text>
+        <text x="684" y="178" fill="#34d399" font-size="7" text-anchor="middle">不拉子模块</text>
+
+        <rect x="832" y="105" width="132" height="90" rx="6" fill="#0f172a"/>
+        <rect x="832" y="105" width="132" height="90" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="898" y="128" fill="white" font-size="11" font-weight="600" text-anchor="middle">通道判定</text>
+        <text x="898" y="147" fill="#94a3b8" font-size="8" text-anchor="middle">含 -beta. 走 beta</text>
+        <text x="898" y="161" fill="#94a3b8" font-size="8" text-anchor="middle">其他预发布失败</text>
+        <text x="898" y="178" fill="#fb923c" font-size="7" text-anchor="middle">保护 latest</text>
+
+        <rect x="1030" y="105" width="42" height="90" rx="6" fill="#0f172a"/>
+        <rect x="1030" y="105" width="42" height="90" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="1051" y="132" fill="white" font-size="9" font-weight="600" text-anchor="middle">Node 环境</text>
+        <text x="1051" y="148" fill="#94a3b8" font-size="7" text-anchor="middle">22</text>
+        <text x="1051" y="164" fill="#94a3b8" font-size="7" text-anchor="middle">npm</text>
+        <text x="1051" y="178" fill="#34d399" font-size="7" text-anchor="middle">npm 最新</text>
+
+        <rect x="650" y="330" width="142" height="88" rx="6" fill="#0f172a"/>
+        <rect x="650" y="330" width="142" height="88" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="721" y="354" fill="white" font-size="11" font-weight="600" text-anchor="middle">发布 npm</text>
+        <text x="721" y="373" fill="#94a3b8" font-size="8" text-anchor="middle">--tag beta</text>
+        <text x="721" y="387" fill="#94a3b8" font-size="8" text-anchor="middle">OIDC 可信发布</text>
+        <text x="721" y="403" fill="#fbbf24" font-size="7" text-anchor="middle">无需 NPM_TOKEN</text>
+
+        <rect x="830" y="330" width="142" height="88" rx="6" fill="#0f172a"/>
+        <rect x="830" y="330" width="142" height="88" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="901" y="354" fill="white" font-size="11" font-weight="600" text-anchor="middle">Release 说明</text>
+        <text x="901" y="373" fill="#94a3b8" font-size="8" text-anchor="middle">extract-changelog</text>
+        <text x="901" y="387" fill="#94a3b8" font-size="8" text-anchor="middle">同源 CHANGELOG</text>
+        <text x="901" y="403" fill="#a78bfa" font-size="7" text-anchor="middle">单一来源</text>
+
+        <line x1="792" y1="374" x2="828" y2="374" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <rect x="650" y="518" width="322" height="64" rx="6" fill="#0f172a"/>
+        <rect x="650" y="518" width="322" height="64" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="811" y="542" fill="white" font-size="11" font-weight="600" text-anchor="middle">GitHub 预发布已创建</text>
+        <text x="811" y="562" fill="#94a3b8" font-size="8" text-anchor="middle">gh release create --prerelease --notes-file</text>
+
+        <line x1="901" y1="418" x2="901" y2="516" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <text x="918" y="470" fill="#94a3b8" font-size="9">说明已生成</text>
+
+        <text x="44" y="642" fill="white" font-size="10" font-weight="600">图例</text>
+        <rect x="44" y="655" width="16" height="10" rx="2" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="66" y="663" fill="#94a3b8" font-size="8">人工决策</text>
+        <rect x="176" y="655" width="16" height="10" rx="2" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1"/>
+        <text x="198" y="663" fill="#94a3b8" font-size="8">门禁 / 判定</text>
+        <rect x="308" y="655" width="16" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="330" y="663" fill="#94a3b8" font-size="8">系统动作</text>
+        <rect x="426" y="655" width="16" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="448" y="663" fill="#94a3b8" font-size="8">产物 / 真源</text>
+        <line x1="604" y1="660" x2="620" y2="660" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,3"/>
+        <text x="626" y="663" fill="#94a3b8" font-size="8">阻断 / 回到前置门禁</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot cyan"></div>
+          <h3>本地人工门禁</h3>
+        </div>
+        <ul>
+          <li>• 先 `npm run sync`，必要时提交 `enhancements/` 快照。</li>
+          <li>• 先执行 dry-run 并展示 CHANGELOG，确认后才能真实 release。</li>
+          <li>• 真实 release 只生成 bump、CHANGELOG、发布提交 和 tag。</li>
+          <li>• 本地 release 不执行 `npm publish`。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>CI 发布边界</h3>
+        </div>
+        <ul>
+          <li>• `vX.Y.Z-beta.N` tag 触发 `release.yml`。</li>
+          <li>• CI 不拉 submodule，发布只依赖已提交的 `enhancements/` 快照。</li>
+          <li>• npm 使用 OIDC Trusted Publishing，无长期 token。</li>
+          <li>• beta 必须走 `npm publish --tag beta`。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot rose"></div>
+          <h3>阻断条件</h3>
+        </div>
+        <ul>
+          <li>• 未预览 CHANGELOG，不允许真实 release。</li>
+          <li>• `MANIFEST.sourceCommit` 与 submodule pin 不一致，先同步快照。</li>
+          <li>• 其他预发布 tag 不是 `-beta.`，CI 直接失败。</li>
+          <li>• npm Trusted Publisher 配置不匹配会导致发布失败。</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      flower-trellis beta 发版流程 • 基于本地发版规范生成 • 2026-06-26
+    </p>
+  </div>
+</body>
+</html>
