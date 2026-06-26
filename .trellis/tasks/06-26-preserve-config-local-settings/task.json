@@ -1,0 +1,42 @@
+{
+  "id": "preserve-config-local-settings",
+  "name": "preserve-config-local-settings",
+  "title": "保护 config.yaml 本地配置",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-06-26",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-26T10:48:20+08:00",
+    "branch": "beta",
+    "pushed_commits": {
+      "flower-trellis": "b9dc4e8"
+    },
+    "completed_steps": [
+      "新增 config-preserver 模块",
+      "接入 update 流程输出提示",
+      "验证幂等恢复逻辑",
+      "运行语法校验",
+      "完成 check-all 检查"
+    ],
+    "next_step": "Phase 3.5 wrap-up / finish-work",
+    "notes": "已实现 update 后保留 packages/default_package；已跑手工场景、node --check、git diff --check"
+  }
+}
