@@ -60,7 +60,9 @@ python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target <im
 python3 .claude/skills/trellis-route/scripts/route_state.py resolve --target <implement|check>
 ```
 
-helper 只接受当前 session 或唯一 session fallback 的 `.trellis/.runtime/sessions/<context-key>.json`，并只从 `route_decisions.<target>` 恢复决策。命中时输出 `{"status":"hit", ...}`，其中 `decision` 已经过 task/target/source/mode/scope 校验，可跳过 Step 2 并进入 Step 3 输出决策。`source=route-prefs` 且 `wrote_runtime=true` 时，输出模板同时写明来自个人 route 配置和已写入 session runtime state。
+helper 只接受当前 session 或唯一 session fallback 的 `.trellis/.runtime/sessions/<context-key>.json`，并只从 `route_decisions.<target>` 恢复决策。命中时输出 `{"status":"hit", ...}`，其中默认输出里的 `mode` / `source` 已经过 task/target/source/mode/scope 校验，可跳过 Step 2 并进入 Step 3 输出决策。`origin=route-prefs` 表示来自个人 route 配置，并且 helper 已写回 session runtime state；`origin=runtime` 表示来自 session runtime state。
+
+helper 默认输出为精简 JSON，只包含 route 执行必需的 `status`、`origin`、`mode`、`source`/`reason` 等字段。需要排查完整 `decision`、session 文件、context key、任务路径、个人配置路径或写回标记时，在同一命令末尾加 `--verbose`；不要为了诊断信息额外读取 runtime 文件。
 
 输出 `status=miss`、文件缺失、JSON 损坏、任务不匹配、source/mode 不合法、prefs 缺失或 prefs 值不合法时，忽略已有状态并继续 Step 2。不要删除不匹配 runtime 文件，避免误伤其他窗口。
 
@@ -212,7 +214,6 @@ route_decision:
   mode: <inline | subagent | check-all-inline | check-all-subagent | check-inline | check-subagent>
   source: <trellis-route | route-prefs | numbered-fallback>
   scope: task
-  task: <task.py current 的任务路径或 current>
 
 接下来主 agent 应当：
 - <路由表里对应的工具调用形式>
@@ -222,7 +223,7 @@ route_decision:
 - <要避免的工具调用>
 ```
 
-中括号内行为条件性出现：仅命中个人配置时显示配置行；仅命中 runtime state 时显示“来自”行；写入 runtime state 成功时显示“已写入”行；仅轻量 check 时显示隐藏逃生口说明；仅 implement subagent + skip_compile=true 时附加“跳过编译”段。`route_decision` 必须保留在回复中；compact summary 若只有自然语言描述，后续 agent 仍应优先读取 runtime state，而不是把 summary 当证据。
+中括号内行为条件性出现：仅命中个人配置时显示配置行；仅命中 runtime state 时显示“来自”行；写入 runtime state 成功时显示“已写入”行；仅轻量 check 时显示隐藏逃生口说明；仅 implement subagent + skip_compile=true 时附加“跳过编译”段。`route_decision` 必须保留在回复中，但默认只保留 target/mode/source/scope；需要 task/path/decided_at 等诊断字段时重新调用 helper 并加 `--verbose`。compact summary 若只有自然语言描述，后续 agent 仍应优先读取 runtime state，而不是把 summary 当证据。
 
 ---
 

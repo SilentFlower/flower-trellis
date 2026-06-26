@@ -98,6 +98,7 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 ```bash
 python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target <implement|check>
+python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target <implement|check> --verbose
 python3 .agents/skills/trellis-route/scripts/route_state.py write --target <implement|check> --mode <mode> --source <trellis-route|numbered-fallback> [--save-pref]
 python3 .agents/skills/trellis-route/scripts/route_state.py clear-pref --target <implement|check>
 ```
@@ -120,6 +121,7 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - runtime 只保存原始合法来源:`trellis-route`、`numbered-fallback`、`route-prefs`。
   - `.runtime` 自身不是 `route_decision.source`;raw runtime JSON 必须经 helper / skill 校验后才可复用。
   - `--save-pref` 才写个人默认;不带该 flag 只写当前 session runtime。
+  - 默认 stdout 必须保持精简:命中时返回 `status`、`mode`、决策 `source`,以及可选 `origin`(`runtime` / `route-prefs`);未命中返回 `status` + `reason`。完整 `decision`、`task`、`path`、`context_key`、`pref_path`、写回标记等诊断字段只在 `--verbose` 输出。
 
 ### 4. Validation & Error Matrix
 
@@ -130,15 +132,15 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 | runtime 文件缺失或 JSON 损坏 | 忽略 runtime,继续读 prefs 或展示选项;不要删除文件 |
 | runtime 的 task / target / source / mode / scope 不匹配 | 返回 miss,不得复用 |
 | prefs 缺失或值不合法 | 返回 miss,展示选项 |
-| prefs 命中 | 返回 hit,写回 runtime,`source=route-prefs` |
+| prefs 命中 | 返回 hit,写回 runtime,`origin=route-prefs`,`source=route-prefs` |
 | 用户明确重选 / 临时改 / 清除默认 | 忽略 runtime 和 prefs,重新进入 route 选项 |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: 压缩后当前上下文没有 `route_decision`;`resolve --target implement` 命中 runtime,
-  输出合法 `decision`,agent 直接复用,不重复问用户。
+  输出合法 `mode` / `source`,agent 直接复用,不重复问用户;需要诊断再加 `--verbose`。
 - Base: runtime miss 但 `.route-prefs.tmp` 有 `implement=inline`;`resolve` 返回
-  `source=route-prefs` 并写回 runtime,后续同 session 直接 runtime hit。
+  `origin=route-prefs`,`source=route-prefs` 并写回 runtime,后续同 session 直接 runtime hit。
 - Bad: compact summary 里只有“用户选过 inline”;workflow 不得把它当 route 证据,
   必须读取 `trellis-route` 并由 helper 校验 runtime / prefs。
 

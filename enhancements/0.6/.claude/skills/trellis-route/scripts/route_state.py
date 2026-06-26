@@ -73,6 +73,21 @@ def _print(data: dict[str, Any]) -> int:
     return 0
 
 
+def _output(args: argparse.Namespace, data: dict[str, Any], verbose: dict[str, Any] | None = None) -> int:
+    """按默认精简模式或详细模式输出 JSON。"""
+    if getattr(args, "verbose", False) and verbose:
+        data = {**data, **verbose}
+    return _print(data)
+
+
+def _decision_summary(decision: dict[str, Any]) -> dict[str, Any]:
+    """提取默认输出需要的最小 route 决策字段。"""
+    return {
+        "mode": decision.get("mode"),
+        "source": decision.get("source"),
+    }
+
+
 def _current_task(repo_root: Path) -> tuple[str | None, str | None, str | None]:
     """通过 task.py current --source 获取当前任务和 session key。"""
     result = subprocess.run(
@@ -236,20 +251,27 @@ def read_runtime(args: argparse.Namespace) -> int:
     context = _read_json(path)
     decision = context.get("route_decisions", {}).get(args.target)
     if _valid_decision(decision, args.target, current_task):
-        return _print(
+        return _output(
+            args,
             {
                 "status": "hit",
+                **_decision_summary(decision),
+            },
+            {
+                "decision": decision,
                 "path": _rel_path(repo_root, path),
                 "context_key": context_key,
                 "task": current_task,
-                "decision": decision,
             }
         )
 
-    return _print(
+    return _output(
+        args,
         {
             "status": "miss",
             "reason": "no-valid-decision",
+        },
+        {
             "path": _rel_path(repo_root, path),
             "context_key": context_key,
             "task": current_task,
@@ -272,14 +294,18 @@ def resolve_route(args: argparse.Namespace) -> int:
     context = _read_json(path)
     decision = context.get("route_decisions", {}).get(args.target)
     if _valid_decision(decision, args.target, current_task):
-        return _print(
+        return _output(
+            args,
             {
                 "status": "hit",
-                "source": "runtime",
+                "origin": "runtime",
+                **_decision_summary(decision),
+            },
+            {
+                "decision": decision,
                 "path": _rel_path(repo_root, path),
                 "context_key": context_key,
                 "task": current_task,
-                "decision": decision,
             }
         )
 
@@ -294,23 +320,30 @@ def resolve_route(args: argparse.Namespace) -> int:
             pref_mode,
             "route-prefs",
         )
-        return _print(
+        return _output(
+            args,
             {
                 "status": "hit",
-                "source": "route-prefs",
+                "origin": "route-prefs",
+                **_decision_summary(pref_decision),
+            },
+            {
+                "decision": pref_decision,
                 "path": _rel_path(repo_root, written_path),
                 "pref_path": _rel_path(repo_root, _pref_path(repo_root)),
                 "context_key": context_key,
                 "task": current_task,
-                "decision": pref_decision,
                 "wrote_runtime": True,
             }
         )
 
-    return _print(
+    return _output(
+        args,
         {
             "status": "miss",
             "reason": "no-valid-decision-or-pref",
+        },
+        {
             "path": _rel_path(repo_root, path),
             "pref_path": _rel_path(repo_root, _pref_path(repo_root)),
             "context_key": context_key,
@@ -365,14 +398,18 @@ def write_route(args: argparse.Namespace) -> int:
         args.mode,
         args.source,
     )
-    return _print(
+    return _output(
+        args,
         {
             "status": "written",
+            **_decision_summary(decision),
+        },
+        {
+            "decision": decision,
             "path": _rel_path(repo_root, path),
             "pref_path": _rel_path(repo_root, _pref_path(repo_root)) if args.save_pref else None,
             "context_key": context_key,
             "task": current_task,
-            "decision": decision,
             "saved_pref": bool(args.save_pref),
         }
     )
@@ -387,10 +424,13 @@ def clear_pref(args: argparse.Namespace) -> int:
     existed = args.target in prefs
     prefs.pop(args.target, None)
     _write_prefs(repo_root, prefs)
-    return _print(
+    return _output(
+        args,
         {
             "status": "cleared",
             "target": args.target,
+        },
+        {
             "existed": existed,
             "pref_path": _rel_path(repo_root, _pref_path(repo_root)),
         }
@@ -404,10 +444,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     resolve_parser = subparsers.add_parser("resolve", help="resolve route from runtime then prefs")
     resolve_parser.add_argument("--target", choices=sorted(VALID_MODES), required=True)
+    resolve_parser.add_argument("--verbose", action="store_true", help="include diagnostic paths and session metadata")
     resolve_parser.set_defaults(func=resolve_route)
 
     read_parser = subparsers.add_parser("read-runtime", help="read a runtime route decision")
     read_parser.add_argument("--target", choices=sorted(VALID_MODES), required=True)
+    read_parser.add_argument("--verbose", action="store_true", help="include diagnostic paths and session metadata")
     read_parser.set_defaults(func=read_runtime)
 
     write_parser = subparsers.add_parser("write", help="write a route decision")
@@ -415,10 +457,12 @@ def build_parser() -> argparse.ArgumentParser:
     write_parser.add_argument("--mode", required=True)
     write_parser.add_argument("--source", choices=sorted(VALID_SOURCES), required=True)
     write_parser.add_argument("--save-pref", action="store_true")
+    write_parser.add_argument("--verbose", action="store_true", help="include diagnostic paths and session metadata")
     write_parser.set_defaults(func=write_route)
 
     clear_parser = subparsers.add_parser("clear-pref", help="clear a personal route preference")
     clear_parser.add_argument("--target", choices=sorted(PREF_MODES), required=True)
+    clear_parser.add_argument("--verbose", action="store_true", help="include diagnostic paths and preference metadata")
     clear_parser.set_defaults(func=clear_pref)
 
     return parser
