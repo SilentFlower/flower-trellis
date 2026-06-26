@@ -141,7 +141,8 @@ export function applyEnhancements(target, opts = {}) {
     } else if (r.changed === 0 && r.unchanged === 0) {
       console.log(`  · skill override 注入跳过(目标缺少可注入的上游入口)`);
     } else if (r.changed === 0) {
-      console.log(`  ✓ skill override 已是最新(${r.unchanged} 个入口)`);
+      const note = r.backupNotes.length ? r.backupNotes.join("") : "";
+      console.log(`  ✓ skill override 已是最新(${r.unchanged} 个入口)${note}`);
     } else {
       const note = r.backupNotes.length ? r.backupNotes.join("") : "";
       console.log(`  ✓ skill override 已注入 ${r.changed} 个入口${note}`);

@@ -7,12 +7,13 @@ import {
   LEGACY_IN_PROGRESS_BLOCK,
   LEGACY_PUSH_SNAPSHOT_BLOCK,
 } from "./legacy-blocks.js";
+import { preserveFirstBackup } from "./backup.js";
 
 /**
  * workflow.md 强化块注入。
  *
  * 纯 JS 移植 skill-garden install.sh 362-557 的内嵌 Python:
- *   1. 首次注入前备份 .bak(已存在则保留);
+ *   1. 首次注入前备份到 .trellis/.backup-flower/(已存在则保留);
  *   2. 先清掉所有旧的 skill-garden 段(3 个 SECTION + 13 个 sentinel),保证可重复升级;
  *   3. 把 hub(0.6)/ route(0.5)块注入到 `## Phase Index` 之后(找不到则顶部 fallback);
  *   4. 替换 5 个 workflow-state 块的内容(0.6 读 overrides 文件,0.5 用 legacy 常量);
@@ -152,15 +153,8 @@ export function injectWorkflow(target, variantDir, variant) {
 
   const text = fs.readFileSync(dst, "utf8");
 
-  // 备份(首次创建,后续保留 → .bak 永远是首次注入前的原文)
-  const bak = dst + ".bak";
-  let backupNote;
-  if (!fs.existsSync(bak)) {
-    fs.copyFileSync(dst, bak);
-    backupNote = "(已创建 workflow.md.bak)";
-  } else {
-    backupNote = "(保留已有 workflow.md.bak)";
-  }
+  // 备份只建一次,保持“首次注入前原文”的回滚语义;目录沿用 Trellis 的 .backup-* 忽略规则。
+  const { backupNote } = preserveFirstBackup(target, dst, [`${dst}.bak`]);
 
   const clean = stripBlocks(text);
   const block = fs.readFileSync(source, "utf8").replace(/\s+$/, "");

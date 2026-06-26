@@ -71,9 +71,12 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 - `fs-utils.copyPath`:先删软链/旧目标再拷贝,无条件覆盖,不残留上游已删文件。
 - 升级清理只在**全装**时维护 manifest 与删除过期项,避免 `--skills` 精细操作误删。
-- `workflow-inject`:先 `stripBlocks` 清掉所有旧 skill-garden 段(SECTION + sentinel)
-  再重新注入;处理后内容与原文件相同则**不写盘**;首次注入前备份 `.bak`(已存在则保留,
-  保证 `.bak` 永远是首次注入前的原文)。
+- `workflow-inject` / `skill-override-inject`:先把首次回滚内容备份到
+  `.trellis/.backup-flower/<原相对路径>`(目录名命中 Trellis `.backup-*` 忽略规则),已存在则保留,
+  保证备份永远是首次注入前的原文。旧版本散落的 `.bak` /
+  `.flower-skill-garden.bak` 要迁入该目录并删除旧文件,避免污染目标项目 git。随后
+  `workflow-inject` 先 `stripBlocks` 清掉所有旧 skill-garden 段(SECTION + sentinel)再重新注入;
+  处理后内容与原文件相同则**不写盘**。
 - `codex-tweaks`:`config.toml` 段头已注释/不存在则不再处理;`hooks.json` 合并后的
   内容一致则不写,避免覆盖 Trellis 上游 hook 参数。
 
