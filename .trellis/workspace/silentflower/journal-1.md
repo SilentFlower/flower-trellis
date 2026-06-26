@@ -748,3 +748,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 22: 保护 config.yaml 本地配置
+
+**Date**: 2026-06-26
+**Task**: 保护 config.yaml 本地配置
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+实现 flower-trellis update 的 config.yaml 本地字段保护：新增 config-preserver，在上游 update 前捕获 packages/default_package，并在成功路径后恢复；完成验证、推送、snapshot 和任务归档。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b9dc4e8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

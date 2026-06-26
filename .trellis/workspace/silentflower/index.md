@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 21
+- **Total Sessions**: 22
 - **Last Active**: 2026-06-26
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~750 | Active |
+| `journal-1.md` | ~784 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 22 | 2026-06-26 | 保护 config.yaml 本地配置 | `b9dc4e8` | `beta` |
 | 21 | 2026-06-26 | 完成任务交接摘要与 diff brief beta 发布 | `350f254`, `8ba0720`, `edb20b6` | `beta` |
 | 20 | 2026-06-25 | 统一路由状态复用机制 | `43fd7ef`, `97cb5d7` | `beta` |
 | 19 | 2026-06-25 | 优化 trellis-release 与 finish-work 上线核对规则 | `13f109a`, `588fc23`, `884cfbd` | `beta` |
