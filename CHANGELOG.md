@@ -4,6 +4,19 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.3.1-beta.7](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.6...v0.3.1-beta.7) (2026-06-26)
+
+
+### 🐛 修复 Bug Fixes
+
+* **enhancements:** 精简 route state helper 默认输出 ([afa9282](https://github.com/SilentFlower/flower-trellis/commit/afa9282b102e5cabec31b87e16d3d85ffa2866b2))
+* **release:** 本地化 CHANGELOG 历史条目 ([8b1db0c](https://github.com/SilentFlower/flower-trellis/commit/8b1db0c1116ec29467e33f9b3f1313dd91198f52))
+
+
+### 📝 文档 Docs
+
+* **spec:** 要求 CHANGELOG 使用中文说明 ([2e6cb15](https://github.com/SilentFlower/flower-trellis/commit/2e6cb157010382bb69234f917f436276ca25580b))
+
 ## [0.3.1-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.5...v0.3.1-beta.6) (2026-06-26)
 
 ### ✨ 新功能 Features
