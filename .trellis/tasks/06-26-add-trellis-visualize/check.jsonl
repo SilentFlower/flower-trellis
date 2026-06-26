@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "检查 CLI 层总体规范符合性。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查 skill-garden 源、enhancements 快照、当前副本是否按模型同步。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "检查实现质量和与 skill-garden 对齐要求。"}
+{"file": ".trellis/tasks/06-26-add-trellis-visualize/prd.md", "reason": "对照需求和验收标准检查实现范围。"}
+{"file": ".trellis/tasks/06-26-add-trellis-visualize/design.md", "reason": "对照设计边界检查是否只覆盖 0.6 并保留 old / 0.5。"}

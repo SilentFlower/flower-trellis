@@ -1,5 +1,5 @@
 {
-  "syncedAt": "2026-06-25T18:38:19.361Z",
+  "syncedAt": "2026-06-26T03:35:08.631Z",
   "syncedFrom": "vendor/skill-garden/.trellis",
   "sourceCommit": "c00e63a517927bfbbca56b6b3223a27a1c9fbd01",
   "variants": {
@@ -78,7 +78,6 @@
         "trellis-check-all",
         "trellis-create-command",
         "trellis-diff-brief",
-        "trellis-draw-uml",
         "trellis-extract-prd",
         "trellis-plan-version",
         "trellis-push",
@@ -86,13 +85,13 @@
         "trellis-route",
         "trellis-run-full-chain",
         "trellis-task-brief",
-        "trellis-verify-task"
+        "trellis-verify-task",
+        "trellis-visualize"
       ],
       "agentsSkills": [
         "trellis-check-all",
         "trellis-create-command",
         "trellis-diff-brief",
-        "trellis-draw-uml",
         "trellis-extract-prd",
         "trellis-plan-version",
         "trellis-push",
@@ -100,7 +99,8 @@
         "trellis-route",
         "trellis-run-full-chain",
         "trellis-task-brief",
-        "trellis-verify-task"
+        "trellis-verify-task",
+        "trellis-visualize"
       ],
       "commands": [],
       "overrides": [
