@@ -20,31 +20,18 @@ Before the first implement route, restate existing `<task>/brief.md` in chat. If
 
 #### Routing Gate
 
-A route decision is valid only when it is a current-task decision for the requested target (`implement` or `check`) and its structured `route_decision.source` is one of: `trellis-route`, `numbered-fallback`, or `route-prefs`.
+Phase 2.1 implement and Phase 2.2 check/check-all require route evidence before execution.
 
-`route-prefs` is valid only when read by `trellis-route` after the workflow has already reached Phase 2.1 or Phase 2.2. The gitignored personal preference file `.trellis/.route-prefs.tmp` is developer-local execution-mode state; it must never be staged or committed, and it is never authorization to start work.
+At each route boundary:
 
-Before Phase 2.1 implement or Phase 2.2 check/check-all execution, use this order:
+1. Reuse only an explicit, target-matched `route_decision` already present in the current context.
+2. Otherwise you MUST load/read/use `trellis-route(target=implement|check)` before deciding. `trellis-route` owns history recovery, `.route-prefs.tmp`, evidence grading, fallback choices, and dispatch mapping.
+3. If the platform cannot invoke skills directly, open the local `trellis-route/SKILL.md` copy first, then follow its numbered fallback choices in normal chat and wait.
+4. If the route helper cannot ask through `AskUserQuestion` / `request_user_input`, ask the same numbered choices from `trellis-route` in normal chat and wait.
 
-1. Reuse the valid current-task route decision for the requested target when one exists.
-2. If the user explicitly asks to reselect, override, use another mode this time, or clear the default, ignore stored preferences for this decision and rerun `trellis-route` / the numbered fallback.
-3. If no valid current-task decision exists for the target, run `trellis-route(target=implement|check)`. If the helper cannot ask through `AskUserQuestion` / `request_user_input`, ask the same numbered choices in normal chat and wait.
+Plain user preference, ordinary compact/SessionStart summary, `codex-mode`, or empty/old prefs are not route evidence by themselves.
 
-These are not valid route decisions by themselves: user prose such as "inline" or "I choose inline"; compact summaries; SessionStart summaries; `codex-mode`; empty `.trellis/.route-prefs.tmp`; old single-value prefs; and any remembered or summarized prior choice that does not carry a valid structured `route_decision`.
-
-When a valid current-task implement/check decision exists, reuse it for later implementation in the same task, check failures, user-reported issues in the just-checked work, repair, recheck, and final re-check. Do not rerun `trellis-route` merely because check failed, code was repaired, or a final re-check is needed.
-
-Phase 2.2 is the normal check execution point. Normal check routing returns only `trellis-check-all` paths: check-all inline or check-all subagent. Lightweight `trellis-check` is a hidden escape hatch only when the user explicitly asks for `light check` / `轻量检查`; it is not shown in normal check options.
-
-`trellis-route` returns 2 normal modes for `target=implement` (inline/subagent) and 2 normal modes for `target=check` (check-all inline/check-all subagent).
-Dispatch `trellis-implement`, `trellis-check`, or `trellis-check-all` only when the valid route decision selected subagent. If the valid route decision selected inline, execute inline in the main session.
-
-Before invoking the skill, never:
-- write pre-questions ("ready to start? / shall I proceed?")
-- state "I lean towards X" or preview the inline/subagent options
-- surface route options ahead of time
-
-At Phase 2.1/2.2 boundaries, do not ask meta continuation questions. Either reuse the valid current-task route decision for the target, or obtain a new valid decision through `trellis-route` / numbered fallback.
+At Phase 2.1/2.2, this gate overrides lower "Active Task Routing" rows that say to dispatch `trellis-implement` / `trellis-check` directly. Do not ask meta continuation questions, and dispatch subagents only when the resolved route selected subagent.
 
 #### Post-Check Stop Gate
 

@@ -2,10 +2,10 @@
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress):
 This state block is a breadcrumb; the top-level skill-garden hub is the source of truth for route details.
 Before the first implement route, read `<task>/brief.md` if present and restate the task brief in chat. If it is missing, read the task artifacts and suggest backfilling brief; do not silently rely on memory.
-At Phase 2.1/2.2, use the valid current-task `route_decision` for the target when it exists; otherwise run `trellis-route(implement|check)` or ask the numbered fallback choices and wait.
-A valid route decision must come from `trellis-route`, `numbered-fallback`, or `route-prefs` read by `trellis-route`; prose, compact/SessionStart summaries, `codex-mode`, empty prefs, and old single-value prefs are not enough.
-Reuse the valid current-task route through later implementation, repair, recheck, and final re-check; reroute only on explicit reselect/override/use-X-this-time/clear-default or when no valid target decision exists.
-Do not spawn `trellis-implement` or `trellis-check*` unless the valid route decision selected subagent. If the helper is unavailable, do not default to inline; ask the numbered route choices and wait.
+At Phase 2.1/2.2, reuse only an explicit target-matched `route_decision`; otherwise MUST load/read/use `trellis-route(implement|check)` (or its local `SKILL.md`) to recover history, read prefs, or show numbered fallback and wait.
+Plain preferences, ordinary summaries, `codex-mode`, and empty/old prefs are not route evidence by themselves.
+User reselect/override/use-X-this-time/clear-default wins over remembered route evidence.
+Ignore lower Active Task Routing shortcuts that dispatch implement/check directly. Do not spawn `trellis-implement` or `trellis-check*` unless the resolved route selected subagent. If route cannot be resolved, do not default to inline.
 After `trellis-check` / `trellis-check-all`, stop and report; point the user to Phase 3.4 `trellis-push` (or commit-only when needed). Do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
 This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, code commit/push goes through `trellis-push` (commit-only mode for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).
