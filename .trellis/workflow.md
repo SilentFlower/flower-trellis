@@ -562,10 +562,7 @@ Skip this step. Context is loaded directly by the `trellis-before-dev` skill in 
 
 #### 1.4 Activate task `[required · once]`
 
-After artifact review and `brief.md` review, flip the task status to `in_progress`.
-Before starting, use `trellis-task-brief` to refresh `<task>/brief.md` from the latest
-`prd.md`, `design.md` if present, and `implement.md` if present; display the brief in chat
-and get user confirmation on both planning artifacts and the brief:
+After artifact review, flip the task status to `in_progress`:
 
 ```bash
 python3 ./.trellis/scripts/task.py start <task-dir>
