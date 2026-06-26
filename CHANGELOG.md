@@ -4,6 +4,18 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.3.1-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.4...v0.3.1-beta.5) (2026-06-26)
+
+### ✨ 新功能 Features
+
+* **enhancements:** 新增 `trellis-visualize` 可视化图解技能，用于生成架构、流程、业务逻辑和状态流转图。([dabd102](https://github.com/SilentFlower/flower-trellis/commit/dabd102d2fde33a5bd6cf137da8c48d40e19f802))
+* **update:** 升级 Trellis 时保留目标项目 `config.yaml` 的本地配置。([b9dc4e8](https://github.com/SilentFlower/flower-trellis/commit/b9dc4e8a903c04f6c420c328e2deae08d8bbe4bd))
+
+### 🐛 修复 Bug Fixes
+
+* **enhancements:** 随包携带 `trellis-visualize` 的 HTML/SVG 模板，确保离线生成图解时能复用统一视觉结构。([9f431ac](https://github.com/SilentFlower/flower-trellis/commit/9f431acdf32680edf2611fcf0938e8e3cdb8fad0))
+* **enhancements:** 修正 `trellis-visualize` 输出语言规则，中文对话下节点、图例和说明卡片不再残留无关英文模板文案。([f8e3a9f](https://github.com/SilentFlower/flower-trellis/commit/f8e3a9f778b3afb4736e848f457a81df9f6d667f))
+
 ## [0.3.1-beta.4](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.3...v0.3.1-beta.4) (2026-06-25)
 
 ### ✨ 新功能 Features
