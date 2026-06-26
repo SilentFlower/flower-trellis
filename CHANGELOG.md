@@ -4,6 +4,20 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.3.1-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.5...v0.3.1-beta.6) (2026-06-26)
+
+### ✨ 新功能 Features
+
+* **enhancements:** `trellis-route` 支持压缩后复用本轮已选择的执行模式，减少重复询问，并将 route 状态读写下沉到随 skill 分发的 helper 脚本 ([123a1ae](https://github.com/SilentFlower/flower-trellis/commit/123a1ae2c10badf49bd6b9ba5231a75ef9e27995), [bbee078](https://github.com/SilentFlower/flower-trellis/commit/bbee07869ae56f2750823b26c0755db31c63020d))
+
+### 🐛 修复 Bug Fixes
+
+* **enhancements:** 使用 `.backup-flower` 保存回滚备份，避免升级注入时产生零散备份文件 ([c18370c](https://github.com/SilentFlower/flower-trellis/commit/c18370c8a471dfb01c4dbd19b21ba6b8e3eecdff))
+
+### 📝 文档 Docs
+
+* **spec:** 记录 AI 高频上下文、skill 与 helper 脚本的职责边界 ([d89e3b2](https://github.com/SilentFlower/flower-trellis/commit/d89e3b28b32b85f38c954c6e1e9557f78e73bf1a))
+
 ## [0.3.1-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.4...v0.3.1-beta.5) (2026-06-26)
 
 ### ✨ 新功能 Features
