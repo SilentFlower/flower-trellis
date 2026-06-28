@@ -22,5 +22,28 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-28T08:29:53Z",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "beta"
+    },
+    "pushed_commits": {
+      "flower-trellis": "e05c3cf",
+      "skill-garden": "c0db9bd"
+    },
+    "completed_steps": [
+      "依赖升级",
+      "平台列表对齐",
+      "0.6.5 update 合并",
+      "workflow 与 skill-garden 同步",
+      "finish-work override 检查",
+      "trellis-route 跨任务 runtime 决策隔离修复",
+      "配置与 hooks 检查",
+      "验证"
+    ],
+    "next_step": "Phase 3.5 wrap-up / finish-work",
+    "notes": "Trellis 0.6.5 升级与 trellis-route runtime 清理修复已完成；业务提交已推送到 beta。"
+  }
 }
