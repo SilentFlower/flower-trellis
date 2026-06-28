@@ -4,6 +4,31 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.3.1](https://github.com/SilentFlower/flower-trellis/compare/v0.3.0...v0.3.1) (2026-06-28)
+
+### ✨ 新功能 Features
+
+* **enhancements:** 新增任务启动交接摘要流程，在 planning 切到 in_progress 前生成并展示 `brief.md`，实现前重述任务摘要。
+* **enhancements:** 新增 `trellis-diff-brief` 技能，用于 check / push / review 前解释当前任务与 git diff 的实际改动。
+* **enhancements:** 新增 `trellis-visualize` 可视化图解技能，并随包携带离线 HTML/SVG 模板。
+* **update:** 升级 Trellis 时保留目标项目 `config.yaml` 的本地配置。
+
+### 🐛 修复 Bug Fixes
+
+* **cli:** 优化版本输出排版。
+* **route:** 统一任务内路由决策复用机制，修正 check 后修复 / 复查时 implement/check 路由复用规则。
+* **trellis:** 强化上线核对规则。
+* **enhancements:** 使用 `.backup-flower` 保存回滚备份，避免升级注入时产生零散备份文件。
+* **enhancements:** 支持上下文压缩后恢复本轮 route 选择，并将 route 状态读写下沉到 helper 脚本。
+* **enhancements:** 修正 `trellis-visualize` 输出语言规则，确保中文对话下不残留无关英文模板文案。
+* **enhancements:** 精简 route state helper 默认输出。
+* **release:** 本地化 CHANGELOG 历史条目，并记录 CHANGELOG 中文说明约定。
+
+### 📝 文档 Docs
+
+* **spec:** 补充 AI 高频上下文、skill 与 helper 脚本职责边界。
+* **spec:** 要求 release notes / CHANGELOG 用户可见说明使用中文。
+
 ## [0.3.1-beta.7](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.6...v0.3.1-beta.7) (2026-06-26)
 
 
