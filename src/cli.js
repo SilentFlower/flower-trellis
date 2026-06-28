@@ -82,7 +82,8 @@ flower 自有 flag:
 init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联网、带超时,失败静默)。
 
 平台选择:未指定平台时,交互模式会弹出多选菜单(默认勾 Claude Code + Codex);
-也可直接传 --claude / --codex / --cursor 等指定,或用 -y 跳过菜单(默认 codex + claude)。
+也可直接传 --claude / --codex / --cursor / --devin / --zcode / --trae 等指定,
+或用 -y 跳过菜单(默认 codex + claude)。--windsurf 仍作为 Devin 的旧别名透传。
 其余 flag 原样透传给 trellis(如 -u <name> -f --registry --template 等)。`);
 }
 

@@ -83,6 +83,7 @@ def _output(args: argparse.Namespace, data: dict[str, Any], verbose: dict[str, A
 def _decision_summary(decision: dict[str, Any]) -> dict[str, Any]:
     """提取默认输出需要的最小 route 决策字段。"""
     return {
+        "task": decision.get("task"),
         "mode": decision.get("mode"),
         "source": decision.get("source"),
     }
@@ -218,6 +219,13 @@ def _write_runtime_decision(
     decisions = context.get("route_decisions")
     if not isinstance(decisions, dict):
         decisions = {}
+    # 同一 AI session 可能连续处理多个 Trellis 任务。写入新任务的任一路由时，
+    # 先丢弃旧任务的 runtime 决策，避免后续 check 阶段绕过 helper 时误复用上个任务的选择。
+    decisions = {
+        key: value
+        for key, value in decisions.items()
+        if isinstance(value, dict) and value.get("task") == current_task
+    }
     decision = _decision(target, mode, source, current_task)
     decision["decided_at"] = now
     decisions[target] = decision

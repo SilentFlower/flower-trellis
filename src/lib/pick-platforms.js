@@ -22,13 +22,16 @@ const PLATFORMS = [
   { name: "Kilo CLI", value: "--kilo" },
   { name: "Kiro Code", value: "--kiro" },
   { name: "Antigravity", value: "--antigravity" },
-  { name: "Windsurf", value: "--windsurf" },
+  { name: "Devin", value: "--devin" },
+  { name: "Windsurf(旧别名,等同 Devin)", value: "--windsurf" },
   { name: "Qoder", value: "--qoder" },
   { name: "CodeBuddy", value: "--codebuddy" },
   { name: "GitHub Copilot", value: "--copilot" },
   { name: "Factory Droid", value: "--droid" },
   { name: "Pi", value: "--pi" },
   { name: "Reasonix", value: "--reasonix" },
+  { name: "ZCode", value: "--zcode" },
+  { name: "Trae", value: "--trae" },
 ];
 
 /**

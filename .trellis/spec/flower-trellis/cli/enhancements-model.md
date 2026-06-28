@@ -121,7 +121,10 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - runtime 只保存原始合法来源:`trellis-route`、`numbered-fallback`、`route-prefs`。
   - `.runtime` 自身不是 `route_decision.source`;raw runtime JSON 必须经 helper / skill 校验后才可复用。
   - `--save-pref` 才写个人默认;不带该 flag 只写当前 session runtime。
-  - 默认 stdout 必须保持精简:命中时返回 `status`、`mode`、决策 `source`,以及可选 `origin`(`runtime` / `route-prefs`);未命中返回 `status` + `reason`。完整 `decision`、`task`、`path`、`context_key`、`pref_path`、写回标记等诊断字段只在 `--verbose` 输出。
+  - 写入当前任务任一 target 的 runtime 决策前,必须清理同一 session 中属于其他任务的 `route_decisions`,避免任务切换后 check 阶段误复用上个任务的选择。
+  - 默认 stdout 必须保持精简:命中时返回 `status`、当前 `task`、`mode`、决策 `source`,以及可选 `origin`(`runtime` / `route-prefs`);未命中返回 `status` + `reason`。完整 `decision`、`path`、`context_key`、`pref_path`、写回标记等诊断字段只在 `--verbose` 输出。
+
+任务隔离属于 helper 的确定性逻辑,不要把 `task == current_task` 判断扩散到高频 workflow/state 文案里。workflow 维持轻量的 target-matched route 证据规则;`trellis-route` / `route_state.py` 负责 runtime 命中校验、写入清理和默认输出里的 `task` 诊断字段。
 
 ### 4. Validation & Error Matrix
 
@@ -131,6 +134,7 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 | 无 current task 或无 session context key | 返回 `no-current-task` / `no-session-context`,继续展示 route 选项 |
 | runtime 文件缺失或 JSON 损坏 | 忽略 runtime,继续读 prefs 或展示选项;不要删除文件 |
 | runtime 的 task / target / source / mode / scope 不匹配 | 返回 miss,不得复用 |
+| 同一 session 切换到新任务并写入 implement/check 决策 | 写入前清理其他任务的 runtime route 决策;个人 prefs 不受影响 |
 | prefs 缺失或值不合法 | 返回 miss,展示选项 |
 | prefs 命中 | 返回 hit,写回 runtime,`origin=route-prefs`,`source=route-prefs` |
 | 用户明确重选 / 临时改 / 清除默认 | 忽略 runtime 和 prefs,重新进入 route 选项 |
@@ -138,11 +142,12 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 ### 5. Good/Base/Bad Cases
 
 - Good: 压缩后当前上下文没有 `route_decision`;`resolve --target implement` 命中 runtime,
-  输出合法 `mode` / `source`,agent 直接复用,不重复问用户;需要诊断再加 `--verbose`。
+  输出合法 `task` / `mode` / `source`,agent 直接复用,不重复问用户;需要诊断再加 `--verbose`。
 - Base: runtime miss 但 `.route-prefs.tmp` 有 `implement=inline`;`resolve` 返回
   `origin=route-prefs`,`source=route-prefs` 并写回 runtime,后续同 session 直接 runtime hit。
 - Bad: compact summary 里只有“用户选过 inline”;workflow 不得把它当 route 证据,
   必须读取 `trellis-route` 并由 helper 校验 runtime / prefs。
+- Bad: 同一 session 里任务 A 的 `route_decisions.check` 还在 runtime 中;切到任务 B 后不得把它当任务 B 的 check 证据。写入任务 B 任一路由时应清理任务 A 的 runtime route 决策。
 
 ### 6. Tests Required
 
@@ -154,6 +159,7 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - 清空 `route_decisions` 但保留 session 文件其他字段,验证 prefs hit 会写回 runtime。
   - 第二次 `resolve` 验证 runtime 优先。
   - `write` 不带 `--save-pref` 时验证 `.route-prefs.tmp` 不变。
+  - 同一 session 从任务 A 切到任务 B 后,写入任务 B 的 implement 决策会清理任务 A 的 check 决策;随后 `resolve --target check` 对任务 B 返回 miss,除非存在个人 check 默认。
   - `write --save-pref` 验证只更新当前 target 并保留另一个 target。
   - `clear-pref --target check` 验证只清 check 默认。
 - 同步检查:
@@ -181,7 +187,7 @@ current context; otherwise load trellis-route. trellis-route calls:
 python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target implement
 ```
 
-原因:prompt 保留边界,skill 保留语义,脚本负责可测试状态操作;压缩恢复稳定,每轮 token 也更低。
+原因:prompt 保留边界,skill 保留语义,脚本负责 task 校验和跨任务 runtime 清理;压缩恢复稳定,每轮 token 也更低。
 
 ---
 

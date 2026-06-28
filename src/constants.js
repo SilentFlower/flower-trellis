@@ -25,6 +25,7 @@ export const PLATFORM_FLAGS = [
   "--kiro",
   "--gemini",
   "--antigravity",
+  "--devin",
   "--windsurf",
   "--qoder",
   "--codebuddy",
@@ -32,6 +33,8 @@ export const PLATFORM_FLAGS = [
   "--droid",
   "--pi",
   "--reasonix",
+  "--zcode",
+  "--trae",
 ];
 
 /**

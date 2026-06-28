@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "检查时需要核对 flower-trellis CLI 规范入口和质量要求。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "检查平台 flag、版本读取、manifest 和 config 状态是否一致。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查 skill-garden 源、enhancements 快照和 dogfood 副本是否同步。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "检查幂等、不误伤、容错降级和验证命令是否覆盖。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "检查 runtime-parsed workflow 模板、hooks 和多平台副本是否存在漂移。"}
+{"file": ".trellis/tasks/06-28-assess-trellis-0-6-5-upgrade/research/trellis-0-6-5-upgrade.md", "reason": "对照研究结论确认明显冲突已处理。"}
