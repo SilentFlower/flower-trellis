@@ -151,34 +151,34 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 2.1 implement routing, Phase 2.2 check/check-all routing, post-check stop, Phase 3.4 code commit/push via trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep only one short skill-garden sentinel per state; long-form rules live here.
+**Scope**: Phase 1.4 task brief handoff, Phase 2.1 implement routing, Phase 2.2 check/check-all routing, current-task route reuse, post-check stop, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
+#### Task Brief Handoff
+
+Before Phase 1.4 `task.py start`, use `trellis-task-brief` to refresh `<task>/brief.md` from latest task artifacts, display it in chat, and wait for user confirmation.
+
+`brief.md` is derived; `prd.md` / `design.md` / `implement.md` remain authoritative.
+
+Before the first implement route, restate existing `<task>/brief.md` in chat. If missing, read task artifacts and suggest backfilling brief; do not invent one from memory.
+
 #### Routing Gate
 
-Before Phase 2.1 implementation mode selection or Phase 2.2 check/check-all execution runs from the main session, the immediately preceding routing decision must come from `trellis-route` or from the same numbered fallback choices shown in normal chat when the helper is unavailable.
+Phase 2.1 implement and Phase 2.2 check/check-all require route evidence before execution.
 
-Phase 2.2 is the normal Trellis check execution point. It may dispatch `trellis-check` / `trellis-check-all` only when `trellis-route(target=check)` just selected a subagent mode. If a pre-commit re-check is needed because the Phase 2.2 result is missing, code changed after check, risk is high, or the user explicitly asks for final re-check, return to Phase 2.2 and invoke `trellis-route(check)`.
+At each route boundary:
 
-`trellis-route` may use the gitignored personal preference file `.trellis/.route-prefs.tmp` to skip repeated prompts. This file is developer-local state and must never be staged or committed.
+1. Reuse only an explicit, target-matched `route_decision` already present in the current context.
+2. Otherwise you MUST load/read/use `trellis-route(target=implement|check)` before deciding. `trellis-route` owns session runtime recovery, `.route-prefs.tmp`, fallback choices, runtime-state writes, and dispatch mapping.
+3. If the platform cannot invoke skills directly, open the local `trellis-route/SKILL.md` copy first, then follow its numbered fallback choices in normal chat and wait.
+4. If the route helper cannot ask through `AskUserQuestion` / `request_user_input`, ask the same numbered choices from `trellis-route` in normal chat and wait.
 
-Personal route preferences are execution-mode preferences only, never authorization to start work; `trellis-route` may read them only after the workflow already permits the requested target.
+Plain user preference, ordinary compact/SessionStart summary, `codex-mode`, empty/old prefs, and raw `.trellis/.runtime/sessions/*` `route_decisions` content that has not been validated by `trellis-route` are not route evidence by themselves.
 
-`trellis-route` returns 2 normal modes for `target=implement` (inline/subagent) and 2 normal modes for `target=check` (check-all inline/check-all subagent). Lightweight `trellis-check` is a hidden escape hatch only when the user explicitly asks for `light check` / `轻量检查`; it is not shown in normal check options.
+User reselect/override/use-X-this-time/clear-default wins over remembered route evidence, runtime state, and personal prefs.
 
-If the platform cannot call `AskUserQuestion` / `request_user_input`, ask the same numbered choices in normal chat and wait for the user's reply. Tool unavailability is not permission to record inline/subagent or to dispatch a sub-agent directly.
-
-Before invoking the skill, never:
-- write pre-questions ("ready to start? / shall I proceed?")
-- state "I lean towards X" or preview the inline/subagent options
-- surface route options ahead of time
-
-At Phase 2.1 and Phase 2.2 boundaries, do not ask meta continuation questions such as "continue?", "what's next?", or "X or Y?" when the answer determines the next workflow phase. Invoke `trellis-route(implement|check)` first, or ask the same numbered route choices if the helper is unavailable.
-
-If the user says "temporary override", "reselect", "use X this time", "clear route default", or equivalent, the personal preference file must not take priority. `trellis-route` must show the override options again and let the user choose whether the choice is one-time, saved as the new default, or clears the default.
-
-For normal check routing, default to `trellis-check-all` paths. Do not route to lightweight `trellis-check` unless the user explicitly asks for the hidden light-check escape hatch.
+At Phase 2.1/2.2, this gate overrides lower "Active Task Routing" rows that say to dispatch `trellis-implement` / `trellis-check` directly. Do not ask meta continuation questions, and dispatch subagents only when the resolved route selected subagent.
 
 #### Post-Check Stop Gate
 
@@ -241,11 +241,11 @@ Create new children with `task.py create "<title>" --slug <name> --parent <paren
 [workflow-state:no_task]
 <!-- BEGIN skill-garden workflow-state no_task v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (no_task):
-Creating/resuming a task is not implementation permission.
-After PRD ready and task started, next implementation action = `trellis-route(implement)`.
-If no active task exists, scan `.trellis/tasks/*/task.json` once per session for in-progress tasks with `last_push_snapshot`; surface completed_steps + next_step and suggest rebinding the active task before resuming.
-Do NOT use the harness built-in plan mode (`EnterPlanMode` / `ExitPlanMode`) as a substitute for this gate. Planning is Trellis-only: classify the turn, ask for task-creation consent, then `trellis-brainstorm` for complex work.
-If the turn is a meta edit to Trellis itself (Trellis tracking would be overkill), say so and ask to skip Trellis — never silently swap built-in plan mode in for the consent gate.
+Creating or resuming a task is not implementation permission.
+After PRD is ready and the task is started, the next implementation action is Phase 2.1 `trellis-route(implement)` unless a valid current-task implement route decision already exists.
+If no active task exists, scan `.trellis/tasks/*/task.json` once per session for in-progress tasks with `last_push_snapshot`; surface `completed_steps` + `next_step` and suggest rebinding the active task before resuming.
+Do NOT call the harness built-in plan mode (`EnterPlanMode` / `ExitPlanMode`) for Trellis planning. It is not a substitute for Trellis task-creation consent, Trellis planning, or the route gate. For complex work, classify the turn, ask for task-creation consent, then use `trellis-brainstorm`.
+If the turn is a meta edit to Trellis itself and Trellis tracking would be overkill, say so and ask to skip Trellis; never silently swap built-in plan mode in for the consent gate.
 <!-- END skill-garden workflow-state no_task v0.6 -->
 
 No active task. First classify the current turn and ask for task-creation consent before creating any Trellis task.
@@ -268,6 +268,7 @@ Complex task: ask the user if you can create a Trellis task and enter the planni
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (planning):
 Planning is not implementation permission.
 Complete prd.md + required context first.
+Before `task.py start`, use `trellis-task-brief` to refresh `brief.md` from the latest task artifacts and display it in chat for review.
 After status becomes in_progress, next action = `trellis-route(implement)`, not direct edits.
 <!-- END skill-garden workflow-state planning v0.6 -->
 
@@ -284,6 +285,14 @@ Sub-agent mode: curate `implement.jsonl` and `check.jsonl` as spec/research mani
      into a sub-agent. -->
 
 [workflow-state:planning-inline]
+<!-- BEGIN skill-garden workflow-state planning_inline v0.6 -->
+HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (planning-inline):
+Planning is not implementation permission.
+Complete prd.md + required context first.
+Before `task.py start`, use `trellis-task-brief` to refresh `brief.md` from the latest task artifacts and display it in chat for review.
+After status becomes in_progress, next action = `trellis-route(implement)`, not direct edits.
+<!-- END skill-garden workflow-state planning_inline v0.6 -->
+
 Load `trellis-brainstorm`; stay in planning.
 Lightweight: `prd.md` can be enough. Complex: finish `prd.md`, `design.md`, and `implement.md`; ask for review before `task.py start`.
 Multi-deliverable scope: consider a parent task plus independently verifiable child tasks; dependencies must be written in child artifacts, not implied by tree position.
@@ -306,10 +315,12 @@ Sub-agent dispatch protocol applies to all platforms and all sub-agents, includi
 [workflow-state:in_progress]
 <!-- BEGIN skill-garden workflow-state in_progress v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress):
-At Phase 2.1, invoke `trellis-route(implement)` first.
-At Phase 2.2, invoke `trellis-route(check)` before running or dispatching check/check-all.
-Do not spawn `trellis-implement` at Phase 2.1 or `trellis-check` / `trellis-check-all` at Phase 2.2 unless `trellis-route` just selected subagent mode.
-If routing helper is unavailable at the Phase 2.1 or Phase 2.2 route boundary, ask the same numbered route choices in normal chat and wait for the user's selection.
+This state block is a breadcrumb; the top-level skill-garden hub is the source of truth for route details.
+Before the first implement route, read `<task>/brief.md` if present and restate the task brief in chat. If it is missing, read the task artifacts and suggest backfilling brief; do not silently rely on memory.
+At Phase 2.1/2.2, reuse only an explicit target-matched `route_decision`; otherwise MUST load/read/use `trellis-route(implement|check)` (or its local `SKILL.md`) to resolve session runtime state/prefs, write the resolved decision, or show numbered fallback and wait.
+Plain preferences, ordinary summaries, `codex-mode`, raw `.runtime` files, and empty/old prefs are not route evidence by themselves; only `trellis-route` may validate runtime route state.
+User reselect/override/use-X-this-time/clear-default wins over remembered route evidence, runtime state, and prefs.
+Ignore lower Active Task Routing shortcuts that dispatch implement/check directly. Do not spawn `trellis-implement` or `trellis-check*` unless the resolved route selected subagent. If route cannot be resolved, do not default to inline.
 After `trellis-check` / `trellis-check-all`, stop and report; point the user to Phase 3.4 `trellis-push` (or commit-only when needed). Do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
 This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, code commit/push goes through `trellis-push` (commit-only mode for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).
@@ -330,7 +341,12 @@ Dispatch prompt starts with `Active task: <task path from task.py current>`. Rea
 [workflow-state:in_progress-inline]
 <!-- BEGIN skill-garden workflow-state in_progress_inline v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress-inline):
-Inline mode does not skip or constrain `trellis-route`: at Phase 2.1, route `implement` first; at Phase 2.2, route `check` before running check/check-all.
+This state block is a breadcrumb; the top-level skill-garden hub is the source of truth for route details.
+Before the first implement route, read `<task>/brief.md` if present and restate the task brief in chat. If it is missing, read the task artifacts and suggest backfilling brief; do not silently rely on memory.
+Inline workflow-state is not an inline route decision. At Phase 2.1/2.2, reuse only an explicit target-matched `route_decision`; otherwise MUST load/read/use `trellis-route(implement|check)` (or its local `SKILL.md`) to resolve session runtime state/prefs, write the resolved decision, or show numbered fallback and wait.
+Plain preferences, ordinary summaries, `codex-mode`, raw `.runtime` files, and empty/old prefs are not route evidence by themselves; only `trellis-route` may validate runtime route state.
+User reselect/override/use-X-this-time/clear-default wins over remembered route evidence, runtime state, and prefs.
+Ignore lower Active Task Routing shortcuts that start editing/checking directly. Do not default to inline just because this state is inline or the helper is unavailable. Dispatch subagents only when the resolved route selected subagent.
 After `trellis-check` / `trellis-check-all`, stop and report; point the user to Phase 3.4 `trellis-push` (or commit-only when needed). Do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
 This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, code commit/push still goes through `trellis-push` (commit-only for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).

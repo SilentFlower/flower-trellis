@@ -1,0 +1,47 @@
+{
+  "id": "fix-check-route-flow",
+  "name": "fix-check-route-flow",
+  "title": "修正 check 后路由规则",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-06-25",
+  "completedAt": "2026-06-25",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-25T14:13:50+08:00",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "beta"
+    },
+    "pushed_commits": {
+      "flower-trellis": "d0749e1",
+      "skill-garden": "26a0f2f"
+    },
+    "completed_steps": [
+      "Step 1",
+      "Step 2",
+      "Step 3",
+      "Step 4",
+      "Step 5",
+      "Step 6"
+    ],
+    "next_step": "完成 push",
+    "notes": "已提交并推送 route/check 修复与 0.6 快照。"
+  },
+  "meta": {}
+}

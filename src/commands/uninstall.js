@@ -11,7 +11,7 @@ import { listDirs, listFiles, rmrf } from "../lib/fs-utils.js";
  * 背景(实读 Trellis uninstall.ts):trellis uninstall 只删它 manifest
  * (.trellis/.template-hashes.json)记录的文件 + 整个 .trellis/。强化包铺的
  * .claude/skills/trellis-*、.agents/skills/trellis-*、old 的 commands 不在
- * manifest 里,会残留 —— 故卸载后由本命令补删(workflow.md/.bak 随 .trellis/ 已删)。
+ * manifest 里,会残留 —— 故卸载后由本命令补删(workflow.md/.backup-* 随 .trellis/ 已删)。
  *
  * 流程:① 卸载前(.version 还在)读变体并列出强化清单 → ② 透传 trellis uninstall
  * → ③ 退出码 0 且非 dry-run 时,删除目标里名字精确匹配清单的强化条目。

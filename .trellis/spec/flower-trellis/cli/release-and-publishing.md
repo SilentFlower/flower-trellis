@@ -76,6 +76,8 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
   会按 tag 精确抽取对应段落。
 - **0.x 阶段 `feat` 默认 bump patch(非 minor)**;要升 minor 用 `npm run release -- --release-as minor`。
 - 中文 description 原样进条目(解析只看英文 `type`/`scope`)。
+- AI 拟写会进入 CHANGELOG 的 commit description / release notes 时,必须使用中文说明用户可见变更;技术 token 可保留英文,例如 `CHANGELOG.md`、`npm run sync`、`route_state.py`、`vX.Y.Z-beta.N`。
+- dry-run 预览里如果出现英文普通说明性条目,不得继续真实 release;先把对应 commit description 或 release 说明改写为中文,重新 dry-run 并再次展示给用户确认。
 
 ---
 
@@ -90,6 +92,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 | `npm run sync` 只改 `MANIFEST.syncedAt` / `sourceCommit` | 展示为快照指针更新,独立提交后再跑 `node scripts/check-snapshot.mjs` |
 | 真实 release 已被快照门禁阻断 | 不继续 tag/push;按 `npm run sync` → 审核 diff → 提交快照 → `check-snapshot` 通过 → 重跑 release |
 | CHANGELOG 缺目标版本段 | extract-changelog `exit(1)`(等价"漏更新 CHANGELOG 就打 tag"的拦截) |
+| CHANGELOG dry-run 出现英文普通说明性条目 | 停止;先改为中文描述,重新 dry-run 并展示新版 CHANGELOG |
 | Trusted Publisher 配置不匹配 | CI `npm publish` 报 **404**:逐字核对 org/repo/workflow/environment |
 | Node < 22.14.0 或 npm < 11.5.1 | OIDC publish 失败 |
 | beta tag 走裸 `npm publish` | prerelease 可能被 npm 标到 `latest`,必须阻断评审 |
@@ -108,6 +111,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 - 改了 submodule pin 不 `npm run sync` 就发布 → 发布陈旧快照(check-snapshot 会拦)。
 - 用户还没看过 dry-run CHANGELOG 就直接跑 `npm run release` → 版本号和发布说明未经确认,容易把不符合预期的条目写入正式 tag。
 - 真实 release 被 `check-snapshot` 阻断后继续尝试 tag/push → 跳过了快照审核,应先补 `npm run sync` 与快照提交。
+- AI 生成英文 commit description,导致 CHANGELOG 普通说明条目是英文 → 不符合中文发布说明约定;应先改写为中文再 release。
 
 ### Correct
 - 本地只 bump+CHANGELOG+tag(人工把关),push tag 由 CI 用 OIDC 发布(自动 provenance、免 token)。
@@ -115,6 +119,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 - 真实 release 前先 `npm run sync`;如有快照 diff,审核并提交后再用 check-snapshot 断言快照与 submodule pin 一致且已提交。
 - beta 版使用 `X.Y.Z-beta.N` 版本号、`vX.Y.Z-beta.N` tag、同一 `release.yml` 内的 `npm publish --tag beta`。
 - 真实 release 前先用相同参数跑 `npm run release:dry...`,把将生成的 CHANGELOG 段落展示给用户,得到明确确认后再执行真实 release。
+- CHANGELOG 普通说明条目使用中文;只保留命令、文件名、包名、函数名、tag、环境变量等技术 token 的英文原文。
 
 ---
 

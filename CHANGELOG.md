@@ -4,6 +4,105 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.3.1](https://github.com/SilentFlower/flower-trellis/compare/v0.3.0...v0.3.1) (2026-06-28)
+
+### ✨ 新功能 Features
+
+* **enhancements:** 新增任务启动交接摘要流程，在 planning 切到 in_progress 前生成并展示 `brief.md`，实现前重述任务摘要。
+* **enhancements:** 新增 `trellis-diff-brief` 技能，用于 check / push / review 前解释当前任务与 git diff 的实际改动。
+* **enhancements:** 新增 `trellis-visualize` 可视化图解技能，并随包携带离线 HTML/SVG 模板。
+* **update:** 升级 Trellis 时保留目标项目 `config.yaml` 的本地配置。
+
+### 🐛 修复 Bug Fixes
+
+* **cli:** 优化版本输出排版。
+* **route:** 统一任务内路由决策复用机制，修正 check 后修复 / 复查时 implement/check 路由复用规则。
+* **trellis:** 强化上线核对规则。
+* **enhancements:** 使用 `.backup-flower` 保存回滚备份，避免升级注入时产生零散备份文件。
+* **enhancements:** 支持上下文压缩后恢复本轮 route 选择，并将 route 状态读写下沉到 helper 脚本。
+* **enhancements:** 修正 `trellis-visualize` 输出语言规则，确保中文对话下不残留无关英文模板文案。
+* **enhancements:** 精简 route state helper 默认输出。
+* **release:** 本地化 CHANGELOG 历史条目，并记录 CHANGELOG 中文说明约定。
+
+### 📝 文档 Docs
+
+* **spec:** 补充 AI 高频上下文、skill 与 helper 脚本职责边界。
+* **spec:** 要求 release notes / CHANGELOG 用户可见说明使用中文。
+
+## [0.3.1-beta.7](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.6...v0.3.1-beta.7) (2026-06-26)
+
+
+### 🐛 修复 Bug Fixes
+
+* **enhancements:** 精简 route state helper 默认输出 ([afa9282](https://github.com/SilentFlower/flower-trellis/commit/afa9282b102e5cabec31b87e16d3d85ffa2866b2))
+* **release:** 本地化 CHANGELOG 历史条目 ([8b1db0c](https://github.com/SilentFlower/flower-trellis/commit/8b1db0c1116ec29467e33f9b3f1313dd91198f52))
+
+
+### 📝 文档 Docs
+
+* **spec:** 要求 CHANGELOG 使用中文说明 ([2e6cb15](https://github.com/SilentFlower/flower-trellis/commit/2e6cb157010382bb69234f917f436276ca25580b))
+
+## [0.3.1-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.5...v0.3.1-beta.6) (2026-06-26)
+
+### ✨ 新功能 Features
+
+* **enhancements:** `trellis-route` 支持压缩后复用本轮已选择的执行模式，减少重复询问，并将 route 状态读写下沉到随 skill 分发的 helper 脚本 ([123a1ae](https://github.com/SilentFlower/flower-trellis/commit/123a1ae2c10badf49bd6b9ba5231a75ef9e27995), [bbee078](https://github.com/SilentFlower/flower-trellis/commit/bbee07869ae56f2750823b26c0755db31c63020d))
+
+### 🐛 修复 Bug Fixes
+
+* **enhancements:** 使用 `.backup-flower` 保存回滚备份，避免升级注入时产生零散备份文件 ([c18370c](https://github.com/SilentFlower/flower-trellis/commit/c18370c8a471dfb01c4dbd19b21ba6b8e3eecdff))
+
+### 📝 文档 Docs
+
+* **spec:** 记录 AI 高频上下文、skill 与 helper 脚本的职责边界 ([d89e3b2](https://github.com/SilentFlower/flower-trellis/commit/d89e3b28b32b85f38c954c6e1e9557f78e73bf1a))
+
+## [0.3.1-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.4...v0.3.1-beta.5) (2026-06-26)
+
+### ✨ 新功能 Features
+
+* **enhancements:** 新增 `trellis-visualize` 可视化图解技能，用于生成架构、流程、业务逻辑和状态流转图。([dabd102](https://github.com/SilentFlower/flower-trellis/commit/dabd102d2fde33a5bd6cf137da8c48d40e19f802))
+* **update:** 升级 Trellis 时保留目标项目 `config.yaml` 的本地配置。([b9dc4e8](https://github.com/SilentFlower/flower-trellis/commit/b9dc4e8a903c04f6c420c328e2deae08d8bbe4bd))
+
+### 🐛 修复 Bug Fixes
+
+* **enhancements:** 随包携带 `trellis-visualize` 的 HTML/SVG 模板，确保离线生成图解时能复用统一视觉结构。([9f431ac](https://github.com/SilentFlower/flower-trellis/commit/9f431acdf32680edf2611fcf0938e8e3cdb8fad0))
+* **enhancements:** 修正 `trellis-visualize` 输出语言规则，中文对话下节点、图例和说明卡片不再残留无关英文模板文案。([f8e3a9f](https://github.com/SilentFlower/flower-trellis/commit/f8e3a9f778b3afb4736e848f457a81df9f6d667f))
+
+## [0.3.1-beta.4](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.3...v0.3.1-beta.4) (2026-06-25)
+
+### ✨ 新功能 Features
+
+* 新增任务启动交接摘要流程：在 planning 切到 in_progress 前生成并展示 `brief.md`，实现前重述任务交接摘要，降低重新细读三件套的成本。([350f254](https://github.com/SilentFlower/flower-trellis/commit/350f254b1f5a12b0277b3437b5e540217f9b9216))
+* 新增 `trellis-diff-brief` 按需技能：在 check / push / review 前读取当前任务和 git diff，在对话中解释本轮实际改动，不拉长默认 workflow。([8ba0720](https://github.com/SilentFlower/flower-trellis/commit/8ba0720bb94ddb601ce2c687a0c35a1baacd9636))
+
+## [0.3.1-beta.3](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.2...v0.3.1-beta.3) (2026-06-25)
+
+
+### 🐛 修复 Bug Fixes
+
+* **route:** 统一任务内路由决策复用机制 ([43fd7ef](https://github.com/SilentFlower/flower-trellis/commit/43fd7ef9a773888a0e5249f021a985efa1435823))
+
+## [0.3.1-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.1...v0.3.1-beta.2) (2026-06-25)
+
+
+### 🐛 修复 Bug Fixes
+
+* **trellis:** 强化上线核对规则 ([13f109a](https://github.com/SilentFlower/flower-trellis/commit/13f109a5a788de7b5e654d46604d6cce694f772c))
+
+## [0.3.1-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1-beta.0...v0.3.1-beta.1) (2026-06-25)
+
+
+### 🐛 修复 Bug Fixes
+
+* **cli:** 优化版本输出排版 ([2119845](https://github.com/SilentFlower/flower-trellis/commit/2119845a876884512ceb1db343f164bc8a7f9e6f))
+
+## [0.3.1-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.3.0-beta.4...v0.3.1-beta.0) (2026-06-25)
+
+
+### 🐛 修复 Bug Fixes
+
+* **route:** 修正 check 后修复/复查时 implement/check 路由复用规则 ([d0749e1](https://github.com/SilentFlower/flower-trellis/commit/d0749e1458b37b0195ce412c3ed0b3ea7d16ff64))
+
 ## [0.3.0](https://github.com/SilentFlower/flower-trellis/compare/v0.2.4...v0.3.0) (2026-06-18)
 
 
@@ -36,6 +135,12 @@
 * **release:** 记录发版前 changelog 预览门禁 ([7126598](https://github.com/SilentFlower/flower-trellis/commit/71265980a94e09ba11aa690bd51ecec58b0d625c))
 * **trellis:** 按 wave 排序 task 创建顺序 ([2dc4f0c](https://github.com/SilentFlower/flower-trellis/commit/2dc4f0ce845178fc9221f06152fbce2c5f26c671))
 * **workflow:** 明确 inline 模式仍需路由 ([be2c4e7](https://github.com/SilentFlower/flower-trellis/commit/be2c4e749f65aa3f5557ac9bc6c14c3e0af45ba1))
+
+## [0.3.0-beta.4](https://github.com/SilentFlower/flower-trellis/compare/v0.3.0-beta.3...v0.3.0-beta.4) (2026-06-25)
+
+### 📝 文档 Docs
+
+* 错误发布版本，改用 0.3.1-beta.0。
 
 ## [0.3.0-beta.3](https://github.com/SilentFlower/flower-trellis/compare/v0.3.0-beta.2...v0.3.0-beta.3) (2026-06-17)
 

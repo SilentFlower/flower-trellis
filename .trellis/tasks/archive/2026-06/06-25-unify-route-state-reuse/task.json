@@ -1,0 +1,46 @@
+{
+  "id": "unify-route-state-reuse",
+  "name": "unify-route-state-reuse",
+  "title": "统一路由状态复用机制",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-06-25",
+  "completedAt": "2026-06-25",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-25T15:50:54.286Z",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "beta"
+    },
+    "pushed_commits": {
+      "flower-trellis": "43fd7ef",
+      "skill-garden": "97cb5d7"
+    },
+    "completed_steps": [
+      "Route decision contract implemented",
+      "0.6 override review pass applied",
+      "enhancements snapshot synced",
+      "current workflow refreshed",
+      "validation passed"
+    ],
+    "next_step": "Phase 3.5 finish-work only if user explicitly asks after Phase 3.4",
+    "notes": "Committed and pushed skill-garden submodule changes first, then flower-trellis snapshot and dogfood copies."
+  }
+}

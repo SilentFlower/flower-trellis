@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "CLI 分层、模块、输出与质量规范入口"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "新增 ESM lib 模块与导出函数必须遵循的约定"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "配置和目标项目状态处理约定"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "update 输出文案与进度行风格"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "写盘、幂等、容错和验证要求"}

@@ -1,0 +1,46 @@
+{
+  "id": "add-trellis-visualize",
+  "name": "add-trellis-visualize",
+  "title": "新增 trellis-visualize 并替换 draw-uml",
+  "description": "删除 trellis-draw-uml，新增 trellis-visualize，吸收 architecture-diagram 设计范式并兼容业务流程、逻辑解释和旧 UML 触发词。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "skill-garden",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-06-26",
+  "completedAt": "2026-06-26",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-26T03:49:03.114712+00:00",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "beta"
+    },
+    "pushed_commits": {
+      "flower-trellis": "dabd102",
+      "skill-garden": "ca6426e"
+    },
+    "completed_steps": [
+      "规划三件套与 brief 已完成",
+      "0.6 源 skill 已替换",
+      "enhancements/0.6 与当前副本已同步",
+      "升级清理验证与一致性检查已完成",
+      "业务提交已推送"
+    ],
+    "next_step": "Phase 3.5 finish-work / 归档任务",
+    "notes": "trellis-visualize 已替换 0.6 draw-uml；old / 0.5 保持不变；architecture-diagram/ 未纳入提交。"
+  }
+}

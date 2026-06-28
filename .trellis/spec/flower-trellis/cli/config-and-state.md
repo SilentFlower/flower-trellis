@@ -42,10 +42,15 @@ flower-trellis 自身几乎无内存态:配置是一组**集中常量**,运行�
 - `trellisVersion()` 解析捆绑依赖 `@mindfoldhq/trellis/package.json`;**容错**:依赖缺失时
   返回占位串 `"(未安装)"` 而非抛错 —— `-v` 在任何环境都应能打印。
 - 模式约定:版本/装饰类读取失败一律降级,不影响主输出。
-- `-v`(`printVersion`)按可得性逐行打印,均在 `try` 内容错:
-  `flower-trellis`(工具版本)/ `trellis (bundled)`(捆绑依赖)/ `project .trellis`(项目
-  `.trellis/.version`)/ `project flower`(项目 `.flower-manifest.json` 的 `flowerVersion`,
-  即「上次哪个 flower 铺的」;旧 manifest 无此字段时该行自动省略)。后两行仅在项目内可读时出现。
+- `-v` / `--version`(`printVersion`)按分组打印:
+  1. 顶部先打印 `flower-trellis` 工具版本。
+  2. 若项目内可读到状态,打印 `project` 分组,顺序固定为 `flower`(项目
+     `.trellis/.flower-manifest.json` 的 `flowerVersion`,即「上次哪个 flower 铺的」)、
+     `.trellis`(项目 `.trellis/.version`)；旧 manifest 无 `flowerVersion` 时自动省略
+     `flower` 行。
+  3. 最后打印 `bundled` 分组里的 `trellis` 捆绑依赖版本。
+  项目状态读取失败一律吞掉并继续打印 `bundled` 分组；非 Trellis 目录只显示顶部工具版本与
+  `bundled` 分组。
 
 ---
 

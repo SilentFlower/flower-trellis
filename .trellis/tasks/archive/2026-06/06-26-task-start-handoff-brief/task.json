@@ -1,0 +1,45 @@
+{
+  "id": "task-start-handoff-brief",
+  "name": "task-start-handoff-brief",
+  "title": "增加任务启动交接摘要",
+  "description": "在任务从 planning 切到 in_progress 时提供轻量任务交接摘要，降低人和 agent 重新细读三件套的成本。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-06-26",
+  "completedAt": "2026-06-26",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-25T18:39:29Z",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "beta"
+    },
+    "pushed_commits": {
+      "flower-trellis": "8ba0720",
+      "skill-garden": "c00e63a"
+    },
+    "completed_steps": [
+      "完成 trellis-task-brief 与 workflow handoff",
+      "按 review 反馈压缩 workflow hub 文案",
+      "新增 trellis-diff-brief 按需 skill，并同步 vendor / enhancements / .agents / .claude",
+      "完成并记录语法、快照一致性相关验证"
+    ],
+    "next_step": "Phase 3.5 wrap-up，需用户显式触发 finish-work",
+    "notes": "本次推送包含新增 trellis-diff-brief；.trellis/.flower-manifest.json 与 .trellis/config.yaml 保留未提交。"
+  },
+  "meta": {}
+}

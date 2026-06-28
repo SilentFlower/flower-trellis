@@ -606,7 +606,291 @@
 - None - task complete
 
 
-## Session 18: craft-slides 内置精选主题升级
+## Session 18: 修正 check 后路由规则并发布 beta
+
+**Date**: 2026-06-25
+**Task**: 修正 check 后路由规则并发布 beta
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+修正 Trellis 0.6 check 后修复/复查时 implement/check 路由复用规则；同步 skill-garden 与 enhancements 快照；发布 flower-trellis 0.3.1-beta.0，并将错误 beta 0.3.0-beta.4 记录为被替代版本。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d0749e1` | (see git log) |
+| `26a0f2f` | (see git log) |
+| `cc85282` | (see git log) |
+| `b479ea4` | (see git log) |
+| `4cc4386` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 19: 优化 trellis-release 与 finish-work 上线核对规则
+
+**Date**: 2026-06-25
+**Task**: 优化 trellis-release 与 finish-work 上线核对规则
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+强化 trellis-release 的上线前证据核对、release 文件命名和漂移风险标记；强化 finish-work 注入在上下文压缩后重新读取任务文件与 git 证据；同步 skill-garden 源、enhancements 快照、当前 .agents/.claude 副本，并完成 check-all 与 push。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `13f109a` | (see git log) |
+| `588fc23` | (see git log) |
+| `884cfbd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 20: 统一路由状态复用机制
+
+**Date**: 2026-06-25
+**Task**: 统一路由状态复用机制
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+统一 trellis-route 的任务内 route_decision 复用语义，补强 compact/SessionStart/用户自然语言无效来源规则，精简 0.6 workflow override/state guard，并同步 skill-garden、enhancements 和当前 dogfood workflow。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `43fd7ef` | (see git log) |
+| `97cb5d7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 21: 完成任务交接摘要与 diff brief beta 发布
+
+**Date**: 2026-06-26
+**Task**: 完成任务交接摘要与 diff brief beta 发布
+**Branch**: `beta`
+
+### Summary
+
+完成 Trellis task brief handoff：新增 trellis-task-brief、brief.md 交接规则和 workflow 状态提示；按用户反馈压缩 workflow hub 文案。新增 trellis-diff-brief 按需 skill，用于 push/check/review 前解释当前任务与 git diff 的实际改动，并同步 skill-garden、enhancements、.agents、.claude。发布 flower-trellis 0.3.1-beta.4，中文 CHANGELOG 已包含 task brief handoff 和 diff brief 两项新功能。当前任务 06-26-task-start-handoff-brief 已归档；未识别 dirty .trellis/.flower-manifest.json 与 .trellis/config.yaml 保留未提交。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `350f254` | (see git log) |
+| `8ba0720` | (see git log) |
+| `edb20b6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 22: 保护 config.yaml 本地配置
+
+**Date**: 2026-06-26
+**Task**: 保护 config.yaml 本地配置
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+实现 flower-trellis update 的 config.yaml 本地字段保护：新增 config-preserver，在上游 update 前捕获 packages/default_package，并在成功路径后恢复；完成验证、推送、snapshot 和任务归档。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b9dc4e8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 23: 完成 trellis-visualize 与版本输出收尾
+
+**Date**: 2026-06-26
+**Task**: 完成 trellis-visualize 与版本输出收尾
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 trellis-visualize 替换 draw-uml 的 0.6 强化包同步与当前副本同步，保留 old/0.5 不变；同时归档此前已推送的 ftl 版本输出排版优化任务。两项任务均未识别 SQL、配置、部署脚本或外部系统上线操作事项。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `dabd102` | (see git log) |
+| `2119845` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 24: Route state runtime recovery
+
+**Date**: 2026-06-26
+**Task**: Route state runtime recovery
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+Implemented session-scoped trellis-route state recovery with route_state.py, synchronized skill-garden/enhancements/dogfood copies, pushed route runtime changes, and recorded the AI-facing helper boundary in code-spec.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `123a1ae` | (see git log) |
+| `031d745` | (see git log) |
+| `d89e3b2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 25: 优化 route_state 输出并补充发版规范
+
+**Date**: 2026-06-26
+**Task**: 优化 route_state 输出并补充发版规范
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 route_state.py 默认输出精简与 --verbose 诊断输出，同步 trellis-route skill 多份副本、enhancements 快照和 helper 输出契约 spec；随后补充发版规范，要求 CHANGELOG 普通说明条目使用中文。已完成检查、推送并归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `afa9282` | (see git log) |
+| `57bac13` | (see git log) |
+| `2e6cb15` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+## Session 26: craft-slides 内置精选主题升级
 
 **Date**: 2026-06-18
 **Task**: craft-slides 内置精选主题升级
@@ -638,3 +922,4 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+

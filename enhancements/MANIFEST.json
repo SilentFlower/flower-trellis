@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-06-17T10:26:06.193Z",
+  "syncedAt": "2026-06-28T06:16:48.190Z",
   "syncedFrom": "vendor/skill-garden/.trellis",
-  "sourceCommit": "397d566da03bc22f7fd5170fdc99812f874adf7a",
+  "sourceCommit": "57bac1361b3afe6ae3ea3fa456405bb888edab11",
   "variants": {
     "old": {
       "claudeSkills": [],
@@ -77,26 +77,30 @@
       "claudeSkills": [
         "trellis-check-all",
         "trellis-create-command",
-        "trellis-draw-uml",
+        "trellis-diff-brief",
         "trellis-extract-prd",
         "trellis-plan-version",
         "trellis-push",
         "trellis-release",
         "trellis-route",
         "trellis-run-full-chain",
-        "trellis-verify-task"
+        "trellis-task-brief",
+        "trellis-verify-task",
+        "trellis-visualize"
       ],
       "agentsSkills": [
         "trellis-check-all",
         "trellis-create-command",
-        "trellis-draw-uml",
+        "trellis-diff-brief",
         "trellis-extract-prd",
         "trellis-plan-version",
         "trellis-push",
         "trellis-release",
         "trellis-route",
         "trellis-run-full-chain",
-        "trellis-verify-task"
+        "trellis-task-brief",
+        "trellis-verify-task",
+        "trellis-visualize"
       ],
       "commands": [],
       "overrides": [
@@ -106,6 +110,7 @@
         "in_progress-inline.md",
         "in_progress.md",
         "no_task.md",
+        "planning-inline.md",
         "planning.md"
       ],
       "skillOverrides": [

@@ -1,0 +1,6 @@
+{"file":".trellis/tasks/06-25-optimize-release-audit-rules/prd.md","reason":"本任务需求、边界、验收标准。"}
+{"file":".trellis/tasks/06-25-optimize-release-audit-rules/design.md","reason":"源文件、快照和当前平台副本的同步设计。"}
+{"file":".trellis/tasks/06-25-optimize-release-audit-rules/implement.md","reason":"实施顺序、验证命令和回滚点。"}
+{"file":".trellis/spec/guides/index.md","reason":"共享思考指南，提醒改动前先核对上下文。"}
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"flower-trellis CLI / 强化包快照开发入口规范。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"修改 0.6 强化 skill / workflow 覆盖时必须先改 vendor 源再 npm run sync。"}

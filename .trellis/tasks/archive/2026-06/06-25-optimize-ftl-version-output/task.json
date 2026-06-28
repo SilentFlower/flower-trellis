@@ -1,0 +1,40 @@
+{
+  "id": "optimize-ftl-version-output",
+  "name": "optimize-ftl-version-output",
+  "title": "优化 ftl 版本输出排版",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-06-25",
+  "completedAt": "2026-06-26",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-25T07:51:11.887671Z",
+    "branch": "beta",
+    "pushed_commits": {
+      "flower-trellis": "2119845"
+    },
+    "completed_steps": [
+      "Phase 1: 已创建任务并确认 PRD",
+      "Phase 2.1: 已实现 ftl -v 分组排版",
+      "Phase 2.2: 已完成 check-all 验证",
+      "Phase 3.3: 已同步 CLI 版本输出规范"
+    ],
+    "next_step": "Phase 3.5: push 完成后执行收尾/归档"
+  }
+}

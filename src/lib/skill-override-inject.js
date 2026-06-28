@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { listFiles } from "./fs-utils.js";
 import { shouldInstallName } from "./skill-filter.js";
+import { preserveFirstBackup } from "./backup.js";
 
 /** 等价 Python re.escape(用于把字面量安全嵌入正则)。 */
 function escapeRe(s) {
@@ -49,26 +50,31 @@ function injectAfterFrontmatter(value, block) {
 /**
  * 对单个目标 Markdown 文件注入 skill override。
  *
+ * @param {string} target 目标项目根
  * @param {string} targetFile 目标 SKILL.md 或 command markdown
  * @param {string} name skill 名称
  * @param {string} block override 块
  * @returns {{changed:boolean, target:string, backupNote?:string}}
  */
-function injectOne(targetFile, name, block) {
+function injectOne(target, targetFile, name, block) {
   const text = fs.readFileSync(targetFile, "utf8");
   const clean = stripSkillOverride(text, name);
   const next = injectAfterFrontmatter(clean, block).replace(/\s+$/, "") + "\n";
+  const legacyBackupFile = `${targetFile}.flower-skill-garden.bak`;
 
-  if (next === text) return { changed: false, target: targetFile };
-
-  const bak = `${targetFile}.flower-skill-garden.bak`;
-  let backupNote;
-  if (!fs.existsSync(bak)) {
-    fs.copyFileSync(targetFile, bak);
-    backupNote = "(已创建 .flower-skill-garden.bak)";
-  } else {
-    backupNote = "(保留已有 .flower-skill-garden.bak)";
+  if (next === text) {
+    if (fs.existsSync(legacyBackupFile)) {
+      const { backupNote } = preserveFirstBackup(target, targetFile, [
+        legacyBackupFile,
+      ]);
+      return { changed: false, target: targetFile, backupNote };
+    }
+    return { changed: false, target: targetFile };
   }
+
+  const { backupNote } = preserveFirstBackup(target, targetFile, [
+    legacyBackupFile,
+  ]);
   fs.writeFileSync(targetFile, next);
   return { changed: true, target: targetFile, backupNote };
 }
@@ -122,7 +128,7 @@ export function injectSkillOverrides(target, variantDir, skills = []) {
     }
 
     for (const targetFile of targetFiles) {
-      const r = injectOne(targetFile, name, block);
+      const r = injectOne(target, targetFile, name, block);
       targets.push(path.relative(target, r.target).split(path.sep).join("/"));
       if (r.changed) changed++;
       else unchanged++;

@@ -1,0 +1,47 @@
+{
+  "id": "route-latch-after-compact",
+  "name": "route-latch-after-compact",
+  "title": "压缩后复用本轮路由选择",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-06-26",
+  "completedAt": "2026-06-26",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-26T17:16:06+08:00",
+    "branch": {
+      "skill-garden": "beta",
+      "flower-trellis": "beta"
+    },
+    "pushed_commits": {
+      "skill-garden": "031d745",
+      "flower-trellis": "123a1ae"
+    },
+    "completed_steps": [
+      "trellis-route route state helper added for session runtime + route prefs",
+      "workflow hub/state kept short and delegated route details to trellis-route",
+      "skill-garden source, enhancements/0.6 snapshot, and dogfood copies synchronized",
+      "static checks, helper behavior simulation, and dry-run update verification passed",
+      "business commits pushed for skill-garden and flower-trellis"
+    ],
+    "partial_step": "Phase 3.4 trellis-push business commits completed; snapshot bookkeeping in progress",
+    "next_step": "After push completes, run /trellis:finish-work only if the user explicitly asks to wrap up",
+    "notes": "Runtime route decisions are session/window scoped under .trellis/.runtime/sessions/<context-key>.json; route is not persisted as a task attribute."
+  }
+}

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "实现前读取 CLI 层总体规范入口。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "本任务修改 skill-garden 0.6 源并同步 enhancements 快照，必须遵守源优先和同步规则。"}
+{"file": ".trellis/spec/flower-trellis/cli/directory-structure.md", "reason": "确认 flower-trellis 目录职责与 sync 脚本位置。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "实现时保持与 skill-garden 源和快照一致，避免漂移。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "复用 architecture-diagram 设计范式时避免无谓重写。"}
+{"file": ".trellis/tasks/06-26-add-trellis-visualize/design.md", "reason": "实现 trellis-visualize 的边界、输出契约和 rollout 方案。"}

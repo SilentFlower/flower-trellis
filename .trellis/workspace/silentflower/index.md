@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
-- **Last Active**: 2026-06-18
+- **Total Sessions**: 26
+- **Last Active**: 2026-06-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~640 | Active |
+| `journal-1.md` | ~930 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,7 +29,15 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
-| 18 | 2026-06-18 | craft-slides 内置精选主题升级 | `11f1b20` | `main` |
+| 26 | 2026-06-18 | craft-slides 内置精选主题升级 | `11f1b20` | `main` |
+| 25 | 2026-06-26 | 优化 route_state 输出并补充发版规范 | `afa9282`, `57bac13`, `2e6cb15` | `beta` |
+| 24 | 2026-06-26 | Route state runtime recovery | `123a1ae`, `031d745`, `d89e3b2` | `beta` |
+| 23 | 2026-06-26 | 完成 trellis-visualize 与版本输出收尾 | `dabd102`, `2119845` | `beta` |
+| 22 | 2026-06-26 | 保护 config.yaml 本地配置 | `b9dc4e8` | `beta` |
+| 21 | 2026-06-26 | 完成任务交接摘要与 diff brief beta 发布 | `350f254`, `8ba0720`, `edb20b6` | `beta` |
+| 20 | 2026-06-25 | 统一路由状态复用机制 | `43fd7ef`, `97cb5d7` | `beta` |
+| 19 | 2026-06-25 | 优化 trellis-release 与 finish-work 上线核对规则 | `13f109a`, `588fc23`, `884cfbd` | `beta` |
+| 18 | 2026-06-25 | 修正 check 后路由规则并发布 beta | `d0749e1`, `26a0f2f`, `cc85282`, `b479ea4`, `4cc4386` | `beta` |
 | 17 | 2026-06-17 | Trellis 0.6.2 beta 发布与任务归档 | `535efcd`, `34ed425`, `e5a6cd6`, `4dffb9f`, `abeb450` | `beta` |
 | 16 | 2026-06-17 | 修正检查路由阶段边界 | `efaeea3`, `87cb9f7` | `beta` |
 | 15 | 2026-06-17 | 同步全局 Trellis 版本 | `e20508d` | `beta` |

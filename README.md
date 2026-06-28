@@ -105,8 +105,8 @@ flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo 
 
 - **统一品牌头部**:Trellis 子进程在伪终端(`node-pty`)中运行,其原生的模板 / monorepo / 冲突等交互完整保留,但重复打印的启动 banner 被过滤,全程只呈现一个 flower banner。
 - **按平台铺设技能**:Claude 铺到 `.claude/skills`,Codex / Gemini 等铺到 `.agents/skills`;并对 codex 做后处理(兼容清理旧 `config.toml` 的 `[features.multi_agent_v2]`,在保留上游 hooks 的基础上补全 `SessionStart`)。
-- **幂等执行**:`workflow.md` 注入前先按 `BEGIN/END` 标记清除旧块再重注入(块数恒定,不会翻倍,首次注入前备份 `.bak`);技能文件覆盖式铺设,并通过 `.trellis/.flower-manifest.json` 记录已铺路径,升级时删除已淘汰项。
-- **上线事项账本**:强化包通过 finish-work skill override 在归档前智能识别 SQL、配置、批处理 / 部署脚本 / 数据修复、外部系统 / 依赖平台等上线事项,必要时写入任务 `release.md`;`trellis-release` 可在正式上线前汇总多个任务的 `release.md` 生成版本 / 批次操作单。
+- **幂等执行**:`workflow.md` 注入前先按 `BEGIN/END` 标记清除旧块再重注入(块数恒定,不会翻倍,首次注入前备份到 `.trellis/.backup-flower/`);技能文件覆盖式铺设,并通过 `.trellis/.flower-manifest.json` 记录已铺路径,升级时删除已淘汰项。
+- **上线事项账本**:强化包通过 finish-work skill override 在归档前智能识别 SQL、配置、批处理 / 部署脚本 / 数据修复、外部系统 / 依赖平台等上线事项,必要时写入任务 `release.md`;`trellis-release` 可在正式上线前核对任务文档、`release.md` 和 git 证据,生成 `YYYY-MM-DD-<release-slug>.md` 格式的版本 / 批次操作单。
 - **安全中止**:`Ctrl+C` 取消后不会继续叠加。
 
 ## 强化包与更新
