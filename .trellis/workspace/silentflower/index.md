@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 25
-- **Last Active**: 2026-06-26
+- **Total Sessions**: 26
+- **Last Active**: 2026-06-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~891 | Active |
+| `journal-1.md` | ~926 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 26 | 2026-06-28 | 升级 Trellis 0.6.5 | `e05c3cf`, `c0db9bd` | `beta` |
 | 25 | 2026-06-26 | 优化 route_state 输出并补充发版规范 | `afa9282`, `57bac13`, `2e6cb15` | `beta` |
 | 24 | 2026-06-26 | Route state runtime recovery | `123a1ae`, `031d745`, `d89e3b2` | `beta` |
 | 23 | 2026-06-26 | 完成 trellis-visualize 与版本输出收尾 | `dabd102`, `2119845` | `beta` |

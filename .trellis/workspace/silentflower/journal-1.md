@@ -889,3 +889,38 @@ Implemented session-scoped trellis-route state recovery with route_state.py, syn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: 升级 Trellis 0.6.5
+
+**Date**: 2026-06-28
+**Task**: 升级 Trellis 0.6.5
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 flower-trellis 捆绑 Trellis 0.6.5 升级，合并 workflow 与平台模板变化，修复 trellis-route 跨任务 runtime 决策清理，并推送父仓与 skill-garden。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e05c3cf` | (see git log) |
+| `c0db9bd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
