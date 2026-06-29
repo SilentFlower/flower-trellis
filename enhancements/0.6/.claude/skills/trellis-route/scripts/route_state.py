@@ -160,36 +160,63 @@ def _read_prefs(repo_root: Path) -> dict[str, str]:
     return prefs
 
 
+def _running_auto_run_paths(repo_root: Path) -> list[Path]:
+    """扫描当前项目内所有 running auto-loop run。"""
+    running: list[Path] = []
+    for path in sorted(_auto_loop_dir(repo_root).glob("auto-*.json")):
+        state = _read_json(path)
+        if state.get("status") == "running":
+            running.append(path)
+    return running
+
+
+def _auto_state_path(repo_root: Path, run_id: Any) -> Path | None:
+    """把 run id 转成状态文件路径，非法值返回 None。"""
+    if not isinstance(run_id, str) or not run_id.strip():
+        return None
+    return _auto_loop_dir(repo_root) / f"{run_id.strip()}.json"
+
+
 def _auto_route_mode(repo_root: Path, context_key: str, target: str) -> tuple[str | None, Path | None, str | None]:
-    """读取当前 auto-loop run 的临时 route 授权。
+    """读取当前 running auto-loop run 的临时 route 授权。
 
     auto 授权低于个人 `.route-prefs.tmp`，只在当前 session runtime 绑定了
-    `current_auto_run`，或全局 current 指针能指向唯一 running run 时生效。命中后
-    `resolve` 会写回 session runtime，后续压缩恢复仍走普通 route 决策路径。
+    running `current_auto_run`，或全局 current 指针能指向 running run 时生效。
+    如果这些指针 stale，则忽略 stale pointer，并 fallback 到唯一 running run。
     """
     session_path = _session_path(repo_root, context_key)
     session = _read_json(session_path)
-    run_id = session.get("current_auto_run")
-
-    if not isinstance(run_id, str) or not run_id.strip():
-        pointer = _read_json(_auto_loop_pointer(repo_root))
-        run_id = pointer.get("run_id")
-
     candidate_paths: list[Path] = []
-    if isinstance(run_id, str) and run_id.strip():
-        candidate_paths.append(_auto_loop_dir(repo_root) / f"{run_id.strip()}.json")
-    else:
-        for path in sorted(_auto_loop_dir(repo_root).glob("auto-*.json")):
-            state = _read_json(path)
-            if state.get("status") == "running":
-                candidate_paths.append(path)
-        if len(candidate_paths) != 1:
-            return None, None, "no-unique-auto-run"
+    stale_paths: list[Path] = []
 
-    path = candidate_paths[0]
+    for run_id in (session.get("current_auto_run"), _read_json(_auto_loop_pointer(repo_root)).get("run_id")):
+        path = _auto_state_path(repo_root, run_id)
+        if path is None:
+            continue
+        state = _read_json(path)
+        if state.get("status") == "running":
+            candidate_paths.append(path)
+        else:
+            stale_paths.append(path)
+
+    if not candidate_paths:
+        candidate_paths = _running_auto_run_paths(repo_root)
+    unique_paths = []
+    seen: set[str] = set()
+    for path in candidate_paths:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_paths.append(path)
+    if len(unique_paths) != 1:
+        reason = "no-unique-auto-run"
+        if stale_paths and not unique_paths:
+            reason = "stale-auto-run-pointer"
+        return None, stale_paths[0] if stale_paths else None, reason
+
+    path = unique_paths[0]
     state = _read_json(path)
-    if state.get("status") != "running":
-        return None, path, "auto-run-not-running"
 
     auth = state.get("route_authorization")
     if not isinstance(auth, dict):

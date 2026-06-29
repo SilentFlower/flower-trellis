@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "验证 vendor 源、enhancements 快照、dogfood 副本和 Auto Loop Runner 契约是否一致。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "验证语法检查、幂等性、容错降级和禁用模式。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "验证 runner、route helper、push 边界、workflow 文案和发布快照是否跨层一致。"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "验证完成态输出不会误导任务 lifecycle，也不会在多任务队列中阻塞。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "验证 release 操作记录和快照门禁相关风险。"}

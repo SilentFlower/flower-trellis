@@ -303,8 +303,8 @@ returns candidate SOP/spec paths; project-specific SOP content stays in
 - `trellis-auto-loop/SKILL.md` 是 AI 侧入口。没有这个 skill 时,脚本虽然可运行,但 agent 不知道何时启动、压缩后如何恢复、每个 action 如何映射回 Trellis workflow、以及何时调用 `record`。
 - `.trellis/scripts/auto_loop.py` 是状态权威,状态路径固定为 `.trellis/.runtime/auto-loop/<run-id>.json`;`resume_capsule` 只作人类摘要。
 - `start` 支持显式多任务队列,按用户顺序执行;同一 worktree 不并发。
-- 默认 profile 为 `commit-only`,可写入临时 route 授权;该授权低于个人 `.trellis/.route-prefs.tmp`。
-- planning start gate 按有效 route 判断 JSONL 是否必需:个人默认优先于 auto 临时授权;inline / check-all-inline 可不因 seed-only JSONL 停住,subagent 路径仍要求 curated context。
+- 默认 profile 为 `commit-only`;启动前由 `trellis-auto-loop` skill 通过 `trellis-route` 准备真实 route 决策或复用个人 `.trellis/.route-prefs.tmp`,runner 不默认写临时 route 授权。
+- planning start gate 按已解析的有效 route 判断 JSONL 是否必需:inline / check-all-inline 可不因 seed-only JSONL 停住,subagent 路径仍要求 curated context。
 - runner action 必须通过既有 Trellis 语义执行:`trellis-task-brief`、`task.py start`、`trellis-route`、implement/check、`trellis-update-spec`、`trellis-push commit-only`。
 - `next` 发出的 action 必须写入 runtime 的待回写状态;`record` 必须显式传入匹配 action,缺失或不匹配时返回 error,不得静默推进。
 - auto-loop 的 `commit-only` 是本次 run 内任务相关本地提交的预授权;普通 `trellis-push` 仍必须展示计划并等待确认。预授权判定以 `status` 输出里的 `outstanding_action.action=commit_only` 和当前任务匹配为准。
@@ -318,6 +318,81 @@ returns candidate SOP/spec paths; project-specific SOP content stays in
 - 用临时目标安装 `--skills trellis-auto-loop`,确认同时铺设 `trellis-auto-loop` skill 和 `.trellis/scripts/auto_loop.py`。
 - 行为冒烟至少覆盖 start → next → record → check/fix/recheck → spec_update → commit_only → done。
 - 行为冒烟必须覆盖 `record` 缺失 / 不匹配 action 会被拒绝,以及 inline route 下 seed-only JSONL 不阻塞 planning start、个人 subagent 默认仍会阻塞。
+
+---
+
+## Scenario: Auto Loop Runner Boundaries
+
+### 1. Scope / Trigger
+
+- Trigger: 0.6 强化包提供 `trellis-auto-loop` 自动推进任务到本地提交,但 runner
+  不能替代 `trellis-route` 的真实执行模式选择,也不能绕过 `trellis-push` 的提交边界。
+- Scope: `.trellis/scripts/auto_loop.py` 是状态机;`trellis-auto-loop/SKILL.md` 负责启动前
+  route 准备度和 action 调度;`route_state.py` 校验 route runtime/prefs;`trellis-push`
+  负责 auto-loop commit-only 的计划、边界复核、提交和 runner 回写语义。
+
+### 2. Signatures
+
+```bash
+python3 ./.trellis/scripts/auto_loop.py start --tasks <task> [<task> ...] --profile commit-only
+python3 ./.trellis/scripts/auto_loop.py next [--run-id <run-id>]
+python3 ./.trellis/scripts/auto_loop.py record --action <action> --result <ok|failed|blocked> [...]
+python3 ./.trellis/scripts/auto_loop.py status [--run-id <run-id>]
+python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
+```
+
+`copy-scripts.js` 必须让 `auto_loop.py` 在全装时铺到目标 `.trellis/scripts/`,并让
+`--skills trellis-auto-loop` 精细安装也带上 runner 脚本。auto-loop commit-only 不引入
+额外提交 helper。
+
+### 3. Contracts
+
+- auto-loop 默认 start 不写 `route_authorization`;缺少当前任务 route runtime 决策且无
+  `.route-prefs.tmp` 时,`trellis-auto-loop` skill 必须先走 `trellis-route` 询问/fallback。
+- runner 是调度器,不自行默认 inline/subagent,也不把 auto 临时授权展示成真实 route 结果。
+- `route_state.py resolve` 顺序仍是 runtime -> prefs -> running auto-loop 临时授权;但
+  session `current_auto_run` 或全局 `current.json` 指向非 running run 时必须忽略 stale pointer,
+  再 fallback 扫描唯一 running run。
+- run completed/stopped 后,`auto_loop.py` 只在 current pointer 仍指向本 run 时删除
+  `.trellis/.runtime/auto-loop/current.json`;显式 `--run-id` 仍可查看历史 run。
+- `commit_only` action 必须进入 `trellis-push` commit-only 语义;AI 根据当前任务 artifacts、
+  `git status`、`git diff` 和必要文件内容生成 planned files / retained files / commit
+  message / 归属理由,不得用脚本基于 dirty baseline 或时间差猜测文件归属。
+- `trellis-push` 边界必须复核当前 action/profile/task 匹配、staged 区为空、无冲突、
+  planned files 当前 dirty,且不含 `.trellis/.runtime/`、`.trellis/.route-prefs.tmp`、
+  其他任务目录或未解释文件;通过后只暂存 planned files 并本地 commit,再回写 runner。
+- 单个 item 的 commit-only 预检失败只把该 item blocked/skipped 并记录原因;多任务 run
+  后续 pending item 必须继续。只有 merge/rebase 冲突、repo 状态不可读、脚本损坏或用户 stop
+  这类全局问题才停止整个 run。
+- runtime `decision_log` 只记录结论、来源、文件列表、commit message、commit hash、blocked
+  原因和未归档提示;不得记录完整模型思维链。
+- `completed` 在 auto-loop summary 中只表示 item 已本地提交。任务生命周期仍需用户显式
+  `trellis-finish-work` / archive;runner done 只输出非阻塞提醒。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| start 无 route prefs/runtime | skill 先走 `trellis-route`;runner 不默认选择 |
+| current.json 指向 completed/stopped run | route helper 忽略 stale pointer,扫描唯一 running run |
+| run completed/stopped | 清理仍指向本 run 的 current pointer |
+| commit_only 时 staged 区已有文件 | trellis-push 记录当前 item blocked,不提交,queue 可继续 |
+| commit_only 无法解释某个 dirty 文件归属 | 保留未提交或 blocked,不得猜测纳入 planned files |
+| commit_only 发现非当前任务 `.trellis/tasks/**` | 保留未提交并记录 retained files |
+| commit_only 成功 | trellis-push 本地 commit,回写 runner commit hash 和 decision_log |
+| 多任务第一个 item blocked | `next` 继续后续 pending item,最终 summary 汇总 blocked/unarchived |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 用户启动 auto-loop 前已有 `.route-prefs.tmp implement=inline`;`trellis-route` resolve
+  写回 runtime,runner 启动后记录真实 `route_resolved`。
+- Good: 第一个任务 commit-only 因 staged 区不空 blocked;runner summary 记录 blocked,`next`
+  继续第二个 pending 任务。
+- Base: run completed 后用户查 `auto_loop.py status --run-id auto-...` 仍可读历史结果;无
+  `--run-id` 时不会让 stale current 影响新 run。
+- Bad: `trellis-auto-loop` skill 默认传 `--route-implement subagent`;这绕过用户真实 route。
+- Bad: 主 agent 看到 `commit_only` action 后手动 `git add . && git commit`;这绕过
+  `trellis-push` 边界且可能混入无关文件。
 
 ---
 

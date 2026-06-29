@@ -28,6 +28,12 @@ STEP_ACTIONS = {
     "spec_update": "run_spec_update",
     "commit_only": "commit_only",
 }
+ROUTE_ACTION_TARGETS = {
+    "run_implement": "implement",
+    "run_fix": "implement",
+    "run_check_all": "check",
+    "run_recheck": "check",
+}
 
 
 def _utc_now() -> str:
@@ -107,7 +113,69 @@ def _read_route_prefs(repo_root: Path) -> dict[str, str]:
     return prefs
 
 
-def _effective_route_authorization(repo_root: Path, route_authorization: Any) -> dict[str, str]:
+def _route_state_helper(repo_root: Path) -> Path | None:
+    """返回本地 trellis-route helper 路径，缺失时返回 None。"""
+    candidates = [
+        repo_root / ".agents/skills/trellis-route/scripts/route_state.py",
+        repo_root / ".claude/skills/trellis-route/scripts/route_state.py",
+    ]
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
+def _current_task_ref(repo_root: Path) -> str | None:
+    """读取当前活动任务路径，失败时返回 None。"""
+    result = subprocess.run(
+        ["python3", str(repo_root / ".trellis/scripts/task.py"), "current"],
+        cwd=repo_root,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    for raw in result.stdout.splitlines():
+        line = raw.strip()
+        if line.startswith(".trellis/tasks/"):
+            return line
+        if "Current task:" in line:
+            value = line.split("Current task:", 1)[1].strip()
+            if value.startswith(".trellis/tasks/"):
+                return value
+    return None
+
+
+def _resolve_existing_route(repo_root: Path, task_ref: str, target: str) -> str | None:
+    """通过 trellis-route helper 解析已有 runtime/prefs route，失败时不阻断。"""
+    helper = _route_state_helper(repo_root)
+    if helper is None:
+        return None
+    if _current_task_ref(repo_root) != task_ref:
+        return None
+    result = subprocess.run(
+        ["python3", str(helper), "resolve", "--target", target],
+        cwd=repo_root,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict) or data.get("status") != "hit":
+        return None
+    if data.get("task") != task_ref:
+        return None
+    mode = data.get("mode")
+    if target == "implement" and mode in VALID_IMPLEMENT_ROUTES:
+        return str(mode)
+    if target == "check" and mode in VALID_CHECK_ROUTES:
+        return str(mode)
+    return None
+
+
+def _effective_route_authorization(repo_root: Path, task_ref: str, route_authorization: Any) -> dict[str, str]:
     """按 route 优先级估算 start gate 需要的 context 类型。"""
     effective: dict[str, str] = {}
     if isinstance(route_authorization, dict):
@@ -121,7 +189,45 @@ def _effective_route_authorization(repo_root: Path, route_authorization: Any) ->
     # 个人默认优先于 auto 临时授权；start gate 的 JSONL 判断也要遵守同一优先级，
     # 否则可能在个人 subagent 默认下误放行，或在个人 inline 默认下误阻塞。
     effective.update(_read_route_prefs(repo_root))
+    for target in ("implement", "check"):
+        if target not in effective:
+            mode = _resolve_existing_route(repo_root, task_ref, target)
+            if mode:
+                effective[target] = mode
     return effective
+
+
+def _append_item_decision(
+    item: dict[str, Any],
+    event_type: str,
+    summary: str,
+    data: dict[str, Any] | None = None,
+) -> None:
+    """向当前队列项追加精简决策日志。"""
+    log = item.get("decision_log")
+    if not isinstance(log, list):
+        log = []
+    log.append({
+        "at": _utc_now(),
+        "type": event_type,
+        "task": item.get("task"),
+        "summary": summary,
+        "data": data or {},
+    })
+    item["decision_log"] = log[-50:]
+
+
+def _decision_tail(state: dict[str, Any], limit: int = 8) -> list[dict[str, Any]]:
+    """返回 run 内最近的关键决策摘要。"""
+    queue = state.get("queue") if isinstance(state.get("queue"), list) else []
+    events: list[dict[str, Any]] = []
+    for item in queue:
+        if not isinstance(item, dict):
+            continue
+        log = item.get("decision_log")
+        if isinstance(log, list):
+            events.extend(event for event in log if isinstance(event, dict))
+    return events[-limit:]
 
 
 def _run_path(repo_root: Path, run_id: str) -> Path:
@@ -305,8 +411,10 @@ def _load_current_state(repo_root: Path, run_id: str | None = None) -> tuple[Pat
     if isinstance(current, str) and current:
         path = _run_path(repo_root, current)
         state = _read_json(path)
-        if state:
+        if state and state.get("status") == "running":
             return path, state
+        if state and state.get("status") in {"completed", "stopped"}:
+            _clear_pointer_if_current(repo_root, current)
 
     running: list[tuple[Path, dict[str, Any]]] = []
     for path in sorted(_auto_dir(repo_root).glob("auto-*.json")):
@@ -315,6 +423,11 @@ def _load_current_state(repo_root: Path, run_id: str | None = None) -> tuple[Pat
             running.append((path, state))
     if len(running) == 1:
         return running[0]
+    if isinstance(current, str) and current:
+        path = _run_path(repo_root, current)
+        state = _read_json(path)
+        if state:
+            return path, state
     raise ValueError("没有可恢复的唯一 auto run")
 
 
@@ -330,14 +443,37 @@ def _write_pointer(repo_root: Path, run_id: str) -> None:
     _write_json(_current_pointer(repo_root), {"run_id": run_id, "updated_at": _utc_now()})
 
 
+def _clear_pointer_if_current(repo_root: Path, run_id: str | None) -> None:
+    """当 current 指针仍指向本 run 时删除，避免 stale pointer 影响后续恢复。"""
+    if not run_id:
+        return
+    pointer_path = _current_pointer(repo_root)
+    pointer = _read_json(pointer_path)
+    if pointer.get("run_id") != run_id:
+        return
+    try:
+        pointer_path.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def _resume_capsule(state: dict[str, Any]) -> dict[str, Any]:
     """生成短小的人类可读恢复摘要。"""
     queue = state.get("queue") if isinstance(state.get("queue"), list) else []
     current = None
+    auto_completed = []
+    unarchived_tasks = []
+    blocked = []
     for item in queue:
-        if isinstance(item, dict) and item.get("status") in {"pending", "running"}:
+        if not isinstance(item, dict):
+            continue
+        if current is None and item.get("status") in {"pending", "running"}:
             current = item
-            break
+        if item.get("status") == "completed":
+            auto_completed.append(item.get("task"))
+            unarchived_tasks.append(item.get("task"))
+        if item.get("status") == "blocked":
+            blocked.append(item.get("task"))
     return {
         "run_id": state.get("run_id"),
         "status": state.get("status"),
@@ -346,6 +482,11 @@ def _resume_capsule(state: dict[str, Any]) -> dict[str, Any]:
         "completed": sum(1 for item in queue if isinstance(item, dict) and item.get("status") == "completed"),
         "blocked": sum(1 for item in queue if isinstance(item, dict) and item.get("status") == "blocked"),
         "remaining": sum(1 for item in queue if isinstance(item, dict) and item.get("status") in {"pending", "running"}),
+        "auto_completed_tasks": auto_completed,
+        "unarchived_tasks": unarchived_tasks,
+        "task_lifecycle_note": "auto-loop completed means local commit completed; run finish-work/archive explicitly when ready" if auto_completed else None,
+        "blocked_tasks": blocked,
+        "recent_decisions": _decision_tail(state, 5),
     }
 
 
@@ -371,13 +512,17 @@ def _summary(state: dict[str, Any]) -> dict[str, Any]:
         "profile": state.get("profile"),
         "current_index": state.get("current_index"),
         "outstanding_action": outstanding_action,
+        "auto_completed": [i.get("task") for i in queue if isinstance(i, dict) and i.get("status") == "completed"],
         "completed": [i.get("task") for i in queue if isinstance(i, dict) and i.get("status") == "completed"],
+        "unarchived_tasks": [i.get("task") for i in queue if isinstance(i, dict) and i.get("status") == "completed"],
+        "task_lifecycle_note": "completed 仅表示 auto-loop item 已本地提交；任务归档仍需显式 finish-work/archive",
         "blocked": [
             {"task": i.get("task"), "blocked": i.get("blocked")}
             for i in queue
             if isinstance(i, dict) and i.get("status") == "blocked"
         ],
         "pending": [i.get("task") for i in queue if isinstance(i, dict) and i.get("status") in {"pending", "running"}],
+        "recent_decisions": _decision_tail(state),
         "resume_capsule": state.get("resume_capsule"),
     }
 
@@ -397,6 +542,7 @@ def _make_item(repo_root: Path, task_ref: str) -> dict[str, Any]:
         "last_action": None,
         "commit": None,
         "blocked": None,
+        "decision_log": [],
         "updated_at": _utc_now(),
     }
 
@@ -426,7 +572,7 @@ def _action(action: str, item: dict[str, Any], extra: dict[str, Any] | None = No
     elif action == "run_spec_update":
         base["instruction"] = "若有代码/测试证据支撑，执行 trellis-update-spec；否则直接 record ok。"
     elif action == "commit_only":
-        base["instruction"] = "按 trellis-auto-loop / trellis-push commit-only 预授权语义提交当前任务可归属文件，不 push。"
+        base["instruction"] = "进入 trellis-push commit-only 语义：AI 先生成当前任务提交计划并复核 Git 状态，只提交可归属文件，不 push。"
     if extra:
         base.update(extra)
     return base
@@ -461,6 +607,12 @@ def _block_item(item: dict[str, Any], reason: str, summary: str, detail: dict[st
         "blocked_at": _utc_now(),
     }
     item["updated_at"] = _utc_now()
+    _append_item_decision(
+        item,
+        "blocked",
+        summary,
+        {"reason": reason, "detail": detail or {}, "queue_continues": True},
+    )
 
 
 def _next_item(repo_root: Path, state: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any]]:
@@ -476,7 +628,7 @@ def _next_item(repo_root: Path, state: dict[str, Any]) -> tuple[dict[str, Any] |
         item["task_status"] = _task_status(repo_root, task)
 
         if item["task_status"] == "planning":
-            gate_status, gate = _start_gate(repo_root, task, _effective_route_authorization(repo_root, state.get("route_authorization")))
+            gate_status, gate = _start_gate(repo_root, task, _effective_route_authorization(repo_root, task, state.get("route_authorization")))
             if gate_status == "blocked":
                 _block_item(item, gate["reason"], gate["message"], gate)
                 continue
@@ -511,7 +663,12 @@ def _next_item(repo_root: Path, state: dict[str, Any]) -> tuple[dict[str, Any] |
         _block_item(item, "unknown-step", f"未知 current_step:{step}")
 
     state["status"] = "completed"
-    return None, {"status": "done", "summary": _summary(state)}
+    return None, {
+        "status": "done",
+        "finish_work_required_for_archive": True,
+        "instruction": "auto-loop 队列已结束；如需归档任务，请用户显式运行 trellis-finish-work。",
+        "summary": _summary(state),
+    }
 
 
 def cmd_start(args: argparse.Namespace) -> int:
@@ -589,6 +746,8 @@ def cmd_next(args: argparse.Namespace) -> int:
         return _print({"run_id": state.get("run_id"), "status": output_status, "summary": _summary(state)})
     _, action = _next_item(repo_root, state)
     _write_state(path, state)
+    if state.get("status") == "completed":
+        _clear_pointer_if_current(repo_root, str(state.get("run_id") or ""))
     if action.get("status") == "done":
         action["summary"] = _summary(state)
     return _print({"run_id": state.get("run_id"), **action})
@@ -609,6 +768,22 @@ def _find_record_item(state: dict[str, Any], task_ref: str | None) -> dict[str, 
 
 def _advance_after_ok(item: dict[str, Any], action: str, args: argparse.Namespace) -> None:
     """根据成功动作推进 current_step。"""
+    if action in ROUTE_ACTION_TARGETS:
+        target = ROUTE_ACTION_TARGETS[action]
+        mode = getattr(args, "route_mode", None)
+        source = getattr(args, "route_source", None)
+        data = {"target": target}
+        if mode:
+            data["mode"] = mode
+        if source:
+            data["source"] = source
+        summary = f"{target} route resolved"
+        if mode:
+            summary += f" to {mode}"
+        if source:
+            summary += f" from {source}"
+        _append_item_decision(item, "route_resolved", summary, data)
+
     if action == "refresh_brief":
         item["current_step"] = "start_task"
     elif action == "start_task":
@@ -623,6 +798,39 @@ def _advance_after_ok(item: dict[str, Any], action: str, args: argparse.Namespac
         item["status"] = "completed"
         item["current_step"] = "done"
         item["commit"] = args.commit
+        if args.summary:
+            item["commit_summary"] = args.summary
+        _append_item_decision(
+            item,
+            "commit_plan",
+            args.summary or "trellis-push commit-only 计划已执行",
+            {
+                "planned_files": args.files or [],
+                "retained_files": args.retained_files or [],
+                "commit_message": args.commit_message,
+                "snapshot_commit": args.snapshot_commit,
+            },
+        )
+        _append_item_decision(
+            item,
+            "commit_completed",
+            "trellis-push commit-only 本地提交完成",
+            {
+                "commit": args.commit,
+                "commit_message": args.commit_message,
+                "snapshot_commit": args.snapshot_commit,
+            },
+        )
+        _append_item_decision(
+            item,
+            "task_auto_completed",
+            "auto-loop item 已完成本地提交；任务生命周期仍等待 finish-work/archive",
+            {
+                "commit": args.commit,
+                "summary": args.summary,
+                "task_status": item.get("task_status"),
+            },
+        )
     item["updated_at"] = _utc_now()
 
 
@@ -643,6 +851,17 @@ def _record_failure(item: dict[str, Any], action: str, args: argparse.Namespace)
         else:
             item["current_step"] = "fix"
             item["updated_at"] = _utc_now()
+        _append_item_decision(
+            item,
+            "warning",
+            args.summary or f"{action} 执行失败，进入修复流程",
+            {
+                "action": action,
+                "failure_type": args.failure_type,
+                "files": args.files or [],
+                "attempts": item.setdefault("attempts", {}).get("fix_recheck", 0),
+            },
+        )
         return
     _block_item(item, args.failure_type or "action-failed", args.summary or f"{action} 执行失败")
 
@@ -698,6 +917,13 @@ def cmd_record(args: argparse.Namespace) -> int:
         _record_failure(item, action, args)
     else:
         _block_item(item, args.failure_type or "blocked", args.summary or "agent 标记 blocked")
+        if action == "commit_only":
+            _append_item_decision(
+                item,
+                "task_skipped",
+                args.summary or "commit-only 预检不安全，当前任务已跳过，队列继续",
+                {"failure_type": args.failure_type, "files": args.files or []},
+            )
 
     _write_state(path, state)
     return _print({"status": "recorded", "run_id": state.get("run_id"), "task": item.get("task"), "item": item, "summary": _summary(state)})
@@ -727,6 +953,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
     state["status"] = "stopped"
     state["stop_reason"] = args.reason
     _write_state(path, state)
+    _clear_pointer_if_current(repo_root, str(state.get("run_id") or ""))
     return _print({"status": "stopped", "run_id": state.get("run_id"), "path": _rel_path(repo_root, path), "reason": args.reason})
 
 
@@ -757,7 +984,12 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--failure-type")
     record.add_argument("--summary")
     record.add_argument("--files", nargs="*")
+    record.add_argument("--retained-files", nargs="*")
     record.add_argument("--commit")
+    record.add_argument("--commit-message")
+    record.add_argument("--snapshot-commit")
+    record.add_argument("--route-mode")
+    record.add_argument("--route-source")
     record.set_defaults(func=cmd_record)
 
     stop = subparsers.add_parser("stop")
