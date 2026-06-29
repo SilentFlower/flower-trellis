@@ -22,5 +22,25 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-06-29T10:16:25Z",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "beta"
+    },
+    "pushed_commits": {
+      "flower-trellis": "5cb8e6c",
+      "skill-garden": "43e16e4"
+    },
+    "completed_steps": [
+      "实现 auto-loop route 默认移除与真实 route 记录",
+      "修复 stale current.json 与 route_state fallback",
+      "调整 commit-only 为 trellis-push AI 计划边界并删除 push_commit_only.py",
+      "同步 skill-garden 源、enhancements 快照和 dogfood 副本",
+      "完成验证、提交并推送业务改动"
+    ],
+    "next_step": "等待用户显式运行 trellis-finish-work/archive",
+    "notes": "已推送 skill-garden 43e16e4 和 flower-trellis 5cb8e6c；任务仍保持 in_progress，未归档。"
+  }
 }
