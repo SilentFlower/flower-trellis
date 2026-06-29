@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "检查实现是否符合 flower-trellis CLI 分层和验证入口。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查 skill-garden 源、enhancements 快照和 dogfood 副本是否保持一致。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "检查 runtime state、route state 和 gitignored 状态文件是否符合约定。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "检查语法、快照、diff 和任务 validate 等质量门禁是否覆盖。"}

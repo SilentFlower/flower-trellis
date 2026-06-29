@@ -4,6 +4,7 @@ import { selectVariant } from "./variant.js";
 import { ENHANCEMENTS_ROOT } from "./paths.js";
 import { VARIANTS } from "../constants.js";
 import { copySkills } from "./copy-skills.js";
+import { copyScriptAssets } from "./copy-scripts.js";
 import { injectWorkflow } from "./workflow-inject.js";
 import { injectSkillOverrides } from "./skill-override-inject.js";
 import { applyCodexTweaks } from "./codex-tweaks.js";
@@ -69,18 +70,26 @@ export function applyEnhancements(target, opts = {}) {
   );
 
   const skills = opts.skills || [];
-  const { installed, paths: newPaths } = copySkills(
+  const { installed: skillInstalled, paths: skillPaths } = copySkills(
     target,
     variantDir,
     variant,
     skills,
   );
+  const { installed: scriptInstalled, paths: scriptPaths } = copyScriptAssets(
+    target,
+    variantDir,
+    skills,
+  );
+  const installed = [...skillInstalled, ...scriptInstalled];
+  const newPaths = [...skillPaths, ...scriptPaths];
   const where = [];
   if (newPaths.some((p) => p.startsWith(".claude/skills"))) where.push(".claude/skills");
   if (newPaths.some((p) => p.startsWith(".agents/skills"))) where.push(".agents/skills");
   if (newPaths.some((p) => p.startsWith(".claude/commands"))) where.push(".claude/commands/trellis");
+  if (newPaths.some((p) => p.startsWith(".trellis/scripts"))) where.push(".trellis/scripts");
   console.log(
-    `  ✓ 铺设 ${installed.length} 个强化技能 → ${where.join(" + ") || "(无平台目录)"}`,
+    `  ✓ 铺设 ${installed.length} 个强化项 → ${where.join(" + ") || "(无平台目录)"}`,
   );
 
   // 升级清理 + manifest(仅全装时维护)

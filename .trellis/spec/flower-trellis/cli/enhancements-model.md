@@ -57,10 +57,14 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 3. **铺 skill**(`copy-skills.js`):**跟随平台** —— 检测目标已有的 `.claude/` /
    `.agents/` 目录决定铺到哪;claude → `.claude/skills`(+ `.claude/commands/trellis`),
    codex/gemini 等共享层 → `.agents/skills`;两者皆无则兜底铺 claude。
-4. **升级清理 + manifest**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,
+4. **铺脚本资产**(`copy-scripts.js`):只复制变体 `scripts/` 下的直接文件到目标
+   `.trellis/scripts/`。脚本资产跟随 `--skills` 过滤;例如 `auto_loop.py` 可由
+   `auto_loop` / `auto-loop` / `auto-loop-runner` / `trellis-auto-loop` 命中,确保只安装
+   `trellis-auto-loop` 时也会带上 runner 脚本。
+5. **升级清理 + manifest**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,
    删除本次变体不含的过期项,再写新 manifest。带 `--skills` 是精细操作,不动 manifest、不清理。
-5. **注入 workflow**(`workflow-inject.js`):全装,或显式指定 workflow 相关 skill 时执行。
-6. **codex 后处理**(`codex-tweaks.js`):仅当目标存在 `.codex/` 时,兼容清理旧
+6. **注入 workflow**(`workflow-inject.js`):全装,或显式指定 workflow 相关 skill 时执行。
+7. **codex 后处理**(`codex-tweaks.js`):仅当目标存在 `.codex/` 时,兼容清理旧
    `config.toml` 的 `multi_agent_v2` 段,并在保留上游 hooks 的基础上合并 SessionStart。
 
 ---
@@ -116,13 +120,14 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - 保留用户选项、mode 映射、轻量 check 逃生口、dispatch 指令和 helper 调用方式。
   - 不把机械 JSON 读写逻辑改写成 prompt 里的长代码块。
 - `route_state.py`:
-  - `resolve` 顺序固定为 session runtime `route_decisions.<target>` -> `.trellis/.route-prefs.tmp`。
-  - prefs 命中时写回 `.trellis/.runtime/sessions/<context-key>.json`。
-  - runtime 只保存原始合法来源:`trellis-route`、`numbered-fallback`、`route-prefs`。
+  - `resolve` 顺序固定为 session runtime `route_decisions.<target>` -> `.trellis/.route-prefs.tmp` -> `.trellis/.runtime/auto-loop/<run-id>.json` 临时授权。
+  - prefs 或 auto-loop 授权命中时写回 `.trellis/.runtime/sessions/<context-key>.json`。
+  - runtime 只保存原始合法来源:`trellis-route`、`numbered-fallback`、`route-prefs`、`auto-loop`。
   - `.runtime` 自身不是 `route_decision.source`;raw runtime JSON 必须经 helper / skill 校验后才可复用。
   - `--save-pref` 才写个人默认;不带该 flag 只写当前 session runtime。
   - 写入当前任务任一 target 的 runtime 决策前,必须清理同一 session 中属于其他任务的 `route_decisions`,避免任务切换后 check 阶段误复用上个任务的选择。
-  - 默认 stdout 必须保持精简:命中时返回 `status`、当前 `task`、`mode`、决策 `source`,以及可选 `origin`(`runtime` / `route-prefs`);未命中返回 `status` + `reason`。完整 `decision`、`path`、`context_key`、`pref_path`、写回标记等诊断字段只在 `--verbose` 输出。
+  - auto-loop 授权只在当前 session runtime 绑定 `current_auto_run`，或全局 auto-loop current 指针能指向唯一 running run 时生效。
+  - 默认 stdout 必须保持精简:命中时返回 `status`、当前 `task`、`mode`、决策 `source`,以及可选 `origin`(`runtime` / `route-prefs` / `auto-loop`);未命中返回 `status` + `reason`。完整 `decision`、`path`、`context_key`、`pref_path`、`auto_path`、写回标记等诊断字段只在 `--verbose` 输出。
 
 任务隔离属于 helper 的确定性逻辑,不要把 `task == current_task` 判断扩散到高频 workflow/state 文案里。workflow 维持轻量的 target-matched route 证据规则;`trellis-route` / `route_state.py` 负责 runtime 命中校验、写入清理和默认输出里的 `task` 诊断字段。
 
@@ -137,6 +142,8 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 | 同一 session 切换到新任务并写入 implement/check 决策 | 写入前清理其他任务的 runtime route 决策;个人 prefs 不受影响 |
 | prefs 缺失或值不合法 | 返回 miss,展示选项 |
 | prefs 命中 | 返回 hit,写回 runtime,`origin=route-prefs`,`source=route-prefs` |
+| auto-loop running run 存在合法 route_authorization | 返回 hit,写回 runtime,`origin=auto-loop`,`source=auto-loop` |
+| auto-loop 无绑定 run / 非唯一 running run / mode 不合法 | 返回 miss,展示选项 |
 | 用户明确重选 / 临时改 / 清除默认 | 忽略 runtime 和 prefs,重新进入 route 选项 |
 
 ### 5. Good/Base/Bad Cases
@@ -145,6 +152,7 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   输出合法 `task` / `mode` / `source`,agent 直接复用,不重复问用户;需要诊断再加 `--verbose`。
 - Base: runtime miss 但 `.route-prefs.tmp` 有 `implement=inline`;`resolve` 返回
   `origin=route-prefs`,`source=route-prefs` 并写回 runtime,后续同 session 直接 runtime hit。
+- Base: runtime 和 prefs 都 miss,但当前 session 的 `current_auto_run` 指向 running auto-loop state,且 `route_authorization.implement=subagent`;`resolve` 返回 `origin=auto-loop`,`source=auto-loop` 并写回 runtime。
 - Bad: compact summary 里只有“用户选过 inline”;workflow 不得把它当 route 证据,
   必须读取 `trellis-route` 并由 helper 校验 runtime / prefs。
 - Bad: 同一 session 里任务 A 的 `route_decisions.check` 还在 runtime 中;切到任务 B 后不得把它当任务 B 的 check 证据。写入任务 B 任一路由时应清理任务 A 的 runtime route 决策。
@@ -162,6 +170,9 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - 同一 session 从任务 A 切到任务 B 后,写入任务 B 的 implement 决策会清理任务 A 的 check 决策;随后 `resolve --target check` 对任务 B 返回 miss,除非存在个人 check 默认。
   - `write --save-pref` 验证只更新当前 target 并保留另一个 target。
   - `clear-pref --target check` 验证只清 check 默认。
+  - prefs miss 时,当前 session 绑定 `current_auto_run` 且 auto-loop state 有合法授权,验证 `resolve` 命中 auto-loop 并写回 runtime。
+  - `.route-prefs.tmp` 存在时,验证个人偏好优先于 auto-loop 授权。
+  - auto-loop running run 不唯一或 mode 不合法时,验证返回 miss 且不写 runtime。
 - 同步检查:
   - 先改 `vendor/skill-garden/.trellis/0.6`,再 `npm run sync`。
   - 确认 `enhancements/0.6` 和当前 dogfood `.agents` / `.claude` 副本未漂移。
@@ -188,6 +199,34 @@ python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target imp
 ```
 
 原因:prompt 保留边界,skill 保留语义,脚本负责 task 校验和跨任务 runtime 清理;压缩恢复稳定,每轮 token 也更低。
+
+## Scenario: Auto Loop Runner
+
+### 1. Scope / Trigger
+
+- Trigger: 0.6 强化包需要提供接近 `/goal` 的自动任务循环,让用户显式启动后按单任务或显式多任务队列推进到本地 `commit-only`。
+- Scope: `.trellis/scripts/auto_loop.py` 负责确定性状态机;`trellis-auto-loop` skill 负责 agent 入口、触发词、恢复协议、action 映射和 record 回写;`trellis-route` 只负责 implement/check 路由授权;`trellis-push` 只负责 commit-only 提交边界。
+
+### 2. Contracts
+
+- `trellis-auto-loop/SKILL.md` 是 AI 侧入口。没有这个 skill 时,脚本虽然可运行,但 agent 不知道何时启动、压缩后如何恢复、每个 action 如何映射回 Trellis workflow、以及何时调用 `record`。
+- `.trellis/scripts/auto_loop.py` 是状态权威,状态路径固定为 `.trellis/.runtime/auto-loop/<run-id>.json`;`resume_capsule` 只作人类摘要。
+- `start` 支持显式多任务队列,按用户顺序执行;同一 worktree 不并发。
+- 默认 profile 为 `commit-only`,可写入临时 route 授权;该授权低于个人 `.trellis/.route-prefs.tmp`。
+- planning start gate 按有效 route 判断 JSONL 是否必需:个人默认优先于 auto 临时授权;inline / check-all-inline 可不因 seed-only JSONL 停住,subagent 路径仍要求 curated context。
+- runner action 必须通过既有 Trellis 语义执行:`trellis-task-brief`、`task.py start`、`trellis-route`、implement/check、`trellis-update-spec`、`trellis-push commit-only`。
+- `next` 发出的 action 必须写入 runtime 的待回写状态;`record` 必须显式传入匹配 action,缺失或不匹配时返回 error,不得静默推进。
+- auto-loop 的 `commit-only` 是本次 run 内任务相关本地提交的预授权;普通 `trellis-push` 仍必须展示计划并等待确认。预授权判定以 `status` 输出里的 `outstanding_action.action=commit_only` 和当前任务匹配为准。
+- `scripts/auto_loop.py` 必须随 0.6 快照发布,并可被 `--skills trellis-auto-loop` 精细安装带上。
+
+### 3. Validation
+
+- `python3 -m py_compile .trellis/scripts/auto_loop.py`
+- `python3 -m py_compile enhancements/0.6/scripts/auto_loop.py`
+- `cmp -s` 检查源、快照、当前 dogfood runner 一致。
+- 用临时目标安装 `--skills trellis-auto-loop`,确认同时铺设 `trellis-auto-loop` skill 和 `.trellis/scripts/auto_loop.py`。
+- 行为冒烟至少覆盖 start → next → record → check/fix/recheck → spec_update → commit_only → done。
+- 行为冒烟必须覆盖 `record` 缺失 / 不匹配 action 会被拒绝,以及 inline route 下 seed-only JSONL 不阻塞 planning start、个人 subagent 默认仍会阻塞。
 
 ---
 

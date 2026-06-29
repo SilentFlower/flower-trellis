@@ -71,8 +71,8 @@ for (const v of VARIANTS) {
     console.warn(`⚠ 源缺少变体 ${v}/,跳过`);
     continue;
   }
-  // 全量递归拷贝 .agents / .claude / overrides(old 无 overrides 则自然跳过)
-  for (const sub of [".agents", ".claude", "overrides"]) {
+  // 全量递归拷贝 .agents / .claude / overrides / scripts(old 无对应目录则自然跳过)
+  for (const sub of [".agents", ".claude", "overrides", "scripts"]) {
     const s = path.join(vSrc, sub);
     if (fs.existsSync(s)) {
       fs.cpSync(s, path.join(DST, v, sub), { recursive: true });
@@ -95,6 +95,7 @@ for (const v of VARIANTS) {
     path.join(DST, v, "overrides", "skills"),
     ".md",
   );
+  const scripts = listFiles(path.join(DST, v, "scripts"));
   manifest.variants[v] = {
     claudeSkills,
     agentsSkills,
@@ -102,12 +103,13 @@ for (const v of VARIANTS) {
     overrides,
     workflowStates: states,
     skillOverrides,
+    scripts,
   };
 
   console.log(
     `✓ ${v}: claude/skills=${claudeSkills.length} agents/skills=${agentsSkills.length} ` +
       `commands=${commands.length} overrides=${overrides.length} states=${states.length} ` +
-      `skillOverrides=${skillOverrides.length}`,
+      `skillOverrides=${skillOverrides.length} scripts=${scripts.length}`,
   );
 }
 

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-VALID_SOURCES = {"trellis-route", "numbered-fallback", "route-prefs"}
+VALID_SOURCES = {"trellis-route", "numbered-fallback", "route-prefs", "auto-loop"}
 VALID_MODES = {
     "implement": {"inline", "subagent"},
     "check": {
@@ -130,6 +130,16 @@ def _pref_path(repo_root: Path) -> Path:
     return repo_root / ".trellis/.route-prefs.tmp"
 
 
+def _auto_loop_dir(repo_root: Path) -> Path:
+    """返回 auto-loop runtime 目录。"""
+    return repo_root / ".trellis/.runtime/auto-loop"
+
+
+def _auto_loop_pointer(repo_root: Path) -> Path:
+    """返回当前 auto-loop run 指针文件。"""
+    return _auto_loop_dir(repo_root) / "current.json"
+
+
 def _read_prefs(repo_root: Path) -> dict[str, str]:
     """读取个人 route 默认配置，只保留合法 key-value。"""
     path = _pref_path(repo_root)
@@ -148,6 +158,47 @@ def _read_prefs(repo_root: Path) -> dict[str, str]:
         if key in PREF_MODES and value in PREF_MODES[key]:
             prefs[key] = value
     return prefs
+
+
+def _auto_route_mode(repo_root: Path, context_key: str, target: str) -> tuple[str | None, Path | None, str | None]:
+    """读取当前 auto-loop run 的临时 route 授权。
+
+    auto 授权低于个人 `.route-prefs.tmp`，只在当前 session runtime 绑定了
+    `current_auto_run`，或全局 current 指针能指向唯一 running run 时生效。命中后
+    `resolve` 会写回 session runtime，后续压缩恢复仍走普通 route 决策路径。
+    """
+    session_path = _session_path(repo_root, context_key)
+    session = _read_json(session_path)
+    run_id = session.get("current_auto_run")
+
+    if not isinstance(run_id, str) or not run_id.strip():
+        pointer = _read_json(_auto_loop_pointer(repo_root))
+        run_id = pointer.get("run_id")
+
+    candidate_paths: list[Path] = []
+    if isinstance(run_id, str) and run_id.strip():
+        candidate_paths.append(_auto_loop_dir(repo_root) / f"{run_id.strip()}.json")
+    else:
+        for path in sorted(_auto_loop_dir(repo_root).glob("auto-*.json")):
+            state = _read_json(path)
+            if state.get("status") == "running":
+                candidate_paths.append(path)
+        if len(candidate_paths) != 1:
+            return None, None, "no-unique-auto-run"
+
+    path = candidate_paths[0]
+    state = _read_json(path)
+    if state.get("status") != "running":
+        return None, path, "auto-run-not-running"
+
+    auth = state.get("route_authorization")
+    if not isinstance(auth, dict):
+        return None, path, "no-route-authorization"
+
+    mode = auth.get(target)
+    if mode in PREF_MODES[target]:
+        return mode, path, None
+    return None, path, "invalid-auto-route-mode"
 
 
 def _write_prefs(repo_root: Path, prefs: dict[str, str]) -> None:
@@ -288,7 +339,7 @@ def read_runtime(args: argparse.Namespace) -> int:
 
 
 def resolve_route(args: argparse.Namespace) -> int:
-    """按 runtime → prefs 的优先级解析 route 决策。"""
+    """按 runtime → prefs → auto-loop 的优先级解析 route 决策。"""
     repo_root = _repo_root()
     if repo_root is None:
         return _print({"status": "miss", "reason": "not-trellis-project"})
@@ -345,15 +396,45 @@ def resolve_route(args: argparse.Namespace) -> int:
             }
         )
 
+    auto_mode, auto_path, auto_reason = _auto_route_mode(repo_root, context_key, args.target)
+    if auto_mode in PREF_MODES[args.target]:
+        written_path, auto_decision = _write_runtime_decision(
+            repo_root,
+            context_key,
+            current_task,
+            args.target,
+            auto_mode,
+            "auto-loop",
+        )
+        return _output(
+            args,
+            {
+                "status": "hit",
+                "origin": "auto-loop",
+                **_decision_summary(auto_decision),
+            },
+            {
+                "decision": auto_decision,
+                "path": _rel_path(repo_root, written_path),
+                "auto_path": _rel_path(repo_root, auto_path) if auto_path else None,
+                "pref_path": _rel_path(repo_root, _pref_path(repo_root)),
+                "context_key": context_key,
+                "task": current_task,
+                "wrote_runtime": True,
+            }
+        )
+
     return _output(
         args,
         {
             "status": "miss",
-            "reason": "no-valid-decision-or-pref",
+            "reason": "no-valid-decision-pref-or-auto",
         },
         {
             "path": _rel_path(repo_root, path),
             "pref_path": _rel_path(repo_root, _pref_path(repo_root)),
+            "auto_reason": auto_reason,
+            "auto_path": _rel_path(repo_root, auto_path) if auto_path else None,
             "context_key": context_key,
             "task": current_task,
         }
