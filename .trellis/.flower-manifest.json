@@ -16,7 +16,8 @@
     "trellis-task-brief",
     "trellis-verify-task",
     "trellis-visualize",
-    "script:auto_loop.py"
+    "script:auto_loop.py",
+    "script:spec_router.py"
   ],
   "paths": [
     ".agents/skills/trellis-auto-loop",
@@ -45,6 +46,7 @@
     ".claude/skills/trellis-task-brief",
     ".claude/skills/trellis-verify-task",
     ".claude/skills/trellis-visualize",
-    ".trellis/scripts/auto_loop.py"
+    ".trellis/scripts/auto_loop.py",
+    ".trellis/scripts/spec_router.py"
   ]
 }

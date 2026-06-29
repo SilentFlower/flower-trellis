@@ -21,7 +21,17 @@ export function copyScriptAssets(target, variantDir, skills = []) {
 
   for (const file of listFiles(scriptsSrc)) {
     const name = file.replace(/\.[^.]+$/, "");
-    const aliases = name === "auto_loop" ? ["auto-loop", "auto-loop-runner", "trellis-auto-loop"] : [];
+    let aliases = [];
+    if (name === "auto_loop") {
+      aliases = ["auto-loop", "auto-loop-runner", "trellis-auto-loop"];
+    } else if (name === "spec_router") {
+      aliases = [
+        "spec-router",
+        "project-knowledge",
+        "knowledge-router",
+        "workflow-enhancement",
+      ];
+    }
     if (!shouldInstallName(name, skills, aliases)) continue;
 
     copyPath(

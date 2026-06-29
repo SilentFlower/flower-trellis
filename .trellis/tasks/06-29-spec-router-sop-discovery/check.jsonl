@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "检查是否满足 CLI 包质量门禁。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查 skill-garden 源、enhancements 快照、dogfood 副本和安装链路是否一致。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "检查禁用模式、评审清单和验证完整性。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "检查是否引入重复或漂移的脚本复制机制。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "检查跨层模板、脚本、workflow 注入和升级路径是否存在遗漏。"}

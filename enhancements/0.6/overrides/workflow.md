@@ -6,9 +6,24 @@
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 1.4 task brief handoff, Phase 2.1 implement routing, Phase 2.2 check/check-all routing, current-task route reuse, post-check stop, auto-loop commit-only preauthorization, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
+**Scope**: project knowledge discovery for procedural/high-impact actions, Phase 1.4 task brief handoff, Phase 2.1 implement routing, Phase 2.2 check/check-all routing, current-task route reuse, post-check stop, auto-loop commit-only preauthorization, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
+
+#### Project Knowledge Discovery
+
+Before procedural or high-impact actions, run project knowledge discovery:
+
+```bash
+python3 ./.trellis/scripts/spec_router.py "<short query describing the intended action>"
+```
+
+Build the query from the current user request plus relevant immediate context:
+the intended action, commands about to run, files or systems involved, package/layer,
+and domain words such as release, publish, deploy, migration, config, CI, workflow,
+hooks, rollback, data fix, or destructive command.
+
+Read any matched SOP/spec files before acting; if nothing matches, continue normally.
 
 #### Task Brief Handoff
 

@@ -200,6 +200,97 @@ python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target imp
 
 原因:prompt 保留边界,skill 保留语义,脚本负责 task 校验和跨任务 runtime 清理;压缩恢复稳定,每轮 token 也更低。
 
+## Scenario: Project Knowledge Discovery Helper
+
+### 1. Scope / Trigger
+
+- Trigger: 0.6 强化包需要让 AI 在流程性或高影响动作前主动发现项目 SOP / 经验 /
+  标准流程,但不能为每个 SOP 新增一个 Skill。
+- Scope: `spec_router.py` 是随 0.6 `scripts/` 分发的通用发现器;workflow hub/state
+  只提示何时调用;目标项目自己的 `.trellis/spec/**/*.md`(含 `spec/guides/**/*.md`)
+  保存具体 SOP / spec / thinking guide。
+
+### 2. Signatures
+
+```bash
+python3 ./.trellis/scripts/spec_router.py "<short query describing the intended action>"
+python3 ./.trellis/scripts/spec_router.py --limit 3 "<short query describing the intended action>"
+python3 ./.trellis/scripts/spec_router.py --json "<short query describing the intended action>"
+```
+
+`copy-scripts.js` 必须让 `spec_router.py` 在全装时铺到目标 `.trellis/scripts/`,并让
+`--skills workflow-enhancement` / `spec-router` / `project-knowledge` /
+`knowledge-router` 精细安装也带上该脚本,避免 workflow 提示存在但脚本缺失。
+
+### 3. Contracts
+
+- 查询参数是“意图动作短查询”,不是机械复制用户原文。AI 应结合当前请求、即将执行的
+  命令、涉及文件/系统、package/layer 和领域词构造查询。
+- 扫描范围固定为目标项目 `.trellis/spec/**/*.md`,其中 `.trellis/spec/guides/**/*.md`
+  是共享 thinking guide 层,必须保留真实路径参与匹配。
+- Markdown 可选声明简单 frontmatter:`kind` / `triggers` / `load` / `priority`。
+  只支持 `key: value` 与 `key:` 后接 `- item`;不要引入 YAML 依赖。
+- 没有 frontmatter 的文件也按路径、H1-H3 标题和正文前缀轻量匹配。
+- 默认输出只给候选路径、kind、score、reason 和 `action: read before acting`;
+  不输出完整 spec 内容,避免上下文膨胀。
+- 无 `.trellis/`、无 `.trellis/spec/`、读取失败或无匹配都不阻断流程;输出
+  “No relevant project SOP/spec matched. Continue with the normal workflow.”
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 查询命中 frontmatter `triggers` | 高权重返回候选并列出 matched triggers |
+| 查询命中文件路径 / 标题 / 正文 | 按确定性分数排序,默认最多返回 5 条 |
+| 仅命中一个正文普通词且分数低于阈值 | 视为无匹配,避免无关查询误报 |
+| 查询 guides 相关意图 | 返回 `.trellis/spec/guides/**/*.md` 真实路径 |
+| Markdown 无 frontmatter | 退化到路径 / 标题 / 正文轻量匹配 |
+| frontmatter 不完整或不是简单 YAML | 忽略复杂部分,继续扫描正文 |
+| 无 `.trellis/` 或 `.trellis/spec/` | 返回无匹配提示,退出码 0 |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 用户准备发版,AI 查询 `beta release publish tag changelog`,返回
+  `.trellis/spec/.../release-and-publishing.md`,然后先读 SOP 再执行命令。
+- Good: 用户提到跨层/复用经验,AI 查询 `cross layer reuse thinking guide`,返回
+  `.trellis/spec/guides/cross-layer-thinking-guide.md` 和 code reuse guide。
+- Base: 项目没有 frontmatter,仍可通过文件名、标题和正文关键词命中。
+- Bad: 普通绘图请求只因正文里出现一个 `draw` 就返回指南;应低于阈值并返回无匹配。
+- Bad: 把具体公司 SOP 复制进 skill-garden;项目私有知识只能留在目标项目 `.trellis/spec/`。
+
+### 6. Tests Required
+
+- `python3 -m py_compile vendor/skill-garden/.trellis/0.6/scripts/spec_router.py`
+- `python3 -m py_compile enhancements/0.6/scripts/spec_router.py`
+- `python3 -m py_compile .trellis/scripts/spec_router.py`
+- 查询发版意图,断言返回 release SOP。
+- 查询 guides 意图,断言返回 `.trellis/spec/guides/` 下文档。
+- 查询无关意图,断言返回无匹配提示。
+- `npm run sync` 后用 `cmp -s` 确认源、`enhancements/0.6`、dogfood 副本一致。
+- 用临时目标跑 `--skills workflow-enhancement`,确认同时铺设 workflow 覆写和
+  `.trellis/scripts/spec_router.py`。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```markdown
+Create one new skill for each SOP, or ask the model to remember to search all
+spec files by itself.
+```
+
+问题:Skill 数量膨胀,且依赖模型记忆,下次仍可能忘记 SOP 存在。
+
+#### Correct
+
+```markdown
+Workflow only says when to run discovery; `.trellis/scripts/spec_router.py`
+returns candidate SOP/spec paths; project-specific SOP content stays in
+`.trellis/spec/`.
+```
+
+原因:高频提示保持短小,发现逻辑可测试,项目私有内容不进入 skill-garden。
+
 ## Scenario: Auto Loop Runner
 
 ### 1. Scope / Trigger
