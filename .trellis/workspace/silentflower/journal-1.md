@@ -959,3 +959,37 @@ Implemented session-scoped trellis-route state recovery with route_state.py, syn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 28: Spec router project SOP discovery
+
+**Date**: 2026-06-29
+**Task**: Spec router project SOP discovery
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 skill-garden 0.6 项目知识发现机制：新增 spec_router.py，加入 workflow 项目知识发现提示，支持 guides 扫描和 targeted install 别名，同步 enhancements 快照与 dogfood 副本，并归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `961587a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
