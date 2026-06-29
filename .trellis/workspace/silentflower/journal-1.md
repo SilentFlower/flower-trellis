@@ -924,3 +924,38 @@ Implemented session-scoped trellis-route state recovery with route_state.py, syn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 27: Auto loop task runner
+
+**Date**: 2026-06-29
+**Task**: Auto loop task runner
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 Trellis auto-loop runner MVP：新增 Python runner、trellis-auto-loop skill、route 临时授权兼容、workflow/push 预授权说明和 0.6 enhancements 同步；vendor/skill-garden 对应提交 e1959f8。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `268140a` | (see git log) |
+| `8a886ec` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
