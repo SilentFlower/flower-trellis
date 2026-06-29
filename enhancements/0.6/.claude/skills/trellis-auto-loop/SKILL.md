@@ -18,6 +18,7 @@ description: "启动、恢复和推进 Trellis 自动任务循环。用于用户
 - 多任务只按用户显式给出的任务顺序执行；同一 worktree 不并发。
 - 启动 runner 前先完成 route 准备度判断：已有当前任务 runtime route 决策或个人 `.trellis/.route-prefs.tmp` 时可启动；没有时先进入 `trellis-route` 正常询问 / fallback，写入真实决策后再启动。
 - auto-loop 不默认写 `route_authorization`；只有用户本次明确给出的临时 route 策略，才能通过 `--route-implement` / `--route-check` 传给 runner，且不能当成模型真实执行结果。
+- auto-loop 启动前若 implement 与 check 都缺 route，优先展示 auto-loop 专用的合并选择，不要把 `trellis-route` 的两套完整 fallback 原样贴给用户。仍允许用户回复高级格式 `implement 1, check 1`。
 - 代码提交必须走 `trellis-push` 的 commit-only 语义；不要裸 `git commit` / `git push`。
 
 ## 启动
@@ -31,7 +32,28 @@ python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target imp
 python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target check
 ```
 
-如果任一 target 返回 `status=miss`，先按 `trellis-route` 的正常 numbered fallback 询问用户；不要替用户默认 inline 或 subagent。若用户选择的是本次临时策略，把选择映射为 runner route 参数一起传入，例如 `implement 1, check 1` 对应 `--route-implement inline --route-check check-all-inline`。若用户选择保存默认，则由 `trellis-route` 写入偏好后再启动 runner。
+如果两个 target 都返回 `status=miss`，优先用 auto-loop 专用合并选择询问用户，避免把两套 route fallback 列表完整贴出：
+
+```text
+auto-loop 需要你先选执行路线，才能启动。
+
+推荐：
+1. 本次全 Inline：implement inline + check-all inline（只影响本次 run）
+2. 本次全 Subagent：implement subagent + check-all subagent（只影响本次 run）
+3. 保存默认全 Inline：写入个人默认，后续自动复用
+4. 保存默认全 Subagent：写入个人默认，后续自动复用
+
+高级：也可以回复 `implement 1, check 2` 分别选择。
+```
+
+映射规则：
+
+- `1` → `--route-implement inline --route-check check-all-inline`
+- `2` → `--route-implement subagent --route-check check-all-subagent`
+- `3` → 先用 `trellis-route` helper 分别写入 `implement=inline`、`check=check-all-inline` 且 `--save-pref`，再启动 runner
+- `4` → 先用 `trellis-route` helper 分别写入 `implement=subagent`、`check=check-all-subagent` 且 `--save-pref`，再启动 runner
+
+如果只有一个 target 返回 `status=miss`，再按 `trellis-route` 的对应 target 正常 numbered fallback 询问。不要替用户默认 inline 或 subagent。若用户选择的是本次临时策略，把选择映射为 runner route 参数一起传入，例如 `implement 1, check 1` 对应 `--route-implement inline --route-check check-all-inline`。若用户选择保存默认，则由 `trellis-route` 写入偏好后再启动 runner。
 
 ```bash
 python3 ./.trellis/scripts/auto_loop.py start \

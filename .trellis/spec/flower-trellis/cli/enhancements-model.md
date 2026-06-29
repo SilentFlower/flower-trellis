@@ -362,6 +362,10 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 
 - auto-loop 默认 start 不写 `route_authorization`;缺少当前任务 route runtime 决策且无
   `.route-prefs.tmp` 时,`trellis-auto-loop` skill 必须先走 `trellis-route` 询问/fallback。
+- 如果 implement 与 check 两个 target 都缺 route,`trellis-auto-loop` skill 应优先展示
+  auto-loop 专用合并选择:本次全 inline、本次全 subagent、保存默认全 inline、保存默认全
+  subagent;避免把 `trellis-route` 两套完整 fallback 选项原样贴出。用户仍可用
+  `implement 1, check 2` 这类高级格式分别选择。
 - runner 是调度器,不自行默认 inline/subagent,也不把 auto 临时授权展示成真实 route 结果。
 - `route_state.py resolve` 顺序仍是 runtime -> prefs -> running auto-loop 临时授权;但
   session `current_auto_run` 或全局 `current.json` 指向非 running run 时必须忽略 stale pointer,
