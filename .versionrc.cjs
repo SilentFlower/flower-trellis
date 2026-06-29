@@ -2,10 +2,12 @@ const addBangNotes = require("conventional-changelog-conventionalcommits/add-ban
 
 const types = [
   { type: "feat", section: "✨ 新功能 Features" },
+  { type: "fix", scope: "release", hidden: true },
   { type: "fix", section: "🐛 修复 Bug Fixes" },
   { type: "perf", section: "⚡ 性能 Performance" },
   { type: "refactor", section: "♻️ 重构 Refactor" },
   { type: "docs", section: "📝 文档 Docs" },
+  { type: "chore", scope: "trellis", section: "🧰 维护 Maintenance" },
   { type: "chore", hidden: true },
   { type: "style", hidden: true },
   { type: "test", hidden: true },
@@ -14,6 +16,13 @@ const types = [
 ];
 
 const localizedSubjects = new Map([
+  ["268140a", "新增自动任务循环 runner"],
+  ["add task runner enhancement", "新增自动任务循环 runner"],
+  ["e05c3cf", "升级捆绑 Trellis 到 0.6.5，并修复 route_state.py 状态清理"],
+  [
+    "upgrade bundled trellis to 0.6.5",
+    "升级捆绑 Trellis 到 0.6.5，并修复 route_state.py 状态清理",
+  ],
   ["afa9282", "精简 route state helper 默认输出"],
   ["reduce route state helper output", "精简 route state helper 默认输出"],
 ]);
