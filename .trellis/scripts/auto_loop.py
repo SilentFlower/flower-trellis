@@ -18,6 +18,14 @@ DEFAULT_PROFILE = "commit-only"
 MAX_FIX_RECHECK = 3
 VALID_IMPLEMENT_ROUTES = {"inline", "subagent"}
 VALID_CHECK_ROUTES = {"check-all-inline", "check-all-subagent"}
+RECOVERABLE_BLOCK_REASONS = {
+    "missing-prd",
+    "open-questions",
+    "incomplete-complex-artifacts",
+    "missing-implement-context",
+    "missing-check-context",
+    "unknown-step",
+}
 STEP_ACTIONS = {
     "refresh_brief": "refresh_brief",
     "start_task": "start_task",
@@ -235,6 +243,11 @@ def _run_path(repo_root: Path, run_id: str) -> Path:
     return _auto_dir(repo_root) / f"{run_id}.json"
 
 
+def _run_paths(repo_root: Path) -> list[Path]:
+    """返回按 run id 从新到旧排序的 auto run 文件。"""
+    return sorted(_auto_dir(repo_root).glob("auto-*.json"), reverse=True)
+
+
 def _new_run_id() -> str:
     """生成短小稳定的 run id。"""
     return "auto-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
@@ -417,7 +430,7 @@ def _load_current_state(repo_root: Path, run_id: str | None = None) -> tuple[Pat
             _clear_pointer_if_current(repo_root, current)
 
     running: list[tuple[Path, dict[str, Any]]] = []
-    for path in sorted(_auto_dir(repo_root).glob("auto-*.json")):
+    for path in _run_paths(repo_root):
         state = _read_json(path)
         if state.get("status") == "running":
             running.append((path, state))
@@ -429,6 +442,57 @@ def _load_current_state(repo_root: Path, run_id: str | None = None) -> tuple[Pat
         if state:
             return path, state
     raise ValueError("没有可恢复的唯一 auto run")
+
+
+def _load_blocked_state(repo_root: Path, run_id: str | None = None) -> tuple[Path, dict[str, Any]]:
+    """加载可重试的 blocked auto run。"""
+    if run_id:
+        path, state = _load_current_state(repo_root, run_id)
+        if _summary(state)["blocked"]:
+            return path, state
+        raise ValueError(f"auto run 没有 blocked 队列项:{run_id}")
+
+    try:
+        path, state = _load_current_state(repo_root)
+        if _summary(state)["blocked"]:
+            return path, state
+    except ValueError:
+        pass
+
+    blocked_runs: list[tuple[Path, dict[str, Any]]] = []
+    for path in _run_paths(repo_root):
+        state = _read_json(path)
+        if state and _summary(state)["blocked"]:
+            blocked_runs.append((path, state))
+    if len(blocked_runs) == 1:
+        return blocked_runs[0]
+    if not blocked_runs:
+        raise ValueError("没有可重试的 blocked auto run")
+    run_ids = ", ".join(str(state.get("run_id") or path.stem) for path, state in blocked_runs[:8])
+    raise ValueError(f"存在多个 blocked auto run，请指定 --run-id。候选:{run_ids}")
+
+
+def _recent_run_summaries(repo_root: Path, limit: int = 8) -> list[dict[str, Any]]:
+    """返回最近 auto run 的轻量状态列表。"""
+    runs: list[dict[str, Any]] = []
+    for path in _run_paths(repo_root)[:limit]:
+        state = _read_json(path)
+        if not state:
+            continue
+        capsule = _resume_capsule(state)
+        runs.append({
+            "run_id": state.get("run_id") or path.stem,
+            "path": _rel_path(repo_root, path),
+            "run_status": state.get("status"),
+            "profile": state.get("profile"),
+            "updated_at": state.get("updated_at"),
+            "completed": capsule.get("completed"),
+            "blocked": capsule.get("blocked"),
+            "remaining": capsule.get("remaining"),
+            "current_task": capsule.get("current_task"),
+            "next_step": capsule.get("next_step"),
+        })
+    return runs
 
 
 def _write_state(path: Path, state: dict[str, Any]) -> None:
@@ -488,6 +552,12 @@ def _resume_capsule(state: dict[str, Any]) -> dict[str, Any]:
         "blocked_tasks": blocked,
         "recent_decisions": _decision_tail(state, 5),
     }
+
+
+def _terminal_status(queue: list[Any]) -> str:
+    """根据队列终态区分全完成和带阻塞结束。"""
+    has_blocked = any(isinstance(item, dict) and item.get("status") == "blocked" for item in queue)
+    return "blocked" if has_blocked else "completed"
 
 
 def _summary(state: dict[str, Any]) -> dict[str, Any]:
@@ -662,11 +732,15 @@ def _next_item(repo_root: Path, state: dict[str, Any]) -> tuple[dict[str, Any] |
 
         _block_item(item, "unknown-step", f"未知 current_step:{step}")
 
-    state["status"] = "completed"
+    state["status"] = _terminal_status(queue)
     return None, {
-        "status": "done",
+        "status": "blocked" if state["status"] == "blocked" else "done",
         "finish_work_required_for_archive": True,
-        "instruction": "auto-loop 队列已结束；如需归档任务，请用户显式运行 trellis-finish-work。",
+        "instruction": (
+            "auto-loop 队列存在 blocked 项；补齐条件后运行 retry-blocked 继续同一个 run。"
+            if state["status"] == "blocked"
+            else "auto-loop 队列已结束；如需归档任务，请用户显式运行 trellis-finish-work。"
+        ),
         "summary": _summary(state),
     }
 
@@ -685,6 +759,15 @@ def cmd_start(args: argparse.Namespace) -> int:
                 "reason": "auto-run-already-running",
                 "run_id": current.get("run_id"),
                 "path": _rel_path(repo_root, current_path),
+            })
+        if current.get("status") == "blocked" and not args.force:
+            return _print({
+                "status": "error",
+                "reason": "auto-run-blocked-retry-available",
+                "run_id": current.get("run_id"),
+                "path": _rel_path(repo_root, current_path),
+                "suggested_command": f"python3 ./.trellis/scripts/auto_loop.py retry-blocked --run-id {current.get('run_id')}",
+                "summary": _summary(current),
             })
     except ValueError:
         pass
@@ -751,6 +834,96 @@ def cmd_next(args: argparse.Namespace) -> int:
     if action.get("status") == "done":
         action["summary"] = _summary(state)
     return _print({"run_id": state.get("run_id"), **action})
+
+
+def _apply_route_authorization_args(state: dict[str, Any], args: argparse.Namespace) -> dict[str, str]:
+    """把命令行 route 参数合并进 run 的临时授权。"""
+    route_authorization = state.get("route_authorization")
+    if not isinstance(route_authorization, dict):
+        route_authorization = {}
+    if getattr(args, "route_implement", None):
+        route_authorization["implement"] = args.route_implement
+    if getattr(args, "route_check", None):
+        route_authorization["check"] = args.route_check
+    state["route_authorization"] = route_authorization
+    return {str(key): str(value) for key, value in route_authorization.items()}
+
+
+def _blocked_reason(item: dict[str, Any]) -> str:
+    """读取队列项 blocked reason。"""
+    blocked = item.get("blocked")
+    if isinstance(blocked, dict):
+        reason = blocked.get("reason")
+        if isinstance(reason, str):
+            return reason
+    return ""
+
+
+def cmd_retry_blocked(args: argparse.Namespace) -> int:
+    """把可恢复的 blocked 队列项重置为 pending，复用同一个 auto run。"""
+    repo_root = _repo_root()
+    if repo_root is None:
+        return _print({"status": "error", "reason": "not-trellis-project"})
+    try:
+        path, state = _load_blocked_state(repo_root, args.run_id)
+    except ValueError as exc:
+        return _print({
+            "status": "error",
+            "reason": "retry-blocked-failed",
+            "message": str(exc),
+            "runs": _recent_run_summaries(repo_root),
+        })
+
+    task = _normalize_task_ref(repo_root, args.task) if args.task else None
+    route_authorization = _apply_route_authorization_args(state, args)
+    queue = state.get("queue") if isinstance(state.get("queue"), list) else []
+    reset: list[str] = []
+    skipped: list[dict[str, str]] = []
+
+    for index, item in enumerate(queue):
+        if not isinstance(item, dict) or item.get("status") != "blocked":
+            continue
+        if task and item.get("task") != task:
+            continue
+        reason = _blocked_reason(item)
+        if not args.all and not task and reason not in RECOVERABLE_BLOCK_REASONS:
+            skipped.append({"task": str(item.get("task")), "reason": reason or "unknown"})
+            continue
+        item["status"] = "pending"
+        item["blocked"] = None
+        item["last_action"] = None
+        item["task_status"] = _task_status(repo_root, str(item.get("task")))
+        item["updated_at"] = _utc_now()
+        state["current_index"] = min(int(state.get("current_index") or index), index)
+        reset.append(str(item.get("task")))
+        _append_item_decision(
+            item,
+            "retry_unblocked",
+            "blocked 队列项已重置，将在同一个 auto run 内重试",
+            {"previous_reason": reason, "route_authorization": route_authorization},
+        )
+
+    if not reset:
+        return _print({
+            "status": "error",
+            "reason": "no-retryable-blocked-items",
+            "message": "没有可自动重试的 blocked 队列项；如确认要重试，可加 --all 或指定 --task。",
+            "skipped": skipped,
+            "summary": _summary(state),
+        })
+
+    state["status"] = "running"
+    _write_state(path, state)
+    _write_pointer(repo_root, str(state.get("run_id")))
+    _link_session_run(repo_root, str(state.get("run_id")))
+    return _print({
+        "status": "retry-ready",
+        "run_id": state.get("run_id"),
+        "path": _rel_path(repo_root, path),
+        "reset": reset,
+        "skipped": skipped,
+        "summary": _summary(state),
+    })
 
 
 def _find_record_item(state: dict[str, Any], task_ref: str | None) -> dict[str, Any] | None:
@@ -937,7 +1110,13 @@ def cmd_status(args: argparse.Namespace) -> int:
     try:
         path, state = _load_current_state(repo_root, args.run_id)
     except ValueError as exc:
-        return _print({"status": "error", "reason": "status-failed", "message": str(exc)})
+        return _print({
+            "status": "ok",
+            "run_status": "no-current-run",
+            "reason": "status-list",
+            "message": str(exc),
+            "runs": _recent_run_summaries(repo_root),
+        })
     return _print({"status": "ok", "path": _rel_path(repo_root, path), **_summary(state)})
 
 
@@ -991,6 +1170,14 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--route-mode")
     record.add_argument("--route-source")
     record.set_defaults(func=cmd_record)
+
+    retry = subparsers.add_parser("retry-blocked")
+    retry.add_argument("--run-id")
+    retry.add_argument("--task")
+    retry.add_argument("--route-implement", choices=sorted(VALID_IMPLEMENT_ROUTES))
+    retry.add_argument("--route-check", choices=sorted(VALID_CHECK_ROUTES))
+    retry.add_argument("--all", action="store_true")
+    retry.set_defaults(func=cmd_retry_blocked)
 
     stop = subparsers.add_parser("stop")
     stop.add_argument("--run-id")

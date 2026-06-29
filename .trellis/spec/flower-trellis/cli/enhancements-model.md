@@ -337,6 +337,7 @@ returns candidate SOP/spec paths; project-specific SOP content stays in
 python3 ./.trellis/scripts/auto_loop.py start --tasks <task> [<task> ...] --profile commit-only
 python3 ./.trellis/scripts/auto_loop.py next [--run-id <run-id>]
 python3 ./.trellis/scripts/auto_loop.py record --action <action> --result <ok|failed|blocked> [...]
+python3 ./.trellis/scripts/auto_loop.py retry-blocked [--run-id <run-id>] [--task <task>] [--route-implement inline|subagent] [--route-check check-all-inline|check-all-subagent] [--all]
 python3 ./.trellis/scripts/auto_loop.py status [--run-id <run-id>]
 python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 ```
@@ -355,6 +356,17 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
   再 fallback 扫描唯一 running run。
 - run completed/stopped 后,`auto_loop.py` 只在 current pointer 仍指向本 run 时删除
   `.trellis/.runtime/auto-loop/current.json`;显式 `--run-id` 仍可查看历史 run。
+- 队列处理完但存在 blocked item 时,run `status` 必须是 `blocked`,不能伪装成
+  `completed`;全 item 本地提交完成才是 `completed`。
+- blocked 是同一个 run 的可恢复状态。补齐 route / context / PRD 后,AI 应调用
+  `retry-blocked` 把可恢复 blocked item 重置为 `pending`,并继续 `next`;不要用
+  `start --force` 新建 run 来纠正漏传参数。
+- `retry-blocked` 只写现有 run JSON:合并本次显式 `--route-implement` /
+  `--route-check` 到 `route_authorization`,清空 item 的 `blocked` / `last_action`,把 run
+  置回 `running`,并刷新 `current.json` 指针。它不创建新的 `auto-*.json`,不改任务文件,
+  不替用户默认选择 route。
+- `status` 在无唯一 running/current run 时仍返回 `status=ok`,并列出最近 run 的
+  `run_id`、`run_status`、completed / blocked / remaining 计数,方便用户指定 `--run-id`。
 - `commit_only` action 必须进入 `trellis-push` commit-only 语义;AI 根据当前任务 artifacts、
   `git status`、`git diff` 和必要文件内容生成 planned files / retained files / commit
   message / 归属理由,不得用脚本基于 dirty baseline 或时间差猜测文件归属。
@@ -374,6 +386,9 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 | 条件 | 行为 |
 |------|------|
 | start 无 route prefs/runtime | skill 先走 `trellis-route`;runner 不默认选择 |
+| 启动漏传临时 route 导致 `missing-implement-context` / `missing-check-context` | `retry-blocked --route-implement ... --route-check ...` 复用同一 run |
+| 队列项 blocked 但 blocked reason 是非门禁类问题 | 默认不自动重试;指定 `--task` 或 `--all` 才重置 |
+| 多个历史 run 且无 current/running | `status` 返回最近 run 列表,不报 `status-failed` |
 | current.json 指向 completed/stopped run | route helper 忽略 stale pointer,扫描唯一 running run |
 | run completed/stopped | 清理仍指向本 run 的 current pointer |
 | commit_only 时 staged 区已有文件 | trellis-push 记录当前 item blocked,不提交,queue 可继续 |
@@ -388,9 +403,14 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
   写回 runtime,runner 启动后记录真实 `route_resolved`。
 - Good: 第一个任务 commit-only 因 staged 区不空 blocked;runner summary 记录 blocked,`next`
   继续第二个 pending 任务。
+- Good: 第一次 start 漏传 inline route,三个 planning task 因 seed-only JSONL blocked;AI
+  执行 `retry-blocked --route-implement inline --route-check check-all-inline`,同一个
+  `run_id` 继续,目录中不新增第二个 `auto-*.json`。
 - Base: run completed 后用户查 `auto_loop.py status --run-id auto-...` 仍可读历史结果;无
   `--run-id` 时不会让 stale current 影响新 run。
 - Bad: `trellis-auto-loop` skill 默认传 `--route-implement subagent`;这绕过用户真实 route。
+- Bad: run blocked 后直接 `start --force` 启动同一任务队列,产生多个 JSON,用户难以判断哪次
+  是权威状态。
 - Bad: 主 agent 看到 `commit_only` action 后手动 `git add . && git commit`;这绕过
   `trellis-push` 边界且可能混入无关文件。
 
