@@ -4,6 +4,18 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.0-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1...v0.4.0-beta.0) (2026-06-29)
+
+
+### ✨ 新功能 Features
+
+* **auto-loop:** 新增自动任务循环 runner ([268140a](https://github.com/SilentFlower/flower-trellis/commit/268140a04df98cfe7ab70c44aabc3032b6359893))
+
+
+### 🧰 维护 Maintenance
+
+* **trellis:** 升级捆绑 Trellis 到 0.6.5，并修复 route_state.py 状态清理 ([e05c3cf](https://github.com/SilentFlower/flower-trellis/commit/e05c3cff591ddeb529daed8ccafb4c83bea802bc))
+
 ## [0.3.1](https://github.com/SilentFlower/flower-trellis/compare/v0.3.0...v0.3.1) (2026-06-28)
 
 ### ✨ 新功能 Features
