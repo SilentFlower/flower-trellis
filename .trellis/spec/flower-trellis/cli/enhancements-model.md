@@ -231,8 +231,18 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 - Markdown 可选声明简单 frontmatter:`kind` / `triggers` / `load` / `priority`。
   只支持 `key: value` 与 `key:` 后接 `- item`;不要引入 YAML 依赖。
 - 没有 frontmatter 的文件也按路径、H1-H3 标题和正文前缀轻量匹配。
+- 路径匹配只使用 `.trellis/spec/` 内的相对路径,不要让公共前缀
+  `.trellis/spec` 参与打分;否则查询里的 `spec` 会命中所有文档。
+- 默认候选要偏保守:最多返回 3 条。正文 token 命中必须有足够强度
+  (例如正文命中 5 个不同 token,或标题命中且正文命中 3 个不同 token),
+  不能因为 `json` / `output` / `commit` 这类泛词单独出现就返回候选。
+- 正文弱匹配计数要过滤项目知识路由自身的高频泛词,例如 `project`、`context`、
+  `read`、`matched`、`spec`、`workflow`;它们可以出现在 reason 中,但不能凑成强匹配。
+- 标题匹配应扫描完整 Markdown 标题;正文匹配仍只扫描前缀样本,避免大文档全文检索拖慢或放大误报。
 - 默认输出只给候选路径、kind、score、reason 和 `action: read before acting`;
   不输出完整 spec 内容,避免上下文膨胀。
+- workflow 读取策略默认先读最强 1-2 个匹配;只有低位候选的 path / heading /
+  trigger reason 明确相关时才继续读取,避免 helper 候选列表放大上下文。
 - 无 `.trellis/`、无 `.trellis/spec/`、读取失败或无匹配都不阻断流程;输出
   “No relevant project SOP/spec matched. Continue with the normal workflow.”
 
@@ -241,8 +251,9 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 | 条件 | 行为 |
 |------|------|
 | 查询命中 frontmatter `triggers` | 高权重返回候选并列出 matched triggers |
-| 查询命中文件路径 / 标题 / 正文 | 按确定性分数排序,默认最多返回 5 条 |
-| 仅命中一个正文普通词且分数低于阈值 | 视为无匹配,避免无关查询误报 |
+| 查询命中文件路径 / 标题 / 正文 | 按确定性分数排序,默认最多返回 3 条 |
+| 仅命中正文普通词且未达到强匹配阈值 | 视为无匹配,避免无关查询误报 |
+| 查询只命中 `.trellis/spec` 公共路径前缀 | 不算路径命中 |
 | 查询 guides 相关意图 | 返回 `.trellis/spec/guides/**/*.md` 真实路径 |
 | Markdown 无 frontmatter | 退化到路径 / 标题 / 正文轻量匹配 |
 | frontmatter 不完整或不是简单 YAML | 忽略复杂部分,继续扫描正文 |

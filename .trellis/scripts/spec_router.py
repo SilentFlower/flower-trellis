@@ -18,8 +18,40 @@ from typing import Any
 
 
 MAX_BODY_CHARS = 8000
-DEFAULT_LIMIT = 5
+DEFAULT_LIMIT = 3
 MIN_SCORE = 3
+MIN_BODY_ONLY_HITS = 5
+MIN_HEADING_BODY_HITS = 3
+BODY_WEAK_TOKENS = {
+    "action",
+    "actions",
+    "after",
+    "before",
+    "command",
+    "commands",
+    "context",
+    "current",
+    "file",
+    "files",
+    "match",
+    "matched",
+    "matches",
+    "matching",
+    "normal",
+    "path",
+    "paths",
+    "project",
+    "read",
+    "reason",
+    "reasons",
+    "relevant",
+    "sop",
+    "spec",
+    "status",
+    "task",
+    "tasks",
+    "workflow",
+}
 TOKEN_RE = re.compile(r"[A-Za-z0-9_.@/-]+|[\u4e00-\u9fff]{2,}")
 HEADER_RE = re.compile(r"^\s{0,3}#{1,3}\s+(.+?)\s*$", re.MULTILINE)
 FRONTMATTER_BOUNDARY_RE = re.compile(r"^---\s*$")
@@ -225,10 +257,11 @@ def score_file(root: Path, path: Path, query: str, query_tokens: list[str]) -> C
 
     metadata, body = parse_frontmatter(text)
     rel_path = path.relative_to(root).as_posix()
-    rel_lower = rel_path.lower()
+    spec_rel_path = path.relative_to(root / ".trellis" / "spec").as_posix()
+    spec_rel_lower = spec_rel_path.lower()
     body_sample = body[:MAX_BODY_CHARS]
     body_lower = body_sample.lower()
-    headers = HEADER_RE.findall(body_sample)
+    headers = HEADER_RE.findall(body)
     header_text = " ".join(headers).lower()
 
     kind = str(metadata.get("kind") or "").strip()
@@ -249,7 +282,7 @@ def score_file(root: Path, path: Path, query: str, query_tokens: list[str]) -> C
         score += 8 * len(matched_triggers)
         reasons.append(f"matched triggers: {', '.join(matched_triggers[:5])}")
 
-    path_hits = [token for token in query_tokens if token in rel_lower]
+    path_hits = [token for token in query_tokens if token in spec_rel_lower]
     if path_hits:
         score += 4 * len(path_hits)
         reasons.append(f"matched path tokens: {', '.join(path_hits[:5])}")
@@ -259,10 +292,22 @@ def score_file(root: Path, path: Path, query: str, query_tokens: list[str]) -> C
         score += 3 * len(header_hits)
         reasons.append(f"matched headings: {', '.join(header_hits[:5])}")
 
-    body_hits = [token for token in query_tokens if token in body_lower]
+    raw_body_hits = [token for token in query_tokens if token in body_lower]
+    body_hits = [token for token in raw_body_hits if token not in BODY_WEAK_TOKENS]
     if body_hits:
         score += len(body_hits)
         reasons.append(f"matched body tokens: {', '.join(body_hits[:5])}")
+
+    # 避免 `json` / `output` / `spec` 这类泛词把只有正文弱命中的文件全部拉进上下文。
+    strong_match = (
+        bool(matched_triggers)
+        or bool(path_hits)
+        or len(header_hits) >= 2
+        or (bool(header_hits) and len(body_hits) >= MIN_HEADING_BODY_HITS)
+        or len(body_hits) >= MIN_BODY_ONLY_HITS
+    )
+    if not strong_match:
+        return None
 
     if kind.lower() in {"sop", "procedure", "guide", "thinking-guide"} and score > 0:
         score += 2

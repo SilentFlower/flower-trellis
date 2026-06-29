@@ -23,7 +23,9 @@ the intended action, commands about to run, files or systems involved, package/l
 and domain words such as release, publish, deploy, migration, config, CI, workflow,
 hooks, rollback, data fix, or destructive command.
 
-Read any matched SOP/spec files before acting; if nothing matches, continue normally.
+Read the strongest 1-2 matched SOP/spec files before acting. Continue to lower-ranked
+matches only when their path, heading, or trigger reason is clearly relevant; if
+nothing matches, continue normally.
 
 #### Task Brief Handoff
 
