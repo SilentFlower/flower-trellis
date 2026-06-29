@@ -993,3 +993,39 @@ Implemented session-scoped trellis-route state recovery with route_state.py, syn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 29: 修复 auto-loop commit 与 route 状态边界
+
+**Date**: 2026-06-29
+**Task**: 修复 auto-loop commit 与 route 状态边界
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 auto-loop route 默认移除、stale current pointer 容错、完成态提示、decision_log 与 trellis-push commit-only 边界调整；同步 skill-garden 源、enhancements 快照和 dogfood 副本，并归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5cb8e6c` | (see git log) |
+| `57c7cbd` | (see git log) |
+| `43e16e4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

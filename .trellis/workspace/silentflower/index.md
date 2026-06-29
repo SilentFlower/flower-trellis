@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
+- **Total Sessions**: 29
 - **Last Active**: 2026-06-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~995 | Active |
+| `journal-1.md` | ~1031 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 29 | 2026-06-29 | 修复 auto-loop commit 与 route 状态边界 | `5cb8e6c`, `57c7cbd`, `43e16e4` | `beta` |
 | 28 | 2026-06-29 | Spec router project SOP discovery | `961587a` | `beta` |
 | 27 | 2026-06-29 | Auto loop task runner | `268140a`, `8a886ec` | `beta` |
 | 26 | 2026-06-28 | 升级 Trellis 0.6.5 | `e05c3cf`, `c0db9bd` | `beta` |
