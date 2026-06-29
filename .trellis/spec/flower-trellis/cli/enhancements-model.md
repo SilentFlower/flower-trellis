@@ -301,12 +301,13 @@ returns candidate SOP/spec paths; project-specific SOP content stays in
 ### 2. Contracts
 
 - `trellis-auto-loop/SKILL.md` 是 AI 侧入口。没有这个 skill 时,脚本虽然可运行,但 agent 不知道何时启动、压缩后如何恢复、每个 action 如何映射回 Trellis workflow、以及何时调用 `record`。
-- `.trellis/scripts/auto_loop.py` 是状态权威,状态路径固定为 `.trellis/.runtime/auto-loop/<run-id>.json`;`resume_capsule` 只作人类摘要。
+- `.trellis/scripts/auto_loop.py` 是状态权威,状态路径固定为 `.trellis/.runtime/auto-loop/<run-id>.json`;`resume_capsule` 只作人类摘要,由 `--verbose` 诊断输出动态生成,不要每次写回 runtime JSON。
 - `start` 支持显式多任务队列,按用户顺序执行;同一 worktree 不并发。
 - 默认 profile 为 `commit-only`;启动前由 `trellis-auto-loop` skill 通过 `trellis-route` 准备真实 route 决策或复用个人 `.trellis/.route-prefs.tmp`,runner 不默认写临时 route 授权。
 - planning start gate 按已解析的有效 route 判断 JSONL 是否必需:inline / check-all-inline 可不因 seed-only JSONL 停住,subagent 路径仍要求 curated context。
 - runner action 必须通过既有 Trellis 语义执行:`trellis-task-brief`、`task.py start`、`trellis-route`、implement/check、`trellis-update-spec`、`trellis-push commit-only`。
 - `next` 发出的 action 必须写入 runtime 的待回写状态;`record` 必须显式传入匹配 action,缺失或不匹配时返回 error,不得静默推进。
+- 默认 stdout 必须保持精简:只输出 run 状态、当前/待回写 action、队列计数、简短 blocked/pending/completed 列表和最近少量无 `data` 决策摘要。完整 blocked detail、完整 `decision_log.data`、`resume_capsule`、完整 `record` item 只在 `--verbose` 输出。
 - auto-loop 的 `commit-only` 是本次 run 内任务相关本地提交的预授权;普通 `trellis-push` 仍必须展示计划并等待确认。预授权判定以 `status` 输出里的 `outstanding_action.action=commit_only` 和当前任务匹配为准。
 - `scripts/auto_loop.py` 必须随 0.6 快照发布,并可被 `--skills trellis-auto-loop` 精细安装带上。
 
@@ -335,10 +336,10 @@ returns candidate SOP/spec paths; project-specific SOP content stays in
 
 ```bash
 python3 ./.trellis/scripts/auto_loop.py start --tasks <task> [<task> ...] --profile commit-only
-python3 ./.trellis/scripts/auto_loop.py next [--run-id <run-id>]
-python3 ./.trellis/scripts/auto_loop.py record --action <action> --result <ok|failed|blocked> [...]
-python3 ./.trellis/scripts/auto_loop.py retry-blocked [--run-id <run-id>] [--task <task>] [--route-implement inline|subagent] [--route-check check-all-inline|check-all-subagent] [--all]
-python3 ./.trellis/scripts/auto_loop.py status [--run-id <run-id>]
+python3 ./.trellis/scripts/auto_loop.py next [--run-id <run-id>] [--verbose]
+python3 ./.trellis/scripts/auto_loop.py record --action <action> --result <ok|failed|blocked> [...] [--verbose]
+python3 ./.trellis/scripts/auto_loop.py retry-blocked [--run-id <run-id>] [--task <task>] [--route-implement inline|subagent] [--route-check check-all-inline|check-all-subagent] [--all] [--verbose]
+python3 ./.trellis/scripts/auto_loop.py status [--run-id <run-id>] [--verbose]
 python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 ```
 
@@ -365,8 +366,10 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
   `--route-check` 到 `route_authorization`,清空 item 的 `blocked` / `last_action`,把 run
   置回 `running`,并刷新 `current.json` 指针。它不创建新的 `auto-*.json`,不改任务文件,
   不替用户默认选择 route。
+- runtime JSON 不再落盘派生的 `resume_capsule`;旧状态中的该字段只为兼容读取,下一次写状态时应移除。
 - `status` 在无唯一 running/current run 时仍返回 `status=ok`,并列出最近 run 的
   `run_id`、`run_status`、completed / blocked / remaining 计数,方便用户指定 `--run-id`。
+- `record` 默认返回当前 item 的 `task`、`item_status`、`current_step`、`commit` 和紧凑 summary,不得返回完整 item;排障时由 `record --verbose` 返回完整 item。
 - `commit_only` action 必须进入 `trellis-push` commit-only 语义;AI 根据当前任务 artifacts、
   `git status`、`git diff` 和必要文件内容生成 planned files / retained files / commit
   message / 归属理由,不得用脚本基于 dirty baseline 或时间差猜测文件归属。
@@ -376,8 +379,8 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 - 单个 item 的 commit-only 预检失败只把该 item blocked/skipped 并记录原因;多任务 run
   后续 pending item 必须继续。只有 merge/rebase 冲突、repo 状态不可读、脚本损坏或用户 stop
   这类全局问题才停止整个 run。
-- runtime `decision_log` 只记录结论、来源、文件列表、commit message、commit hash、blocked
-  原因和未归档提示;不得记录完整模型思维链。
+- runtime `decision_log` 只保留最近有限条结论、来源、文件列表、commit message、commit hash、blocked
+  原因和未归档提示;不得记录完整模型思维链。默认输出只给最近少量 `at/type/task/summary`,完整 `data` 只走 `--verbose`。
 - `completed` 在 auto-loop summary 中只表示 item 已本地提交。任务生命周期仍需用户显式
   `trellis-finish-work` / archive;runner done 只输出非阻塞提醒。
 

@@ -13,6 +13,7 @@ description: "启动、恢复和推进 Trellis 自动任务循环。用于用户
 - 每次开始、恢复、压缩后继续时，先运行 runner 的 `resume` 或 `next`，不要凭聊天摘要推断下一步。
 - 每完成一个 action，必须用 `record --action <next 返回的 action>` 精确写回结果；runner 会拒绝缺失或不匹配的 action。写回后立即再调用 `next`，直到 `done`、`blocked` 或需要用户决策。
 - run 进入 `blocked` 后不要用 `start --force` 新建 run 来纠正参数；先补齐缺失 route/context，然后用 `retry-blocked` 在同一个 run 内恢复。
+- runner 默认输出是紧凑 JSON，只包含当前 action、队列计数、简短 blocked/pending/completed 列表和最近少量决策摘要；排障时才给 `status` / `resume` / `next` / `record` / `retry-blocked` 加 `--verbose` 读取完整 item、blocked detail 和 decision data。
 - 默认 profile 是 `commit-only`：自动推进到本地 commit，不 push、不发布、不归档。
 - 多任务只按用户显式给出的任务顺序执行；同一 worktree 不并发。
 - 启动 runner 前先完成 route 准备度判断：已有当前任务 runtime route 决策或个人 `.trellis/.route-prefs.tmp` 时可启动；没有时先进入 `trellis-route` 正常询问 / fallback，写入真实决策后再启动。
@@ -57,7 +58,7 @@ python3 ./.trellis/scripts/auto_loop.py resume
 python3 ./.trellis/scripts/auto_loop.py next
 ```
 
-`resume_capsule` 只用于展示；下一步以 `next` 返回的 JSON 为准。
+`resume` 默认只输出紧凑状态；`resume_capsule` 不再持久写入 runtime JSON，仅在 `resume --verbose` / `status --verbose` 等诊断输出中动态生成。下一步以 `next` 返回的 JSON 为准。
 
 ## Blocked 后重试
 
@@ -109,6 +110,8 @@ python3 ./.trellis/scripts/auto_loop.py record \
 ```
 
 runner 会按 3 轮 fix/recheck 预算决定继续、跳过当前任务或结束队列。
+
+`record` 默认只返回当前 item 的 `task`、`item_status`、`current_step`、`commit` 和紧凑 `summary`；只有排查状态漂移时才加 `--verbose` 查看完整 `item`。
 
 route action 成功回写时必须带上 `trellis-route` 输出里的真实 `mode` / `source`，例如
 `--route-mode inline --route-source route-prefs` 或

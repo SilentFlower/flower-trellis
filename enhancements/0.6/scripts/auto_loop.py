@@ -16,6 +16,7 @@ from typing import Any
 SCHEMA_VERSION = 1
 DEFAULT_PROFILE = "commit-only"
 MAX_FIX_RECHECK = 3
+DECISION_LOG_LIMIT = 20
 VALID_IMPLEMENT_ROUTES = {"inline", "subagent"}
 VALID_CHECK_ROUTES = {"check-all-inline", "check-all-subagent"}
 RECOVERABLE_BLOCK_REASONS = {
@@ -222,10 +223,10 @@ def _append_item_decision(
         "summary": summary,
         "data": data or {},
     })
-    item["decision_log"] = log[-50:]
+    item["decision_log"] = log[-DECISION_LOG_LIMIT:]
 
 
-def _decision_tail(state: dict[str, Any], limit: int = 8) -> list[dict[str, Any]]:
+def _decision_tail(state: dict[str, Any], limit: int = 8, include_data: bool = True) -> list[dict[str, Any]]:
     """返回 run 内最近的关键决策摘要。"""
     queue = state.get("queue") if isinstance(state.get("queue"), list) else []
     events: list[dict[str, Any]] = []
@@ -235,7 +236,17 @@ def _decision_tail(state: dict[str, Any], limit: int = 8) -> list[dict[str, Any]
         log = item.get("decision_log")
         if isinstance(log, list):
             events.extend(event for event in log if isinstance(event, dict))
-    return events[-limit:]
+    tail = events[-limit:]
+    if include_data:
+        return tail
+    compact: list[dict[str, Any]] = []
+    for event in tail:
+        compact.append({
+            key: event.get(key)
+            for key in ("at", "type", "task", "summary")
+            if event.get(key) is not None
+        })
+    return compact
 
 
 def _run_path(repo_root: Path, run_id: str) -> Path:
@@ -448,13 +459,13 @@ def _load_blocked_state(repo_root: Path, run_id: str | None = None) -> tuple[Pat
     """加载可重试的 blocked auto run。"""
     if run_id:
         path, state = _load_current_state(repo_root, run_id)
-        if _summary(state)["blocked"]:
+        if _blocked_items(state):
             return path, state
         raise ValueError(f"auto run 没有 blocked 队列项:{run_id}")
 
     try:
         path, state = _load_current_state(repo_root)
-        if _summary(state)["blocked"]:
+        if _blocked_items(state):
             return path, state
     except ValueError:
         pass
@@ -462,7 +473,7 @@ def _load_blocked_state(repo_root: Path, run_id: str | None = None) -> tuple[Pat
     blocked_runs: list[tuple[Path, dict[str, Any]]] = []
     for path in _run_paths(repo_root):
         state = _read_json(path)
-        if state and _summary(state)["blocked"]:
+        if state and _blocked_items(state):
             blocked_runs.append((path, state))
     if len(blocked_runs) == 1:
         return blocked_runs[0]
@@ -479,18 +490,19 @@ def _recent_run_summaries(repo_root: Path, limit: int = 8) -> list[dict[str, Any
         state = _read_json(path)
         if not state:
             continue
-        capsule = _resume_capsule(state)
+        counts = _queue_counts(state)
+        current = _current_queue_item(state)
         runs.append({
             "run_id": state.get("run_id") or path.stem,
             "path": _rel_path(repo_root, path),
             "run_status": state.get("status"),
             "profile": state.get("profile"),
             "updated_at": state.get("updated_at"),
-            "completed": capsule.get("completed"),
-            "blocked": capsule.get("blocked"),
-            "remaining": capsule.get("remaining"),
-            "current_task": capsule.get("current_task"),
-            "next_step": capsule.get("next_step"),
+            "completed": counts["completed"],
+            "blocked": counts["blocked"],
+            "remaining": counts["remaining"],
+            "current_task": current.get("task") if current else None,
+            "next_step": current.get("current_step") if current else "done",
         })
     return runs
 
@@ -498,7 +510,7 @@ def _recent_run_summaries(repo_root: Path, limit: int = 8) -> list[dict[str, Any
 def _write_state(path: Path, state: dict[str, Any]) -> None:
     """刷新 auto run 状态和更新时间。"""
     state["updated_at"] = _utc_now()
-    state["resume_capsule"] = _resume_capsule(state)
+    state.pop("resume_capsule", None)
     _write_json(path, state)
 
 
@@ -523,34 +535,22 @@ def _clear_pointer_if_current(repo_root: Path, run_id: str | None) -> None:
 
 def _resume_capsule(state: dict[str, Any]) -> dict[str, Any]:
     """生成短小的人类可读恢复摘要。"""
-    queue = state.get("queue") if isinstance(state.get("queue"), list) else []
-    current = None
-    auto_completed = []
-    unarchived_tasks = []
-    blocked = []
-    for item in queue:
-        if not isinstance(item, dict):
-            continue
-        if current is None and item.get("status") in {"pending", "running"}:
-            current = item
-        if item.get("status") == "completed":
-            auto_completed.append(item.get("task"))
-            unarchived_tasks.append(item.get("task"))
-        if item.get("status") == "blocked":
-            blocked.append(item.get("task"))
+    queue = _queue_items(state)
+    current = _current_queue_item(state)
+    auto_completed = [item.get("task") for item in queue if item.get("status") == "completed"]
+    blocked = [item.get("task") for item in queue if item.get("status") == "blocked"]
+    counts = _queue_counts(state)
     return {
         "run_id": state.get("run_id"),
         "status": state.get("status"),
         "current_task": current.get("task") if current else None,
         "next_step": current.get("current_step") if current else "done",
-        "completed": sum(1 for item in queue if isinstance(item, dict) and item.get("status") == "completed"),
-        "blocked": sum(1 for item in queue if isinstance(item, dict) and item.get("status") == "blocked"),
-        "remaining": sum(1 for item in queue if isinstance(item, dict) and item.get("status") in {"pending", "running"}),
+        "completed": counts["completed"],
+        "blocked": counts["blocked"],
+        "remaining": counts["remaining"],
         "auto_completed_tasks": auto_completed,
-        "unarchived_tasks": unarchived_tasks,
         "task_lifecycle_note": "auto-loop completed means local commit completed; run finish-work/archive explicitly when ready" if auto_completed else None,
         "blocked_tasks": blocked,
-        "recent_decisions": _decision_tail(state, 5),
     }
 
 
@@ -560,41 +560,142 @@ def _terminal_status(queue: list[Any]) -> str:
     return "blocked" if has_blocked else "completed"
 
 
-def _summary(state: dict[str, Any]) -> dict[str, Any]:
-    """返回队列状态摘要。"""
+def _queue_items(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """返回合法队列项。"""
     queue = state.get("queue") if isinstance(state.get("queue"), list) else []
-    outstanding_action = None
-    for item in queue:
-        if not isinstance(item, dict) or item.get("status") != "running":
+    return [item for item in queue if isinstance(item, dict)]
+
+
+def _queue_counts(state: dict[str, Any]) -> dict[str, int]:
+    """返回队列状态计数。"""
+    queue = _queue_items(state)
+    return {
+        "total": len(queue),
+        "completed": sum(1 for item in queue if item.get("status") == "completed"),
+        "blocked": sum(1 for item in queue if item.get("status") == "blocked"),
+        "remaining": sum(1 for item in queue if item.get("status") in {"pending", "running"}),
+    }
+
+
+def _current_queue_item(state: dict[str, Any]) -> dict[str, Any] | None:
+    """返回当前待处理队列项。"""
+    for item in _queue_items(state):
+        if item.get("status") in {"pending", "running"}:
+            return item
+    return None
+
+
+def _blocked_items(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """返回 blocked 队列项。"""
+    return [item for item in _queue_items(state) if item.get("status") == "blocked"]
+
+
+def _outstanding_action(state: dict[str, Any]) -> dict[str, Any] | None:
+    """返回当前等待 record 回写的 action。"""
+    for item in _queue_items(state):
+        if item.get("status") != "running":
             continue
         last_action = item.get("last_action")
         if isinstance(last_action, dict):
-            outstanding_action = {
+            return {
                 "task": item.get("task"),
                 "action": last_action.get("action"),
                 "current_step": last_action.get("current_step"),
                 "issued_at": last_action.get("issued_at"),
             }
-        break
-    return {
+        return None
+    return None
+
+
+def _completed_task_summaries(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """返回已完成任务的紧凑摘要。"""
+    completed: list[dict[str, Any]] = []
+    for item in _queue_items(state):
+        if item.get("status") != "completed":
+            continue
+        task = {"task": item.get("task")}
+        if item.get("commit"):
+            task["commit"] = item.get("commit")
+        completed.append(task)
+    return completed
+
+
+def _blocked_task_summaries(state: dict[str, Any], include_detail: bool = False) -> list[dict[str, Any]]:
+    """返回 blocked 任务摘要，默认不带 detail。"""
+    blocked_tasks: list[dict[str, Any]] = []
+    for item in _blocked_items(state):
+        blocked = item.get("blocked")
+        blocked_data = blocked if isinstance(blocked, dict) else {}
+        task = {
+            "task": item.get("task"),
+            "reason": blocked_data.get("reason"),
+            "summary": blocked_data.get("summary"),
+            "blocked_at": blocked_data.get("blocked_at"),
+        }
+        if include_detail:
+            task["detail"] = blocked_data.get("detail") or {}
+        blocked_tasks.append(task)
+    return blocked_tasks
+
+
+def _pending_task_summaries(state: dict[str, Any], include_status: bool = False) -> list[dict[str, Any]]:
+    """返回未完成任务摘要。"""
+    pending: list[dict[str, Any]] = []
+    for item in _queue_items(state):
+        if item.get("status") not in {"pending", "running"}:
+            continue
+        task = {
+            "task": item.get("task"),
+            "status": item.get("status"),
+            "current_step": item.get("current_step"),
+        }
+        if include_status:
+            task["last_failure"] = item.get("last_failure")
+            task["attempts"] = item.get("attempts")
+        pending.append(task)
+    return pending
+
+
+def _compact_summary(state: dict[str, Any]) -> dict[str, Any]:
+    """返回默认给 agent 消费的紧凑状态摘要。"""
+    current = _current_queue_item(state)
+    completed_tasks = _completed_task_summaries(state)
+    summary = {
         "run_id": state.get("run_id"),
         "run_status": state.get("status"),
         "profile": state.get("profile"),
         "current_index": state.get("current_index"),
-        "outstanding_action": outstanding_action,
-        "auto_completed": [i.get("task") for i in queue if isinstance(i, dict) and i.get("status") == "completed"],
-        "completed": [i.get("task") for i in queue if isinstance(i, dict) and i.get("status") == "completed"],
-        "unarchived_tasks": [i.get("task") for i in queue if isinstance(i, dict) and i.get("status") == "completed"],
-        "task_lifecycle_note": "completed 仅表示 auto-loop item 已本地提交；任务归档仍需显式 finish-work/archive",
-        "blocked": [
-            {"task": i.get("task"), "blocked": i.get("blocked")}
-            for i in queue
-            if isinstance(i, dict) and i.get("status") == "blocked"
-        ],
-        "pending": [i.get("task") for i in queue if isinstance(i, dict) and i.get("status") in {"pending", "running"}],
-        "recent_decisions": _decision_tail(state),
-        "resume_capsule": state.get("resume_capsule"),
+        "current_task": current.get("task") if current else None,
+        "next_step": current.get("current_step") if current else "done",
+        "outstanding_action": _outstanding_action(state),
+        "queue_counts": _queue_counts(state),
+        "completed_tasks": completed_tasks,
+        "blocked_tasks": _blocked_task_summaries(state),
+        "pending_tasks": _pending_task_summaries(state),
+        "recent_decisions": _decision_tail(state, 3, include_data=False),
     }
+    if completed_tasks:
+        summary["task_lifecycle_note"] = "completed 仅表示 auto-loop item 已本地提交；任务归档仍需显式 finish-work/archive"
+    return summary
+
+
+def _summary(state: dict[str, Any]) -> dict[str, Any]:
+    """返回 verbose 诊断状态摘要。"""
+    summary = _compact_summary(state)
+    summary.update({
+        "blocked_tasks": _blocked_task_summaries(state, include_detail=True),
+        "pending_tasks": _pending_task_summaries(state, include_status=True),
+        "recent_decisions": _decision_tail(state, DECISION_LOG_LIMIT, include_data=True),
+        "resume_capsule": _resume_capsule(state),
+    })
+    return summary
+
+
+def _format_summary(state: dict[str, Any], args: argparse.Namespace | None = None) -> dict[str, Any]:
+    """根据 --verbose 返回紧凑或详细摘要。"""
+    if args is not None and getattr(args, "verbose", False):
+        return _summary(state)
+    return _compact_summary(state)
 
 
 def _make_item(repo_root: Path, task_ref: str) -> dict[str, Any]:
@@ -741,7 +842,7 @@ def _next_item(repo_root: Path, state: dict[str, Any]) -> tuple[dict[str, Any] |
             if state["status"] == "blocked"
             else "auto-loop 队列已结束；如需归档任务，请用户显式运行 trellis-finish-work。"
         ),
-        "summary": _summary(state),
+        "summary": _compact_summary(state),
     }
 
 
@@ -767,7 +868,7 @@ def cmd_start(args: argparse.Namespace) -> int:
                 "run_id": current.get("run_id"),
                 "path": _rel_path(repo_root, current_path),
                 "suggested_command": f"python3 ./.trellis/scripts/auto_loop.py retry-blocked --run-id {current.get('run_id')}",
-                "summary": _summary(current),
+                "summary": _format_summary(current, args),
             })
     except ValueError:
         pass
@@ -792,13 +893,12 @@ def cmd_start(args: argparse.Namespace) -> int:
         "current_index": 0,
         "route_authorization": route_authorization,
         "queue": queue,
-        "resume_capsule": {},
     }
     path = _run_path(repo_root, run_id)
     _write_state(path, state)
     _write_pointer(repo_root, run_id)
     _link_session_run(repo_root, run_id)
-    return _print({"status": "started", "path": _rel_path(repo_root, path), **_summary(state)})
+    return _print({"status": "started", "path": _rel_path(repo_root, path), **_format_summary(state, args)})
 
 
 def cmd_resume(args: argparse.Namespace) -> int:
@@ -811,7 +911,10 @@ def cmd_resume(args: argparse.Namespace) -> int:
     except ValueError as exc:
         return _print({"status": "error", "reason": "resume-failed", "message": str(exc)})
     _link_session_run(repo_root, str(state.get("run_id")))
-    return _print({"status": "resumed", "path": _rel_path(repo_root, path), **_summary(state)})
+    output = {"status": "resumed", "path": _rel_path(repo_root, path), **_format_summary(state, args)}
+    if getattr(args, "verbose", False):
+        output["resume_capsule"] = _resume_capsule(state)
+    return _print(output)
 
 
 def cmd_next(args: argparse.Namespace) -> int:
@@ -826,13 +929,13 @@ def cmd_next(args: argparse.Namespace) -> int:
     _link_session_run(repo_root, str(state.get("run_id")))
     if state.get("status") != "running":
         output_status = "done" if state.get("status") == "completed" else state.get("status") or "unknown"
-        return _print({"run_id": state.get("run_id"), "status": output_status, "summary": _summary(state)})
+        return _print({"run_id": state.get("run_id"), "status": output_status, "summary": _format_summary(state, args)})
     _, action = _next_item(repo_root, state)
     _write_state(path, state)
     if state.get("status") == "completed":
         _clear_pointer_if_current(repo_root, str(state.get("run_id") or ""))
-    if action.get("status") == "done":
-        action["summary"] = _summary(state)
+    if action.get("status") in {"done", "blocked"}:
+        action["summary"] = _format_summary(state, args)
     return _print({"run_id": state.get("run_id"), **action})
 
 
@@ -909,7 +1012,7 @@ def cmd_retry_blocked(args: argparse.Namespace) -> int:
             "reason": "no-retryable-blocked-items",
             "message": "没有可自动重试的 blocked 队列项；如确认要重试，可加 --all 或指定 --task。",
             "skipped": skipped,
-            "summary": _summary(state),
+            "summary": _format_summary(state, args),
         })
 
     state["status"] = "running"
@@ -922,7 +1025,7 @@ def cmd_retry_blocked(args: argparse.Namespace) -> int:
         "path": _rel_path(repo_root, path),
         "reset": reset,
         "skipped": skipped,
-        "summary": _summary(state),
+        "summary": _format_summary(state, args),
     })
 
 
@@ -1053,7 +1156,7 @@ def cmd_record(args: argparse.Namespace) -> int:
             "status": "error",
             "reason": "auto-run-not-running",
             "run_status": state.get("status"),
-            "summary": _summary(state),
+            "summary": _format_summary(state, args),
         })
 
     task = _normalize_task_ref(repo_root, args.task) if args.task else None
@@ -1099,7 +1202,18 @@ def cmd_record(args: argparse.Namespace) -> int:
             )
 
     _write_state(path, state)
-    return _print({"status": "recorded", "run_id": state.get("run_id"), "task": item.get("task"), "item": item, "summary": _summary(state)})
+    output = {
+        "status": "recorded",
+        "run_id": state.get("run_id"),
+        "task": item.get("task"),
+        "item_status": item.get("status"),
+        "current_step": item.get("current_step"),
+        "commit": item.get("commit"),
+        "summary": _format_summary(state, args),
+    }
+    if getattr(args, "verbose", False):
+        output["item"] = item
+    return _print(output)
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -1117,7 +1231,7 @@ def cmd_status(args: argparse.Namespace) -> int:
             "message": str(exc),
             "runs": _recent_run_summaries(repo_root),
         })
-    return _print({"status": "ok", "path": _rel_path(repo_root, path), **_summary(state)})
+    return _print({"status": "ok", "path": _rel_path(repo_root, path), **_format_summary(state, args)})
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
@@ -1148,11 +1262,13 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--route-implement", choices=sorted(VALID_IMPLEMENT_ROUTES))
     start.add_argument("--route-check", choices=sorted(VALID_CHECK_ROUTES))
     start.add_argument("--force", action="store_true")
+    start.add_argument("--verbose", action="store_true")
     start.set_defaults(func=cmd_start)
 
     for name, func in (("resume", cmd_resume), ("next", cmd_next), ("status", cmd_status)):
         sub = subparsers.add_parser(name)
         sub.add_argument("--run-id")
+        sub.add_argument("--verbose", action="store_true")
         sub.set_defaults(func=func)
 
     record = subparsers.add_parser("record")
@@ -1169,6 +1285,7 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--snapshot-commit")
     record.add_argument("--route-mode")
     record.add_argument("--route-source")
+    record.add_argument("--verbose", action="store_true")
     record.set_defaults(func=cmd_record)
 
     retry = subparsers.add_parser("retry-blocked")
@@ -1177,6 +1294,7 @@ def build_parser() -> argparse.ArgumentParser:
     retry.add_argument("--route-implement", choices=sorted(VALID_IMPLEMENT_ROUTES))
     retry.add_argument("--route-check", choices=sorted(VALID_CHECK_ROUTES))
     retry.add_argument("--all", action="store_true")
+    retry.add_argument("--verbose", action="store_true")
     retry.set_defaults(func=cmd_retry_blocked)
 
     stop = subparsers.add_parser("stop")
