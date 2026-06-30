@@ -4,6 +4,16 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.0-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.4.0-beta.1...v0.4.0-beta.2) (2026-06-30)
+
+
+### 🐛 修复 Bug Fixes
+
+* **auto-loop:** 支持 blocked run 原地重试 ([b1137bb](https://github.com/SilentFlower/flower-trellis/commit/b1137bbdbab7637076b49aa67ff9ff29f5202a43))
+* **auto-loop:** 简化路由选择提示 ([817dfa0](https://github.com/SilentFlower/flower-trellis/commit/817dfa029cbcede0d30351c9828c16fb4bc17b97))
+* **auto-loop:** 精简默认状态输出 ([3849482](https://github.com/SilentFlower/flower-trellis/commit/384948273415b6156270b442430b6902290ae4f2))
+* **spec-router:** 减少项目知识弱匹配噪音 ([1b9a6ea](https://github.com/SilentFlower/flower-trellis/commit/1b9a6ea5f4be1285d2f3e5e4091b0df66f16e335))
+
 ## [0.4.0-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.4.0-beta.0...v0.4.0-beta.1) (2026-06-29)
 
 

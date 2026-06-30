@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.4.0-beta.1",
+  "version": "0.4.0-beta.2",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
