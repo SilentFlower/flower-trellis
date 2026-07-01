@@ -1100,3 +1100,39 @@ Implemented session-scoped trellis-route state recovery with route_state.py, syn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 32: 完成 push snapshot helper
+
+**Date**: 2026-07-01
+**Task**: 完成 push snapshot helper
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+实现 push_snapshot.py helper，更新 trellis-push 读写快照流程，瘦身 workflow recovery 文案，同步 0.6 强化包、dogfood 副本与任务快照。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `da84a3c` | (see git log) |
+| `2e4f5e5` | (see git log) |
+| `4779a38` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
