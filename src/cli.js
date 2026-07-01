@@ -66,8 +66,7 @@ function printHelp() {
 用法:
   flower-trellis [init] [trellis flags] [flower flags]   安装 + 叠加强化包(默认命令)
   flower-trellis update [trellis flags] [flower flags]   升级 + 按新版本重新叠加
-  flower-trellis skill list [flower flags]               列出可安装的增强技能
-  flower-trellis skill install <name...> [flower flags]  安装指定增强技能
+  flower-trellis skill [flower flags]                    交互管理通用技能
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
   flower-trellis -v                                      打印版本
@@ -82,6 +81,7 @@ flower 自有 flag:
 
 命令别名:flower-trellis 可简写为 ftl 或 ft(三者完全等价)。
 init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联网、带超时,失败静默)。
+skill 可启用或停用通用技能，并只读展示工作流强化包。
 
 平台选择:未指定平台时,交互模式会弹出多选菜单(默认勾 Claude Code + Codex);
 也可直接传 --claude / --codex / --cursor / --devin / --zcode / --trae 等指定,

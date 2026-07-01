@@ -1,7 +1,25 @@
 {
-  "syncedAt": "2026-07-01T02:19:44.746Z",
-  "syncedFrom": "vendor/skill-garden/.trellis",
-  "sourceCommit": "2023c3fe0afdaf2473c4b04eb47707f42438033e",
+  "syncedAt": "2026-07-01T04:05:56.434Z",
+  "syncedFrom": "vendor/skill-garden",
+  "sourceCommit": "7a9b882db76500b49b38cf423be682fb06effe1a",
+  "common": {
+    "codexSkills": [
+      "craft-rpa",
+      "craft-slides",
+      "humanize-writing",
+      "open-idea",
+      "sub2api-account-json-fix",
+      "torrent-analyze"
+    ],
+    "claudeSkills": [
+      "craft-rpa",
+      "craft-slides",
+      "humanize-writing",
+      "open-idea",
+      "sub2api-account-json-fix",
+      "torrent-analyze"
+    ]
+  },
   "variants": {
     "old": {
       "claudeSkills": [],
@@ -77,7 +95,6 @@
     },
     "0.6": {
       "claudeSkills": [
-        "humanize-writing",
         "trellis-auto-loop",
         "trellis-check-all",
         "trellis-create-command",
@@ -93,7 +110,6 @@
         "trellis-visualize"
       ],
       "agentsSkills": [
-        "humanize-writing",
         "trellis-auto-loop",
         "trellis-check-all",
         "trellis-create-command",

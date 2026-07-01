@@ -1,0 +1,2102 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RECORDER · Browser Telemetry</title>
+<style>
+/* ============================================================
+   RESET
+============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ============================================================
+   DESIGN TOKENS — Theme-aware (Dark default + Light variant)
+
+   Industrial telemetry palette. Sharp borders, warm surfaces,
+   amber + cyan dual-tone signaling. Both themes preserve the
+   same instrument-like character.
+
+   颜色用 RGB 三元组形式（--amber-rgb 等）存储，这样在 rgba()
+   表达式里也能通过 var() 引用，主题切换时颜色透明度变体也自动跟进。
+============================================================ */
+:root {
+    /* === DARK MODE (default) === */
+    /* Surfaces — layered warm darks */
+    --bg-0: #0a0a0a;
+    --bg-1: #0f0f0f;
+    --bg-2: #141414;
+    --bg-3: #1a1a1a;
+    --bg-hover: #1f1f1f;
+    --bg-active: #252525;
+
+    /* Lines — three weights of subtle borders */
+    --line: #1c1c1c;
+    --line-strong: #2a2a2a;
+    --line-bright: #3a3a3a;
+
+    /* Text — warm off-white descending */
+    --fg-0: #e8e6e1;
+    --fg-1: #b8b6b1;
+    --fg-2: #7a7872;
+    --fg-3: #4a4844;
+
+    /* Accent colors as RGB triplets (用于 rgba(var(--xxx-rgb), opacity)) */
+    --amber-rgb: 255, 168, 56;
+    --cyan-rgb: 77, 208, 225;
+    --green-rgb: 92, 209, 129;
+    --red-rgb: 241, 90, 90;
+    --yellow-rgb: 255, 213, 79;
+    --purple-rgb: 186, 137, 224;
+
+    /* Surface overlay tint —— 在 dark mode 是白色微叠加，light mode 是黑色微叠加
+       用于 hover 高亮、点阵纹理、细分割线等 */
+    --overlay-rgb: 255, 255, 255;
+
+    /* btn-primary 文字色：dark 模式下 amber 按钮配深字最清晰 */
+    --btn-primary-fg: #0a0a0a;
+
+    /* Dim 变体（用于次级文本/border） */
+    --amber-dim: #c87f2c;
+    --cyan-dim: #3a9eab;
+    --green-dim: #46a566;
+    --red-dim: #b94545;
+
+    /* 顶部 carrier signal 透明度 */
+    --carrier-opacity: 0.35;
+    --toast-shadow: rgba(0, 0, 0, 0.5);
+
+    /* === Derived named colors (在 component CSS 里直接用) === */
+    --amber: rgb(var(--amber-rgb));
+    --cyan: rgb(var(--cyan-rgb));
+    --green: rgb(var(--green-rgb));
+    --red: rgb(var(--red-rgb));
+    --yellow: rgb(var(--yellow-rgb));
+    --purple: rgb(var(--purple-rgb));
+    --amber-glow: rgba(var(--amber-rgb), 0.18);
+
+    /* Typography */
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Menlo", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+
+    /* Spacing rhythm */
+    --space-0: 2px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+}
+
+/* === LIGHT MODE OVERRIDE ===
+   暖白纸张感的明亮模式。accent 用更深的色相保证对比度，
+   保持和暗色模式同样的工业仪表盘气质。 */
+:root[data-theme="light"] {
+    --bg-0: #fcfbf7;       /* 暖白主背景 */
+    --bg-1: #ffffff;        /* 纯白面板 */
+    --bg-2: #f5f3ee;        /* 浅米色次级面板 */
+    --bg-3: #ebe8e0;        /* 三级面板（chip 背景等） */
+    --bg-hover: #f0ede5;
+    --bg-active: #e5e2d8;
+
+    --line: #ebe8e0;
+    --line-strong: #d4d0c6;
+    --line-bright: #a8a39a;
+
+    --fg-0: #1a1612;        /* 深棕黑，warm 配色 */
+    --fg-1: #4a4540;
+    --fg-2: #7a756e;
+    --fg-3: #b0aba0;
+
+    /* Light mode 用更深的 accent，保证 4.5:1+ 对比度 */
+    --amber-rgb: 196, 110, 14;    /* #c46e0e */
+    --cyan-rgb: 14, 116, 144;      /* #0e7490 */
+    --green-rgb: 21, 128, 61;      /* #15803d */
+    --red-rgb: 185, 28, 28;        /* #b91c1c */
+    --yellow-rgb: 161, 98, 7;      /* #a16207 */
+    --purple-rgb: 126, 34, 206;    /* #7e22ce */
+
+    /* 在白底上用深色叠加 */
+    --overlay-rgb: 0, 0, 0;
+
+    /* amber 按钮在 light mode 下是深 amber，文字要白 */
+    --btn-primary-fg: #ffffff;
+
+    --amber-dim: #a05a0a;
+    --cyan-dim: #0a5e75;
+    --green-dim: #126638;
+    --red-dim: #991717;
+
+    --carrier-opacity: 0.55;
+    --toast-shadow: rgba(26, 22, 18, 0.18);
+}
+
+/* ============================================================
+   BASE
+============================================================ */
+html, body { height: 100%; overflow: hidden; }
+body {
+    background: var(--bg-0);
+    color: var(--fg-0);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+    font-variant-numeric: tabular-nums;
+
+    display: grid;
+    grid-template-rows: auto auto auto auto 1fr auto;
+    height: 100vh;
+}
+
+/* Carrier signal — 1px amber bar at the very top, faint pulse */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: var(--amber);
+    opacity: var(--carrier-opacity);
+    z-index: 1000;
+    animation: carrierWave 4s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes carrierWave {
+    0%, 100% { opacity: calc(var(--carrier-opacity) * 0.6); }
+    50% { opacity: calc(var(--carrier-opacity) * 1.4); }
+}
+
+/* Scrollbars — minimal, instrument-style */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); }
+::-webkit-scrollbar-thumb:hover { background: var(--line-bright); }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* Selection */
+::selection { background: var(--amber); color: var(--bg-0); }
+
+/* Common type classes */
+.mono { font-family: var(--font-mono); }
+.label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-2);
+}
+
+/* ============================================================
+   STAGGERED LOAD REVEAL — feels like a system booting up
+============================================================ */
+.topbar, .controlbar, .tabsbar, .filterbar, .main, .statusbar {
+    animation: bandIn 320ms cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+.controlbar { animation-delay: 50ms; }
+.tabsbar    { animation-delay: 100ms; }
+.filterbar  { animation-delay: 150ms; }
+.main       { animation-delay: 200ms; }
+.statusbar  { animation-delay: 280ms; }
+
+@keyframes bandIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   THEME TOGGLE BUTTON — sun/moon switch in top-right
+============================================================ */
+.theme-toggle {
+    width: 30px; height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-2);
+    border: 1px solid var(--line-strong);
+    color: var(--fg-1);
+    cursor: pointer;
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+.theme-toggle:hover {
+    color: var(--amber);
+    border-color: var(--line-bright);
+    background: var(--bg-hover);
+}
+.theme-toggle:active { transform: translateY(1px); }
+.theme-toggle .theme-icon {
+    width: 14px; height: 14px;
+    position: absolute;
+    transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                opacity 200ms ease-out;
+}
+/* Dark mode: show sun (click to switch to light) */
+:root[data-theme="dark"] .theme-toggle .icon-moon {
+    transform: rotate(-90deg) scale(0);
+    opacity: 0;
+}
+:root[data-theme="dark"] .theme-toggle .icon-sun {
+    transform: rotate(0) scale(1);
+    opacity: 1;
+}
+/* Light mode: show moon (click to switch to dark) */
+:root[data-theme="light"] .theme-toggle .icon-sun {
+    transform: rotate(90deg) scale(0);
+    opacity: 0;
+}
+:root[data-theme="light"] .theme-toggle .icon-moon {
+    transform: rotate(0) scale(1);
+    opacity: 1;
+}
+
+/* ============================================================
+   TOP BAR — brand · status pill · stats strip
+============================================================ */
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    padding: 0 var(--space-4);
+    height: 44px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-1);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.brand-rec {
+    position: relative;
+    width: 9px;
+    height: 9px;
+}
+.brand-rec::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red), 0 0 12px var(--red-dim);
+    animation: recPulse 1.6s ease-in-out infinite;
+}
+@keyframes recPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(0.78); }
+}
+.brand-text {
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--fg-0);
+}
+.brand-meta {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: var(--fg-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-left: 1px solid var(--line-strong);
+    padding-left: var(--space-2);
+    margin-left: var(--space-1);
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 10px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-2);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-1);
+    font-family: var(--font-mono);
+    transition: border-color 200ms;
+}
+.status-pill .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: livePulse 1.4s ease-in-out infinite;
+}
+.status-pill.paused {
+    border-color: rgba(var(--yellow-rgb), 0.4);
+}
+.status-pill.paused .status-dot {
+    background: var(--yellow);
+    box-shadow: 0 0 6px var(--yellow);
+    animation: none;
+}
+.status-pill.error {
+    border-color: rgba(var(--red-rgb), 0.5);
+}
+.status-pill.error .status-dot {
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red);
+    animation: errBlink 0.7s steps(2, end) infinite;
+}
+@keyframes livePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+@keyframes errBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.15; }
+}
+
+.stats-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    margin-left: auto;
+    font-family: var(--font-mono);
+}
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.1;
+    min-width: 36px;
+}
+.stat .stat-value {
+    color: var(--fg-0);
+    font-weight: 600;
+    font-size: 13px;
+}
+.stat .stat-label {
+    font-size: 9px;
+    color: var(--fg-3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 1px;
+}
+.stat.s-int .stat-label { color: var(--cyan-dim); }
+.stat.s-net .stat-label { color: var(--green-dim); }
+.stat.s-nav .stat-label { color: var(--amber-dim); }
+.stat.s-err .stat-label { color: var(--red-dim); }
+
+/* ============================================================
+   CONTROL BAR — back · forward · reload · URL · open
+============================================================ */
+.controlbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-1);
+}
+
+.nav-btn {
+    width: 30px; height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-2);
+    border: 1px solid var(--line-strong);
+    color: var(--fg-1);
+    cursor: pointer;
+    transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.nav-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--fg-0);
+    border-color: var(--line-bright);
+}
+.nav-btn:active:not(:disabled) {
+    background: var(--bg-active);
+    transform: translateY(1px);
+}
+.nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.nav-btn svg { width: 14px; height: 14px; }
+
+.url-input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background: var(--bg-2);
+    border: 1px solid var(--line-strong);
+    padding: 0 var(--space-3);
+    height: 30px;
+    transition: border-color 150ms, box-shadow 150ms;
+}
+.url-input-wrap:focus-within {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 1px var(--amber-glow);
+}
+.url-prefix {
+    color: var(--fg-3);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    margin-right: var(--space-2);
+    letter-spacing: 0.05em;
+}
+.url-input-wrap:focus-within .url-prefix {
+    color: var(--amber);
+}
+#url-input {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    color: var(--fg-0);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.01em;
+}
+#url-input::placeholder { color: var(--fg-3); }
+
+.btn {
+    height: 30px;
+    padding: 0 var(--space-3);
+    background: var(--bg-2);
+    border: 1px solid var(--line-strong);
+    color: var(--fg-0);
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 120ms ease-out;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    white-space: nowrap;
+}
+.btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--line-bright);
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: var(--btn-primary-fg);
+    font-weight: 600;
+}
+.btn-primary:hover {
+    background: var(--amber-dim);
+    border-color: var(--amber-dim);
+}
+
+/* ============================================================
+   TABS BAR — open browser pages
+============================================================ */
+.tabsbar {
+    display: flex;
+    align-items: stretch;
+    height: 34px;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+}
+.tabsbar::-webkit-scrollbar { height: 3px; }
+
+.tab {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    min-width: 160px;
+    max-width: 260px;
+    border-right: 1px solid var(--line);
+    background: var(--bg-1);
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: background 120ms, color 120ms;
+    position: relative;
+    font-size: 11px;
+}
+.tab:hover {
+    background: var(--bg-2);
+    color: var(--fg-1);
+}
+.tab.active {
+    background: var(--bg-0);
+    color: var(--fg-0);
+}
+.tab.active::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--amber);
+    box-shadow: 0 0 6px var(--amber-glow);
+}
+
+.tab-icon {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--cyan-dim);
+    flex-shrink: 0;
+}
+.tab.active .tab-icon {
+    background: var(--amber);
+    box-shadow: 0 0 6px var(--amber);
+}
+
+.tab-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11.5px;
+}
+.tab-host {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-3);
+    flex-shrink: 0;
+}
+.tab-close {
+    width: 16px; height: 16px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: var(--fg-2);
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: color 120ms;
+}
+.tab:hover .tab-close { display: inline-flex; }
+.tab-close:hover { color: var(--red); }
+.tab-close svg { width: 11px; height: 11px; }
+
+.tabs-empty {
+    display: flex;
+    align-items: center;
+    padding: 0 var(--space-4);
+    color: var(--fg-3);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+}
+.tabs-empty::before {
+    content: '○';
+    margin-right: var(--space-2);
+    color: var(--line-bright);
+}
+
+/* ============================================================
+   FILTER BAR — kind chips · search · actions
+============================================================ */
+.filterbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-4);
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--line);
+    height: 38px;
+}
+
+.filter-chip {
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--fg-2);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 120ms;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-sans);
+}
+.filter-chip:hover {
+    color: var(--fg-0);
+    background: var(--bg-2);
+}
+.filter-chip.active {
+    color: var(--amber);
+    border-color: var(--line-strong);
+    background: var(--bg-2);
+}
+.filter-chip .count {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-3);
+    padding: 0 5px;
+    background: var(--bg-3);
+    border: 1px solid var(--line);
+    min-width: 18px;
+    text-align: center;
+}
+.filter-chip.active .count {
+    color: var(--amber);
+    border-color: var(--line-strong);
+}
+
+.search-input {
+    flex: 1;
+    max-width: 320px;
+    margin-left: var(--space-4);
+    padding: 4px 10px;
+    height: 28px;
+    background: var(--bg-2);
+    border: 1px solid var(--line-strong);
+    color: var(--fg-0);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    outline: 0;
+    transition: border-color 150ms;
+}
+.search-input:focus {
+    border-color: var(--cyan);
+}
+.search-input::placeholder { color: var(--fg-3); }
+
+.filter-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+}
+.icon-btn {
+    width: 28px; height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: all 120ms;
+}
+.icon-btn:hover {
+    color: var(--fg-0);
+    background: var(--bg-2);
+    border-color: var(--line-strong);
+}
+.icon-btn.active {
+    color: var(--amber);
+    background: var(--bg-2);
+    border-color: var(--line-strong);
+}
+.icon-btn.danger:hover { color: var(--red); border-color: rgba(var(--red-rgb), 0.3); }
+.icon-btn svg { width: 13px; height: 13px; }
+
+/* ============================================================
+   MAIN — event list (split with detail panel)
+============================================================ */
+.main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: hidden;
+    background: var(--bg-0);
+}
+.main.detail-open {
+    grid-template-columns: minmax(0, 1fr) minmax(420px, 45%);
+}
+
+/* === EVENT LIST === */
+.event-list {
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-right: 1px solid var(--line);
+    position: relative;
+
+    /* Subtle dot-grid texture — graph paper feel for telemetry
+       overlay-rgb 在 dark 模式是白色(微显)，light 模式是黑色(微显) */
+    background-image: radial-gradient(circle, rgba(var(--overlay-rgb), 0.04) 1px, transparent 1px);
+    background-size: 12px 12px;
+    background-position: 0 0;
+}
+
+.empty-state {
+    padding: 80px var(--space-4);
+    text-align: center;
+}
+.empty-state .empty-title {
+    font-size: 10.5px;
+    letter-spacing: 0.15em;
+    color: var(--fg-2);
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+}
+.empty-state .empty-subtitle {
+    margin-top: 14px;
+    font-family: var(--font-mono);
+    color: var(--fg-3);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+}
+.empty-state .cursor-blink {
+    display: inline-block;
+    width: 8px;
+    height: 12px;
+    background: var(--amber);
+    margin-left: 6px;
+    vertical-align: text-bottom;
+    animation: cursorBlink 1.05s steps(2) infinite;
+}
+@keyframes cursorBlink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+/* Event rows — dense, instrument-data look */
+.event-row {
+    display: grid;
+    grid-template-columns: 52px 90px 110px minmax(0, 1fr);
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: 6px var(--space-4);
+    border-bottom: 1px solid rgba(var(--overlay-rgb), 0.04);
+    cursor: pointer;
+    font-size: 11.5px;
+    transition: background 80ms;
+    position: relative;
+}
+.event-row::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px;
+    background: transparent;
+    transition: background 150ms;
+}
+.event-row:hover { background: rgba(var(--overlay-rgb), 0.03); }
+.event-row.selected {
+    background: var(--bg-2);
+}
+.event-row.selected::before { background: var(--amber); }
+
+.event-row.new {
+    animation: rowReveal 500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes rowReveal {
+    0% {
+        background: var(--amber-glow);
+        transform: translateX(-4px);
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    100% {
+        background: transparent;
+    }
+}
+
+.event-row .idx {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-3);
+    text-align: right;
+    letter-spacing: 0.02em;
+}
+.event-row .time {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--fg-1);
+    white-space: nowrap;
+}
+.event-row .time .ms { color: var(--fg-3); }
+
+/* === KIND BADGES === */
+.kind-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 7px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 1px solid;
+    background: transparent;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    line-height: 1.3;
+}
+.kind-badge .dot {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+}
+.kind-badge.interaction {
+    color: var(--cyan);
+    border-color: rgba(var(--cyan-rgb), 0.35);
+    background: rgba(var(--cyan-rgb), 0.06);
+}
+.kind-badge.interaction .dot { background: var(--cyan); }
+.kind-badge.network {
+    color: var(--green);
+    border-color: rgba(var(--green-rgb), 0.35);
+    background: rgba(var(--green-rgb), 0.06);
+}
+.kind-badge.network .dot { background: var(--green); }
+.kind-badge.navigation {
+    color: var(--amber);
+    border-color: rgba(var(--amber-rgb), 0.35);
+    background: rgba(var(--amber-rgb), 0.06);
+}
+.kind-badge.navigation .dot { background: var(--amber); }
+.kind-badge.error {
+    color: var(--red);
+    border-color: rgba(var(--red-rgb), 0.45);
+    background: rgba(var(--red-rgb), 0.07);
+}
+.kind-badge.error .dot { background: var(--red); }
+
+/* === SUMMARY === */
+.summary {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--fg-1);
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+.summary .tag {
+    font-family: var(--font-mono);
+    color: var(--purple);
+    font-weight: 600;
+    margin-right: 2px;
+}
+.summary .text {
+    color: var(--fg-0);
+}
+.summary .sel {
+    font-family: var(--font-mono);
+    color: var(--fg-2);
+    font-size: 10.5px;
+}
+.summary .url {
+    font-family: var(--font-mono);
+    color: var(--fg-2);
+    font-size: 10.5px;
+}
+.summary .method {
+    font-family: var(--font-mono);
+    color: var(--purple);
+    font-weight: 700;
+    margin-right: 6px;
+}
+.summary .duration {
+    font-family: var(--font-mono);
+    color: var(--fg-3);
+    margin-left: 6px;
+    font-size: 10px;
+}
+.summary .arrow {
+    color: var(--amber);
+    margin-right: 6px;
+    font-family: var(--font-mono);
+}
+.summary .err {
+    color: var(--red);
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+.summary .key-chip {
+    display: inline-block;
+    padding: 0 5px;
+    margin-left: 4px;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--cyan);
+}
+
+.status-2xx { color: var(--green); font-family: var(--font-mono); font-weight: 700; }
+.status-3xx { color: var(--purple); font-family: var(--font-mono); font-weight: 700; }
+.status-4xx { color: var(--amber); font-family: var(--font-mono); font-weight: 700; }
+.status-5xx { color: var(--red); font-family: var(--font-mono); font-weight: 700; }
+.status-0   { color: var(--fg-3); font-family: var(--font-mono); }
+
+/* ============================================================
+   DETAIL PANEL
+============================================================ */
+.detail-panel {
+    overflow-y: auto;
+    background: var(--bg-1);
+    display: flex;
+    flex-direction: column;
+}
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-1);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    min-height: 44px;
+}
+.detail-title {
+    font-size: 11px;
+    color: var(--fg-0);
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.detail-title .detail-idx {
+    color: var(--fg-2);
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+.detail-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-3);
+    letter-spacing: 0.02em;
+}
+
+.close-btn {
+    width: 24px; height: 24px;
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: all 120ms;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.close-btn:hover { color: var(--red); border-color: rgba(var(--red-rgb), 0.4); }
+.close-btn svg { width: 11px; height: 11px; }
+
+.detail-section {
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--line);
+}
+.detail-section:last-child { border-bottom: 0; }
+
+.section-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-2);
+    margin-bottom: var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.section-label::before {
+    content: '';
+    width: 4px; height: 4px;
+    background: var(--amber);
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.section-label .accent {
+    color: var(--amber);
+    margin-left: auto;
+    font-size: 9px;
+    letter-spacing: 0.05em;
+}
+
+/* === SELECTOR LIST (RPA focus) === */
+.selector-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+.selector-row {
+    display: grid;
+    grid-template-columns: 78px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 7px 10px;
+    background: var(--bg-2);
+    border-left: 2px solid var(--line-strong);
+    transition: all 150ms;
+}
+.selector-row:hover {
+    border-left-color: var(--amber);
+    background: var(--bg-3);
+}
+.sel-key {
+    font-size: 9.5px;
+    color: var(--cyan);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.sel-val {
+    color: var(--fg-0);
+    word-break: break-all;
+    white-space: pre-wrap;
+    line-height: 1.4;
+}
+.copy-btn {
+    width: 24px; height: 24px;
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    color: var(--fg-2);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 150ms;
+    flex-shrink: 0;
+}
+.copy-btn:hover {
+    color: var(--amber);
+    border-color: var(--amber);
+}
+.copy-btn.copied {
+    color: var(--green);
+    border-color: var(--green);
+}
+.copy-btn svg { width: 11px; height: 11px; }
+
+/* === STATE BADGES === */
+.state-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.state-badge {
+    padding: 3px 9px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-2);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--fg-1);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.state-badge.on {
+    color: var(--green);
+    border-color: rgba(var(--green-rgb), 0.3);
+    background: rgba(var(--green-rgb), 0.06);
+}
+.state-badge.off { color: var(--fg-3); }
+.state-badge .v {
+    color: inherit;
+    opacity: 0.85;
+    border-left: 1px solid currentColor;
+    padding-left: 5px;
+    margin-left: 2px;
+    opacity: 0.6;
+}
+
+/* === META GRID === */
+.meta-grid {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px var(--space-4);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    align-items: baseline;
+}
+.meta-grid .k {
+    color: var(--fg-2);
+    text-transform: uppercase;
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+}
+.meta-grid .v {
+    color: var(--fg-0);
+    word-break: break-all;
+    line-height: 1.4;
+}
+
+/* === JSON BLOCK === */
+.json-block {
+    background: var(--bg-0);
+    border: 1px solid var(--line);
+    padding: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1.55;
+    overflow-x: auto;
+    color: var(--fg-1);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 480px;
+    overflow-y: auto;
+}
+.json-block .jk { color: var(--cyan); }
+.json-block .js { color: var(--green); }
+.json-block .jn { color: var(--amber); }
+.json-block .jb { color: var(--purple); }
+.json-block .jl { color: var(--fg-3); font-style: italic; }
+
+/* ============================================================
+   STATUS BAR
+============================================================ */
+.statusbar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: var(--space-4);
+    height: 24px;
+    padding: 0 var(--space-4);
+    background: var(--bg-1);
+    border-top: 1px solid var(--line);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-2);
+    letter-spacing: 0.02em;
+}
+.statusbar .left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+.statusbar .center { color: var(--fg-3); text-align: center; }
+.statusbar .right { text-align: right; color: var(--fg-3); }
+
+.statusbar .live-text { color: var(--green); }
+.statusbar .live-text::before {
+    content: '●';
+    margin-right: 5px;
+    animation: livePulse 1.4s ease-in-out infinite;
+}
+.statusbar .paused-text { color: var(--yellow); }
+.statusbar .paused-text::before { content: '◼'; margin-right: 5px; }
+.statusbar .error-text { color: var(--red); }
+.statusbar .error-text::before { content: '✕'; margin-right: 5px; }
+
+/* ============================================================
+   TOAST
+============================================================ */
+.toast {
+    position: fixed;
+    bottom: var(--space-5);
+    left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    padding: 8px 16px;
+    background: var(--bg-3);
+    border: 1px solid var(--line-bright);
+    color: var(--fg-0);
+    font-size: 11px;
+    font-family: var(--font-mono);
+    pointer-events: none;
+    opacity: 0;
+    transition: all 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 1000;
+    letter-spacing: 0.02em;
+    box-shadow: 0 4px 24px var(--toast-shadow), 0 0 0 1px rgba(var(--amber-rgb), 0.08);
+}
+.toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+.toast.success { border-color: rgba(var(--green-rgb), 0.4); }
+.toast.error { border-color: rgba(var(--red-rgb), 0.4); }
+</style>
+</head>
+<body>
+
+<!-- ====================================================================
+     TOP BAR
+==================================================================== -->
+<header class="topbar">
+    <div class="brand">
+        <span class="brand-rec"></span>
+        <span class="brand-text">RECORDER</span>
+        <span class="brand-meta">v1.0 · TELEMETRY</span>
+    </div>
+
+    <div class="status-pill" id="status-pill">
+        <span class="status-dot"></span>
+        <span id="status-text">LIVE</span>
+    </div>
+
+    <div class="stats-strip">
+        <div class="stat"><div class="stat-value" id="stat-total">0</div><div class="stat-label">total</div></div>
+        <div class="stat s-int"><div class="stat-value" id="stat-int">0</div><div class="stat-label">int</div></div>
+        <div class="stat s-net"><div class="stat-value" id="stat-net">0</div><div class="stat-label">net</div></div>
+        <div class="stat s-nav"><div class="stat-value" id="stat-nav">0</div><div class="stat-label">nav</div></div>
+        <div class="stat s-err"><div class="stat-value" id="stat-err">0</div><div class="stat-label">err</div></div>
+    </div>
+
+    <button class="theme-toggle" id="btn-theme" title="切换明暗主题 (T)" aria-label="切换主题">
+        <svg class="theme-icon icon-sun" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="3"/>
+            <line x1="8" y1="1.5" x2="8" y2="3"/>
+            <line x1="8" y1="13" x2="8" y2="14.5"/>
+            <line x1="1.5" y1="8" x2="3" y2="8"/>
+            <line x1="13" y1="8" x2="14.5" y2="8"/>
+            <line x1="3.4" y1="3.4" x2="4.5" y2="4.5"/>
+            <line x1="11.5" y1="11.5" x2="12.6" y2="12.6"/>
+            <line x1="3.4" y1="12.6" x2="4.5" y2="11.5"/>
+            <line x1="11.5" y1="4.5" x2="12.6" y2="3.4"/>
+        </svg>
+        <svg class="theme-icon icon-moon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13.5 9.5A5.5 5.5 0 1 1 6.5 2.5a4.5 4.5 0 0 0 7 7z"/>
+        </svg>
+    </button>
+</header>
+
+<!-- ====================================================================
+     CONTROL BAR
+==================================================================== -->
+<div class="controlbar">
+    <button class="nav-btn" id="btn-back" title="后退">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M10 4L6 8l4 4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </button>
+    <button class="nav-btn" id="btn-forward" title="前进">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M6 4l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </button>
+    <button class="nav-btn" id="btn-reload" title="刷新">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 8a5 5 0 0 1 8.5-3.5L13 6M3 8a5 5 0 0 0 8.5 3.5L13 10M13 3v3h-3M3 13v-3h3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </button>
+
+    <div class="url-input-wrap">
+        <span class="url-prefix">→</span>
+        <input type="text" id="url-input" placeholder="输入 URL 后回车  /  或拖放链接到此处...">
+    </div>
+
+    <button class="btn btn-primary" id="btn-open">打开</button>
+    <button class="btn" id="btn-newtab">
+        <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3v8M3 7h8" stroke-linecap="round"/></svg>
+        新标签
+    </button>
+</div>
+
+<!-- ====================================================================
+     TABS BAR
+==================================================================== -->
+<div class="tabsbar" id="tabsbar">
+    <div class="tabs-empty">没有打开的标签页</div>
+</div>
+
+<!-- ====================================================================
+     FILTER BAR
+==================================================================== -->
+<div class="filterbar">
+    <button class="filter-chip active" data-filter="all">全部 <span class="count" id="cnt-all">0</span></button>
+    <button class="filter-chip" data-filter="interaction">交互 <span class="count" id="cnt-int">0</span></button>
+    <button class="filter-chip" data-filter="network">网络 <span class="count" id="cnt-net">0</span></button>
+    <button class="filter-chip" data-filter="navigation">导航 <span class="count" id="cnt-nav">0</span></button>
+    <button class="filter-chip" data-filter="error">错误 <span class="count" id="cnt-err">0</span></button>
+
+    <input type="text" class="search-input" id="search-input" placeholder="搜索 URL / 文字 / 选择器  ⌘ + F">
+
+    <div class="filter-actions">
+        <button class="icon-btn" id="btn-pause" title="暂停 / 恢复 (Space)">
+            <svg viewBox="0 0 16 16" fill="currentColor"><rect x="4" y="4" width="2.5" height="8"/><rect x="9.5" y="4" width="2.5" height="8"/></svg>
+        </button>
+        <button class="icon-btn active" id="btn-autoscroll" title="自动滚动到底部">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v9M4 8l4 4 4-4M3 14h10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn" id="btn-export" title="导出 JSONL">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 13h10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn danger" id="btn-clear" title="清空显示">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M4.5 5l.5 8h6l.5-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+    </div>
+</div>
+
+<!-- ====================================================================
+     MAIN
+==================================================================== -->
+<div class="main" id="main">
+    <div class="event-list" id="event-list">
+        <div class="empty-state">
+            <div class="empty-title">AWAITING TELEMETRY<span class="cursor-blink"></span></div>
+            <div class="empty-subtitle">在浏览器里随便点点，或在上方地址栏打开网址 — 事件流会实时滚动到这里</div>
+        </div>
+    </div>
+
+    <div class="detail-panel" id="detail-panel" style="display:none">
+        <div class="detail-header">
+            <div class="detail-title" id="detail-title"></div>
+            <div class="detail-time" id="detail-time"></div>
+            <button class="close-btn" id="btn-close-detail" title="关闭详情 (Esc)">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div id="detail-content"></div>
+    </div>
+</div>
+
+<!-- ====================================================================
+     STATUS BAR
+==================================================================== -->
+<footer class="statusbar">
+    <div class="left">
+        <span id="conn-status" class="live-text">实时录制</span>
+        <span id="last-update"></span>
+    </div>
+    <div class="center" id="filter-info">显示 0 / 0</div>
+    <div class="right" id="endpoint-info">localhost:7777 · session.jsonl</div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   THEME — light / dark toggle，持久化到 localStorage
+   初次进入：优先读取 localStorage；没有则跟随系统 prefers-color-scheme
+============================================================ */
+const THEME_KEY = 'recorder-theme';
+
+/**
+ * 应用主题到 <html> 上
+ * @param {'dark'|'light'} theme
+ */
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+}
+
+/**
+ * 切换主题
+ */
+function toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(cur === 'dark' ? 'light' : 'dark');
+}
+
+// 初始化：优先 localStorage，其次系统偏好，默认 dark
+(function initTheme() {
+    let theme = null;
+    try { theme = localStorage.getItem(THEME_KEY); } catch (e) {}
+    if (!theme) {
+        const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        theme = prefersLight ? 'light' : 'dark';
+    }
+    applyTheme(theme);
+})();
+
+/* ============================================================
+   STATE — Single source of truth for the dashboard.
+============================================================ */
+const state = {
+    events: [],              // 全部已收事件，按 serverTime 顺序
+    pages: [],               // 浏览器当前打开的 tab 列表
+    activeTabIdx: 0,         // 当前活跃 tab（focus 后更新）
+    lastSeen: '',            // 增量拉取游标（最后一条 serverTime）
+    filter: 'all',           // kind 过滤
+    search: '',              // 关键词搜索
+    paused: false,           // 是否暂停轮询
+    autoScroll: true,        // 自动滚动到底部
+    selectedIdx: null,       // 当前选中事件在 events 数组中的索引
+    connected: true,         // 后端连接状态
+    newEventIdxs: new Set(), // 标记新事件（用于"新事件入场动画"）
+};
+
+const POLL_INTERVAL = 800;
+
+/* ============================================================
+   DOM REFERENCES
+============================================================ */
+const $ = id => document.getElementById(id);
+const els = {
+    statusPill: $('status-pill'),
+    statusText: $('status-text'),
+    statTotal: $('stat-total'),
+    statInt: $('stat-int'),
+    statNet: $('stat-net'),
+    statNav: $('stat-nav'),
+    statErr: $('stat-err'),
+    cntAll: $('cnt-all'),
+    cntInt: $('cnt-int'),
+    cntNet: $('cnt-net'),
+    cntNav: $('cnt-nav'),
+    cntErr: $('cnt-err'),
+    urlInput: $('url-input'),
+    tabsbar: $('tabsbar'),
+    searchInput: $('search-input'),
+    eventList: $('event-list'),
+    detailPanel: $('detail-panel'),
+    detailTitle: $('detail-title'),
+    detailTime: $('detail-time'),
+    detailContent: $('detail-content'),
+    main: $('main'),
+    connStatus: $('conn-status'),
+    lastUpdate: $('last-update'),
+    filterInfo: $('filter-info'),
+    toast: $('toast'),
+};
+
+/* ============================================================
+   UTILITIES
+============================================================ */
+
+/**
+ * HTML 转义
+ * @param {*} s
+ * @return {string}
+ */
+function escapeHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function escapeAttr(s) {
+    return escapeHtml(s).replace(/'/g, '&#39;');
+}
+
+/**
+ * 把 ISO 时间格式化为 HH:MM:SS.mmm（毫秒部分淡灰）
+ * @param {string} iso
+ */
+function fmtTime(iso) {
+    if (!iso) return '';
+    const t = iso.slice(11, 23);
+    return `${t.slice(0, 8)}<span class="ms">.${t.slice(9)}</span>`;
+}
+
+/**
+ * 从 URL 提取 host
+ * @param {string} url
+ */
+function hostOf(url) {
+    try { return new URL(url).host; }
+    catch (e) { return url.length > 30 ? url.slice(0, 30) + '...' : url; }
+}
+
+/**
+ * Toast 提示
+ * @param {string} msg
+ * @param {'default'|'success'|'error'} [kind]
+ * @param {number} [duration]
+ */
+function toast(msg, kind = 'default', duration = 1600) {
+    els.toast.textContent = msg;
+    els.toast.className = 'toast show ' + (kind === 'default' ? '' : kind);
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => els.toast.classList.remove('show'), duration);
+}
+
+/**
+ * 元素是否在容器底部（用于"靠近底部时仍自动滚动"）
+ */
+function isAtBottom(el) {
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 20;
+}
+
+/* ============================================================
+   POLLING — 每 800ms 并行拉 events + pages
+============================================================ */
+
+async function pollOnce() {
+    if (state.paused) return;
+    try {
+        const [eventsResp, pagesResp] = await Promise.all([
+            fetch(state.lastSeen ? `/events?since=${encodeURIComponent(state.lastSeen)}` : '/events'),
+            fetch('/control/pages').catch(() => null),
+        ]);
+
+        if (!eventsResp.ok) throw new Error('events HTTP ' + eventsResp.status);
+        const events = await eventsResp.json();
+
+        if (events.length > 0) {
+            const startIdx = state.events.length;
+            state.events.push(...events);
+            state.lastSeen = events[events.length - 1].serverTime || state.lastSeen;
+            // 标记本批为"新事件"用于入场动画
+            for (let i = 0; i < events.length; i++) {
+                state.newEventIdxs.add(startIdx + i);
+            }
+            renderList();
+            updateStats();
+        }
+
+        if (pagesResp && pagesResp.ok) {
+            const pages = await pagesResp.json();
+            // 只在变化时重渲染，避免无谓闪烁
+            if (JSON.stringify(pages) !== JSON.stringify(state.pages)) {
+                state.pages = pages;
+                renderTabs();
+            }
+        }
+
+        setConnected(true);
+        els.lastUpdate.textContent = `同步于 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
+    } catch (err) {
+        setConnected(false, err.message);
+    }
+}
+
+function setConnected(ok, errMsg = '') {
+    if (state.paused) {
+        els.statusPill.className = 'status-pill paused';
+        els.statusText.textContent = 'PAUSED';
+        els.connStatus.className = 'paused-text';
+        els.connStatus.textContent = '已暂停';
+    } else if (ok) {
+        els.statusPill.className = 'status-pill';
+        els.statusText.textContent = 'LIVE';
+        els.connStatus.className = 'live-text';
+        els.connStatus.textContent = '实时录制';
+    } else {
+        els.statusPill.className = 'status-pill error';
+        els.statusText.textContent = 'OFFLINE';
+        els.connStatus.className = 'error-text';
+        els.connStatus.textContent = '断连 · ' + (errMsg || 'unknown');
+    }
+    state.connected = ok;
+}
+
+/* ============================================================
+   STATS
+============================================================ */
+
+function updateStats() {
+    const counts = { interaction: 0, network: 0, navigation: 0, error: 0 };
+    for (const e of state.events) {
+        if (counts[e.kind] !== undefined) counts[e.kind]++;
+    }
+    const total = state.events.length;
+    els.statTotal.textContent = total;
+    els.statInt.textContent = counts.interaction;
+    els.statNet.textContent = counts.network;
+    els.statNav.textContent = counts.navigation;
+    els.statErr.textContent = counts.error;
+    els.cntAll.textContent = total;
+    els.cntInt.textContent = counts.interaction;
+    els.cntNet.textContent = counts.network;
+    els.cntNav.textContent = counts.navigation;
+    els.cntErr.textContent = counts.error;
+}
+
+/* ============================================================
+   TABS RENDERING
+============================================================ */
+
+function renderTabs() {
+    if (!state.pages.length) {
+        els.tabsbar.innerHTML = '<div class="tabs-empty">没有打开的标签页</div>';
+        return;
+    }
+    els.tabsbar.innerHTML = state.pages.map((p, i) => {
+        const active = i === state.activeTabIdx ? 'active' : '';
+        const title = p.title || '无标题';
+        return `
+            <div class="tab ${active}" data-idx="${i}" title="${escapeAttr(p.url)}">
+                <span class="tab-icon"></span>
+                <span class="tab-title">${escapeHtml(title)}</span>
+                <span class="tab-host">${escapeHtml(hostOf(p.url))}</span>
+                <button class="tab-close" data-close-idx="${i}" title="关闭">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+/* ============================================================
+   EVENT LIST RENDERING
+============================================================ */
+
+/**
+ * 按当前 filter + search 过滤事件
+ */
+function getFiltered() {
+    let filtered = state.events;
+    if (state.filter !== 'all') {
+        filtered = filtered.filter(e => e.kind === state.filter);
+    }
+    if (state.search) {
+        const kw = state.search.toLowerCase();
+        filtered = filtered.filter(e => {
+            try { return JSON.stringify(e).toLowerCase().includes(kw); }
+            catch (err) { return false; }
+        });
+    }
+    return filtered;
+}
+
+function renderList() {
+    const filtered = getFiltered();
+    els.filterInfo.textContent = `显示 ${filtered.length} / ${state.events.length}`;
+
+    if (filtered.length === 0) {
+        if (state.events.length === 0) {
+            els.eventList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-title">AWAITING TELEMETRY<span class="cursor-blink"></span></div>
+                    <div class="empty-subtitle">在浏览器里随便点点，或在上方地址栏打开网址 — 事件流会实时滚动到这里</div>
+                </div>`;
+        } else {
+            els.eventList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-title">NO MATCHING EVENTS</div>
+                    <div class="empty-subtitle">调整过滤条件或清空搜索关键词试试</div>
+                </div>`;
+        }
+        return;
+    }
+
+    const wasAtBottom = isAtBottom(els.eventList);
+
+    const html = filtered.map(e => renderRow(e, state.events.indexOf(e))).join('');
+    els.eventList.innerHTML = html;
+
+    // 动画播完就清除标记
+    setTimeout(() => state.newEventIdxs.clear(), 600);
+
+    if (state.autoScroll || wasAtBottom) {
+        els.eventList.scrollTop = els.eventList.scrollHeight;
+    }
+}
+
+function renderRow(e, idx) {
+    const isSelected = idx === state.selectedIdx ? 'selected' : '';
+    const isNew = state.newEventIdxs.has(idx) ? 'new' : '';
+    return `
+        <div class="event-row ${isSelected} ${isNew}" data-idx="${idx}">
+            <span class="idx">#${idx + 1}</span>
+            <span class="time">${fmtTime(e.clientTime)}</span>
+            <span class="kind-badge ${e.kind}"><span class="dot"></span>${escapeHtml((e.type || '').toUpperCase())}</span>
+            <span class="summary">${renderSummary(e)}</span>
+        </div>
+    `;
+}
+
+/**
+ * 按事件类型生成单行摘要
+ */
+function renderSummary(e) {
+    if (e.kind === 'interaction') {
+        const t = e.target || {};
+        const tagPart = `<span class="tag">${escapeHtml((t.tag || '?').toUpperCase())}</span>`;
+        const textRaw = t.accessibleName || t.innerText || '';
+        const textPart = textRaw ? ` <span class="text">"${escapeHtml(textRaw.slice(0, 50))}"</span>` : '';
+        const selRaw = t.selectors
+            ? (t.selectors.id || t.selectors.testId || t.selectors.role || t.selectors.css || '')
+            : '';
+        const selPart = selRaw ? `  <span class="sel">${escapeHtml(selRaw.slice(0, 80))}</span>` : '';
+        let extra = '';
+        if (e.type === 'input' && e.value != null) {
+            extra = `  <span class="sel">=</span> <span class="text">"${escapeHtml(String(e.value).slice(0, 40))}"</span>`;
+        } else if (e.type === 'keydown' && e.key) {
+            const mods = e.modifiers ? Object.entries(e.modifiers).filter(([k, v]) => v).map(([k]) => k) : [];
+            const key = mods.length ? mods.join('+') + '+' + e.key : e.key;
+            extra = `  <span class="key-chip">⌨ ${escapeHtml(key)}</span>`;
+        } else if (e.type === 'change' && e.value != null) {
+            extra = `  <span class="sel">→</span> <span class="text">${escapeHtml(String(e.value).slice(0, 40))}</span>`;
+        }
+        return `${tagPart}${textPart}${selPart}${extra}`;
+    }
+    if (e.kind === 'network') {
+        const status = e.status || 0;
+        const sc = status >= 500 ? '5xx' : status >= 400 ? '4xx' : status >= 300 ? '3xx' : status >= 200 ? '2xx' : '0';
+        return `<span class="method">${escapeHtml(e.method || '?')}</span><span class="status-${sc}">${status || 'ERR'}</span><span class="url">  ${escapeHtml((e.requestUrl || e.url || '').slice(0, 140))}</span>${e.durationMs ? `<span class="duration">${e.durationMs}ms</span>` : ''}`;
+    }
+    if (e.kind === 'navigation') {
+        return `<span class="arrow">→</span><span class="url">${escapeHtml((e.to || '').slice(0, 160))}</span>`;
+    }
+    if (e.kind === 'error') {
+        return `<span class="err">${escapeHtml((e.message || e.reason || '').slice(0, 160))}</span>`;
+    }
+    return '';
+}
+
+/* ============================================================
+   DETAIL PANEL
+============================================================ */
+
+function selectEvent(idx) {
+    state.selectedIdx = idx;
+    const e = state.events[idx];
+    if (!e) return;
+
+    els.main.classList.add('detail-open');
+    els.detailPanel.style.display = 'flex';
+
+    els.detailTitle.innerHTML = `
+        <span class="kind-badge ${e.kind}"><span class="dot"></span>${escapeHtml((e.type || '').toUpperCase())}</span>
+        <span class="detail-idx">#${idx + 1}</span>
+    `;
+    els.detailTime.textContent = e.clientTime ? e.clientTime.replace('T', ' ').slice(0, 23) + 'Z' : '';
+
+    let html = '';
+
+    // === SELECTORS (RPA 重点) ===
+    if (e.target && e.target.selectors) {
+        const sels = Object.entries(e.target.selectors);
+        html += `
+            <div class="detail-section">
+                <div class="section-label">
+                    RPA 选择器 · 按稳定性排序
+                    <span class="accent">${sels.length} 种策略</span>
+                </div>
+                <div class="selector-list">
+                    ${sels.map(([k, v]) => `
+                        <div class="selector-row">
+                            <div class="sel-key">${escapeHtml(k)}</div>
+                            <div class="sel-val">${escapeHtml(v)}</div>
+                            <button class="copy-btn" data-copy="${escapeAttr(v)}" title="复制到剪贴板">
+                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+                                    <rect x="5" y="5" width="8" height="8" rx="0.5"/>
+                                    <path d="M3 11V3.5C3 3.22 3.22 3 3.5 3H11" stroke-linecap="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // === ELEMENT STATE ===
+    if (e.target && e.target.state) {
+        const stateEntries = Object.entries(e.target.state).filter(([k, v]) => v !== undefined && v !== null);
+        if (stateEntries.length) {
+            html += `
+                <div class="detail-section">
+                    <div class="section-label">元素状态</div>
+                    <div class="state-badges">
+                        ${stateEntries.map(([k, v]) => `
+                            <span class="state-badge ${v ? 'on' : 'off'}">
+                                ${escapeHtml(k)} <span class="v">${escapeHtml(String(v))}</span>
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // === ELEMENT META ===
+    if (e.target) {
+        const t = e.target;
+        const items = [];
+        if (t.tag) items.push(['TAG', t.tag.toUpperCase()]);
+        if (t.role) items.push(['ROLE', t.role]);
+        if (t.accessibleName) items.push(['NAME', t.accessibleName]);
+        if (t.innerText && t.innerText !== t.accessibleName) items.push(['TEXT', t.innerText.slice(0, 200)]);
+        if (t.boundingBox) {
+            const b = t.boundingBox;
+            items.push(['BOX', `${b.width}×${b.height}  @  (${b.x}, ${b.y})`]);
+        }
+        if (t.classes && t.classes.length) items.push(['CLASS', t.classes.join(' ')]);
+        if (items.length) {
+            html += `
+                <div class="detail-section">
+                    <div class="section-label">元素信息</div>
+                    <div class="meta-grid">
+                        ${items.map(([k, v]) => `<div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // === INTERACTION CONTEXT ===
+    if (e.mouse || e.modifiers || e.viewport) {
+        const items = [];
+        if (e.mouse) {
+            const m = e.mouse;
+            const btnName = m.button === 0 ? 'LEFT' : m.button === 1 ? 'MIDDLE' : m.button === 2 ? 'RIGHT' : 'BTN' + m.button;
+            items.push(['BUTTON', btnName]);
+            items.push(['PAGE', `(${m.pageX}, ${m.pageY})`]);
+            items.push(['CLIENT', `(${m.clientX}, ${m.clientY})`]);
+            items.push(['OFFSET', `(${m.offsetX}, ${m.offsetY})`]);
+        }
+        if (e.modifiers) {
+            const mods = Object.entries(e.modifiers).filter(([k, v]) => v).map(([k]) => k.toUpperCase());
+            if (mods.length) items.push(['MODIFIER', mods.join(' + ')]);
+        }
+        if (e.viewport) {
+            items.push(['VIEWPORT', `${e.viewport.width}×${e.viewport.height} · DPR ${e.viewport.dpr}`]);
+            if (e.viewport.scrollX || e.viewport.scrollY) {
+                items.push(['SCROLL', `(${e.viewport.scrollX}, ${e.viewport.scrollY})`]);
+            }
+        }
+        if (items.length) {
+            html += `
+                <div class="detail-section">
+                    <div class="section-label">交互上下文</div>
+                    <div class="meta-grid">
+                        ${items.map(([k, v]) => `<div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // === NETWORK META ===
+    if (e.kind === 'network') {
+        const items = [];
+        items.push(['METHOD', e.method || '?']);
+        items.push(['STATUS', String(e.status || 'ERR')]);
+        if (e.requestUrl) items.push(['URL', e.requestUrl]);
+        if (e.durationMs) items.push(['DURATION', e.durationMs + ' ms']);
+        if (e.error) items.push(['ERROR', e.error]);
+        html += `
+            <div class="detail-section">
+                <div class="section-label">请求信息</div>
+                <div class="meta-grid">
+                    ${items.map(([k, v]) => `<div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // === RAW JSON ===
+    html += `
+        <div class="detail-section">
+            <div class="section-label">原始事件数据 (JSON)</div>
+            <div class="json-block">${syntaxHighlight(JSON.stringify(e, null, 2))}</div>
+        </div>
+    `;
+
+    els.detailContent.innerHTML = html;
+
+    // 高亮当前行
+    renderList();
+}
+
+function closeDetail() {
+    state.selectedIdx = null;
+    els.detailPanel.style.display = 'none';
+    els.main.classList.remove('detail-open');
+    renderList();
+}
+
+/**
+ * 简易 JSON 语法高亮（基于 escapeHtml 后的字符串做替换）
+ */
+function syntaxHighlight(json) {
+    return escapeHtml(json)
+        .replace(/(&quot;[^&]*?&quot;)(?=\s*:)/g, '<span class="jk">$1</span>')
+        .replace(/(:\s*)(&quot;[^&]*?&quot;)/g, '$1<span class="js">$2</span>')
+        .replace(/(:\s*)(true|false)/g, '$1<span class="jb">$2</span>')
+        .replace(/(:\s*)(null)/g, '$1<span class="jl">$2</span>')
+        .replace(/(:\s*)(-?\d+\.?\d*)(?=[,\n\s\]])/g, '$1<span class="jn">$2</span>');
+}
+
+/* ============================================================
+   BROWSER CONTROL
+============================================================ */
+
+/**
+ * 调用后端 /control/* 接口
+ * @param {string} path 动作名（如 'open' / 'close' / 'focus'）
+ * @param {Object} [body] POST body
+ */
+async function doControl(path, body) {
+    try {
+        const opts = body ? {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        } : { method: 'POST' };
+        const resp = await fetch('/control/' + path, opts);
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || `HTTP ${resp.status}`);
+        }
+        return await resp.json();
+    } catch (e) {
+        toast('✕  ' + e.message, 'error');
+        throw e;
+    }
+}
+
+async function openUrl(newTab = false) {
+    const raw = els.urlInput.value.trim();
+    if (!raw) return;
+    const url = /^https?:\/\//.test(raw) ? raw : 'https://' + raw;
+    toast(`→  正在打开 ${hostOf(url)}...`);
+    try {
+        await doControl('open', { url, newTab });
+        toast(`✓  已打开 ${hostOf(url)}`, 'success');
+        // 立刻刷新一次拉取最新 tabs
+        pollOnce();
+    } catch (e) { /* toast already shown */ }
+}
+
+/* ============================================================
+   EVENT WIRING
+============================================================ */
+
+// 导航按钮
+$('btn-back').onclick    = () => doControl('back',    { index: state.activeTabIdx }).then(() => toast('←  后退')).catch(() => {});
+$('btn-forward').onclick = () => doControl('forward', { index: state.activeTabIdx }).then(() => toast('→  前进')).catch(() => {});
+$('btn-reload').onclick  = () => doControl('reload',  { index: state.activeTabIdx }).then(() => toast('↻  刷新')).catch(() => {});
+
+// URL 输入框
+els.urlInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        openUrl(e.metaKey || e.ctrlKey);  // Cmd+Enter / Ctrl+Enter 开新标签
+    }
+});
+$('btn-open').onclick   = () => openUrl(false);
+$('btn-newtab').onclick = () => openUrl(true);
+
+// Tabs 交互（事件委托）
+els.tabsbar.addEventListener('click', async e => {
+    const closeBtn = e.target.closest('.tab-close');
+    if (closeBtn) {
+        e.stopPropagation();
+        const idx = parseInt(closeBtn.dataset.closeIdx, 10);
+        await doControl('close', { index: idx }).catch(() => {});
+        toast('✕  已关闭标签');
+        pollOnce();
+        return;
+    }
+    const tab = e.target.closest('.tab');
+    if (tab) {
+        const idx = parseInt(tab.dataset.idx, 10);
+        await doControl('focus', { index: idx }).catch(() => {});
+        state.activeTabIdx = idx;
+        renderTabs();
+    }
+});
+
+// 过滤 chips
+document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+        document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        state.filter = chip.dataset.filter;
+        renderList();
+    });
+});
+
+// 搜索
+els.searchInput.addEventListener('input', e => {
+    state.search = e.target.value.trim();
+    renderList();
+});
+
+// 暂停 / 恢复
+$('btn-pause').onclick = function () {
+    state.paused = !state.paused;
+    this.classList.toggle('active', state.paused);
+    setConnected(state.connected);
+    if (!state.paused) pollOnce();
+};
+
+// 自动滚动开关
+$('btn-autoscroll').onclick = function () {
+    state.autoScroll = !state.autoScroll;
+    this.classList.toggle('active', state.autoScroll);
+    toast(state.autoScroll ? '↓  自动滚动 已开启' : '↓  自动滚动 已关闭');
+};
+
+// 导出 JSONL
+$('btn-export').onclick = () => {
+    if (state.events.length === 0) {
+        toast('暂无事件可导出');
+        return;
+    }
+    const jsonl = state.events.map(e => JSON.stringify(e)).join('\n');
+    const blob = new Blob([jsonl], { type: 'application/x-ndjson' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `recorder-${new Date().toISOString().replace(/[:.]/g, '-')}.jsonl`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast(`⬇  已导出 ${state.events.length} 条事件`, 'success');
+};
+
+// 清空显示（仅前端，磁盘文件不变；保留 lastSeen 以免刷出旧事件）
+$('btn-clear').onclick = () => {
+    if (!confirm('清空当前显示？\n\n磁盘文件不受影响，只有新事件会出现。')) return;
+    state.events = [];
+    state.selectedIdx = null;
+    closeDetail();
+    renderList();
+    updateStats();
+    toast('⌫  已清空显示');
+};
+
+// 事件行点击
+els.eventList.addEventListener('click', e => {
+    const row = e.target.closest('.event-row');
+    if (!row) return;
+    const idx = parseInt(row.dataset.idx, 10);
+    selectEvent(idx);
+});
+
+// 详情面板关闭
+$('btn-close-detail').onclick = closeDetail;
+
+// 详情面板内的"复制选择器"按钮（事件委托）
+els.detailContent.addEventListener('click', e => {
+    const btn = e.target.closest('.copy-btn');
+    if (!btn) return;
+    const text = btn.dataset.copy;
+    navigator.clipboard.writeText(text).then(() => {
+        btn.classList.add('copied');
+        setTimeout(() => btn.classList.remove('copied'), 1200);
+        toast(`✓  已复制  ${text.slice(0, 50)}${text.length > 50 ? '…' : ''}`, 'success');
+    }).catch(() => toast('✕  复制失败', 'error'));
+});
+
+// 主题切换按钮
+$('btn-theme').onclick = () => {
+    toggleTheme();
+    const cur = document.documentElement.getAttribute('data-theme');
+    toast(cur === 'light' ? '☀  明亮模式' : '☾  暗色模式');
+};
+
+// 键盘快捷键
+document.addEventListener('keydown', e => {
+    const inputFocused = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+    // Escape 关闭详情
+    if (e.key === 'Escape' && state.selectedIdx !== null) {
+        e.preventDefault();
+        closeDetail();
+        return;
+    }
+    // Space 切暂停（仅在非输入框聚焦时）
+    if (e.key === ' ' && !inputFocused) {
+        e.preventDefault();
+        $('btn-pause').click();
+        return;
+    }
+    // T 切主题
+    if ((e.key === 't' || e.key === 'T') && !inputFocused && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        $('btn-theme').click();
+        return;
+    }
+    // Cmd/Ctrl + F 聚焦搜索
+    if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        els.searchInput.focus();
+        els.searchInput.select();
+    }
+});
+
+/* ============================================================
+   BOOT
+============================================================ */
+pollOnce();
+setInterval(pollOnce, POLL_INTERVAL);
+renderList();
+updateStats();
+</script>
+</body>
+</html>

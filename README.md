@@ -52,11 +52,8 @@ flower-trellis init -u <your-name> -y
 # 升级 Trellis 并按新版本重新叠加强化包
 flower-trellis update
 
-# 查看当前变体可安装的增强技能
-flower-trellis skill list
-
-# 只安装指定增强技能,不运行 Trellis update
-flower-trellis skill install humanize-writing
+# 交互管理通用技能,并查看工作流强化包
+flower-trellis skill
 
 # 卸载:移除 Trellis 本体并清理强化包残留
 flower-trellis uninstall
@@ -73,8 +70,7 @@ flower-trellis -v
 |------|------|
 | `init` | 安装 Trellis 并叠加强化包(默认命令,裸跑等同 `init`) |
 | `update` | 升级 Trellis,并按新版本重新叠加强化包 |
-| `skill list` | 列出当前变体可安装的增强技能,并标识目标项目中已安装的条目 |
-| `skill install <name...>` | 只安装指定增强技能,不运行 Trellis update |
+| `skill` | 打开交互菜单:启用或停用通用技能,只读查看工作流强化包 |
 | `uninstall` | 移除 Trellis 本体并清理强化包残留(支持 `-y` / `--dry-run`) |
 | `<其它命令>` | 原样透传给 Trellis,覆盖其现有及未来子命令 |
 | `-v` / `-h` | 打印版本 / 帮助 |

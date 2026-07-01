@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "质量底线、精确删除、幂等、容错和现有验证方式。"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "检查输出文案、退出行为和非交互场景是否符合 CLI 规范。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "检查 ESM、导出、JSDoc 与交互 prompt 使用是否合规。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查安装/停用增强 skill 是否保持增强包幂等与安全边界。"}
