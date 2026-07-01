@@ -1,8 +1,9 @@
 {
-  "flowerVersion": "0.4.0-beta.2",
+  "flowerVersion": "0.4.0-beta.3",
   "variant": "0.6",
   "version": "0.6.5",
   "skills": [
+    "humanize-writing",
     "trellis-auto-loop",
     "trellis-check-all",
     "trellis-create-command",
@@ -20,6 +21,7 @@
     "script:spec_router.py"
   ],
   "paths": [
+    ".agents/skills/humanize-writing",
     ".agents/skills/trellis-auto-loop",
     ".agents/skills/trellis-check-all",
     ".agents/skills/trellis-create-command",
@@ -33,6 +35,7 @@
     ".agents/skills/trellis-task-brief",
     ".agents/skills/trellis-verify-task",
     ".agents/skills/trellis-visualize",
+    ".claude/skills/humanize-writing",
     ".claude/skills/trellis-auto-loop",
     ".claude/skills/trellis-check-all",
     ".claude/skills/trellis-create-command",
