@@ -11,9 +11,13 @@
    - `.claude/skills/trellis-route/SKILL.md`
    - `.trellis/workflow.md`
 4. 更新 `.trellis/spec/flower-trellis/cli/enhancements-model.md`，记录裸数字压缩误用回归样例和验证要求。
-5. 验证：
+5. 顺手追加最小 finish-work auto-push 优化：
+   - `trellis-push` snapshot 记录 `push_mode`。
+   - `trellis-finish-work` 根据 `push_mode=commit-only` 决定是否跳过归档 / journal 后的自动 push。
+6. 验证：
    - `git diff --check`
    - `cmp -s` 验证 `.agents` 与 `.claude` route skill 副本一致。
+   - `cmp -s` 验证 `.agents` 与 `.claude` trellis-push 副本一致。
    - `cmp -s` 验证 `vendor` 与 `enhancements/0.6` 对应源/快照一致。
    - 复核 `rg` 搜索，确认 workflow hub 只有轻量提醒，route skill 承载 numbered fallback 细节，workflow-state 不重复该细节。
 

@@ -193,6 +193,7 @@ commit message 生成规则：
 - branch: 执行成功后按实际分支补齐
 - pushed_commits: 执行成功后按实际 commit hash 补齐
 - snapshot_at: 执行成功后写入当前 ISO 8601 时间
+- push_mode: <push / commit-only / snapshot-only / 指定仓库 / reconfigure / 临时目标>
 - bookkeeping: 只提交 `<task_dir>/task.json`
 ```
 
@@ -206,6 +207,7 @@ commit message 生成规则：
     "frontend": "abc1234",
     "backend": "def5678"
   },
+  "push_mode": "push",
   "completed_steps": ["Step 1", "Step 2"],
   "partial_step": "Step 3（可选）",
   "next_step": "Step 4（可选）",
@@ -215,7 +217,9 @@ commit message 生成规则：
 
 > `pushed_commits`、`snapshot_at`、实际 branch / commit hash 是运行后字段。用户确认的是 snapshot 的语义内容和写入动作；执行成功后由 AI 按实际结果补齐。
 
-commit-only 模式下，字段名仍保持 `pushed_commits` 以兼容恢复逻辑；值记录本次生成的本地 commit hash，并在 `notes` 中注明“commit-only：本地已提交，未推送”。
+`push_mode` 记录本轮确认的模式。默认实际 push 模式写 `"push"`；commit-only 写 `"commit-only"`；snapshot-only 写 `"snapshot-only"`；指定仓库、reconfigure 或临时目标可写对应模式名。
+
+commit-only 模式下，字段名仍保持 `pushed_commits` 以兼容恢复逻辑；值记录本次生成的本地 commit hash，`push_mode` 写 `"commit-only"`，并在 `notes` 中注明“commit-only：本地已提交，未推送”。
 
 ### 2.3 展示确认模板
 
@@ -357,6 +361,7 @@ git checkout <current_branch>
 - `snapshot_at`：当前 ISO 8601 时间戳
 - `branch`：实际分支；多仓不同分支时使用字典
 - `pushed_commits`：各 package 的短 hash
+- `push_mode`：统一执行计划确认的模式；默认 push 写 `"push"`，commit-only 写 `"commit-only"`，snapshot-only 写 `"snapshot-only"`
 - `notes`：保留已确认 notes；commit-only 模式追加“本地已提交，未推送”
 
 写入前先复核目标文件：
