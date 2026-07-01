@@ -115,9 +115,15 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 
 - 高频 `workflow.md` / `workflow-state`:
   - 只声明何时需要 route、什么不能算证据、必须加载 `trellis-route`、用户覆盖优先。
+  - workflow hub 可用一句轻量提醒声明 compact summary、ordinary summary、SessionStart、
+    replacement history、历史用户裸数字都不是 route evidence，并指向 `trellis-route`
+    负责 numbered fallback 有效性；workflow-state 只保留面包屑级门禁，不重复裸数字细节。
   - 不内嵌 prefs 解析、runtime schema、fallback 选项、Python / awk 代码片段。
 - `trellis-route/SKILL.md`:
   - 保留用户选项、mode 映射、轻量 check 逃生口、dispatch 指令和 helper 调用方式。
+  - 明确 `1` / `2` / `3` / `4` 这类裸数字只可解释为当前可见上一条 assistant
+    route 选项消息的紧邻回复；压缩摘要、历史消息、旧 target 的裸数字不得触发
+    `write --source numbered-fallback`。
   - 不把机械 JSON 读写逻辑改写成 prompt 里的长代码块。
 - `route_state.py`:
   - `resolve` 顺序固定为 session runtime `route_decisions.<target>` -> `.trellis/.route-prefs.tmp` -> `.trellis/.runtime/auto-loop/<run-id>.json` 临时授权。
@@ -145,6 +151,7 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 | auto-loop running run 存在合法 route_authorization | 返回 hit,写回 runtime,`origin=auto-loop`,`source=auto-loop` |
 | auto-loop 无绑定 run / 非唯一 running run / mode 不合法 | 返回 miss,展示选项 |
 | 用户明确重选 / 临时改 / 清除默认 | 忽略 runtime 和 prefs,重新进入 route 选项 |
+| compact 后只剩历史裸数字 `1` 和新的 check 选项摘要 | 不得写入 check route；必须重新展示当前 target 选项并等待紧邻回复 |
 
 ### 5. Good/Base/Bad Cases
 
@@ -155,6 +162,9 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 - Base: runtime 和 prefs 都 miss,但当前 session 的 `current_auto_run` 指向 running auto-loop state,且 `route_authorization.implement=subagent`;`resolve` 返回 `origin=auto-loop`,`source=auto-loop` 并写回 runtime。
 - Bad: compact summary 里只有“用户选过 inline”;workflow 不得把它当 route 证据,
   必须读取 `trellis-route` 并由 helper 校验 runtime / prefs。
+- Bad: implement 阶段用户曾紧邻回复 `1`;后续 check route miss 并发生 compact,
+  恢复上下文里出现旧 `1` 和 check 选项摘要时,不得把旧 `1` 当作 check 的
+  `numbered-fallback`,也不得写入 `check-all-inline`。
 - Bad: 同一 session 里任务 A 的 `route_decisions.check` 还在 runtime 中;切到任务 B 后不得把它当任务 B 的 check 证据。写入任务 B 任一路由时应清理任务 A 的 runtime route 决策。
 
 ### 6. Tests Required
@@ -173,6 +183,8 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - prefs miss 时,当前 session 绑定 `current_auto_run` 且 auto-loop state 有合法授权,验证 `resolve` 命中 auto-loop 并写回 runtime。
   - `.route-prefs.tmp` 存在时,验证个人偏好优先于 auto-loop 授权。
   - auto-loop running run 不唯一或 mode 不合法时,验证返回 miss 且不写 runtime。
+  - prompt/workflow 回归:compact summary、ordinary summary、replacement history 或历史裸数字
+    不能作为当前 target 的 numbered fallback；只有紧邻当前 route 选项消息的用户回复才有效。
 - 同步检查:
   - 先改 `vendor/skill-garden/.trellis/0.6`,再 `npm run sync`。
   - 确认 `enhancements/0.6` 和当前 dogfood `.agents` / `.claude` 副本未漂移。

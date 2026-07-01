@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "验收 route 规则、快照同步和回归样例"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨源、快照、当前副本一致性检查"}
