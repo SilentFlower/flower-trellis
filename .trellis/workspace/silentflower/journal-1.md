@@ -1065,3 +1065,38 @@ Implemented session-scoped trellis-route state recovery with route_state.py, syn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 31: 优化 Flower Trellis Skill 管理
+
+**Date**: 2026-07-01
+**Task**: 优化 Flower Trellis Skill 管理
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 flower-trellis skill 交互式 common skill 管理：隐藏基础 Trellis skill，只管理可选 common skill，迁移 humanize-writing 到 common 快照，优化菜单排版与 ESC 退出，并同步 skill-garden 与 enhancements 快照。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `48a1ff2` | (see git log) |
+| `7a9b882` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
