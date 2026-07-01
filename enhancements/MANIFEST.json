@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-06-30T00:30:48.425Z",
+  "syncedAt": "2026-07-01T02:10:56.735Z",
   "syncedFrom": "vendor/skill-garden/.trellis",
-  "sourceCommit": "44b5b31a0c0346f4d615ad6f3f58af860cc3983d",
+  "sourceCommit": "2023c3fe0afdaf2473c4b04eb47707f42438033e",
   "variants": {
     "old": {
       "claudeSkills": [],
@@ -77,6 +77,7 @@
     },
     "0.6": {
       "claudeSkills": [
+        "humanize-writing",
         "trellis-auto-loop",
         "trellis-check-all",
         "trellis-create-command",
@@ -92,6 +93,7 @@
         "trellis-visualize"
       ],
       "agentsSkills": [
+        "humanize-writing",
         "trellis-auto-loop",
         "trellis-check-all",
         "trellis-create-command",

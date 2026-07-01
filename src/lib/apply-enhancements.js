@@ -1,8 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { selectVariant } from "./variant.js";
-import { ENHANCEMENTS_ROOT } from "./paths.js";
-import { VARIANTS } from "../constants.js";
 import { copySkills } from "./copy-skills.js";
 import { copyScriptAssets } from "./copy-scripts.js";
 import { injectWorkflow } from "./workflow-inject.js";
@@ -11,6 +8,7 @@ import { applyCodexTweaks } from "./codex-tweaks.js";
 import { readManifest, writeManifest } from "./manifest.js";
 import { flowerVersion } from "./versions.js";
 import { rmrf } from "./fs-utils.js";
+import { resolveEnhancementSnapshot } from "./enhancement-catalog.js";
 
 /** 清理升级后可能变空的强化目录(深 → 浅)。 */
 function pruneEmptyDirs(target) {
@@ -44,26 +42,10 @@ function pruneEmptyDirs(target) {
  * @returns {{variant: string, installed: string[]}}
  */
 export function applyEnhancements(target, opts = {}) {
-  const trellisDir = path.join(target, ".trellis");
-  if (!fs.existsSync(trellisDir)) {
-    throw new Error(`目标不是 Trellis 项目(缺 .trellis/):${target}`);
-  }
-
-  // 选变体:--variant 优先,否则读 .trellis/.version
-  let variant = opts.variant;
-  let version = "";
-  if (variant) {
-    if (!VARIANTS.includes(variant)) {
-      throw new Error(`非法 --variant:${variant}(可选 ${VARIANTS.join(" / ")})`);
-    }
-  } else {
-    ({ variant, version } = selectVariant(target));
-  }
-
-  const variantDir = path.join(ENHANCEMENTS_ROOT, variant);
-  if (!fs.existsSync(variantDir)) {
-    throw new Error(`强化包快照缺变体 ${variant}/(请先在 flower-trellis 包内运行 npm run sync)`);
-  }
+  const { variant, version, variantDir } = resolveEnhancementSnapshot(
+    target,
+    opts.variant,
+  );
 
   console.log(
     `\n强化包变体:${variant}${version ? `(项目 Trellis ${version})` : ""}`,

@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "定义 skill-garden 0.6 源目录、enhancements 快照生成、平台 skill 铺设和 --skills 精细安装边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "定义叠加链路幂等、不误伤、验证命令和当前无自动化测试框架的质量要求。"}
+{"file": "/root/.codex/skills/.system/skill-creator/SKILL.md", "reason": "定义正式 skill 的命名、frontmatter、正文组织和验证原则。"}

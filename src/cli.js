@@ -66,6 +66,8 @@ function printHelp() {
 用法:
   flower-trellis [init] [trellis flags] [flower flags]   安装 + 叠加强化包(默认命令)
   flower-trellis update [trellis flags] [flower flags]   升级 + 按新版本重新叠加
+  flower-trellis skill list [flower flags]               列出可安装的增强技能
+  flower-trellis skill install <name...> [flower flags]  安装指定增强技能
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
   flower-trellis -v                                      打印版本
@@ -177,6 +179,9 @@ async function main() {
     } else if (cmd === "update") {
       const { update } = await import("./commands/update.js");
       await update(ctx);
+    } else if (cmd === "skill") {
+      const { skill } = await import("./commands/skill.js");
+      await skill(ctx);
     } else if (cmd === "uninstall") {
       const { uninstall } = await import("./commands/uninstall.js");
       await uninstall(ctx);
