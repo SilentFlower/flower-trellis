@@ -101,12 +101,13 @@ merge 目标仍从对应 package 的 `merge_target` 读取；父仓没有 packag
 ```bash
 # 在仓库根目录（含 .trellis/ 的项目根，不是 package 子目录）
 python3 ./.trellis/scripts/task.py current
+python3 ./.trellis/scripts/push_snapshot.py status --json
 ```
 
 - **无活动任务**（命令退出码非 0 或输出为空）：在计划中标记 `snapshot: 跳过（无活动任务）`。
 - **有活动任务**：解析输出拿到 task 路径（形如 `.trellis/tasks/MM-DD-name/`），并读取下列内容：
   - `<task_dir>/implement.md`（如有）— 步骤清单，AI 推断进度的主依据
-  - `<task_dir>/task.json` 的 `last_push_snapshot` 字段（如有）— 上次推送时的进度基线
+  - `push_snapshot.py status --json` 的 `snapshot` / `summary`（如有）— 上次推送时的进度基线；若返回 `no-snapshot` / `no-current-task`，按无上次 snapshot 继续
   - `<task_dir>/task.json` 的 `base_branch` 字段 — 用于 `git log <base_branch>..HEAD` 圈定本任务 commit 范围
 
 ---
@@ -369,13 +370,16 @@ git status --porcelain -- <task_json_path> [".trellis/config.yaml"]
 
 写入方式：
 
-1. 读 `<task_dir>/task.json`
-2. 解析 JSON
-3. 只设置 / 更新 `last_push_snapshot` 字段
-4. 保留其它字段原样
-5. 写回并保持原有缩进（通常 2 空格）
+1. 将已确认语义内容与运行后字段合并成完整 snapshot JSON。
+2. 调用 helper 写入：
 
-不要覆盖整个 `task.json`。
+   ```bash
+   python3 ./.trellis/scripts/push_snapshot.py write --task <task_dir> --snapshot-json '<完整 snapshot JSON>'
+   ```
+
+3. 确认 helper 成功返回；失败时停止并展示错误，不继续父仓 bookkeeping commit。
+
+helper 只允许更新 `last_push_snapshot` 字段；不要绕过 helper 手工覆盖整个 `task.json`。
 
 ### 5.2 父仓 status 检查
 
