@@ -22,5 +22,26 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-07-01T18:36:58Z",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "beta"
+    },
+    "pushed_commits": {
+      "flower-trellis": "328cf43",
+      "skill-garden": "8c0404c"
+    },
+    "completed_steps": [
+      "Step 1 更新 vendor/skill-garden .trellis/0.6 源",
+      "Step 2 运行 npm run sync 生成 enhancements/0.6 快照",
+      "Step 3 同步当前 dogfood 副本",
+      "Step 4 更新 enhancements-model spec",
+      "Step 5 完成 diff/check/cmp/rg 验证",
+      "Phase 3.4 trellis-push：业务提交与推送完成"
+    ],
+    "next_step": "Phase 3.5 wrap-up（用户明确要求后执行 finish-work）",
+    "notes": "已收紧 trellis-route 裸数字 fallback 证据规则；workflow hub 只保留轻量提醒，workflow-state 不重复细节。"
+  }
 }
