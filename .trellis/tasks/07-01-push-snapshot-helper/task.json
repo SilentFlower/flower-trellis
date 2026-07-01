@@ -22,5 +22,28 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-07-01T06:49:11Z",
+    "branch": {
+      "flower-trellis": "beta",
+      "skill-garden": "beta"
+    },
+    "pushed_commits": {
+      "flower-trellis": "da84a3c",
+      "skill-garden": "2e4f5e5"
+    },
+    "completed_steps": [
+      "Step 1 实现源脚本",
+      "Step 2 更新 trellis-push 文案",
+      "Step 3 瘦身 workflow recovery 文案",
+      "Step 4 更新脚本铺设逻辑",
+      "Step 5 同步快照与 dogfood 副本",
+      "Step 6 配置任务上下文",
+      "验证：py_compile / node check / npm run sync / diff 一致性 / 行为验证",
+      "Phase 3.4 trellis-push：已提交并推送业务改动"
+    ],
+    "next_step": "Phase 3.5 wrap-up（用户明确要求后执行 finish-work）",
+    "notes": "已实现 push_snapshot.py helper，并同步 trellis-push、workflow hub/state、enhancements、dogfood 和全部 dirty。"
+  }
 }
