@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 32
-- **Last Active**: 2026-07-01
+- **Total Sessions**: 33
+- **Last Active**: 2026-07-02
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1138 | Active |
+| `journal-1.md` | ~1175 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 33 | 2026-07-02 | 修复 route 裸数字选择与 finish-work push 收尾 | `328cf43`, `54d4548`, `8c0404c`, `5c76a63` | `beta` |
 | 32 | 2026-07-01 | 完成 push snapshot helper | `da84a3c`, `2e4f5e5`, `4779a38` | `beta` |
 | 31 | 2026-07-01 | 优化 Flower Trellis Skill 管理 | `48a1ff2`, `7a9b882` | `beta` |
 | 30 | 2026-07-01 | 完成 humanize-writing 增强技能 | `2023c3f`, `3413628`, `1c02041` | `beta` |

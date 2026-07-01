@@ -1136,3 +1136,40 @@ Implemented session-scoped trellis-route state recovery with route_state.py, syn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 33: 修复 route 裸数字选择与 finish-work push 收尾
+
+**Date**: 2026-07-02
+**Task**: 修复 route 裸数字选择与 finish-work push 收尾
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+修复 Trellis route 裸数字 fallback 在 compact 后误用历史选择的问题；同步 skill-garden 源、enhancements 快照和 dogfood 副本；追加最小 push_mode snapshot 规则，让 finish-work 在 commit-only 场景不自动推送收尾提交。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `328cf43` | (see git log) |
+| `54d4548` | (see git log) |
+| `8c0404c` | (see git log) |
+| `5c76a63` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
