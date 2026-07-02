@@ -1,14 +1,13 @@
 {
-  "syncedAt": "2026-07-02T01:39:38.800Z",
+  "syncedAt": "2026-07-02T11:01:24.688Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "39a09335cc3e2878c1e1121137dd55524882b13f",
+  "sourceCommit": "a70185e3b372058363296e81e2138f4f239d6e3b",
   "common": {
     "codexSkills": [
       "craft-rpa",
       "craft-slides",
       "humanize-writing",
       "open-idea",
-      "sub2api-account-json-fix",
       "torrent-analyze"
     ],
     "claudeSkills": [
@@ -16,7 +15,6 @@
       "craft-slides",
       "humanize-writing",
       "open-idea",
-      "sub2api-account-json-fix",
       "torrent-analyze"
     ]
   },

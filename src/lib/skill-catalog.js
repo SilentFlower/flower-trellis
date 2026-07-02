@@ -40,7 +40,6 @@ const SKILL_DESCRIPTION_OVERRIDES = {
   "plan-version": "规划版本任务、波次和分工",
   push: "提交、推送并同步任务进度",
   "re-implement": "需求变更后重新实现",
-  "sub2api-account-json-fix": "批量补全并推送 sub2api 账号 JSON",
   "sync-prd": "根据代码或需求变化同步 PRD",
   "torrent-analyze": "解析磁链或种子 hash 并整理信息",
   "trellis-analyze-task": "深度分析并细化任务",
