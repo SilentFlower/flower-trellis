@@ -4,6 +4,35 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.0](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1...v0.4.0) (2026-07-02)
+
+
+### ✨ 新功能 Features
+
+* **auto-loop:** 新增自动任务循环 runner ([268140a](https://github.com/SilentFlower/flower-trellis/commit/268140a04df98cfe7ab70c44aabc3032b6359893))
+* **push:** 支持 push snapshot helper 并同步强化包 ([da84a3c](https://github.com/SilentFlower/flower-trellis/commit/da84a3cf1482fd4f1fe46e36e1007f97fb6423a7))
+* **skill:** 支持交互管理通用技能 ([48a1ff2](https://github.com/SilentFlower/flower-trellis/commit/48a1ff2a18fccdad85b56ea3a5e53b222b86b07c))
+* **skill:** 支持安装 humanize-writing 增强技能 ([3413628](https://github.com/SilentFlower/flower-trellis/commit/341362881d6ccd123dbef14e080aec975eef4b94))
+* **skill:** 移除 sub2api 通用技能 ([f10a7d1](https://github.com/SilentFlower/flower-trellis/commit/f10a7d1278e4d8827a4758434cfdc7c728ac5e9a))
+* **trellis:** 增加项目知识发现路由 ([961587a](https://github.com/SilentFlower/flower-trellis/commit/961587a88c530c6e37f02e0809c3a318ad5666d0))
+
+
+### 🐛 修复 Bug Fixes
+
+* **auto-loop:** 支持 blocked run 原地重试 ([b1137bb](https://github.com/SilentFlower/flower-trellis/commit/b1137bbdbab7637076b49aa67ff9ff29f5202a43))
+* **auto-loop:** 简化路由选择提示 ([817dfa0](https://github.com/SilentFlower/flower-trellis/commit/817dfa029cbcede0d30351c9828c16fb4bc17b97))
+* **auto-loop:** 精简默认状态输出 ([3849482](https://github.com/SilentFlower/flower-trellis/commit/384948273415b6156270b442430b6902290ae4f2))
+* **enhancements:** 优化 spec_router 知识发现 ([ee59673](https://github.com/SilentFlower/flower-trellis/commit/ee59673c0820ede478998b29351933fbab2651da))
+* **push:** 记录 push mode 并联动 finish-work ([54d4548](https://github.com/SilentFlower/flower-trellis/commit/54d4548e4c2901c6f6676a4e11450e10e646c0fe))
+* **route:** 收紧裸数字 fallback 证据规则 ([328cf43](https://github.com/SilentFlower/flower-trellis/commit/328cf43285b1181f59e928757aacaa55e7b6a112))
+* **spec-router:** 减少项目知识弱匹配噪音 ([1b9a6ea](https://github.com/SilentFlower/flower-trellis/commit/1b9a6ea5f4be1285d2f3e5e4091b0df66f16e335))
+* **trellis:** 修复 auto-loop commit 与 route 状态边界 ([5cb8e6c](https://github.com/SilentFlower/flower-trellis/commit/5cb8e6c7d73cbf0580abe45c0ea2fdea71c90ca1))
+
+
+### 🧰 维护 Maintenance
+
+* **trellis:** 升级捆绑 Trellis 到 0.6.5，并修复 route_state.py 状态清理 ([e05c3cf](https://github.com/SilentFlower/flower-trellis/commit/e05c3cff591ddeb529daed8ccafb4c83bea802bc))
+
 ## [0.4.0-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.4.0-beta.4...v0.4.0-beta.5) (2026-07-02)
 
 
