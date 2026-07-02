@@ -4,6 +4,20 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.0-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.4.0-beta.4...v0.4.0-beta.5) (2026-07-02)
+
+
+### ✨ 新功能 Features
+
+* **push:** 支持 push snapshot helper 并同步强化包 ([da84a3c](https://github.com/SilentFlower/flower-trellis/commit/da84a3cf1482fd4f1fe46e36e1007f97fb6423a7))
+
+
+### 🐛 修复 Bug Fixes
+
+* **enhancements:** 优化 spec_router 知识发现 ([ee59673](https://github.com/SilentFlower/flower-trellis/commit/ee59673c0820ede478998b29351933fbab2651da))
+* **push:** 记录 push mode 并联动 finish-work ([54d4548](https://github.com/SilentFlower/flower-trellis/commit/54d4548e4c2901c6f6676a4e11450e10e646c0fe))
+* **route:** 收紧裸数字 fallback 证据规则 ([328cf43](https://github.com/SilentFlower/flower-trellis/commit/328cf43285b1181f59e928757aacaa55e7b6a112))
+
 ## [0.4.0-beta.4](https://github.com/SilentFlower/flower-trellis/compare/v0.4.0-beta.3...v0.4.0-beta.4) (2026-07-01)
 
 
