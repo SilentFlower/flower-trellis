@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查实现是否满足 spec_router.py 的分发、同步、正负例和无依赖契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "用于最终评审修改范围、同步产物、校验命令和差异质量。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "正例必须继续高置信召回发版 SOP，检查不能破坏 release 查询路径。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "正例必须继续召回 guides 层相关 thinking guide，并检查 index/guides 路由不误伤。"}

@@ -2,7 +2,7 @@
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress):
 This state block is a breadcrumb; the top-level skill-garden hub is the source of truth for route details.
 Before the first implement route, read `<task>/brief.md` if present and restate the task brief in chat. If it is missing, read the task artifacts and suggest backfilling brief; do not silently rely on memory.
-Before procedural or high-impact actions, run `.trellis/scripts/spec_router.py` with a short query describing the intended action and read the strongest 1-2 matched SOP/spec files before acting.
+At project-local knowledge decision boundaries, run `.trellis/scripts/spec_router.py` with a short query describing the intended action; read high-confidence matches before acting and skip pure Q&A, simple read-only inspection, opening local tools, or trivial edits unless local conventions may affect the approach.
 At Phase 2.1/2.2, reuse only an explicit target-matched `route_decision`; otherwise MUST load/read/use `trellis-route(implement|check)` (or its local `SKILL.md`) to resolve session runtime state/prefs, write the resolved decision, or show numbered fallback and wait.
 Plain preferences, ordinary summaries, `codex-mode`, raw `.runtime` files, and empty/old prefs are not route evidence by themselves; only `trellis-route` may validate runtime route state.
 User reselect/override/use-X-this-time/clear-default wins over remembered route evidence, runtime state, and prefs.

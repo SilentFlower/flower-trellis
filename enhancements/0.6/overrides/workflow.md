@@ -6,13 +6,17 @@
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: project knowledge discovery for procedural/high-impact actions, Phase 1.4 task brief handoff, Phase 2.1 implement routing, Phase 2.2 check/check-all routing, current-task route reuse, post-check stop, auto-loop commit-only preauthorization, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
+**Scope**: project knowledge discovery at project-local knowledge decision boundaries, Phase 1.4 task brief handoff, Phase 2.1 implement routing, Phase 2.2 check/check-all routing, current-task route reuse, post-check stop, auto-loop commit-only preauthorization, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
 #### Project Knowledge Discovery
 
-Before procedural or high-impact actions, run project knowledge discovery:
+Before choosing an approach for non-trivial project work, run project knowledge
+discovery when project-local SOPs, package conventions, workflow rules,
+config/state contracts, release/publish/deploy steps, git history actions,
+data changes, cross-layer design, generated artifacts, install/sync pipelines,
+or destructive operations may affect the correct approach:
 
 ```bash
 python3 ./.trellis/scripts/spec_router.py "<short query describing the intended action>"
@@ -21,11 +25,15 @@ python3 ./.trellis/scripts/spec_router.py "<short query describing the intended 
 Build the query from the current user request plus relevant immediate context:
 the intended action, commands about to run, files or systems involved, package/layer,
 and domain words such as release, publish, deploy, migration, config, CI, workflow,
-hooks, rollback, data fix, or destructive command.
+hooks, rollback, data fix, generated artifact, install/sync pipeline, or destructive command.
 
-Read the strongest 1-2 matched SOP/spec files before acting. Continue to lower-ranked
-matches only when their path, heading, or trigger reason is clearly relevant; if
-nothing matches, continue normally.
+Read high-confidence matches before acting. For medium-confidence matches, read only
+when the path, heading, index description, or reason clearly fits the intended change.
+If nothing matches, continue normally.
+
+Do not run discovery for pure Q&A, simple read-only inspection, opening local tools,
+or trivial edits unless the request mentions project conventions or local SOPs may
+change the approach.
 
 #### Task Brief Handoff
 

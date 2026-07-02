@@ -216,8 +216,9 @@ python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target imp
 
 ### 1. Scope / Trigger
 
-- Trigger: 0.6 强化包需要让 AI 在流程性或高影响动作前主动发现项目 SOP / 经验 /
-  标准流程,但不能为每个 SOP 新增一个 Skill。
+- Trigger: 0.6 强化包需要让 AI 在“项目局部知识可能影响做法”的决策边界主动
+  发现项目 SOP / 经验 / 标准流程,但不能为每个 SOP 新增一个 Skill,也不能把
+  纯问答、只读查看、打开本地工具或轻量编辑都变成检索流程。
 - Scope: `spec_router.py` 是随 0.6 `scripts/` 分发的通用发现器;workflow hub/state
   只提示何时调用;目标项目自己的 `.trellis/spec/**/*.md`(含 `spec/guides/**/*.md`)
   保存具体 SOP / spec / thinking guide。
@@ -241,32 +242,48 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 - 扫描范围固定为目标项目 `.trellis/spec/**/*.md`,其中 `.trellis/spec/guides/**/*.md`
   是共享 thinking guide 层,必须保留真实路径参与匹配。
 - Markdown 可选声明简单 frontmatter:`kind` / `triggers` / `load` / `priority`。
-  只支持 `key: value` 与 `key:` 后接 `- item`;不要引入 YAML 依赖。
-- 没有 frontmatter 的文件也按路径、H1-H3 标题和正文前缀轻量匹配。
+  只支持 `key: value` 与 `key:` 后接 `- item`;不要引入 YAML 依赖。该能力只作
+  向后兼容,不要推广为主路由机制,也不要要求项目为每份 spec 维护 `triggers`。
+- 主路由机制是非侵入式文档结构:路径/文件名、H1-H3 标题、`.trellis/spec/**/index.md`
+  中指向具体文档的链接文本与同一行描述、正文前缀样本。没有 frontmatter 的文件
+  必须仍可参与检索。
 - 路径匹配只使用 `.trellis/spec/` 内的相对路径,不要让公共前缀
   `.trellis/spec` 参与打分;否则查询里的 `spec` 会命中所有文档。
-- 默认候选要偏保守:最多返回 3 条。正文 token 命中必须有足够强度
-  (例如正文命中 5 个不同 token,或标题命中且正文命中 3 个不同 token),
-  不能因为 `json` / `output` / `commit` 这类泛词单独出现就返回候选。
-- 正文弱匹配计数要过滤项目知识路由自身的高频泛词,例如 `project`、`context`、
-  `read`、`matched`、`spec`、`workflow`;它们可以出现在 reason 中,但不能凑成强匹配。
+- 查询、路径、标题、index 描述、正文样本都必须 token 化后用 token set 匹配;
+  禁止把 `token in text` 这类任意子串命中作为有效匹配依据。英文路径里的
+  `/`、`-`、`_`、`.` 等分隔符应产生独立 token;中文连续文本用有限 n-gram
+  保留 `发版` 命中 `发版流程` 这类能力。
+- 默认候选要偏保守:最多返回 3 条。候选必须具备强锚点或足够强的组合证据:
+  路径/标题/index 描述命中非弱词 token,或正文样本命中足够多非弱词 token。
+  仅少量正文命中不能成为高置信候选。
+- 弱匹配计数要过滤项目知识路由自身和轻量操作的高频泛词,例如 `project`、
+  `context`、`read`、`matched`、`spec`、`workflow`、`to`、`flow`、`commit`、
+  `changes`、`documentation`、`readme`、`typo`;它们可以出现在 reason 中,
+  但不能凑成强匹配。
 - 标题匹配应扫描完整 Markdown 标题;正文匹配仍只扫描前缀样本,避免大文档全文检索拖慢或放大误报。
-- 默认输出只给候选路径、kind、score、reason 和 `action: read before acting`;
-  不输出完整 spec 内容,避免上下文膨胀。
-- workflow 读取策略默认先读最强 1-2 个匹配;只有低位候选的 path / heading /
-  trigger reason 明确相关时才继续读取,避免 helper 候选列表放大上下文。
+- 默认输出只给候选路径、kind、score、confidence、reason 和 action;不输出完整
+  spec 内容,避免上下文膨胀。`confidence: high` 使用
+  `action: read before acting`;`confidence: medium` 使用
+  `action: read if clearly relevant`。
+- workflow 读取策略默认读取 high-confidence 匹配;medium-confidence 只有在 path /
+  heading / index description / reason 明确相关时才读取,避免 helper 候选列表放大上下文。
 - 无 `.trellis/`、无 `.trellis/spec/`、读取失败或无匹配都不阻断流程;输出
   “No relevant project SOP/spec matched. Continue with the normal workflow.”
+- workflow hub/state 触发文案必须使用“项目局部知识可能影响做法的决策边界”语义,
+  不要退回宽泛的 `procedural or high-impact actions`。状态块只保留短提示,长规则
+  放在 workflow hub。
 
 ### 4. Validation & Error Matrix
 
 | 条件 | 行为 |
 |------|------|
-| 查询命中 frontmatter `triggers` | 高权重返回候选并列出 matched triggers |
-| 查询命中文件路径 / 标题 / 正文 | 按确定性分数排序,默认最多返回 3 条 |
-| 仅命中正文普通词且未达到强匹配阈值 | 视为无匹配,避免无关查询误报 |
+| 查询命中 frontmatter `triggers` | 作为向后兼容信号参与加权并列出 matched triggers,但不要求新文档维护 triggers |
+| 查询命中文件路径 / 标题 / index 描述 / 正文 | 按确定性分数和 confidence 排序,默认最多返回 3 条 |
+| 仅命中正文普通词或弱词且未达到强匹配阈值 | 视为无匹配,避免无关查询误报 |
 | 查询只命中 `.trellis/spec` 公共路径前缀 | 不算路径命中 |
+| 查询命中 `to` / `flow` / `commit` / `changes` 等泛词 | 不得仅凭这些词返回候选 |
 | 查询 guides 相关意图 | 返回 `.trellis/spec/guides/**/*.md` 真实路径 |
+| index.md 链接描述命中具体文档 | 给被链接的具体文档加权;index 本身不应挤掉更具体候选 |
 | Markdown 无 frontmatter | 退化到路径 / 标题 / 正文轻量匹配 |
 | frontmatter 不完整或不是简单 YAML | 忽略复杂部分,继续扫描正文 |
 | 无 `.trellis/` 或 `.trellis/spec/` | 返回无匹配提示,退出码 0 |
@@ -274,11 +291,17 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 ### 5. Good/Base/Bad Cases
 
 - Good: 用户准备发版,AI 查询 `beta release publish tag changelog`,返回
-  `.trellis/spec/.../release-and-publishing.md`,然后先读 SOP 再执行命令。
+  `.trellis/spec/.../release-and-publishing.md`,且 `confidence: high` /
+  `action: read before acting`,然后先读 SOP 再执行命令。
 - Good: 用户提到跨层/复用经验,AI 查询 `cross layer reuse thinking guide`,返回
   `.trellis/spec/guides/cross-layer-thinking-guide.md` 和 code reuse guide。
-- Base: 项目没有 frontmatter,仍可通过文件名、标题和正文关键词命中。
-- Bad: 普通绘图请求只因正文里出现一个 `draw` 就返回指南;应低于阈值并返回无匹配。
+- Base: 项目没有 frontmatter,仍可通过文件名、标题、index 描述和正文关键词命中。
+- Bad: 普通绘图请求 `draw architecture diagram visualize flow` 只因 `flow` 返回 CLI
+  spec;应过滤为无匹配。
+- Bad: `commit push changes to beta branch` 只因 `to` / `changes` 返回 thinking guide
+  或 directory structure;应过滤为无匹配。
+- Bad: `edit README documentation typo small change` 只因 `documentation` 返回模块规范;
+  应过滤为无匹配。
 - Bad: 把具体公司 SOP 复制进 skill-garden;项目私有知识只能留在目标项目 `.trellis/spec/`。
 
 ### 6. Tests Required
@@ -288,7 +311,13 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 - `python3 -m py_compile .trellis/scripts/spec_router.py`
 - 查询发版意图,断言返回 release SOP。
 - 查询 guides 意图,断言返回 `.trellis/spec/guides/` 下文档。
-- 查询无关意图,断言返回无匹配提示。
+- 查询无关意图,断言返回无匹配提示,至少覆盖:
+  - `open IntelliJ IDEA for current project local tool launch`
+  - `edit README documentation typo small change`
+  - `draw architecture diagram visualize flow`
+  - `commit push changes to beta branch`
+- 查询输出必须包含 `confidence`;high-confidence 为 `read before acting`,
+  medium-confidence 为 `read if clearly relevant`。
 - `npm run sync` 后用 `cmp -s` 确认源、`enhancements/0.6`、dogfood 副本一致。
 - 用临时目标跑 `--skills workflow-enhancement`,确认同时铺设 workflow 覆写和
   `.trellis/scripts/spec_router.py`。
@@ -298,21 +327,25 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 #### Wrong
 
 ```markdown
-Create one new skill for each SOP, or ask the model to remember to search all
-spec files by itself.
+Create one new skill for each SOP, ask every spec file to maintain
+frontmatter triggers, or ask the model to remember to search all spec files by
+itself.
 ```
 
-问题:Skill 数量膨胀,且依赖模型记忆,下次仍可能忘记 SOP 存在。
+问题:Skill 数量膨胀,frontmatter triggers 会漂移成第二套机器索引,且依赖模型记忆时
+下次仍可能忘记 SOP 存在。
 
 #### Correct
 
 ```markdown
 Workflow only says when to run discovery; `.trellis/scripts/spec_router.py`
-returns candidate SOP/spec paths; project-specific SOP content stays in
+returns candidate SOP/spec paths from natural document structure
+(path/title/index/body) with confidence; project-specific SOP content stays in
 `.trellis/spec/`.
 ```
 
-原因:高频提示保持短小,发现逻辑可测试,项目私有内容不进入 skill-garden。
+原因:高频提示保持短小,发现逻辑可测试,项目私有内容不进入 skill-garden,且 spec
+文档不需要额外维护一套 triggers。
 
 ## Scenario: Auto Loop Runner
 
