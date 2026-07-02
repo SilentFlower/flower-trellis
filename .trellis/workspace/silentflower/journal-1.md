@@ -1173,3 +1173,38 @@ Implemented session-scoped trellis-route state recovery with route_state.py, syn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 34: 优化 spec_router 知识发现
+
+**Date**: 2026-07-02
+**Task**: 优化 spec_router 知识发现
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 spec_router 项目知识发现优化：收窄 workflow 触发边界，改为 token/index/置信度匹配模型，同步 skill-garden 0.6、enhancements 快照和 dogfood 副本，更新项目规范并完成推送。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ee59673` | (see git log) |
+| `39a0933` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
