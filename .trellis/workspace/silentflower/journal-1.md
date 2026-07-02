@@ -890,7 +890,326 @@ Implemented session-scoped trellis-route state recovery with route_state.py, syn
 
 - None - task complete
 
-## Session 26: craft-slides 内置精选主题升级
+## Session 26: 升级 Trellis 0.6.5
+
+**Date**: 2026-06-28
+**Task**: 升级 Trellis 0.6.5
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 flower-trellis 捆绑 Trellis 0.6.5 升级，合并 workflow 与平台模板变化，修复 trellis-route 跨任务 runtime 决策清理，并推送父仓与 skill-garden。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e05c3cf` | (see git log) |
+| `c0db9bd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 27: Auto loop task runner
+
+**Date**: 2026-06-29
+**Task**: Auto loop task runner
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 Trellis auto-loop runner MVP：新增 Python runner、trellis-auto-loop skill、route 临时授权兼容、workflow/push 预授权说明和 0.6 enhancements 同步；vendor/skill-garden 对应提交 e1959f8。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `268140a` | (see git log) |
+| `8a886ec` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 28: Spec router project SOP discovery
+
+**Date**: 2026-06-29
+**Task**: Spec router project SOP discovery
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 skill-garden 0.6 项目知识发现机制：新增 spec_router.py，加入 workflow 项目知识发现提示，支持 guides 扫描和 targeted install 别名，同步 enhancements 快照与 dogfood 副本，并归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `961587a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 29: 修复 auto-loop commit 与 route 状态边界
+
+**Date**: 2026-06-29
+**Task**: 修复 auto-loop commit 与 route 状态边界
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 auto-loop route 默认移除、stale current pointer 容错、完成态提示、decision_log 与 trellis-push commit-only 边界调整；同步 skill-garden 源、enhancements 快照和 dogfood 副本，并归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5cb8e6c` | (see git log) |
+| `57c7cbd` | (see git log) |
+| `43e16e4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 30: 完成 humanize-writing 增强技能
+
+**Date**: 2026-07-01
+**Task**: 完成 humanize-writing 增强技能
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+沉淀 humanize-writing 为 skill-garden 0.6 可选增强技能，新增 ft skill list/install，重建并验证 enhancements 快照，补充发布门禁和任务 release 操作记录。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2023c3f` | (see git log) |
+| `3413628` | (see git log) |
+| `1c02041` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 31: 优化 Flower Trellis Skill 管理
+
+**Date**: 2026-07-01
+**Task**: 优化 Flower Trellis Skill 管理
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 flower-trellis skill 交互式 common skill 管理：隐藏基础 Trellis skill，只管理可选 common skill，迁移 humanize-writing 到 common 快照，优化菜单排版与 ESC 退出，并同步 skill-garden 与 enhancements 快照。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `48a1ff2` | (see git log) |
+| `7a9b882` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 32: 完成 push snapshot helper
+
+**Date**: 2026-07-01
+**Task**: 完成 push snapshot helper
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+实现 push_snapshot.py helper，更新 trellis-push 读写快照流程，瘦身 workflow recovery 文案，同步 0.6 强化包、dogfood 副本与任务快照。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `da84a3c` | (see git log) |
+| `2e4f5e5` | (see git log) |
+| `4779a38` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 33: 修复 route 裸数字选择与 finish-work push 收尾
+
+**Date**: 2026-07-02
+**Task**: 修复 route 裸数字选择与 finish-work push 收尾
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+修复 Trellis route 裸数字 fallback 在 compact 后误用历史选择的问题；同步 skill-garden 源、enhancements 快照和 dogfood 副本；追加最小 push_mode snapshot 规则，让 finish-work 在 commit-only 场景不自动推送收尾提交。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `328cf43` | (see git log) |
+| `54d4548` | (see git log) |
+| `8c0404c` | (see git log) |
+| `5c76a63` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 34: 优化 spec_router 知识发现
+
+**Date**: 2026-07-02
+**Task**: 优化 spec_router 知识发现
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 spec_router 项目知识发现优化：收窄 workflow 触发边界，改为 token/index/置信度匹配模型，同步 skill-garden 0.6、enhancements 快照和 dogfood 副本，更新项目规范并完成推送。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ee59673` | (see git log) |
+| `39a0933` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 35: craft-slides 内置精选主题升级
 
 **Date**: 2026-06-18
 **Task**: craft-slides 内置精选主题升级
@@ -922,4 +1241,3 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
-

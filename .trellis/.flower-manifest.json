@@ -1,8 +1,9 @@
 {
-  "flowerVersion": "0.3.1-beta.7",
+  "flowerVersion": "0.4.0-beta.5",
   "variant": "0.6",
-  "version": "0.6.2",
+  "version": "0.6.5",
   "skills": [
+    "trellis-auto-loop",
     "trellis-check-all",
     "trellis-create-command",
     "trellis-diff-brief",
@@ -14,9 +15,13 @@
     "trellis-run-full-chain",
     "trellis-task-brief",
     "trellis-verify-task",
-    "trellis-visualize"
+    "trellis-visualize",
+    "script:auto_loop.py",
+    "script:push_snapshot.py",
+    "script:spec_router.py"
   ],
   "paths": [
+    ".agents/skills/trellis-auto-loop",
     ".agents/skills/trellis-check-all",
     ".agents/skills/trellis-create-command",
     ".agents/skills/trellis-diff-brief",
@@ -29,6 +34,7 @@
     ".agents/skills/trellis-task-brief",
     ".agents/skills/trellis-verify-task",
     ".agents/skills/trellis-visualize",
+    ".claude/skills/trellis-auto-loop",
     ".claude/skills/trellis-check-all",
     ".claude/skills/trellis-create-command",
     ".claude/skills/trellis-diff-brief",
@@ -40,6 +46,9 @@
     ".claude/skills/trellis-run-full-chain",
     ".claude/skills/trellis-task-brief",
     ".claude/skills/trellis-verify-task",
-    ".claude/skills/trellis-visualize"
+    ".claude/skills/trellis-visualize",
+    ".trellis/scripts/auto_loop.py",
+    ".trellis/scripts/push_snapshot.py",
+    ".trellis/scripts/spec_router.py"
   ]
 }

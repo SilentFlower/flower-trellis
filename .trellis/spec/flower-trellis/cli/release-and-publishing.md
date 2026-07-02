@@ -88,6 +88,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 | 未先展示 dry-run CHANGELOG 就准备执行真实 release | 停止;先运行对应 `npm run release:dry...`,展示版本号与 CHANGELOG 段落并等待确认 |
 | dry-run 参数与计划执行的真实 release 参数不一致 | 停止;重新用真实计划参数 dry-run 并展示更新后的 CHANGELOG |
 | `MANIFEST.sourceCommit` ≠ `vendor/skill-garden` HEAD | check-snapshot `exit(1)`:提示先 `npm run sync` 重建并提交快照 |
+| `vendor/skill-garden` 工作区有未提交改动 | check-snapshot `exit(1)`:提示先提交 skill-garden 源改动并更新 submodule pin,避免发布未提交源生成的快照 |
 | `enhancements/` 有未提交改动 | check-snapshot `exit(1)`:提示先提交快照 |
 | `npm run sync` 只改 `MANIFEST.syncedAt` / `sourceCommit` | 展示为快照指针更新,独立提交后再跑 `node scripts/check-snapshot.mjs` |
 | 真实 release 已被快照门禁阻断 | 不继续 tag/push;按 `npm run sync` → 审核 diff → 提交快照 → `check-snapshot` 通过 → 重跑 release |
@@ -109,6 +110,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 - beta 分支另建 `release-beta.yml` → npm 单包只能信任一个 workflow,容易造成 beta OIDC 404。
 - beta tag 里写裸 `npm publish` → prerelease 可能污染默认 `latest` 通道。
 - 改了 submodule pin 不 `npm run sync` 就发布 → 发布陈旧快照(check-snapshot 会拦)。
+- 用 dirty submodule 工作区生成快照后直接发布 → npm 包里会含有未提交、不可追溯的 skill-garden 内容(check-snapshot 必须拦)。
 - 用户还没看过 dry-run CHANGELOG 就直接跑 `npm run release` → 版本号和发布说明未经确认,容易把不符合预期的条目写入正式 tag。
 - 真实 release 被 `check-snapshot` 阻断后继续尝试 tag/push → 跳过了快照审核,应先补 `npm run sync` 与快照提交。
 - AI 生成英文 commit description,导致 CHANGELOG 普通说明条目是英文 → 不符合中文发布说明约定;应先改写为中文再 release。
@@ -116,7 +118,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 ### Correct
 - 本地只 bump+CHANGELOG+tag(人工把关),push tag 由 CI 用 OIDC 发布(自动 provenance、免 token)。
 - `node-version: 22` + `npm i -g npm@latest`,不跑 npm ci。
-- 真实 release 前先 `npm run sync`;如有快照 diff,审核并提交后再用 check-snapshot 断言快照与 submodule pin 一致且已提交。
+- 真实 release 前先确认 `vendor/skill-garden` 工作区干净,再 `npm run sync`;如有快照 diff,审核并提交后再用 check-snapshot 断言快照与 submodule pin 一致、submodule 源无未提交改动且快照已提交。
 - beta 版使用 `X.Y.Z-beta.N` 版本号、`vX.Y.Z-beta.N` tag、同一 `release.yml` 内的 `npm publish --tag beta`。
 - 真实 release 前先用相同参数跑 `npm run release:dry...`,把将生成的 CHANGELOG 段落展示给用户,得到明确确认后再执行真实 release。
 - CHANGELOG 普通说明条目使用中文;只保留命令、文件名、包名、函数名、tag、环境变量等技术 token 的英文原文。

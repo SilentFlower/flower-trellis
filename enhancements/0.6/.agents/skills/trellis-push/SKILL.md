@@ -8,6 +8,8 @@ description: "提交并推送配置仓库，可选合并到目标分支，并同
 
 核心原则：**先计划、一次确认、后执行**。在任何 `git add`、`git commit`、`git push`、`git merge` 之前，必须先展示完整执行计划，并获得用户确认。
 
+例外：当 `trellis-auto-loop` 已显式以 `profile=commit-only` 启动，且 runner 当前有 `outstanding_action.action=commit_only` 时，用户启动 auto-loop 本身就是本次 run 内任务相关本地提交的预授权。此时仍必须由 AI 生成并自检提交计划，但可跳过二次聊天确认；计划只允许 commit-only、不 push/merge/release/archive，并在成功后把 commit hash 回写 runner。预检不安全时只标记当前 auto-loop item blocked/skipped，后续队列仍可继续。
+
 支持多仓库（frontend / backend 等），merge 目标分支记录在 `.trellis/config.yaml` 的 `packages.<name>.merge_target` 中。
 
 ---
@@ -62,8 +64,23 @@ Step 6  输出结果
 | 重新配置 | 本次允许重新指定 merge 目标，并回写 `merge_target` | `重新配置 push 目标分支` / `reconfigure push` |
 | 临时目标 | 本次临时指定 merge 目标，不修改配置 | `push 到 hotfix 分支` |
 | snapshot-only | 不提交业务代码，只写入 / 同步任务进度快照 | `只更新 snapshot` / `snapshot-only` |
+| auto-loop commit-only | 由 `trellis-auto-loop` runner 的 `commit_only` action 触发，只提交本任务可归属文件，不二次确认、不 push | `trellis-auto-loop` 内部触发 |
 
 `snapshot-only` 只在用户明确要求时使用。它仍必须展示统一执行计划；`pushed_commits` 取计划中确认的现有 commit，或按用户说明记录。
+
+### 0.1.1 auto-loop commit-only 判定
+
+只有同时满足以下条件，才可走 auto-loop 预授权路径：
+
+- `.trellis/scripts/auto_loop.py status` 显示当前 `run_status=running`，profile 为 `commit-only`。
+- status 摘要里的 `outstanding_action.action` 是 `commit_only`，且 `outstanding_action.task` 等于当前活动任务。
+- 本次 `trellis-push` 语义是 commit-only，不包含 push / merge / release / archive。
+- 计划拟提交文件全部能归属当前任务；未识别 dirty 文件不纳入提交。
+- 执行前复核 git 状态与计划一致。
+
+任一条件不满足时，不得使用预授权。普通 `trellis-push` 继续走“展示计划并等待确认”的规则。
+
+auto-loop 预授权路径不使用额外提交 helper。AI 负责根据当前任务 artifacts、`git status`、`git diff` 和必要的文件内容判断文件归属，输出 planned files / retained files / commit message / 归属理由；`trellis-push` 负责边界复核：当前 action/profile/task 匹配、staged 区为空、无冲突、planned files 当前 dirty、planned files 不含 `.trellis/.runtime/`、`.trellis/.route-prefs.tmp`、其他任务目录或未解释文件。通过后只 `git add` planned files 并执行本地 commit，随后回写 `auto_loop.py record --action commit_only --result ok --commit <hash> ...`。预检失败时回写 `record --result blocked`，该 blocked 只影响当前 item；auto-loop runner 后续 `next` 应继续寻找后续 pending 任务。只有 merge/rebase 冲突、repo 状态不可读、脚本损坏或用户明确 stop 才停止整个 run。
 
 ### 0.2 发现候选 Git 仓库
 
@@ -84,12 +101,13 @@ merge 目标仍从对应 package 的 `merge_target` 读取；父仓没有 packag
 ```bash
 # 在仓库根目录（含 .trellis/ 的项目根，不是 package 子目录）
 python3 ./.trellis/scripts/task.py current
+python3 ./.trellis/scripts/push_snapshot.py status --json
 ```
 
 - **无活动任务**（命令退出码非 0 或输出为空）：在计划中标记 `snapshot: 跳过（无活动任务）`。
 - **有活动任务**：解析输出拿到 task 路径（形如 `.trellis/tasks/MM-DD-name/`），并读取下列内容：
   - `<task_dir>/implement.md`（如有）— 步骤清单，AI 推断进度的主依据
-  - `<task_dir>/task.json` 的 `last_push_snapshot` 字段（如有）— 上次推送时的进度基线
+  - `push_snapshot.py status --json` 的 `snapshot` / `summary`（如有）— 上次推送时的进度基线；若返回 `no-snapshot` / `no-current-task`，按无上次 snapshot 继续
   - `<task_dir>/task.json` 的 `base_branch` 字段 — 用于 `git log <base_branch>..HEAD` 圈定本任务 commit 范围
 
 ---
@@ -131,7 +149,7 @@ git log <base_branch>..HEAD --oneline
 
 ## Step 2: 生成统一执行计划
 
-这是唯一的常规确认点。**确认前禁止执行任何 `git add` / commit / push / merge / task.json 写入。**
+这是唯一的常规确认点。**确认前禁止执行任何 `git add` / commit / push / merge / task.json 写入。** 唯一例外是已满足 Step 0.1.1 的 auto-loop commit-only 预授权；该路径仍要生成计划并执行自检，只是不再等待用户二次确认。
 
 ### 2.1 生成业务提交计划
 
@@ -175,6 +193,7 @@ commit message 生成规则：
 - branch: 执行成功后按实际分支补齐
 - pushed_commits: 执行成功后按实际 commit hash 补齐
 - snapshot_at: 执行成功后写入当前 ISO 8601 时间
+- push_mode: <push / commit-only / snapshot-only / 指定仓库 / reconfigure / 临时目标>
 - bookkeeping: 只提交 `<task_dir>/task.json`
 ```
 
@@ -188,6 +207,7 @@ commit message 生成规则：
     "frontend": "abc1234",
     "backend": "def5678"
   },
+  "push_mode": "push",
   "completed_steps": ["Step 1", "Step 2"],
   "partial_step": "Step 3（可选）",
   "next_step": "Step 4（可选）",
@@ -197,7 +217,9 @@ commit message 生成规则：
 
 > `pushed_commits`、`snapshot_at`、实际 branch / commit hash 是运行后字段。用户确认的是 snapshot 的语义内容和写入动作；执行成功后由 AI 按实际结果补齐。
 
-commit-only 模式下，字段名仍保持 `pushed_commits` 以兼容恢复逻辑；值记录本次生成的本地 commit hash，并在 `notes` 中注明“commit-only：本地已提交，未推送”。
+`push_mode` 记录本轮确认的模式。默认实际 push 模式写 `"push"`；commit-only 写 `"commit-only"`；snapshot-only 写 `"snapshot-only"`；指定仓库、reconfigure 或临时目标可写对应模式名。
+
+commit-only 模式下，字段名仍保持 `pushed_commits` 以兼容恢复逻辑；值记录本次生成的本地 commit hash，`push_mode` 写 `"commit-only"`，并在 `notes` 中注明“commit-only：本地已提交，未推送”。
 
 ### 2.3 展示确认模板
 
@@ -339,6 +361,7 @@ git checkout <current_branch>
 - `snapshot_at`：当前 ISO 8601 时间戳
 - `branch`：实际分支；多仓不同分支时使用字典
 - `pushed_commits`：各 package 的短 hash
+- `push_mode`：统一执行计划确认的模式；默认 push 写 `"push"`，commit-only 写 `"commit-only"`，snapshot-only 写 `"snapshot-only"`
 - `notes`：保留已确认 notes；commit-only 模式追加“本地已提交，未推送”
 
 写入前先复核目标文件：
@@ -352,13 +375,16 @@ git status --porcelain -- <task_json_path> [".trellis/config.yaml"]
 
 写入方式：
 
-1. 读 `<task_dir>/task.json`
-2. 解析 JSON
-3. 只设置 / 更新 `last_push_snapshot` 字段
-4. 保留其它字段原样
-5. 写回并保持原有缩进（通常 2 空格）
+1. 将已确认语义内容与运行后字段合并成完整 snapshot JSON。
+2. 调用 helper 写入：
 
-不要覆盖整个 `task.json`。
+   ```bash
+   python3 ./.trellis/scripts/push_snapshot.py write --task <task_dir> --snapshot-json '<完整 snapshot JSON>'
+   ```
+
+3. 确认 helper 成功返回；失败时停止并展示错误，不继续父仓 bookkeeping commit。
+
+helper 只允许更新 `last_push_snapshot` 字段；不要绕过 helper 手工覆盖整个 `task.json`。
 
 ### 5.2 父仓 status 检查
 

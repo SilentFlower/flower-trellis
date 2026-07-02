@@ -6,9 +6,34 @@
 
 **Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
 
-**Scope**: Phase 1.4 task brief handoff, Phase 2.1 implement routing, Phase 2.2 check/check-all routing, current-task route reuse, post-check stop, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
+**Scope**: project knowledge discovery at project-local knowledge decision boundaries, Phase 1.4 task brief handoff, Phase 2.1 implement routing, Phase 2.2 check/check-all routing, current-task route reuse, post-check stop, auto-loop commit-only preauthorization, Phase 3.4 trellis-push, explicit Phase 3.5 finish-work bookkeeping, and push-progress recovery. State blocks should keep one short skill-garden sentinel; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
+
+#### Project Knowledge Discovery
+
+Before choosing an approach for non-trivial project work, run project knowledge
+discovery when project-local SOPs, package conventions, workflow rules,
+config/state contracts, release/publish/deploy steps, git history actions,
+data changes, cross-layer design, generated artifacts, install/sync pipelines,
+or destructive operations may affect the correct approach:
+
+```bash
+python3 ./.trellis/scripts/spec_router.py "<short query describing the intended action>"
+```
+
+Build the query from the current user request plus relevant immediate context:
+the intended action, commands about to run, files or systems involved, package/layer,
+and domain words such as release, publish, deploy, migration, config, CI, workflow,
+hooks, rollback, data fix, generated artifact, install/sync pipeline, or destructive command.
+
+Read high-confidence matches before acting. For medium-confidence matches, read only
+when the path, heading, index description, or reason clearly fits the intended change.
+If nothing matches, continue normally.
+
+Do not run discovery for pure Q&A, simple read-only inspection, opening local tools,
+or trivial edits unless the request mentions project conventions or local SOPs may
+change the approach.
 
 #### Task Brief Handoff
 
@@ -29,7 +54,7 @@ At each route boundary:
 3. If the platform cannot invoke skills directly, open the local `trellis-route/SKILL.md` copy first, then follow its numbered fallback choices in normal chat and wait.
 4. If the route helper cannot ask through `AskUserQuestion` / `request_user_input`, ask the same numbered choices from `trellis-route` in normal chat and wait.
 
-Plain user preference, ordinary compact/SessionStart summary, `codex-mode`, empty/old prefs, and raw `.trellis/.runtime/sessions/*` `route_decisions` content that has not been validated by `trellis-route` are not route evidence by themselves.
+Plain user preference, ordinary compact/SessionStart summary, ordinary summary, replacement history, historical bare numeric replies, `codex-mode`, empty/old prefs, and raw `.trellis/.runtime/sessions/*` `route_decisions` content that has not been validated by `trellis-route` are not route evidence by themselves; numbered fallback validity is governed by `trellis-route`.
 
 User reselect/override/use-X-this-time/clear-default wins over remembered route evidence, runtime state, and personal prefs.
 
@@ -41,6 +66,8 @@ After `trellis-check` or `trellis-check-all` finishes, stop and report the resul
 
 If checks pass, the next allowed workflow steps are Phase 3.3 `trellis-update-spec` and Phase 3.4 `trellis-push`/commit confirmation. `/trellis:finish-work` is explicit-only: run it only after Phase 3.4 is complete and the user asks to wrap up, archive, or finish the task.
 
+During a running `trellis-auto-loop`, the runner's `record` + `next` replaces the post-check stop gate: after a check pass, record the result, then continue to spec update / commit-only according to `.trellis/scripts/auto_loop.py`. Outside auto-loop, keep the normal stop gate.
+
 #### Code Commit Confirmation Gate
 
 Code commit/push belongs only to Phase 3.4 and must go through `trellis-push`; the main session must not run bare `git commit` / `git push` for code.
@@ -49,16 +76,22 @@ Code commit/push belongs only to Phase 3.4 and must go through `trellis-push`; t
 
 For "commit now, push later", use `trellis-push` commit-only mode; the later push still goes through `trellis-push`. `session_auto_commit` never authorizes code commits; it only affects bookkeeping commits below.
 
+#### Auto-loop Commit-only Preauthorization
+
+When the user explicitly starts `trellis-auto-loop` with `profile=commit-only`, that start preauthorizes only task-related local commits inside that run. When `.trellis/scripts/auto_loop.py status` reports `run_status=running`, `profile=commit-only`, and `outstanding_action.action=commit_only` for the active task, `trellis-push` may execute commit-only without an additional chat confirmation if the plan contains only files attributable to the current task, performs no push/merge/release/archive, and records the commit hash back to the runner.
+
+This exception does not apply to ordinary `trellis-push`. If the plan contains unrecognized staged files, conflicts, dirty files that cannot be attributed safely, push/merge/release/archive intent, external systems, credentials, or production data effects, stop or mark the current auto-loop task blocked.
+
 #### Bookkeeping Auto-commit Scope
 
 `session_auto_commit` only governs the bookkeeping commits `task.py archive` / `add_session.py` make for their own `.trellis/tasks/**` and `.trellis/workspace/**` files — never code (gated above). When `false`, those archive/journal writes stay disk-only (no compensating `git commit`).
 
 #### Push Progress Recovery / Snapshot
 
-`trellis-push` may write `last_push_snapshot` into an active task's `task.json` with this schema: `snapshot_at`, `branch`, `pushed_commits`, `completed_steps`, `partial_step`, `next_step`, and `notes`.
+Use `python3 ./.trellis/scripts/push_snapshot.py status --json` for recovery reads and `write --task ... --snapshot-json ...` for `trellis-push` writes; do not hand-scan or hand-edit `task.json`.
 
-When there is no active task, scan `.trellis/tasks/*/task.json` for `status="in_progress"` entries that carry `last_push_snapshot`. If any exist and this session has not already relayed recovery, surface the paused state to the user and suggest rebinding the active-task pointer before resuming.
+`trellis-push` still owns snapshot semantics, user confirmation, git operations, and post-run fields; the helper only touches `task.json.last_push_snapshot`.
 
-When an active in-progress task carries `last_push_snapshot`, briefly relay `partial_step` and `next_step` before starting new work. Skip the reminder if it was already relayed in this session or the field is absent.
+On recovery, relay the helper's `summary` / `candidates` once and suggest rebinding if there is no active task. Never auto-rebind, infer workflow phase, or hook this into SessionStart / workflow-state injection / `trellis-continue`.
 
 <!-- END skill-garden overrides v0.6 -->

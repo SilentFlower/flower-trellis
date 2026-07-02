@@ -20,6 +20,9 @@ flower-trellis 自身几乎无内存态:配置是一组**集中常量**,运行�
 - `PLATFORM_FLAGS` —— Trellis init 支持的全部平台 flag;用户未指定平台时据此判断是否补默认。
   来源为 Trellis `cli/index.ts` 的 init 注册,上游新增平台时此名单可滞后(最坏只是误补
   `--claude`,不致命)。
+  - Trellis 0.6.5 起 `--devin` 是 Windsurf 更名后的主 flag,`--windsurf` 仍作为旧别名保留;
+    `--zcode`、`--trae` 是平台 flag,也要纳入 `PLATFORM_FLAGS`。
+  - `--with-statusline` 是 Claude Code 功能开关,不是平台选择,不要纳入 `PLATFORM_FLAGS`。
 - `OWN_FLAGS` —— flower 自有、**不能透传给 trellis** 的 flag;值 `false`=布尔 flag,
   `true`=带取值 flag(剔除时要连带跳过其后一个 token)。
 

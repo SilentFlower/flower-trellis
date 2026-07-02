@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "CLI 分层、目标路径与开发前必读索引。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "ESM、命名导出、中文 JSDoc 与 @inquirer/prompts 交互规范。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "常量、路径定位、变体、manifest 与精确清理约束。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "增强快照、copy pipeline、幂等和 --skills 精细安装语义。"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "CLI 输出、非 TTY 交互回退与错误处理约定。"}

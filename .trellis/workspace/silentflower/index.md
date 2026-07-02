@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 26
-- **Last Active**: 2026-06-28
+- **Total Sessions**: 35
+- **Last Active**: 2026-07-02
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~930 | Active |
+| `journal-1.md` | ~1243 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,7 +29,16 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
-| 26 | 2026-06-18 | craft-slides 内置精选主题升级 | `11f1b20` | `main` |
+| 35 | 2026-06-18 | craft-slides 内置精选主题升级 | `11f1b20` | `main` |
+| 34 | 2026-07-02 | 优化 spec_router 知识发现 | `ee59673`, `39a0933` | `beta` |
+| 33 | 2026-07-02 | 修复 route 裸数字选择与 finish-work push 收尾 | `328cf43`, `54d4548`, `8c0404c`, `5c76a63` | `beta` |
+| 32 | 2026-07-01 | 完成 push snapshot helper | `da84a3c`, `2e4f5e5`, `4779a38` | `beta` |
+| 31 | 2026-07-01 | 优化 Flower Trellis Skill 管理 | `48a1ff2`, `7a9b882` | `beta` |
+| 30 | 2026-07-01 | 完成 humanize-writing 增强技能 | `2023c3f`, `3413628`, `1c02041` | `beta` |
+| 29 | 2026-06-29 | 修复 auto-loop commit 与 route 状态边界 | `5cb8e6c`, `57c7cbd`, `43e16e4` | `beta` |
+| 28 | 2026-06-29 | Spec router project SOP discovery | `961587a` | `beta` |
+| 27 | 2026-06-29 | Auto loop task runner | `268140a`, `8a886ec` | `beta` |
+| 26 | 2026-06-28 | 升级 Trellis 0.6.5 | `e05c3cf`, `c0db9bd` | `beta` |
 | 25 | 2026-06-26 | 优化 route_state 输出并补充发版规范 | `afa9282`, `57bac13`, `2e6cb15` | `beta` |
 | 24 | 2026-06-26 | Route state runtime recovery | `123a1ae`, `031d745`, `d89e3b2` | `beta` |
 | 23 | 2026-06-26 | 完成 trellis-visualize 与版本输出收尾 | `dabd102`, `2119845` | `beta` |

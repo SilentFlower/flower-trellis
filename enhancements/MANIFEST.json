@@ -1,7 +1,23 @@
 {
-  "syncedAt": "2026-06-28T06:16:48.190Z",
-  "syncedFrom": "vendor/skill-garden/.trellis",
-  "sourceCommit": "57bac1361b3afe6ae3ea3fa456405bb888edab11",
+  "syncedAt": "2026-07-02T11:04:58.881Z",
+  "syncedFrom": "vendor/skill-garden",
+  "sourceCommit": "a70185e3b372058363296e81e2138f4f239d6e3b",
+  "common": {
+    "codexSkills": [
+      "craft-rpa",
+      "craft-slides",
+      "humanize-writing",
+      "open-idea",
+      "torrent-analyze"
+    ],
+    "claudeSkills": [
+      "craft-rpa",
+      "craft-slides",
+      "humanize-writing",
+      "open-idea",
+      "torrent-analyze"
+    ]
+  },
   "variants": {
     "old": {
       "claudeSkills": [],
@@ -33,7 +49,8 @@
       ],
       "overrides": [],
       "workflowStates": [],
-      "skillOverrides": []
+      "skillOverrides": [],
+      "scripts": []
     },
     "0.5": {
       "claudeSkills": [
@@ -71,10 +88,12 @@
         "trellis-route.md"
       ],
       "workflowStates": [],
-      "skillOverrides": []
+      "skillOverrides": [],
+      "scripts": []
     },
     "0.6": {
       "claudeSkills": [
+        "trellis-auto-loop",
         "trellis-check-all",
         "trellis-create-command",
         "trellis-diff-brief",
@@ -89,6 +108,7 @@
         "trellis-visualize"
       ],
       "agentsSkills": [
+        "trellis-auto-loop",
         "trellis-check-all",
         "trellis-create-command",
         "trellis-diff-brief",
@@ -115,6 +135,11 @@
       ],
       "skillOverrides": [
         "trellis-finish-work.md"
+      ],
+      "scripts": [
+        "auto_loop.py",
+        "push_snapshot.py",
+        "spec_router.py"
       ]
     }
   }

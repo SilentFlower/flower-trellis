@@ -52,6 +52,9 @@ flower-trellis init -u <your-name> -y
 # 升级 Trellis 并按新版本重新叠加强化包
 flower-trellis update
 
+# 交互管理通用技能,并查看工作流强化包
+flower-trellis skill
+
 # 卸载:移除 Trellis 本体并清理强化包残留
 flower-trellis uninstall
 
@@ -67,6 +70,7 @@ flower-trellis -v
 |------|------|
 | `init` | 安装 Trellis 并叠加强化包(默认命令,裸跑等同 `init`) |
 | `update` | 升级 Trellis,并按新版本重新叠加强化包 |
+| `skill` | 打开交互菜单:启用或停用通用技能,只读查看工作流强化包 |
 | `uninstall` | 移除 Trellis 本体并清理强化包残留(支持 `-y` / `--dry-run`) |
 | `<其它命令>` | 原样透传给 Trellis,覆盖其现有及未来子命令 |
 | `-v` / `-h` | 打印版本 / 帮助 |
@@ -82,7 +86,7 @@ flower-trellis -v
 | `--target <dir>` | 目标目录(默认当前目录) |
 | `--no-update-check` | 本次跳过 flower-trellis 新版本检测(等价环境变量 `FLOWER_NO_UPDATE_CHECK=1`) |
 
-未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` 等指定,或用 `-y` 跳过菜单。其余未识别的 flag(如 `-u`、`-f`、`--template`)一律透传给 Trellis。
+未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` / `--devin` / `--zcode` / `--trae` 等指定,或用 `-y` 跳过菜单。`--windsurf` 仍作为 Devin 的旧别名透传给 Trellis。其余未识别的 flag(如 `-u`、`-f`、`--template`、`--with-statusline`)一律透传给 Trellis。
 
 ### 自动版本检测
 

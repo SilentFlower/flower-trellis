@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "进入 flower-trellis CLI 修改前必须读取的规范索引。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "本任务会修改平台 flag、版本状态和 config 保留策略。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "本任务会修改 skill-garden 0.6 源、enhancements 快照和 dogfood 副本。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "本任务会修改 ESM 模块和常量文件，需要遵守导出、注释与 import 约定。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "本任务需要保持幂等、容错和不误伤用户文件。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "平台名单与快照同步属于常量/重复路径修改，必须先搜再改。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "workflow、hooks、快照和 dogfood 副本属于跨层模板一致性修改。"}
+{"file": ".trellis/tasks/06-28-assess-trellis-0-6-5-upgrade/research/trellis-0-6-5-upgrade.md", "reason": "记录 0.6.2 到 0.6.5 的上游差异、dry-run 结果与冲突清单。"}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "打开 IDEA"
+  short_description: "跨平台唤起 IntelliJ IDEA 并打开项目目录"
+  default_prompt: "使用 $open-idea 打开当前项目或指定路径。"

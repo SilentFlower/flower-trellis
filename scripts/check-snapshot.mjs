@@ -4,9 +4,10 @@
 // pin 的 commit 一致,防止「改了 submodule pin 却忘了重新 sync」而发布出陈旧快照。
 // 由 `npm run release` 在 commit-and-tag-version 之前调用(见 package.json 的 scripts.release)。
 //
-// 校验两件事(任一不满足即非零退出并给出修复指引,阻断发布):
+// 校验三件事(任一不满足即非零退出并给出修复指引,阻断发布):
 //   1. enhancements/MANIFEST.json 的 sourceCommit === vendor/skill-garden 的 HEAD(pin)
 //   2. 工作区 enhancements/ 无未提交改动(快照已落盘并提交)
+//   3. vendor/skill-garden 子模块工作区无未提交改动(避免快照来自未提交源)
 
 import fs from "node:fs";
 import path from "node:path";
@@ -75,6 +76,20 @@ function enhancementsDirty() {
   }
 }
 
+/**
+ * 检查 vendor/skill-garden 工作区是否存在未提交改动。
+ * @returns {string} git status --porcelain 的输出(空串表示干净)
+ */
+function submoduleDirty() {
+  try {
+    return execFileSync("git", ["-C", SUBMODULE, "status", "--porcelain"], {
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    fail("无法读取 vendor/skill-garden 的工作区状态(git status 失败)。");
+  }
+}
+
 const snapshotCommit = readSnapshotCommit();
 const pin = readSubmodulePin();
 
@@ -83,6 +98,19 @@ if (snapshotCommit !== pin) {
     `enhancements 快照(sourceCommit=${snapshotCommit.slice(0, 10)})与 ` +
       `vendor/skill-garden pin(${pin.slice(0, 10)})不一致。\n` +
       "   请先 npm run sync 重建快照,并提交 enhancements/ 后再发布。",
+  );
+}
+
+const sourceDirty = submoduleDirty();
+if (sourceDirty) {
+  const detail = sourceDirty
+    .split("\n")
+    .map((l) => "     " + l)
+    .join("\n");
+  fail(
+    "vendor/skill-garden 存在未提交改动:\n" +
+      detail +
+      "\n   请先在 skill-garden 提交源改动并更新 submodule pin,再 npm run sync 重建快照。",
   );
 }
 

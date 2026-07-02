@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "CLI 包开发入口，确认分层、预开发清单和质量门禁。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "若修改 src/lib，需遵守 ESM、命名导出和中文 JSDoc 约定。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "本任务修改 skill-garden 源、快照、脚本资产和 workflow 覆写，必须遵守同步与幂等规则。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "新增通用 helper 前先检查现有脚本资产和复制逻辑，避免重复机制。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "改动跨 vendor 源、enhancements 快照、安装脚本和目标 workflow 注入。"}

@@ -1,0 +1,6 @@
+# Node.js 依赖目录(由 package.json 重建)
+node_modules/
+
+# launch.js 启动时 run.sh 建的软链(目标在 <cwd>/.craft-rpa/,与 skill 实现解耦)
+session.jsonl
+profile

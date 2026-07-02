@@ -1,0 +1,47 @@
+{
+  "id": "spec-router-knowledge-discovery-optimization",
+  "name": "spec-router-knowledge-discovery-optimization",
+  "title": "Optimize spec_router knowledge discovery",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-02",
+  "completedAt": "2026-07-02",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-07-02T01:25:49Z",
+    "branch": {
+      "skill-garden": "beta",
+      "flower-trellis": "beta"
+    },
+    "pushed_commits": {
+      "skill-garden": "39a0933",
+      "flower-trellis": "ee59673"
+    },
+    "push_mode": "push",
+    "completed_steps": [
+      "Step 1 基线验证",
+      "Step 2 改源脚本",
+      "Step 3 改 workflow 源文案",
+      "Step 4 同步快照与 dogfood",
+      "Step 5 验证"
+    ],
+    "next_step": "Phase 3.5 finish-work / archive",
+    "notes": "实现和 check-all 已通过；已提交并推送 skill-garden 与 flower-trellis 变更"
+  }
+}

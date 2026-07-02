@@ -1,0 +1,44 @@
+{
+  "id": "skill-management-cli",
+  "name": "skill-management-cli",
+  "title": "优化 Flower Trellis Skill 管理",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-01",
+  "completedAt": "2026-07-01",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "last_push_snapshot": {
+    "snapshot_at": "2026-07-01T12:07:17+08:00",
+    "branch": "beta",
+    "pushed_commits": {
+      "flower-trellis": "48a1ff2",
+      "skill-garden": "7a9b882"
+    },
+    "completed_steps": [
+      "Step 1 扩展 catalog 能力",
+      "Step 2 增加 common skill 安装/停用能力",
+      "Step 3 重写 skill 交互菜单",
+      "Step 4 更新文档与帮助",
+      "Step 5 验证"
+    ],
+    "partial_step": null,
+    "next_step": "Phase 3.3 判断是否需要更新规范；随后 finish-work",
+    "notes": "已完成 CLI 菜单、common 快照、humanize-writing 迁移、ESC 退出和行为验证。"
+  },
+  "meta": {}
+}

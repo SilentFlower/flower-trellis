@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "实现 flower-trellis / skill-garden 强化能力前必须读取 CLI 分层、同步和质量约定。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "auto runner 会修改 skill-garden 0.6 强化源、route helper 和 enhancements 快照，需要遵守同步源与幂等规则。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "auto runner 需要新增 runtime state、保持状态文件 gitignored，并与现有 route/session 状态兼容。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "涉及脚本和模块新增时需要遵守本项目导出、JSDoc 和文件职责约定。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "实现前需要明确本项目语法检查、快照检查和禁用模式。"}
