@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.1](https://github.com/SilentFlower/flower-trellis/compare/v0.4.0...v0.4.1) (2026-07-06)
+
+
+### ✨ 新功能 Features
+
+* **enhancements:** 新增任务范围守卫并精简工作流文案（同步 skill-garden 0.6 overrides） ([0bfcf74](https://github.com/SilentFlower/flower-trellis/commit/0bfcf7437927b741167704e2ff2af5140ddb3f83))
+
 ## [0.4.0](https://github.com/SilentFlower/flower-trellis/compare/v0.3.1...v0.4.0) (2026-07-02)
 
 
