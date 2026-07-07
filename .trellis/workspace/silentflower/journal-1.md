@@ -1315,3 +1315,38 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 38: 完成自动更新 release notes 与 push 联动
+
+**Date**: 2026-07-07
+**Task**: 完成自动更新 release notes 与 push 联动
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+实现 npm metadata release notes 生成与聚合、self-check/hook 展示更新摘要、self-update 输出 trellis-push 后续动作；同步 skill-garden workflow override、enhancements 快照、dogfood hook/workflow 与相关 specs，并归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bbdb23c` | (see git log) |
+| `363dd9b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
