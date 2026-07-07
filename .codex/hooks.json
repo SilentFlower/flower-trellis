@@ -20,6 +20,15 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -X utf8 .trellis/scripts/flower_update_hook.py",
+            "timeout": 8
+          }
+        ]
       }
     ]
   }
