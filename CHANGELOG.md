@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.7](https://github.com/SilentFlower/flower-trellis/compare/v0.4.6...v0.4.7) (2026-07-07)
+
+
+### 🐛 修复 Bug Fixes
+
+* **flower:** 同步 brainstorm planning gate ([3d2944e](https://github.com/SilentFlower/flower-trellis/commit/3d2944ebec9ae040a064d9974b170f046f4bf845))
+* **flower:** 同步 workflow 提示压缩 ([b7083ce](https://github.com/SilentFlower/flower-trellis/commit/b7083ce553ed4fda8190e30d7882358f70cb0449))
+
 ## [0.4.6](https://github.com/SilentFlower/flower-trellis/compare/v0.4.5...v0.4.6) (2026-07-07)
 
 
