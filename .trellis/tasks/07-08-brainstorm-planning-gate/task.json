@@ -22,5 +22,22 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-07-07T16:58:22Z",
+    "branch": "main",
+    "pushed_commits": {
+      "skill-garden": "b99053b",
+      "flower-trellis": "3d2944e"
+    },
+    "push_mode": "push",
+    "completed_steps": [
+      "更新 skill-garden 0.6 workflow hub / no_task / planning / planning-inline 文案",
+      "同步 enhancements/0.6 快照",
+      "重新注入 dogfood .trellis/workflow.md",
+      "完成基础校验并推送业务提交"
+    ],
+    "next_step": "用户 review 后进入 finish-work / archive",
+    "notes": "默认 push：已推送 skill-garden 与 flower-trellis；未执行 merge。"
+  }
 }
