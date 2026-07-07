@@ -24,20 +24,19 @@
   "notes": "",
   "meta": {},
   "last_push_snapshot": {
-    "snapshot_at": "2026-07-07T09:04:51Z",
+    "snapshot_at": "2026-07-07T09:39:28Z",
     "branch": "beta-auto-update-codex-prompt",
     "pushed_commits": {
-      "flower-trellis": "95eb10e"
+      "flower-trellis": "f05f7bf"
     },
     "push_mode": "push",
     "completed_steps": [
-      "Step 1",
-      "Step 2",
-      "Step 3",
-      "Step 4",
-      "Step 5"
+      "失败缓存修复",
+      "hook timeout/prompt 强化",
+      "规范同步",
+      "验证通过"
     ],
-    "next_step": "Phase 3.5 wrap-up / 可按需创建 PR",
-    "notes": "补充实现主动 init/update 成功探测后刷新 updateCheck 远端缓存;业务提交已推送到 origin/beta-auto-update-codex-prompt。"
+    "next_step": "发新 beta 版本供更新功能测试",
+    "notes": "修复 offline/fetch_failed 缓存误判新鲜、提高 registry/hook timeout，并强化 Codex policy=ask 注入提示；业务提交已推送到 origin/beta-auto-update-codex-prompt。"
   }
 }
