@@ -22,5 +22,30 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-07-07T12:40:37.371Z",
+    "branch": {
+      "flower-trellis": "main",
+      "skill-garden": "main"
+    },
+    "pushed_commits": {
+      "flower-trellis": "bbdb23c",
+      "skill-garden": "363dd9b"
+    },
+    "push_mode": "push",
+    "completed_steps": [
+      "发布 metadata 生成与 CHANGELOG 抽取复用",
+      "registry metadata 与 release notes 跨版本聚合",
+      "manifest 与 self-check 缓存/release notes 写入",
+      "hook release notes 注入与 ask 策略提示",
+      "self-update 结果块与 trellis-push 确认联动",
+      "workflow override 源同步、快照同步与 dogfood 恢复",
+      "release/config/enhancements/quality specs 同步",
+      "项目 self-update 后恢复本地待发布 dogfood 变更并完成推送"
+    ],
+    "partial_step": null,
+    "next_step": "根据需要执行发布流程或 finish-work",
+    "notes": "已推送 skill-garden 363dd9b 和 flower-trellis bbdb23c；snapshot bookkeeping 将单独提交。"
+  }
 }
