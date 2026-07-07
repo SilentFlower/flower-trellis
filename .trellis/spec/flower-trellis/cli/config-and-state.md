@@ -123,7 +123,7 @@ flower 自己的安装清单,是「精确升级清理」的依据:
 - `readManifest` 读不到 / 损坏时返回 `null`(调用方需判空);`writeManifest` 写
   `JSON.stringify(data, null, 2) + "\n"`(两空格缩进 + 结尾换行)。
 - `readUpdateCheck(target)` 必须对旧 manifest / 损坏字段返回默认策略:
-  `{ enabled:true, policy:"ask", intervalHours:24, lastCheckedAt:null, lastRemote:null, lastStatus:null, lastErrorCode:null }`。
+  `{ enabled:true, policy:"ask", intervalHours:8, lastCheckedAt:null, lastRemote:null, lastStatus:null, lastErrorCode:null }`。
 - `writeUpdateCheck(target, patch)` 只合并 `updateCheck`,保留 manifest 其它安装清单字段。
 
 ## Scenario: Startup Self-Update Check

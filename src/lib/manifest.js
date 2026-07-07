@@ -15,7 +15,7 @@ const UPDATE_POLICIES = new Set(["off", "notify", "ask", "auto"]);
 const DEFAULT_UPDATE_CHECK = {
   enabled: true,
   policy: "ask",
-  intervalHours: 24,
+  intervalHours: 8,
   lastCheckedAt: null,
   lastRemote: null,
   lastStatus: null,

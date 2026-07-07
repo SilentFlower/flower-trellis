@@ -138,7 +138,7 @@ flower-trellis self-check --json --target .
   "updateCheck": {
     "enabled": true,
     "policy": "ask",
-    "intervalHours": 24,
+    "intervalHours": 8,
     "lastCheckedAt": "2026-07-07T00:00:00.000Z",
     "lastRemote": { "latest": "0.4.2", "beta": null },
     "lastStatus": "update_available",
