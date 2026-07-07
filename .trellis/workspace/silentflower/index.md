@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 36
+- **Total Sessions**: 37
 - **Last Active**: 2026-07-07
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1279 | Active |
+| `journal-1.md` | ~1317 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 37 | 2026-07-07 | 修正自动更新检查与发布 0.4.5 | `d208917`, `95eb10e`, `f05f7bf`, `26b0010`, `1dfc20a` | `main` |
 | 36 | 2026-07-07 | 启动时自更新检查收尾 | `2b98110`, `1f758aa`, `ee1ddae` | `main` |
 | 35 | 2026-06-18 | craft-slides 内置精选主题升级 | `11f1b20` | `main` |
 | 34 | 2026-07-02 | 优化 spec_router 知识发现 | `ee59673`, `39a0933` | `beta` |

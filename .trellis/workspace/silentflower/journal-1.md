@@ -1277,3 +1277,41 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 37: 修正自动更新检查与发布 0.4.5
+
+**Date**: 2026-07-07
+**Task**: 修正自动更新检查与发布 0.4.5
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+修复自动更新远端探测顺序、失败缓存语义、主动更新远端缓存刷新、Codex/Claude hook matcher 和 policy=ask 确认提示；发布 0.4.5-beta.3 与正式版 0.4.5。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d208917` | (see git log) |
+| `95eb10e` | (see git log) |
+| `f05f7bf` | (see git log) |
+| `26b0010` | (see git log) |
+| `1dfc20a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
