@@ -80,6 +80,15 @@ def _json_bool(value: object) -> str:
     return json.dumps(bool(value), ensure_ascii=False)
 
 
+def _has_release_notes(data: dict) -> bool:
+    """判断 self-check 是否提供了可展示的 release notes。"""
+    notes = data.get("releaseNotes")
+    if not isinstance(notes, dict):
+        return False
+    versions = notes.get("versions")
+    return isinstance(versions, list) and bool(versions)
+
+
 def _release_notes_lines(data: dict) -> list[str]:
     """把 self-check 的 releaseNotes 摘要格式化为短字段。"""
     notes = data.get("releaseNotes")
@@ -109,8 +118,6 @@ def _release_notes_lines(data: dict) -> list[str]:
         range_text = f"{note_range.get('from')} -> {note_range.get('to')}"
         if note_range.get("channel"):
             range_text += f" ({note_range.get('channel')})"
-        if note_range.get("reason"):
-            range_text += f" reason={note_range.get('reason')}"
         lines.append(f"release_notes_range: {range_text}")
     if safe_versions:
         lines.append(
@@ -119,9 +126,22 @@ def _release_notes_lines(data: dict) -> list[str]:
         )
     elif notes.get("unavailable"):
         lines.append("release_notes_unavailable: true")
-    lines.append(f"release_notes_truncated: {_json_bool(notes.get('truncated'))}")
-    lines.append(f"release_notes_more_versions: {_json_bool(notes.get('moreVersions'))}")
+    if notes.get("truncated"):
+        lines.append(f"release_notes_truncated: {_json_bool(notes.get('truncated'))}")
+    if notes.get("moreVersions"):
+        lines.append(f"release_notes_more_versions: {_json_bool(notes.get('moreVersions'))}")
     return lines
+
+
+def _ai_instruction(data: dict, command: str | None) -> str | None:
+    """生成面向 AI 的单条动作指令,避免重复字段互相打架。"""
+    ai = data.get("ai") or {}
+    instruction = ai.get("instruction")
+    if ai.get("mode") == "ask" and command:
+        if _has_release_notes(data):
+            return "先展示 release_notes 摘要和 recommended_command,再询问用户确认;确认前禁止执行 recommended_command。"
+        return "先展示 recommended_command,再询问用户确认;确认前禁止执行 recommended_command。"
+    return instruction if isinstance(instruction, str) and instruction else None
 
 
 def _format_context(data: dict) -> str:
@@ -132,22 +152,22 @@ def _format_context(data: dict) -> str:
     ai = data.get("ai") or {}
     safety = data.get("safety") or {}
     out_of_sync_reasons = project.get("outOfSyncReasons") or []
+    current_trellis = current.get("bundledTrellisVersion")
+    project_trellis = project.get("trellisVersion")
     lines = [
         "<flower-update>",
         "priority: blocking_confirmation_required",
         "instruction_scope: first_assistant_reply",
         f"status: {data.get('status')}",
-        f"policy: {data.get('policy')}",
         f"current_flower: {current.get('flowerVersion')}",
         f"project_flower: {project.get('flowerVersion')}",
-        f"bundled_trellis: {current.get('bundledTrellisVersion')}",
-        f"project_trellis: {project.get('trellisVersion')}",
     ]
-    if "outOfSync" in project:
-        lines.append(f"project_out_of_sync: {project.get('outOfSync')}")
+    if current_trellis and project_trellis and current_trellis != project_trellis:
+        lines.append(f"bundled_trellis: {current_trellis}")
+        lines.append(f"project_trellis: {project_trellis}")
     if out_of_sync_reasons:
         lines.append(f"project_out_of_sync_reasons: {', '.join(out_of_sync_reasons)}")
-    if remote.get("tags"):
+    if data.get("status") == "update_available" and remote.get("tags"):
         lines.append(f"remote: {json.dumps(remote.get('tags'), ensure_ascii=False)}")
     if remote.get("errorCode"):
         lines.append(f"remote_error_code: {remote.get('errorCode')}")
@@ -157,14 +177,9 @@ def _format_context(data: dict) -> str:
         lines.append(f"recommended_command: {command}")
     if safety.get("reasons"):
         lines.append(f"safety_reasons: {', '.join(safety.get('reasons') or [])}")
-    if ai.get("mode"):
-        lines.append(f"ai_mode: {ai.get('mode')}")
-    if ai.get("mode") == "ask":
-        lines.append(
-            "ai_required_action: 必须先向用户展示 release_notes 摘要和 recommended_command,再提出明确确认问题;用户确认前禁止执行 recommended_command。"
-        )
-    if ai.get("instruction"):
-        lines.append(f"ai_instruction: {ai.get('instruction')}")
+    instruction = _ai_instruction(data, command)
+    if instruction:
+        lines.append(f"ai_instruction: {instruction}")
     lines.append("</flower-update>")
     return "\n".join(lines)
 
@@ -173,10 +188,8 @@ def _system_message(data: dict) -> str:
     """生成 Codex / Claude Code 更容易注意到的短系统提示。"""
     ai = data.get("ai") or {}
     command = (data.get("commands") or {}).get("recommended") or ai.get("command")
-    notes = data.get("releaseNotes") or {}
-    has_notes = isinstance(notes, dict) and bool(notes.get("versions"))
     if ai.get("mode") == "ask" and command:
-        if has_notes:
+        if _has_release_notes(data):
             return "flower-trellis 发现可执行更新;必须先展示更新摘要并询问用户是否执行 recommended_command,确认前禁止运行。"
         return "flower-trellis 发现可执行更新;必须先询问用户是否执行 recommended_command,确认前禁止运行。"
     if command:

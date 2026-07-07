@@ -181,7 +181,9 @@ src/assets/flower_update_hook.py
   读取。缓存仍新鲜时可使用 `lastRemote` 作为远程证据;缓存过期或 `--force-remote`
   时必须先联网查 dist-tags,不得因为项目 out-of-sync 提前跳过远程探测。
 - 缓存仍新鲜时可复用 `lastReleaseNotes`,但必须校验 `range.from` / `range.to` /
-  `range.channel` / `range.reason` 与本次结果一致;不一致时不得展示旧摘要。
+  `range.channel` 与本次结果一致;`range.reason` 只表示触发路径,同一版本范围在
+  `update_available` 与 `project_out_of_sync` 间切换时仍可复用摘要,输出给本次
+  `self-check` 的 `releaseNotes.range.reason` 应归一为当前状态。
 - `lastStatus=offline` 或 `lastErrorCode` 非空的缓存不得视为新鲜远端证据;远端探测失败
   只写 `lastStatus=offline` / `lastErrorCode=fetch_failed`,不得刷新 `lastCheckedAt`,否则会把
   旧 `lastRemote` 在 interval 内误当作刚确认的版本证据。远端失败也不得覆盖已有可用
@@ -208,6 +210,12 @@ src/assets/flower_update_hook.py
   `instruction_scope: first_assistant_reply`,便于模型在第一条回复优先处理确认。
 - `<flower-update>` 存在 `release_notes` 时,AI 必须先用短句展示更新摘要和
   `recommended_command`,再询问用户确认;用户确认前不得执行推荐命令。
+- `<flower-update>` 应保持精简:保留 `priority`、`instruction_scope`、`status`、
+  版本差异、`release_notes*`、`recommended_command`、`safety_reasons` 和一条
+  `ai_instruction`;不要同时输出重复的 `policy` / `ai_mode` / `ai_required_action`。
+  `bundled_trellis` / `project_trellis` 仅在 Trellis 版本不一致时输出,`remote` 仅在
+  真实远端升级或错误诊断需要时输出,`release_notes_truncated` /
+  `release_notes_more_versions` 仅在为 true 时输出。
 - `self-update --yes` 完成真实写入后必须输出 `<flower-update-result>` 且包含
   `post_action: run_trellis_push_confirmation`;该块只能提示 AI 进入 `trellis-push` 确认流程,
   不得由 `self-update` 自己执行 git add / commit / push。`--dry-run` 只能输出
@@ -233,6 +241,7 @@ src/assets/flower_update_hook.py
 | npx / npm exec 临时运行 | 返回 `skipped/npx_runtime`,不建议全局更新 |
 | 本地 `flowerVersion` 或 `.trellis/.version` 不一致,且缓存过期 | 先查 dist-tags;远端有新版返回 `update_available` + 完整 `self-update`,远端无新版返回 `project_out_of_sync` + `--project-only` |
 | 本地 `flowerVersion` 或 `.trellis/.version` 不一致,且缓存仍新鲜无更新 | 返回 `project_out_of_sync`,推荐 `self-update --project-only`,远端来源标记为 cache |
+| 缓存的 `lastReleaseNotes.range.reason=update_available`,本次结果为 `project_out_of_sync`,且 `from` / `to` / `channel` 相同 | 复用缓存摘要并把输出 range reason 归一为 `project_out_of_sync` |
 | `lastCheckedAt` 仍在 interval 内且缓存无更新且项目不 out-of-sync | 返回 `skipped/interval_not_elapsed` |
 | `lastCheckedAt` 仍在 interval 内但缓存显示有更新 | 返回 `update_available`,来源标记为 cache |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目不 out-of-sync | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode`,不刷新 `lastCheckedAt` |
@@ -275,6 +284,8 @@ src/assets/flower_update_hook.py
   - `self-check --json --target <dir> --no-update-check` 返回稳定 `disabled` JSON。
   - 修改临时 manifest 的 `flowerVersion` 且把 `lastCheckedAt` 设到未来,缓存无远端更新时
     返回 `project_out_of_sync`。
+  - 修改临时 manifest 的 `flowerVersion` 且缓存中已有同范围 `update_available`
+    release notes 时,返回 `project_out_of_sync` 并继续输出 `releaseNotes`。
   - 修改临时 manifest 的 `flowerVersion` 且让缓存过期,模拟远端 `latest` 高于当前版本时,
     返回 `update_available`,推荐命令不带 `--project-only`。
   - `self-update --target <dir> --dry-run --project-only` 默认项目命令带 `--force`。

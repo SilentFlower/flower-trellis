@@ -55,12 +55,22 @@ function cachedReleaseNotes(updateCheck, range) {
   if (
     cachedRange.from !== range.from ||
     cachedRange.to !== range.to ||
-    cachedRange.channel !== range.channel ||
-    cachedRange.reason !== range.reason
+    cachedRange.channel !== range.channel
   ) {
     return null;
   }
-  return Array.isArray(cached.versions) && cached.versions.length ? cached : null;
+  if (!Array.isArray(cached.versions) || !cached.versions.length) return null;
+  // 同一版本范围的内容相同;reason 只是触发路径,不能让项目追平场景丢失摘要。
+  return {
+    ...cached,
+    range: {
+      ...cachedRange,
+      from: range.from,
+      to: range.to,
+      channel: range.channel,
+      reason: range.reason,
+    },
+  };
 }
 
 /**
