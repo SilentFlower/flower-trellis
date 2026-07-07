@@ -24,11 +24,13 @@
 3. 判断远端证据来源:
    - `forceRemote=true` 或缓存过期: 先联网 `fetchPackageDistTags()`。
    - 缓存新鲜: 使用 `updateCheck.lastRemote`。
+   - `lastStatus=offline` 或 `lastErrorCode` 非空: 不视为新鲜缓存,继续联网探测。
 4. 根据远端 tags 对当前本地 flower-trellis 版本生成 `recommendation`。
 5. 若存在远端升级推荐,返回 `update_available`,推荐完整 `self-update --target <dir> --yes`,同时保留 `projectOutOfSync` 证据。
 6. 若无远端升级推荐但 `projectOutOfSync=true`,返回 `project_out_of_sync`,推荐 `self-update --project-only`。
 7. 若远端探测失败且 `projectOutOfSync=true`,返回 `project_out_of_sync`,但标注 remote error / unavailable,避免误称远端已确认无更新。
-8. 其它路径保持 `up_to_date`、`skipped/interval_not_elapsed`、`offline` 等既有语义。
+8. 若远端探测失败,只记录 `lastStatus=offline` / `lastErrorCode=fetch_failed`,不刷新 `lastCheckedAt`。
+9. 其它路径保持 `up_to_date`、`skipped/interval_not_elapsed`、`offline` 等既有语义。
 
 ## Active Update Cache Refresh
 
@@ -41,6 +43,8 @@
 - 目标还没有 manifest 时跳过,避免在 `init` 前创建只有 `updateCheck` 的半截 manifest。
 - `checkForUpdate()` 除了 `--no-update-check` / `FLOWER_NO_UPDATE_CHECK`,也要尊重 manifest
   中的 `updateCheck.enabled=false` / `policy=off`。
+- 启动 `self-check` 的失败探测不刷新 `lastCheckedAt`,避免把旧 `lastRemote` 当作 interval
+  内刚确认过的远端版本。
 
 ## Result Shape
 
@@ -71,6 +75,9 @@
 `flower_update_hook.py` 需要让 `policy=ask` 更像阻塞操作要求:
 
 - 保留 `<flower-update>` 块,不增加 Codex 不接受的顶层 JSON 字段。
+- `systemMessage` 使用结果相关短句,在 `ask` 时明确“必须先询问用户,确认前禁止运行”。
+- `<flower-update>` 首部增加 `priority: blocking_confirmation_required` 与
+  `instruction_scope: first_assistant_reply`。
 - 增加机器易读字段,例如 `ai_mode: ask`。
 - 对 `ask` 输出强约束文本,明确“必须先询问用户;确认前禁止执行推荐命令”。
 - 对 `project.outOfSync` 输出项目刷新证据,便于 AI 解释“远端更新”和“项目重叠加”的差异。

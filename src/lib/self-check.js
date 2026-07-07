@@ -28,6 +28,8 @@ function readProjectTrellisVersion(target) {
 
 /** 判断远程探测缓存是否仍在 interval 内。 */
 function isRemoteCacheFresh(updateCheck, now = new Date()) {
+  if (updateCheck.lastStatus === "offline" || updateCheck.lastErrorCode) return false;
+  if (!updateCheck.lastRemote) return false;
   if (!updateCheck.lastCheckedAt) return false;
   const checkedAt = new Date(updateCheck.lastCheckedAt).getTime();
   if (!Number.isFinite(checkedAt)) return false;
@@ -332,7 +334,6 @@ export async function buildSelfCheck(target, options = {}) {
   if (!tags) {
     if (writeCache && manifest) {
       writeUpdateCheck(absoluteTarget, {
-        lastCheckedAt: now.toISOString(),
         lastStatus: "offline",
         lastErrorCode: "fetch_failed",
       });

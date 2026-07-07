@@ -68,7 +68,7 @@ flower-trellis 自身几乎无内存态:配置是一组**集中常量**,运行�
   —— 成功返回 npm `dist-tags.latest` / `dist-tags.beta`,**任何失败一律 `null`**(调用方据此
   「拿不到就当没这回事」继续)。请求 `GET https://registry.npmjs.org/flower-trellis`,
   读取 `dist-tags`。`fetchLatestVersion()` 仅作为兼容导出保留,新逻辑不要继续扩展它。
-- **超时**:用 `AbortController` + `setTimeout(ac.abort, 2500)`,`signal` 传入内置 `fetch`;
+- **超时**:用 `AbortController` + `setTimeout(ac.abort, 5000)`,`signal` 传入内置 `fetch`;
   `finally` 里 `clearTimeout` 防句柄泄漏(否则 timer 可能拖住进程不退出)。
 - **三道防线 → `null`**:① `!res.ok`(非 200);② `catch`(AbortError 超时 / `fetch failed`
   离线 / JSON 解析失败);③ 字段类型不符(`dist-tags.latest` / `dist-tags.beta` 都不是字符串)。
@@ -84,7 +84,7 @@ flower-trellis 自身几乎无内存态:配置是一组**集中常量**,运行�
 
 | 失败条件 | 行为 |
 |---|---|
-| 离线 / DNS 失败 / 超时(>2.5s) | `catch` → `null` → 不打印,主流程继续 |
+| 离线 / DNS 失败 / 超时(>5s) | `catch` → `null` → 不打印,主流程继续 |
 | 非 200(404/5xx) | `null` → 静默 |
 | 响应无可用 `dist-tags.latest` / `dist-tags.beta` | `null` → 静默 |
 | 关闭开关 / npx | 不发请求,直接返回 |
@@ -169,6 +169,9 @@ src/assets/flower_update_hook.py
 - `intervalHours` 只限制 npm registry 远程探测,不限制本地 manifest / `.trellis/.version`
   读取。缓存仍新鲜时可使用 `lastRemote` 作为远程证据;缓存过期或 `--force-remote`
   时必须先联网查 dist-tags,不得因为项目 out-of-sync 提前跳过远程探测。
+- `lastStatus=offline` 或 `lastErrorCode` 非空的缓存不得视为新鲜远端证据;远端探测失败
+  只写 `lastStatus=offline` / `lastErrorCode=fetch_failed`,不得刷新 `lastCheckedAt`,否则会把
+  旧 `lastRemote` 在 interval 内误当作刚确认的版本证据。
 - `init` / `update` 启动阶段的 `checkForUpdate()` 若成功取得 dist-tags,必须尽力而为刷新
   已有 manifest 的 `updateCheck.lastCheckedAt` / `lastRemote` / `lastStatus` /
   `lastErrorCode=null`,让主动更新后的下次 SessionStart 使用最新远程证据。目标没有
@@ -185,6 +188,10 @@ src/assets/flower_update_hook.py
   - `notify`: 只注入提示和手动命令,AI 不主动询问或执行。
   - `ask`: 默认;AI 必须先询问用户,用户明确确认前不得执行推荐命令。
   - `auto`: 安全条件满足时 AI 可执行推荐命令,否则降级为 `ask`。
+- Codex 对 `additionalContext` 的执行强度弱于真正用户消息;因此 update hook 在
+  `policy=ask` 且存在推荐命令时,`systemMessage` 必须写成明确阻塞确认提示,
+  `<flower-update>` 开头必须包含 `priority: blocking_confirmation_required` 和
+  `instruction_scope: first_assistant_reply`,便于模型在第一条回复优先处理确认。
 - `update-check disable` 只写 `enabled=false`,不修改既有 `policy`;`enable` 只写
   `enabled=true`,沿用既有 `policy`,缺失时按 `ask` 归一化。
 - `self-update --yes` 的项目阶段必须走完整 `flower-trellis update --target <dir>
@@ -208,7 +215,7 @@ src/assets/flower_update_hook.py
 | 本地 `flowerVersion` 或 `.trellis/.version` 不一致,且缓存仍新鲜无更新 | 返回 `project_out_of_sync`,推荐 `self-update --project-only`,远端来源标记为 cache |
 | `lastCheckedAt` 仍在 interval 内且缓存无更新且项目不 out-of-sync | 返回 `skipped/interval_not_elapsed` |
 | `lastCheckedAt` 仍在 interval 内但缓存显示有更新 | 返回 `update_available`,来源标记为 cache |
-| registry 离线 / 超时 / 非 200 / 响应字段无效且项目不 out-of-sync | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode` |
+| registry 离线 / 超时 / 非 200 / 响应字段无效且项目不 out-of-sync | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode`,不刷新 `lastCheckedAt` |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目 out-of-sync | 返回 `project_out_of_sync`,推荐 `--project-only`,同时标注远端 `errorCode` |
 | `init` / `update` 主动探测成功 | 写入已有 manifest 的 `lastRemote` / `lastCheckedAt` / `lastStatus`;无 manifest 时跳过 |
 | `self-update --dry-run` | 只打印全局安装命令、项目 update 命令、版本和安全检查,不写入 |

@@ -17,8 +17,8 @@ import { flowerVersion } from "./versions.js";
 const REGISTRY = "https://registry.npmjs.org";
 /** 待检测的包名(即本包)。 */
 const PKG = "flower-trellis";
-/** 网络探测超时(毫秒)—— init/update 是重操作,2.5s 探测可接受且不显著影响体感。 */
-const TIMEOUT_MS = 2500;
+/** 网络探测超时(毫秒)—— 启动检查有 hook 总预算兜底,5s 可降低 registry 偶发慢响应误判。 */
+const TIMEOUT_MS = 5000;
 
 /**
  * 取 npm 上 flower-trellis 的 dist-tags;任何失败(离线/超时/非 200/解析异常)一律

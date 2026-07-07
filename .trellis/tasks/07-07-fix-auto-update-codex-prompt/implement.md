@@ -14,8 +14,16 @@
    - 写缓存失败不阻断 `init` / `update`;目标无 manifest 时不创建半截 manifest。
    - 尊重 manifest 的 `updateCheck.enabled=false` / `policy=off`。
 
+1.2 修复失败缓存语义
+   - `fetchPackageDistTags()` timeout 从 2.5 秒提高到 5 秒,减少 registry 偶发慢响应误判。
+   - `self-check` 遇到 `lastStatus=offline` 或 `lastErrorCode` 时不使用 interval 缓存短路。
+   - 远端探测失败只写 `lastStatus=offline` / `lastErrorCode=fetch_failed`,不刷新 `lastCheckedAt`。
+   - `flower_update_hook.py` 内部执行 `self-check` 的 subprocess timeout 改为 30 秒。
+
 2. 更新 `src/assets/flower_update_hook.py`
    - 输出 `ai_mode` 和更强的 `ask` 指令。
+   - `policy=ask` 时把 `systemMessage` 写成确认阻塞提示。
+   - `<flower-update>` 首部增加 `priority` 与 `instruction_scope`。
    - 输出项目 out-of-sync 证据和远端不可确认信息。
    - 保持 Codex SessionStart JSON schema 不增加额外顶层字段。
 
@@ -32,8 +40,11 @@
    - `node --check src/cli.js && for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done`
    - `python3 -m py_compile src/assets/flower_update_hook.py`
    - 用假 `flower-trellis self-check --json` 驱动 `src/assets/flower_update_hook.py`,确认 stdout 合法 JSON 且无 `additional_context` 顶层字段。
+   - 断言 hook 输出的 `systemMessage` 与 `additionalContext` 包含 `policy=ask` 的阻塞确认标记。
    - 构造/检查 `.codex/hooks.json` 合并结果,确认两个 SessionStart hook 的 matcher/timeout 正确且无旧重复 group。
    - 用临时 Trellis 目标验证 `checkForUpdate()` 成功探测会刷新 `updateCheck.lastRemote`,且 `policy=off` 时不联网不写缓存。
+   - 构造 `offline/fetch_failed` 新鲜缓存,验证 `self-check` 会重新尝试远端探测。
+   - mock 远端探测失败,验证 manifest 不刷新 `lastCheckedAt`。
    - `git diff --check`
 
 ## Risk Points

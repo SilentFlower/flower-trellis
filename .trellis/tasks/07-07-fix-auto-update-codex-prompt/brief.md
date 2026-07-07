@@ -10,11 +10,13 @@
 - 同时存在远端新版和项目 out-of-sync 时,优先推荐完整 `self-update`,包含本地/全局 flower-trellis 包升级和项目内 Trellis / enhancement 重叠加,不得使用 `--project-only`。
 - 在结果中保留项目 out-of-sync 证据,例如 `project.outOfSync` 和原因列表。
 - 调整 `src/assets/flower_update_hook.py` 的 `<flower-update>` 文案,让 `policy=ask` 成为明确的阻塞确认要求。
+- Codex 侧不只依赖 `additionalContext`:hook 的 `systemMessage` 也会在 `ask` 时写成必须先确认的短提示,`<flower-update>` 首部标记第一条回复优先处理。
 - 调整 `src/lib/codex-tweaks.js` 的 `.codex/hooks.json` 合并逻辑:
   - `.codex/hooks/session-start.py`: `matcher: "startup|resume|clear|compact"`, `timeout: 30`
   - `.trellis/scripts/flower_update_hook.py`: `matcher: "startup"`, `timeout: 30`
   - 迁移旧的无 matcher group,避免重复注册。
 - 调整 `src/lib/update-check.js`:用户主动运行 `ftl update` / `flower-trellis update` 且启动探测成功时,刷新已有 manifest 的 `updateCheck.lastRemote` / `lastCheckedAt` / `lastStatus`;同时尊重 manifest `enabled=false` / `policy=off`。
+- 修复失败缓存:registry 探测失败只写 `lastStatus=offline` / `lastErrorCode=fetch_failed`,不刷新 `lastCheckedAt`;后续启动不能把 `offline` 缓存当作新鲜远端版本证据。
 - 同步更新 CLI 规范: `config-and-state.md` 与 `enhancements-model.md`。
 
 ## Non-Goals
@@ -28,6 +30,8 @@
 
 - 当前分支: `beta-auto-update-codex-prompt`, base branch: `main`。
 - 当前 bug 核心: `buildSelfCheck()` 在 `projectFlower !== currentFlower` 或 `projectTrellis !== currentTrellis` 时,会在联网前直接返回 `project_out_of_sync`,导致本地/项目版本低且远端更高时漏掉完整升级。
+- 新发现的失败根因:registry fetch 2.5 秒超时会偶发 AbortError;旧逻辑把失败写成 `lastStatus=offline` 且刷新 `lastCheckedAt`,导致旧 `lastRemote` 在 interval 内被误当作刚确认过的远端证据。
+- 新发现的 Codex 注入限制:SessionStart `additionalContext` 更像背景材料,不等于交互阻塞;需要同时强化 `systemMessage` 和上下文首部标记,但仍不能让 hook 直接代替用户确认。
 - Codex 官方资料确认 `SessionStart` matcher 过滤 start source,值包括 `startup`、`resume`、`clear`、`compact`;timeout 单位是秒。
 - 相关文件:
   - `src/lib/self-check.js`
@@ -45,8 +49,10 @@
 - 远端 `latest` 高于当前本地版本且项目也 out-of-sync 时,推荐命令不带 `--project-only`。
 - 本地项目 out-of-sync 且远端探测离线/失败时,结果稳定、不中断 hook,并明确远端不可确认。
 - Codex 收到 `policy=ask` 的 `<flower-update>` 后,注入内容包含必须停下询问的强约束。
+- hook 输出的 `systemMessage` 与 `<flower-update>` 首部都表达第一条回复必须先处理确认。
 - `.codex/hooks.json` 合并结果中两个 SessionStart hook 的 matcher / timeout 正确,且无旧的无 matcher 重复 group。
 - 主动 `flower-trellis update --target <dir>` 成功取得 dist-tags 后刷新已有 manifest 的 `updateCheck.lastRemote`;`--no-update-check` 或 `policy=off` 时不联网不写缓存。
+- `lastStatus=offline` / `lastErrorCode=fetch_failed` 的缓存即使 `lastCheckedAt` 很新,也不会触发 interval 短路;探测失败不刷新 `lastCheckedAt`。
 - 验证命令通过:
   - `node --check src/cli.js && for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done`
   - `python3 -m py_compile src/assets/flower_update_hook.py`

@@ -62,6 +62,9 @@
 - R12: 如果实现改变现有 `project_out_of_sync` 的判断顺序、状态语义、hook 指令格式或 Codex matcher 策略,必须同步更新 `.trellis/spec/flower-trellis/cli/config-and-state.md` / `.trellis/spec/flower-trellis/cli/enhancements-model.md` 的合同与验证矩阵。
 - R13: 用户主动运行 `flower-trellis update` / `ftl update` 时,如果启动阶段已经成功联网取得 npm dist-tags,必须刷新已有项目 manifest 的 `updateCheck.lastRemote` / `lastCheckedAt` / `lastStatus`,避免主动更新后 SessionStart 仍使用旧远端缓存。
 - R14: 主动 `init` / `update` 的 `checkForUpdate()` 必须尊重 manifest 中的 `updateCheck.enabled=false` / `policy=off`,与 `--no-update-check` 和 `FLOWER_NO_UPDATE_CHECK` 一起作为总开关;目标无 manifest 时不得为了写缓存创建半截 manifest。
+- R15: 远端探测失败不得刷新 `updateCheck.lastCheckedAt`;`lastStatus=offline` 或 `lastErrorCode` 非空时,缓存不能视为新鲜远端证据,下一次启动仍应尝试联网确认远端版本。
+- R16: Codex `additionalContext` 不能被视为真正阻塞交互;hook 必须同时强化 `systemMessage`
+  和 `<flower-update>` 首部字段,把 `policy=ask` 的确认要求放到第一条回复优先级。
 
 ## Acceptance Criteria
 
@@ -71,10 +74,13 @@
 - [ ] 当远端 `latest` 高于当前本地版本且项目也 out-of-sync 时,推荐命令不带 `--project-only`,完整 self-update 会先更新本地/全局 flower-trellis 包,再执行项目内升级重叠加。
 - [ ] 当本地项目 out-of-sync 且远端探测离线/失败时,结果稳定、不中断 hook,且上下文明确远端不可确认。
 - [ ] Codex 收到 `policy=ask` 的 `<flower-update>` 后,注入内容包含必须停下询问的强约束;AI 在用户确认前不应运行 `recommended_command`。
+- [ ] hook 输出 JSON 的 `systemMessage` 在 `policy=ask` 时包含“必须先询问/确认前禁止运行”语义,`additionalContext` 包含 `priority: blocking_confirmation_required`。
 - [ ] Codex 生成/合并后的 `.codex/hooks.json` 中,`flower_update_hook.py` 位于 `SessionStart` 的 `matcher: "startup"` group 下,timeout 为 30,且不会同时残留无 matcher 的 flower 更新检查 group。
 - [ ] Codex 生成/合并后的 `.codex/hooks.json` 对 `python3 -X utf8 .codex/hooks/session-start.py` 使用 `matcher: "startup|resume|clear|compact"`,timeout 为 30,且不会同时残留无 matcher 的 Trellis 主上下文 group。
 - [ ] `flower-trellis update --target <dir>` 主动探测成功后会刷新已有 manifest 的 `updateCheck.lastRemote`;随后全装 manifest 刷新仍保留这份最新缓存。
 - [ ] `flower-trellis update --target <dir> --no-update-check` 或 manifest `policy=off` 时不联网、不写 `updateCheck` 缓存。
+- [ ] 当已有缓存为 `lastStatus=offline` / `lastErrorCode=fetch_failed` 且 `lastCheckedAt` 很新时,`self-check` 不走 interval 缓存短路,而是重新尝试远端探测。
+- [ ] 当远端探测失败时,manifest 只更新失败状态与错误码,不把 `lastCheckedAt` 改成当前时间。
 - [ ] `python3 -m py_compile src/assets/flower_update_hook.py` 通过。
 - [ ] `node --check src/cli.js && for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done` 通过。
 - [ ] 使用假 `flower-trellis self-check --json` 驱动 `src/assets/flower_update_hook.py`,stdout 是合法 JSON,且顶层字段不包含 `additional_context`。
@@ -83,6 +89,9 @@
 ## Remote Cache Decision
 
 当远端缓存仍在 `intervalHours` 内时,可以使用缓存作为远端版本证据;当缓存过期或传入 `--force-remote` 时,必须先联网读取 npm dist-tags,再判断项目 manifest / `.trellis/.version` 与当前本地版本。项目本地版本不一致不得提前短路掉已经到期的远端探测。
+
+失败探测不是版本证据。`offline` / `fetch_failed` 只记录最近失败原因,不得刷新 `lastCheckedAt`,
+否则旧 `lastRemote` 会在 interval 内被误判为刚确认过的远端版本。
 
 ## Additional Scenario
 

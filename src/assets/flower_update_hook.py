@@ -17,6 +17,7 @@ from pathlib import Path
 
 
 ACTIONABLE_STATUSES = {"update_available", "project_out_of_sync"}
+SELF_CHECK_TIMEOUT_SECONDS = 30
 
 
 def _debug(message: str) -> None:
@@ -57,7 +58,7 @@ def _run_self_check(project_dir: Path) -> dict | None:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=8,
+            timeout=SELF_CHECK_TIMEOUT_SECONDS,
             cwd=str(project_dir),
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError) as exc:
@@ -84,6 +85,8 @@ def _format_context(data: dict) -> str:
     out_of_sync_reasons = project.get("outOfSyncReasons") or []
     lines = [
         "<flower-update>",
+        "priority: blocking_confirmation_required",
+        "instruction_scope: first_assistant_reply",
         f"status: {data.get('status')}",
         f"policy: {data.get('policy')}",
         f"current_flower: {current.get('flowerVersion')}",
@@ -114,11 +117,22 @@ def _format_context(data: dict) -> str:
     return "\n".join(lines)
 
 
-def _emit_context(context: str) -> None:
+def _system_message(data: dict) -> str:
+    """生成 Codex / Claude Code 更容易注意到的短系统提示。"""
+    ai = data.get("ai") or {}
+    command = (data.get("commands") or {}).get("recommended") or ai.get("command")
+    if ai.get("mode") == "ask" and command:
+        return "flower-trellis 发现可执行更新;必须先询问用户是否执行 recommended_command,确认前禁止运行。"
+    if command:
+        return "flower-trellis 发现可执行更新;已注入 recommended_command。"
+    return "flower-trellis update context injected"
+
+
+def _emit_context(context: str, system_message: str) -> None:
     """输出 Codex / Claude Code 都接受的 SessionStart hook JSON。"""
     result = {
         "suppressOutput": True,
-        "systemMessage": "flower-trellis update context injected",
+        "systemMessage": system_message,
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
             "additionalContext": context,
@@ -138,7 +152,7 @@ def main() -> None:
     data = _run_self_check(_project_dir(hook_input))
     if not data or data.get("status") not in ACTIONABLE_STATUSES:
         return
-    _emit_context(_format_context(data))
+    _emit_context(_format_context(data), _system_message(data))
 
 
 if __name__ == "__main__":

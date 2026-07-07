@@ -75,8 +75,8 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
      必须归位到 `matcher: "startup|resume|clear|compact"`、`timeout: 30`;flower 更新检查
      hook 必须归位到 `matcher: "startup"`、`timeout: 30`。
    - `claude-tweaks.js`:仅当目标存在 `.claude/` 时,只向 `.claude/settings.json` 的
-     `SessionStart` `startup` matcher 合并 flower update hook,并清除 `clear` / `compact`
-     matcher 中的 flower update hook。
+     `SessionStart` `startup` matcher 合并 flower update hook,timeout 为 30,并清除
+     `clear` / `compact` matcher 中的 flower update hook。
 
 ---
 
@@ -99,7 +99,8 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 - `flower-assets`:只由全装复制,并把 `.trellis/scripts/flower_update_hook.py` 写入 manifest
   `paths`,让升级清理和 uninstall 只按 manifest 精确管理自己铺过的脚本。
 - `claude-tweaks`:只追加缺失的 startup flower hook,重复运行不得重复;若历史版本把 flower
-  hook 放到了 `clear` / `compact`,更新时必须移除这些非 startup 位置。
+  hook 放到了 `clear` / `compact`,更新时必须移除这些非 startup 位置;若旧 hook 仍是
+  8 秒 timeout,更新时必须迁移到 30 秒。
 
 ---
 

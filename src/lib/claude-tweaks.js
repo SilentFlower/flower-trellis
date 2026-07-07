@@ -4,6 +4,7 @@ import { FLOWER_UPDATE_HOOK_REL } from "./flower-assets.js";
 
 const WORKFLOW_HOOK_SCRIPT = ".claude/hooks/inject-workflow-state.py";
 const DEFAULT_COMMAND = `python3 ${FLOWER_UPDATE_HOOK_REL}`;
+const FLOWER_UPDATE_TIMEOUT = 30;
 
 /** 容错读取 Claude settings JSON。 */
 function readSettings(settingsPath) {
@@ -45,6 +46,20 @@ function hasFlowerHook(hooks) {
   );
 }
 
+/** 将已有 flower update hook 的超时迁移到当前预算。 */
+function normalizeFlowerHookTimeout(hooks) {
+  let changed = false;
+  for (const hook of hooks) {
+    if (hook?.type !== "command" || typeof hook.command !== "string") continue;
+    if (!hook.command.includes(FLOWER_UPDATE_HOOK_REL)) continue;
+    if (hook.timeout !== FLOWER_UPDATE_TIMEOUT) {
+      hook.timeout = FLOWER_UPDATE_TIMEOUT;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 /** 合并 Claude startup hook,并确保 clear / compact 不运行 update hook。 */
 function mergeClaudeHooks(settingsPath) {
   const config = readSettings(settingsPath);
@@ -71,8 +86,9 @@ function mergeClaudeHooks(settingsPath) {
     if (group.hooks.length !== before) changed = true;
   }
 
+  changed = normalizeFlowerHookTimeout(startup.hooks) || changed;
   if (!hasFlowerHook(startup.hooks)) {
-    startup.hooks.push({ type: "command", command, timeout: 8 });
+    startup.hooks.push({ type: "command", command, timeout: FLOWER_UPDATE_TIMEOUT });
     changed = true;
   }
 
