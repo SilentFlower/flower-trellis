@@ -30,6 +30,18 @@
 7. 若远端探测失败且 `projectOutOfSync=true`,返回 `project_out_of_sync`,但标注 remote error / unavailable,避免误称远端已确认无更新。
 8. 其它路径保持 `up_to_date`、`skipped/interval_not_elapsed`、`offline` 等既有语义。
 
+## Active Update Cache Refresh
+
+`src/lib/update-check.js` 的 `checkForUpdate()` 在 `init` / `update` 启动阶段本来就会联网
+取得 npm dist-tags。该结果不能只用于即时提示,还应作为下一次 SessionStart 的远程证据:
+
+- 成功取得 dist-tags 后,若目标已有 `.trellis/.flower-manifest.json`,用 `writeUpdateCheck()`
+  写入 `lastCheckedAt`、`lastRemote`、`lastStatus` 和 `lastErrorCode=null`。
+- 写入是尽力而为优化,失败不阻断 `init` / `update`。
+- 目标还没有 manifest 时跳过,避免在 `init` 前创建只有 `updateCheck` 的半截 manifest。
+- `checkForUpdate()` 除了 `--no-update-check` / `FLOWER_NO_UPDATE_CHECK`,也要尊重 manifest
+  中的 `updateCheck.enabled=false` / `policy=off`。
+
 ## Result Shape
 
 保持现有字段兼容,新增项目状态细节:

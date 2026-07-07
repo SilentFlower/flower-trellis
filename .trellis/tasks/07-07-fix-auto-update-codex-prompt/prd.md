@@ -60,6 +60,8 @@
 - R10: Claude Code 现有可用行为不得回退;Codex 修复不能引入 Codex SessionStart JSON schema 违规字段。
 - R11: 启动 hook 仍只做只读检查与上下文注入,不得直接执行 `npm i -g`、`flower-trellis update` 或 `flower-trellis self-update`。
 - R12: 如果实现改变现有 `project_out_of_sync` 的判断顺序、状态语义、hook 指令格式或 Codex matcher 策略,必须同步更新 `.trellis/spec/flower-trellis/cli/config-and-state.md` / `.trellis/spec/flower-trellis/cli/enhancements-model.md` 的合同与验证矩阵。
+- R13: 用户主动运行 `flower-trellis update` / `ftl update` 时,如果启动阶段已经成功联网取得 npm dist-tags,必须刷新已有项目 manifest 的 `updateCheck.lastRemote` / `lastCheckedAt` / `lastStatus`,避免主动更新后 SessionStart 仍使用旧远端缓存。
+- R14: 主动 `init` / `update` 的 `checkForUpdate()` 必须尊重 manifest 中的 `updateCheck.enabled=false` / `policy=off`,与 `--no-update-check` 和 `FLOWER_NO_UPDATE_CHECK` 一起作为总开关;目标无 manifest 时不得为了写缓存创建半截 manifest。
 
 ## Acceptance Criteria
 
@@ -71,6 +73,8 @@
 - [ ] Codex 收到 `policy=ask` 的 `<flower-update>` 后,注入内容包含必须停下询问的强约束;AI 在用户确认前不应运行 `recommended_command`。
 - [ ] Codex 生成/合并后的 `.codex/hooks.json` 中,`flower_update_hook.py` 位于 `SessionStart` 的 `matcher: "startup"` group 下,timeout 为 30,且不会同时残留无 matcher 的 flower 更新检查 group。
 - [ ] Codex 生成/合并后的 `.codex/hooks.json` 对 `python3 -X utf8 .codex/hooks/session-start.py` 使用 `matcher: "startup|resume|clear|compact"`,timeout 为 30,且不会同时残留无 matcher 的 Trellis 主上下文 group。
+- [ ] `flower-trellis update --target <dir>` 主动探测成功后会刷新已有 manifest 的 `updateCheck.lastRemote`;随后全装 manifest 刷新仍保留这份最新缓存。
+- [ ] `flower-trellis update --target <dir> --no-update-check` 或 manifest `policy=off` 时不联网、不写 `updateCheck` 缓存。
 - [ ] `python3 -m py_compile src/assets/flower_update_hook.py` 通过。
 - [ ] `node --check src/cli.js && for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done` 通过。
 - [ ] 使用假 `flower-trellis self-check --json` 驱动 `src/assets/flower_update_hook.py`,stdout 是合法 JSON,且顶层字段不包含 `additional_context`。

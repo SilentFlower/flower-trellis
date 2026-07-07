@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { confirm } from "@inquirer/prompts";
 import chalk from "chalk";
+import { readManifest, readUpdateCheck, writeUpdateCheck } from "./manifest.js";
 import { isRunningViaNpx } from "./runtime-env.js";
 import { flowerVersion } from "./versions.js";
 
@@ -173,13 +174,29 @@ export function getUpdateRecommendation(current, tags) {
   return null;
 }
 
+/** 尽力而为刷新目标项目 manifest 里的远端探测缓存。 */
+function rememberRemoteTags(target, tags, status) {
+  try {
+    if (!readManifest(target)) return;
+    writeUpdateCheck(target, {
+      lastCheckedAt: new Date().toISOString(),
+      lastRemote: tags,
+      lastStatus: status,
+      lastErrorCode: null,
+    });
+  } catch {
+    // 缓存写入只是优化后续启动提示,失败不能影响 init/update 主流程。
+  }
+}
+
 /**
  * 检测 flower-trellis 自身是否有新版本,并按场景提示/引导升级。在 init / update 的
  * 品牌头部之后、主操作之前调用。
  *
  * 短路条件(任一命中即跳过,什么都不打印):关闭开关(`--no-update-check` 使
- * `ctx.updateCheck===false`,或环境变量 `FLOWER_NO_UPDATE_CHECK` 非空)、经 npx 运行、
- * 网络探测失败、无升级推荐。
+ * `ctx.updateCheck===false`,目标 manifest 的 `updateCheck.enabled=false` /
+ * `policy=off`,或环境变量 `FLOWER_NO_UPDATE_CHECK` 非空)、经 npx 运行、网络探测失败、
+ * 无升级推荐。
  *
  * 发现新版时的行为:
  *  - 交互 TTY:打印通知 → confirm 询问是否升级 → 同意则执行推荐的 npm install 命令;
@@ -194,6 +211,8 @@ export function getUpdateRecommendation(current, tags) {
 export async function checkForUpdate(ctx, commandLabel) {
   // 1. 关闭开关:显式 flag 或环境变量
   if (ctx.updateCheck === false || process.env.FLOWER_NO_UPDATE_CHECK) return;
+  const updateCheck = readUpdateCheck(ctx.target);
+  if (!updateCheck.enabled || updateCheck.policy === "off") return;
   // 2. npx 本就是最新版,跳过(连通知都不打,避免误导)
   if (isRunningViaNpx(import.meta.url)) return;
 
@@ -204,6 +223,7 @@ export async function checkForUpdate(ctx, commandLabel) {
   // 4. 根据本地版本通道生成推荐;无推荐时不打扰
   const current = flowerVersion();
   const recommendation = getUpdateRecommendation(current, tags);
+  rememberRemoteTags(ctx.target, tags, recommendation ? "update_available" : "up_to_date");
   if (!recommendation) return;
 
   // 5. 打印发现新版本通知(粉色品牌色,与 banner 一致)

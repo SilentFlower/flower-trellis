@@ -169,6 +169,12 @@ src/assets/flower_update_hook.py
 - `intervalHours` 只限制 npm registry 远程探测,不限制本地 manifest / `.trellis/.version`
   读取。缓存仍新鲜时可使用 `lastRemote` 作为远程证据;缓存过期或 `--force-remote`
   时必须先联网查 dist-tags,不得因为项目 out-of-sync 提前跳过远程探测。
+- `init` / `update` 启动阶段的 `checkForUpdate()` 若成功取得 dist-tags,必须尽力而为刷新
+  已有 manifest 的 `updateCheck.lastCheckedAt` / `lastRemote` / `lastStatus` /
+  `lastErrorCode=null`,让主动更新后的下次 SessionStart 使用最新远程证据。目标没有
+  `.flower-manifest.json` 时不得凭空创建半截 manifest;写缓存失败也不得阻断主流程。
+- `checkForUpdate()` 必须同时尊重 `--no-update-check`、`FLOWER_NO_UPDATE_CHECK` 以及
+  manifest 中的 `updateCheck.enabled=false` / `policy=off`。
 - 若远端 dist-tags 表明当前 flower-trellis 有新版可用,最终状态优先为
   `update_available`,推荐完整 `self-update --target <dir> --yes`;即使项目同时
   out-of-sync,也不得推荐 `--project-only`。项目 out-of-sync 证据保留在 `project.*` 字段。
@@ -204,6 +210,7 @@ src/assets/flower_update_hook.py
 | `lastCheckedAt` 仍在 interval 内但缓存显示有更新 | 返回 `update_available`,来源标记为 cache |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目不 out-of-sync | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode` |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目 out-of-sync | 返回 `project_out_of_sync`,推荐 `--project-only`,同时标注远端 `errorCode` |
+| `init` / `update` 主动探测成功 | 写入已有 manifest 的 `lastRemote` / `lastCheckedAt` / `lastStatus`;无 manifest 时跳过 |
 | `self-update --dry-run` | 只打印全局安装命令、项目 update 命令、版本和安全检查,不写入 |
 | `self-update` 缺少 `--yes` 且非 dry-run | 抛中文错误,由 CLI 顶层统一退出 |
 | 全局 npm 安装成功但项目 update 失败 | 报告未完成,给出手动 `flower-trellis update --target ... --no-update-check --force` 命令 |
@@ -218,6 +225,8 @@ src/assets/flower_update_hook.py
   `flower-trellis self-update --target <dir> --yes`,并保留项目 out-of-sync 证据。
 - Base: 远程探测失败时 hook 静默退出;`self-check --json` 仍返回 `offline` JSON,
   不阻断 Codex / Claude Code 启动。
+- Base: 用户手动运行 `flower-trellis update --target <dir>` 时,启动探测成功后会刷新
+  `updateCheck.lastRemote`,随后全装 `writeManifest()` 继续保留这份最新缓存。
 - Base: 用户配置 `policy=auto` 但 git dirty,`ai.mode` 降级为 `ask`,并给出
   `dirty_worktree` 原因。
 - Bad: 启动 hook 直接执行 `npm i -g` 或 `flower-trellis update`。启动阶段只能注入上下文。
@@ -242,6 +251,8 @@ src/assets/flower_update_hook.py
   - `self-update --target <dir> --dry-run --project-only` 默认项目命令带 `--force`。
   - `self-update --target <dir> --dry-run --project-only -- --skip-all` 不再追加 `--force`。
   - `update-check set|disable|enable|get` 保留 policy / enabled 语义。
+  - `flower-trellis update --target <dir> --dry-run` 在远程探测成功时刷新已有 manifest 的
+    `updateCheck.lastRemote`;`--no-update-check` 或 `policy=off` 时不联网、不写缓存。
 - dogfood:
   - `flower-trellis init --target ./test-target -y --no-update-check`
   - `flower-trellis update --target ./test-target --dry-run --no-update-check`

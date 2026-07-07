@@ -14,6 +14,7 @@
   - `.codex/hooks/session-start.py`: `matcher: "startup|resume|clear|compact"`, `timeout: 30`
   - `.trellis/scripts/flower_update_hook.py`: `matcher: "startup"`, `timeout: 30`
   - 迁移旧的无 matcher group,避免重复注册。
+- 调整 `src/lib/update-check.js`:用户主动运行 `ftl update` / `flower-trellis update` 且启动探测成功时,刷新已有 manifest 的 `updateCheck.lastRemote` / `lastCheckedAt` / `lastStatus`;同时尊重 manifest `enabled=false` / `policy=off`。
 - 同步更新 CLI 规范: `config-and-state.md` 与 `enhancements-model.md`。
 
 ## Non-Goals
@@ -45,6 +46,7 @@
 - 本地项目 out-of-sync 且远端探测离线/失败时,结果稳定、不中断 hook,并明确远端不可确认。
 - Codex 收到 `policy=ask` 的 `<flower-update>` 后,注入内容包含必须停下询问的强约束。
 - `.codex/hooks.json` 合并结果中两个 SessionStart hook 的 matcher / timeout 正确,且无旧的无 matcher 重复 group。
+- 主动 `flower-trellis update --target <dir>` 成功取得 dist-tags 后刷新已有 manifest 的 `updateCheck.lastRemote`;`--no-update-check` 或 `policy=off` 时不联网不写缓存。
 - 验证命令通过:
   - `node --check src/cli.js && for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done`
   - `python3 -m py_compile src/assets/flower_update_hook.py`

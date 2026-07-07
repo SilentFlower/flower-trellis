@@ -9,6 +9,11 @@
    - 远端无新版且项目 out-of-sync 时返回 `project_out_of_sync`,推荐 `--project-only`。
    - 增加 `project.outOfSync` / `project.outOfSyncReasons`。
 
+1.1 更新 `src/lib/update-check.js`
+   - `checkForUpdate()` 成功取得 dist-tags 后,刷新已有 manifest 的 `updateCheck.lastRemote` / `lastCheckedAt` / `lastStatus`。
+   - 写缓存失败不阻断 `init` / `update`;目标无 manifest 时不创建半截 manifest。
+   - 尊重 manifest 的 `updateCheck.enabled=false` / `policy=off`。
+
 2. 更新 `src/assets/flower_update_hook.py`
    - 输出 `ai_mode` 和更强的 `ask` 指令。
    - 输出项目 out-of-sync 证据和远端不可确认信息。
@@ -28,6 +33,7 @@
    - `python3 -m py_compile src/assets/flower_update_hook.py`
    - 用假 `flower-trellis self-check --json` 驱动 `src/assets/flower_update_hook.py`,确认 stdout 合法 JSON 且无 `additional_context` 顶层字段。
    - 构造/检查 `.codex/hooks.json` 合并结果,确认两个 SessionStart hook 的 matcher/timeout 正确且无旧重复 group。
+   - 用临时 Trellis 目标验证 `checkForUpdate()` 成功探测会刷新 `updateCheck.lastRemote`,且 `policy=off` 时不联网不写缓存。
    - `git diff --check`
 
 ## Risk Points
