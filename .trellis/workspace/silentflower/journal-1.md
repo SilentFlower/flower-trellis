@@ -1350,3 +1350,39 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 39: 强化 brainstorm planning gate
+
+**Date**: 2026-07-08
+**Task**: 强化 brainstorm planning gate
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+强化 skill-garden 0.6 planning gate：在 workflow hub、no_task、planning 和 planning-inline 注入精简 brainstorm 门禁文案；同步 enhancements 与 dogfood workflow；推送 skill-garden、flower-trellis 和任务 push snapshot。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b99053b` | (see git log) |
+| `3d2944e` | (see git log) |
+| `da0e736` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
