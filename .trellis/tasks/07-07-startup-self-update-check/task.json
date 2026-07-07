@@ -24,20 +24,21 @@
   "notes": "",
   "meta": {},
   "last_push_snapshot": {
-    "snapshot_at": "2026-07-07T06:14:38.159Z",
+    "snapshot_at": "2026-07-07T06:37:35.350Z",
     "branch": "main",
     "pushed_commits": {
-      "flower-trellis": "2b98110"
+      "flower-trellis": "ee1ddae"
     },
-    "push_mode": "commit-only",
+    "push_mode": "push",
     "completed_steps": [
       "planning",
       "implementation",
       "check-all",
       "spec update",
-      "work commit"
+      "work commit",
+      "dogfood project sync"
     ],
     "next_step": "finish-work / archive",
-    "notes": "commit-only：本地已提交，未推送"
+    "notes": "已补提交并推送 dogfood 项目中的 SessionStart hook 与 manifest 同步。"
   }
 }
