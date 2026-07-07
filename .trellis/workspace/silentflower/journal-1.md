@@ -1241,3 +1241,39 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 36: 启动时自更新检查收尾
+
+**Date**: 2026-07-07
+**Task**: 启动时自更新检查收尾
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+完成启动时自更新检查：新增 self-check/self-update/update-check、manifest updateCheck 策略、Codex/Claude SessionStart hook 与 dogfood 同步；已通过检查、推送业务提交，并归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2b98110` | (see git log) |
+| `1f758aa` | (see git log) |
+| `ee1ddae` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
