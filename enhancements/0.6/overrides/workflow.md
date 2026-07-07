@@ -10,6 +10,14 @@
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
+#### Brainstorm Gate
+
+`trellis-brainstorm` is the required Phase 1.1 gate for new, complex, or unclear work.
+
+`task.py create` only creates the planning workspace. A default `prd.md` does not mean requirements are ready.
+
+Before `task.py start`, unclear scope, unresolved decisions, or non-testable acceptance criteria must return to `trellis-brainstorm`.
+
 #### Project Knowledge Discovery
 
 Before choosing an approach for non-trivial project work, run project knowledge

@@ -155,6 +155,14 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
 
+#### Brainstorm Gate
+
+`trellis-brainstorm` is the required Phase 1.1 gate for new, complex, or unclear work.
+
+`task.py create` only creates the planning workspace. A default `prd.md` does not mean requirements are ready.
+
+Before `task.py start`, unclear scope, unresolved decisions, or non-testable acceptance criteria must return to `trellis-brainstorm`.
+
 #### Project Knowledge Discovery
 
 Before choosing an approach for non-trivial project work, run project knowledge
@@ -288,7 +296,7 @@ Creating or resuming a task is not implementation permission.
 After PRD is ready and the task is started, the next implementation action is Phase 2.1 `trellis-route(implement)` unless a valid current-task implement route decision already exists.
 If no active task exists, use `push_snapshot.py status --json` once per session; if it returns candidates, relay them and suggest rebinding before resuming.
 At project-local knowledge boundaries, run `spec_router.py`; skip trivial/read-only turns unless local conventions may affect the approach.
-Do NOT call the harness built-in plan mode (`EnterPlanMode` / `ExitPlanMode`) for Trellis planning. It is not a substitute for Trellis task-creation consent, Trellis planning, or the route gate. For complex work, classify the turn, ask for task-creation consent, then use `trellis-brainstorm`.
+Do NOT call the harness built-in plan mode (`EnterPlanMode` / `ExitPlanMode`) for Trellis planning. It is not a substitute for Trellis task-creation consent, Trellis planning, or the route gate. For new, complex, or unclear work, classify the turn, ask for task-creation consent, then use `trellis-brainstorm`; `task.py create` and the default `prd.md` are not sufficient planning.
 For lightweight Trellis meta edits, ask/confirm skipping Trellis tracking before edits.
 <!-- END skill-garden workflow-state no_task v0.6 -->
 
@@ -311,6 +319,8 @@ Complex task: ask the user if you can create a Trellis task and enter the planni
 <!-- BEGIN skill-garden workflow-state planning v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (planning):
 Planning is not implementation permission.
+`trellis-brainstorm` is the default next action while requirements are still unclear.
+A created task or existing `prd.md` is not enough to start implementation.
 Complete prd.md + required context first.
 For sub-agent-dispatch platforms, required context includes real curated entries in both `implement.jsonl` and `check.jsonl`; the seed `_example` row alone is not ready.
 Before `task.py start`, use `trellis-task-brief` to refresh `brief.md` from the latest task artifacts and display it in chat for review.
@@ -334,6 +344,8 @@ Sub-agent mode: curate `implement.jsonl` and `check.jsonl` as spec/research mani
 <!-- BEGIN skill-garden workflow-state planning_inline v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (planning-inline):
 Planning is not implementation permission.
+`trellis-brainstorm` is the default next action while requirements are still unclear.
+A created task or existing `prd.md` is not enough to start implementation.
 Complete prd.md + required context first.
 If the active workflow later routes to sub-agent execution, required context includes real curated entries in both `implement.jsonl` and `check.jsonl`; the seed `_example` row alone is not ready.
 Before `task.py start`, use `trellis-task-brief` to refresh `brief.md` from the latest task artifacts and display it in chat for review.
