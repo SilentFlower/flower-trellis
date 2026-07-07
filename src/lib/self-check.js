@@ -164,11 +164,41 @@ function actionForPolicy(policy, command, safety) {
   }
   return {
     mode: "ask",
-    instruction: "先询问用户是否执行更新;用户确认后再运行推荐命令。",
+    instruction: "必须先询问用户是否执行推荐命令;用户明确确认前禁止运行推荐命令。",
     command,
     downgradedFromAuto: policy === "auto",
     downgradeReasons: policy === "auto" ? safety.reasons : [],
   };
+}
+
+/** 给可执行状态补齐安全检查和 AI 动作建议。 */
+function withAction(target, policy, result, command) {
+  const safety = safetyState(target, result.status, command);
+  return {
+    ...result,
+    safety,
+    ai: actionForPolicy(policy, command, safety),
+  };
+}
+
+/** 生成项目重叠加建议结果。 */
+function projectOutOfSyncResult(base, target, remotePatch = {}) {
+  const command = selfUpdateCommand(target, { projectOnly: true });
+  return withAction(
+    target,
+    base.policy,
+    {
+      ...base,
+      status: "project_out_of_sync",
+      reason: "local_version_mismatch",
+      remote: { ...base.remote, ...remotePatch },
+      commands: {
+        recommended: command,
+        projectUpdate: projectUpdateCommand(target),
+      },
+    },
+    command,
+  );
 }
 
 /** 计算 auto 策略安全门槛。 */
@@ -211,6 +241,14 @@ export async function buildSelfCheck(target, options = {}) {
   const currentTrellis = trellisVersion();
   const projectTrellis = readProjectTrellisVersion(absoluteTarget);
   const projectFlower = typeof manifest?.flowerVersion === "string" ? manifest.flowerVersion : null;
+  const projectOutOfSyncReasons = [];
+  if (projectFlower && projectFlower !== currentFlower) {
+    projectOutOfSyncReasons.push("flower_version_mismatch");
+  }
+  if (projectTrellis && projectTrellis !== currentTrellis) {
+    projectOutOfSyncReasons.push("trellis_version_mismatch");
+  }
+  const projectOutOfSync = projectOutOfSyncReasons.length > 0;
 
   const base = {
     status: "up_to_date",
@@ -226,6 +264,8 @@ export async function buildSelfCheck(target, options = {}) {
       flowerVersion: projectFlower,
       trellisVersion: projectTrellis,
       manifestPresent: Boolean(manifest),
+      outOfSync: projectOutOfSync,
+      outOfSyncReasons: projectOutOfSyncReasons,
     },
     remote: {
       tags: updateCheck.lastRemote,
@@ -250,44 +290,35 @@ export async function buildSelfCheck(target, options = {}) {
     return { ...base, status: "skipped", reason: "npx_runtime" };
   }
 
-  const projectOutOfSync =
-    (projectFlower && projectFlower !== currentFlower) ||
-    (projectTrellis && projectTrellis !== currentTrellis);
-
-  if (projectOutOfSync) {
-    const command = selfUpdateCommand(absoluteTarget, { projectOnly: true });
-    const result = {
-      ...base,
-      status: "project_out_of_sync",
-      reason: "local_version_mismatch",
-      commands: {
-        recommended: command,
-        projectUpdate: projectUpdateCommand(absoluteTarget),
-      },
-    };
-    const safety = safetyState(absoluteTarget, result.status, command);
-    result.safety = safety;
-    result.ai = actionForPolicy(updateCheck.policy, command, safety);
-    return result;
-  }
-
   let tags = updateCheck.lastRemote;
   if (!forceRemote && isRemoteCacheFresh(updateCheck, now)) {
     const recommendation = getUpdateRecommendation(currentFlower, tags);
     if (recommendation) {
       const command = selfUpdateCommand(absoluteTarget);
-      const result = {
-        ...base,
-        status: "update_available",
-        reason: "cached_remote_update",
-        remote: { ...base.remote, tags, fromCache: true, skipped: true },
-        recommendation,
-        commands: { recommended: command, npm: recommendation.command },
-      };
-      const safety = safetyState(absoluteTarget, result.status, command);
-      result.safety = safety;
-      result.ai = actionForPolicy(updateCheck.policy, command, safety);
-      return result;
+      return withAction(
+        absoluteTarget,
+        updateCheck.policy,
+        {
+          ...base,
+          status: "update_available",
+          reason: "cached_remote_update",
+          remote: { ...base.remote, tags, fromCache: true, skipped: true },
+          recommendation,
+          commands: {
+            recommended: command,
+            npm: recommendation.command,
+            projectUpdate: projectUpdateCommand(absoluteTarget),
+          },
+        },
+        command,
+      );
+    }
+    if (projectOutOfSync) {
+      return projectOutOfSyncResult(base, absoluteTarget, {
+        tags,
+        fromCache: true,
+        skipped: true,
+      });
     }
     return {
       ...base,
@@ -306,47 +337,55 @@ export async function buildSelfCheck(target, options = {}) {
         lastErrorCode: "fetch_failed",
       });
     }
+    const remotePatch = { tags: updateCheck.lastRemote, errorCode: "fetch_failed" };
+    if (projectOutOfSync) {
+      return projectOutOfSyncResult(base, absoluteTarget, remotePatch);
+    }
     return {
       ...base,
       status: "offline",
       reason: "fetch_failed",
-      remote: { ...base.remote, tags: updateCheck.lastRemote, errorCode: "fetch_failed" },
+      remote: { ...base.remote, ...remotePatch },
     };
   }
 
   const recommendation = getUpdateRecommendation(currentFlower, tags);
-  const status = recommendation ? "update_available" : "up_to_date";
+  const remoteStatus = recommendation ? "update_available" : "up_to_date";
   if (writeCache && manifest) {
     writeUpdateCheck(absoluteTarget, {
       lastCheckedAt: now.toISOString(),
       lastRemote: tags,
-      lastStatus: status,
+      lastStatus: remoteStatus,
       lastErrorCode: null,
     });
   }
 
   if (!recommendation) {
+    if (projectOutOfSync) {
+      return projectOutOfSyncResult(base, absoluteTarget, { tags });
+    }
     return {
       ...base,
-      status,
+      status: remoteStatus,
       remote: { ...base.remote, tags },
     };
   }
 
   const command = selfUpdateCommand(absoluteTarget);
-  const result = {
-    ...base,
-    status,
-    remote: { ...base.remote, tags },
-    recommendation,
-    commands: {
-      recommended: command,
-      npm: recommendation.command,
-      projectUpdate: projectUpdateCommand(absoluteTarget),
+  return withAction(
+    absoluteTarget,
+    updateCheck.policy,
+    {
+      ...base,
+      status: remoteStatus,
+      remote: { ...base.remote, tags },
+      recommendation,
+      commands: {
+        recommended: command,
+        npm: recommendation.command,
+        projectUpdate: projectUpdateCommand(absoluteTarget),
+      },
     },
-  };
-  const safety = safetyState(absoluteTarget, result.status, command);
-  result.safety = safety;
-  result.ai = actionForPolicy(updateCheck.policy, command, safety);
-  return result;
+    command,
+  );
 }

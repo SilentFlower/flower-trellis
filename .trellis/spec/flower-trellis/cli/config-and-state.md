@@ -162,15 +162,22 @@ src/assets/flower_update_hook.py
   `hookSpecificOutput.additionalContext` 注入 `<flower-update>`;不要额外输出
   `additional_context` 等其它顶层兼容字段。Codex 会严格校验 SessionStart JSON schema,
   多余顶层字段会导致 `hook returned invalid session start JSON output`。
-- 本地一致性检查先于远程节流:只要 manifest 的 `flowerVersion` 与当前
-  `flowerVersion()` 不一致,或项目 `.trellis/.version` 与当前 `trellisVersion()`
-  不一致,必须返回 `project_out_of_sync`,不得因 `intervalHours` 未到而跳过。
-- `intervalHours` 只限制 npm registry 远程探测;不限制本地 manifest / `.trellis/.version`
-  读取。
+- 本地一致性读取先于远程判断,但不得在需要远程证据时提前短路:先读取 manifest 的
+  `flowerVersion`、项目 `.trellis/.version` 与当前 `flowerVersion()` / `trellisVersion()`,
+  写入 `project.outOfSync` / `project.outOfSyncReasons`;随后按缓存策略取得远程 dist-tags,
+  再决定最终状态和推荐命令。
+- `intervalHours` 只限制 npm registry 远程探测,不限制本地 manifest / `.trellis/.version`
+  读取。缓存仍新鲜时可使用 `lastRemote` 作为远程证据;缓存过期或 `--force-remote`
+  时必须先联网查 dist-tags,不得因为项目 out-of-sync 提前跳过远程探测。
+- 若远端 dist-tags 表明当前 flower-trellis 有新版可用,最终状态优先为
+  `update_available`,推荐完整 `self-update --target <dir> --yes`;即使项目同时
+  out-of-sync,也不得推荐 `--project-only`。项目 out-of-sync 证据保留在 `project.*` 字段。
+- 只有远端无新版或远端不可确认,且项目本地版本不一致时,才返回
+  `project_out_of_sync`,推荐 `self-update --project-only`。
 - `updateCheck.enabled` 是总开关;`policy` 是启用后的 AI 行为偏好:
   - `off`: 不检查、不联网。
   - `notify`: 只注入提示和手动命令,AI 不主动询问或执行。
-  - `ask`: 默认;AI 必须先询问用户。
+  - `ask`: 默认;AI 必须先询问用户,用户明确确认前不得执行推荐命令。
   - `auto`: 安全条件满足时 AI 可执行推荐命令,否则降级为 `ask`。
 - `update-check disable` 只写 `enabled=false`,不修改既有 `policy`;`enable` 只写
   `enabled=true`,沿用既有 `policy`,缺失时按 `ask` 归一化。
@@ -191,19 +198,24 @@ src/assets/flower_update_hook.py
 | 目标无 `.trellis/` | `self-check` 返回 `skipped/not_trellis_project` |
 | `FLOWER_NO_UPDATE_CHECK`、`--no-update-check`、`enabled=false` 或 `policy=off` | 返回 `disabled`,不联网 |
 | npx / npm exec 临时运行 | 返回 `skipped/npx_runtime`,不建议全局更新 |
-| 本地 `flowerVersion` 或 `.trellis/.version` 不一致 | 返回 `project_out_of_sync`,推荐 `self-update --project-only` |
-| `lastCheckedAt` 仍在 interval 内且缓存无更新 | 返回 `skipped/interval_not_elapsed` |
+| 本地 `flowerVersion` 或 `.trellis/.version` 不一致,且缓存过期 | 先查 dist-tags;远端有新版返回 `update_available` + 完整 `self-update`,远端无新版返回 `project_out_of_sync` + `--project-only` |
+| 本地 `flowerVersion` 或 `.trellis/.version` 不一致,且缓存仍新鲜无更新 | 返回 `project_out_of_sync`,推荐 `self-update --project-only`,远端来源标记为 cache |
+| `lastCheckedAt` 仍在 interval 内且缓存无更新且项目不 out-of-sync | 返回 `skipped/interval_not_elapsed` |
 | `lastCheckedAt` 仍在 interval 内但缓存显示有更新 | 返回 `update_available`,来源标记为 cache |
-| registry 离线 / 超时 / 非 200 / 响应字段无效 | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode` |
+| registry 离线 / 超时 / 非 200 / 响应字段无效且项目不 out-of-sync | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode` |
+| registry 离线 / 超时 / 非 200 / 响应字段无效且项目 out-of-sync | 返回 `project_out_of_sync`,推荐 `--project-only`,同时标注远端 `errorCode` |
 | `self-update --dry-run` | 只打印全局安装命令、项目 update 命令、版本和安全检查,不写入 |
 | `self-update` 缺少 `--yes` 且非 dry-run | 抛中文错误,由 CLI 顶层统一退出 |
 | 全局 npm 安装成功但项目 update 失败 | 报告未完成,给出手动 `flower-trellis update --target ... --no-update-check --force` 命令 |
 
 ### 5. Good/Base/Bad Cases
 
-- Good: 项目 manifest 记录 `flowerVersion=0.4.1`,当前安装 `0.4.2`,即使
-  `lastCheckedAt` 仍在 interval 内,启动 hook 也注入 `project_out_of_sync` 和
+- Good: 项目 manifest 记录 `flowerVersion=0.4.1`,当前安装 `0.4.2`,缓存仍新鲜且
+  `lastRemote.latest=0.4.2`,启动 hook 注入 `project_out_of_sync` 和
   `flower-trellis self-update --target <dir> --yes --project-only`。
+- Good: 项目 manifest 记录 `flowerVersion=0.4.1`,当前安装 `0.4.2`,缓存过期且
+  远端 `latest=0.4.3`,启动 hook 注入 `update_available`,推荐完整
+  `flower-trellis self-update --target <dir> --yes`,并保留项目 out-of-sync 证据。
 - Base: 远程探测失败时 hook 静默退出;`self-check --json` 仍返回 `offline` JSON,
   不阻断 Codex / Claude Code 启动。
 - Base: 用户配置 `policy=auto` 但 git dirty,`ai.mode` 降级为 `ask`,并给出
@@ -223,8 +235,10 @@ src/assets/flower_update_hook.py
   - `git diff --check`
 - CLI 行为:
   - `self-check --json --target <dir> --no-update-check` 返回稳定 `disabled` JSON。
-  - 修改临时 manifest 的 `flowerVersion` 且把 `lastCheckedAt` 设到未来,仍返回
-    `project_out_of_sync`。
+  - 修改临时 manifest 的 `flowerVersion` 且把 `lastCheckedAt` 设到未来,缓存无远端更新时
+    返回 `project_out_of_sync`。
+  - 修改临时 manifest 的 `flowerVersion` 且让缓存过期,模拟远端 `latest` 高于当前版本时,
+    返回 `update_available`,推荐命令不带 `--project-only`。
   - `self-update --target <dir> --dry-run --project-only` 默认项目命令带 `--force`。
   - `self-update --target <dir> --dry-run --project-only -- --skip-all` 不再追加 `--force`。
   - `update-check set|disable|enable|get` 保留 policy / enabled 语义。

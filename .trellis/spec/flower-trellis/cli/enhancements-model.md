@@ -71,7 +71,9 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 9. **平台后处理**:
    - `codex-tweaks.js`:仅当目标存在 `.codex/` 时,兼容清理旧 `config.toml` 的
      `multi_agent_v2` 段,保留上游 hooks 并合并 Trellis / flower 的 `SessionStart`,同时强制
-     `.trellis/config.yaml` 的 `codex.dispatch_mode: sub-agent`。
+     `.trellis/config.yaml` 的 `codex.dispatch_mode: sub-agent`。Codex Trellis 主上下文 hook
+     必须归位到 `matcher: "startup|resume|clear|compact"`、`timeout: 30`;flower 更新检查
+     hook 必须归位到 `matcher: "startup"`、`timeout: 30`。
    - `claude-tweaks.js`:仅当目标存在 `.claude/` 时,只向 `.claude/settings.json` 的
      `SessionStart` `startup` matcher 合并 flower update hook,并清除 `clear` / `compact`
      matcher 中的 flower update hook。
@@ -91,7 +93,9 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   `workflow-inject` 先 `stripBlocks` 清掉所有旧 skill-garden 段(SECTION + sentinel)再重新注入;
   处理后内容与原文件相同则**不写盘**。
 - `codex-tweaks`:`config.toml` 段头已注释/不存在则不再处理;`hooks.json` 合并后的
-  内容一致则不写,避免覆盖 Trellis 上游 hook 参数。
+  内容一致则不写,避免覆盖 Trellis 上游 hook 参数。SessionStart 合并必须先从所有
+  group 移除目标命令旧位置,再归位到目标 matcher group,避免旧版无 matcher group 与新版
+  matcher group 同时触发;其它用户自定义 hooks 必须保留。
 - `flower-assets`:只由全装复制,并把 `.trellis/scripts/flower_update_hook.py` 写入 manifest
   `paths`,让升级清理和 uninstall 只按 manifest 精确管理自己铺过的脚本。
 - `claude-tweaks`:只追加缺失的 startup flower hook,重复运行不得重复;若历史版本把 flower

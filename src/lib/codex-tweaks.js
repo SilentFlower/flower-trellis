@@ -15,6 +15,9 @@ import { FLOWER_UPDATE_HOOK_REL } from "./flower-assets.js";
 const WORKFLOW_HOOK_SCRIPT = ".codex/hooks/inject-workflow-state.py";
 const SESSION_START_SCRIPT = ".codex/hooks/session-start.py";
 const CODEX_DISPATCH_MODE = "sub-agent";
+const SESSION_START_MATCHER = "startup|resume|clear|compact";
+const FLOWER_UPDATE_MATCHER = "startup";
+const SESSION_START_TIMEOUT = 30;
 
 /** 返回一行开头的空白缩进。 */
 function leadingWhitespace(line) {
@@ -258,20 +261,48 @@ function hasCommand(hooks, commandNeedle) {
   );
 }
 
-/** 向 SessionStart 合并单个 command hook,保留既有自定义 hook。 */
-function ensureSessionStartCommand(groups, command, timeout, needle) {
-  for (const group of groups) {
-    const hooks = Array.isArray(group?.hooks) ? group.hooks : [];
-    if (hasCommand(hooks, needle)) return false;
+/** 从所有 SessionStart group 移除目标命令,避免 matcher 迁移后重复触发。 */
+function removeSessionStartCommand(groups, needle) {
+  let changed = false;
+  for (let i = groups.length - 1; i >= 0; i -= 1) {
+    const group = groups[i];
+    if (!Array.isArray(group?.hooks)) continue;
+    const before = group.hooks.length;
+    group.hooks = group.hooks.filter(
+      (hook) => !(hook?.type === "command" &&
+        typeof hook.command === "string" &&
+        hook.command.includes(needle)),
+    );
+    if (group.hooks.length !== before) {
+      changed = true;
+      if (group.hooks.length === 0 && !group.matcher) {
+        groups.splice(i, 1);
+      }
+    }
   }
-  groups.push({
-    hooks: [
-      {
-        type: "command",
-        command,
-        timeout,
-      },
-    ],
+  return changed;
+}
+
+/** 查找或创建指定 matcher 的 SessionStart group。 */
+function ensureSessionStartGroup(groups, matcher) {
+  let group = groups.find((item) => item && item.matcher === matcher);
+  if (!group) {
+    group = { matcher, hooks: [] };
+    groups.push(group);
+  }
+  if (!Array.isArray(group.hooks)) group.hooks = [];
+  return group;
+}
+
+/** 向指定 matcher 的 SessionStart group 归位单个 command hook。 */
+function ensureSessionStartCommand(groups, command, timeout, needle, matcher) {
+  const removed = removeSessionStartCommand(groups, needle);
+  const group = ensureSessionStartGroup(groups, matcher);
+  if (hasCommand(group.hooks, needle)) return removed;
+  group.hooks.push({
+    type: "command",
+    command,
+    timeout,
   });
   return true;
 }
@@ -290,8 +321,20 @@ function mergeHooks(hooksPath) {
   const groups = Array.isArray(config.hooks.SessionStart)
     ? config.hooks.SessionStart
     : [];
-  ensureSessionStartCommand(groups, sessionStartCommand(config), 30, SESSION_START_SCRIPT);
-  ensureSessionStartCommand(groups, flowerUpdateCommand(config), 8, FLOWER_UPDATE_HOOK_REL);
+  ensureSessionStartCommand(
+    groups,
+    sessionStartCommand(config),
+    SESSION_START_TIMEOUT,
+    SESSION_START_SCRIPT,
+    SESSION_START_MATCHER,
+  );
+  ensureSessionStartCommand(
+    groups,
+    flowerUpdateCommand(config),
+    SESSION_START_TIMEOUT,
+    FLOWER_UPDATE_HOOK_REL,
+    FLOWER_UPDATE_MATCHER,
+  );
   config.hooks.SessionStart = groups;
 
   const desired = JSON.stringify(config, null, 2) + "\n";

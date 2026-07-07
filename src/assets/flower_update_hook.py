@@ -81,6 +81,7 @@ def _format_context(data: dict) -> str:
     remote = data.get("remote") or {}
     ai = data.get("ai") or {}
     safety = data.get("safety") or {}
+    out_of_sync_reasons = project.get("outOfSyncReasons") or []
     lines = [
         "<flower-update>",
         f"status: {data.get('status')}",
@@ -90,13 +91,23 @@ def _format_context(data: dict) -> str:
         f"bundled_trellis: {current.get('bundledTrellisVersion')}",
         f"project_trellis: {project.get('trellisVersion')}",
     ]
+    if "outOfSync" in project:
+        lines.append(f"project_out_of_sync: {project.get('outOfSync')}")
+    if out_of_sync_reasons:
+        lines.append(f"project_out_of_sync_reasons: {', '.join(out_of_sync_reasons)}")
     if remote.get("tags"):
         lines.append(f"remote: {json.dumps(remote.get('tags'), ensure_ascii=False)}")
+    if remote.get("errorCode"):
+        lines.append(f"remote_error_code: {remote.get('errorCode')}")
     command = (data.get("commands") or {}).get("recommended") or ai.get("command")
     if command:
         lines.append(f"recommended_command: {command}")
     if safety.get("reasons"):
         lines.append(f"safety_reasons: {', '.join(safety.get('reasons') or [])}")
+    if ai.get("mode"):
+        lines.append(f"ai_mode: {ai.get('mode')}")
+    if ai.get("mode") == "ask":
+        lines.append("ai_required_action: 必须先向用户提出明确确认问题;用户确认前禁止执行 recommended_command。")
     if ai.get("instruction"):
         lines.append(f"ai_instruction: {ai.get('instruction')}")
     lines.append("</flower-update>")

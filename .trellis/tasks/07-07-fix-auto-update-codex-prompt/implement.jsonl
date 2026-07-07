@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "启动自更新检查、self-check/self-update、远端缓存、hook JSON 合同"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "Codex/Claude 平台后处理、hook 合并幂等与强化包叠加链路"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨层修改需同步 CLI 行为、hook 配置、规范和验证"}
+{"file": ".trellis/tasks/07-07-fix-auto-update-codex-prompt/research/codex-sessionstart-hooks.md", "reason": "Codex SessionStart matcher 和 timeout 官方行为依据"}
