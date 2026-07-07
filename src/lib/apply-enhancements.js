@@ -5,6 +5,8 @@ import { copyScriptAssets } from "./copy-scripts.js";
 import { injectWorkflow } from "./workflow-inject.js";
 import { injectSkillOverrides } from "./skill-override-inject.js";
 import { applyCodexTweaks } from "./codex-tweaks.js";
+import { applyClaudeTweaks } from "./claude-tweaks.js";
+import { copyFlowerAssets } from "./flower-assets.js";
 import { readManifest, writeManifest } from "./manifest.js";
 import { flowerVersion } from "./versions.js";
 import { rmrf } from "./fs-utils.js";
@@ -63,8 +65,11 @@ export function applyEnhancements(target, opts = {}) {
     variantDir,
     skills,
   );
-  const installed = [...skillInstalled, ...scriptInstalled];
-  const newPaths = [...skillPaths, ...scriptPaths];
+  const { installed: flowerInstalled, paths: flowerPaths } = skills.length === 0
+    ? copyFlowerAssets(target)
+    : { installed: [], paths: [] };
+  const installed = [...skillInstalled, ...scriptInstalled, ...flowerInstalled];
+  const newPaths = [...skillPaths, ...scriptPaths, ...flowerPaths];
   const where = [];
   if (newPaths.some((p) => p.startsWith(".claude/skills"))) where.push(".claude/skills");
   if (newPaths.some((p) => p.startsWith(".agents/skills"))) where.push(".agents/skills");
@@ -150,6 +155,11 @@ export function applyEnhancements(target, opts = {}) {
       ? "dispatch_mode 已强制为 sub-agent"
       : "dispatch_mode 已是 sub-agent";
     console.log(`  ✓ codex 调整:${seg};hooks.json 已合并 SessionStart;${dispatch}`);
+  }
+
+  const claude = applyClaudeTweaks(target);
+  if (claude.applied) {
+    console.log("  ✓ claude 调整:settings.json 已合并 startup 更新检查 hook");
   }
 
   return { variant, installed };

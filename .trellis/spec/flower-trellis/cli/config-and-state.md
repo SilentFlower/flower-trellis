@@ -59,8 +59,9 @@ flower-trellis 自身几乎无内存态:配置是一组**集中常量**,运行�
 
 ## Network Probe (尽力而为联网探测)
 
-> flower 自身几乎零网络依赖;**唯一**的对外探测是 `init` / `update` 启动时查 npm 上
-> flower-trellis 自身的可用版本(`src/lib/update-check.js`)。任何联网探测都必须「尽力而为」:
+> flower 自身几乎零网络依赖;**唯一**的对外探测是查 npm 上 flower-trellis 自身的
+> 可用版本(`src/lib/update-check.js`),入口包括 `init` / `update` 启动提示和
+> `self-check` 的远程版本探测。任何联网探测都必须「尽力而为」:
 > 带超时、失败静默、**绝不阻断主流程**。这是「Version Reading」降级约定在网络场景的延伸。
 
 - **签名 / 契约**:`fetchPackageDistTags(): Promise<{latest:string|null,beta:string|null}|null>`
@@ -109,7 +110,7 @@ flower 自己的安装清单,是「精确升级清理」的依据:
 
 - 位置:目标项目 `.trellis/.flower-manifest.json`,随 Trellis 生命周期存在
   (`uninstall` 删 `.trellis/` 时一并消失)。
-- 内容:`{ flowerVersion, variant, version, skills[], paths[] }` —— 记录**上一次全装铺过的精确路径**,
+- 内容:`{ flowerVersion, variant, version, skills[], paths[], updateCheck }` —— 记录**上一次全装铺过的精确路径**,
   升级(如 `0.5`/`old` → `0.6`)时据此删除「上次有、本次变体不含」的过期项,
   **只删自己铺过的路径**,绝不误删用户或 Trellis 本体的文件。
   - `flowerVersion` = 铺包时的 **flower-trellis 工具版本**(`flowerVersion()` 读包根 `package.json`);
@@ -117,8 +118,135 @@ flower 自己的安装清单,是「精确升级清理」的依据:
     前者答「上次哪个 flower 铺的」,后者答「项目当时是哪个 trellis」,均服务后续升级判断。
   - 仅全装(无 `--skills`)时写 manifest;`--skills` 精细操作不动 manifest,故 `flowerVersion`
     只在全装时刷新。
+  - `updateCheck` 是启动更新检查的用户策略与运行缓存。全装重写 manifest 时必须保留已有
+    `updateCheck.enabled` / `policy` / `intervalHours`,不能把用户选择重置回默认值。
 - `readManifest` 读不到 / 损坏时返回 `null`(调用方需判空);`writeManifest` 写
   `JSON.stringify(data, null, 2) + "\n"`(两空格缩进 + 结尾换行)。
+- `readUpdateCheck(target)` 必须对旧 manifest / 损坏字段返回默认策略:
+  `{ enabled:true, policy:"ask", intervalHours:24, lastCheckedAt:null, lastRemote:null, lastStatus:null, lastErrorCode:null }`。
+- `writeUpdateCheck(target, patch)` 只合并 `updateCheck`,保留 manifest 其它安装清单字段。
+
+## Scenario: Startup Self-Update Check
+
+### 1. Scope / Trigger
+
+- Trigger: 新增或修改启动时自更新检查、`self-check` / `self-update` / `update-check`
+  命令、`.trellis/.flower-manifest.json` 的 `updateCheck` 字段、或 Codex / Claude Code
+  SessionStart 更新检查 hook。
+- Scope: 启动 hook 只做只读检查与上下文注入;所有写入型更新必须通过 CLI 命令执行,
+  便于 AI 先按 policy 决策、用户审计和失败恢复。
+
+### 2. Signatures
+
+```bash
+flower-trellis self-check --json --target <dir> [--force-remote] [--no-update-check]
+flower-trellis self-update --target <dir> --yes [--dry-run] [--project-only] [-- <trellis update flags>]
+flower-trellis update-check get --target <dir>
+flower-trellis update-check set --target <dir> --policy <off|notify|ask|auto> [--interval-hours <n>]
+flower-trellis update-check disable --target <dir>
+flower-trellis update-check enable --target <dir>
+```
+
+Hook 资产:
+
+```text
+src/assets/flower_update_hook.py
+→ <target>/.trellis/scripts/flower_update_hook.py
+```
+
+### 3. Contracts
+
+- `self-check --json` 始终输出 JSON,状态至少包括 `update_available`、
+  `project_out_of_sync`、`up_to_date`、`disabled`、`skipped`、`offline`。
+- 本地一致性检查先于远程节流:只要 manifest 的 `flowerVersion` 与当前
+  `flowerVersion()` 不一致,或项目 `.trellis/.version` 与当前 `trellisVersion()`
+  不一致,必须返回 `project_out_of_sync`,不得因 `intervalHours` 未到而跳过。
+- `intervalHours` 只限制 npm registry 远程探测;不限制本地 manifest / `.trellis/.version`
+  读取。
+- `updateCheck.enabled` 是总开关;`policy` 是启用后的 AI 行为偏好:
+  - `off`: 不检查、不联网。
+  - `notify`: 只注入提示和手动命令,AI 不主动询问或执行。
+  - `ask`: 默认;AI 必须先询问用户。
+  - `auto`: 安全条件满足时 AI 可执行推荐命令,否则降级为 `ask`。
+- `update-check disable` 只写 `enabled=false`,不修改既有 `policy`;`enable` 只写
+  `enabled=true`,沿用既有 `policy`,缺失时按 `ask` 归一化。
+- `self-update --yes` 的项目阶段必须走完整 `flower-trellis update --target <dir>
+  --no-update-check ...` 链路,包含 `syncGlobalTrellis()`、上游 `trellis update`、
+  `applyEnhancements()`、Codex / Claude 后处理和 manifest 刷新。
+- 项目 update 阶段默认追加 `--force`,等价 Trellis 交互里的 “Apply Overwrite to all”。
+  若 `--` 之后已包含 `-f` / `--force` / `-s` / `--skip-all` / `-n` / `--create-new`,
+  以用户透传的冲突策略为准,不再追加默认 `--force`。
+- `policy=auto` 的安全门槛至少包括:目标是 Trellis 项目、git clean、无 active /
+  in_progress Trellis 任务、`flower-trellis` 命令可用、有推荐命令、未设置
+  `FLOWER_NO_UPDATE_CHECK`。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 目标无 `.trellis/` | `self-check` 返回 `skipped/not_trellis_project` |
+| `FLOWER_NO_UPDATE_CHECK`、`--no-update-check`、`enabled=false` 或 `policy=off` | 返回 `disabled`,不联网 |
+| npx / npm exec 临时运行 | 返回 `skipped/npx_runtime`,不建议全局更新 |
+| 本地 `flowerVersion` 或 `.trellis/.version` 不一致 | 返回 `project_out_of_sync`,推荐 `self-update --project-only` |
+| `lastCheckedAt` 仍在 interval 内且缓存无更新 | 返回 `skipped/interval_not_elapsed` |
+| `lastCheckedAt` 仍在 interval 内但缓存显示有更新 | 返回 `update_available`,来源标记为 cache |
+| registry 离线 / 超时 / 非 200 / 响应字段无效 | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode` |
+| `self-update --dry-run` | 只打印全局安装命令、项目 update 命令、版本和安全检查,不写入 |
+| `self-update` 缺少 `--yes` 且非 dry-run | 抛中文错误,由 CLI 顶层统一退出 |
+| 全局 npm 安装成功但项目 update 失败 | 报告未完成,给出手动 `flower-trellis update --target ... --no-update-check --force` 命令 |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 项目 manifest 记录 `flowerVersion=0.4.1`,当前安装 `0.4.2`,即使
+  `lastCheckedAt` 仍在 interval 内,启动 hook 也注入 `project_out_of_sync` 和
+  `flower-trellis self-update --target <dir> --yes --project-only`。
+- Base: 远程探测失败时 hook 静默退出;`self-check --json` 仍返回 `offline` JSON,
+  不阻断 Codex / Claude Code 启动。
+- Base: 用户配置 `policy=auto` 但 git dirty,`ai.mode` 降级为 `ask`,并给出
+  `dirty_worktree` 原因。
+- Bad: 启动 hook 直接执行 `npm i -g` 或 `flower-trellis update`。启动阶段只能注入上下文。
+- Bad: 只覆盖 `.trellis/scripts/flower_update_hook.py` 或只改 manifest 就报告项目已更新。
+  项目内容更新必须走完整 `flower-trellis update` 链路。
+- Bad: 全装重写 manifest 时丢失用户设置的 `policy=auto` 或 `intervalHours=6`。
+
+### 6. Tests Required
+
+- 静态检查:
+  - `node --check src/cli.js && for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done`
+  - `python3 -m py_compile src/assets/flower_update_hook.py`
+  - `git diff --check`
+- CLI 行为:
+  - `self-check --json --target <dir> --no-update-check` 返回稳定 `disabled` JSON。
+  - 修改临时 manifest 的 `flowerVersion` 且把 `lastCheckedAt` 设到未来,仍返回
+    `project_out_of_sync`。
+  - `self-update --target <dir> --dry-run --project-only` 默认项目命令带 `--force`。
+  - `self-update --target <dir> --dry-run --project-only -- --skip-all` 不再追加 `--force`。
+  - `update-check set|disable|enable|get` 保留 policy / enabled 语义。
+- dogfood:
+  - `flower-trellis init --target ./test-target -y --no-update-check`
+  - `flower-trellis update --target ./test-target --dry-run --no-update-check`
+  - 重复 `update --enhance-only --no-update-check` 后 Codex / Claude hook 不重复。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```bash
+python3 .trellis/scripts/flower_update_hook.py
+# hook 内部直接 npm i -g flower-trellis@latest && flower-trellis update ...
+```
+
+问题:启动 hook 变成写入型副作用,会阻塞或破坏 AI 会话启动,也绕过用户 policy。
+
+#### Correct
+
+```bash
+flower-trellis self-check --json --target .
+flower-trellis self-update --target . --yes -- --skip-all
+```
+
+原因:`self-check` 只产出结构化状态和 AI 指令;`self-update` 是可审计写入入口,
+项目阶段默认 `--force`,但允许用户用 `--` 明确覆盖冲突策略。
 
 ---
 

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "检查 manifest、版本读取、updateCheck 策略和联网探测是否符合项目契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查项目更新是否正确执行 skill-garden 强化包重叠加、workflow override 和 skill override 幂等注入。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "检查实现是否满足本项目静态检查、dogfood 和禁止模式要求。"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "检查新增命令和错误提示是否符合中文输出、清晰修复建议和退出码约定。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "检查 README/help 中涉及 npm registry、dist-tags 和发布验证的说明是否与发版规范一致。"}

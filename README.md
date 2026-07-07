@@ -52,6 +52,15 @@ flower-trellis init -u <your-name> -y
 # 升级 Trellis 并按新版本重新叠加强化包
 flower-trellis update
 
+# 检查当前项目是否需要更新(稳定 JSON,供 AI / hook 使用)
+flower-trellis self-check --json --target .
+
+# 执行受控自更新:升级 flower-trellis,再默认 --force 重叠加当前项目
+flower-trellis self-update --target . --yes
+
+# 管理启动更新检查策略
+flower-trellis update-check get --target .
+
 # 交互管理通用技能,并查看工作流强化包
 flower-trellis skill
 
@@ -70,6 +79,9 @@ flower-trellis -v
 |------|------|
 | `init` | 安装 Trellis 并叠加强化包(默认命令,裸跑等同 `init`) |
 | `update` | 升级 Trellis,并按新版本重新叠加强化包 |
+| `self-check` | 输出启动更新检查 JSON,供 Codex / Claude Code hook 和 AI 自动化读取 |
+| `self-update` | 受控升级 flower-trellis 并对目标项目执行完整 `flower-trellis update` 重叠加 |
+| `update-check` | 管理 `.trellis/.flower-manifest.json` 内的启动更新检查策略 |
 | `skill` | 打开交互菜单:启用或停用通用技能,只读查看工作流强化包 |
 | `uninstall` | 移除 Trellis 本体并清理强化包残留(支持 `-y` / `--dry-run`) |
 | `<其它命令>` | 原样透传给 Trellis,覆盖其现有及未来子命令 |
@@ -99,16 +111,93 @@ flower-trellis -v
 - **非交互**(`-y` 或非 TTY):仅打印一行升级提示,不弹确认、不阻塞。
 - **跳过检测**:经 `npx` 运行(本就是最新版)、或显式 `--no-update-check` / `FLOWER_NO_UPDATE_CHECK=1` 时不检测。
 
+### 启动更新检查
+
+运行 `flower-trellis init` / `flower-trellis update` 后,目标项目会安装轻量启动 hook:
+
+- Codex:向 `.codex/hooks.json` 的 `SessionStart` 追加 `.trellis/scripts/flower_update_hook.py`。
+- Claude Code:只向 `.claude/settings.json` 的 `SessionStart` `startup` matcher 追加该 hook,不挂 `clear` / `compact`。
+
+启动 hook 不会直接安装 npm 包,也不会直接改项目文件。它只调用:
+
+```bash
+flower-trellis self-check --json --target .
+```
+
+发现可更新或项目已铺版本不一致时,向 AI 注入 `<flower-update>` 上下文。无更新、离线、关闭检查、npx 临时运行时默认不打扰。
+
+检查分两层:
+
+- **本地一致性检查**:每次启动都会比对当前安装的 `flower-trellis` / 捆绑 Trellis 版本与项目 `.trellis/.flower-manifest.json` / `.trellis/.version`;不受 `intervalHours` 限制。
+- **远程版本探测**:访问 npm registry 读取 `flower-trellis` dist-tags;受 `intervalHours` 节流,带超时,失败静默。
+
+策略和缓存统一保存在 `.trellis/.flower-manifest.json` 的 `updateCheck`:
+
+```json
+{
+  "updateCheck": {
+    "enabled": true,
+    "policy": "ask",
+    "intervalHours": 24,
+    "lastCheckedAt": "2026-07-07T00:00:00.000Z",
+    "lastRemote": { "latest": "0.4.2", "beta": null },
+    "lastStatus": "update_available",
+    "lastErrorCode": null
+  }
+}
+```
+
+`policy` 可选:
+
+| policy | 行为 |
+|--------|------|
+| `off` | 不做启动更新检查,也不联网 |
+| `notify` | 只注入提示和手动命令,AI 不主动询问或执行 |
+| `ask` | 默认值;AI 发现可更新后先询问用户 |
+| `auto` | 安全条件满足时 AI 可执行 `self-update`;dirty 工作区或活跃任务等情况会降级为 `ask` |
+
+管理策略:
+
+```bash
+flower-trellis update-check get --target .
+flower-trellis update-check set --policy auto --interval-hours 12 --target .
+flower-trellis update-check disable --target .  # 只设置 enabled=false,不改 policy
+flower-trellis update-check enable --target .   # 只设置 enabled=true,沿用原 policy
+```
+
+执行更新:
+
+```bash
+# 预览,不写入
+flower-trellis self-update --target . --dry-run
+
+# 执行:先升级全局 flower-trellis,再对项目执行完整 update
+flower-trellis self-update --target . --yes
+```
+
+项目重叠加阶段默认等价于 Trellis 交互里的 **Apply Overwrite to all**:
+
+```bash
+flower-trellis update --target . --no-update-check --force
+```
+
+如需改用其它上游冲突策略,在 `--` 后透传:
+
+```bash
+flower-trellis self-update --target . --yes -- --skip-all
+flower-trellis self-update --target . --yes -- --create-new
+```
+
 ## 工作原理
 
 `init` 的执行流程:
 
 ```
-flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo / 冲突)→ 叠加强化包 → codex 后处理
+flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo / 冲突)→ 叠加强化包 → 平台后处理
 ```
 
 - **统一品牌头部**:Trellis 子进程在伪终端(`node-pty`)中运行,其原生的模板 / monorepo / 冲突等交互完整保留,但重复打印的启动 banner 被过滤,全程只呈现一个 flower banner。
-- **按平台铺设技能**:Claude 铺到 `.claude/skills`,Codex / Gemini 等铺到 `.agents/skills`;并对 codex 做后处理(兼容清理旧 `config.toml` 的 `[features.multi_agent_v2]`,在保留上游 hooks 的基础上补全 `SessionStart`)。
+- **按平台铺设技能**:Claude 铺到 `.claude/skills`,Codex / Gemini 等铺到 `.agents/skills`;并做平台后处理:Codex 兼容清理旧 `config.toml` 的 `[features.multi_agent_v2]`,在保留上游 hooks 的基础上补全 `SessionStart`;Claude Code 只在 `startup` SessionStart 挂载启动更新检查。
 - **幂等执行**:`workflow.md` 注入前先按 `BEGIN/END` 标记清除旧块再重注入(块数恒定,不会翻倍,首次注入前备份到 `.trellis/.backup-flower/`);技能文件覆盖式铺设,并通过 `.trellis/.flower-manifest.json` 记录已铺路径,升级时删除已淘汰项。
 - **上线事项账本**:强化包通过 finish-work skill override 在归档前智能识别 SQL、配置、批处理 / 部署脚本 / 数据修复、外部系统 / 依赖平台等上线事项,必要时写入任务 `release.md`;`trellis-release` 可在正式上线前核对任务文档、`release.md` 和 git 证据,生成 `YYYY-MM-DD-<release-slug>.md` 格式的版本 / 批次操作单。
 - **安全中止**:`Ctrl+C` 取消后不会继续叠加。

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "定义 flowerVersion、trellisVersion、.flower-manifest.json、联网探测和版本读取的契约，是实现 self-check、manifest 扩展和本地版本不一致判断的核心规范。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "定义 enhancements 快照、applyEnhancements 流水线、workflow/skill override 注入和 manifest 精确清理规则，约束项目更新时如何重叠加本地内容。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "定义 src/lib 与 src/commands 的模块边界、导出和 JSDoc 要求，约束新增 self-check/self-update/update-check 命令实现。"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "定义 CLI 输出、错误、提示和中文文案规范，约束新增命令输出和 hook 注入文案。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "定义静态检查和 dogfood 验证要求，约束实现完成后的质量门禁。"}

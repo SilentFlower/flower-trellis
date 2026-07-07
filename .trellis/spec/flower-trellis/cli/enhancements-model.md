@@ -61,11 +61,20 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
    `.trellis/scripts/`。脚本资产跟随 `--skills` 过滤;例如 `auto_loop.py` 可由
    `auto_loop` / `auto-loop` / `auto-loop-runner` / `trellis-auto-loop` 命中,确保只安装
    `trellis-auto-loop` 时也会带上 runner 脚本。
-5. **升级清理 + manifest**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,
+5. **铺 flower 自有资产**(`flower-assets.js`):仅全装时把 flower-trellis 自身能力复制到
+   目标 `.trellis/scripts/`,例如 `src/assets/flower_update_hook.py` → `.trellis/scripts/flower_update_hook.py`。
+   这类资产不属于 skill-garden 快照,不要放进 `enhancements/<variant>/scripts/`。
+6. **升级清理 + manifest**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,
    删除本次变体不含的过期项,再写新 manifest。带 `--skills` 是精细操作,不动 manifest、不清理。
-6. **注入 workflow**(`workflow-inject.js`):全装,或显式指定 workflow 相关 skill 时执行。
-7. **codex 后处理**(`codex-tweaks.js`):仅当目标存在 `.codex/` 时,兼容清理旧
-   `config.toml` 的 `multi_agent_v2` 段,并在保留上游 hooks 的基础上合并 SessionStart。
+7. **注入 workflow**(`workflow-inject.js`):全装,或显式指定 workflow 相关 skill 时执行。
+8. **skill override 注入**(`skill-override-inject.js`):全装,或显式指定 finish-work 相关 skill 时执行。
+9. **平台后处理**:
+   - `codex-tweaks.js`:仅当目标存在 `.codex/` 时,兼容清理旧 `config.toml` 的
+     `multi_agent_v2` 段,保留上游 hooks 并合并 Trellis / flower 的 `SessionStart`,同时强制
+     `.trellis/config.yaml` 的 `codex.dispatch_mode: sub-agent`。
+   - `claude-tweaks.js`:仅当目标存在 `.claude/` 时,只向 `.claude/settings.json` 的
+     `SessionStart` `startup` matcher 合并 flower update hook,并清除 `clear` / `compact`
+     matcher 中的 flower update hook。
 
 ---
 
@@ -83,6 +92,10 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   处理后内容与原文件相同则**不写盘**。
 - `codex-tweaks`:`config.toml` 段头已注释/不存在则不再处理;`hooks.json` 合并后的
   内容一致则不写,避免覆盖 Trellis 上游 hook 参数。
+- `flower-assets`:只由全装复制,并把 `.trellis/scripts/flower_update_hook.py` 写入 manifest
+  `paths`,让升级清理和 uninstall 只按 manifest 精确管理自己铺过的脚本。
+- `claude-tweaks`:只追加缺失的 startup flower hook,重复运行不得重复;若历史版本把 flower
+  hook 放到了 `clear` / `compact`,更新时必须移除这些非 startup 位置。
 
 ---
 

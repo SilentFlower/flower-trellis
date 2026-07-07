@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { FLOWER_UPDATE_HOOK_REL } from "./flower-assets.js";
 
 /**
  * flower-trellis 对 Trellis 生成的 codex 配置的定制后处理。
@@ -239,23 +240,40 @@ function sessionStartCommand(config) {
   return `python3 -X utf8 ${SESSION_START_SCRIPT}`;
 }
 
-/**
- * 构造 flower 额外需要的 SessionStart hook。UserPromptSubmit 由 Trellis 上游维护,这里不覆盖。
- * @param {{hooks: object}} config hooks.json 配置
- * @returns {Array<object>} SessionStart hook 数组
- */
-function sessionStartHook(config) {
-  return [
-    {
-      hooks: [
-        {
-          type: "command",
-          command: sessionStartCommand(config),
-          timeout: 30,
-        },
-      ],
-    },
-  ];
+/** 从 Trellis SessionStart 命令推导 flower update hook 命令。 */
+function flowerUpdateCommand(config) {
+  const command = sessionStartCommand(config);
+  if (command.includes(SESSION_START_SCRIPT)) {
+    return command.replace(SESSION_START_SCRIPT, FLOWER_UPDATE_HOOK_REL);
+  }
+  return `python3 -X utf8 ${FLOWER_UPDATE_HOOK_REL}`;
+}
+
+/** 判断 hooks 数组里是否已有指定命令。 */
+function hasCommand(hooks, commandNeedle) {
+  return hooks.some(
+    (hook) => hook?.type === "command" &&
+      typeof hook.command === "string" &&
+      hook.command.includes(commandNeedle),
+  );
+}
+
+/** 向 SessionStart 合并单个 command hook,保留既有自定义 hook。 */
+function ensureSessionStartCommand(groups, command, timeout, needle) {
+  for (const group of groups) {
+    const hooks = Array.isArray(group?.hooks) ? group.hooks : [];
+    if (hasCommand(hooks, needle)) return false;
+  }
+  groups.push({
+    hooks: [
+      {
+        type: "command",
+        command,
+        timeout,
+      },
+    ],
+  });
+  return true;
 }
 
 /**
@@ -269,7 +287,12 @@ function sessionStartHook(config) {
  */
 function mergeHooks(hooksPath) {
   const config = readHooksConfig(hooksPath);
-  config.hooks.SessionStart = sessionStartHook(config);
+  const groups = Array.isArray(config.hooks.SessionStart)
+    ? config.hooks.SessionStart
+    : [];
+  ensureSessionStartCommand(groups, sessionStartCommand(config), 30, SESSION_START_SCRIPT);
+  ensureSessionStartCommand(groups, flowerUpdateCommand(config), 8, FLOWER_UPDATE_HOOK_REL);
+  config.hooks.SessionStart = groups;
 
   const desired = JSON.stringify(config, null, 2) + "\n";
   const current = fs.existsSync(hooksPath) ? fs.readFileSync(hooksPath, "utf8") : "";

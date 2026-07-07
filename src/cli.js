@@ -66,6 +66,9 @@ function printHelp() {
 用法:
   flower-trellis [init] [trellis flags] [flower flags]   安装 + 叠加强化包(默认命令)
   flower-trellis update [trellis flags] [flower flags]   升级 + 按新版本重新叠加
+  flower-trellis self-check --json [--target <dir>]      输出启动更新检查 JSON
+  flower-trellis self-update --target <dir> --yes        自更新 + 项目重叠加
+  flower-trellis update-check <get|set|disable|enable>   管理启动更新策略
   flower-trellis skill [flower flags]                    交互管理通用技能
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
@@ -78,6 +81,12 @@ flower 自有 flag:
   --variant <old|0.5|0.6>  强制强化包变体(默认按 .trellis/.version 自动选)
   --target <dir>           目标目录(默认当前目录)
   --no-update-check        本次跳过 flower-trellis 新版本检测(等价 FLOWER_NO_UPDATE_CHECK=1)
+
+启动更新检查:
+  self-check --json                 稳定输出检查 JSON
+  self-update --yes [--dry-run]     执行或预览全局更新与项目 update
+  update-check set --policy <off|notify|ask|auto> [--interval-hours <n>]
+  update-check disable|enable       只切换 enabled,不覆盖已选 policy
 
 命令别名:flower-trellis 可简写为 ftl 或 ft(三者完全等价)。
 init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联网、带超时,失败静默)。
@@ -99,9 +108,17 @@ function parse(argv) {
   let updateCheck = true;
   const skills = [];
   const passthrough = [];
+  const forwarded = [];
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
+    if (a === "--") {
+      forwarded.push(...argv.slice(i + 1));
+      if (command !== "self-update") {
+        passthrough.push(...argv.slice(i + 1));
+      }
+      break;
+    }
     // 第一个非 flag token 视为子命令
     if (command === null && !a.startsWith("-")) {
       command = a;
@@ -143,6 +160,7 @@ function parse(argv) {
       skills,
       variant,
       updateCheck,
+      forwarded,
     },
   };
 }
@@ -179,6 +197,15 @@ async function main() {
     } else if (cmd === "update") {
       const { update } = await import("./commands/update.js");
       await update(ctx);
+    } else if (cmd === "self-check") {
+      const { selfCheck } = await import("./commands/self-check.js");
+      await selfCheck(ctx);
+    } else if (cmd === "self-update") {
+      const { selfUpdate } = await import("./commands/self-update.js");
+      await selfUpdate(ctx);
+    } else if (cmd === "update-check") {
+      const { updateCheck } = await import("./commands/update-check.js");
+      await updateCheck(ctx);
     } else if (cmd === "skill") {
       const { skill } = await import("./commands/skill.js");
       await skill(ctx);
