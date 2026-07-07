@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.6](https://github.com/SilentFlower/flower-trellis/compare/v0.4.5...v0.4.6) (2026-07-07)
+
+
+### ✨ 新功能 Features
+
+* **update:** 注入跨版本更新摘要并联动 push 确认 ([bbdb23c](https://github.com/SilentFlower/flower-trellis/commit/bbdb23c33eac9948235c65f6be6f18764f90a88d))
+
 ## [0.4.5](https://github.com/SilentFlower/flower-trellis/compare/v0.4.4...v0.4.5) (2026-07-07)
 
 
