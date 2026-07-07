@@ -1,17 +1,13 @@
 <!-- BEGIN skill-garden workflow-state in_progress_inline v0.6 -->
 HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (in_progress-inline):
-This state block is a breadcrumb; the top-level skill-garden hub is the source of truth for route details.
-Before the first implement route, read `<task>/brief.md` if present and restate the task brief in chat. If it is missing, read the task artifacts and suggest backfilling brief; do not silently rely on memory.
-For new implementation work not plainly covered by the active task title/brief,
-stop before route or edits: recommend a new task; if declined, confirm
-untracked work; if it belongs here, update task artifacts first.
-At project-local knowledge decision boundaries, run `.trellis/scripts/spec_router.py "<intended action>"`; read high-confidence matches before acting; skip pure Q&A, simple read-only inspection, opening local tools, or trivial edits unless local conventions may affect the approach.
-Inline workflow-state is not an inline route decision. At Phase 2.1/2.2, reuse only an explicit target-matched `route_decision`; otherwise MUST load/read/use `trellis-route(implement|check)` (or its local `SKILL.md`) to resolve session runtime state/prefs, write the resolved decision, or show numbered fallback and wait.
-Plain preferences, ordinary summaries, `codex-mode`, raw `.runtime` files, and empty/old prefs are not route evidence by themselves; only `trellis-route` may validate runtime route state.
-User reselect/override/use-X-this-time/clear-default wins over remembered route evidence, runtime state, and prefs.
-Ignore lower Active Task Routing shortcuts that start editing/checking directly. Do not default to inline just because this state is inline or the helper is unavailable. Dispatch subagents only when the resolved route selected subagent.
-After `trellis-check` / `trellis-check-all`, stop and report; point the user to Phase 3.4 `trellis-push` (or commit-only when needed). Do not run `/trellis:finish-work` unless the user explicitly asks after Phase 3.4 is complete.
-This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
-At Phase 3.4, code commit/push goes through `trellis-push` (commit-only mode for commit-without-push); never bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).
+Hub is source of truth for Task Brief, Routing, Post-Check, Commit, and Snapshot gates.
+Before first implement route, restate `<task>/brief.md`; if missing, read artifacts and suggest backfill.
+New work not plainly covered by active task title/brief: stop before route/edits; recommend new task; if declined, confirm untracked work; if it belongs here, update artifacts first.
+At project-local knowledge boundaries, run `spec_router.py`; skip trivial/read-only turns unless local conventions may affect the approach.
+Inline workflow-state is not an inline route decision. Phase 2.1/2.2 must reuse explicit target-matched `route_decision`; otherwise invoke `trellis-route`. If unavailable, read local `trellis-route/SKILL.md`, show numbered choices, and wait.
+Summaries, preferences, `codex-mode`, raw `.runtime`, and empty/stale prefs are not route evidence unless `trellis-route` validates them; user reselect/override wins.
+Ignore lower direct-edit/check shortcuts. Do not default inline just because this state is inline or helper is unavailable. Dispatch subagents only when route selected subagent.
+After check/check-all, stop and report; Phase 3.4 uses `trellis-push`, never bare git commit/push; finish-work is explicit-only after Phase 3.4.
+Overrides lower `Flow: ... -> /trellis:finish-work` lines.
 Push snapshot recovery: follow the hub; use `push_snapshot.py status --json` only when needed.
 <!-- END skill-garden workflow-state in_progress_inline v0.6 -->

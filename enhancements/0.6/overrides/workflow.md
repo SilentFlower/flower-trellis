@@ -26,12 +26,10 @@ Build the query from the current user request plus relevant immediate context:
 the intended action, commands about to run, files or systems involved, package/layer,
 and domain words matching the trigger list above.
 
-Read high-confidence matches before acting. For medium-confidence matches, read only
-when the path, heading, index description, or reason clearly fits the intended change.
-If nothing matches, continue normally.
-
-Do not run discovery for pure Q&A, simple read-only inspection, opening local tools,
-or trivial edits unless the request mentions project conventions or local SOPs may
+Read high-confidence matches before acting; read medium-confidence matches only when
+the path, heading, index description, or reason clearly fits the intended change.
+If nothing matches, continue normally. Skip pure Q&A, simple read-only inspection,
+opening local tools, or trivial edits unless project conventions or local SOPs may
 change the approach.
 
 #### Task Brief Handoff
@@ -68,7 +66,7 @@ At each route boundary:
 2. Otherwise you MUST invoke `trellis-route(target=implement|check)` before deciding; if the platform cannot invoke skills directly, read the local `trellis-route/SKILL.md` copy and follow its numbered fallback choices in normal chat and wait. `trellis-route` owns session runtime recovery, `.route-prefs.tmp`, fallback choices, runtime-state writes, and dispatch mapping.
 3. If the route helper cannot ask through `AskUserQuestion` / `request_user_input`, ask the same numbered choices from `trellis-route` in normal chat and wait.
 
-Plain user preference, ordinary summaries (compact/SessionStart or otherwise), replacement history, historical bare numeric replies, `codex-mode`, empty/old prefs, and raw `.trellis/.runtime/sessions/*` `route_decisions` content that has not been validated by `trellis-route` are not route evidence by themselves; numbered fallback validity is governed by `trellis-route`.
+Plain preferences, summaries (including compact/SessionStart), replacement history, historical bare numeric replies, `codex-mode`, empty/stale prefs, and raw runtime files are not route evidence unless validated by `trellis-route`; numbered fallback validity is governed by `trellis-route`.
 
 User reselect/override/use-X-this-time/clear-default wins over remembered route evidence, runtime state, and personal prefs.
 

@@ -31,7 +31,8 @@ function stripSkillOverride(value, name) {
 }
 
 /**
- * 把 override 块插入到 frontmatter 后、正文前;无 frontmatter 时插到文件顶部。
+ * 把 override 块插入到 frontmatter 后、正文前;无 frontmatter 时优先插到首个 H1 后,
+ * 都没有才插到文件顶部。
  *
  * @param {string} value 已清理旧块的目标文本
  * @param {string} block override 块
@@ -43,6 +44,13 @@ function injectAfterFrontmatter(value, block) {
   if (m) {
     const after = value.slice(m[0].length).replace(/^\n+/, "");
     return value.slice(0, m[0].length) + "\n" + b + "\n\n" + after;
+  }
+  // 无 frontmatter 的 command 文件首行标题常被平台当作命令描述来源;
+  // override 放到标题后,避免把高优先级 override 标题暴露成命令名。
+  const h1 = /^# [^\n]*\n/.exec(value);
+  if (h1) {
+    const after = value.slice(h1[0].length).replace(/^\n+/, "");
+    return value.slice(0, h1[0].length) + "\n" + b + "\n\n" + after;
   }
   return b + "\n\n" + value.replace(/^\n+/, "");
 }

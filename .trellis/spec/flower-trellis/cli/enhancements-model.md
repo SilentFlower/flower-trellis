@@ -71,7 +71,9 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 6. **升级清理 + manifest**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,
    删除本次变体不含的过期项,再写新 manifest。带 `--skills` 是精细操作,不动 manifest、不清理。
 7. **注入 workflow**(`workflow-inject.js`):全装,或显式指定 workflow 相关 skill 时执行。
-8. **skill override 注入**(`skill-override-inject.js`):全装,或显式指定 finish-work 相关 skill 时执行。
+8. **skill override 注入**(`skill-override-inject.js`):全装,或显式指定 finish-work 相关
+   skill 时执行。注入位置为 frontmatter 后;无 frontmatter 的 command 文件优先插到首个
+   H1 标题后,避免 override 标题污染平台提取的命令描述。
 9. **平台后处理**:
    - `codex-tweaks.js`:仅当目标存在 `.codex/` 时,兼容清理旧 `config.toml` 的
      `multi_agent_v2` 段,保留上游 hooks 并合并 Trellis / flower 的 `SessionStart`,同时强制

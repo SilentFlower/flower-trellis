@@ -1,3 +1,5 @@
+# Finish Work
+
 ### HIGHEST PRIORITY: skill-garden finish-work release operations override
 
 <!-- BEGIN skill-garden skill override trellis-finish-work v0.6 -->
@@ -83,8 +85,6 @@ git push origin <current_branch>
 Never force push. If push fails, stop and report the failure.
 
 <!-- END skill-garden skill override trellis-finish-work v0.6 -->
-
-# Finish Work
 
 Wrap up the current session: archive the active task (and any other completed-but-unarchived tasks the user wants to clean up) and record the session journal. Code commits are NOT done here — those happen in workflow Phase 3.4 before you invoke this command.
 
