@@ -158,6 +158,10 @@ src/assets/flower_update_hook.py
 
 - `self-check --json` 始终输出 JSON,状态至少包括 `update_available`、
   `project_out_of_sync`、`up_to_date`、`disabled`、`skipped`、`offline`。
+- Codex / Claude Code SessionStart hook 输出只使用
+  `hookSpecificOutput.additionalContext` 注入 `<flower-update>`;不要额外输出
+  `additional_context` 等其它顶层兼容字段。Codex 会严格校验 SessionStart JSON schema,
+  多余顶层字段会导致 `hook returned invalid session start JSON output`。
 - 本地一致性检查先于远程节流:只要 manifest 的 `flowerVersion` 与当前
   `flowerVersion()` 不一致,或项目 `.trellis/.version` 与当前 `trellisVersion()`
   不一致,必须返回 `project_out_of_sync`,不得因 `intervalHours` 未到而跳过。
@@ -214,6 +218,8 @@ src/assets/flower_update_hook.py
 - 静态检查:
   - `node --check src/cli.js && for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done`
   - `python3 -m py_compile src/assets/flower_update_hook.py`
+  - 用假 `flower-trellis self-check --json` 驱动 `flower_update_hook.py`,断言 stdout
+    是合法 JSON,且顶层字段不包含 `additional_context`。
   - `git diff --check`
 - CLI 行为:
   - `self-check --json --target <dir> --no-update-check` 返回稳定 `disabled` JSON。

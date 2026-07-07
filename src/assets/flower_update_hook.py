@@ -104,7 +104,7 @@ def _format_context(data: dict) -> str:
 
 
 def _emit_context(context: str) -> None:
-    """同时兼容 Codex / Claude Code / Cursor 风格的 hook JSON 输出。"""
+    """输出 Codex / Claude Code 都接受的 SessionStart hook JSON。"""
     result = {
         "suppressOutput": True,
         "systemMessage": "flower-trellis update context injected",
@@ -112,7 +112,6 @@ def _emit_context(context: str) -> None:
             "hookEventName": "SessionStart",
             "additionalContext": context,
         },
-        "additional_context": context,
     }
     print(json.dumps(result, ensure_ascii=False), flush=True)
 
