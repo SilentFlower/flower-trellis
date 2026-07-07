@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractChangelogSection } from "./lib/changelog-section.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url)); // scripts/
 const PKG_ROOT = path.resolve(here, "..");
@@ -26,47 +27,18 @@ if (!rawVersion || !outFile) {
   process.exit(1);
 }
 
-// 剥掉可能的 v 前缀(CI 传入的是 tag 名,如 v0.3.0)
-const version = rawVersion.replace(/^v/, "");
-
 if (!fs.existsSync(CHANGELOG_PATH)) {
   console.error(`❌ 未找到 ${path.relative(PKG_ROOT, CHANGELOG_PATH)}`);
   process.exit(1);
 }
 
-const lines = fs.readFileSync(CHANGELOG_PATH, "utf8").split("\n");
-
-// 目标版本标题:h2/h3 + 可选 [ ] 包裹的精确版本号,后接空白/]/(/行尾(避免误匹配 0.3.00)。
-const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const titleRe = new RegExp(`^#{2,3}\\s+\\[?${escaped}\\]?(\\s|\\]|\\(|$)`);
-// 任意版本标题(用于界定段落结束):h2/h3 + [x.y.z] 或裸 x.y.z
-const anyVersionRe = /^#{2,3}\s+\[?\d+\.\d+\.\d+/;
-
-let start = -1;
-for (let i = 0; i < lines.length; i++) {
-  if (titleRe.test(lines[i])) {
-    start = i;
-    break;
-  }
-}
-
-if (start === -1) {
-  console.error(`❌ 在 CHANGELOG.md 中未找到版本 ${version} 的段落`);
+let section;
+try {
+  section = extractChangelogSection(CHANGELOG_PATH, rawVersion);
+} catch (err) {
+  console.error(`❌ ${err.message}`);
   process.exit(1);
 }
 
-// 从标题的下一行收集,直到遇到下一个版本标题(或文件结束)
-const body = [];
-for (let i = start + 1; i < lines.length; i++) {
-  if (anyVersionRe.test(lines[i])) break;
-  body.push(lines[i]);
-}
-
-const notes = body.join("\n").trim();
-if (!notes) {
-  console.error(`❌ 版本 ${version} 的段落为空`);
-  process.exit(1);
-}
-
-fs.writeFileSync(outFile, notes + "\n");
-console.log(`✓ 已抽取 ${version} 的变更段落 → ${outFile}(${notes.split("\n").length} 行)`);
+fs.writeFileSync(outFile, section.notes + "\n");
+console.log(`✓ 已抽取 ${section.version} 的变更段落 → ${outFile}(${section.lineCount} 行)`);

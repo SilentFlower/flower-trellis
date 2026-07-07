@@ -64,14 +64,20 @@ flower-trellis 自身几乎无内存态:配置是一组**集中常量**,运行�
 > `self-check` 的远程版本探测。任何联网探测都必须「尽力而为」:
 > 带超时、失败静默、**绝不阻断主流程**。这是「Version Reading」降级约定在网络场景的延伸。
 
-- **签名 / 契约**:`fetchPackageDistTags(): Promise<{latest:string|null,beta:string|null}|null>`
-  —— 成功返回 npm `dist-tags.latest` / `dist-tags.beta`,**任何失败一律 `null`**(调用方据此
-  「拿不到就当没这回事」继续)。请求 `GET https://registry.npmjs.org/flower-trellis`,
-  读取 `dist-tags`。`fetchLatestVersion()` 仅作为兼容导出保留,新逻辑不要继续扩展它。
+- **签名 / 契约**:`fetchPackageUpdateMetadata(): Promise<{tags,releaseNotesByVersion}|null>`
+  —— 成功一次读取 npm registry 根文档,同时解析 `dist-tags.latest` / `dist-tags.beta`
+  与各版本 package metadata 中的 `flowerReleaseNotes`;**任何失败一律 `null`**(调用方据此
+  「拿不到就当没这回事」继续)。`fetchPackageDistTags()` 作为兼容导出保留,只返回
+  `metadata.tags`;`fetchLatestVersion()` 仅作为旧兼容导出保留,新逻辑不要继续扩展它。
+- `flowerReleaseNotes` 是 flower 内部 npm metadata 字段,每个版本只保存自己的 CHANGELOG
+  段落;客户端跨版本聚合时从同一次 registry 根文档的 `versions` 字典读取并按目标通道过滤。
+- release notes 摘要上限固定为最多 5 个版本、单版本 500 字符、总计 1600 字符;截断或还有
+  更多版本时必须设置 `truncated` / `moreVersions`。
 - **超时**:用 `AbortController` + `setTimeout(ac.abort, 5000)`,`signal` 传入内置 `fetch`;
   `finally` 里 `clearTimeout` 防句柄泄漏(否则 timer 可能拖住进程不退出)。
 - **三道防线 → `null`**:① `!res.ok`(非 200);② `catch`(AbortError 超时 / `fetch failed`
   离线 / JSON 解析失败);③ 字段类型不符(`dist-tags.latest` / `dist-tags.beta` 都不是字符串)。
+  `flowerReleaseNotes` 缺失或损坏只影响摘要,不得影响版本判断。
 - **编排短路**:`checkForUpdate(ctx, label)` 顺序短路——关闭开关
   (`ctx.updateCheck===false` 或 `process.env.FLOWER_NO_UPDATE_CHECK` 非空)→ npx
   (`isRunningViaNpx()`,路径含 `_npx`)→ 探测失败 → 无升级推荐,任一命中即静默返回。
@@ -91,7 +97,7 @@ flower-trellis 自身几乎无内存态:配置是一组**集中常量**,运行�
 
 **Wrong**:`const v = (await fetch(url)).json(); return v.version;` —— 无超时(离线时挂起)、
 无 try/catch(失败抛进 init/update 主流程)、无字段校验。
-**Correct**:见 `src/lib/update-check.js#fetchPackageDistTags`(AbortController + 三道防线 + `finally` 清 timer)。
+**Correct**:见 `src/lib/update-check.js#fetchPackageUpdateMetadata`(AbortController + 三道防线 + `finally` 清 timer)。
 
 ---
 
@@ -123,8 +129,10 @@ flower 自己的安装清单,是「精确升级清理」的依据:
 - `readManifest` 读不到 / 损坏时返回 `null`(调用方需判空);`writeManifest` 写
   `JSON.stringify(data, null, 2) + "\n"`(两空格缩进 + 结尾换行)。
 - `readUpdateCheck(target)` 必须对旧 manifest / 损坏字段返回默认策略:
-  `{ enabled:true, policy:"ask", intervalHours:8, lastCheckedAt:null, lastRemote:null, lastStatus:null, lastErrorCode:null }`。
+  `{ enabled:true, policy:"ask", intervalHours:8, lastCheckedAt:null, lastRemote:null, lastReleaseNotes:null, lastStatus:null, lastErrorCode:null }`。
 - `writeUpdateCheck(target, patch)` 只合并 `updateCheck`,保留 manifest 其它安装清单字段。
+- `lastRemote` 只记录 npm `dist-tags.latest` / `dist-tags.beta` 版本事实;release notes /
+  changelog 摘要必须写入独立的 `lastReleaseNotes`,不得混入 `lastRemote`。
 
 ## Scenario: Startup Self-Update Check
 
@@ -158,6 +166,9 @@ src/assets/flower_update_hook.py
 
 - `self-check --json` 始终输出 JSON,状态至少包括 `update_available`、
   `project_out_of_sync`、`up_to_date`、`disabled`、`skipped`、`offline`。
+- `self-check --json` 在 `update_available` 和 `project_out_of_sync` 中应尽力输出
+  `releaseNotes` 摘要。`update_available` 范围为 `currentFlower < version <= recommendation.version`;
+  `project_out_of_sync` 范围为 `projectFlower < version <= currentFlower`。
 - Codex / Claude Code SessionStart hook 输出只使用
   `hookSpecificOutput.additionalContext` 注入 `<flower-update>`;不要额外输出
   `additional_context` 等其它顶层兼容字段。Codex 会严格校验 SessionStart JSON schema,
@@ -169,9 +180,12 @@ src/assets/flower_update_hook.py
 - `intervalHours` 只限制 npm registry 远程探测,不限制本地 manifest / `.trellis/.version`
   读取。缓存仍新鲜时可使用 `lastRemote` 作为远程证据;缓存过期或 `--force-remote`
   时必须先联网查 dist-tags,不得因为项目 out-of-sync 提前跳过远程探测。
+- 缓存仍新鲜时可复用 `lastReleaseNotes`,但必须校验 `range.from` / `range.to` /
+  `range.channel` / `range.reason` 与本次结果一致;不一致时不得展示旧摘要。
 - `lastStatus=offline` 或 `lastErrorCode` 非空的缓存不得视为新鲜远端证据;远端探测失败
   只写 `lastStatus=offline` / `lastErrorCode=fetch_failed`,不得刷新 `lastCheckedAt`,否则会把
-  旧 `lastRemote` 在 interval 内误当作刚确认的版本证据。
+  旧 `lastRemote` 在 interval 内误当作刚确认的版本证据。远端失败也不得覆盖已有可用
+  `lastReleaseNotes`。
 - `init` / `update` 启动阶段的 `checkForUpdate()` 若成功取得 dist-tags,必须尽力而为刷新
   已有 manifest 的 `updateCheck.lastCheckedAt` / `lastRemote` / `lastStatus` /
   `lastErrorCode=null`,让主动更新后的下次 SessionStart 使用最新远程证据。目标没有
@@ -192,6 +206,12 @@ src/assets/flower_update_hook.py
   `policy=ask` 且存在推荐命令时,`systemMessage` 必须写成明确阻塞确认提示,
   `<flower-update>` 开头必须包含 `priority: blocking_confirmation_required` 和
   `instruction_scope: first_assistant_reply`,便于模型在第一条回复优先处理确认。
+- `<flower-update>` 存在 `release_notes` 时,AI 必须先用短句展示更新摘要和
+  `recommended_command`,再询问用户确认;用户确认前不得执行推荐命令。
+- `self-update --yes` 完成真实写入后必须输出 `<flower-update-result>` 且包含
+  `post_action: run_trellis_push_confirmation`;该块只能提示 AI 进入 `trellis-push` 确认流程,
+  不得由 `self-update` 自己执行 git add / commit / push。`--dry-run` 只能输出
+  `write:false` 和 `post_action_preview`。
 - `update-check disable` 只写 `enabled=false`,不修改既有 `policy`;`enable` 只写
   `enabled=true`,沿用既有 `policy`,缺失时按 `ask` 归一化。
 - `self-update --yes` 的项目阶段必须走完整 `flower-trellis update --target <dir>
@@ -218,6 +238,8 @@ src/assets/flower_update_hook.py
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目不 out-of-sync | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode`,不刷新 `lastCheckedAt` |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目 out-of-sync | 返回 `project_out_of_sync`,推荐 `--project-only`,同时标注远端 `errorCode` |
 | `init` / `update` 主动探测成功 | 写入已有 manifest 的 `lastRemote` / `lastCheckedAt` / `lastStatus`;无 manifest 时跳过 |
+| release notes metadata 缺失或损坏 | 版本判断照常;`releaseNotes.unavailable=true` 或不展示摘要 |
+| 远端探测成功且生成了可用 notes 摘要 | 写入 `updateCheck.lastReleaseNotes`;`lastRemote` 仍只写 dist-tags |
 | `self-update --dry-run` | 只打印全局安装命令、项目 update 命令、版本和安全检查,不写入 |
 | `self-update` 缺少 `--yes` 且非 dry-run | 抛中文错误,由 CLI 顶层统一退出 |
 | 全局 npm 安装成功但项目 update 失败 | 报告未完成,给出手动 `flower-trellis update --target ... --no-update-check --force` 命令 |
@@ -260,6 +282,10 @@ src/assets/flower_update_hook.py
   - `update-check set|disable|enable|get` 保留 policy / enabled 语义。
   - `flower-trellis update --target <dir> --dry-run` 在远程探测成功时刷新已有 manifest 的
     `updateCheck.lastRemote`;`--no-update-check` 或 `policy=off` 时不联网、不写缓存。
+  - 构造带 `flowerReleaseNotes` 的 registry metadata,验证 stable 目标不混入 beta notes,
+    beta 目标只展示 beta notes,并验证 5 个版本 / 单版本 500 字符 / 总 1600 字符截断标记。
+  - `self-update --dry-run` 输出 `write:false` 和 `post_action_preview`;真实写入完成后输出
+    `post_action: run_trellis_push_confirmation`,但不执行任何 git 提交动作。
 - dogfood:
   - `flower-trellis init --target ./test-target -y --no-update-check`
   - `flower-trellis update --target ./test-target --dry-run --no-update-check`

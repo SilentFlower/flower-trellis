@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "核对 updateCheck、self-check、hook 输出与缓存失败语义"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "核对 postchangelog metadata 接入不会破坏 dry-run、release commit 和 CI 发布"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "核对 workflow override 源、快照和当前副本一致"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "核对语法校验、dogfood、幂等和容错降级"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "核对跨层数据流和边界格式是否一致"}
+{"file": ".trellis/tasks/07-07-update-notes-push-flow/research/npm-release-notes-metadata.md", "reason": "核对实现是否符合 npm metadata 证据和不依赖 GitHub 的决策"}

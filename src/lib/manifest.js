@@ -18,9 +18,60 @@ const DEFAULT_UPDATE_CHECK = {
   intervalHours: 8,
   lastCheckedAt: null,
   lastRemote: null,
+  lastReleaseNotes: null,
   lastStatus: null,
   lastErrorCode: null,
 };
+
+/**
+ * 归一化 release notes 范围字段。
+ *
+ * @param {object|null|undefined} value 原始 range 字段
+ * @returns {{from:string|null,to:string|null,channel:string|null,reason:string|null}} 归一化 range
+ */
+function normalizeReleaseNotesRange(value) {
+  const raw = value && typeof value === "object" ? value : {};
+  return {
+    from: typeof raw.from === "string" ? raw.from : null,
+    to: typeof raw.to === "string" ? raw.to : null,
+    channel: typeof raw.channel === "string" ? raw.channel : null,
+    reason: typeof raw.reason === "string" ? raw.reason : null,
+  };
+}
+
+/**
+ * 归一化最近一次可用 release notes 摘要。
+ *
+ * @param {object|null|undefined} value 原始 lastReleaseNotes 字段
+ * @returns {{source:string,range:object,versions:Array<{version:string,body:string,truncated:boolean}>,truncated:boolean,moreVersions:boolean,unavailable:boolean}|null} 归一化摘要
+ */
+function normalizeLastReleaseNotes(value) {
+  if (!value || typeof value !== "object") return null;
+  const versions = Array.isArray(value.versions)
+    ? value.versions
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") return null;
+          const version = typeof entry.version === "string" ? entry.version : null;
+          const body = typeof entry.body === "string" ? entry.body : null;
+          if (!version || !body) return null;
+          return {
+            version,
+            body,
+            truncated: entry.truncated === true,
+          };
+        })
+        .filter(Boolean)
+    : [];
+  if (!versions.length && value.unavailable !== true) return null;
+  return {
+    source: typeof value.source === "string" ? value.source : "npm-metadata",
+    range: normalizeReleaseNotesRange(value.range),
+    versions,
+    truncated: value.truncated === true,
+    moreVersions: value.moreVersions === true,
+    unavailable: value.unavailable === true,
+  };
+}
 
 /** manifest 文件的绝对路径。 */
 export function manifestPath(target) {
@@ -42,7 +93,7 @@ export function readManifest(target) {
  * 用户策略字段启用保守默认值;缓存字段只保留结构化摘要,避免把网络错误细节写入项目。
  *
  * @param {object|null|undefined} value 原始 updateCheck 字段
- * @returns {{enabled:boolean,policy:string,intervalHours:number,lastCheckedAt:string|null,lastRemote:object|null,lastStatus:string|null,lastErrorCode:string|null}} 归一化后的 updateCheck
+ * @returns {{enabled:boolean,policy:string,intervalHours:number,lastCheckedAt:string|null,lastRemote:object|null,lastReleaseNotes:object|null,lastStatus:string|null,lastErrorCode:string|null}} 归一化后的 updateCheck
  */
 export function normalizeUpdateCheck(value) {
   const raw = value && typeof value === "object" ? value : {};
@@ -64,6 +115,7 @@ export function normalizeUpdateCheck(value) {
     intervalHours,
     lastCheckedAt: typeof raw.lastCheckedAt === "string" ? raw.lastCheckedAt : null,
     lastRemote,
+    lastReleaseNotes: normalizeLastReleaseNotes(raw.lastReleaseNotes),
     lastStatus: typeof raw.lastStatus === "string" ? raw.lastStatus : null,
     lastErrorCode: typeof raw.lastErrorCode === "string" ? raw.lastErrorCode : null,
   };

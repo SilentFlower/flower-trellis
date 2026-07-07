@@ -2,7 +2,12 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { readManifest, readUpdateCheck, writeUpdateCheck } from "./manifest.js";
-import { fetchPackageDistTags, getUpdateRecommendation } from "./update-check.js";
+import {
+  buildReleaseNotesSummary,
+  fetchPackageUpdateMetadata,
+  getUpdateRecommendation,
+  isPrerelease,
+} from "./update-check.js";
 import { isRunningViaNpx } from "./runtime-env.js";
 import { flowerVersion, trellisVersion } from "./versions.js";
 
@@ -34,6 +39,74 @@ function isRemoteCacheFresh(updateCheck, now = new Date()) {
   const checkedAt = new Date(updateCheck.lastCheckedAt).getTime();
   if (!Number.isFinite(checkedAt)) return false;
   return now.getTime() - checkedAt < updateCheck.intervalHours * 60 * 60 * 1000;
+}
+
+/**
+ * 判断缓存的 release notes 是否匹配本次检查范围。
+ *
+ * @param {object} updateCheck 归一化 updateCheck 配置
+ * @param {{from:string|null,to:string|null,channel:string,reason:string}|null} range 本次期望范围
+ * @returns {object|null} 可复用的缓存摘要
+ */
+function cachedReleaseNotes(updateCheck, range) {
+  const cached = updateCheck.lastReleaseNotes;
+  if (!cached || !range || cached.unavailable) return null;
+  const cachedRange = cached.range || {};
+  if (
+    cachedRange.from !== range.from ||
+    cachedRange.to !== range.to ||
+    cachedRange.channel !== range.channel ||
+    cachedRange.reason !== range.reason
+  ) {
+    return null;
+  }
+  return Array.isArray(cached.versions) && cached.versions.length ? cached : null;
+}
+
+/**
+ * 构造新版升级 release notes 范围。
+ *
+ * @param {string} currentFlower 当前 flower 版本
+ * @param {{version:string,tag:string}|null} recommendation 升级推荐
+ * @returns {{from:string,to:string,channel:string,reason:string}|null} release notes 范围
+ */
+function updateReleaseNotesRange(currentFlower, recommendation) {
+  if (!recommendation?.version) return null;
+  return {
+    from: currentFlower,
+    to: recommendation.version,
+    channel: recommendation.tag,
+    reason: "update_available",
+  };
+}
+
+/**
+ * 构造项目追平 release notes 范围。
+ *
+ * @param {string|null} projectFlower 项目 manifest 记录的 flower 版本
+ * @param {string} currentFlower 当前 flower 版本
+ * @returns {{from:string,to:string,channel:string,reason:string}|null} release notes 范围
+ */
+function projectReleaseNotesRange(projectFlower, currentFlower) {
+  if (!projectFlower || !currentFlower) return null;
+  return {
+    from: projectFlower,
+    to: currentFlower,
+    channel: isPrerelease(currentFlower) ? "beta" : "latest",
+    reason: "project_out_of_sync",
+  };
+}
+
+/**
+ * 从 registry metadata 构造 release notes 摘要。
+ *
+ * @param {object|null} metadata registry metadata
+ * @param {object|null} range release notes 范围
+ * @returns {object|null} release notes 摘要
+ */
+function releaseNotesFromMetadata(metadata, range) {
+  if (!range) return null;
+  return buildReleaseNotesSummary(metadata?.releaseNotesByVersion, range);
 }
 
 /** 检查目标目录 git 工作区是否 clean。 */
@@ -184,7 +257,7 @@ function withAction(target, policy, result, command) {
 }
 
 /** 生成项目重叠加建议结果。 */
-function projectOutOfSyncResult(base, target, remotePatch = {}) {
+function projectOutOfSyncResult(base, target, remotePatch = {}, releaseNotes = null) {
   const command = selfUpdateCommand(target, { projectOnly: true });
   return withAction(
     target,
@@ -198,6 +271,7 @@ function projectOutOfSyncResult(base, target, remotePatch = {}) {
         recommended: command,
         projectUpdate: projectUpdateCommand(target),
       },
+      releaseNotes,
     },
     command,
   );
@@ -276,6 +350,7 @@ export async function buildSelfCheck(target, options = {}) {
       errorCode: null,
     },
     recommendation: null,
+    releaseNotes: null,
     commands: {},
     safety: null,
     ai: null,
@@ -297,6 +372,7 @@ export async function buildSelfCheck(target, options = {}) {
     const recommendation = getUpdateRecommendation(currentFlower, tags);
     if (recommendation) {
       const command = selfUpdateCommand(absoluteTarget);
+      const releaseNotesRange = updateReleaseNotesRange(currentFlower, recommendation);
       return withAction(
         absoluteTarget,
         updateCheck.policy,
@@ -311,16 +387,18 @@ export async function buildSelfCheck(target, options = {}) {
             npm: recommendation.command,
             projectUpdate: projectUpdateCommand(absoluteTarget),
           },
+          releaseNotes: cachedReleaseNotes(updateCheck, releaseNotesRange),
         },
         command,
       );
     }
     if (projectOutOfSync) {
+      const releaseNotesRange = projectReleaseNotesRange(projectFlower, currentFlower);
       return projectOutOfSyncResult(base, absoluteTarget, {
         tags,
         fromCache: true,
         skipped: true,
-      });
+      }, cachedReleaseNotes(updateCheck, releaseNotesRange));
     }
     return {
       ...base,
@@ -330,8 +408,8 @@ export async function buildSelfCheck(target, options = {}) {
     };
   }
 
-  tags = await fetchPackageDistTags();
-  if (!tags) {
+  const metadata = await fetchPackageUpdateMetadata();
+  if (!metadata) {
     if (writeCache && manifest) {
       writeUpdateCheck(absoluteTarget, {
         lastStatus: "offline",
@@ -340,7 +418,13 @@ export async function buildSelfCheck(target, options = {}) {
     }
     const remotePatch = { tags: updateCheck.lastRemote, errorCode: "fetch_failed" };
     if (projectOutOfSync) {
-      return projectOutOfSyncResult(base, absoluteTarget, remotePatch);
+      const releaseNotesRange = projectReleaseNotesRange(projectFlower, currentFlower);
+      return projectOutOfSyncResult(
+        base,
+        absoluteTarget,
+        remotePatch,
+        cachedReleaseNotes(updateCheck, releaseNotesRange),
+      );
     }
     return {
       ...base,
@@ -350,12 +434,18 @@ export async function buildSelfCheck(target, options = {}) {
     };
   }
 
+  tags = metadata.tags;
   const recommendation = getUpdateRecommendation(currentFlower, tags);
   const remoteStatus = recommendation ? "update_available" : "up_to_date";
+  const releaseNotesRange = recommendation
+    ? updateReleaseNotesRange(currentFlower, recommendation)
+    : projectReleaseNotesRange(projectFlower, currentFlower);
+  const releaseNotes = releaseNotesFromMetadata(metadata, releaseNotesRange);
   if (writeCache && manifest) {
     writeUpdateCheck(absoluteTarget, {
       lastCheckedAt: now.toISOString(),
       lastRemote: tags,
+      lastReleaseNotes: releaseNotes && !releaseNotes.unavailable ? releaseNotes : null,
       lastStatus: remoteStatus,
       lastErrorCode: null,
     });
@@ -363,7 +453,7 @@ export async function buildSelfCheck(target, options = {}) {
 
   if (!recommendation) {
     if (projectOutOfSync) {
-      return projectOutOfSyncResult(base, absoluteTarget, { tags });
+      return projectOutOfSyncResult(base, absoluteTarget, { tags }, releaseNotes);
     }
     return {
       ...base,
@@ -386,6 +476,7 @@ export async function buildSelfCheck(target, options = {}) {
         npm: recommendation.command,
         projectUpdate: projectUpdateCommand(absoluteTarget),
       },
+      releaseNotes,
     },
     command,
   );

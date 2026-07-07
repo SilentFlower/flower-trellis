@@ -26,6 +26,8 @@ desktop.ini
 tmp/
 temp/
 .cache/
+__pycache__/
+*.pyc
 
 # ===== 本地测试 / 安装产物 =====
 # 脚本运行时 clone 的临时仓库、下载缓存、本地测试目标目录

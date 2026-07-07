@@ -27,6 +27,10 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   2. 运行 `npm run sync`;
   3. 用 `diff -u vendor/... enhancements/...` 验证发布快照与源一致;
   4. 必要时再同步当前项目已安装副本(如 `.agents/skills/...`、`.claude/skills/...`)。
+- 0.6 `overrides/workflow.md` 是高优先级 hub,可以放轻量兜底提醒。例如
+  `<flower-update>` 的阻塞确认、release notes 展示和 `<flower-update-result>` →
+  `trellis-push` 确认联动应写在 hub 源文件,再同步到 `enhancements/0.6` 与当前 dogfood
+  `.trellis/workflow.md`。
 - 随包发布靠 `package.json` 的 `files: ["bin","src","enhancements","README.md"]`。
 - **同步源 = git submodule `vendor/skill-garden`**(不在 `files` 白名单,不进 npm tarball)。
   `sync-enhancements.mjs` 三级路径解析:`SKILL_GARDEN_DIR` 环境变量 → `PKG_ROOT/vendor/skill-garden`

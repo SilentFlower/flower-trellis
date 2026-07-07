@@ -50,6 +50,10 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 
   ```bash
   node --check src/cli.js            # ESM 语法
+  node --check scripts/extract-changelog.mjs
+  node --check scripts/write-release-notes-metadata.mjs
+  python3 -m py_compile src/assets/flower_update_hook.py
+  python3 -m py_compile .trellis/scripts/flower_update_hook.py
   flower-trellis init   --target ./test-target -y
   flower-trellis update --target ./test-target -y --dry-run
   flower-trellis uninstall --target ./test-target --dry-run

@@ -42,6 +42,12 @@ Before Phase 1.4 `task.py start`, use `trellis-task-brief` to refresh `<task>/br
 
 Before the first implement route, restate existing `<task>/brief.md` in chat. If missing, read task artifacts and suggest backfilling brief; do not invent one from memory.
 
+#### Flower Update Confirmation
+
+If `<flower-update>` has `priority: blocking_confirmation_required`, handle it first: briefly show `release_notes` when present, show `recommended_command`, and ask before running it.
+
+If `<flower-update-result>` requests `run_trellis_push_confirmation`, enter `trellis-push` planning with update changes as default candidates; still require file-list and commit-message confirmation.
+
 #### Active Task Scope Guard
 
 When a session already has an active task, do not treat unrelated new implementation

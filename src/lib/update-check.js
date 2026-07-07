@@ -19,15 +19,75 @@ const REGISTRY = "https://registry.npmjs.org";
 const PKG = "flower-trellis";
 /** 网络探测超时(毫秒)—— 启动检查有 hook 总预算兜底,5s 可降低 registry 偶发慢响应误判。 */
 const TIMEOUT_MS = 5000;
+/** npm package metadata 中保存 flower 内部发布说明的字段名。 */
+const RELEASE_NOTES_FIELD = "flowerReleaseNotes";
+/** 单次注入最多展示的版本数。 */
+const RELEASE_NOTES_MAX_VERSIONS = 5;
+/** 单个版本发布说明最多保留的字符数。 */
+const RELEASE_NOTES_MAX_VERSION_CHARS = 500;
+/** 所有版本发布说明合计最多保留的字符数。 */
+const RELEASE_NOTES_MAX_TOTAL_CHARS = 1600;
 
 /**
- * 取 npm 上 flower-trellis 的 dist-tags;任何失败(离线/超时/非 200/解析异常)一律
- * 返回 null —— 调用方据此「拿不到就当没这回事」继续主流程。
+ * 从 npm registry 根文档解析 dist-tags。
  *
- * 用 AbortController 给内置 fetch 加超时,finally 清除定时器防句柄泄漏。
- * @returns {Promise<{latest:string|null,beta:string|null}|null>} 可用 dist-tags,或失败时 null
+ * @param {object} json registry 根文档 JSON
+ * @returns {{latest:string|null,beta:string|null}|null} 可用 dist-tags
  */
-export async function fetchPackageDistTags() {
+function parseDistTags(json) {
+  const tags = json && typeof json === "object" ? json["dist-tags"] : null;
+  const latest = typeof tags?.latest === "string" ? tags.latest : null;
+  const beta = typeof tags?.beta === "string" ? tags.beta : null;
+  return latest || beta ? { latest, beta } : null;
+}
+
+/**
+ * 解析单个版本的 flowerReleaseNotes metadata。
+ *
+ * @param {string} version registry versions 字典里的版本号
+ * @param {object} pkgVersion 对应版本 package metadata
+ * @returns {{version:string,body:string,truncated:boolean,source:string}|null} 发布说明 metadata
+ */
+function parseReleaseNotesMetadata(version, pkgVersion) {
+  const raw = pkgVersion?.[RELEASE_NOTES_FIELD];
+  if (!raw || typeof raw !== "object") return null;
+  if (raw.version !== version) return null;
+  const body = typeof raw.body === "string" ? raw.body.trim() : "";
+  if (!body) return null;
+  return {
+    version,
+    body,
+    truncated: raw.truncated === true,
+    source: "npm-metadata",
+  };
+}
+
+/**
+ * 从 npm registry 根文档解析每个版本的发布说明 metadata。
+ *
+ * @param {object} json registry 根文档 JSON
+ * @returns {Record<string,{version:string,body:string,truncated:boolean,source:string}>} 按版本号索引的发布说明
+ */
+function parseReleaseNotesByVersion(json) {
+  const versions = json && typeof json === "object" ? json.versions : null;
+  if (!versions || typeof versions !== "object") return {};
+  const notes = {};
+  for (const [version, pkgVersion] of Object.entries(versions)) {
+    const parsed = parseReleaseNotesMetadata(version, pkgVersion);
+    if (parsed) notes[version] = parsed;
+  }
+  return notes;
+}
+
+/**
+ * 取 npm 上 flower-trellis 的更新 metadata。
+ *
+ * 一次请求 registry 根文档,同时解析 dist-tags 与各版本的 flowerReleaseNotes。任何失败
+ * (离线/超时/非 200/解析异常)一律返回 null,调用方继续主流程。
+ *
+ * @returns {Promise<{tags:{latest:string|null,beta:string|null},releaseNotesByVersion:Record<string,{version:string,body:string,truncated:boolean,source:string}>}|null>} 更新 metadata
+ */
+export async function fetchPackageUpdateMetadata() {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), TIMEOUT_MS);
   try {
@@ -37,10 +97,12 @@ export async function fetchPackageDistTags() {
     });
     if (!res.ok) return null; // 非 200(404/5xx 等)→ 静默跳过
     const json = await res.json();
-    const tags = json && typeof json === "object" ? json["dist-tags"] : null;
-    const latest = typeof tags?.latest === "string" ? tags.latest : null;
-    const beta = typeof tags?.beta === "string" ? tags.beta : null;
-    return latest || beta ? { latest, beta } : null;
+    const tags = parseDistTags(json);
+    if (!tags) return null;
+    return {
+      tags,
+      releaseNotesByVersion: parseReleaseNotesByVersion(json),
+    };
   } catch {
     return null; // AbortError(超时)/ fetch failed(离线)/ JSON 解析失败 → 静默
   } finally {
@@ -49,9 +111,21 @@ export async function fetchPackageDistTags() {
 }
 
 /**
+ * 取 npm 上 flower-trellis 的 dist-tags;任何失败(离线/超时/非 200/解析异常)一律
+ * 返回 null —— 调用方据此「拿不到就当没这回事」继续主流程。
+ *
+ * 用 AbortController 给内置 fetch 加超时,finally 清除定时器防句柄泄漏。
+ * @returns {Promise<{latest:string|null,beta:string|null}|null>} 可用 dist-tags,或失败时 null
+ */
+export async function fetchPackageDistTags() {
+  const metadata = await fetchPackageUpdateMetadata();
+  return metadata?.tags ?? null;
+}
+
+/**
  * 取 npm 上 flower-trellis 的 latest 版本号。
  *
- * 保留这个导出是为了兼容已有调用方;新逻辑应优先使用 `fetchPackageDistTags()`。
+ * 保留这个导出是为了兼容已有调用方;新逻辑应优先使用 `fetchPackageUpdateMetadata()`。
  * @returns {Promise<string|null>} latest 版本号,或失败时 null
  */
 export async function fetchLatestVersion() {
@@ -148,6 +222,106 @@ export function compareVersions(a, b) {
 }
 
 /**
+ * 判断版本是否属于目标更新通道。
+ *
+ * @param {string} version 版本号
+ * @param {"latest"|"beta"|string} channel 目标通道
+ * @returns {boolean}
+ */
+function matchesReleaseNotesChannel(version, channel) {
+  if (channel === "beta") return isPrerelease(version);
+  return !isPrerelease(version);
+}
+
+/**
+ * 把单版本发布说明裁剪到注入上限。
+ *
+ * @param {{body:string,truncated?:boolean}} note 原始版本发布说明
+ * @param {number} remainingTotal 总字符剩余额度
+ * @returns {{body:string,truncated:boolean,used:number}|null} 裁剪后的发布说明
+ */
+function limitReleaseNoteBody(note, remainingTotal) {
+  if (remainingTotal <= 0) return null;
+  let body = String(note.body || "").trim();
+  let truncated = note.truncated === true;
+  if (!body) return null;
+  if (body.length > RELEASE_NOTES_MAX_VERSION_CHARS) {
+    body = body.slice(0, RELEASE_NOTES_MAX_VERSION_CHARS).trimEnd();
+    truncated = true;
+  }
+  if (body.length > remainingTotal) {
+    body = body.slice(0, remainingTotal).trimEnd();
+    truncated = true;
+  }
+  if (!body) return null;
+  return { body, truncated, used: body.length };
+}
+
+/**
+ * 为 self-check / hook 构造跨版本发布说明摘要。
+ *
+ * @param {Record<string,{version:string,body:string,truncated:boolean,source:string}>|null|undefined} releaseNotesByVersion 按版本索引的 npm metadata
+ * @param {{from:string|null,to:string|null,channel:"latest"|"beta"|string,reason:string}} range 聚合范围
+ * @returns {{source:string,range:object,versions:Array<{version:string,body:string,truncated:boolean}>,truncated:boolean,moreVersions:boolean,unavailable:boolean}} 可注入的发布说明摘要
+ */
+export function buildReleaseNotesSummary(releaseNotesByVersion, range) {
+  const summaryRange = {
+    from: range?.from ?? null,
+    to: range?.to ?? null,
+    channel: range?.channel ?? "latest",
+    reason: range?.reason ?? null,
+  };
+  const empty = {
+    source: "npm-metadata",
+    range: summaryRange,
+    versions: [],
+    truncated: false,
+    moreVersions: false,
+    unavailable: true,
+  };
+  if (!summaryRange.from || !summaryRange.to || !releaseNotesByVersion) return empty;
+
+  const candidates = Object.keys(releaseNotesByVersion)
+    .filter((version) => compareVersions(version, summaryRange.from) === 1)
+    .filter((version) => compareVersions(version, summaryRange.to) <= 0)
+    .filter((version) => matchesReleaseNotesChannel(version, summaryRange.channel))
+    .sort(compareVersions);
+
+  if (!candidates.length) return empty;
+
+  const limitedCandidates = candidates.slice(-RELEASE_NOTES_MAX_VERSIONS);
+  const versions = [];
+  let remainingTotal = RELEASE_NOTES_MAX_TOTAL_CHARS;
+  let truncated = false;
+  for (const version of limitedCandidates) {
+    const limited = limitReleaseNoteBody(releaseNotesByVersion[version], remainingTotal);
+    if (!limited) {
+      truncated = true;
+      break;
+    }
+    versions.push({
+      version,
+      body: limited.body,
+      truncated: limited.truncated,
+    });
+    remainingTotal -= limited.used;
+    if (limited.truncated) truncated = true;
+  }
+
+  const moreVersions =
+    candidates.length > limitedCandidates.length ||
+    versions.length < limitedCandidates.length;
+  return {
+    source: "npm-metadata",
+    range: summaryRange,
+    versions,
+    truncated,
+    moreVersions,
+    unavailable: versions.length === 0,
+  };
+}
+
+/**
  * 根据当前版本和 npm dist-tags 生成升级推荐。
  *
  * 稳定版只跟随稳定形态的 latest,避免把稳定用户引导到预发布通道;预发布版同时看
@@ -175,15 +349,20 @@ export function getUpdateRecommendation(current, tags) {
 }
 
 /** 尽力而为刷新目标项目 manifest 里的远端探测缓存。 */
-function rememberRemoteTags(target, tags, status) {
+function rememberRemoteTags(target, tags, status, releaseNotes = null) {
   try {
     if (!readManifest(target)) return;
-    writeUpdateCheck(target, {
+    const patch = {
       lastCheckedAt: new Date().toISOString(),
       lastRemote: tags,
       lastStatus: status,
       lastErrorCode: null,
-    });
+      lastReleaseNotes: null,
+    };
+    if (releaseNotes && !releaseNotes.unavailable) {
+      patch.lastReleaseNotes = releaseNotes;
+    }
+    writeUpdateCheck(target, patch);
   } catch {
     // 缓存写入只是优化后续启动提示,失败不能影响 init/update 主流程。
   }
@@ -217,13 +396,27 @@ export async function checkForUpdate(ctx, commandLabel) {
   if (isRunningViaNpx(import.meta.url)) return;
 
   // 3. 尽力而为取 dist-tags;拿不到就静默退出
-  const tags = await fetchPackageDistTags();
-  if (!tags) return;
+  const metadata = await fetchPackageUpdateMetadata();
+  if (!metadata) return;
+  const tags = metadata.tags;
 
   // 4. 根据本地版本通道生成推荐;无推荐时不打扰
   const current = flowerVersion();
   const recommendation = getUpdateRecommendation(current, tags);
-  rememberRemoteTags(ctx.target, tags, recommendation ? "update_available" : "up_to_date");
+  const releaseNotes = recommendation
+    ? buildReleaseNotesSummary(metadata.releaseNotesByVersion, {
+        from: current,
+        to: recommendation.version,
+        channel: recommendation.tag,
+        reason: "update_available",
+      })
+    : null;
+  rememberRemoteTags(
+    ctx.target,
+    tags,
+    recommendation ? "update_available" : "up_to_date",
+    releaseNotes,
+  );
   if (!recommendation) return;
 
   // 5. 打印发现新版本通知(粉色品牌色,与 banner 一致)

@@ -22,6 +22,8 @@ dist-tag;beta 预发布版发布到 npm `beta` dist-tag。
 | `npm run release:dry` | `commit-and-tag-version --dry-run`,预览版本号与 CHANGELOG,不落盘 |
 | `scripts/check-snapshot.mjs` | 发布前断言;失败 `exit(1)` 阻断 release |
 | `scripts/extract-changelog.mjs <version\|tag> <outFile>` | 抽 CHANGELOG 指定版本段供 Release notes(标题正则兼容 h2/h3) |
+| `scripts/lib/changelog-section.mjs` | CHANGELOG 指定版本段抽取的共享逻辑,供 GitHub Release notes 与 npm metadata 共用 |
+| `scripts/write-release-notes-metadata.mjs [--dry-run]` | `postchangelog` 后把当前版本 CHANGELOG 段写入 `package.json.flowerReleaseNotes` |
 | `.github/workflows/release.yml` | 稳定版 tag `vX.Y.Z` 与 beta tag `vX.Y.Z-beta.N`;按 tag 选择 `npm publish` 到 `latest` 或 `npm publish --tag beta`(OIDC)+ 创建 GitHub Release/Prerelease |
 
 稳定版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` 快照 →
@@ -50,6 +52,12 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 
 ### 链路(本地 → CI)
 - 本地 `commit-and-tag-version` 只动本地(commit + tag),**绝不 push/publish**。
+- `package.json` 的 `commit-and-tag-version.scripts.postchangelog` 必须运行
+  `node scripts/write-release-notes-metadata.mjs`;该脚本在 CHANGELOG 生成后、release commit 前
+  写入 `package.json.flowerReleaseNotes`。
+- `flowerReleaseNotes` 是 flower 内部 npm metadata,字段结构为
+  `{version,source:"CHANGELOG.md",body,truncated}`。`version` 必须等于当前
+  `package.json.version`;每个 npm 版本只保存自己的 CHANGELOG 段落,不保存 recent map。
 - push `vX.Y.Z` tag 触发稳定版 CI;CI checkout **不拉 submodule**(发布只依赖已提交的 `enhancements/` 快照)。
 - push `vX.Y.Z-beta.N` tag 触发同一 CI;必须发布到 npm `beta` dist-tag。
 - 稳定版 CI 步骤:`判定通道 latest` → `npm i -g npm@latest` → `npm publish`(OIDC,不设 NODE_AUTH_TOKEN)→ `extract-changelog` → `gh release create --notes-file`。
@@ -93,6 +101,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 | `npm run sync` 只改 `MANIFEST.syncedAt` / `sourceCommit` | 展示为快照指针更新,独立提交后再跑 `node scripts/check-snapshot.mjs` |
 | 真实 release 已被快照门禁阻断 | 不继续 tag/push;按 `npm run sync` → 审核 diff → 提交快照 → `check-snapshot` 通过 → 重跑 release |
 | CHANGELOG 缺目标版本段 | extract-changelog `exit(1)`(等价"漏更新 CHANGELOG 就打 tag"的拦截) |
+| `postchangelog` 找不到当前版本 CHANGELOG 段 | `write-release-notes-metadata.mjs` `exit(1)`,阻断本地 release |
 | CHANGELOG dry-run 出现英文普通说明性条目 | 停止;先改为中文描述,重新 dry-run 并展示新版 CHANGELOG |
 | Trusted Publisher 配置不匹配 | CI `npm publish` 报 **404**:逐字核对 org/repo/workflow/environment |
 | Node < 22.14.0 或 npm < 11.5.1 | OIDC publish 失败 |
@@ -121,6 +130,8 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 - 真实 release 前先确认 `vendor/skill-garden` 工作区干净,再 `npm run sync`;如有快照 diff,审核并提交后再用 check-snapshot 断言快照与 submodule pin 一致、submodule 源无未提交改动且快照已提交。
 - beta 版使用 `X.Y.Z-beta.N` 版本号、`vX.Y.Z-beta.N` tag、同一 `release.yml` 内的 `npm publish --tag beta`。
 - 真实 release 前先用相同参数跑 `npm run release:dry...`,把将生成的 CHANGELOG 段落展示给用户,得到明确确认后再执行真实 release。
+- 真实 release 的 `postchangelog` 会把同一 CHANGELOG 段写入 `flowerReleaseNotes`,并随
+  release commit 一起进入 npm registry metadata;GitHub Release 与 npm metadata 必须同源。
 - CHANGELOG 普通说明条目使用中文;只保留命令、文件名、包名、函数名、tag、环境变量等技术 token 的英文原文。
 
 ---

@@ -24,6 +24,80 @@ function runCommand(command, args, cwd, failureMessage) {
   }
 }
 
+/** 读取目标 git 工作区变动数量,只作为 self-update 后续动作提示。 */
+function gitDirtySummary(target) {
+  const common = {
+    cwd: target,
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 1500,
+  };
+  const root = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], common);
+  if (root.error || root.status !== 0 || String(root.stdout || "").trim() !== "true") {
+    return {
+      checked: false,
+      reason: "not_git_repo",
+      dirtyCount: 0,
+      changedFilesDetected: false,
+      files: [],
+    };
+  }
+  const status = spawnSync("git", ["status", "--porcelain"], common);
+  if (status.error || status.status !== 0) {
+    return {
+      checked: false,
+      reason: "git_status_failed",
+      dirtyCount: 0,
+      changedFilesDetected: false,
+      files: [],
+    };
+  }
+  const files = String(status.stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return {
+    checked: true,
+    reason: null,
+    dirtyCount: files.length,
+    changedFilesDetected: files.length > 0,
+    files: files.slice(0, 20),
+  };
+}
+
+/** 打印 release notes 预览行。 */
+function printReleaseNotesPreview(releaseNotes) {
+  if (!releaseNotes) return;
+  const versions = Array.isArray(releaseNotes.versions) ? releaseNotes.versions : [];
+  if (!versions.length) {
+    if (releaseNotes.unavailable) console.log("  · 更新内容:未获取到可用 release notes");
+    return;
+  }
+  console.log("  · 更新内容:");
+  for (const entry of versions) {
+    const suffix = entry.truncated ? " (已截断)" : "";
+    console.log(`    - ${entry.version}${suffix}:${entry.body}`);
+  }
+  if (releaseNotes.moreVersions) {
+    console.log("    - 还有更多版本变更未展示");
+  }
+}
+
+/** 打印结构化 self-update 结果块。 */
+function printFlowerUpdateResult(fields) {
+  console.log("<flower-update-result>");
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    if (typeof value === "object" && value !== null) {
+      console.log(`${key}: ${JSON.stringify(value)}`);
+    } else {
+      console.log(`${key}: ${value}`);
+    }
+  }
+  console.log("</flower-update-result>");
+}
+
 /**
  * flower-trellis self-update:执行受控自更新与项目重叠加。
  *
@@ -73,7 +147,16 @@ export async function selfUpdate(ctx) {
     console.log(
       `  · 安全检查:${effectiveSafety.safe ? "通过" : `需确认(${effectiveSafety.reasons.join(", ") || "无可用结果"})`}`,
     );
+    printReleaseNotesPreview(check.releaseNotes);
     console.log(`  · 写入:否`);
+    printFlowerUpdateResult({
+      status: "dry_run",
+      target: ctx.target,
+      write: false,
+      current_status: check.status,
+      post_action_preview: "run_trellis_push_after_real_update",
+      release_notes: check.releaseNotes || null,
+    });
     return;
   }
 
@@ -104,5 +187,19 @@ export async function selfUpdate(ctx) {
     "目标项目重叠加失败,请手动运行:" + projectUpdateCommand(ctx.target, forwarded),
   );
 
+  const dirty = gitDirtySummary(ctx.target);
   console.log(`\n🌸 flower-trellis self-update 完成 → ${ctx.target}`);
+  printFlowerUpdateResult({
+    status: "completed",
+    target: ctx.target,
+    write: true,
+    git_dirty_count: dirty.dirtyCount,
+    changed_files_detected: dirty.changedFilesDetected,
+    changed_files_sample: dirty.files,
+    git_check_reason: dirty.reason,
+    post_action: "run_trellis_push_confirmation",
+    release_notes: check.releaseNotes || null,
+    ai_instruction:
+      "汇总本次升级产生的文件变动,进入 trellis-push 执行计划,展示具体文件列表和 commit message 后等待用户确认。",
+  });
 }

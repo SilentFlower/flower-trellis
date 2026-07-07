@@ -75,6 +75,55 @@ def _run_self_check(project_dir: Path) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
+def _json_bool(value: object) -> str:
+    """把布尔值格式化成 JSON 风格小写文本。"""
+    return json.dumps(bool(value), ensure_ascii=False)
+
+
+def _release_notes_lines(data: dict) -> list[str]:
+    """把 self-check 的 releaseNotes 摘要格式化为短字段。"""
+    notes = data.get("releaseNotes")
+    if not isinstance(notes, dict):
+        return []
+    versions = notes.get("versions") or []
+    if not isinstance(versions, list):
+        versions = []
+    safe_versions = []
+    for entry in versions:
+        if not isinstance(entry, dict):
+            continue
+        version = entry.get("version")
+        body = entry.get("body")
+        if isinstance(version, str) and isinstance(body, str) and body.strip():
+            safe_versions.append(
+                {
+                    "version": version,
+                    "body": body,
+                    "truncated": bool(entry.get("truncated")),
+                }
+            )
+
+    lines: list[str] = []
+    note_range = notes.get("range") or {}
+    if isinstance(note_range, dict) and (note_range.get("from") or note_range.get("to")):
+        range_text = f"{note_range.get('from')} -> {note_range.get('to')}"
+        if note_range.get("channel"):
+            range_text += f" ({note_range.get('channel')})"
+        if note_range.get("reason"):
+            range_text += f" reason={note_range.get('reason')}"
+        lines.append(f"release_notes_range: {range_text}")
+    if safe_versions:
+        lines.append(
+            "release_notes: "
+            + json.dumps(safe_versions, ensure_ascii=False, separators=(",", ":"))
+        )
+    elif notes.get("unavailable"):
+        lines.append("release_notes_unavailable: true")
+    lines.append(f"release_notes_truncated: {_json_bool(notes.get('truncated'))}")
+    lines.append(f"release_notes_more_versions: {_json_bool(notes.get('moreVersions'))}")
+    return lines
+
+
 def _format_context(data: dict) -> str:
     """把 self-check JSON 转成给 AI 读取的短上下文块。"""
     current = data.get("current") or {}
@@ -102,6 +151,7 @@ def _format_context(data: dict) -> str:
         lines.append(f"remote: {json.dumps(remote.get('tags'), ensure_ascii=False)}")
     if remote.get("errorCode"):
         lines.append(f"remote_error_code: {remote.get('errorCode')}")
+    lines.extend(_release_notes_lines(data))
     command = (data.get("commands") or {}).get("recommended") or ai.get("command")
     if command:
         lines.append(f"recommended_command: {command}")
@@ -110,7 +160,9 @@ def _format_context(data: dict) -> str:
     if ai.get("mode"):
         lines.append(f"ai_mode: {ai.get('mode')}")
     if ai.get("mode") == "ask":
-        lines.append("ai_required_action: 必须先向用户提出明确确认问题;用户确认前禁止执行 recommended_command。")
+        lines.append(
+            "ai_required_action: 必须先向用户展示 release_notes 摘要和 recommended_command,再提出明确确认问题;用户确认前禁止执行 recommended_command。"
+        )
     if ai.get("instruction"):
         lines.append(f"ai_instruction: {ai.get('instruction')}")
     lines.append("</flower-update>")
@@ -121,7 +173,11 @@ def _system_message(data: dict) -> str:
     """生成 Codex / Claude Code 更容易注意到的短系统提示。"""
     ai = data.get("ai") or {}
     command = (data.get("commands") or {}).get("recommended") or ai.get("command")
+    notes = data.get("releaseNotes") or {}
+    has_notes = isinstance(notes, dict) and bool(notes.get("versions"))
     if ai.get("mode") == "ask" and command:
+        if has_notes:
+            return "flower-trellis 发现可执行更新;必须先展示更新摘要并询问用户是否执行 recommended_command,确认前禁止运行。"
         return "flower-trellis 发现可执行更新;必须先询问用户是否执行 recommended_command,确认前禁止运行。"
     if command:
         return "flower-trellis 发现可执行更新;已注入 recommended_command。"

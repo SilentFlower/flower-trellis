@@ -32,6 +32,11 @@
     "release": "node scripts/check-snapshot.mjs && commit-and-tag-version",
     "release:dry": "commit-and-tag-version --dry-run"
   },
+  "commit-and-tag-version": {
+    "scripts": {
+      "postchangelog": "node scripts/write-release-notes-metadata.mjs"
+    }
+  },
   "keywords": [
     "trellis",
     "skill-garden",

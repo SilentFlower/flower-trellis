@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "启动更新检查、manifest updateCheck、self-check、hook JSON 合同和缓存语义"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "release 流程、CHANGELOG 抽取、commit-and-tag-version 和 npm 发布约定"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "workflow override 源、enhancements 快照同步和 dogfood 副本一致性"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "CLI 幂等、容错降级、中文 JSDoc 和验证底线"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "本任务跨发布脚本、registry metadata、manifest、hook、workflow 和 push 流程"}
+{"file": ".trellis/tasks/07-07-update-notes-push-flow/research/npm-release-notes-metadata.md", "reason": "npm registry metadata 与 commit-and-tag-version lifecycle 证据"}
