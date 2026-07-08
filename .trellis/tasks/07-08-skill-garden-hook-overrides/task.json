@@ -22,5 +22,29 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-07-08T00:22:06Z",
+    "branch": {
+      "flower-trellis": "main",
+      "skill-garden": "main"
+    },
+    "pushed_commits": {
+      "flower-trellis": "960d91a",
+      "skill-garden": "c52e2dd"
+    },
+    "push_mode": "push",
+    "completed_steps": [
+      "准备 hook override 源",
+      "同步 enhancements 快照和 manifest 统计",
+      "实现 hook override 注入模块",
+      "接入全装链路",
+      "同步 dogfood hook 副本",
+      "同步规范",
+      "完成行为、幂等、语法和 diff 检查",
+      "业务提交并推送 flower-trellis 与 skill-garden"
+    ],
+    "next_step": "Phase 3.5：用户显式要求后再执行 finish-work / 归档",
+    "notes": "skill-garden hook override 已提交并推送；flower-trellis 已提交并推送；等待用户显式 finish-work。"
+  }
 }
