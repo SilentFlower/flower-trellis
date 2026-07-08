@@ -1,5 +1,5 @@
 {
-  "flowerVersion": "0.4.8",
+  "flowerVersion": "0.4.9",
   "variant": "0.6",
   "version": "0.6.5",
   "skills": [
@@ -57,23 +57,23 @@
     "enabled": true,
     "policy": "ask",
     "intervalHours": 8,
-    "lastCheckedAt": "2026-07-08T00:41:23.222Z",
+    "lastCheckedAt": "2026-07-08T02:54:07.860Z",
     "lastRemote": {
-      "latest": "0.4.8",
+      "latest": "0.4.9",
       "beta": "0.4.5-beta.3"
     },
     "lastReleaseNotes": {
       "source": "npm-metadata",
       "range": {
-        "from": "0.4.7",
-        "to": "0.4.8",
+        "from": "0.4.8",
+        "to": "0.4.9",
         "channel": "latest",
         "reason": "update_available"
       },
       "versions": [
         {
-          "version": "0.4.8",
-          "body": "### ✨ 新功能 Features\n\n* **flower:** 支持从 skill-garden 分发 hook override,并在 Codex 已有 `SessionStart` 时去掉重复的 `trellis-start` 提示。\n\n\n### 🐛 修复 Bug Fixes\n\n* **flower:** 修复项目版本追平提示不展示 release notes 的问题。",
+          "version": "0.4.9",
+          "body": "### 🐛 修复 Bug Fixes\n\n* **flower:** 强化项目知识发现门禁 ([d21b17e](https://github.com/SilentFlower/flower-trellis/commit/d21b17e860d3b91bb5c69c3921620d60b49608d5))\n* **flower:** 恢复 in_progress 完成门禁 ([304f5fa](https://github.com/SilentFlower/flower-trellis/commit/304f5fadfab139638cfa9658f168448a1f26f9e6))",
           "truncated": false
         }
       ],
