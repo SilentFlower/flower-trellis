@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -58,9 +58,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.4.8",
+    "version": "0.4.9",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **flower:** 支持从 skill-garden 分发 hook override,并在 Codex 已有 `SessionStart` 时去掉重复的 `trellis-start` 提示。\n\n\n### 🐛 修复 Bug Fixes\n\n* **flower:** 修复项目版本追平提示不展示 release notes 的问题。",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **flower:** 强化项目知识发现门禁 ([d21b17e](https://github.com/SilentFlower/flower-trellis/commit/d21b17e860d3b91bb5c69c3921620d60b49608d5))\n* **flower:** 恢复 in_progress 完成门禁 ([304f5fa](https://github.com/SilentFlower/flower-trellis/commit/304f5fadfab139638cfa9658f168448a1f26f9e6))",
     "truncated": false
   }
 }

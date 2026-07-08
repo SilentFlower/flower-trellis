@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.9](https://github.com/SilentFlower/flower-trellis/compare/v0.4.8...v0.4.9) (2026-07-08)
+
+
+### 🐛 修复 Bug Fixes
+
+* **flower:** 强化项目知识发现门禁 ([d21b17e](https://github.com/SilentFlower/flower-trellis/commit/d21b17e860d3b91bb5c69c3921620d60b49608d5))
+* **flower:** 恢复 in_progress 完成门禁 ([304f5fa](https://github.com/SilentFlower/flower-trellis/commit/304f5fadfab139638cfa9658f168448a1f26f9e6))
+
 ## [0.4.8](https://github.com/SilentFlower/flower-trellis/compare/v0.4.7...v0.4.8) (2026-07-08)
 
 
