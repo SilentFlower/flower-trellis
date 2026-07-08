@@ -4,6 +4,18 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.8](https://github.com/SilentFlower/flower-trellis/compare/v0.4.7...v0.4.8) (2026-07-08)
+
+
+### ✨ 新功能 Features
+
+* **flower:** 支持从 skill-garden 分发 hook override,并在 Codex 已有 `SessionStart` 时去掉重复的 `trellis-start` 提示。
+
+
+### 🐛 修复 Bug Fixes
+
+* **flower:** 修复项目版本追平提示不展示 release notes 的问题。
+
 ## [0.4.7](https://github.com/SilentFlower/flower-trellis/compare/v0.4.6...v0.4.7) (2026-07-07)
 
 
