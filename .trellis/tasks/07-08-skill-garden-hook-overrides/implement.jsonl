@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "定义 skill-garden/enhancements 叠加链路、平台后处理、幂等和备份规则,本任务需要扩展 hook override 能力。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "约束新增 ESM 模块、命名导出、显式 import、中文 JSDoc 与函数结构。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "约束写盘/叠加操作必须幂等、不误伤目标项目、可验证并遵守现有测试方式。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "记录 Codex/Claude SessionStart hook、manifest 与启动更新检查状态契约,用于避免 hook override 与现有状态语义冲突。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "本任务会新增与 workflow/skill override 相似的注入逻辑,需要优先复用现有备份和幂等模式。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "本任务横跨 skill-garden 源、enhancements 快照、运行时注入和目标平台 hook,需要验证跨层一致性。"}

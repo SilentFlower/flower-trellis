@@ -1,5 +1,5 @@
 {
-  "syncedAt": "2026-07-07T17:18:18.007Z",
+  "syncedAt": "2026-07-07T19:10:11.956Z",
   "syncedFrom": "vendor/skill-garden",
   "sourceCommit": "b99053b872172912413d4695863db9396cade500",
   "common": {
@@ -50,6 +50,7 @@
       "overrides": [],
       "workflowStates": [],
       "skillOverrides": [],
+      "hookOverrides": [],
       "scripts": []
     },
     "0.5": {
@@ -89,6 +90,7 @@
       ],
       "workflowStates": [],
       "skillOverrides": [],
+      "hookOverrides": [],
       "scripts": []
     },
     "0.6": {
@@ -135,6 +137,9 @@
       ],
       "skillOverrides": [
         "trellis-finish-work.md"
+      ],
+      "hookOverrides": [
+        "shared/inject-workflow-state.py"
       ],
       "scripts": [
         "auto_loop.py",

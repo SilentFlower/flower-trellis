@@ -31,6 +31,10 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   `<flower-update>` 的阻塞确认、release notes 展示和 `<flower-update-result>` →
   `trellis-push` 确认联动应写在 hub 源文件,再同步到 `enhancements/0.6` 与当前 dogfood
   `.trellis/workflow.md`。
+- 0.6 `overrides/hooks/shared/<file>` 是 shared hook override 源,用于覆盖目标项目已有的
+  Trellis 平台 hook 文件。首批支持 `inject-workflow-state.py`,从源同步到
+  `enhancements/0.6/overrides/hooks/shared/inject-workflow-state.py` 后,由全装叠加链路应用到
+  已存在的 `.codex/hooks/inject-workflow-state.py` / `.claude/hooks/inject-workflow-state.py`。
 - 随包发布靠 `package.json` 的 `files: ["bin","src","enhancements","README.md"]`。
 - **同步源 = git submodule `vendor/skill-garden`**(不在 `files` 白名单,不进 npm tarball)。
   `sync-enhancements.mjs` 三级路径解析:`SKILL_GARDEN_DIR` 环境变量 → `PKG_ROOT/vendor/skill-garden`
@@ -74,7 +78,11 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 8. **skill override 注入**(`skill-override-inject.js`):全装,或显式指定 finish-work 相关
    skill 时执行。注入位置为 frontmatter 后;无 frontmatter 的 command 文件优先插到首个
    H1 标题后,避免 override 标题污染平台提取的命令描述。
-9. **平台后处理**:
+9. **hook override 注入**(`hook-override-inject.js`):仅全装时执行。读取
+   `overrides/hooks/shared/<file>`,只覆盖目标项目已有的平台 hook 文件,不创建未启用的平台目录。
+   hook override 是对 Trellis 原生 hook 的覆盖,不是 flower 自有资产,不得写入 manifest
+   `paths`,避免升级清理误删上游 hook。
+10. **平台后处理**:
    - `codex-tweaks.js`:仅当目标存在 `.codex/` 时,兼容清理旧 `config.toml` 的
      `multi_agent_v2` 段,保留上游 hooks 并合并 Trellis / flower 的 `SessionStart`,同时强制
      `.trellis/config.yaml` 的 `codex.dispatch_mode: sub-agent`。Codex Trellis 主上下文 hook
@@ -104,6 +112,10 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   matcher group 同时触发;其它用户自定义 hooks 必须保留。
 - `flower-assets`:只由全装复制,并把 `.trellis/scripts/flower_update_hook.py` 写入 manifest
   `paths`,让升级清理和 uninstall 只按 manifest 精确管理自己铺过的脚本。
+- `hook-override-inject`:只由全装执行。目标 hook 文件不存在时跳过,不得创建平台目录或 hook
+  文件;内容一致时不写盘;内容变化时先通过 `preserveFirstBackup()` 保存首次备份到
+  `.trellis/.backup-flower/<原相对路径>`。shared hook override 覆盖 `.codex` / `.claude`
+  等已有平台 hook,但不把这些原生 hook 路径写入 manifest `paths`。
 - `claude-tweaks`:只追加缺失的 startup flower hook,重复运行不得重复;若历史版本把 flower
   hook 放到了 `clear` / `compact`,更新时必须移除这些非 startup 位置;若旧 hook 仍是
   8 秒 timeout,更新时必须迁移到 30 秒。

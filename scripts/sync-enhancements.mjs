@@ -69,6 +69,30 @@ const manifest = {
 };
 const commonSkillNames = new Set();
 
+/** 递归列出目录下文件,返回 POSIX 相对路径;目录不存在返回空数组。 */
+function listRelativeFilesRecursive(rootDir) {
+  const result = [];
+  function walk(dir, prefix = "") {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(abs, rel);
+      } else if (entry.isFile()) {
+        result.push(rel);
+      }
+    }
+  }
+  walk(rootDir);
+  return result.sort();
+}
+
 if (fs.existsSync(COMMON_SRC)) {
   fs.cpSync(COMMON_SRC, path.join(DST, "common", ".common"), {
     recursive: true,
@@ -131,6 +155,9 @@ for (const v of VARIANTS) {
     path.join(DST, v, "overrides", "skills"),
     ".md",
   );
+  const hookOverrides = listRelativeFilesRecursive(
+    path.join(DST, v, "overrides", "hooks"),
+  );
   const scripts = listFiles(path.join(DST, v, "scripts"));
   manifest.variants[v] = {
     claudeSkills,
@@ -139,13 +166,15 @@ for (const v of VARIANTS) {
     overrides,
     workflowStates: states,
     skillOverrides,
+    hookOverrides,
     scripts,
   };
 
   console.log(
     `✓ ${v}: claude/skills=${claudeSkills.length} agents/skills=${agentsSkills.length} ` +
       `commands=${commands.length} overrides=${overrides.length} states=${states.length} ` +
-      `skillOverrides=${skillOverrides.length} scripts=${scripts.length}`,
+      `skillOverrides=${skillOverrides.length} hookOverrides=${hookOverrides.length} ` +
+      `scripts=${scripts.length}`,
   );
 }
 

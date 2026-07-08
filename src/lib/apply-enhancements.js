@@ -4,6 +4,7 @@ import { copySkills } from "./copy-skills.js";
 import { copyScriptAssets } from "./copy-scripts.js";
 import { injectWorkflow } from "./workflow-inject.js";
 import { injectSkillOverrides } from "./skill-override-inject.js";
+import { injectHookOverrides } from "./hook-override-inject.js";
 import { applyCodexTweaks } from "./codex-tweaks.js";
 import { applyClaudeTweaks } from "./claude-tweaks.js";
 import { copyFlowerAssets } from "./flower-assets.js";
@@ -33,7 +34,7 @@ function pruneEmptyDirs(target) {
  * 叠加强化包 —— init / update 共享。
  *
  * 流程:校验是 Trellis 项目 → 选变体 → 铺 skill → 升级清理(删过期)
- * → 注入 workflow → 注入 skill override。
+ * → 注入 workflow → 注入 skill override → 注入 hook override。
  *
  * 升级清理:用 flower manifest 记录上次全装铺过的精确路径,本次全装时删除
  * 「上次有、这次变体不含」的过期项(覆盖 0.5/old → 0.6 升级)。仅全装(无 --skills)
@@ -142,6 +143,21 @@ export function applyEnhancements(target, opts = {}) {
     } else {
       const note = r.backupNotes.length ? r.backupNotes.join("") : "";
       console.log(`  ✓ skill override 已注入 ${r.changed} 个入口${note}`);
+    }
+  }
+
+  if (skills.length === 0) {
+    const r = injectHookOverrides(target, variantDir);
+    if (r.skipped) {
+      console.log(`  · hook override 注入跳过(${r.reason})`);
+    } else if (r.changed === 0 && r.unchanged === 0) {
+      console.log(`  · hook override 注入跳过(目标缺少可覆盖的 hook)`);
+    } else if (r.changed === 0) {
+      const note = r.backupNotes.length ? r.backupNotes.join("") : "";
+      console.log(`  ✓ hook override 已是最新(${r.unchanged} 个入口)${note}`);
+    } else {
+      const note = r.backupNotes.length ? r.backupNotes.join("") : "";
+      console.log(`  ✓ hook override 已注入 ${r.changed} 个入口${note}`);
     }
   }
 
