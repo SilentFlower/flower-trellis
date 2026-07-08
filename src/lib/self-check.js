@@ -119,6 +119,46 @@ function releaseNotesFromMetadata(metadata, range) {
   return buildReleaseNotesSummary(metadata?.releaseNotesByVersion, range);
 }
 
+/**
+ * 安全执行 npm metadata 拉取。
+ *
+ * 默认 fetcher 已经吞掉网络错误;这里再兜底测试注入的 fetcher,确保 release notes
+ * 补拉失败不会破坏 self-check 主流程。
+ *
+ * @param {() => Promise<object|null>} fetchMetadata npm metadata 拉取函数
+ * @returns {Promise<object|null>} registry metadata,失败时为 null
+ */
+async function safeFetchPackageUpdateMetadata(fetchMetadata) {
+  try {
+    return await fetchMetadata();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 缓存命中但缺少摘要时,主动补拉 release notes。
+ *
+ * 这个补拉只服务当前 actionable 提示的摘要展示,不能把失败写成新的远程版本证据;
+ * 成功时也只写回 lastReleaseNotes,保持 lastRemote 仍只记录 dist-tags。
+ *
+ * @param {string} target 目标项目根
+ * @param {object|null} manifest 目标项目 manifest
+ * @param {boolean} writeCache 是否允许写缓存
+ * @param {object|null} range release notes 范围
+ * @param {() => Promise<object|null>} fetchMetadata npm metadata 拉取函数
+ * @returns {Promise<object|null>} release notes 摘要;范围有效但不可用时返回 unavailable 摘要
+ */
+async function fetchMissingReleaseNotes(target, manifest, writeCache, range, fetchMetadata) {
+  if (!range) return null;
+  const metadata = await safeFetchPackageUpdateMetadata(fetchMetadata);
+  const releaseNotes = releaseNotesFromMetadata(metadata, range);
+  if (releaseNotes && !releaseNotes.unavailable && writeCache && manifest) {
+    writeUpdateCheck(target, { lastReleaseNotes: releaseNotes });
+  }
+  return releaseNotes;
+}
+
 /** 检查目标目录 git 工作区是否 clean。 */
 function gitSafety(target) {
   const common = {
@@ -312,12 +352,15 @@ export function safetyState(target, status, command) {
  * 构建启动自更新检查结果。
  *
  * @param {string} target 目标项目根
- * @param {{writeCache?: boolean, forceRemote?: boolean}} options 检查选项
+ * @param {{writeCache?: boolean, forceRemote?: boolean, fetchMetadata?: () => Promise<object|null>}} options 检查选项
  * @returns {Promise<object>} 结构化检查结果
  */
 export async function buildSelfCheck(target, options = {}) {
   const writeCache = options.writeCache !== false;
   const forceRemote = options.forceRemote === true;
+  const fetchMetadata = typeof options.fetchMetadata === "function"
+    ? options.fetchMetadata
+    : fetchPackageUpdateMetadata;
   const now = new Date();
   const absoluteTarget = path.resolve(target);
   const trellisDir = path.join(absoluteTarget, ".trellis");
@@ -404,11 +447,19 @@ export async function buildSelfCheck(target, options = {}) {
     }
     if (projectOutOfSync) {
       const releaseNotesRange = projectReleaseNotesRange(projectFlower, currentFlower);
+      const releaseNotes = cachedReleaseNotes(updateCheck, releaseNotesRange) ||
+        await fetchMissingReleaseNotes(
+          absoluteTarget,
+          manifest,
+          writeCache,
+          releaseNotesRange,
+          fetchMetadata,
+        );
       return projectOutOfSyncResult(base, absoluteTarget, {
         tags,
         fromCache: true,
         skipped: true,
-      }, cachedReleaseNotes(updateCheck, releaseNotesRange));
+      }, releaseNotes);
     }
     return {
       ...base,
@@ -418,7 +469,7 @@ export async function buildSelfCheck(target, options = {}) {
     };
   }
 
-  const metadata = await fetchPackageUpdateMetadata();
+  const metadata = await safeFetchPackageUpdateMetadata(fetchMetadata);
   if (!metadata) {
     if (writeCache && manifest) {
       writeUpdateCheck(absoluteTarget, {

@@ -184,6 +184,13 @@ src/assets/flower_update_hook.py
   `range.channel` 与本次结果一致;`range.reason` 只表示触发路径,同一版本范围在
   `update_available` 与 `project_out_of_sync` 间切换时仍可复用摘要,输出给本次
   `self-check` 的 `releaseNotes.range.reason` 应归一为当前状态。
+- 缓存仍新鲜且最终返回 `project_out_of_sync` 时,如果当前
+  `projectFlower < version <= currentFlower` 范围无法从 `lastReleaseNotes` 复用,
+  必须绕过 `intervalHours` 主动补拉一次 npm registry metadata 生成 release notes。
+  补拉成功且目标范围有摘要时,本次结果必须输出非空 `releaseNotes.versions`,并且只允许
+  写回 `updateCheck.lastReleaseNotes`;不得刷新 `lastCheckedAt` / `lastRemote` /
+  `lastStatus`。补拉失败或无摘要时,本次结果应输出带当前 range 的
+  `releaseNotes.unavailable=true`,但不得覆盖已有可用 `lastReleaseNotes`。
 - `lastStatus=offline` 或 `lastErrorCode` 非空的缓存不得视为新鲜远端证据;远端探测失败
   只写 `lastStatus=offline` / `lastErrorCode=fetch_failed`,不得刷新 `lastCheckedAt`,否则会把
   旧 `lastRemote` 在 interval 内误当作刚确认的版本证据。远端失败也不得覆盖已有可用
@@ -241,6 +248,7 @@ src/assets/flower_update_hook.py
 | npx / npm exec 临时运行 | 返回 `skipped/npx_runtime`,不建议全局更新 |
 | 本地 `flowerVersion` 或 `.trellis/.version` 不一致,且缓存过期 | 先查 dist-tags;远端有新版返回 `update_available` + 完整 `self-update`,远端无新版返回 `project_out_of_sync` + `--project-only` |
 | 本地 `flowerVersion` 或 `.trellis/.version` 不一致,且缓存仍新鲜无更新 | 返回 `project_out_of_sync`,推荐 `self-update --project-only`,远端来源标记为 cache |
+| 本地 `flowerVersion` 不一致、缓存仍新鲜无更新,但当前范围无可复用 `lastReleaseNotes` | 为 release notes 主动补拉一次 registry metadata;有摘要则输出并只写 `lastReleaseNotes`,失败或无摘要则输出 `releaseNotes.unavailable=true`,不刷新远端缓存状态 |
 | 缓存的 `lastReleaseNotes.range.reason=update_available`,本次结果为 `project_out_of_sync`,且 `from` / `to` / `channel` 相同 | 复用缓存摘要并把输出 range reason 归一为 `project_out_of_sync` |
 | `lastCheckedAt` 仍在 interval 内且缓存无更新且项目不 out-of-sync | 返回 `skipped/interval_not_elapsed` |
 | `lastCheckedAt` 仍在 interval 内但缓存显示有更新 | 返回 `update_available`,来源标记为 cache |
@@ -284,6 +292,12 @@ src/assets/flower_update_hook.py
   - `self-check --json --target <dir> --no-update-check` 返回稳定 `disabled` JSON。
   - 修改临时 manifest 的 `flowerVersion` 且把 `lastCheckedAt` 设到未来,缓存无远端更新时
     返回 `project_out_of_sync`。
+  - 修改临时 manifest 的 `flowerVersion` 且把 `lastCheckedAt` 设到未来,缓存无远端更新且
+    `lastReleaseNotes=null` 时,模拟 registry metadata 含目标版本摘要,断言
+    `self-check` 主动补拉并输出 `releaseNotes.versions`,且只写回 `lastReleaseNotes`。
+  - 同一场景下模拟 registry metadata 拉取失败或缺目标摘要,断言仍返回
+    `project_out_of_sync` 和推荐命令,同时输出 `releaseNotes.unavailable=true`,且不刷新
+    `lastCheckedAt` / `lastStatus` / `lastErrorCode`。
   - 修改临时 manifest 的 `flowerVersion` 且缓存中已有同范围 `update_available`
     release notes 时,返回 `project_out_of_sync` 并继续输出 `releaseNotes`。
   - 修改临时 manifest 的 `flowerVersion` 且让缓存过期,模拟远端 `latest` 高于当前版本时,

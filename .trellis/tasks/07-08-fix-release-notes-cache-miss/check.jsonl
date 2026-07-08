@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "检查修复是否符合 self-check 状态矩阵、缓存写入和 releaseNotes 范围复用规则。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "确认本次不误改 hook 注入和强化包叠加模型。"}

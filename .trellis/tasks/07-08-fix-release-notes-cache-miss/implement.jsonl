@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "定义 self-check、updateCheck 缓存、releaseNotes 输出和网络失败降级契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "定义 flowerReleaseNotes npm metadata 的来源和发布说明格式约束。"}
