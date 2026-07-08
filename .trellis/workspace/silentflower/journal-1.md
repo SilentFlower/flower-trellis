@@ -1421,3 +1421,37 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 41: 修复 release notes 缓存补拉
+
+**Date**: 2026-07-08
+**Task**: 修复 release notes 缓存补拉
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+修复 flower-update 在 project_out_of_sync 且 lastReleaseNotes 缺失时不展示 release notes 的问题：self-check 会主动补拉 npm registry metadata，成功只写回 lastReleaseNotes，失败返回结构化 unavailable；补充 CLI config/state 规范并完成验证。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cc98c02` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

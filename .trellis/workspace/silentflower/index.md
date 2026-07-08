@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 40
+- **Total Sessions**: 41
 - **Last Active**: 2026-07-08
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1423 | Active |
+| `journal-1.md` | ~1457 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 41 | 2026-07-08 | 修复 release notes 缓存补拉 | `cc98c02` | `main` |
 | 40 | 2026-07-08 | 支持 skill-garden hook override | `960d91a`, `c52e2dd` | `main` |
 | 39 | 2026-07-08 | 强化 brainstorm planning gate | `b99053b`, `3d2944e`, `da0e736` | `main` |
 | 38 | 2026-07-07 | 完成自动更新 release notes 与 push 联动 | `bbdb23c`, `363dd9b` | `main` |
