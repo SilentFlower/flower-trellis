@@ -1386,3 +1386,38 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 40: 支持 skill-garden hook override
+
+**Date**: 2026-07-08
+**Task**: 支持 skill-garden hook override
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+完成 skill-garden shared hook override 支持：新增源与 enhancements 快照，接入全装 hook override 注入，调整 Codex no_task bootstrap 条件，完成验证、提交、推送并归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `960d91a` | (see git log) |
+| `c52e2dd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
