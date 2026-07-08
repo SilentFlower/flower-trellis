@@ -25,6 +25,7 @@ const localizedSubjects = new Map([
   ],
   ["afa9282", "精简 route state helper 默认输出"],
   ["reduce route state helper output", "精简 route state helper 默认输出"],
+  ["cc98c02", "项目侧待更新提示会显示对应版本更新摘要"],
 ]);
 
 const commitGroupOrder = types.flatMap((type) => type.section).filter(Boolean);
