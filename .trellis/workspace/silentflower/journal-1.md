@@ -1455,3 +1455,38 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 42: 迁移 updateCheck 运行缓存到 tmp
+
+**Date**: 2026-07-09
+**Task**: 迁移 updateCheck 运行缓存到 tmp
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+完成 updateCheck 策略与运行缓存拆分：manifest 仅保留策略字段，运行缓存迁移到 gitignored 的 .trellis/.flower-update-check.tmp；同步更新 update-check get 输出、README 和 CLI config/state 规范，并完成迁移与 release notes 补拉验证。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `986659a` | (see git log) |
+| `6a9d318` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
