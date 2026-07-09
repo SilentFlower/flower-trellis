@@ -26,7 +26,7 @@ jobs:
     steps:
       # 不拉 submodule:发布只依赖已提交的 enhancements/ 快照(prepublishOnly 的 sync 会幂等跳过)
       - name: 检出仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 判定发布通道
         id: channel
@@ -45,15 +45,15 @@ jobs:
           fi
 
       - name: 配置 Node 与 npm registry
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
 
-      # OIDC Trusted Publishing 要求 Node ≥ 22.14.0 且 npm ≥ 11.5.1;
-      # Node 22 自带 npm 10.x,故仍需升级到最新 npm
-      - name: 升级 npm 至最新
-        run: npm install -g npm@latest
+      # OIDC Trusted Publishing 要求 Node ≥ 22.14.0 且 npm ≥ 11.5.1。
+      # 固定 npm 11 线,避免 npm@latest 新 major 在 provenance 路径引入临时回归。
+      - name: 安装 npm 11 发布工具链
+        run: npm install -g npm@11.18.0
 
       # 不跑 npm ci:publish 只需源码 + prepublishOnly 的 sync(仅用项目内 src/lib + node 内置,
       # 无外部依赖),省去 node-pty 等原生模块在 CI 的编译,更快更稳。

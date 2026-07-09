@@ -60,12 +60,12 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
   `package.json.version`;每个 npm 版本只保存自己的 CHANGELOG 段落,不保存 recent map。
 - push `vX.Y.Z` tag 触发稳定版 CI;CI checkout **不拉 submodule**(发布只依赖已提交的 `enhancements/` 快照)。
 - push `vX.Y.Z-beta.N` tag 触发同一 CI;必须发布到 npm `beta` dist-tag。
-- 稳定版 CI 步骤:`判定通道 latest` → `npm i -g npm@latest` → `npm publish`(OIDC,不设 NODE_AUTH_TOKEN)→ `extract-changelog` → `gh release create --notes-file`。
-- beta CI 步骤:`判定通道 beta` → `npm i -g npm@latest` → `npm publish --tag beta`(OIDC,不设 NODE_AUTH_TOKEN)→ `extract-changelog` → `gh release create --prerelease --notes-file`。
+- 稳定版 CI 步骤:`判定通道 latest` → `npm i -g npm@11.18.0` → `npm publish`(OIDC,不设 NODE_AUTH_TOKEN)→ `extract-changelog` → `gh release create --notes-file`。
+- beta CI 步骤:`判定通道 beta` → `npm i -g npm@11.18.0` → `npm publish --tag beta`(OIDC,不设 NODE_AUTH_TOKEN)→ `extract-changelog` → `gh release create --prerelease --notes-file`。
 
 ### release.yml 硬约束
 - `permissions: contents: write`(建 Release)+ `id-token: write`(OIDC 签发,**必需**)。
-- **Node ≥ 22.14.0 且 npm ≥ 11.5.1**(OIDC 要求):`node-version: 22` + `npm i -g npm@latest`。
+- **Node ≥ 22.14.0 且 npm ≥ 11.5.1**(OIDC 要求):`node-version: 22` + `npm i -g npm@11.18.0`。npm 版本固定在 11 线,不要追 `npm@latest` 的新 major。
 - **不跑 `npm ci`**:publish 无需依赖,`prepublishOnly` 的 sync 仅用 `src/lib` + node 内置;省去 node-pty 编译。
 - 不设 `NPM_TOKEN`/`NODE_AUTH_TOKEN`(OIDC 不需要长期令牌)。
 - workflow 由 `v*` 触发,必须先判定通道:tag 包含 `-beta.` 时使用 `npm publish --tag beta` 且创建 GitHub prerelease;不带 `-` 时使用裸 `npm publish` 发布到 `latest`。
@@ -107,6 +107,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 | Node < 22.14.0 或 npm < 11.5.1 | OIDC publish 失败 |
 | beta tag 走裸 `npm publish` | prerelease 可能被 npm 标到 `latest`,必须阻断评审 |
 | Trusted Publisher workflow 写 `release.yml,release-beta.yml` | npm 会当作一个不存在的文件名,OIDC 不会生效 |
+| `npm@latest` 新 major 的 provenance 依赖缺失 | CI `npm publish` 报 `Cannot find module 'sigstore'`:固定 npm 11 线后重新触发发布 |
 
 ---
 
@@ -126,7 +127,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 
 ### Correct
 - 本地只 bump+CHANGELOG+tag(人工把关),push tag 由 CI 用 OIDC 发布(自动 provenance、免 token)。
-- `node-version: 22` + `npm i -g npm@latest`,不跑 npm ci。
+- `node-version: 22` + `npm i -g npm@11.18.0`,不跑 npm ci;`actions/checkout@v5` 与 `actions/setup-node@v5` 避免旧 action runtime deprecation warning。
 - 真实 release 前先确认 `vendor/skill-garden` 工作区干净,再 `npm run sync`;如有快照 diff,审核并提交后再用 check-snapshot 断言快照与 submodule pin 一致、submodule 源无未提交改动且快照已提交。
 - beta 版使用 `X.Y.Z-beta.N` 版本号、`vX.Y.Z-beta.N` tag、同一 `release.yml` 内的 `npm publish --tag beta`。
 - 真实 release 前先用相同参数跑 `npm run release:dry...`,把将生成的 CHANGELOG 段落展示给用户,得到明确确认后再执行真实 release。
