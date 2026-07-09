@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "定义 .flower-manifest.json、updateCheck、self-check 缓存和启动自更新检查契约，是本任务需要改写的核心规范。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "约束 Node ESM 模块、导出、JSDoc 和 helper 组织方式，适用于修改 src/lib/manifest.js。"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "约束 CLI 输出风格，适用于 update-check get 输出 manifest/cache 路径。"}
+{"file": ".trellis/tasks/archive/2026-07/07-08-fix-release-notes-cache-miss/prd.md", "reason": "记录 lastReleaseNotes 缓存补拉语义，迁移缓存位置时必须保持该行为不回退。"}

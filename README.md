@@ -131,21 +131,32 @@ flower-trellis self-check --json --target .
 - **本地一致性检查**:每次启动都会比对当前安装的 `flower-trellis` / 捆绑 Trellis 版本与项目 `.trellis/.flower-manifest.json` / `.trellis/.version`;不受 `intervalHours` 限制。
 - **远程版本探测**:访问 npm registry 读取 `flower-trellis` dist-tags;受 `intervalHours` 节流,带超时,失败静默。
 
-策略和缓存统一保存在 `.trellis/.flower-manifest.json` 的 `updateCheck`:
+策略保存在 `.trellis/.flower-manifest.json` 的 `updateCheck`;运行缓存保存在 gitignored 的 `.trellis/.flower-update-check.tmp`,避免 `lastCheckedAt` 等字段反复污染 git。
+
+manifest 中只保留用户策略:
 
 ```json
 {
   "updateCheck": {
     "enabled": true,
     "policy": "ask",
-    "intervalHours": 8,
+    "intervalHours": 8
+  }
+}
+```
+
+tmp 中保存本地运行缓存:
+
+```json
+{
     "lastCheckedAt": "2026-07-07T00:00:00.000Z",
     "lastRemote": { "latest": "0.4.2", "beta": null },
     "lastStatus": "update_available",
     "lastErrorCode": null
-  }
 }
 ```
+
+旧项目如果已经在 manifest 的 `updateCheck` 里带有缓存字段,新版本会先读取兼容,并在下一次写入时清理这些旧字段。
 
 `policy` 可选:
 

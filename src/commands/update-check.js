@@ -4,6 +4,7 @@ import {
   manifestPath,
   readManifest,
   readUpdateCheck,
+  updateCheckCachePath,
   writeUpdateCheck,
 } from "../lib/manifest.js";
 
@@ -24,7 +25,7 @@ function assertTrellisProject(target) {
 }
 
 /**
- * flower-trellis update-check:管理 manifest 内的启动更新检查策略。
+ * flower-trellis update-check:管理启动更新检查策略,并展示本地运行缓存。
  *
  * @param {object} ctx 见 cli.js 的 parse()
  */
@@ -35,9 +36,14 @@ export async function updateCheck(ctx) {
 
   if (action === "get") {
     const manifest = readManifest(ctx.target);
+    const cachePath = updateCheckCachePath(ctx.target);
     console.log(`manifest: ${manifestPath(ctx.target)}`);
+    console.log(`cache: ${cachePath}`);
     console.log(JSON.stringify(readUpdateCheck(ctx.target), null, 2));
     if (!manifest) console.log("  · manifest 不存在,当前显示默认策略");
+    if (!fs.existsSync(cachePath)) {
+      console.log("  · cache 不存在,当前显示默认或旧 manifest 兼容缓存");
+    }
     return;
   }
 

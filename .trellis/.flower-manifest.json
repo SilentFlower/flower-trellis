@@ -56,32 +56,6 @@
   "updateCheck": {
     "enabled": true,
     "policy": "ask",
-    "intervalHours": 8,
-    "lastCheckedAt": "2026-07-08T03:55:41.506Z",
-    "lastRemote": {
-      "latest": "0.4.10",
-      "beta": "0.4.5-beta.3"
-    },
-    "lastReleaseNotes": {
-      "source": "npm-metadata",
-      "range": {
-        "from": "0.4.9",
-        "to": "0.4.10",
-        "channel": "latest",
-        "reason": "update_available"
-      },
-      "versions": [
-        {
-          "version": "0.4.10",
-          "body": "### 🐛 修复 Bug Fixes\n\n* **flower:** 项目侧待更新提示会显示对应版本更新摘要 ([cc98c02](https://github.com/SilentFlower/flower-trellis/commit/cc98c021eb0536f693f50651854093a4795d9e93))",
-          "truncated": false
-        }
-      ],
-      "truncated": false,
-      "moreVersions": false,
-      "unavailable": false
-    },
-    "lastStatus": "update_available",
-    "lastErrorCode": null
+    "intervalHours": 8
   }
 }

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "检查实现是否符合新的策略/缓存拆分、旧字段清理、远程缓存和 release notes 契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "检查幂等、容错降级、写盘边界和验证要求。"}
+{"file": ".trellis/tasks/archive/2026-07/07-07-startup-self-update-check/design.md", "reason": "核对 self-check、self-update、update-check 三条命令链路与原始启动更新设计的兼容性。"}
+{"file": ".trellis/tasks/archive/2026-07/07-08-fix-release-notes-cache-miss/prd.md", "reason": "核对 release notes 缓存迁移后补拉、失败不刷新远端状态、只写 lastReleaseNotes 的行为不回退。"}

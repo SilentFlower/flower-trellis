@@ -348,7 +348,7 @@ export function getUpdateRecommendation(current, tags) {
   return null;
 }
 
-/** 尽力而为刷新目标项目 manifest 里的远端探测缓存。 */
+/** 尽力而为刷新目标项目的远端探测缓存。 */
 function rememberRemoteTags(target, tags, status, releaseNotes = null) {
   try {
     if (!readManifest(target)) return;

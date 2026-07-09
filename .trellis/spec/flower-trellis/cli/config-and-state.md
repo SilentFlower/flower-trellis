@@ -7,7 +7,8 @@
 ## Overview
 
 flower-trellis 自身几乎无内存态:配置是一组**集中常量**,运行所需的「状态」落在
-**目标项目磁盘**上(`.trellis/.version`、`.trellis/.flower-manifest.json`)。
+**目标项目磁盘**上(`.trellis/.version`、`.trellis/.flower-manifest.json`,以及
+gitignored 的 `.trellis/.flower-update-check.tmp` 运行缓存)。
 所有跨模块名单收敛到 `src/constants.js`,所有包内路径从 `src/lib/paths.js` 派生。
 
 ---
@@ -124,15 +125,22 @@ flower 自己的安装清单,是「精确升级清理」的依据:
     前者答「上次哪个 flower 铺的」,后者答「项目当时是哪个 trellis」,均服务后续升级判断。
   - 仅全装(无 `--skills`)时写 manifest;`--skills` 精细操作不动 manifest,故 `flowerVersion`
     只在全装时刷新。
-  - `updateCheck` 是启动更新检查的用户策略与运行缓存。全装重写 manifest 时必须保留已有
-    `updateCheck.enabled` / `policy` / `intervalHours`,不能把用户选择重置回默认值。
+  - `updateCheck` 在 manifest 内只保存启动更新检查的用户策略:
+    `enabled` / `policy` / `intervalHours`。全装重写 manifest 时必须保留已有策略,
+    不能把用户选择重置回默认值。
 - `readManifest` 读不到 / 损坏时返回 `null`(调用方需判空);`writeManifest` 写
   `JSON.stringify(data, null, 2) + "\n"`(两空格缩进 + 结尾换行)。
 - `readUpdateCheck(target)` 必须对旧 manifest / 损坏字段返回默认策略:
   `{ enabled:true, policy:"ask", intervalHours:8, lastCheckedAt:null, lastRemote:null, lastReleaseNotes:null, lastStatus:null, lastErrorCode:null }`。
-- `writeUpdateCheck(target, patch)` 只合并 `updateCheck`,保留 manifest 其它安装清单字段。
+- `readUpdateCheck(target)` 返回兼容合并视图:策略来自 manifest,运行缓存来自
+  `.trellis/.flower-update-check.tmp`;如果 tmp 不存在,允许从旧 manifest 的缓存字段 fallback。
+- `writeUpdateCheck(target, patch)` 拆分写入:策略字段写 manifest,缓存字段写
+  `.trellis/.flower-update-check.tmp`,并保留 manifest 其它安装清单字段。
+- 旧 manifest 若仍包含 `lastCheckedAt` / `lastRemote` / `lastReleaseNotes` / `lastStatus` /
+  `lastErrorCode`,下一次 `writeUpdateCheck()` 或 `writeManifest()` 必须清理这些字段;
+  tmp 不存在时先迁移旧缓存,避免清理导致 interval / release notes 缓存立刻丢失。
 - `lastRemote` 只记录 npm `dist-tags.latest` / `dist-tags.beta` 版本事实;release notes /
-  changelog 摘要必须写入独立的 `lastReleaseNotes`,不得混入 `lastRemote`。
+  changelog 摘要必须写入 tmp 内独立的 `lastReleaseNotes`,不得混入 `lastRemote`。
 
 ## Scenario: Startup Self-Update Check
 
@@ -188,16 +196,16 @@ src/assets/flower_update_hook.py
   `projectFlower < version <= currentFlower` 范围无法从 `lastReleaseNotes` 复用,
   必须绕过 `intervalHours` 主动补拉一次 npm registry metadata 生成 release notes。
   补拉成功且目标范围有摘要时,本次结果必须输出非空 `releaseNotes.versions`,并且只允许
-  写回 `updateCheck.lastReleaseNotes`;不得刷新 `lastCheckedAt` / `lastRemote` /
+  写回 tmp 中的 `lastReleaseNotes`;不得刷新 `lastCheckedAt` / `lastRemote` /
   `lastStatus`。补拉失败或无摘要时,本次结果应输出带当前 range 的
   `releaseNotes.unavailable=true`,但不得覆盖已有可用 `lastReleaseNotes`。
 - `lastStatus=offline` 或 `lastErrorCode` 非空的缓存不得视为新鲜远端证据;远端探测失败
-  只写 `lastStatus=offline` / `lastErrorCode=fetch_failed`,不得刷新 `lastCheckedAt`,否则会把
+  只写 tmp 中的 `lastStatus=offline` / `lastErrorCode=fetch_failed`,不得刷新 `lastCheckedAt`,否则会把
   旧 `lastRemote` 在 interval 内误当作刚确认的版本证据。远端失败也不得覆盖已有可用
   `lastReleaseNotes`。
 - `init` / `update` 启动阶段的 `checkForUpdate()` 若成功取得 dist-tags,必须尽力而为刷新
-  已有 manifest 的 `updateCheck.lastCheckedAt` / `lastRemote` / `lastStatus` /
-  `lastErrorCode=null`,让主动更新后的下次 SessionStart 使用最新远程证据。目标没有
+  已有项目的 `.trellis/.flower-update-check.tmp` 缓存(`lastCheckedAt` / `lastRemote` /
+  `lastStatus` / `lastErrorCode=null`),让主动更新后的下次 SessionStart 使用最新远程证据。目标没有
   `.flower-manifest.json` 时不得凭空创建半截 manifest;写缓存失败也不得阻断主流程。
 - `checkForUpdate()` 必须同时尊重 `--no-update-check`、`FLOWER_NO_UPDATE_CHECK` 以及
   manifest 中的 `updateCheck.enabled=false` / `policy=off`。
@@ -254,9 +262,9 @@ src/assets/flower_update_hook.py
 | `lastCheckedAt` 仍在 interval 内但缓存显示有更新 | 返回 `update_available`,来源标记为 cache |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目不 out-of-sync | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode`,不刷新 `lastCheckedAt` |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目 out-of-sync | 返回 `project_out_of_sync`,推荐 `--project-only`,同时标注远端 `errorCode` |
-| `init` / `update` 主动探测成功 | 写入已有 manifest 的 `lastRemote` / `lastCheckedAt` / `lastStatus`;无 manifest 时跳过 |
+| `init` / `update` 主动探测成功 | 写入 `.flower-update-check.tmp` 的 `lastRemote` / `lastCheckedAt` / `lastStatus`;无 manifest 时跳过 |
 | release notes metadata 缺失或损坏 | 版本判断照常;`releaseNotes.unavailable=true` 或不展示摘要 |
-| 远端探测成功且生成了可用 notes 摘要 | 写入 `updateCheck.lastReleaseNotes`;`lastRemote` 仍只写 dist-tags |
+| 远端探测成功且生成了可用 notes 摘要 | 写入 tmp 中的 `lastReleaseNotes`;`lastRemote` 仍只写 dist-tags |
 | `self-update --dry-run` | 只打印全局安装命令、项目 update 命令、版本和安全检查,不写入 |
 | `self-update` 缺少 `--yes` 且非 dry-run | 抛中文错误,由 CLI 顶层统一退出 |
 | 全局 npm 安装成功但项目 update 失败 | 报告未完成,给出手动 `flower-trellis update --target ... --no-update-check --force` 命令 |
@@ -272,13 +280,14 @@ src/assets/flower_update_hook.py
 - Base: 远程探测失败时 hook 静默退出;`self-check --json` 仍返回 `offline` JSON,
   不阻断 Codex / Claude Code 启动。
 - Base: 用户手动运行 `flower-trellis update --target <dir>` 时,启动探测成功后会刷新
-  `updateCheck.lastRemote`,随后全装 `writeManifest()` 继续保留这份最新缓存。
+  tmp 中的 `lastRemote`,随后全装 `writeManifest()` 只保留 manifest 策略字段。
 - Base: 用户配置 `policy=auto` 但 git dirty,`ai.mode` 降级为 `ask`,并给出
   `dirty_worktree` 原因。
 - Bad: 启动 hook 直接执行 `npm i -g` 或 `flower-trellis update`。启动阶段只能注入上下文。
 - Bad: 只覆盖 `.trellis/scripts/flower_update_hook.py` 或只改 manifest 就报告项目已更新。
   项目内容更新必须走完整 `flower-trellis update` 链路。
 - Bad: 全装重写 manifest 时丢失用户设置的 `policy=auto` 或 `intervalHours=6`。
+- Bad: 远程检查刷新 `lastCheckedAt` 后让 `.trellis/.flower-manifest.json` 出现仅由运行缓存导致的 git diff。
 
 ### 6. Tests Required
 
@@ -290,10 +299,11 @@ src/assets/flower_update_hook.py
   - `git diff --check`
 - CLI 行为:
   - `self-check --json --target <dir> --no-update-check` 返回稳定 `disabled` JSON。
-  - 修改临时 manifest 的 `flowerVersion` 且把 `lastCheckedAt` 设到未来,缓存无远端更新时
+  - 修改临时 manifest 的 `flowerVersion`,并在 `.flower-update-check.tmp` 把 `lastCheckedAt`
+    设到未来,缓存无远端更新时
     返回 `project_out_of_sync`。
-  - 修改临时 manifest 的 `flowerVersion` 且把 `lastCheckedAt` 设到未来,缓存无远端更新且
-    `lastReleaseNotes=null` 时,模拟 registry metadata 含目标版本摘要,断言
+  - 修改临时 manifest 的 `flowerVersion`,并在 `.flower-update-check.tmp` 把 `lastCheckedAt`
+    设到未来;缓存无远端更新且 `lastReleaseNotes=null` 时,模拟 registry metadata 含目标版本摘要,断言
     `self-check` 主动补拉并输出 `releaseNotes.versions`,且只写回 `lastReleaseNotes`。
   - 同一场景下模拟 registry metadata 拉取失败或缺目标摘要,断言仍返回
     `project_out_of_sync` 和推荐命令,同时输出 `releaseNotes.unavailable=true`,且不刷新
@@ -306,7 +316,9 @@ src/assets/flower_update_hook.py
   - `self-update --target <dir> --dry-run --project-only -- --skip-all` 不再追加 `--force`。
   - `update-check set|disable|enable|get` 保留 policy / enabled 语义。
   - `flower-trellis update --target <dir> --dry-run` 在远程探测成功时刷新已有 manifest 的
-    `updateCheck.lastRemote`;`--no-update-check` 或 `policy=off` 时不联网、不写缓存。
+    tmp 缓存 `lastRemote`;`--no-update-check` 或 `policy=off` 时不联网、不写缓存。
+  - 构造旧 manifest 中含 `lastCheckedAt` / `lastRemote` / `lastReleaseNotes` 的场景,
+    验证 `readUpdateCheck()` 可兼容读取,任意写入后 manifest 清理旧缓存字段且 tmp 保留缓存。
   - 构造带 `flowerReleaseNotes` 的 registry metadata,验证 stable 目标不混入 beta notes,
     beta 目标只展示 beta notes,并验证 5 个版本 / 单版本 500 字符 / 总 1600 字符截断标记。
   - `self-update --dry-run` 输出 `write:false` 和 `post_action_preview`;真实写入完成后输出
