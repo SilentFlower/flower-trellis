@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"检查实现是否符合 CLI 总体分层和 dogfood 验证要求。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查 vendor、enhancements、workflow 和当前平台副本是否按强化同步契约保持一致。"}
+{"file":".trellis/spec/flower-trellis/cli/cli-output.md","reason":"检查计划/结果排版、风险展开和确认提示是否符合终端输出规范。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查幂等、精确修改、容错和同步后的质量门禁。"}
+{"file":".trellis/spec/flower-trellis/cli/release-and-publishing.md","reason":"检查 npm run sync 产生的快照变化是否满足审核与一致性要求。"}

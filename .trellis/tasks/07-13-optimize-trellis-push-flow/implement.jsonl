@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"实现前确认 flower-trellis CLI、强化源与快照的总体开发边界。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"本任务修改 skill-garden 0.6 强化 skill/workflow，必须遵循先改 vendor 源再同步 enhancements 与 dogfood 副本的契约。"}
+{"file":".trellis/spec/flower-trellis/cli/cli-output.md","reason":"设计 trellis-push 终端计划与结果排版时需遵循现有输出层级、前缀和交互风格。"}
+{"file":".trellis/spec/flower-trellis/cli/release-and-publishing.md","reason":"同步 enhancements 快照和后续提交时需遵循快照审核与发布前门禁。"}

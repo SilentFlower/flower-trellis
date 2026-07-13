@@ -531,6 +531,153 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 
 ---
 
+## Scenario: Trellis Push Phase Boundary And Compact Plan
+
+### 1. Scope / Trigger
+
+- Trigger:普通 `trellis-check` / `trellis-check-all` 完成后,主 agent 可能绕过 Phase 3.4
+  `trellis-push`,自行草拟 `Proposed commits`、commit message 和 commit-only 确认;大型或多仓
+  计划也可能把普通文件全部铺开,造成高噪声输出。
+- Scope:`overrides/workflow.md` 与 in-progress state 负责 post-check / Phase 3.4 硬门禁;
+  `trellis-check-all` 负责纯检查汇总;`trellis-push` 负责 exact plan、紧凑展示、确认、Git
+  执行与 snapshot;`trellis-auto-loop` 仍只使用 commit-only 预授权。
+
+### 2. Signatures
+
+普通流程状态序列:
+
+```text
+trellis-check-all
+  -> post-check report + stop
+  -> existing Phase 3.3 trellis-update-spec flow
+  -> Phase 3.4 trellis-push plan
+  -> user confirmation
+  -> exact git add / commit / push
+```
+
+auto-loop 状态序列保持不变:
+
+```text
+run_check_all -> run_spec_update -> commit_only -> trellis-push commit-only
+```
+
+展示阈值:
+
+```text
+planned_files <= 8  ->逐项展示
+planned_files > 8   ->按目录归组,文件摘要最多 12 行,支持“展开文件”
+risk_files          ->始终逐项展示,不折叠
+```
+
+### 3. Contracts
+
+- 普通 post-check 报告只含检查维度/问题数、实际验证、剩余风险、结论和下一步;输出后等待
+  用户继续。不得包含 commit message、planned/staged files、`Proposed commits`、commit-only
+  决策或提交确认提示。
+- Phase 3.3 的既有触发和 required-once 语义不变。本场景不在 check 通过后新增自动 spec update。
+- Phase 3.4 必须加载 `trellis-push`;在该 skill 外草拟提交计划不能作为等价替代。
+- skill-garden hub/state guard 必须明确整段覆盖上游 workflow 下层 Phase 3.4 的
+  `Proposed commits`、本地直接 commit 和 `Never push` walkthrough;目标项目保留上游正文,
+  但 AI 在强化模式下必须把该下层 walkthrough 视为 inactive,不得混用其中任一步骤。
+- 普通 `trellis-push` 默认 commit + push 当前分支;commit-only 只来自用户明确意图或满足
+  action/profile/task 校验的 auto-loop 专用预授权。
+- `trellis-push` 内部始终保存 exact planned files 与 exact retained/unrecognized files;
+  紧凑展示只影响对话,执行仍只能 `git add <exact files>`。
+- 每仓 planned files 不超过 8 个时完整展示;超过 8 个时按目录归组,普通文件摘要最多
+  12 行,并允许用户展开同一 exact set。展开不是执行确认,也不能重新推断范围。
+- 未识别 dirty、staged、冲突、跨任务和其他风险文件始终逐项展示,不受阈值限制。
+- 多仓库逐仓独立生成 commit message、branch/upstream、文件范围和 push 结果;普通模式对完整
+  计划只确认一次。任务级 Spec review、snapshot、bookkeeping 放在业务仓库之后。
+- 无活动任务时仍可处理当前会话可明确归属的文件,但必须显示“无活动任务”并跳过 Spec
+  review、snapshot、bookkeeping。无法证明来源的 dirty 文件全部作为 unrecognized 排除,
+  直到用户明确指定后重新生成计划。
+- commit message 只能由 `trellis-push` 最终草拟/采用;优先级为用户明确提供 > 任务材料与
+  实际 diff > 最近提交风格。
+- auto-loop 继续保持唯一 `profile=commit-only`、`commit_only` action 和 runtime schema;
+  普通默认 push 不扩大 auto-loop 的远端授权。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 普通 check 汇总准备输出 commit message / planned files | 停止;只输出检查报告与下一步 |
+| Phase 3.4 未加载 `trellis-push` 却准备 commit | 阻断;进入本 skill 重新生成计划 |
+| 下层 Phase 3.4 `Proposed commits` / `Never push` 与 hub 同时存在 | hub/state guard 整段覆盖,下层 walkthrough inactive |
+| 普通 `trellis-push` 未收到 commit-only 意图 | mode 必须是 commit + push |
+| auto-loop outstanding action/profile/task 不匹配 | 不得使用 commit-only 预授权,停止或 blocked |
+| 单仓 planned files = 8 | 逐项完整展示 |
+| 单仓 planned files > 8 | 按目录归组,文件摘要最多 12 行,提供“展开文件” |
+| 存在 risk files | 逐项完整展示,即使超过 12 行也不得折叠 |
+| 用户请求“展开文件” | 展示当前 exact planned files,不改变计划、不执行 |
+| 执行前 exact set / Git 状态变化 | 原确认失效,重新生成并确认计划 |
+| 无活动任务且 dirty 来源不明 | 全部放入 unrecognized,默认不提交 |
+| 多仓第二仓执行失败 | 报告第一仓实际结果、失败位置、当前分支和恢复动作 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:check-all 通过后只报告三维检查、验证命令、Redis 未实机验证风险和下一步,等待用户;
+  用户继续后按现有 Phase 3.3 进入 `trellis-push`。
+- Good:单仓 20 个普通 planned files 按目录压成 6 行,2 个未识别 dirty 文件仍逐项展示;
+  用户回复“展开文件”后看到原 20 个 exact paths。
+- Good:两个业务仓库各自拥有 commit message 和 branch/upstream,顶部显示执行顺序,任务
+  snapshot 位于所有仓库之后,用户只确认一次。
+- Base:无活动任务但当前会话明确修改 2 个文件,它们进入 planned;仓库中另外 3 个旧 dirty
+  文件进入 unrecognized 并排除。
+- Bad:check-all 汇总后直接输出 `Proposed commits` 并说“不会推送”;这同时绕过 post-check、
+  Phase 3.3 和 `trellis-push` 默认 push 语义。
+- Bad:为了缩短输出把 staged/conflict 文件折叠成“其他 12 个文件”;风险范围不可审计。
+- Bad:普通计划沿用 auto-loop 的 commit-only 文案;auto-loop 预授权不能泄漏到普通流程。
+
+### 6. Tests Required
+
+- `git diff --check`
+- `npm run sync` 后确认 vendor、`enhancements/0.6`、当前 `.agents` / `.claude` 对应 skill
+  和 workflow override 语义一致。
+- 静态扫描 post-check 文案,确认只允许检查结果/验证/风险/结论/下一步,且禁止
+  `Proposed commits`、commit message、planned files 和提交确认。
+- 静态扫描 Phase 3.4 文案,确认必须加载 `trellis-push`,普通默认 push,commit-only 仅来自
+  明确用户意图或合法 auto-loop 预授权。
+- 静态扫描 hub 与 in-progress states,确认明确整段覆盖下层 `Proposed commits`、local-only、
+  no-push walkthrough,而不是只依赖隐含优先级。
+- 用 8 个、9 个和超过 12 个目录分组行的模拟计划验证展示阈值;风险文件始终逐项显示。
+- 模拟单仓、多仓、无活动任务、用户展开文件、计划漂移、部分仓库失败六类输出。
+- 回归 `auto_loop.py start` 仍只接受/default `profile=commit-only`,并保持
+  `run_check_all -> run_spec_update -> commit_only`。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```markdown
+Check-all 已通过。
+Proposed commits:
+1. fix(api): 修复会话一致性
+回复 ok 执行提交,不会推送。
+```
+
+问题:check 阶段越权生成 Phase 3.4 内容,且普通流程擅自选择 commit-only。
+
+#### Correct
+
+```markdown
+Check-all 已通过。
+验证:5/5 通过。
+剩余风险:Redis 未实机执行。
+下一步:按现有 Phase 3.3 处理后进入 Phase 3.4 trellis-push。
+```
+
+```markdown
+## Trellis Push 计划
+[PUSH] 1 个仓库 · 1 个 commit · 2 个文件 · 风险 0
+...
+确认执行请回复 `确认`。
+```
+
+原因:check 报告与 Git 计划职责分离,Phase 3.3 时机不变,Phase 3.4 的默认 push、文件范围
+和确认都由唯一入口负责。
+
+---
+
 ## Faithful Porting (溯源)
 
 大量逻辑是从 skill-garden `install.sh` **逐字符移植**而来(`fs-utils` 的 `install_one`、

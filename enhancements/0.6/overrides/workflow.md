@@ -84,13 +84,19 @@ At Phase 2.1/2.2, this gate overrides lower "Active Task Routing" rows that say 
 
 After `trellis-check` or `trellis-check-all` finishes, stop and report the result. If checks pass, the next allowed workflow steps are Phase 3.3 `trellis-update-spec` and Phase 3.4 `trellis-push`/commit confirmation (commit-only when needed); do not archive the task or imply it is ready to wrap up solely because checks passed. `/trellis:finish-work` is explicit-only: run it only after Phase 3.4 is complete and the user asks to wrap up, archive, or finish the task.
 
+The ordinary post-check report may contain only check dimensions/results, executed validations, residual risks, the conclusion, and the next-step pointer. It must not draft a commit message, show `Proposed commits` or planned/staged files, choose commit-only, ask the user to reply `ok` to commit, or perform Phase 3.3/3.4 work. Stop after the report and wait for the user to continue.
+
 During a running `trellis-auto-loop`, the runner's `record` + `next` replaces the post-check stop gate: after a check pass, record the result, then continue to spec update / commit-only according to `.trellis/scripts/auto_loop.py`. Outside auto-loop, keep the normal stop gate.
 
 #### Code Commit Confirmation Gate
 
 Code commit/push belongs only to Phase 3.4 and must go through `trellis-push`; the main session must not run bare `git commit` / `git push` for code.
 
-`trellis-push` confirmation must show both the exact file list to stage and the drafted commit message. Before the user approves that concrete list + message, do not `git add`, commit, or push; never use `git add -A` / `git add .`.
+Entering Phase 3.4 means loading and following `trellis-push`; drafting a commit message or a file plan outside that skill is not an equivalent substitute. Ordinary `trellis-push` defaults to commit + push. Use commit-only only when the user explicitly asks for commit without push, or when a running auto-loop satisfies the dedicated commit-only preauthorization gate.
+
+This gate fully supersedes the lower Phase 3.4 walkthrough that drafts `Proposed commits`, runs local commits directly, or says never to push. Under skill-garden, treat that lower walkthrough as inactive; do not mix any of its plan, confirmation, or execution steps with `trellis-push`.
+
+`trellis-push` confirmation must be backed by an exact file set and include the drafted commit message. For each repository, display all planned files when there are at most 8; above 8, group the ordinary planned files by directory in at most 12 file-summary lines and offer `展开文件` to show the same exact set. Unrecognized dirty, staged, conflicted, cross-task, and other risk files must always be shown individually and never folded. Before the user approves that concrete scope + message, do not `git add`, commit, or push; never use `git add -A` / `git add .`.
 
 For "commit now, push later", use `trellis-push` commit-only mode; the later push still goes through `trellis-push`. `session_auto_commit` never authorizes code commits; it only affects bookkeeping commits below.
 
