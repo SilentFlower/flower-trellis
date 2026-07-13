@@ -12,6 +12,7 @@ import { readManifest, writeManifest } from "./manifest.js";
 import { flowerVersion } from "./versions.js";
 import { rmrf } from "./fs-utils.js";
 import { resolveEnhancementSnapshot } from "./enhancement-catalog.js";
+import { syncInstalledCommonSkills } from "./skill-catalog.js";
 
 /** 清理升级后可能变空的强化目录(深 → 浅)。 */
 function pruneEmptyDirs(target) {
@@ -80,11 +81,27 @@ export function applyEnhancements(target, opts = {}) {
     `  ✓ 铺设 ${installed.length} 个强化项 → ${where.join(" + ") || "(无平台目录)"}`,
   );
 
+  let commonPaths = [];
+  if (skills.length === 0) {
+    const common = syncInstalledCommonSkills(target);
+    commonPaths = common.refreshedPaths;
+    if (common.refreshed.length > 0 || common.removed.length > 0) {
+      console.log(
+        `  ✓ common skill 已同步:刷新 ${common.refreshed.length} 个,` +
+          `清理 ${common.removed.length} 个`,
+      );
+    } else {
+      console.log("  · 未发现已启用或待清理的 common skill");
+    }
+  }
+
   // 升级清理 + manifest(仅全装时维护)
   if (skills.length === 0) {
     const old = readManifest(target);
     if (old && Array.isArray(old.paths)) {
-      const keep = new Set(newPaths);
+      // 历史版本可能把后来迁入 common 的 skill 记在 paths 中。本轮已确认仍启用的
+      // common 路径只用于阻止旧 manifest 误删；新 manifest 仍不接管这些可选技能。
+      const keep = new Set([...newPaths, ...commonPaths]);
       const stale = old.paths.filter((p) => !keep.has(p));
       let removed = 0;
       for (const rel of stale) {

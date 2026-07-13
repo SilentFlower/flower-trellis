@@ -1,5 +1,5 @@
 {
-  "syncedAt": "2026-07-09T03:31:09.573Z",
+  "syncedAt": "2026-07-13T02:13:06.977Z",
   "syncedFrom": "vendor/skill-garden",
   "sourceCommit": "6ecfb1b46320d82aeb3e83442235f271d92aa398",
   "common": {
@@ -16,6 +16,9 @@
       "humanize-writing",
       "open-idea",
       "torrent-analyze"
+    ],
+    "removedSkills": [
+      "sub2api-account-json-fix"
     ]
   },
   "variants": {

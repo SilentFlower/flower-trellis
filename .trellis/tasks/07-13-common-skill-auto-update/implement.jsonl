@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"约束强化包快照、全量叠加、覆盖式复制、精确清理和幂等行为"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"约束目标 .flower-manifest.json 与包内 MANIFEST.json 的状态边界"}
+{"file":".trellis/spec/flower-trellis/cli/module-guidelines.md","reason":"约束 ESM、命名导出、中文 JSDoc 和模块职责"}
+{"file":".trellis/spec/flower-trellis/cli/release-and-publishing.md","reason":"约束 npm run sync、发布快照审核和发版门禁"}

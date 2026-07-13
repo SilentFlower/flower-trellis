@@ -23,7 +23,12 @@ const COMMON_SKILL_DIRS = [
   },
 ];
 
-const LEGACY_COMMON_SKILL_DIRS = [".agents/skills", ".claude/skills"];
+const LEGACY_COMMON_SKILL_DIRS = [
+  {
+    source: ".common/.codex/skills",
+    target: ".agents/skills",
+  },
+];
 
 const SKILL_DESCRIPTION_OVERRIDES = {
   "analyze-task": "深度分析并细化任务",
@@ -167,6 +172,56 @@ function listCommonSnapshotNames() {
 }
 
 /**
+ * 汇总 common skill 的 canonical 与历史目标映射。
+ *
+ * 历史 `.agents/skills` 使用 Codex 快照原地刷新，避免升级时迁移到
+ * `.codex/skills` 后产生双副本。
+ *
+ * @returns {Array<{source:string,target:string}>} common skill 目标映射
+ */
+function allCommonSkillDirs() {
+  return [...COMMON_SKILL_DIRS, ...LEGACY_COMMON_SKILL_DIRS];
+}
+
+/**
+ * 判断 manifest 中的 skill 名称能否安全拼接到固定目标目录。
+ *
+ * @param {unknown} name 待校验名称
+ * @returns {name is string} 是否为单一路径段
+ */
+function isSafeSkillName(name) {
+  return typeof name === "string" &&
+    name.length > 0 &&
+    name !== "." &&
+    name !== ".." &&
+    !name.includes("/") &&
+    !name.includes("\\");
+}
+
+/**
+ * 读取随包 manifest 中累计的已移除 common skill 名称。
+ *
+ * manifest 属于发布快照元数据，读取失败时按空列表降级，不能阻断其它强化更新。
+ *
+ * @returns {string[]} 排序去重后的 tombstone 名称
+ */
+function listRemovedCommonSkillNames() {
+  try {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(ENHANCEMENTS_ROOT, "MANIFEST.json"), "utf8"),
+    );
+    const names = Array.isArray(manifest?.common?.removedSkills)
+      ? manifest.common.removedSkills
+      : [];
+    return [...new Set(names.filter(isSafeSkillName))].sort((a, b) =>
+      a.localeCompare(b)
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
  * 查找通用技能的源 SKILL.md。
  *
  * @param {string} name skill 名称
@@ -263,10 +318,9 @@ function preferredSkillDescription(name, description) {
  * @returns {boolean} 是否已安装
  */
 function isCommonSkillInstalled(target, name) {
-  return [
-    ...COMMON_SKILL_DIRS.map((dir) => dir.target),
-    ...LEGACY_COMMON_SKILL_DIRS,
-  ].some((base) => fs.existsSync(path.join(target, ...base.split("/"), name)));
+  return allCommonSkillDirs().some((dir) =>
+    fs.existsSync(path.join(target, ...dir.target.split("/"), name))
+  );
 }
 
 /**
@@ -392,6 +446,60 @@ export function installCommonSkills(target, names) {
 }
 
 /**
+ * 用当前随包快照同步目标仓库中已经启用的 common skill。
+ *
+ * 当前快照只覆盖已经存在的精确目标目录，因此不会安装用户未启用的新 skill；
+ * tombstone 只删除固定 common 根目录中的历史名称，避免扫描或误删其它用户内容。
+ *
+ * @param {string} target 目标项目根目录
+ * @returns {{refreshed:string[],removed:string[],refreshedPaths:string[],removedPaths:string[]}} 同步结果
+ */
+export function syncInstalledCommonSkills(target) {
+  const refreshed = new Set();
+  const removed = new Set();
+  const refreshedPaths = [];
+  const removedPaths = [];
+  const currentNames = new Set(listCommonSnapshotNames());
+
+  for (const name of currentNames) {
+    for (const dir of allCommonSkillDirs()) {
+      const rel = `${dir.target}/${name}`;
+      const dst = path.join(target, ...dir.target.split("/"), name);
+      if (!fs.existsSync(dst)) continue;
+
+      const src = path.join(ENHANCEMENTS_ROOT, "common", dir.source, name);
+      if (!fs.existsSync(src)) continue;
+
+      copyPath(src, dst);
+      refreshed.add(name);
+      refreshedPaths.push(rel);
+    }
+  }
+
+  for (const name of listRemovedCommonSkillNames()) {
+    // 防御旧 manifest 漂移：重新进入当前快照的名称绝不能被 tombstone 删除。
+    if (currentNames.has(name)) continue;
+
+    for (const dir of allCommonSkillDirs()) {
+      const rel = `${dir.target}/${name}`;
+      const dst = path.join(target, ...dir.target.split("/"), name);
+      if (!fs.existsSync(dst)) continue;
+
+      rmrf(dst);
+      removed.add(name);
+      removedPaths.push(rel);
+    }
+  }
+
+  return {
+    refreshed: [...refreshed],
+    removed: [...removed],
+    refreshedPaths,
+    removedPaths,
+  };
+}
+
+/**
  * 停用指定通用技能,只删除通用技能清单声明过的精确 skill 路径。
  *
  * @param {string} target 目标项目根目录
@@ -412,10 +520,7 @@ export function removeCommonSkills(target, variantOverride, names) {
     }
 
     let removedOne = false;
-    for (const base of [
-      ...COMMON_SKILL_DIRS.map((dir) => dir.target),
-      ...LEGACY_COMMON_SKILL_DIRS,
-    ]) {
+    for (const { target: base } of allCommonSkillDirs()) {
       const rel = `${base}/${name}`;
       const abs = path.join(target, ...base.split("/"), name);
       if (fs.existsSync(abs)) {
@@ -427,10 +532,7 @@ export function removeCommonSkills(target, variantOverride, names) {
     if (!removedOne) skipped.push(name);
   }
 
-  for (const base of [
-    ...COMMON_SKILL_DIRS.map((dir) => dir.target),
-    ...LEGACY_COMMON_SKILL_DIRS,
-  ]) {
+  for (const { target: base } of allCommonSkillDirs()) {
     const abs = path.join(target, ...base.split("/"));
     try {
       if (fs.readdirSync(abs).length === 0) fs.rmdirSync(abs);

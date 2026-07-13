@@ -29,6 +29,7 @@ const COMMON_SRC = path.join(GARDEN_ROOT, ".common");
 const DST = path.join(PKG_ROOT, "enhancements");
 const MANIFEST_PATH = path.join(DST, "MANIFEST.json");
 const VARIANTS = ["old", "0.5", "0.6"];
+const COMMON_REMOVED_SKILL_SEEDS = ["sub2api-account-json-fix"];
 
 if (!fs.existsSync(SRC)) {
   // CI 幂等:源不可用(如 CI 未拉 submodule)但快照已提交 → 沿用快照、跳过重建。
@@ -43,6 +44,18 @@ if (!fs.existsSync(SRC)) {
   console.error("   或设置 SKILL_GARDEN_DIR 指向 skill-garden 根。");
   process.exit(1);
 }
+
+/** 容错读取上一次已提交快照的 common 元数据。 */
+function readPreviousCommonManifest() {
+  try {
+    const common = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"))?.common;
+    return common && typeof common === "object" ? common : {};
+  } catch {
+    return {};
+  }
+}
+
+const previousCommon = readPreviousCommonManifest();
 
 // 先整体清旧快照,避免上游删除了某 skill 后包内仍残留
 fs.rmSync(DST, { recursive: true, force: true });
@@ -103,17 +116,37 @@ if (fs.existsSync(COMMON_SRC)) {
   const claudeSkills = listDirs(
     path.join(DST, "common", ".common", ".claude", "skills"),
   );
-  manifest.common = {
-    codexSkills,
-    claudeSkills,
-  };
   for (const name of [...codexSkills, ...claudeSkills]) {
     commonSkillNames.add(name);
   }
+  const removedSkills = new Set([
+    ...COMMON_REMOVED_SKILL_SEEDS,
+    ...(Array.isArray(previousCommon.codexSkills) ? previousCommon.codexSkills : []),
+    ...(Array.isArray(previousCommon.claudeSkills) ? previousCommon.claudeSkills : []),
+    ...(Array.isArray(previousCommon.removedSkills) ? previousCommon.removedSkills : []),
+  ]);
+  for (const name of commonSkillNames) removedSkills.delete(name);
+  manifest.common = {
+    codexSkills,
+    claudeSkills,
+    removedSkills: [...removedSkills].sort((a, b) => a.localeCompare(b)),
+  };
   console.log(
     `✓ common: codex/skills=${codexSkills.length} claude/skills=${claudeSkills.length}`,
   );
 } else {
+  manifest.common = {
+    codexSkills: [],
+    claudeSkills: [],
+    removedSkills: [
+      ...new Set([
+        ...COMMON_REMOVED_SKILL_SEEDS,
+        ...(Array.isArray(previousCommon.removedSkills)
+          ? previousCommon.removedSkills
+          : []),
+      ]),
+    ].sort((a, b) => a.localeCompare(b)),
+  };
   console.warn(`⚠ 源缺少 .common/,跳过 common skill 快照`);
 }
 

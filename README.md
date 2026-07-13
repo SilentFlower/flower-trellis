@@ -224,6 +224,10 @@ flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo 
   npm i -g flower-trellis@latest && flower-trellis update
   ```
 
+- **通用技能**:`flower-trellis update` 会用新版快照覆盖仓库中已经启用的 common skill,
+  未启用项不会自动安装;若某个已安装 common skill 已从新版快照移除,更新会精确删除其
+  `.codex/skills` / `.claude/skills` 或历史 `.agents/skills` 副本。
+
 ## 开发
 
 skill-garden 强化包源以 **git submodule** 形式挂在 `vendor/skill-garden`,克隆时需一并拉取:

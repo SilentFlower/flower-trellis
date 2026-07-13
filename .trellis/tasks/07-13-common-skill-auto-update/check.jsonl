@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查 common skill 同步是否满足幂等、平台映射与精确删除契约"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查不误伤、容错降级、语法校验和 dogfood 验证"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"检查 manifest 状态未混用且本地策略不丢失"}
+{"file":".trellis/spec/flower-trellis/cli/release-and-publishing.md","reason":"检查生成快照、tombstone 与发布门禁一致"}

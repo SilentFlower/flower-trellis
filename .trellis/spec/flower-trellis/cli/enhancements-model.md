@@ -20,6 +20,11 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   `prepublishOnly`),**最终用户不会运行它**。脚本会先整体清旧快照再全量递归拷贝
   `.agents` / `.claude` / `overrides`,并写 `MANIFEST.json` 记录 `syncedAt` /
   `sourceCommit` 供溯源。
+- `enhancements/common/.common` 保存可选 common skill 快照。`MANIFEST.json.common`
+  除当前 `codexSkills` / `claudeSkills` 外,还累计保存 `removedSkills` tombstone:
+  同步脚本在清空旧快照前读取上一次 manifest,把“旧版存在、新版消失”的名称加入
+  tombstone,并移除重新出现在当前快照中的名称。首次迁移保留已知历史移除项
+  `sub2api-account-json-fix`,让旧仓库升级时能精确清理残留。
 - **改 0.6 强化 skill / workflow 覆盖时,先改源再同步**:`vendor/skill-garden/.trellis/0.6/`
   是 `npm run sync` 的真实输入。不要只改 `enhancements/0.6/` 或当前项目 `.agents/` /
   `.claude/`;否则下一次 sync 会把改动覆盖回源里的旧版本。正确顺序是:
@@ -72,17 +77,24 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 5. **铺 flower 自有资产**(`flower-assets.js`):仅全装时把 flower-trellis 自身能力复制到
    目标 `.trellis/scripts/`,例如 `src/assets/flower_update_hook.py` → `.trellis/scripts/flower_update_hook.py`。
    这类资产不属于 skill-garden 快照,不要放进 `enhancements/<variant>/scripts/`。
-6. **升级清理 + manifest**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,
+6. **同步已启用 common skill**(**仅全装、无 `--skills` 时**):当前快照只覆盖目标
+   `.codex/skills/<name>` / `.claude/skills/<name>` / 历史 `.agents/skills/<name>` 中
+   已经存在的精确同名目录,不创建未启用项;历史 `removedSkills` 只删除这些固定根目录下
+   的精确 tombstone 名称。legacy `.agents` 使用 Codex 快照原地刷新,不迁移到 canonical
+   路径。若旧 manifest 仍把后来迁入 common 的路径记在 `paths`,本轮已刷新的路径必须
+   临时加入 stale-path 保留集合,避免刷新后又被删除;写入新 manifest 时 common 路径仍不
+   进入 `.flower-manifest.json.paths`。
+7. **升级清理 + manifest**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,
    删除本次变体不含的过期项,再写新 manifest。带 `--skills` 是精细操作,不动 manifest、不清理。
-7. **注入 workflow**(`workflow-inject.js`):全装,或显式指定 workflow 相关 skill 时执行。
-8. **skill override 注入**(`skill-override-inject.js`):全装,或显式指定 finish-work 相关
+8. **注入 workflow**(`workflow-inject.js`):全装,或显式指定 workflow 相关 skill 时执行。
+9. **skill override 注入**(`skill-override-inject.js`):全装,或显式指定 finish-work 相关
    skill 时执行。注入位置为 frontmatter 后;无 frontmatter 的 command 文件优先插到首个
    H1 标题后,避免 override 标题污染平台提取的命令描述。
-9. **hook override 注入**(`hook-override-inject.js`):仅全装时执行。读取
+10. **hook override 注入**(`hook-override-inject.js`):仅全装时执行。读取
    `overrides/hooks/shared/<file>`,只覆盖目标项目已有的平台 hook 文件,不创建未启用的平台目录。
    hook override 是对 Trellis 原生 hook 的覆盖,不是 flower 自有资产,不得写入 manifest
    `paths`,避免升级清理误删上游 hook。
-10. **平台后处理**:
+11. **平台后处理**:
    - `codex-tweaks.js`:仅当目标存在 `.codex/` 时,兼容清理旧 `config.toml` 的
      `multi_agent_v2` 段,保留上游 hooks 并合并 Trellis / flower 的 `SessionStart`,同时强制
      `.trellis/config.yaml` 的 `codex.dispatch_mode: sub-agent`。Codex Trellis 主上下文 hook
@@ -112,6 +124,10 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   matcher group 同时触发;其它用户自定义 hooks 必须保留。
 - `flower-assets`:只由全装复制,并把 `.trellis/scripts/flower_update_hook.py` 写入 manifest
   `paths`,让升级清理和 uninstall 只按 manifest 精确管理自己铺过的脚本。
+- `syncInstalledCommonSkills`:只由全装执行。当前快照名称必须先检查目标精确目录是否存在,
+  存在才调用 `copyPath` 覆盖;新名称不得自动安装。`removedSkills` 读取失败按空列表降级,
+  删除前必须校验名称是单一路径段,并只在固定 common 根目录下拼接精确路径。重新进入
+  当前快照的名称即使仍残留在旧 tombstone 中也不得删除。
 - `hook-override-inject`:只由全装执行。目标 hook 文件不存在时跳过,不得创建平台目录或 hook
   文件;内容一致时不写盘;内容变化时先通过 `preserveFirstBackup()` 保存首次备份到
   `.trellis/.backup-flower/<原相对路径>`。shared hook override 覆盖 `.codex` / `.claude`
