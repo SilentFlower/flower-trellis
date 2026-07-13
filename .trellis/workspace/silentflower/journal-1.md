@@ -1490,3 +1490,37 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 43: common skill 自动随新版更新
+
+**Date**: 2026-07-13
+**Task**: common skill 自动随新版更新
+**Package**: flower-trellis
+**Branch**: `main`
+
+### Summary
+
+实现已启用 common skill 随 flower-trellis 新版快照自动覆盖，未启用项保持不安装，并通过累计 tombstone 自动清理已移除技能；补齐 legacy manifest 兼容、发布操作清单和完整验证。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8b36bc7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

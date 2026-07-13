@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 42
-- **Last Active**: 2026-07-09
+- **Total Sessions**: 43
+- **Last Active**: 2026-07-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1492 | Active |
+| `journal-1.md` | ~1526 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 43 | 2026-07-13 | common skill 自动随新版更新 | `8b36bc7` | `main` |
 | 42 | 2026-07-09 | 迁移 updateCheck 运行缓存到 tmp | `986659a`, `6a9d318` | `main` |
 | 41 | 2026-07-08 | 修复 release notes 缓存补拉 | `cc98c02` | `main` |
 | 40 | 2026-07-08 | 支持 skill-garden hook override | `960d91a`, `c52e2dd` | `main` |
