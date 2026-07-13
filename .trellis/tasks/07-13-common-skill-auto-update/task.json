@@ -22,5 +22,22 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "last_push_snapshot": {
+    "snapshot_at": "2026-07-13T10:24:15+08:00",
+    "branch": "main",
+    "pushed_commits": {
+      "flower-trellis": "8b36bc7"
+    },
+    "push_mode": "push",
+    "completed_steps": [
+      "Step 1 扩展 common skill catalog",
+      "Step 2 接入全量强化流水线",
+      "Step 3 累计发布快照 tombstone",
+      "Step 4 更新文档和项目规范",
+      "Step 5 完成验证"
+    ],
+    "next_step": "用户决定是否运行 trellis-finish-work 完成任务归档",
+    "notes": "实现与 check-all 已完成，业务提交已推送到 origin/main"
+  }
 }
