@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.12-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.4.11...v0.4.12-beta.0) (2026-07-13)
+
+
+### ✨ 新功能 Features
+
+* **skill:** 优化 Trellis 提交与推送流程 ([4359607](https://github.com/SilentFlower/flower-trellis/commit/4359607156502e378ef83302105ca9f0e4f0f1ac))
+* **skill:** 自动同步已启用的 common skill ([8b36bc7](https://github.com/SilentFlower/flower-trellis/commit/8b36bc7d24e76dd8973c35378e7bb6d9c8a60ff3))
+
 ## [0.4.11](https://github.com/SilentFlower/flower-trellis/compare/v0.4.10...v0.4.11) (2026-07-09)
 
 
