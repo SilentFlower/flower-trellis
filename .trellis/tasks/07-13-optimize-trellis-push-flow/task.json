@@ -24,23 +24,24 @@
   "notes": "",
   "meta": {},
   "last_push_snapshot": {
-    "snapshot_at": "2026-07-13T09:25:54.239Z",
+    "snapshot_at": "2026-07-13T10:29:24.702Z",
     "branch": {
       "flower-trellis": "beta",
       "skill-garden": "beta"
     },
     "pushed_commits": {
-      "flower-trellis": "4359607156502e378ef83302105ca9f0e4f0f1ac",
-      "skill-garden": "a020128baca91d8f704ec2b7ab24e9d7719fb113"
+      "flower-trellis": "974863d"
     },
     "push_mode": "push",
     "completed_steps": [
       "Implementation Steps 1-8",
       "trellis-check-all",
       "Phase 3.3 spec review",
-      "Phase 3.4 business commits pushed"
+      "Phase 3.4 business commits pushed",
+      "Flower project sync to 0.4.12-beta.0"
     ],
+    "partial_step": null,
     "next_step": "等待用户明确执行 /trellis:finish-work",
-    "notes": "两个仓库均先将 main 快进同步到 beta，再在 beta 提交并推送；未执行 merge。"
+    "notes": "仅同步 .trellis/.flower-manifest.json 的 flowerVersion 到 0.4.12-beta.0，并推送到 beta。"
   }
 }
