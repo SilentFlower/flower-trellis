@@ -1,0 +1,2 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"定义 0.6 skill-garden 源、enhancements 快照与 dogfood 副本的正确同步顺序。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"定义幂等、不误伤、现有验证方式和评审清单。"}

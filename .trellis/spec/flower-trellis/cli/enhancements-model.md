@@ -270,6 +270,125 @@ python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target imp
 
 原因:prompt 保留边界,skill 保留语义,脚本负责 task 校验和跨任务 runtime 清理;压缩恢复稳定,每轮 token 也更低。
 
+## Scenario: Audit-Only Check-All
+
+### 1. Scope / Trigger
+
+- Trigger: 0.6 强化包需要让提交前或 PR 前的全面检查先完成所有可继续的只读验证,
+  再用统一清单一次性确认修复范围,避免发现一个问题就停下询问和修改。
+- Scope: `trellis-check-all/SKILL.md` 定义检查、报告、修复和重检协议;
+  `trellis-route/SKILL.md` 定义 inline/subagent 执行模式及 audit-only dispatch 边界。
+  `trellis-check` 只提供检查清单和验证方法,不能把自身的自动修复语义带入 Check-All。
+
+### 2. Signatures
+
+普通 check 路由只允许以下两个全面检查 mode:
+
+```text
+route_decision.target = check
+route_decision.mode = check-all-inline | check-all-subagent
+```
+
+统一问题记录必须包含固定字段:
+
+```text
+ID: CHK-001, CHK-002, ...
+严重度: P0 | P1 | P2
+标题 / 来源 / 证据 / 影响 / 建议 / 位置 / 验证
+```
+
+普通模式的修复选择只允许在完整报告末尾出现一次:
+
+```text
+修复全部
+修复 CHK-001,CHK-003
+仅保留报告
+```
+
+### 3. Contracts
+
+- 检查阶段必须只读。允许读取文件、搜索和运行无业务写入副作用的 lint、typecheck、
+  测试;禁止编辑代码、配置、测试或任务规格。
+- 执行顺序固定为三件套实现 -> 实现假设 -> 完整性与规范。普通实现偏差、lint/typecheck/
+  测试失败和假设错误都进入统一问题集合,继续其它独立且可安全执行的检查。
+- 只有业务/规划冲突导致无法判断、已知问题使后续前提失效、或验证可能产生破坏性/
+  外部副作用时,才允许提前阻塞。阻塞结果仍须报告已完成范围和统一问题 ID。
+- 局部文案、普通配置值、局部样式或单点条件修改可以走快速路径;未命中 API、组件上下文、
+  历史数据、跨层数据流等 Trigger 的维度必须标记 `N/A`,不得展开无关检查。
+- 问题 ID 首次分配后在同一修复/重检循环保持稳定;同根因的多个位置合并为一个问题,
+  新根因使用下一个 ID。报告按严重度排序,但不重排 ID。
+- 报告顺序固定为总体摘要、维度结果、问题清单、未覆盖与风险、修复批次。无问题时省略
+  问题清单和修复操作;有问题时只在末尾询问一次修复范围,不得附带 commit/push 计划。
+- 用户确认修复后,批量修复所选问题并复用当前任务合法 implement route;不存在时重新进入
+  `trellis-route(target=implement)`。定向验证后复用当前 check route 执行 Check-All 重检。
+- `check-all-subagent` 必须使用角色说明明确 audit-only 的专用 agent,或用完整 dispatch 契约
+  约束通用 subagent。禁止 fallback 到会直接修改工作区的 `trellis-check` agent;没有兼容
+  subagent 时必须阻塞并让用户重选 inline,不得静默换路由。
+- auto-loop 复用同一问题模型,但不展示普通修复选择。有问题向 runner 记录 `failed`,
+  需要产品决策或越权时记录 `blocked`,无问题记录 `ok`;runner 原有 fix/recheck 预算不变。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 工作区范围内无变更 | 提示无可检查变更并终止,不生成空问题清单 |
+| 无 `prd.md` | 三件套实现标记 `N/A`,继续其它适用维度 |
+| 文案/普通配置等局部低风险改动 | 只追踪受影响规划条目、直接引用点和必要回归路径 |
+| 某个 lint/typecheck/test 失败 | 记录命令、退出状态和关键错误,继续其它独立验证 |
+| 缺少历史数据或运行环境证据 | 标记 `部分验证` 或 `阻塞`,不得标记通过 |
+| 规划冲突导致无法判断正确行为 | 输出统一阻塞报告,只询问解除阻塞所需的业务决策 |
+| 验证可能修改生产数据或调用有副作用外部系统 | 不执行,标记阻塞或未覆盖风险 |
+| 用户选择部分 `CHK-*` | 只批量修复选中 ID,未选问题保留在重检结果 |
+| subagent 只有自修复型 `trellis-check` agent | 禁止 dispatch,让用户改选 `check-all-inline` |
+| Check-All 无问题 | 报告通过和剩余风险,指向 Phase 3.3/3.4,不生成提交计划 |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 两个验证命令和一个规划对照分别发现问题;Check-All 完成其余安全检查后输出
+  `CHK-001` 至 `CHK-003`,用户回复“修复全部”,实现阶段一次修复并统一重检。
+- Base: 只改一处 UI 文案;三件套实现对照最终有效文案来源,API/历史数据/跨层维度标记
+  `N/A`,只运行必要回归验证后快速通过。
+- Base: subagent 返回标准只读报告;主会话负责展示清单并询问一次修复范围,subagent 不修改文件。
+- Bad: 第一个测试失败后立即问“要不要修”,导致后续 lint、规划和跨层问题未被发现。
+- Bad: `trellis-route` 找不到专用 check-all agent 时改用带自修复语义的 `trellis-check` agent。
+- Bad: 报告问题后直接生成 commit message、暂存范围或 push 确认。
+
+### 6. Tests Required
+
+- 静态检查 `trellis-check-all` 的 `.agents` / `.claude` 源副本一致,并确认包含
+  `audit-only collect-all`、稳定 `CHK-*` 字段、统一结果/修复结果模板和 Post-Check 停止边界。
+- 静态检查 `trellis-route` 不再把 `check-all-subagent` fallback 到
+  `Agent({subagent_type: "trellis-check"})`,且 dispatch prompt 第一行包含当前任务路径。
+- `npm run sync` 后用 `cmp -s` 确认 vendor 源、`enhancements/0.6` 快照和当前 dogfood
+  `.agents` / `.claude` 副本一致;确认 `old` / `0.5` 无漂移。
+- 快速路径场景断言未命中 Trigger 的维度为 `N/A`,不会展开无关检查。
+- collect-all 场景断言多个独立失败被完整收集,报告只出现一次修复范围选择,检查阶段文件无变化。
+- 修复/重检场景断言原问题 ID 保持稳定,修复复用 implement route,重检复用 check route。
+- subagent 场景至少做静态契约检查;平台有兼容 audit-only subagent 时再执行真实 dispatch 冒烟。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```markdown
+Run trellis-check. When any check fails, fix it immediately, ask whether to
+continue, and use the trellis-check agent as the check-all subagent fallback.
+```
+
+问题:检查范围在第一个失败处被打断,工作区在用户确认前被修改,subagent 路径也可能绕过
+Check-All 的统一问题模型和只读边界。
+
+#### Correct
+
+```markdown
+Run every safe read-only Check-All dimension, collect stable CHK-* issues,
+show one standardized report, ask once for the repair scope, then repair via
+the implement route and re-check via the existing check route.
+```
+
+原因:用户先看到完整风险面再一次决策;inline/subagent 语义一致,修复和重检仍服从 Trellis
+既有路由与阶段边界。
+
 ## Scenario: Project Knowledge Discovery Helper
 
 ### 1. Scope / Trigger

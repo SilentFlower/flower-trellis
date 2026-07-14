@@ -1,0 +1,2 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查源、发布快照和 dogfood 副本是否按 0.6 强化包契约同步。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查变更范围、幂等性、同步一致性和验证命令是否符合项目质量要求。"}
