@@ -22,5 +22,16 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-07-14T14:20:30+08:00",
+    "completedSteps": [
+      "完成 Check-All collect-all 审查、批量修复与重检",
+      "同步并交付 skill-garden 0.6 源、父仓快照与 dogfood 副本",
+      "更新 Check-All 可执行规范并通过双仓快照一致性校验"
+    ],
+    "partialStep": null,
+    "nextStep": "等待用户决定是否执行 trellis-finish-work 归档任务",
+    "notes": "双仓均已推送，check-snapshot 通过"
+  }
 }
