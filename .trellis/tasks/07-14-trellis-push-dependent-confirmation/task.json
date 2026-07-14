@@ -22,5 +22,16 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-07-14T10:06:28Z",
+    "completedSteps": [
+      "完成 Trellis Push 依赖型多仓单次确认精简实现",
+      "同步 0.6 源、快照与 dogfood 并通过 Check-All",
+      "提交并推送 skill-garden 与 flower-trellis"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 finish-work 完成任务收尾",
+    "notes": ""
+  }
 }
