@@ -23,25 +23,18 @@
   "relatedFiles": [],
   "notes": "",
   "meta": {},
-  "last_push_snapshot": {
-    "snapshot_at": "2026-07-13T10:29:24.702Z",
-    "branch": {
-      "flower-trellis": "beta",
-      "skill-garden": "beta"
-    },
-    "pushed_commits": {
-      "flower-trellis": "974863d"
-    },
-    "push_mode": "push",
-    "completed_steps": [
-      "Implementation Steps 1-8",
-      "trellis-check-all",
-      "Phase 3.3 spec review",
-      "Phase 3.4 business commits pushed",
-      "Flower project sync to 0.4.12-beta.0"
+  "progress": {
+    "updatedAt": "2026-07-14T01:47:10.509Z",
+    "completedSteps": [
+      "简化 trellis-push 的精确提交与结果格式",
+      "拆分 auto-loop、finish-work 与 trellis-release 职责",
+      "以 task progress 替换 push snapshot",
+      "同步 skill-garden 源、enhancements 和当前项目副本",
+      "完成 trellis-check-all 与幂等验证",
+      "Phase 3.4 业务提交已推送"
     ],
-    "partial_step": null,
-    "next_step": "等待用户明确执行 /trellis:finish-work",
-    "notes": "仅同步 .trellis/.flower-manifest.json 的 flowerVersion 到 0.4.12-beta.0，并推送到 beta。"
+    "partialStep": null,
+    "nextStep": "等待用户明确执行 /trellis:finish-work",
+    "notes": "skill-garden 与 flower-trellis 已推送到 beta；无保留 dirty 或未解决风险。"
   }
 }
