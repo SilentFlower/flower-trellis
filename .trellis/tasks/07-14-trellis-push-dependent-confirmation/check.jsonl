@@ -1,0 +1,2 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查依赖型单次授权与现有普通多仓、progress、auto-loop、finish-work 契约一致。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查 exact file、无计划外修改、同步一致性和静态质量门禁。"}

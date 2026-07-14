@@ -1,6 +1,6 @@
 ---
 name: trellis-push
-description: "按确认的精确文件范围提交并推送相关仓库，并在普通推送后同步当前任务进度。"
+description: "按确认的精确文件范围提交并推送相关仓库；多仓计划可包含已展示的本地生成命令，并在普通推送后同步当前任务进度。"
 ---
 
 # Trellis Push
@@ -10,6 +10,7 @@ description: "按确认的精确文件范围提交并推送相关仓库，并在
 ## 职责边界
 
 - 普通模式默认 `commit + push`。
+- 普通多仓计划可以包含本地确定性生成命令；生成后没有新增计划外文件时沿用同一次确认。
 - 用户明确要求“只提交不推送”时使用 `commit-only`。
 - auto-loop 可调用内部 `commit-only`，但必须传入已经校验过的 exact files 与 commit message；本 skill 只执行该提交。
 - 不处理分支合并、上线核对、任务归档、会话日志或自动任务队列状态。
@@ -74,6 +75,8 @@ git log @{u}..HEAD --oneline 2>/dev/null || true
 - `planned`：本轮明确归属且准备提交的 exact files。
 - `retained`：当前存在、但本次明确不提交并保持原状的 dirty paths，包含计划外 untracked、unstaged、staged 文件。clean files 不进入该集合。
 
+普通 `PUSH` 需要在仓库间运行本地生成命令时，首次计划同时展示命令、工作目录和后续仓预计 exact files。仅在后续仓没有 retained dirty 时使用；命令必须本地、可重复且无外部副作用。
+
 `retained` 只是内部集合名。用户可见输出统一写“保留未提交的变更（dirty）”，并逐项标注 `[untracked]`、`[unstaged]`、`[staged]`。unknown ahead、branch/upstream 异常、归属不确定等真正需要处理的事项单独进入“风险”区；普通 retained dirty 不默认视为阻塞。
 
 普通模式允许 `retained` 存在。执行前记录计划外 staged set，提交后确认这些 staged 文件仍保持原状。用户明确要求新增文件时，重新生成计划并确认，不能在执行中静默扩大范围。
@@ -87,7 +90,7 @@ git log @{u}..HEAD --oneline 2>/dev/null || true
 
 [<PUSH / COMMIT-ONLY>] <N> 个仓库 · <N> 个 commit · <N> 个文件 · 保留未提交 <N> · 风险 <N>
 [无活动任务时追加：无活动任务]
-顺序：<repo-a> -> <repo-b> [-> task progress]
+顺序：<repo-a> [-> `<local generation command>`] -> <repo-b> [-> task progress]
 
 ### 1. <repository-name>
 
@@ -99,6 +102,8 @@ git log @{u}..HEAD --oneline 2>/dev/null || true
 - <exact files 或分组摘要>
 
 Push：<执行 / 跳过（commit-only）>
+
+[生成（仅普通多仓需要时显示）：前置仓成功后，在 `<working-directory>` 运行 `<exact local command>`；预计只影响 <后续仓 exact files 或分组摘要>]
 
 ### 保留未提交的变更（dirty，仅数量大于 0 时显示）
 - [untracked] <path>
@@ -121,14 +126,17 @@ Push：<执行 / 跳过（commit-only）>
 - 保留未提交的变更始终逐项标注 Git 状态；真正风险在独立“风险”区逐项展示。
 - 无活动任务或 `commit-only` 时省略进度动作。
 - 不重复展示检查结果、规范复核、归档或其他阶段信息。
+- 生成前无法确定的内容和增删行写“生成后计算”，不得填预测值。
 
-普通多仓只确认一次。用户调整 message、文件或仓库顺序后，更新计划并重新确认。
+普通多仓只确认一次。计划已展示生成命令和预计 exact files 时，命令成功且没有出现预计列表外的新 dirty path 就沿用原确认；内容、hash 或统计变化不重问。其它计划边界变化仍按 Step 4 重新规划。
 
 auto-loop 内部 `commit-only` 仍生成同样的逐仓执行数据用于自检和结果记录，但不再次询问用户；它不得扩展调用方给定的 exact files/message。
 
 ## Step 4：精确提交与推送
 
 每个仓库按计划顺序执行。执行前重新检查 planned files、当前分支、upstream、冲突状态和 ahead commits；任一关键条件变化都停止当前执行并重新规划。仅 `retained` 内容变化时保留并在结果中更新说明。
+
+计划包含本地生成命令时，前置仓成功后按计划执行命令，再复用本节现有预检。命令成功、后续仓全部 dirty paths 都在已确认的预计 exact files 内且没有其它计划边界变化时直接继续；否则停止并重新生成计划。预计文件最终 clean 时不强行提交。
 
 精确提交：
 
@@ -216,6 +224,8 @@ git push origin <current-branch>
 分支：`<branch>` -> `<upstream>`
 状态：<✓ 已推送 / · 仅本地提交 / ❌ 失败>
 
+[生成：`<exact local command>` · <✓ 已完成 / ❌ 失败 / · 未执行>]
+
 ### 任务进度
 
 状态：<✓ 已同步 · `<progress-hash>` / · 已跳过 / ❌ 同步失败>
@@ -233,6 +243,7 @@ git push origin <current-branch>
 ## 禁止事项
 
 - 扩大到计划外文件或要求清理无关工作区。
+- 执行首次计划未展示的生成命令，或生成计划外文件后仍沿用旧确认。
 - 用任务进度决定是否推送代码。
 - 在本 skill 内执行上线、归档、会话日志或分支合并。
 - 自动解决 push rejection、冲突、凭证或远端保护规则问题。

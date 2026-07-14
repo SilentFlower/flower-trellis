@@ -1,0 +1,2 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"定义 0.6 Trellis Push、exact scope、多仓执行、计划漂移和任务进度契约。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"提供 flower-trellis 变更的幂等、精确范围和验证基线。"}

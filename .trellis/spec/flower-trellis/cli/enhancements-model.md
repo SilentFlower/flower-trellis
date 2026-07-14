@@ -683,6 +683,8 @@ trellis-check-all
   -> exact task progress commit / push
 ```
 
+普通多仓计划可以在仓库间展示一个本地生成命令；命令成功且生成后的 dirty paths 未超出预计 exact files 时沿用同一次确认。
+
 auto-loop 状态序列保持不变:
 
 ```text
@@ -732,6 +734,10 @@ risk_items          ->始终逐项展示,不折叠
 - 多仓库逐仓独立生成 commit message、branch/upstream、文件范围和 push 结果;普通模式对完整
   计划只确认一次。计划/结果复用原有总览 → 分仓 → 任务进度 → 保留 dirty 的视觉顺序,
   但只显示精简后的 commit/push/progress;不重复展示 Spec review、check、release 或 finish-work 信息。
+- 普通 `PUSH` 的多仓计划可用一行展示本地生成命令、工作目录和后续仓预计 exact files;
+  仅在后续仓 `retained=0` 时使用,未知内容与增删行显示“生成后计算”。
+- 前置仓成功后运行已展示命令并复用现有提交前预检。命令成功且后续仓 dirty paths 未超出
+  预计 exact files 时直接继续;出现计划外路径或现有计划边界变化时重新规划。内容/hash/统计变化不重问。
 - 无活动任务时仍可处理当前会话可明确归属的文件,但跳过 task progress。无法证明来源的
   dirty 文件全部作为 unrecognized 排除,直到用户明确指定后重新生成计划。
 - commit message 只能由 `trellis-push` 最终草拟/采用;优先级为用户明确提供 > 任务材料与
@@ -763,6 +769,8 @@ risk_items          ->始终逐项展示,不折叠
 | 用户请求“展开文件” | 展示当前 exact planned files,不改变计划、不执行 |
 | 执行前 planned set / branch / upstream / conflict / push 目标变化 | 原确认失效,重新生成并确认计划 |
 | 只有 retained dirty 变化 | 更新保留摘要并继续,不得让当前任务计划失效 |
+| 生成命令后 dirty paths 未超出预计 exact files | 复用现有预检并继续,不二次确认 |
+| 后续仓存在 retained dirty、命令失败或出现计划外 dirty path | 不使用旧确认,重新规划 |
 | 普通模式存在计划外 staged 文件 | `git commit --only` 提交 exact planned files,保留原 staged 列表 |
 | 无活动任务且 dirty 来源不明 | 全部放入 unrecognized,默认不提交 |
 | 多仓第二仓执行失败且第一仓已 push | 保留第一仓结果,写 partial progress 与下一恢复动作 |
@@ -778,6 +786,8 @@ risk_items          ->始终逐项展示,不折叠
   用户回复“展开文件”后看到原 20 个 exact paths。
 - Good:两个业务仓库各自拥有 commit message 和 branch/upstream,顶部显示执行顺序和一行任务
   progress,用户只确认一次;业务 push 后自动生成独立 progress commit/push。
+- Good:`skill-garden` push 后按计划运行 `npm run sync`;生成后没有计划外 dirty path,直接继续
+  `flower-trellis` commit/push,不要求第二次确认。
 - Good:当前任务 2 个 planned files,另一个规划任务有 untracked 文件且 index 中有 1 个无关
   staged 文件;输出在“保留未提交的变更（dirty）”中标注两者状态,`git commit --only` 只提交
   2 个 planned files,其他状态保持不变,随后正常 push。
@@ -787,6 +797,8 @@ risk_items          ->始终逐项展示,不折叠
   Phase 3.3 和 `trellis-push` 默认 push 语义。
 - Bad:为了缩短输出把 staged/conflict 文件折叠成“其他 12 个文件”;风险范围不可审计。
 - Bad:普通计划沿用 auto-loop 的 commit-only 文案;auto-loop 预授权不能泄漏到普通流程。
+- Bad:为减少一次确认增加独立中间步骤流程、验证协议或新状态;现有计划和提交前预检已经足够。
+- Bad:生成后出现预计列表外文件仍沿用旧确认,或仅因预计文件的 hash/统计变化重复询问用户。
 - Bad:progress 记录 business commit hash 或 push mode,再让 finish-work 根据它决定是否 push。
 
 ### 6. Tests Required
@@ -803,6 +815,8 @@ risk_items          ->始终逐项展示,不折叠
 - 静态扫描 hub,确认只引用 `trellis-push` 的格式所有权和必要 Git 门禁,不重复 skill 的展示细节。
 - 用 8 个、9 个和超过 12 个目录分组行的模拟计划验证展示阈值;风险文件始终逐项显示。
 - 模拟单仓、多仓、无活动任务、用户展开文件、计划漂移、部分仓库失败六类输出。
+- 模拟普通多仓生成命令:生成后 dirty paths 未超出预计 exact files 时只确认一次;新增计划外
+  dirty path 时停止并重新规划。静态确认 skill 没有独立 `Step 4.1`、validation 协议或新状态。
 - 静态验证计划和结果模板保留原有总览/分仓结构,用户可见文本不单独使用裸 `retained`,
   retained dirty 与真正 risk 分区展示。
 - 在临时 Git 仓库验证 `git commit --only -- <planned files>` 不消费计划外 staged 文件,
