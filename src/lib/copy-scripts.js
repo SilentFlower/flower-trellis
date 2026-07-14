@@ -24,8 +24,15 @@ export function copyScriptAssets(target, variantDir, skills = []) {
     let aliases = [];
     if (name === "auto_loop") {
       aliases = ["auto-loop", "auto-loop-runner", "trellis-auto-loop"];
-    } else if (name === "push_snapshot") {
-      aliases = ["push-snapshot", "trellis-push", "push", "snapshot"];
+    } else if (name === "task_progress") {
+      aliases = [
+        "task-progress",
+        "trellis-push",
+        "push",
+        "progress",
+        "push-snapshot",
+        "snapshot",
+      ];
     } else if (name === "spec_router") {
       aliases = [
         "spec-router",

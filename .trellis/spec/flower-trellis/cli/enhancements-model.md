@@ -32,6 +32,9 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   2. 运行 `npm run sync`;
   3. 用 `diff -u vendor/... enhancements/...` 验证发布快照与源一致;
   4. 必要时再同步当前项目已安装副本(如 `.agents/skills/...`、`.claude/skills/...`)。
+- `overrides/workflow.md` 与 `overrides/workflow-states/*.md` 是 AI-facing control protocol，
+  必须保留既有源语言和稳定术语。当前英文协议正文只做语义级修改，不因项目中文文档规范
+  整段翻译；用户实际输入的字面命令（如 `展开文件`）按产品约定保留原文。
 - 0.6 `overrides/workflow.md` 是高优先级 hub,可以放轻量兜底提醒。例如
   `<flower-update>` 的阻塞确认、release notes 展示和 `<flower-update-result>` →
   `trellis-push` 确认联动应写在 hub 源文件,再同步到 `enhancements/0.6` 与当前 dogfood
@@ -73,7 +76,10 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 4. **铺脚本资产**(`copy-scripts.js`):只复制变体 `scripts/` 下的直接文件到目标
    `.trellis/scripts/`。脚本资产跟随 `--skills` 过滤;例如 `auto_loop.py` 可由
    `auto_loop` / `auto-loop` / `auto-loop-runner` / `trellis-auto-loop` 命中,确保只安装
-   `trellis-auto-loop` 时也会带上 runner 脚本。
+   `trellis-auto-loop` 时也会带上 runner 脚本;`task_progress.py` 可由 `task-progress` /
+   `progress` / `trellis-push` / `push` 及 legacy `push-snapshot` / `snapshot` 命中,确保精细安装
+   `trellis-push` 时带上新 helper。旧 `push_snapshot.py` 从新快照移除后,全装升级只能按 flower
+   manifest 记录的精确旧路径清理,不得删除用户自有文件。
 5. **铺 flower 自有资产**(`flower-assets.js`):仅全装时把 flower-trellis 自身能力复制到
    目标 `.trellis/scripts/`,例如 `src/assets/flower_update_hook.py` → `.trellis/scripts/flower_update_hook.py`。
    这类资产不属于 skill-garden 快照,不要放进 `enhancements/<variant>/scripts/`。
@@ -404,7 +410,7 @@ returns candidate SOP/spec paths from natural document structure
 ### 1. Scope / Trigger
 
 - Trigger: 0.6 强化包需要提供接近 `/goal` 的自动任务循环,让用户显式启动后按单任务或显式多任务队列推进到本地 `commit-only`。
-- Scope: `.trellis/scripts/auto_loop.py` 负责确定性状态机;`trellis-auto-loop` skill 负责 agent 入口、触发词、恢复协议、action 映射和 record 回写;`trellis-route` 只负责 implement/check 路由授权;`trellis-push` 只负责 commit-only 提交边界。
+- Scope: `.trellis/scripts/auto_loop.py` 负责确定性状态机;`trellis-auto-loop` skill 负责 agent 入口、触发词、恢复协议、action 映射、commit-only 预授权校验和 record 回写;`trellis-route` 只负责 implement/check 路由授权;`trellis-push` 只负责 exact commit-only 执行。
 
 ### 2. Contracts
 
@@ -416,7 +422,7 @@ returns candidate SOP/spec paths from natural document structure
 - runner action 必须通过既有 Trellis 语义执行:`trellis-task-brief`、`task.py start`、`trellis-route`、implement/check、`trellis-update-spec`、`trellis-push commit-only`。
 - `next` 发出的 action 必须写入 runtime 的待回写状态;`record` 必须显式传入匹配 action,缺失或不匹配时返回 error,不得静默推进。
 - 默认 stdout 必须保持精简:只输出 run 状态、当前/待回写 action、队列计数、简短 blocked/pending/completed 列表和最近少量无 `data` 决策摘要。完整 blocked detail、完整 `decision_log.data`、`resume_capsule`、完整 `record` item 只在 `--verbose` 输出。
-- auto-loop 的 `commit-only` 是本次 run 内任务相关本地提交的预授权;普通 `trellis-push` 仍必须展示计划并等待确认。预授权判定以 `status` 输出里的 `outstanding_action.action=commit_only` 和当前任务匹配为准。
+- auto-loop 的 `commit-only` 是本次 run 内任务相关本地提交的预授权;普通 `trellis-push` 仍必须展示计划并等待确认。`trellis-auto-loop` 根据 `status` 的 profile/action/task、空 staged 区和文件语义归属完成判定,再把 exact files/message 交给 `trellis-push` 内部执行器;成功后由 auto-loop 调用 `record`。
 - `scripts/auto_loop.py` 必须随 0.6 快照发布,并可被 `--skills trellis-auto-loop` 精细安装带上。
 
 ### 3. Validation
@@ -437,8 +443,8 @@ returns candidate SOP/spec paths from natural document structure
 - Trigger: 0.6 强化包提供 `trellis-auto-loop` 自动推进任务到本地提交,但 runner
   不能替代 `trellis-route` 的真实执行模式选择,也不能绕过 `trellis-push` 的提交边界。
 - Scope: `.trellis/scripts/auto_loop.py` 是状态机;`trellis-auto-loop/SKILL.md` 负责启动前
-  route 准备度和 action 调度;`route_state.py` 校验 route runtime/prefs;`trellis-push`
-  负责 auto-loop commit-only 的计划、边界复核、提交和 runner 回写语义。
+  route 准备度、action 调度、commit-only 安全校验和 runner 回写;`route_state.py` 校验
+  route runtime/prefs;`trellis-push` 只负责接收 exact files/message 并执行本地提交。
 
 ### 2. Signatures
 
@@ -482,12 +488,13 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 - `status` 在无唯一 running/current run 时仍返回 `status=ok`,并列出最近 run 的
   `run_id`、`run_status`、completed / blocked / remaining 计数,方便用户指定 `--run-id`。
 - `record` 默认返回当前 item 的 `task`、`item_status`、`current_step`、`commit` 和紧凑 summary,不得返回完整 item;排障时由 `record --verbose` 返回完整 item。
-- `commit_only` action 必须进入 `trellis-push` commit-only 语义;AI 根据当前任务 artifacts、
+- `commit_only` action 由 `trellis-auto-loop` 根据当前任务 artifacts、
   `git status`、`git diff` 和必要文件内容生成 planned files / retained files / commit
   message / 归属理由,不得用脚本基于 dirty baseline 或时间差猜测文件归属。
-- `trellis-push` 边界必须复核当前 action/profile/task 匹配、staged 区为空、无冲突、
-  planned files 当前 dirty,且不含 `.trellis/.runtime/`、`.trellis/.route-prefs.tmp`、
-  其他任务目录或未解释文件;通过后只暂存 planned files 并本地 commit,再回写 runner。
+- `trellis-auto-loop` 必须复核当前 action/profile/task 匹配、staged 区为空、无冲突、
+  planned files 当前 dirty,且不含 `.trellis/.runtime/`、`.trellis/.route-prefs.tmp`、其他任务目录
+  或未解释文件;通过后调用 `trellis-push` 内部 commit-only。该内部执行器不读取 runtime、
+  不调用 `status`/`record`、不 push、不写远端任务进度。提交成功后由 auto-loop 回写 runner。
 - 单个 item 的 commit-only 预检失败只把该 item blocked/skipped 并记录原因;多任务 run
   后续 pending item 必须继续。只有 merge/rebase 冲突、repo 状态不可读、脚本损坏或用户 stop
   这类全局问题才停止整个 run。
@@ -506,10 +513,10 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 | 多个历史 run 且无 current/running | `status` 返回最近 run 列表,不报 `status-failed` |
 | current.json 指向 completed/stopped run | route helper 忽略 stale pointer,扫描唯一 running run |
 | run completed/stopped | 清理仍指向本 run 的 current pointer |
-| commit_only 时 staged 区已有文件 | trellis-push 记录当前 item blocked,不提交,queue 可继续 |
+| commit_only 时 staged 区已有文件 | auto-loop 记录当前 item blocked,不提交,queue 可继续 |
 | commit_only 无法解释某个 dirty 文件归属 | 保留未提交或 blocked,不得猜测纳入 planned files |
 | commit_only 发现非当前任务 `.trellis/tasks/**` | 保留未提交并记录 retained files |
-| commit_only 成功 | trellis-push 本地 commit,回写 runner commit hash 和 decision_log |
+| commit_only 成功 | trellis-push 本地 exact commit;auto-loop 回写 runner commit hash、files/message 和 decision_log |
 | 多任务第一个 item blocked | `next` 继续后续 pending item,最终 summary 汇总 blocked/unarchived |
 
 ### 5. Good/Base/Bad Cases
@@ -531,7 +538,7 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 
 ---
 
-## Scenario: Trellis Push Phase Boundary And Compact Plan
+## Scenario: Minimal Trellis Push And Task Progress
 
 ### 1. Scope / Trigger
 
@@ -539,8 +546,9 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
   `trellis-push`,自行草拟 `Proposed commits`、commit message 和 commit-only 确认;大型或多仓
   计划也可能把普通文件全部铺开,造成高噪声输出。
 - Scope:`overrides/workflow.md` 与 in-progress state 负责 post-check / Phase 3.4 硬门禁;
-  `trellis-check-all` 负责纯检查汇总;`trellis-push` 负责 exact plan、紧凑展示、确认、Git
-  执行与 snapshot;`trellis-auto-loop` 仍只使用 commit-only 预授权。
+  `trellis-check-all` 负责纯检查汇总;`trellis-push` 只负责 exact plan、一次确认、业务 Git
+  动作和普通 push 后的 task progress trigger;`task_progress.py` 只负责窄 schema 读写;
+  `trellis-auto-loop` 仍只使用本地 commit-only 预授权。
 
 ### 2. Signatures
 
@@ -552,13 +560,17 @@ trellis-check-all
   -> existing Phase 3.3 trellis-update-spec flow
   -> Phase 3.4 trellis-push plan
   -> user confirmation
-  -> exact git add / commit / push
+  -> exact git add / git commit --only / push
+  -> exact task progress commit / push
 ```
 
 auto-loop 状态序列保持不变:
 
 ```text
-run_check_all -> run_spec_update -> commit_only -> trellis-push commit-only
+run_check_all -> run_spec_update -> commit_only
+  -> trellis-auto-loop validates
+  -> trellis-push internal commit-only
+  -> trellis-auto-loop record / next
 ```
 
 展示阈值:
@@ -566,7 +578,8 @@ run_check_all -> run_spec_update -> commit_only -> trellis-push commit-only
 ```text
 planned_files <= 8  ->逐项展示
 planned_files > 8   ->按目录归组,文件摘要最多 12 行,支持“展开文件”
-risk_files          ->始终逐项展示,不折叠
+retained_dirty      ->逐项标注 untracked/unstaged/staged,不折叠
+risk_items          ->始终逐项展示,不折叠
 ```
 
 ### 3. Contracts
@@ -576,25 +589,44 @@ risk_files          ->始终逐项展示,不折叠
   决策或提交确认提示。
 - Phase 3.3 的既有触发和 required-once 语义不变。本场景不在 check 通过后新增自动 spec update。
 - Phase 3.4 必须加载 `trellis-push`;在该 skill 外草拟提交计划不能作为等价替代。
+- workflow hub 只声明 Phase 3.4 门禁和格式所有权:详细计划/结果格式完全由 `trellis-push`
+  管理。hub 不复制模板、字段顺序、仓库显示名、retained 用户标签或 8/12 文件阈值。
 - skill-garden hub/state guard 必须明确整段覆盖上游 workflow 下层 Phase 3.4 的
   `Proposed commits`、本地直接 commit 和 `Never push` walkthrough;目标项目保留上游正文,
   但 AI 在强化模式下必须把该下层 walkthrough 视为 inactive,不得混用其中任一步骤。
-- 普通 `trellis-push` 默认 commit + push 当前分支;commit-only 只来自用户明确意图或满足
-  action/profile/task 校验的 auto-loop 专用预授权。
-- `trellis-push` 内部始终保存 exact planned files 与 exact retained/unrecognized files;
-  紧凑展示只影响对话,执行仍只能 `git add <exact files>`。
+- 普通 `trellis-push` 默认 commit + push 当前分支;commit-only 只来自用户明确意图或已经由
+  auto-loop 校验的内部调用。分支合并、release、finish-work 和 runner 状态不属于该 skill。
+- `trellis-push` 内部始终保存 exact planned files 与 exact retained/unrecognized dirty paths;
+  紧凑展示只影响对话,执行仍只能 `git add -- <exact files>` 和
+  `git commit --only -- <exact files>`。
+- 普通确认模式下,计划外 untracked、unstaged、staged 文件全部保留并展示,不阻塞当前任务
+  提交;提交前后必须验证计划外 staged 列表保持不变。auto-loop commit-only 继续要求 staged
+  区为空,不扩大预授权。
+- `retained` 只作为内部集合名,含义固定为“本次排除并保持原状的 dirty paths”。用户界面统一
+  显示“保留未提交的变更（dirty）”,并标注 Git 状态;clean files 不进入该集合。unknown ahead、
+  branch/upstream 异常和归属不确定等真正风险单独进入“风险”区。
+- 分仓标题优先使用 config package 名,否则使用 Git top-level 目录名。内部输入别名 `root`、
+  `parent`、`main repo` 不得直接出现在用户输出中。
 - 每仓 planned files 不超过 8 个时完整展示;超过 8 个时按目录归组,普通文件摘要最多
   12 行,并允许用户展开同一 exact set。展开不是执行确认,也不能重新推断范围。
-- 未识别 dirty、staged、冲突、跨任务和其他风险文件始终逐项展示,不受阈值限制。
+- 保留 dirty 和风险条目始终逐项展示,不受阈值限制。
 - 多仓库逐仓独立生成 commit message、branch/upstream、文件范围和 push 结果;普通模式对完整
-  计划只确认一次。任务级 Spec review、snapshot、bookkeeping 放在业务仓库之后。
-- 无活动任务时仍可处理当前会话可明确归属的文件,但必须显示“无活动任务”并跳过 Spec
-  review、snapshot、bookkeeping。无法证明来源的 dirty 文件全部作为 unrecognized 排除,
-  直到用户明确指定后重新生成计划。
+  计划只确认一次。计划/结果复用原有总览 → 分仓 → 任务进度 → 保留 dirty 的视觉顺序,
+  但只显示精简后的 commit/push/progress;不重复展示 Spec review、check、release 或 finish-work 信息。
+- 无活动任务时仍可处理当前会话可明确归属的文件,但跳过 task progress。无法证明来源的
+  dirty 文件全部作为 unrecognized 排除,直到用户明确指定后重新生成计划。
 - commit message 只能由 `trellis-push` 最终草拟/采用;优先级为用户明确提供 > 任务材料与
   实际 diff > 最近提交风格。
 - auto-loop 继续保持唯一 `profile=commit-only`、`commit_only` action 和 runtime schema;
-  普通默认 push 不扩大 auto-loop 的远端授权。
+  普通默认 push 不扩大 auto-loop 的远端授权。auto-loop 自己校验 action/profile/task、空 staged
+  区和文件归属,再把 exact files/message 交给内部执行器;`trellis-push` 不读写 runner runtime。
+- 当前任务进度 schema 固定为 `updatedAt`、`completedSteps`、`partialStep`、`nextStep`、`notes`;
+  不保存 push mode、业务 commit hash、分支或完整计划。`task_progress.py write` 必须拒绝额外字段,
+  只更新 `task.json.progress`,并在成功写入时移除 legacy `last_push_snapshot`。
+- 普通业务 push 全部成功时写完整 progress;已有成功仓库而后续失败时写 partial/next/failure notes。
+  尚无成功 Git 动作时不得伪造 completed steps。progress 使用固定 message 对 exact 当前任务
+  `task.json` 生成独立 commit 并立即 push,不增加第二次确认。
+- progress 写入/commit/push 失败不回滚业务结果,最终报告必须分开显示 business 与 progress sync。
 
 ### 4. Validation & Error Matrix
 
@@ -604,14 +636,20 @@ risk_files          ->始终逐项展示,不折叠
 | Phase 3.4 未加载 `trellis-push` 却准备 commit | 阻断;进入本 skill 重新生成计划 |
 | 下层 Phase 3.4 `Proposed commits` / `Never push` 与 hub 同时存在 | hub/state guard 整段覆盖,下层 walkthrough inactive |
 | 普通 `trellis-push` 未收到 commit-only 意图 | mode 必须是 commit + push |
-| auto-loop outstanding action/profile/task 不匹配 | 不得使用 commit-only 预授权,停止或 blocked |
+| auto-loop outstanding action/profile/task 不匹配 | auto-loop 不得调用内部 commit-only,写回 failed/blocked |
 | 单仓 planned files = 8 | 逐项完整展示 |
 | 单仓 planned files > 8 | 按目录归组,文件摘要最多 12 行,提供“展开文件” |
-| 存在 risk files | 逐项完整展示,即使超过 12 行也不得折叠 |
+| 存在 retained dirty | 在“保留未提交的变更（dirty）”中逐项标注 Git 状态,不作为默认阻塞 |
+| 存在 risk items | 在独立“风险”区逐项完整展示,即使超过 12 行也不得折叠 |
 | 用户请求“展开文件” | 展示当前 exact planned files,不改变计划、不执行 |
-| 执行前 exact set / Git 状态变化 | 原确认失效,重新生成并确认计划 |
+| 执行前 planned set / branch / upstream / conflict / push 目标变化 | 原确认失效,重新生成并确认计划 |
+| 只有 retained dirty 变化 | 更新保留摘要并继续,不得让当前任务计划失效 |
+| 普通模式存在计划外 staged 文件 | `git commit --only` 提交 exact planned files,保留原 staged 列表 |
 | 无活动任务且 dirty 来源不明 | 全部放入 unrecognized,默认不提交 |
-| 多仓第二仓执行失败 | 报告第一仓实际结果、失败位置、当前分支和恢复动作 |
+| 多仓第二仓执行失败且第一仓已 push | 保留第一仓结果,写 partial progress 与下一恢复动作 |
+| 业务动作成功但 progress push 失败 | 不回滚业务提交;单独报告 progress sync failed |
+| progress JSON 带额外字段 | helper 拒绝写入,防止旧 Git 编排状态混入 |
+| 只有 legacy `last_push_snapshot` | status 映射为新 summary;下一次成功 write 迁移为 `progress` |
 
 ### 5. Good/Base/Bad Cases
 
@@ -619,14 +657,18 @@ risk_files          ->始终逐项展示,不折叠
   用户继续后按现有 Phase 3.3 进入 `trellis-push`。
 - Good:单仓 20 个普通 planned files 按目录压成 6 行,2 个未识别 dirty 文件仍逐项展示;
   用户回复“展开文件”后看到原 20 个 exact paths。
-- Good:两个业务仓库各自拥有 commit message 和 branch/upstream,顶部显示执行顺序,任务
-  snapshot 位于所有仓库之后,用户只确认一次。
+- Good:两个业务仓库各自拥有 commit message 和 branch/upstream,顶部显示执行顺序和一行任务
+  progress,用户只确认一次;业务 push 后自动生成独立 progress commit/push。
+- Good:当前任务 2 个 planned files,另一个规划任务有 untracked 文件且 index 中有 1 个无关
+  staged 文件;输出在“保留未提交的变更（dirty）”中标注两者状态,`git commit --only` 只提交
+  2 个 planned files,其他状态保持不变,随后正常 push。
 - Base:无活动任务但当前会话明确修改 2 个文件,它们进入 planned;仓库中另外 3 个旧 dirty
   文件进入 unrecognized 并排除。
 - Bad:check-all 汇总后直接输出 `Proposed commits` 并说“不会推送”;这同时绕过 post-check、
   Phase 3.3 和 `trellis-push` 默认 push 语义。
 - Bad:为了缩短输出把 staged/conflict 文件折叠成“其他 12 个文件”;风险范围不可审计。
 - Bad:普通计划沿用 auto-loop 的 commit-only 文案;auto-loop 预授权不能泄漏到普通流程。
+- Bad:progress 记录 business commit hash 或 push mode,再让 finish-work 根据它决定是否 push。
 
 ### 6. Tests Required
 
@@ -639,10 +681,20 @@ risk_files          ->始终逐项展示,不折叠
   明确用户意图或合法 auto-loop 预授权。
 - 静态扫描 hub 与 in-progress states,确认明确整段覆盖下层 `Proposed commits`、local-only、
   no-push walkthrough,而不是只依赖隐含优先级。
+- 静态扫描 hub,确认只引用 `trellis-push` 的格式所有权和必要 Git 门禁,不重复 skill 的展示细节。
 - 用 8 个、9 个和超过 12 个目录分组行的模拟计划验证展示阈值;风险文件始终逐项显示。
 - 模拟单仓、多仓、无活动任务、用户展开文件、计划漂移、部分仓库失败六类输出。
+- 静态验证计划和结果模板保留原有总览/分仓结构,用户可见文本不单独使用裸 `retained`,
+  retained dirty 与真正 risk 分区展示。
+- 在临时 Git 仓库验证 `git commit --only -- <planned files>` 不消费计划外 staged 文件,
+  并验证 retained-only 变化不会触发计划重确认。
+- `python3 -m py_compile` 验证 `task_progress.py`;临时任务覆盖新 progress 读写、额外字段拒绝、
+  legacy 读取与下一次 write 迁移。
+- 临时多仓/裸远端覆盖普通成功、部分失败、progress sync 失败和显式 commit-only;验证 progress
+  commit 只包含当前任务 `task.json`,commit-only 不 push 也不生成远端 progress。
 - 回归 `auto_loop.py start` 仍只接受/default `profile=commit-only`,并保持
-  `run_check_all -> run_spec_update -> commit_only`。
+  `run_check_all -> run_spec_update -> commit_only`;静态确认 runner `status/record` 只在
+  `trellis-auto-loop` skill,不在 `trellis-push`。
 
 ### 7. Wrong vs Correct
 
@@ -668,13 +720,90 @@ Check-all 已通过。
 
 ```markdown
 ## Trellis Push 计划
-[PUSH] 1 个仓库 · 1 个 commit · 2 个文件 · 风险 0
-...
+
+[PUSH] 1 个仓库 · 1 个 commit · 2 个文件 · 保留未提交 1 · 风险 0
+顺序：flower-trellis -> task progress
+
+### 1. flower-trellis
+`fix(api): 修复会话一致性`
+分支：`beta` -> `origin/beta`
+变更：2 个文件
+计划提交：src/api.js、test/api.test.js
+Push：执行
+
+### 保留未提交的变更（dirty）
+- [untracked] notes/local.md
+
+任务进度：completed=实现与检查 | partial=无 | next=finish-work
 确认执行请回复 `确认`。
 ```
 
 原因:check 报告与 Git 计划职责分离,Phase 3.3 时机不变,Phase 3.4 的默认 push、文件范围
 和确认都由唯一入口负责。
+
+---
+
+## Scenario: Finish-work Release Audit And Exact Bookkeeping
+
+### 1. Scope / Trigger
+
+- Trigger:Phase 3.4 已完成后显式运行 finish-work,工作区仍保留其他规划任务、旧 archive、
+  其他窗口的 untracked/unstaged/staged 文件。
+- Scope:`trellis-release audit-current` 负责当前任务单任务上线核对;finish-work 只负责调用该
+  模式、当前任务 archive 与本次 journal bookkeeping;不重复提交业务代码,不把工作区整体
+  clean 或任务进度当作提交/自动 push 条件。
+
+### 2. Contracts
+
+- finish-work 在移动前记录 task source/name/children、branch、upstream、`HEAD` 与 upstream HEAD,
+  以及 `@{u}..HEAD`;只有开始时 upstream 存在且两端 HEAD 完全相同才设置 `baseline_synced=true`。
+- 归档前自动调用 `trellis-release audit-current`。该模式只读取当前任务 artifacts、现有
+  `release.md` 和 Git 证据:高置信有上线事项时创建/更新 task `release.md`;高置信无事项时
+  no-op;证据不确定时写 `Needs human review`。它不生成 `.trellis/releases/` 批次文件、不确认、
+  不提交/推送，也不执行 SQL、配置、脚本或外部系统操作。
+- 普通 `trellis-release` 批次模式仍按既有任务集合核对、生成批次草案并在写盘前等待用户确认;
+  `audit-current` 的无确认语义不得泄漏到批次模式。
+- archive 和 journal 写入统一使用原生命令的 `--no-commit`,再由 finish-work 使用 exact paths
+  和 `git commit --only` 生成 bookkeeping commits。
+- archive commit 只允许归档前源路径、`task.py archive` stdout 返回的
+  `.trellis/tasks/archive/YYYY-MM/<task>` 目标路径,以及实际被修改的 child `task.json`。
+  禁止暂存 `.trellis/tasks/archive`、`.trellis/tasks`、`.trellis/workspace` 或 `.trellis` 根目录。
+- journal commit 只允许 `add_session.py` 本次实际修改的 journal/index 文件。计划外 staged
+  文件在提交前后必须保持原状。
+- `session_auto_commit=false` 时只落盘和报告精确 dirty paths,不生成 bookkeeping commit,
+  不自动 push。
+- `baseline_synced=true` 时,完成 exact bookkeeping commits 后确认 branch/upstream 未变化,且
+  新增 ahead set 只包含本轮 archive/journal commits,然后自动 push。无关 dirty/staged 不阻断。
+- finish-work 开始时已有 ahead、分支 behind/diverged、无 upstream,或执行期间出现并发 commit /
+  branch/upstream 变化时,完成本地 bookkeeping commits 但不自动 push。不得读取 progress 或
+  legacy task 字段决定 Git 行为。
+
+### 3. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 其他规划任务存在 untracked 文件 | 保留并报告;继续当前任务 archive/journal commit |
+| 旧 archive 下存在未跟踪任务 | 不纳入 exact destination;继续 |
+| index 中已有计划外 staged 文件 | `git commit --only` 隔离并验证 staged 列表保持不变 |
+| 当前任务仍有未提交业务文件 | 返回 Phase 3.4 `trellis-push` |
+| audit-current 高置信无上线事项 | status=no-op,不创建 release.md,继续 finish-work |
+| audit-current 高置信有上线事项 | 写/更新当前任务 release.md,由 archive 自然纳入 |
+| audit-current 证据不确定 | 写 Needs human review,继续并在最终结果保留风险 |
+| 开始时 `HEAD == upstream HEAD` | push 本轮 bookkeeping commits,不要求工作区 clean |
+| finish-work 前已有 ahead commits | 完成本地 bookkeeping commits,不自动 push |
+| 无 upstream 或分支 behind/diverged | 完成本地 bookkeeping commits,不猜测远端目标 |
+| `session_auto_commit=false` | 只落盘,不 commit/push |
+
+### 4. Tests Required
+
+- 临时仓库中同时创建当前任务、旧 archive、其他规划任务 untracked 文件和计划外 staged 文件;
+  验证 archive/journal commits 的 `git show --name-only` 只包含 exact allowed paths。
+- 验证两个 `git commit --only` 完成后,计划外 staged/untracked/unstaged 状态保持不变。
+- 验证 `audit-current` 的 `no-op` / `written` / `needs-review` 三种结果,并回归普通批次模式仍需确认。
+- 验证工作区 dirty 但开始 `HEAD == upstream HEAD` 时允许 push;验证开始已有 ahead、无 upstream、
+  behind/diverged 时只生成本地 bookkeeping commits。
+- 静态扫描 finish-work override,确认不再出现“`git status --porcelain` clean 才 push”或暂存
+  archive/workspace 根目录的指令,也不包含 release 证据推断正文或 progress/legacy Git 联动。
 
 ---
 

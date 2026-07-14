@@ -1,48 +1,51 @@
-# Brief — 优化 Trellis 提交与推送流程
+# Brief — 简化 Trellis 提交、进度与收尾流程
 
 ## Goal
 
-- 保持普通 `check-all` 后 Phase 3.3 的现有时机，并确保进入 Phase 3.4 时使用默认 push 的 `trellis-push` 计划，禁止 AI 绕过该入口自行拼装提交，同时以紧凑、可复核的排版覆盖大型、多仓库和无任务场景。
+- 把 `trellis-push` 收缩为最小的任务相关 commit/push 流程，同时保留每次普通 push 后立即同步到远端的任务进度。
 
 ## Scope
 
-- 保留 post-check stop gate 与 Phase 3.3 现有触发方式；post-check 只报告质量结论、验证结果、剩余风险和下一步，然后等待用户继续。
-- 既有 Phase 3.3 完成并进入 Phase 3.4 时必须生成 `trellis-push` 计划，Git 写操作仍等待一次确认。
-- 强化 `trellis-push` 唯一入口、普通默认 push、显式 commit-only、commit message 生成与一次确认契约。
-- 固化终端排版：顶部总览、逐仓扁平区块、Spec review/验证/snapshot 单行摘要、风险独立展开。
-- 每仓库 8 个文件以内完整显示；超过 8 个按目录归组，文件区最多 12 行，支持 `展开文件`。
-- 多仓库逐仓独立 commit/push、统一确认；无任务时跳过 spec/snapshot/bookkeeping，并默认排除无法证明来源的 dirty 文件。
-- 保持 auto-loop 唯一 `profile=commit-only`、`commit_only` action 和 runtime schema，不增加远端授权。
-- 从 `vendor/skill-garden/.trellis/0.6/` 修改源文件，运行 `npm run sync` 后同步发布快照与当前 dogfood 副本，并更新项目 spec。
+- 保留 post-check stop、Phase 3.3 和 Phase 3.4 唯一 `trellis-push` 入口；禁止主 agent 自制提交旁路。
+- `trellis-push` 计划和结果沿用原有总览/分仓视觉结构，只保留精简后的 commit/push/progress，并只确认一次。
+- retained 是内部术语，用户输出统一写“保留未提交的变更（dirty）”，标注 untracked/unstaged/staged，并与真正风险分区。
+- 分仓标题显示真实 package/仓库名，不显示内部 `root` / `parent` 别名。
+- 普通模式使用 exact `git commit --only` 后 push；显式 commit-only 不 push；merge 完全移出。
+- 每次普通 push 完成或部分完成后，独立 commit/push 当前任务最小 `progress`：updatedAt、completedSteps、partialStep、nextStep、notes。
+- 新 `task_progress.py` 兼容读取 legacy `last_push_snapshot`，下一次写入时迁移；不再记录 push_mode 或业务 commit hash。
+- auto-loop 保留 commit-only profile/action；`trellis-auto-loop` 管 runner 校验和 record，`trellis-push` 只执行内部 exact commit-only。
+- finish-work 自动调用 `trellis-release audit-current`，精确提交 archive/journal，并只按开始时 upstream/ahead 基线决定是否自动 push。
+- 多仓库按同一 commit/push 流程顺序执行；部分成功也同步远端 progress，避免恢复时重复操作。
+- 从 vendor 源修改，运行 `npm run sync` 后同步 enhancements、workflow、脚本和当前平台副本，并更新项目 spec。
+- workflow hub/state 属于 AI 控制协议，保留既有英文正文和稳定术语，不做整段中文翻译。
+- workflow hub 只保留提交门禁，并明确详细计划/结果格式完全由 `trellis-push` 管，不复制模板细节。
 
 ## Non-Goals
 
-- 不为 auto-loop 新增 push profile 或远端 push 预授权。
-- 不自动 merge、force push、release、部署或操作生产数据。
+- 不为 auto-loop 增加远端 push 授权。
+- 不在 `trellis-push` 中执行 merge、release、部署或生产数据操作。
 - 不自动解决 push rejection、merge/rebase 冲突或凭证问题。
-- 不把 `trellis-push` 改造成独立 Git 客户端，也不取消精确暂存和普通模式确认。
 - 不修改官方 `@mindfoldhq/trellis` npm 包源码。
 
 ## Key Context
 
-- 普通 `trellis-push` 当前本就默认 push；问题是 check-all 后出现了绕过 skill 的自制 commit-only 计划。
-- post-check 报告不得包含 commit message、拟提交文件、`Proposed commits` 或“回复 ok 提交”。
-- 上游 workflow 下层仍有 `Proposed commits` / local-only / no-push 旧流程；强化 hub/state 必须明确整段禁用，由 `trellis-push` 完全替代。
-- auto-loop 当前只有 commit-only，本任务明确保留该历史安全边界。
-- 计划内部必须始终持有 exact planned/retained files；紧凑排版只影响展示，不得使用 `git add .` 或目录概括执行。
-- 未识别 dirty、staged、冲突和跨任务文件始终逐项完整展示，不受 8 文件/12 行阈值影响。
-- 关键源文件位于 `vendor/skill-garden/.trellis/0.6/.agents|.claude/skills/` 与 `overrides/workflow.md`；`enhancements/0.6` 是同步生成的发布快照。
-- 实现不得改变 `.trellis/scripts/auto_loop.py` 的 profile/action schema；只做 auto-loop commit-only 回归验证和必要文案澄清。
+- 当前 `trellis-push` 已超过 500 行，复杂度主要来自 merge、snapshot/bookkeeping、auto-loop runtime 和 finish-work 联动。
+- Git push 是分支级操作；未知历史 ahead commits 仍必须显式处理，不能通过 exact files 排除。
+- 普通计划外 untracked/unstaged/staged 文件可由 `git commit --only` 隔离，不应阻塞当前任务。
+- 任务进度必须立即远端同步，因此接受普通 push 后额外产生一个固定格式 progress commit。
+- finish-work 的 release 证据规则移入 `trellis-release audit-current`；普通批次上线单模式保持不变。
+- 关键源位于 `vendor/skill-garden/.trellis/0.6/`；`enhancements/0.6` 是发布快照。
 
 ## Acceptance
 
-- 普通 check-all 后保持原有 Phase 3.3 时机；post-check 报告只包含质量结果并等待用户继续。
-- 进入 Phase 3.4 时展示包含最近 Spec review 结论的 `trellis-push` 计划，不再出现自制提交旁路。
-- 普通模式默认 commit + push，显式请求时才 commit-only；auto-loop 始终只本地 commit。
-- 大型、多仓库、无任务和风险场景按已确认排版展示，且精确文件范围与重确认门禁不退化。
-- commit message 只能由 `trellis-push` 最终草拟/采用，普通模式一次确认，auto-loop 结果报告实际 message/hash。
-- vendor 源、`enhancements/0.6`、当前 `.agents` / `.claude` 和 workflow 语义一致；`npm run sync`、`git diff --check` 与场景验证通过。
+- 普通 push 只做一次最小确认，完成 exact business commit/push 和独立 progress commit/push。
+- commit-only 与 auto-loop 只本地提交，不触发远端 progress。
+- merge、snapshot JSON、push_mode、父仓 snapshot bookkeeping 和 runner 状态解析退出 `trellis-push`。
+- 全部成功和部分成功/失败均产生准确的远端 progress；旧 snapshot 可迁移。
+- finish-work 不读取 progress/push_mode，不受其他任务 dirty 文件影响，并按 Git 基线安全自动 push。
+- `trellis-release audit-current` 可自动完成单任务上线核对，普通 release 批次流程不退化。
+- vendor、enhancements、当前副本和 workflow 语义一致，所有静态与场景验证通过。
 
 ## Next Step
 
-- 用户确认 planning artifacts 与本 brief 后运行 `task.py start`；进入 Phase 2.1 时先执行 `trellis-route(implement)`，再按确认的路线实现。
+- 等待用户审核本 brief 与最新 PRD/design/implement；确认后复用当前任务 implement route 进入实现。

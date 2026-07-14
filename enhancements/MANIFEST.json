@@ -1,5 +1,5 @@
 {
-  "syncedAt": "2026-07-13T10:24:09.928Z",
+  "syncedAt": "2026-07-14T01:37:41.938Z",
   "syncedFrom": "vendor/skill-garden",
   "sourceCommit": "a020128baca91d8f704ec2b7ab24e9d7719fb113",
   "common": {
@@ -146,8 +146,8 @@
       ],
       "scripts": [
         "auto_loop.py",
-        "push_snapshot.py",
-        "spec_router.py"
+        "spec_router.py",
+        "task_progress.py"
       ]
     }
   }
