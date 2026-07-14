@@ -4,6 +4,15 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.4.12-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.4.12-beta.1...v0.4.12-beta.2) (2026-07-14)
+
+
+### 🐛 修复 Bug Fixes
+
+* **0.6:** 优化 Check-All 检查与修复体验 ([55b5f12](https://github.com/SilentFlower/flower-trellis/commit/55b5f12be925c078ac769981588712e12a558d68))
+* **0.6:** 支持 Trellis Push 完成已有 Merge ([bd68a8b](https://github.com/SilentFlower/flower-trellis/commit/bd68a8bda90e866a0f8e7e2ffecccc5bb5ff091b))
+* **0.6:** 简化 Trellis Push 依赖型多仓确认 ([0172139](https://github.com/SilentFlower/flower-trellis/commit/0172139696e4e25fc5d14a2c4a6229af8a759208))
+
 ## [0.4.12-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.4.12-beta.0...v0.4.12-beta.1) (2026-07-14)
 
 

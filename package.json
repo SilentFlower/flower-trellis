@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.4.12-beta.1",
+  "version": "0.4.12-beta.2",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -58,9 +58,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.4.12-beta.1",
+    "version": "0.4.12-beta.2",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **skill:** 简化 Trellis 提交与收尾流程 ([90220a6](https://github.com/SilentFlower/flower-trellis/commit/90220a671eb92ec9c3681e6efe4946aead5d0c39))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **0.6:** 优化 Check-All 检查与修复体验 ([55b5f12](https://github.com/SilentFlower/flower-trellis/commit/55b5f12be925c078ac769981588712e12a558d68))\n* **0.6:** 支持 Trellis Push 完成已有 Merge ([bd68a8b](https://github.com/SilentFlower/flower-trellis/commit/bd68a8bda90e866a0f8e7e2ffecccc5bb5ff091b))\n* **0.6:** 简化 Trellis Push 依赖型多仓确认 ([0172139](https://github.com/SilentFlower/flower-trellis/commit/0172139696e4e25fc5d14a2c4a6229af8a759208))",
     "truncated": false
   }
 }
