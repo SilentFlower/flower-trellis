@@ -1559,3 +1559,38 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 45: 优化 Check-All 检查与修复体验
+
+**Date**: 2026-07-14
+**Task**: 优化 Check-All 检查与修复体验
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+将 0.6 Check-All 调整为 audit-only collect-all，统一 CHK-* 问题清单与单次修复确认，修正 subagent 路由降级边界，并同步 vendor、快照、dogfood 与项目规范。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7a2bfb8` | (see git log) |
+| `55b5f12` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
