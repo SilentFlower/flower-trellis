@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 46
+- **Total Sessions**: 47
 - **Last Active**: 2026-07-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1631 | Active |
+| `journal-1.md` | ~1669 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 47 | 2026-07-18 | 完成任务意图路由与 Flower 0.5.0-beta.0 发布 | `3e9f2d3`, `64f06ac`, `05e71e3`, `7c3b807`, `a48b356` | `beta` |
 | 46 | 2026-07-18 | 优化 Trellis Push 当前任务记录纳入 | `e01dd37`, `462c6fd` | `beta` |
 | 45 | 2026-07-14 | 优化 Check-All 检查与修复体验 | `7a2bfb8`, `55b5f12` | `beta` |
 | 44 | 2026-07-14 | 简化 Trellis 提交与收尾流程 | `90220a6`, `9460c3a` | `beta` |

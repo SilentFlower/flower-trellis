@@ -1629,3 +1629,41 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 47: 完成任务意图路由与 Flower 0.5.0-beta.0 发布
+
+**Date**: 2026-07-18
+**Task**: 完成任务意图路由与 Flower 0.5.0-beta.0 发布
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 Trellis 请求意图分类、声明式 insert/replace/remove 变换、task_intent create/discard、自动化测试与 AI context budget；完成 skill-garden 和 flower-trellis 双仓发布、项目自更新、release 审计与任务归档。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3e9f2d3` | (see git log) |
+| `64f06ac` | (see git log) |
+| `05e71e3` | (see git log) |
+| `7c3b807` | (see git log) |
+| `a48b356` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
