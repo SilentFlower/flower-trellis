@@ -265,7 +265,7 @@ Use `python3 ./.trellis/scripts/task_progress.py status --json` for recovery rea
 
 The helper only touches `task.json.progress`, whose fields are `updatedAt`, `completedSteps`, `partialStep`, `nextStep`, and `notes`. It may read legacy `last_push_snapshot` as a compatibility source; the next successful write creates `progress` and removes the legacy field.
 
-Ordinary `trellis-push` owns the semantic progress summary and the separate exact progress commit/push after business Git actions. Commit-only paths do not create remote progress commits.
+Ordinary `trellis-push` owns the semantic progress summary and the separate exact current-task record/progress commit/push after business Git actions. That exact commit includes attributable dirty/untracked artifacts in the current task directory plus the updated `task.json`; those paths are not retained dirty or deferred to finish-work. Other task directories remain untouched. Commit-only paths do not create remote progress commits.
 
 On recovery, relay the helper's `summary` / `candidates` once and suggest rebinding if there is no active task. Show only partial step, next step, and notes when useful. Never auto-rebind, infer a workflow phase, or restore old commit/push orchestration.
 

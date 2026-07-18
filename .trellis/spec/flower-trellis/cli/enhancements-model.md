@@ -680,7 +680,7 @@ trellis-check-all
   -> Phase 3.4 trellis-push plan
   -> user confirmation
   -> exact git add / git commit --only / push
-  -> exact task progress commit / push
+  -> exact current-task record / progress commit / push
 ```
 
 普通多仓计划可以在仓库间展示一个本地生成命令；命令成功且生成后的 dirty paths 未超出预计 exact files 时沿用同一次确认。
@@ -734,6 +734,15 @@ risk_items          ->始终逐项展示,不折叠
 - 多仓库逐仓独立生成 commit message、branch/upstream、文件范围和 push 结果;普通模式对完整
   计划只确认一次。计划/结果复用原有总览 → 分仓 → 任务进度 → 保留 dirty 的视觉顺序,
   但只显示精简后的 commit/push/progress;不重复展示 Spec review、check、release 或 finish-work 信息。
+- 普通模式存在活动任务时,当前任务目录中可归属的 dirty/untracked 产物与预计由 helper 更新的
+  `task.json` 组成独立任务记录 exact files。它们不进入业务 commit,也不显示为 retained;
+  其他任务目录和无关 dirty/staged 文件保持原状。计划顶部的仓库/commit/file 总数必须包含
+  任务记录提交所在 Git root、该提交和 exact files,并展示固定 message、branch/upstream 与
+  exact files 或同一 exact set 的分组摘要。
+- 当前任务目录可能整体未跟踪,默认 `git status --short` 会把它折叠为 `?? <task-dir>/`。
+  发现任务记录 exact files 时必须运行
+  `git status --short --untracked-files=all -- <task-dir>`,并拒绝把折叠目录当成文件、展示条目
+  或 pathspec。
 - 普通 `PUSH` 的多仓计划可用一行展示本地生成命令、工作目录和后续仓预计 exact files;
   仅在后续仓 `retained=0` 时使用,未知内容与增删行显示“生成后计算”。
 - 前置仓成功后运行已展示命令并复用现有提交前预检。命令成功且后续仓 dirty paths 未超出
@@ -749,8 +758,10 @@ risk_items          ->始终逐项展示,不折叠
   不保存 push mode、业务 commit hash、分支或完整计划。`task_progress.py write` 必须拒绝额外字段,
   只更新 `task.json.progress`,并在成功写入时移除 legacy `last_push_snapshot`。
 - 普通业务 push 全部成功时写完整 progress;已有成功仓库而后续失败时写 partial/next/failure notes。
-  尚无成功 Git 动作时不得伪造 completed steps。progress 使用固定 message 对 exact 当前任务
-  `task.json` 生成独立 commit 并立即 push,不增加第二次确认。
+  尚无成功 Git 动作时不得伪造 completed steps。progress 使用固定 message 对首次确认的当前
+  任务 exact files 生成独立 commit 并立即 push,不增加第二次确认;该集合包含 helper 更新后的
+  `task.json` 和首次计划时已存在且可归属的当前任务产物。finish-work 负责后续 release audit、
+  archive 移动和 journal,不能作为普通 push 延后当前任务规划产物首次入库的理由。
 - progress 写入/commit/push 失败不回滚业务结果,最终报告必须分开显示 business 与 progress sync。
 
 ### 4. Validation & Error Matrix
@@ -771,6 +782,10 @@ risk_items          ->始终逐项展示,不折叠
 | 只有 retained dirty 变化 | 更新保留摘要并继续,不得让当前任务计划失效 |
 | 生成命令后 dirty paths 未超出预计 exact files | 复用现有预检并继续,不二次确认 |
 | 后续仓存在 retained dirty、命令失败或出现计划外 dirty path | 不使用旧确认,重新规划 |
+| 当前任务存在 dirty/untracked 规划产物 | 纳入任务记录 exact files,不显示为 retained |
+| 当前任务目录整体未跟踪 | 使用 `--untracked-files=all` 展开文件级 exact set,不得提交目录 pathspec |
+| 其他任务目录存在 dirty/untracked 文件 | 保持 retained,不得进入当前任务记录提交 |
+| 业务结束后当前任务 exact path set 扩大 | 原确认失效,重新生成并确认计划 |
 | 普通模式存在计划外 staged 文件 | `git commit --only` 提交 exact planned files,保留原 staged 列表 |
 | 无活动任务且 dirty 来源不明 | 全部放入 unrecognized,默认不提交 |
 | 多仓第二仓执行失败且第一仓已 push | 保留第一仓结果,写 partial progress 与下一恢复动作 |
@@ -788,9 +803,10 @@ risk_items          ->始终逐项展示,不折叠
   progress,用户只确认一次;业务 push 后自动生成独立 progress commit/push。
 - Good:`skill-garden` push 后按计划运行 `npm run sync`;生成后没有计划外 dirty path,直接继续
   `flower-trellis` commit/push,不要求第二次确认。
-- Good:当前任务 2 个 planned files,另一个规划任务有 untracked 文件且 index 中有 1 个无关
-  staged 文件;输出在“保留未提交的变更（dirty）”中标注两者状态,`git commit --only` 只提交
-  2 个 planned files,其他状态保持不变,随后正常 push。
+- Good:当前任务有 2 个业务 planned files 和 6 个 untracked 任务产物,另一个规划任务有
+  untracked 文件且 index 中有 1 个无关 staged 文件;业务 commit 只提交 2 个 planned files,
+  随后的任务记录 commit 提交 6 个任务产物与更新后的 `task.json`,另一个任务和 staged 文件
+  仍显示为 retained 并保持原状。
 - Base:无活动任务但当前会话明确修改 2 个文件,它们进入 planned;仓库中另外 3 个旧 dirty
   文件进入 unrecognized 并排除。
 - Bad:check-all 汇总后直接输出 `Proposed commits` 并说“不会推送”;这同时绕过 post-check、
@@ -824,7 +840,8 @@ risk_items          ->始终逐项展示,不折叠
 - `python3 -m py_compile` 验证 `task_progress.py`;临时任务覆盖新 progress 读写、额外字段拒绝、
   legacy 读取与下一次 write 迁移。
 - 临时多仓/裸远端覆盖普通成功、部分失败、progress sync 失败和显式 commit-only;验证 progress
-  commit 只包含当前任务 `task.json`,commit-only 不 push 也不生成远端 progress。
+  commit 只包含首次确认的当前任务产物与更新后的 `task.json`,其他任务保持原状;commit-only
+  不 push 也不生成远端 progress。
 - 回归 `auto_loop.py start` 仍只接受/default `profile=commit-only`,并保持
   `run_check_all -> run_spec_update -> commit_only`;静态确认 runner `status/record` 只在
   `trellis-auto-loop` skill,不在 `trellis-push`。
