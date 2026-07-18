@@ -283,20 +283,41 @@ python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target imp
 
 ### 1. Scope / Trigger
 
-- Trigger: 0.6 强化包需要让提交前或 PR 前的全面检查先完成所有可继续的只读验证,
-  再用统一清单一次性确认修复范围,避免发现一个问题就停下询问和修改。
-- Scope: `trellis-check-all/SKILL.md` 定义检查、报告、修复和重检协议;
-  `trellis-route/SKILL.md` 定义 inline/subagent 执行模式及 audit-only dispatch 边界。
-  `trellis-check` 只提供检查清单和验证方法,不能把自身的自动修复语义带入 Check-All。
+- Trigger: 0.6 强化包需要让普通、轻量、全面、最终、提交前和 auto-loop 检查都进入
+  Check-All,由真实任务、diff、风险和运行上下文智能选择 light/full 深度,同时保持
+  audit-only collect-all 和稳定 `CHK-*` 修复循环。
+- Scope: `trellis-check-all/SKILL.md` 定义深度策略、检查、报告、修复和 disposition;
+  `trellis-route/SKILL.md` 与 `route_state.py` 只决定 inline/subagent 执行位置;
+  `trellis-check` 只提供检查清单和验证方法,不能成为顶层轻量逃生口或带入自动修复语义。
 
 ### 2. Signatures
 
-普通 check 路由只允许以下两个全面检查 mode:
+check route 只允许以下两个执行位置 mode:
 
 ```text
 route_decision.target = check
 route_decision.mode = check-all-inline | check-all-subagent
 ```
+
+每次 Check-All 必须产生可审计画像:
+
+```yaml
+check_profile:
+  context: interactive | auto-loop
+  requested_depth: auto | light | full
+  effective_depth: light | full
+  confidence: high | fallback-full | escalated
+  reasons: [string]
+```
+
+`route_state.py` 读取历史 runtime / CLI mode 时只做兼容归一化:
+
+```text
+check-inline   -> check-all-inline
+check-subagent -> check-all-subagent
+```
+
+归一化后的 decision 必须只暴露 canonical mode,不得重新 dispatch 顶层 `trellis-check`。
 
 统一问题记录必须包含固定字段:
 
@@ -318,6 +339,21 @@ ID: CHK-001, CHK-002, ...
 
 - 检查阶段必须只读。允许读取文件、搜索和运行无业务写入副作用的 lint、typecheck、
   测试;禁止编辑代码、配置、测试或任务规格。
+- 所有用户可见 check 入口都调用 Check-All。`trellis-route(target=check)` 只决定执行位置,
+  用户说 light/full 不创建新的 route mode。
+- requested depth 优先使用当前请求内最后一次明确表达:`简单检查` / `轻量检查` /
+  `light check` 表示 light;`全面检查` / `全量检查` / `最终检查` / `提交前检查` /
+  `full check` 表示 full;其次读取 validated auto-loop action,否则为 auto。单独说
+  `check` / `check-all` 只表示进入统一入口。
+- effective depth 决策顺序固定:requested full -> full;命中 hard-full -> full;
+  requested light 且无 hard-full -> light;requested auto 且高置信满足 light eligibility -> light;
+  其它情况 fallback full,不得机械询问用户。
+- hard-full 至少包括复杂三件套完整映射、跨层/跨仓/submodule、公共 API/CLI、schema/
+  持久化/缓存、迁移/历史数据、权限/安全/资金、并发/状态机/回滚、workflow/skill/hook
+  注入、安装/升级/发布/push 控制面、已有 full `CHK-*` 重检和未知影响面。
+- light 只有在变更可完整归属、单一局部行为、无 hard-full、引用与回归路径可穷举、
+  有定向验证且不在 full 修复链时成立。执行中发现强风险只允许单向升级 full。
+- 高置信 light 通过正式满足 Phase 2.2 门禁;未执行维度必须标记 `N/A`,不得伪装成 full。
 - 执行顺序固定为三件套实现 -> 实现假设 -> 完整性与规范。普通实现偏差、lint/typecheck/
   测试失败和假设错误都进入统一问题集合,继续其它独立且可安全执行的检查。
 - 只有业务/规划冲突导致无法判断、已知问题使后续前提失效、或验证可能产生破坏性/
@@ -333,8 +369,11 @@ ID: CHK-001, CHK-002, ...
 - `check-all-subagent` 必须使用角色说明明确 audit-only 的专用 agent,或用完整 dispatch 契约
   约束通用 subagent。禁止 fallback 到会直接修改工作区的 `trellis-check` agent;没有兼容
   subagent 时必须阻塞并让用户重选 inline,不得静默换路由。
-- auto-loop 复用同一问题模型,但不展示普通修复选择。有问题向 runner 记录 `failed`,
-  需要产品决策或越权时记录 `blocked`,无问题记录 `ok`;runner 原有 fix/recheck 预算不变。
+- Check-All 开始时默认 interactive;只有 runner `status` / `next` 验证 running、task 和
+  outstanding check action 后才使用 auto-loop context,不得相信摘要或 raw runtime。
+- interactive 报告后停止。validated auto-loop 不展示普通修复选择:有问题 `record failed`,
+  真正产品/权限/生产副作用/破坏性边界 `record blocked`,无问题 `record ok`;随后立即
+  `next`。subagent 只返回报告和 profile,主会话负责 `record + next`。
 
 ### 4. Validation & Error Matrix
 
@@ -342,37 +381,53 @@ ID: CHK-001, CHK-002, ...
 |------|------|
 | 工作区范围内无变更 | 提示无可检查变更并终止,不生成空问题清单 |
 | 无 `prd.md` | 三件套实现标记 `N/A`,继续其它适用维度 |
-| 文案/普通配置等局部低风险改动 | 只追踪受影响规划条目、直接引用点和必要回归路径 |
+| auto 且高置信局部低风险 | effective light;只追踪受影响条目、引用点、必要回归和定向验证 |
+| requested light 命中 hard-full | effective full,confidence escalated,记录升级原因 |
+| 无法高置信判断 | fallback full,不询问深度 |
+| light 执行中发现影响面扩大 | 单向升级 full,补齐所有适用维度 |
+| 历史 runtime mode 为 `check-inline` | 归一为 `check-all-inline`,可复用但不直达 trellis-check |
 | 某个 lint/typecheck/test 失败 | 记录命令、退出状态和关键错误,继续其它独立验证 |
 | 缺少历史数据或运行环境证据 | 标记 `部分验证` 或 `阻塞`,不得标记通过 |
 | 规划冲突导致无法判断正确行为 | 输出统一阻塞报告,只询问解除阻塞所需的业务决策 |
 | 验证可能修改生产数据或调用有副作用外部系统 | 不执行,标记阻塞或未覆盖风险 |
 | 用户选择部分 `CHK-*` | 只批量修复选中 ID,未选问题保留在重检结果 |
 | subagent 只有自修复型 `trellis-check` agent | 禁止 dispatch,让用户改选 `check-all-inline` |
-| Check-All 无问题 | 报告通过和剩余风险,指向 Phase 3.3/3.4,不生成提交计划 |
+| interactive Check-All 无问题 | 报告画像、通过和剩余风险,指向 Phase 3.3/3.4,停止等待 |
+| validated auto-loop Check-All 完成 | 写回 effective depth/result/reason 并立即 next |
 
 ### 5. Good/Base/Bad Cases
 
+- Good: 用户先说轻量检查、后改为最终检查;以最后一次表达选择 full,完成三个适用维度。
 - Good: 两个验证命令和一个规划对照分别发现问题;Check-All 完成其余安全检查后输出
   `CHK-001` 至 `CHK-003`,用户回复“修复全部”,实现阶段一次修复并统一重检。
-- Base: 只改一处 UI 文案;三件套实现对照最终有效文案来源,API/历史数据/跨层维度标记
-  `N/A`,只运行必要回归验证后快速通过。
+- Base: 只改一处 UI 文案且可穷举引用;auto 选择 light,API/历史数据/跨层维度标记
+  `N/A`,定向验证通过后正式满足检查门禁。
+- Base: 旧 runtime 保存 `check-subagent`;helper 输出 canonical `check-all-subagent`,
+  后续仍执行 audit-only Check-All。
 - Base: subagent 返回标准只读报告;主会话负责展示清单并询问一次修复范围,subagent 不修改文件。
 - Bad: 第一个测试失败后立即问“要不要修”,导致后续 lint、规划和跨层问题未被发现。
+- Bad: 用户明确轻量检查后 route 直接 dispatch `trellis-check`,绕过 hard-full 升级和画像。
+- Bad: auto-loop 检查结束后套用 interactive stop gate,等待用户说“继续”。
 - Bad: `trellis-route` 找不到专用 check-all agent 时改用带自修复语义的 `trellis-check` agent。
 - Bad: 报告问题后直接生成 commit message、暂存范围或 push 确认。
 
 ### 6. Tests Required
 
 - 静态检查 `trellis-check-all` 的 `.agents` / `.claude` 源副本一致,并确认包含
-  `audit-only collect-all`、稳定 `CHK-*` 字段、统一结果/修复结果模板和 Post-Check 停止边界。
+  requested/effective profile、hard-full、light eligibility、稳定 `CHK-*`、Auto-Loop Return Gate
+  先于 Interactive Post-Check Stop Gate。
 - 静态检查 `trellis-route` 不再把 `check-all-subagent` fallback 到
   `Agent({subagent_type: "trellis-check"})`,且 dispatch prompt 第一行包含当前任务路径。
+- 测试 `route_state.py` 把 `check-inline/check-subagent` 归一为 canonical mode,原 decision
+  输入不被原地篡改,resolve 后 runtime 可升级为 canonical 值。
 - `npm run sync` 后用 `cmp -s` 确认 vendor 源、`enhancements/0.6` 快照和当前 dogfood
   `.agents` / `.claude` 副本一致;确认 `old` / `0.5` 无漂移。
 - 快速路径场景断言未命中 Trigger 的维度为 `N/A`,不会展开无关检查。
 - collect-all 场景断言多个独立失败被完整收集,报告只出现一次修复范围选择,检查阶段文件无变化。
 - 修复/重检场景断言原问题 ID 保持稳定,修复复用 implement route,重检复用 check route。
+- 深度场景覆盖 auto light、显式 full、显式 light 命中 hard-full、fallback full、执行中升级,
+  以及 full 修复/blocked retry 不降级。
+- disposition 静态/行为测试覆盖 interactive stop 和 validated auto-loop `record + next`。
 - subagent 场景至少做静态契约检查;平台有兼容 audit-only subagent 时再执行真实 dispatch 冒烟。
 
 ### 7. Wrong vs Correct
@@ -390,13 +445,14 @@ Check-All 的统一问题模型和只读边界。
 #### Correct
 
 ```markdown
-Run every safe read-only Check-All dimension, collect stable CHK-* issues,
-show one standardized report, ask once for the repair scope, then repair via
-the implement route and re-check via the existing check route.
+Route every check intent through Check-All, derive an auditable light/full
+profile from intent and risk, run every applicable safe read-only dimension,
+then either stop once for interactive scope selection or return record + next
+to the validated auto-loop runner.
 ```
 
-原因:用户先看到完整风险面再一次决策;inline/subagent 语义一致,修复和重检仍服从 Trellis
-既有路由与阶段边界。
+原因:检查深度不再与执行位置耦合;用户先看到完整风险面再一次决策,auto-loop 则保持连续推进;
+inline/subagent、修复和重检仍服从 Trellis 既有路由与阶段边界。
 
 ## Scenario: Project Knowledge Discovery Helper
 
@@ -577,10 +633,10 @@ returns candidate SOP/spec paths from natural document structure
 ### 2. Signatures
 
 ```bash
-python3 ./.trellis/scripts/auto_loop.py start --tasks <task> [<task> ...] --profile commit-only
+python3 ./.trellis/scripts/auto_loop.py start --tasks <task> [<task> ...] --profile commit-only [--check-depth auto|light|full]
 python3 ./.trellis/scripts/auto_loop.py next [--run-id <run-id>] [--verbose]
-python3 ./.trellis/scripts/auto_loop.py record --action <action> --result <ok|failed|blocked> [...] [--verbose]
-python3 ./.trellis/scripts/auto_loop.py retry-blocked [--run-id <run-id>] [--task <task>] [--route-implement inline|subagent] [--route-check check-all-inline|check-all-subagent] [--all] [--verbose]
+python3 ./.trellis/scripts/auto_loop.py record --action <action> --result <ok|failed|blocked> [--effective-check-depth light|full] [--check-depth-reason <summary>] [...] [--verbose]
+python3 ./.trellis/scripts/auto_loop.py retry-blocked [--run-id <run-id>] [--task <task>] [--check-depth auto|light|full] [--route-implement inline|subagent] [--route-check check-all-inline|check-all-subagent] [--all] [--verbose]
 python3 ./.trellis/scripts/auto_loop.py status [--run-id <run-id>] [--verbose]
 python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 ```
@@ -598,6 +654,15 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
   subagent;避免把 `trellis-route` 两套完整 fallback 选项原样贴出。用户仍可用
   `implement 1, check 2` 这类高级格式分别选择。
 - runner 是调度器,不自行默认 inline/subagent,也不把 auto 临时授权展示成真实 route 结果。
+- 新 run 的 `check_depth` 默认 `auto`;显式 `--check-depth` 与 `--route-check` 独立。
+  历史 state 缺少或包含非法值时按 full 读取,不要求迁移旧 JSON。
+- `run_check_all` / `run_recheck` action 必须输出 `requested_check_depth`;首次检查的
+  `minimum_check_depth` 为 null,已有检查记录的 retry/recheck 使用上次 effective depth 作为下限。
+- 检查 action 的 record 必须保存 `item.last_check`:action、requested/minimum/effective depth、
+  reason、result、recorded_at。旧调用缺 `--effective-check-depth` 时无条件记录
+  `full / legacy-default-full`,即使调用方额外传了 reason 也不能覆盖兼容原因。
+- requested full 或 minimum full 时,runner 必须拒绝 effective light 并保留 outstanding action;
+  不得静默推进或替 agent 猜测结果。
 - `route_state.py resolve` 顺序仍是 runtime -> prefs -> running auto-loop 临时授权;但
   session `current_auto_run` 或全局 `current.json` 指向非 running run 时必须忽略 stale pointer,
   再 fallback 扫描唯一 running run。
@@ -609,7 +674,7 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
   `retry-blocked` 把可恢复 blocked item 重置为 `pending`,并继续 `next`;不要用
   `start --force` 新建 run 来纠正漏传参数。
 - `retry-blocked` 只写现有 run JSON:合并本次显式 `--route-implement` /
-  `--route-check` 到 `route_authorization`,清空 item 的 `blocked` / `last_action`,把 run
+  `--route-check` 到 `route_authorization`,可更新 run 级 `check_depth`,清空 item 的 `blocked` / `last_action`,把 run
   置回 `running`,并刷新 `current.json` 指针。它不创建新的 `auto-*.json`,不改任务文件,
   不替用户默认选择 route。
 - runtime JSON 不再落盘派生的 `resume_capsule`;旧状态中的该字段只为兼容读取,下一次写状态时应移除。
@@ -636,6 +701,11 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 | 条件 | 行为 |
 |------|------|
 | start 无 route prefs/runtime | skill 先走 `trellis-route`;runner 不默认选择 |
+| 新 run 未传 `--check-depth` | 保存 `check_depth=auto` |
+| 旧 run 缺 `check_depth` | requested depth 按 full,不得静默变 light |
+| record 缺 effective depth但带自定义 reason | 保存 `full / legacy-default-full`,忽略自定义 reason |
+| requested/minimum full 却 record light | 返回 `check-depth-below-minimum`,outstanding action 保留 |
+| full 检查 blocked 后 retry 同一 action | `minimum_check_depth=full`,不得重新降级 |
 | 启动漏传临时 route 导致 `missing-implement-context` / `missing-check-context` | `retry-blocked --route-implement ... --route-check ...` 复用同一 run |
 | 队列项 blocked 但 blocked reason 是非门禁类问题 | 默认不自动重试;指定 `--task` 或 `--all` 才重置 |
 | 多个历史 run 且无 current/running | `status` 返回最近 run 列表,不报 `status-failed` |
@@ -651,6 +721,10 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 
 - Good: 用户启动 auto-loop 前已有 `.route-prefs.tmp implement=inline`;`trellis-route` resolve
   写回 runtime,runner 启动后记录真实 `route_resolved`。
+- Good: run 使用 `check_depth=auto`,局部检查 effective light 通过后 record `last_check`,立即
+  next 到 spec_update;后续任务无需用户确认。
+- Good: requested light 命中 workflow 控制面升级 full,失败后 run_fix -> run_recheck,
+  recheck action 保持 minimum full。
 - Good: 第一个任务 commit-only 因 staged 区不空 blocked;runner summary 记录 blocked,`next`
   继续第二个 pending 任务。
 - Good: 第一次 start 漏传 inline route,三个 planning task 因 seed-only JSONL blocked;AI
@@ -659,10 +733,27 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 - Base: run completed 后用户查 `auto_loop.py status --run-id auto-...` 仍可读历史结果;无
   `--run-id` 时不会让 stale current 影响新 run。
 - Bad: `trellis-auto-loop` skill 默认传 `--route-implement subagent`;这绕过用户真实 route。
+- Bad: Check-All 返回后先展示 interactive 修复菜单,未执行 runner record/next。
+- Bad: 旧 record 未传 effective depth但把调用方 reason 当作可信深度证据。
 - Bad: run blocked 后直接 `start --force` 启动同一任务队列,产生多个 JSON,用户难以判断哪次
   是权威状态。
 - Bad: 主 agent 看到 `commit_only` action 后手动 `git add . && git commit`;这绕过
   `trellis-push` 边界且可能混入无关文件。
+
+### 6. Tests Required
+
+- Python runner 测试覆盖 auto light pass、legacy full fallback、failed -> fix -> full recheck、
+  blocked full retry、retry 更新 check depth、多任务检查通过后无确认续跑。
+- 断言缺 effective depth时 reason 固定为 `legacy-default-full`;minimum full 时 light record 被拒绝。
+- 静态测试检查 auto-loop skill 的 start/retry/record 参数、Check-All profile 和 workflow gate 顺序。
+- `npm run sync` 后比较 vendor、enhancements 和 dogfood runner/skill;重复 enhance-only 后 diff hash 不变。
+
+### 7. Wrong vs Correct
+
+**Wrong**:auto-loop 只保存 check route,检查后依赖聊天摘要判断该跑 light/full,并套用普通停止门禁。
+
+**Correct**:runner 保存 run 级 requested depth和 item 级 effective result;Check-All 完成后匹配
+outstanding action 执行 `record + next`,交互式停止只在非 validated auto-loop 生效。
 
 ---
 
