@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"0.6 skill override、Check-All、Auto-Loop 与 Trellis Push 的现有可执行契约"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"workflow hub/state/skill 分层和上下文预算门禁"}
+{"file":"src/lib/skill-override-inject.js","reason":"通用 skill override 注入目标、marker 和 aliases 实现"}
+{"file":"src/lib/apply-enhancements.js","reason":"flower 全装与精细安装的 skill override 调度条件"}
+{"file":"vendor/skill-garden/.trellis/0.6/overrides/workflow.md","reason":"Check-All 通过/失败后的高优先级 workflow disposition"}

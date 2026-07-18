@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"测试、幂等、source-first 和 diff 质量要求"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"默认/strict 预算和高频去重检查"}
+{"file":"test/js/apply-enhancements.test.js","reason":"flower consumer 全装与精细安装回归 fixture"}
+{"file":"test/python/test_skill_garden_transforms.py","reason":"独立 install.sh 真实安装与幂等回归"}
+{"file":"vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-check-all/SKILL.md","reason":"Check-All 通过/失败和 Phase 3.3 disposition 契约"}

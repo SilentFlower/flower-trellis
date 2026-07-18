@@ -1,0 +1,50 @@
+{
+  "id": "update-spec-auto-decision",
+  "name": "update-spec-auto-decision",
+  "title": "让 Update-Spec 自动决策并减少流程卡点",
+  "description": "让 trellis-update-spec 自主返回 no-op/written/needs-review；Check-All 通过后自动评估 spec，no-op/written 直接进入 trellis-push，仅 needs-review 才停下。保持 auto-loop、证据边界与上下文预算。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P1",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-18T15:26:40Z",
+      "contextKey": "codex_019f7414-497e-70e1-8ce9-a8c39e728963",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "c6ce52cad20c460384745c17a4acb89ace54ca37",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-19T00:00:00+08:00",
+    "completedSteps": [
+      "实现 Update-Spec 自主三态与最小 spec 写入契约",
+      "接通 Check-All 下一步到 Update-Spec 和 Trellis Push",
+      "同步 auto-loop、双安装器、snapshot 与 dogfood",
+      "完成自动化测试、strict 上下文预算和 Full Check-All",
+      "完成双仓业务提交与推送"
+    ],
+    "partialStep": null,
+    "nextStep": "显式运行 trellis-finish-work 完成归档和 journal",
+    "notes": "check-snapshot 已通过，0.5/old 无漂移"
+  }
+}
