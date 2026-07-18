@@ -42,13 +42,15 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 
 ---
 
-## Testing (现状,如实记录)
+## Testing
 
-- 本项目**当前没有自动化测试框架**(`package.json` 无 test 脚本,无测试目录)。
-  请勿假设存在 Jest / Vitest 等;新增测试需求应先与维护者确认方案。
-- 现行验证方式是**语法校验 + dogfood 手测**:
+- 本项目使用零第三方测试基础设施：JavaScript 用 Node 内置 `node:test`，Python 用
+  `unittest`，统一入口为 `npm test`。不要引入 Jest/Vitest/Pytest 等重依赖，除非另有明确决策。
+- `npm test` 同时运行默认 AI context budget checker；大小超限只告警，结构性测量错误失败。
+- 提交前执行**自动测试 + 语法校验 + dogfood 手测**:
 
   ```bash
+  npm test
   node --check src/cli.js            # ESM 语法
   node --check scripts/extract-changelog.mjs
   node --check scripts/write-release-notes-metadata.mjs
@@ -61,6 +63,8 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 
   `test-target/`、`.trellis-tmp/` 已在 `.gitignore` 中,可作本地目标。
 - 改动叠加逻辑后,记得 `npm run sync` 重建 `enhancements/` 快照再验证。
+- 发布审计需要严格预算时显式运行 `node scripts/check-ai-context-budget.mjs --strict`；
+  strict 不属于默认大小门禁。
 
 ---
 
@@ -75,3 +79,4 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 - [ ] 导出函数有中文 JSDoc(`@param` / `@returns`)?
 - [ ] 纯 ESM(`node:` 前缀、命名导出、相对 import 带 `.js`)?
 - [ ] 输出前缀符号沿用既有语义(`✓` / `·` / `❌` / `🌸`)?
+- [ ] `npm test` 通过，context budget warning 已审阅且没有通过调高阈值掩盖重复内容?

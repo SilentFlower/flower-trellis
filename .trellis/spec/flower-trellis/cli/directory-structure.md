@@ -46,6 +46,15 @@ flower-trellis/
 
 ---
 
+## Transform / Test Paths
+
+- `src/lib/enhancement-transform.js`：声明式 `insert / replace / remove` 的 preflight 与 apply。
+- `scripts/check-ai-context-budget.mjs`：workflow、state、Phase summary 与 SessionStart 预算检查。
+- `test/js/`：Node 内置 `node:test`。
+- `test/python/`：Python 内置 `unittest`。
+- `enhancements/0.6/overrides/transforms/`：随包发布的 transform 声明、selector 与 content 快照。
+- `vendor/skill-garden/scripts/apply-trellis-transforms.py`：独立 `install.sh` 的声明式变换 consumer；协议必须与 JS 引擎一致。
+
 ## Module Organization
 
 新增功能时按职责归位:

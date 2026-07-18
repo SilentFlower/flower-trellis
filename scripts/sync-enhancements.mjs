@@ -191,6 +191,9 @@ for (const v of VARIANTS) {
   const hookOverrides = listRelativeFilesRecursive(
     path.join(DST, v, "overrides", "hooks"),
   );
+  const transformFiles = listRelativeFilesRecursive(
+    path.join(DST, v, "overrides", "transforms"),
+  );
   const scripts = listFiles(path.join(DST, v, "scripts"));
   manifest.variants[v] = {
     claudeSkills,
@@ -200,6 +203,7 @@ for (const v of VARIANTS) {
     workflowStates: states,
     skillOverrides,
     hookOverrides,
+    transformFiles,
     scripts,
   };
 
@@ -207,7 +211,7 @@ for (const v of VARIANTS) {
     `✓ ${v}: claude/skills=${claudeSkills.length} agents/skills=${agentsSkills.length} ` +
       `commands=${commands.length} overrides=${overrides.length} states=${states.length} ` +
       `skillOverrides=${skillOverrides.length} hookOverrides=${hookOverrides.length} ` +
-      `scripts=${scripts.length}`,
+      `transformFiles=${transformFiles.length} scripts=${scripts.length}`,
   );
 }
 

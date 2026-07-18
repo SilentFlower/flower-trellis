@@ -1,0 +1,1 @@
+- **No active task** → infer `discuss`, `inspect`, `direct_edit`, `task_plan`, or `workflow_action`. Proceed with high-confidence reversible routing; inferred complex implementation uses `task_intent.py create`, explicit task planning uses `task.py create`, and material ambiguity or independent safety boundaries still require one focused question.

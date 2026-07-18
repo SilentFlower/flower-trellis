@@ -13,6 +13,10 @@ import { flowerVersion } from "./versions.js";
 import { rmrf } from "./fs-utils.js";
 import { resolveEnhancementSnapshot } from "./enhancement-catalog.js";
 import { syncInstalledCommonSkills } from "./skill-catalog.js";
+import {
+  applyPreparedTransforms,
+  prepareEnhancementTransforms,
+} from "./enhancement-transform.js";
 
 /** 清理升级后可能变空的强化目录(深 → 浅)。 */
 function pruneEmptyDirs(target) {
@@ -50,12 +54,33 @@ export function applyEnhancements(target, opts = {}) {
     target,
     opts.variant,
   );
+  const skills = opts.skills || [];
+
+  // required 变换必须在任何强化写入前完成全量 preflight，避免锚点漂移时
+  // 已经复制资产、清理旧路径或写入成功 manifest。
+  const transformPlan = prepareEnhancementTransforms(
+    target,
+    variantDir,
+    skills,
+  );
+  const transformResult = applyPreparedTransforms(target, transformPlan);
 
   console.log(
     `\n强化包变体:${variant}${version ? `(项目 Trellis ${version})` : ""}`,
   );
+  if (transformPlan.declarations.length > 0) {
+    const notes = transformResult.backupNotes.join("");
+    console.log(
+      `  ✓ 声明式变换:修改 ${transformResult.changed}、` +
+        `已是最新 ${transformResult.unchanged}、跳过 ${transformResult.skipped}${notes}`,
+    );
+    for (const result of transformResult.results) {
+      if (result.status === "optional-skip") {
+        console.log(`  · optional transform 跳过:${result.id}@${result.target}(${result.reason})`);
+      }
+    }
+  }
 
-  const skills = opts.skills || [];
   const { installed: skillInstalled, paths: skillPaths } = copySkills(
     target,
     variantDir,
@@ -95,7 +120,8 @@ export function applyEnhancements(target, opts = {}) {
     }
   }
 
-  // 升级清理 + manifest(仅全装时维护)
+  // 升级清理(仅全装时维护)。manifest 必须等全部 required 强化步骤成功后再写。
+  let nextManifest = null;
   if (skills.length === 0) {
     const old = readManifest(target);
     if (old && Array.isArray(old.paths)) {
@@ -118,20 +144,21 @@ export function applyEnhancements(target, opts = {}) {
         pruneEmptyDirs(target);
       }
     }
-    // 写 manifest 时同时戳入 flower-trellis 自身版本(flowerVersion),与 version(项目 Trellis
-    // 版本)区分开:前者答「上次是哪个 flower 铺的包」,服务后续升级/维护判断。
-    writeManifest(target, {
+    nextManifest = {
       flowerVersion: flowerVersion(),
       variant,
       version,
       skills: installed,
       paths: newPaths,
-    });
+    };
   }
 
-  // workflow 注入:无过滤名(全装)或显式指定 workflow-enhancement 时执行。
-  const wantWorkflow =
-    skills.length === 0 || skills.includes("workflow-enhancement");
+  // intent routing 的精细安装别名必须同时刷新 transform、helper 与 workflow hub。
+  const wantWorkflow = skills.length === 0 || [
+    "workflow-enhancement",
+    "task-intent",
+    "intent-routing",
+  ].some((name) => skills.includes(name));
   if (wantWorkflow) {
     const r = injectWorkflow(target, variantDir, variant);
     if (r.skipped) {
@@ -193,6 +220,12 @@ export function applyEnhancements(target, opts = {}) {
   const claude = applyClaudeTweaks(target);
   if (claude.applied) {
     console.log("  ✓ claude 调整:settings.json 已合并 startup 更新检查 hook");
+  }
+
+  if (nextManifest) {
+    // 写 manifest 时同时戳入 flower-trellis 自身版本(flowerVersion),与 version(项目 Trellis
+    // 版本)区分开。放在最后，确保中途失败不会留下错误的成功清单。
+    writeManifest(target, nextManifest);
   }
 
   return { variant, installed };

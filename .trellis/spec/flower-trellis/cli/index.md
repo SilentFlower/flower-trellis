@@ -44,13 +44,16 @@
 
 ## Quality Check
 
-提交前(本项目暂无自动化测试框架,以语法校验 + dogfood 手测为准):
+提交前先跑零依赖自动测试，再做语法校验与 dogfood：
 
 ```bash
-# 1. ESM 语法校验(逐个或整体)
+# 1. Node/Python 内置测试 + 默认上下文预算告警
+npm test
+
+# 2. ESM 语法校验(逐个或整体)
 node --check src/cli.js && for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done
 
-# 2. dogfood 手测:对临时目标跑全流程,观察输出与产物
+# 3. dogfood 手测:对临时目标跑全流程,观察输出与产物
 flower-trellis init   --target ./test-target -y
 flower-trellis update --target ./test-target -y --dry-run
 flower-trellis uninstall --target ./test-target --dry-run
@@ -69,6 +72,8 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [CLI Output](./cli-output.md) | 横幅、进度行、错误与退出码 |
 | [Config & State](./config-and-state.md) | 常量、路径、版本、manifest 状态 |
 | [Enhancements Model](./enhancements-model.md) | 强化包快照与叠加流水线 |
+| [Trellis Injection Transforms](./trellis-injection-transforms.md) | skill-garden 对 Trellis workflow/skill/command/hook 的 insert/replace/remove、preflight 与 marker style 协议 |
+| [AI Context Budget](./ai-context-budget.md) | workflow、hub、state、Phase summary 与 SessionStart 的上下文预算和去重规则 |
 | [Release & Publishing](./release-and-publishing.md) | 发版流程、CI 发布(OIDC)、CHANGELOG 约定 |
 | [Quality Guidelines](./quality-guidelines.md) | 必守模式、禁用模式、评审清单 |
 

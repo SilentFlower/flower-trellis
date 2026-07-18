@@ -16,7 +16,7 @@ import { preserveFirstBackup } from "./backup.js";
  *   1. 首次注入前备份到 .trellis/.backup-flower/(已存在则保留);
  *   2. 先清掉所有旧的 skill-garden 段(3 个 SECTION + 13 个 sentinel),保证可重复升级;
  *   3. 把 hub(0.6)/ route(0.5)块注入到 `## Phase Index` 之后(找不到则顶部 fallback);
- *   4. 替换 5 个 workflow-state 块的内容(0.6 读 overrides 文件,0.5 用 legacy 常量);
+ *   4. 替换当前变体管理的 workflow-state 块(0.6 为 4 个,legacy 走原常量);
  *   5. 处理后内容与原文件相同则不写盘(幂等)。
  *
  * Python re.DOTALL|re.MULTILINE → JS 用 `[\s\S]` 代替 `.`(免 s flag)+ `m` flag;
@@ -162,7 +162,6 @@ export function injectWorkflow(target, variantDir, variant) {
 
   const stateSpecs = isV06
     ? [
-        ["no_task", readStateBlock(stateDir, "no_task.md")],
         ["planning", readStateBlock(stateDir, "planning.md")],
         ["planning-inline", readStateBlock(stateDir, "planning-inline.md")],
         ["in_progress", readStateBlock(stateDir, "in_progress.md")],

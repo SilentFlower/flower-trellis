@@ -39,6 +39,14 @@ export function copyScriptAssets(target, variantDir, skills = []) {
         "project-knowledge",
         "knowledge-router",
         "workflow-enhancement",
+        "task-intent",
+        "intent-routing",
+      ];
+    } else if (name === "task_intent") {
+      aliases = [
+        "task-intent",
+        "intent-routing",
+        "workflow-enhancement",
       ];
     }
     if (!shouldInstallName(name, skills, aliases)) continue;

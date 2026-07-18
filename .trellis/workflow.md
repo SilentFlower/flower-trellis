@@ -149,11 +149,33 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 
 > Central high-priority override hub for Trellis 0.6 workflow behavior. Source: github.com/SilentFlower/skill-garden.
 
-**Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
+**Priority**: This hub overrides any conflicting Trellis workflow, skill, command, or hook text for the scoped behaviors below.
 
 **Scope**: the behaviors covered by the sections below. State blocks should keep one short skill-garden sentinel; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
+
+#### Request Intent Routing
+
+For a new request, infer `discuss`, `inspect`, `direct_edit`, `task_plan`, or
+`workflow_action` from the whole current message, scope, risk, side effects,
+active-task state, and the latest explicit switch. High-confidence reversible
+steps proceed without a mechanical task-creation question.
+
+Clear complex implementation intent authorizes creating a planning task and
+entering `trellis-brainstorm`; it never authorizes `task.py start` or
+implementation. Ask one focused question only when ambiguity changes material
+side effects or an independent safety boundary requires confirmation.
+
+The latest explicit switch wins for the current request. `discuss` / `inspect`
+route silently; entering untracked `direct_edit`, creating/resuming a task, or
+switching intent gets one non-blocking status line. New unrelated requests
+return to automatic inference instead of inheriting a session-wide mode.
+
+If the latest switch leaves an auto-created planning task for untracked work,
+run `task_intent.py discard --task <current-task>` before changing route. Proceed
+only when it returns `status=discarded`; otherwise retain the task and report its
+structured blocker. Never force-delete or silently leave a dormant planning task.
 
 #### Brainstorm Gate
 
@@ -203,10 +225,10 @@ If `<flower-update-result>` requests `run_trellis_push_confirmation`, enter `tre
 
 When a session already has an active task, do not treat unrelated new implementation
 requests as permission to implement under that task. If the work is not plainly
-covered by the active task title/brief, recommend creating a new Trellis task
-and stop before `trellis-route` or file edits. If the user explicitly declines
-task tracking, confirm untracked work first and do not use active-task artifacts
-or progress for that work. If the user says it belongs to the active task,
+covered by the active task title/brief, route it as a new request and stop before
+`trellis-route` or file edits. If the user explicitly declines task tracking,
+state once that task/progress will not be recorded and do not use active-task
+artifacts or progress for that work. If the user says it belongs to the active task,
 update that task's artifacts before implementation.
 
 #### Routing Gate
@@ -272,16 +294,21 @@ On recovery, relay the helper's `summary` / `candidates` once and suggest rebind
 <!-- END skill-garden overrides v0.6 -->
 
 ```
-Phase 1: Plan    → classify, get task-creation consent, then write planning artifacts
+<!-- BEGIN skill-garden transform workflow-phase-summary v0.6 -->
+Phase 1: Plan    → infer intent, take the authorized reversible next step, and write planning artifacts when needed
+<!-- END skill-garden transform workflow-phase-summary v0.6 -->
 Phase 2: Execute → implement only after task status is in_progress
 Phase 3: Finish  → verify, update spec, commit, and wrap up
 ```
 
 ### Request Triage
 
-- Simple conversation or small task: ask only whether this turn should create a Trellis task. If the user says no, skip Trellis for this session.
-- Complex task: ask whether you may create a Trellis task and enter planning. If the user says no, do not do broad inline implementation; explain, clarify scope, or suggest a smaller split.
-- User approval to create a task is not approval to start implementation. Planning still happens first.
+<!-- BEGIN skill-garden transform workflow-request-triage v0.6 -->
+- Infer `discuss`, `inspect`, `direct_edit`, `task_plan`, or `workflow_action` from the current request, its scope, risk, side effects, active-task state, and the latest explicit switch. Do not classify from one keyword alone.
+- High-confidence reversible steps proceed without a mechanical task-creation question. Explicit complex implementation intent authorizes creating a planning task and entering `trellis-brainstorm`; it does not authorize `task.py start` or implementation.
+- Ask one question only when ambiguity changes material side effects, or when destructive, production, database, credential, external-system, or permission boundaries require confirmation.
+- The latest explicit `走任务` / `不要任务` / `先讨论` / `直接做` / `先别做` style instruction wins for the current request. New unrelated requests return to automatic inference.
+<!-- END skill-garden transform workflow-request-triage v0.6 -->
 
 ### Planning Artifacts
 
@@ -302,23 +329,17 @@ Create new children with `task.py create "<title>" --slug <name> --parent <paren
 <!-- Per-turn breadcrumb: shown when there is no active task (before Phase 1) -->
 
 [workflow-state:no_task]
-<!-- BEGIN skill-garden workflow-state no_task v0.6 -->
-HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (no_task):
-Creating or resuming a task is not implementation permission.
-After PRD is ready and the task is started, the next implementation action is Phase 2.1 `trellis-route(implement)` unless a valid current-task implement route decision already exists.
-If no active task exists, use `task_progress.py status --json` once per session; if it returns candidates, relay them and suggest rebinding before resuming. Never infer commit/push actions from progress.
-At project-local knowledge boundaries, run `python3 ./.trellis/scripts/spec_router.py "<intended action>"`; read high-confidence matches before acting; read medium-confidence matches only when clearly relevant; skip trivial/read-only turns unless local conventions may affect the approach.
-Do NOT call the harness built-in plan mode (`EnterPlanMode` / `ExitPlanMode`) for Trellis planning. It is not a substitute for Trellis task-creation consent, Trellis planning, or the route gate. For new, complex, or unclear work, classify the turn, ask for task-creation consent, then use `trellis-brainstorm`; `task.py create` and the default `prd.md` are not sufficient planning.
-For lightweight Trellis meta edits, ask/confirm skipping Trellis tracking before edits.
-<!-- END skill-garden workflow-state no_task v0.6 -->
-
-No active task. First classify the current turn and ask for task-creation consent before creating any Trellis task.
-Simple conversation / small task: ask only whether this turn should create a Trellis task. If the user says no, skip Trellis for this session.
-Complex task: ask the user if you can create a Trellis task and enter the planning phase. If the user says no, explain, clarify scope, or suggest a smaller split.
+<!-- BEGIN skill-garden transform workflow-no-task-body v0.6 -->
+No active task. Infer the current request intent before acting.
+Handle `discuss` and `inspect` silently. For `workflow_action`, load the named Trellis capability directly. For non-destructive `direct_edit`, state once that task/progress will not be recorded and proceed.
+For high-confidence complex implementation, create an auto-routed planning task through `task_intent.py create`, show one non-blocking switch hint, and enter `trellis-brainstorm`. Ask only for material ambiguity or independent safety gates.
+<!-- END skill-garden transform workflow-no-task-body v0.6 -->
 [/workflow-state:no_task]
 
 ### Phase 1: Plan
-- 1.0 Create task `[required · once]` (only after task-creation consent)
+<!-- BEGIN skill-garden transform workflow-phase-index-create-task v0.6 -->
+- 1.0 Create task `[required · once]` (when `task_plan` is explicit or inferred from clear complex implementation intent)
+<!-- END skill-garden transform workflow-phase-index-create-task v0.6 -->
 - 1.1 Requirement exploration `[required · repeatable]` (`prd.md`; complex tasks also need `design.md` + `implement.md`)
 - 1.2 Research `[optional · repeatable]`
 - 1.3 Configure context `[required · once]` — Claude Code, Cursor, OpenCode, Codex, Kiro, Gemini, Qoder, CodeBuddy, Copilot, Droid, Pi, ZCode, Reasonix (sub-agent-dispatch platforms only; inline platforms skip)
@@ -333,6 +354,7 @@ HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (planning):
 Planning is not implementation permission.
 `trellis-brainstorm` is the default next action while requirements are still unclear.
 A created task or existing `prd.md` is not enough to start implementation.
+If the latest current-request switch says no task/direct edit, call `task_intent.py discard --task <current-task>` only for a task auto-created by intent routing; leave that task only on `status=discarded`. Keep manual or historical tasks unchanged and route the current request as untracked under the Active Task Scope Guard.
 Complete prd.md + required context first.
 For sub-agent-dispatch platforms, required context includes real curated entries in both `implement.jsonl` and `check.jsonl`; the seed `_example` row alone is not ready.
 Before `task.py start`, use `trellis-task-brief` to refresh `brief.md` from the latest task artifacts and display it in chat for review.
@@ -358,6 +380,7 @@ HIGHEST PRIORITY SKILL-GARDEN STATE GUARD (planning-inline):
 Planning is not implementation permission.
 `trellis-brainstorm` is the default next action while requirements are still unclear.
 A created task or existing `prd.md` is not enough to start implementation.
+If the latest current-request switch says no task/direct edit, call `task_intent.py discard --task <current-task>` only for a task auto-created by intent routing; leave that task only on `status=discarded`. Keep manual or historical tasks unchanged and route the current request as untracked under the Active Task Scope Guard.
 Complete prd.md + required context first.
 If the active workflow later routes to sub-agent execution, required context includes real curated entries in both `implement.jsonl` and `check.jsonl`; the seed `_example` row alone is not ready.
 Before `task.py start`, use `trellis-task-brief` to refresh `brief.md` from the latest task artifacts and display it in chat for review.
@@ -501,15 +524,29 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <step>
 
 ## Phase 1: Plan
 
-Goal: classify the request, get task-creation consent when a task is needed, and produce the planning artifacts required before implementation.
+<!-- BEGIN skill-garden transform workflow-phase-one-goal v0.6 -->
+Goal: infer the request intent, enter planning automatically when authorized by explicit or high-confidence complex implementation intent, and produce the artifacts required before implementation.
+<!-- END skill-garden transform workflow-phase-one-goal v0.6 -->
 
 #### 1.0 Create task `[required · once]`
 
-Create the task directory only after task-creation consent. The command sets status to `planning`, writes `task.json`, creates a default `prd.md`, and auto-targets the new task when session identity is available:
+<!-- BEGIN skill-garden transform workflow-create-task-rule v0.6 -->
+Create the task directory after explicit task intent or high-confidence complex implementation intent authorizes planning. Auto-routed creation should use `task_intent.py create` so request scope and the pre-planning dirty baseline are recorded. The task remains `planning`, writes `task.json`, creates a default `prd.md`, and targets the current session when identity is available:
+<!-- END skill-garden transform workflow-create-task-rule v0.6 -->
+
+<!-- BEGIN skill-garden transform workflow-create-task-command v0.6 -->
+For inferred high-confidence complex implementation intent, preserve request scope and the dirty baseline:
+
+```bash
+python3 ./.trellis/scripts/task_intent.py create --title "<task title>" --slug <name>
+```
+
+For explicit user-requested task planning or a manually maintained task, use the ordinary creator:
 
 ```bash
 python3 ./.trellis/scripts/task.py create "<task title>" --slug <name>
 ```
+<!-- END skill-garden transform workflow-create-task-command v0.6 -->
 
 `--slug` is the human-readable name only. Do **not** include the `MM-DD-` date prefix; `task.py create` adds that prefix automatically.
 
@@ -844,7 +881,9 @@ This section is for developers who want to modify the Trellis workflow itself. A
 ### Changing what a step means
 
 Edit the corresponding step's walkthrough body in the Phase 1 / 2 / 3 sections above. Critical invariants:
-- No active task must triage first and ask for task-creation consent before creating a Trellis task.
+<!-- BEGIN skill-garden transform workflow-customization-intent-invariant v0.6 -->
+- No active task must infer the current request intent first; high-confidence reversible routing proceeds directly, while material ambiguity and independent safety boundaries still require confirmation.
+<!-- END skill-garden transform workflow-customization-intent-invariant v0.6 -->
 - Planning must distinguish lightweight PRD-only tasks from complex tasks that require `prd.md`, `design.md`, and `implement.md` before start.
 - Every required execution path must keep the Phase 3.4 commit reminder reachable before `/trellis:finish-work`.
 

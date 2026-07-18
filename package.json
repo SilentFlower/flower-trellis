@@ -26,6 +26,7 @@
     "README.md"
   ],
   "scripts": {
+    "test": "node --test test/js/*.test.js && python3 -m unittest discover -s test/python -p 'test_*.py' && node scripts/check-ai-context-budget.mjs",
     "sync": "node scripts/sync-enhancements.mjs",
     "postinstall": "node scripts/sync-global-trellis.mjs",
     "prepublishOnly": "node scripts/sync-enhancements.mjs",

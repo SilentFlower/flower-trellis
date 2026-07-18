@@ -4,11 +4,33 @@
 
 > Central high-priority override hub for Trellis 0.6 workflow behavior. Source: github.com/SilentFlower/skill-garden.
 
-**Priority**: This hub overrides any conflicting Trellis workflow, skill, or command text for the scoped behaviors below.
+**Priority**: This hub overrides any conflicting Trellis workflow, skill, command, or hook text for the scoped behaviors below.
 
 **Scope**: the behaviors covered by the sections below. State blocks should keep one short skill-garden sentinel; long-form rules live here.
 
 **Mechanical rule**: use this hub as the source of truth. Do not add separate top-level skill-garden override sections or multiple skill-garden sentinels inside the same `workflow-state:*` block.
+
+#### Request Intent Routing
+
+For a new request, infer `discuss`, `inspect`, `direct_edit`, `task_plan`, or
+`workflow_action` from the whole current message, scope, risk, side effects,
+active-task state, and the latest explicit switch. High-confidence reversible
+steps proceed without a mechanical task-creation question.
+
+Clear complex implementation intent authorizes creating a planning task and
+entering `trellis-brainstorm`; it never authorizes `task.py start` or
+implementation. Ask one focused question only when ambiguity changes material
+side effects or an independent safety boundary requires confirmation.
+
+The latest explicit switch wins for the current request. `discuss` / `inspect`
+route silently; entering untracked `direct_edit`, creating/resuming a task, or
+switching intent gets one non-blocking status line. New unrelated requests
+return to automatic inference instead of inheriting a session-wide mode.
+
+If the latest switch leaves an auto-created planning task for untracked work,
+run `task_intent.py discard --task <current-task>` before changing route. Proceed
+only when it returns `status=discarded`; otherwise retain the task and report its
+structured blocker. Never force-delete or silently leave a dormant planning task.
 
 #### Brainstorm Gate
 
@@ -58,10 +80,10 @@ If `<flower-update-result>` requests `run_trellis_push_confirmation`, enter `tre
 
 When a session already has an active task, do not treat unrelated new implementation
 requests as permission to implement under that task. If the work is not plainly
-covered by the active task title/brief, recommend creating a new Trellis task
-and stop before `trellis-route` or file edits. If the user explicitly declines
-task tracking, confirm untracked work first and do not use active-task artifacts
-or progress for that work. If the user says it belongs to the active task,
+covered by the active task title/brief, route it as a new request and stop before
+`trellis-route` or file edits. If the user explicitly declines task tracking,
+state once that task/progress will not be recorded and do not use active-task
+artifacts or progress for that work. If the user says it belongs to the active task,
 update that task's artifacts before implementation.
 
 #### Routing Gate

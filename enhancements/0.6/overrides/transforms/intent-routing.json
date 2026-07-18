@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "id": "intent-routing",
+  "aliases": [
+    "workflow-enhancement",
+    "task-intent",
+    "intent-routing"
+  ],
+  "operations": [
+    {
+      "id": "workflow-phase-summary",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "workflow", "path": ".trellis/workflow.md" }
+      ],
+      "selector": {
+        "source": "matches/workflow-phase-summary.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/workflow-phase-summary.md"
+      }
+    },
+    {
+      "id": "workflow-request-triage",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "workflow", "path": ".trellis/workflow.md" }
+      ],
+      "selector": {
+        "source": "matches/workflow-request-triage.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/workflow-request-triage.md"
+      }
+    },
+    {
+      "id": "workflow-no-task-body",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "workflow", "path": ".trellis/workflow.md" }
+      ],
+      "selector": {
+        "source": "matches/workflow-no-task-body.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/workflow-no-task-body.md"
+      }
+    },
+    {
+      "id": "workflow-phase-index-create-task",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "workflow", "path": ".trellis/workflow.md" }
+      ],
+      "selector": {
+        "source": "matches/workflow-phase-index-create-task.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/workflow-phase-index-create-task.md"
+      }
+    },
+    {
+      "id": "workflow-phase-one-goal",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "workflow", "path": ".trellis/workflow.md" }
+      ],
+      "selector": {
+        "source": "matches/workflow-phase-one-goal.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/workflow-phase-one-goal.md"
+      }
+    },
+    {
+      "id": "workflow-create-task-rule",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "workflow", "path": ".trellis/workflow.md" }
+      ],
+      "selector": {
+        "source": "matches/workflow-create-task-rule.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/workflow-create-task-rule.md"
+      }
+    },
+    {
+      "id": "workflow-create-task-command",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "workflow", "path": ".trellis/workflow.md" }
+      ],
+      "selector": {
+        "source": "matches/workflow-create-task-command.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/workflow-create-task-command.md"
+      }
+    },
+    {
+      "id": "workflow-customization-intent-invariant",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "workflow", "path": ".trellis/workflow.md" }
+      ],
+      "selector": {
+        "source": "matches/workflow-customization-intent-invariant.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/workflow-customization-intent-invariant.md"
+      }
+    },
+    {
+      "id": "codex-session-start-no-task",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "hook", "path": ".codex/hooks/session-start.py", "markerStyle": "hash" }
+      ],
+      "selector": {
+        "source": "matches/codex-session-start-no-task.py",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/codex-session-start-no-task.py"
+      }
+    },
+    {
+      "id": "claude-session-start-no-task",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "hook", "path": ".claude/hooks/session-start.py", "markerStyle": "hash" }
+      ],
+      "selector": {
+        "source": "matches/claude-session-start-no-task.py",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/claude-session-start-no-task.py"
+      }
+    },
+    {
+      "id": "start-no-task-routing",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "skill", "path": ".agents/skills/trellis-start/SKILL.md" },
+        { "kind": "command", "path": ".agent/workflows/start.md" },
+        { "kind": "command", "path": ".claude/commands/trellis/start.md" },
+        { "kind": "command", "path": ".codebuddy/commands/trellis/start.md" },
+        { "kind": "command", "path": ".cursor/commands/trellis/start.md" },
+        { "kind": "command", "path": ".devin/workflows/trellis-start.md" },
+        { "kind": "command", "path": ".github/prompts/start.prompt.md" },
+        { "kind": "command", "path": ".kilocode/workflows/start.md" },
+        { "kind": "command", "path": ".opencode/commands/trellis/start.md" },
+        { "kind": "command", "path": ".pi/prompts/trellis-start.md" },
+        { "kind": "command", "path": ".qoder/commands/trellis/start.md" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-start/SKILL.md" },
+        { "kind": "command", "path": ".zcode/commands/trellis/start.md" }
+      ],
+      "selector": {
+        "source": "matches/start-no-task-routing.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/start-no-task-routing.md"
+      }
+    },
+    {
+      "id": "brainstorm-planning-authorization",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".agents/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".claude/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".devin/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".factory/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".github/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".pi/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".trae/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".zcode/skills/trellis-brainstorm/SKILL.md" }
+      ],
+      "selector": {
+        "source": "matches/brainstorm-planning-authorization.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/brainstorm-planning-authorization.md"
+      }
+    },
+    {
+      "id": "brainstorm-auto-task-create",
+      "operation": "replace",
+      "required": true,
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".agents/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".claude/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".devin/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".factory/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".github/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".pi/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".trae/skills/trellis-brainstorm/SKILL.md" },
+        { "kind": "skill", "path": ".zcode/skills/trellis-brainstorm/SKILL.md" }
+      ],
+      "selector": {
+        "source": "matches/brainstorm-auto-task-create.md",
+        "expectedMatches": 1
+      },
+      "content": {
+        "source": "content/brainstorm-auto-task-create.md"
+      }
+    }
+  ]
+}

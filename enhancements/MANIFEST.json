@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-07-18T07:46:44.046Z",
+  "syncedAt": "2026-07-18T11:47:43.713Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "e01dd37ac9c7ee2d6a2485dd0ec9c043ca54bb31",
+  "sourceCommit": "3e9f2d30e803d117cc419060749c3c9885b5949a",
   "common": {
     "codexSkills": [
       "craft-rpa",
@@ -54,6 +54,7 @@
       "workflowStates": [],
       "skillOverrides": [],
       "hookOverrides": [],
+      "transformFiles": [],
       "scripts": []
     },
     "0.5": {
@@ -94,6 +95,7 @@
       "workflowStates": [],
       "skillOverrides": [],
       "hookOverrides": [],
+      "transformFiles": [],
       "scripts": []
     },
     "0.6": {
@@ -134,7 +136,6 @@
       "workflowStates": [
         "in_progress-inline.md",
         "in_progress.md",
-        "no_task.md",
         "planning-inline.md",
         "planning.md"
       ],
@@ -144,9 +145,39 @@
       "hookOverrides": [
         "shared/inject-workflow-state.py"
       ],
+      "transformFiles": [
+        "content/brainstorm-auto-task-create.md",
+        "content/brainstorm-planning-authorization.md",
+        "content/claude-session-start-no-task.py",
+        "content/codex-session-start-no-task.py",
+        "content/start-no-task-routing.md",
+        "content/workflow-create-task-command.md",
+        "content/workflow-create-task-rule.md",
+        "content/workflow-customization-intent-invariant.md",
+        "content/workflow-no-task-body.md",
+        "content/workflow-phase-index-create-task.md",
+        "content/workflow-phase-one-goal.md",
+        "content/workflow-phase-summary.md",
+        "content/workflow-request-triage.md",
+        "intent-routing.json",
+        "matches/brainstorm-auto-task-create.md",
+        "matches/brainstorm-planning-authorization.md",
+        "matches/claude-session-start-no-task.py",
+        "matches/codex-session-start-no-task.py",
+        "matches/start-no-task-routing.md",
+        "matches/workflow-create-task-command.md",
+        "matches/workflow-create-task-rule.md",
+        "matches/workflow-customization-intent-invariant.md",
+        "matches/workflow-no-task-body.md",
+        "matches/workflow-phase-index-create-task.md",
+        "matches/workflow-phase-one-goal.md",
+        "matches/workflow-phase-summary.md",
+        "matches/workflow-request-triage.md"
+      ],
       "scripts": [
         "auto_loop.py",
         "spec_router.py",
+        "task_intent.py",
         "task_progress.py"
       ]
     }

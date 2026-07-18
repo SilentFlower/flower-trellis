@@ -141,6 +141,9 @@ flower 自己的安装清单,是「精确升级清理」的依据:
   tmp 不存在时先迁移旧缓存,避免清理导致 interval / release notes 缓存立刻丢失。
 - `lastRemote` 只记录 npm `dist-tags.latest` / `dist-tags.beta` 版本事实;release notes /
   changelog 摘要必须写入 tmp 内独立的 `lastReleaseNotes`,不得混入 `lastRemote`。
+- 全装强化的成功 manifest 必须在声明式 transform、workflow/skill/hook 注入和平台后处理
+  全部成功后写入。required transform preflight 失败时不得刷新 manifest；保留旧清单供下次
+  全装恢复。详见 [Trellis Injection Transforms](./trellis-injection-transforms.md)。
 
 ## Scenario: Startup Self-Update Check
 

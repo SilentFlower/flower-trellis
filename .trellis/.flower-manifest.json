@@ -1,7 +1,7 @@
 {
   "flowerVersion": "0.4.12-beta.2",
   "variant": "0.6",
-  "version": "0.6.5",
+  "version": "",
   "skills": [
     "trellis-auto-loop",
     "trellis-check-all",
@@ -18,6 +18,7 @@
     "trellis-visualize",
     "script:auto_loop.py",
     "script:spec_router.py",
+    "script:task_intent.py",
     "script:task_progress.py",
     "script:flower_update_hook.py"
   ],
@@ -50,6 +51,7 @@
     ".claude/skills/trellis-visualize",
     ".trellis/scripts/auto_loop.py",
     ".trellis/scripts/spec_router.py",
+    ".trellis/scripts/task_intent.py",
     ".trellis/scripts/task_progress.py",
     ".trellis/scripts/flower_update_hook.py"
   ],

@@ -1,0 +1,1 @@
+- 1.0 Create task `[required · once]` (when `task_plan` is explicit or inferred from clear complex implementation intent)

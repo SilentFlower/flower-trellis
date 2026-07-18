@@ -1,0 +1,1 @@
+- No active task must triage first and ask for task-creation consent before creating a Trellis task.
