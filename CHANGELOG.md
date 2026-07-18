@@ -4,6 +4,24 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.0-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.5.0-beta.0...v0.5.0-beta.1) (2026-07-18)
+
+
+### ✨ 新功能 Features
+
+* **0.6:** 升级 Check-All 智能检查与自动续跑 ([92a3372](https://github.com/SilentFlower/flower-trellis/commit/92a3372fbda723f444ce6defbb10cd9c77938e8d))
+* **0.6:** 自动衔接 Update-Spec 与 Trellis Push ([74340ca](https://github.com/SilentFlower/flower-trellis/commit/74340ca1a644acb44659970864e209d86363a7ce))
+
+
+### 🐛 修复 Bug Fixes
+
+* **update:** 修复升级缓存竞争与状态滞后 ([0dc3dd9](https://github.com/SilentFlower/flower-trellis/commit/0dc3dd9ff7dd821c6926ef63f45826dcbcd7d593))
+
+
+### 🧰 维护 Maintenance
+
+* **trellis:** 同步项目 Flower 版本状态 ([a48b356](https://github.com/SilentFlower/flower-trellis/commit/a48b356dfe4afd1ff3bb716c6e4affd51a68c699))
+
 ## [0.5.0-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.4.12-beta.2...v0.5.0-beta.0) (2026-07-18)
 
 

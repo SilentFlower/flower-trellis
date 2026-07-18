@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.5.0-beta.0",
+  "version": "0.5.0-beta.1",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -61,9 +61,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.5.0-beta.0",
+    "version": "0.5.0-beta.1",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **0.6:** 支持任务意图路由与声明式强化 ([64f06ac](https://github.com/SilentFlower/flower-trellis/commit/64f06ac01369aa5823c1f48213abcf8184c20295))\n  - 自动识别 discuss、inspect、direct_edit、task_plan、workflow_action。\n  - 支持“先讨论 / 不要任务 / 走任务 / 直接做”等当前请求内意图切换。\n  - 高置信复杂请求可自动创建 planning task，但不越过 brief、start 和 route 门禁。\n  - 新增 task_intent.py，记录 session 来源、Git dirty baseline 和自动创建元数据。\n  - 支持安全 discard 自动 planning task，并清理 task、父引用和 session。\n  - skill-garden 支持对 workflow、skill、command、hook 执行 insert / replace / remove。\n  - 新增 required preflight、optional skip、首次备份和 managed marker 幂等升级。\n  - JS 与 Python 双 consumer 使用同一份 transform 声明。\n  - 新增 AI context budget，默认分级告警，支持 strict 发布审计。\n  - 新增 Node/Python 零依赖测试体系。\n\n\n### 🐛 修复 Bug Fixes\n\n* **0.6:** 将当前任务产物纳入 Trellis Push ([462c6fd](https://github.com/SilentFlower/flower-trellis/commit/462c6fd54caa6fbc2ef4ad52e61806aad4909289))\n* **hooks:** SessionStart 不再重新注入机械 task consent。\n* **hooks:** Python hook 使用合法 hash marker，并支持旧 HTML marker 迁移。\n* **install:** task-intent / intent-routing 精细安装会同步完整 intent unit。\n* **install:** --scope all 在复制任何资产前完成 required preflight。\n* **package:** npm 发布包不再包含 Python bytecode cache。\n* **task:** create/discard 失败时补偿恢复 task、parent 和 session。\n* **task:** 手工或历史 task 不会被 auto-discard 误删。\n* **manifest:** 所有 required 强化步骤成功后才写成功 manifest。\n\n\n### 🔒 兼容与安全\n\n* 0.6 的 no_task 原正文改由 transform 接管，不再叠加重复 sentinel。\n* 0.5、old 和官方 Trellis 源保持不变。\n* required selector 漂移时零写入失败，不退化为猜测或追加。\n* workflow、hub、state、Phase summary 和 SessionStart 均纳入上下文预算。",
+    "body": "### ✨ 新功能 Features\n\n* **0.6:** 升级 Check-All 智能检查与自动续跑 ([92a3372](https://github.com/SilentFlower/flower-trellis/commit/92a3372fbda723f444ce6defbb10cd9c77938e8d))\n* **0.6:** 自动衔接 Update-Spec 与 Trellis Push ([74340ca](https://github.com/SilentFlower/flower-trellis/commit/74340ca1a644acb44659970864e209d86363a7ce))\n\n\n### 🐛 修复 Bug Fixes\n\n* **update:** 修复升级缓存竞争与状态滞后 ([0dc3dd9](https://github.com/SilentFlower/flower-trellis/commit/0dc3dd9ff7dd821c6926ef63f45826dcbcd7d593))\n\n\n### 🧰 维护 Maintenance\n\n* **trellis:** 同步项目 Flower 版本状态 ([a48b356](https://github.com/SilentFlower/flower-trellis/commit/a48b356dfe4afd1ff3bb716c6e4affd51a68c699))",
     "truncated": false
   }
 }
