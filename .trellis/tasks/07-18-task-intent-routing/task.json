@@ -24,12 +24,12 @@
   "notes": "",
   "meta": {},
   "progress": {
-    "updatedAt": "2026-07-18T11:48:36Z",
+    "updatedAt": "2026-07-18T12:12:33Z",
     "completedSteps": [
-      "完成任务意图路由、声明式变换、全量验证与双仓提交推送"
+      "完成任务意图路由、声明式变换、全量验证、双仓提交推送与项目 Flower 状态同步"
     ],
     "partialStep": null,
     "nextStep": "运行 finish-work 归档当前任务",
-    "notes": "Check-All 已通过；上下文预算 warning 均低于 review ceiling。"
+    "notes": "Check-All 已通过；上下文预算 warning 均低于 review ceiling；项目 manifest 已同步至 flower-trellis 0.5.0-beta.0 和 Trellis 0.6.5，self-check 已确认无 out-of-sync。"
   }
 }
