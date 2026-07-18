@@ -9,11 +9,20 @@
 
 2. 同步 0.6 `.claude` 源文件。
 
-3. 运行 `npm run sync`，同步 `enhancements/0.6` 和当前 dogfood。
+3. 扩展任务记录/progress 提交。
+   - 当前任务 dirty/untracked 产物与预计更新的 `task.json` 组成独立 exact set。
+   - 计划总 commit/file 数和任务记录摘要包含该 exact set，不再把同一文件列为 retained。
+   - 业务 push 后写 progress，并精确提交/推送当前任务 exact set；其他任务和无关 dirty/staged 保持原状。
 
-4. 将 `enhancements-model.md` 收缩为相同的通用规则。
+4. 更新 workflow hub 的任务记录/进度提交摘要。
 
-5. 运行定向验证和 Check-All。
+5. 运行 `npm run sync`，从 vendor 源重建 `enhancements/0.6` 快照。
+
+6. 从生成快照独立刷新当前 `.agents` / `.claude` 和 `.trellis/workflow.md` dogfood 副本；本地 CLI 依赖不可用时执行等价的精确文件同步。
+
+7. 将 `enhancements-model.md` 收缩为相同的通用规则。
+
+8. 运行定向验证和 Check-All。
 
 ## Validation Commands
 
@@ -28,6 +37,12 @@ diff -u \
 diff -u enhancements/0.6/.agents/skills/trellis-push/SKILL.md .agents/skills/trellis-push/SKILL.md
 
 rg -n "生成|预计 exact files|计划外.*dirty|不再次确认|重新.*计划" \
+  vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-push/SKILL.md
+
+rg -n "当前任务.*exact|任务记录|总.*commit|总.*file|task.json" \
+  vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-push/SKILL.md
+
+rg -n "git status --short --untracked-files=all -- <task-dir>" \
   vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-push/SKILL.md
 
 if rg -n "Step 4.1|validations|planned-now|pending-derived|allowed_paths|required_paths|内容指纹" \
@@ -48,13 +63,18 @@ python3 .trellis/scripts/task.py validate .trellis/tasks/07-14-trellis-push-depe
 3. 计划外文件：停止并重新规划。
 4. 后续仓有 retained dirty：不使用该规则。
 5. commit-only / auto-loop：不获得生成命令授权。
+6. 当前任务产物未跟踪：进入任务记录 exact set，不再显示为 retained。
+7. 其他任务产物未跟踪：保持 retained，不进入当前任务记录提交。
+8. 任务记录提交：只包含首次确认的当前任务 exact files 和 helper 更新后的 `task.json`。
+9. 全新未跟踪任务目录：状态发现展开到文件级，不把 `?? <task-dir>/` 用作 exact pathspec。
 
 ## Review Gates
 
 - skill 中没有独立中间步骤章节或验证协议。
 - 生成逻辑复用现有 Step 4 预检。
 - 不新增文件状态、脚本、runtime state 或指纹机制。
-- 普通多仓、progress、commit-only、auto-loop 和 finish-work 无回归。
+- 普通多仓、commit-only、auto-loop 和 finish-work 无回归；progress schema 不变。
+- 计划总数、任务记录 exact set、retained 分类和最终 progress commit 相互一致。
 
 ## Rollback Points
 

@@ -24,9 +24,10 @@
   "notes": "",
   "meta": {},
   "progress": {
-    "updatedAt": "2026-07-14T13:55:10Z",
+    "updatedAt": "2026-07-18T07:48:21Z",
     "completedSteps": [
-      "完成 Trellis Push 依赖型多仓单次确认精简实现",
+      "完成 Trellis Push 依赖型多仓单次确认及当前任务记录纳入",
+      "修复全新未跟踪任务目录的文件级 exact scope",
       "同步 0.6 源、快照与 dogfood 并通过 Check-All",
       "提交并推送 skill-garden 与 flower-trellis",
       "完成项目 Flower 元数据升级至 0.4.12-beta.2"
