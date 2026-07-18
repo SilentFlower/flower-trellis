@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 48
-- **Last Active**: 2026-07-18
+- **Total Sessions**: 49
+- **Last Active**: 2026-07-19
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1704 | Active |
+| `journal-1.md` | ~1741 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 49 | 2026-07-19 | 升级 Update-Spec 自动决策并发布 0.5.0-beta.1 | `a803baf`, `74340ca`, `bfa3fbc`, `87da370` | `beta` |
 | 48 | 2026-07-18 | 升级 Check-All 智能检查与 Auto-Loop 续跑 | `76bf8e3`, `92a3372` | `beta` |
 | 47 | 2026-07-18 | 完成任务意图路由与 Flower 0.5.0-beta.0 发布 | `3e9f2d3`, `64f06ac`, `05e71e3`, `7c3b807`, `a48b356` | `beta` |
 | 46 | 2026-07-18 | 优化 Trellis Push 当前任务记录纳入 | `e01dd37`, `462c6fd` | `beta` |

@@ -19,7 +19,10 @@
 
 ### Main Changes
 
-(Add details)
+- 新增 Update-Spec `no-op` / `written` / `needs-review` 自主决策、最小 spec 写入和自校验契约。
+- 保留 Check-All 通过后的停止点；用户继续后同轮执行 Update-Spec 并进入 Trellis Push。
+- 同步 auto-loop record 映射、flower/独立安装器别名、snapshot、dogfood 和两份 code-spec。
+- 发布 `flower-trellis@0.5.0-beta.1`，GitHub Actions、npm beta 和 GitHub Prerelease 均验证成功。
 
 ### Git Commits
 
@@ -1694,6 +1697,46 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Testing
 
 - [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 49: 升级 Update-Spec 自动决策并发布 0.5.0-beta.1
+
+**Date**: 2026-07-19
+**Task**: 升级 Update-Spec 自动决策并发布 0.5.0-beta.1
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+保留 Check-All 通过后的停止点；用户继续后同轮完成 Update-Spec 三态判断并进入 Trellis Push，补齐 auto-loop、双安装器、snapshot/dogfood、上下文预算与回归测试，并发布 npm beta 0.5.0-beta.1。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a803baf` | feat(0.6): 升级 Update-Spec 自主决策与续行 |
+| `74340ca` | feat(0.6): 自动衔接 Update-Spec 与 Trellis Push |
+| `bfa3fbc` | chore(snapshot): 同步 0.5.0-beta.1 发布快照 |
+| `87da370` | chore(release): 0.5.0-beta.1 |
+
+### Testing
+
+- [OK] `npm test`：25 个 Node 测试、25 个 Python 测试通过。
+- [OK] 默认与 strict AI context budget 通过，warning 未通过提高阈值规避。
+- [OK] dogfood 重复运行幂等，`check-snapshot` 与 submodule pin 一致。
+- [OK] GitHub Actions release、npm `beta=0.5.0-beta.1` 和 GitHub Prerelease 验证成功。
 
 ### Status
 
