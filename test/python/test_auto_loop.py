@@ -299,6 +299,40 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         self.assertEqual(next_task["action"], "run_implement")
         self.assertEqual(next_task["task"], ".trellis/tasks/task-two")
 
+    def test_spec_update_needs_review_blocks_current_item(self) -> None:
+        """Update-Spec needs-review 必须阻塞，不能推进到 commit-only。"""
+        self.advance_to_check()
+        self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+            "--check-depth-reason",
+            "定向检查通过",
+        )
+        action = self.runner("next")
+        self.assertEqual(action["action"], "run_spec_update")
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "run_spec_update",
+            "--result",
+            "blocked",
+            "--failure-type",
+            "spec-needs-review",
+            "--summary",
+            "目标规范不唯一",
+        )
+        self.assertEqual(recorded["item_status"], "blocked")
+        self.assertEqual(recorded["current_step"], "spec_update")
+
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["queue"][0]["blocked"]["reason"], "spec-needs-review")
+
 
 if __name__ == "__main__":
     unittest.main()

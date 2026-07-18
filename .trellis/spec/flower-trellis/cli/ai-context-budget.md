@@ -71,6 +71,20 @@ Check-All 智能深度与 auto-loop return gate dogfood 后参考值（2026-07-1
 | Phase summary | 291 | 20,338 | warn,低于 20 KiB review ceiling |
 | fixture SessionStart | 283 | 19,667 | warn,低于 20 KiB review ceiling |
 
+Update-Spec 自主判断与 post-check resume-chain dogfood 后参考值（2026-07-18）：
+
+| 对象 | Lines | Bytes | 状态 |
+|---|---:|---:|---|
+| 完整 workflow | 945 | 59,743 | target 内 |
+| 0.6 hub | 153 | 12,236 | warn,低于 12 KiB review ceiling |
+| 当前四个 additive state 合计 | 54 | 7,835 | target 内 |
+| Phase summary | 293 | 20,331 | warn,低于 20 KiB review ceiling |
+| fixture SessionStart | 285 | 19,660 | warn,低于 20 KiB review ceiling |
+
+本轮首次把 resume-chain 作为独立 hub 长段追加时,hub=13,035 B、Phase summary=21,130 B,
+均成为 high-warning 并导致 strict 失败。最终通过替换压缩现有 Interactive Post-Check Stop Gate
+消除重复,未调整任何 target/review ceiling;默认与 strict 均通过。
+
 ## Budget Table
 
 | 层 | Target | Review ceiling |
@@ -111,9 +125,12 @@ SessionStart fixture 不能读取当前活动 task 或 runtime。输出包含 ac
 运行模式分流必须先于普通停止边界表达,但高频层只保留最短判定:
 
 - hub:validated auto-loop 的 `record + next` 优先,否则 interactive stop。
-- in_progress state:各保留一句同义 guard,不复制 depth 矩阵、runner 参数或 report 模板。
+- hub 的 interactive gate 可再保留一句用户继续后的 `Update-Spec -> Push` 去向,但不得复制
+  三态字段、证据顺序、最小写入或 self-validation 规则。
+- in_progress state:各保留一句同义 guard,不复制 depth/Update-Spec 矩阵、runner 参数或 report 模板。
 - Check-All skill:保存 requested/effective profile、hard-full/light eligibility 和 disposition 全文。
-- auto-loop runner/skill:保存确定性 state/record 字段和命令签名。
+- Update-Spec skill override:保存 no-op/written/needs-review、证据、写入边界和 self-validation 全文。
+- auto-loop runner/skill:只保存确定性 state/record 字段和命令签名。
 
 调整 target/review ceiling 必须同时提交调整原因、旧/新实际基线、无法通过去重解决的证据和本 spec 的预算表更新。禁止只为消除 warning 提高常量。
 
@@ -128,11 +145,15 @@ SessionStart fixture 不能读取当前活动 task 或 runtime。输出包含 ac
 | tokenizer 更新 | 不影响硬指标 |
 | 新规则同时复制到 hub/state/skill | 评审阻断，先去重 |
 | hub/state 写入 check-depth 参数矩阵或 hard-full 全表 | 评审阻断,细节下沉 Check-All/auto-loop skill |
+| hub/state 写入 Update-Spec 三态字段、证据矩阵或写入检查表 | 评审阻断,细节下沉 Update-Spec override |
+| 新 resume-chain 使 hub/Phase summary 超过 review ceiling | 先压缩或替换现有 stop gate;不得先调高阈值 |
 
 ## Good / Base / Bad Cases
 
 - Good：新增规则替换旧正文，或只进入 skill/helper；各层 actual 不超过 target。
 - Good：hub 先写一条 Auto-Loop Return Gate,state 各写一句 guard,完整深度与 record 协议只在 skill/helper。
+- Good：Check-All stop 保留在 hub;用户继续后的 Update-Spec/Push 只写一个短去向,完整三态和
+  self-validation 只存在 Update-Spec override。
 - Base：确有必要的新门禁使某层落在 target 与 review ceiling 之间；打印 warning，评审说明 delta 后继续。
 - Bad：为消除 warning 直接提高阈值、同一长规则复制到多个高频层、fixture 不可解析或目标缺失；前两项拒绝评审，结构性错误直接失败。
 
@@ -146,7 +167,8 @@ node scripts/check-ai-context-budget.mjs --strict
 
 断言点：默认模式在 warn/high-warning 时退出 0；结构性错误退出非 0；strict 仅在 high-warning 时退出非 0；SessionStart fixture 返回非空 `additionalContext`；state 合计从当前目录动态枚举，不写死文件数量。
 另需静态断言 Auto-Loop Return Gate 位于 Interactive Post-Check Stop Gate 之前,两个
-in_progress state 只含短例外,不含 `--effective-check-depth` 等 runner 细节。
+in_progress state 只含短例外,不含 `--effective-check-depth` 等 runner 细节;Post-Check gate
+保留 stop + resume 去向,但不含 `spec_update_result` 字段、证据顺序或 `.trellis/spec/**` 写入矩阵。
 
 ## Wrong vs Correct
 

@@ -174,7 +174,10 @@ export function applyEnhancements(target, opts = {}) {
     skills.length === 0 ||
     skills.includes("finish-work-enhancement") ||
     skills.includes("trellis-finish-work") ||
-    skills.includes("finish-work");
+    skills.includes("finish-work") ||
+    skills.includes("update-spec-enhancement") ||
+    skills.includes("trellis-update-spec") ||
+    skills.includes("update-spec");
   if (wantSkillOverrides) {
     const r = injectSkillOverrides(target, variantDir, skills);
     if (r.skipped) {

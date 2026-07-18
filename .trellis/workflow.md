@@ -253,9 +253,11 @@ When `trellis-auto-loop` is validated through the runner and the outstanding act
 
 #### Interactive Post-Check Stop Gate
 
-Outside validated auto-loop, after `trellis-check-all` finishes, stop and report the result. If checks pass, the next allowed workflow steps are Phase 3.3 `trellis-update-spec` and the minimal Phase 3.4 `trellis-push`; do not archive the task or imply it is ready to wrap up solely because checks passed. `/trellis:finish-work` is explicit-only: run it only after Phase 3.4 is complete and the user asks to wrap up, archive, or finish the task.
+Outside validated auto-loop, Check-All must report and stop. A pass permits only Phase 3.3 `trellis-update-spec` then Phase 3.4 `trellis-push`; it does not authorize archive or finish-work.
 
-The interactive post-check report may contain only check dimensions/results, executed validations, residual risks, the conclusion, and the next-step pointer. It must not draft a commit message, show `Proposed commits` or planned/staged files, choose commit-only, ask the user to reply `ok` to commit, or perform Phase 3.3/3.4 work. Stop after the report and wait for the user to continue.
+The report may contain only check results, validations, residual risks, conclusion, and the next-step pointer. It must not perform Phase 3.3/3.4, draft commit files/messages, choose commit-only, or ask for confirmation. Stop and wait for the user to continue.
+
+After a passed stop, later `next` / `continue` or direct push must load `trellis-update-spec` in the same turn without asking whether. `no-op` / `written` then loads `trellis-push` in the same turn; `needs-review` stops for one focused question. Missing current results run spec first; still-current results are not rerun. This does not weaken the stop or final confirmation.
 
 #### Code Commit Confirmation Gate
 
@@ -419,7 +421,7 @@ At project-local knowledge boundaries, run `python3 ./.trellis/scripts/spec_rout
 Phase 2.1/2.2: reuse only explicit target-matched `route_decision`; otherwise invoke `trellis-route`. If skill invocation is unavailable, read local `trellis-route/SKILL.md`, show numbered choices, and wait.
 Summaries, preferences, `codex-mode`, raw `.runtime`, and empty/stale prefs are not route evidence unless `trellis-route` validates them; user reselect/override wins.
 Ignore lower direct-dispatch shortcuts. Do not spawn `trellis-implement` or `trellis-check*` unless route selected subagent. If route cannot be resolved, do not default inline.
-After Check-All, validated auto-loop must immediately `record + next`; otherwise stop and report only check results, validations, residual risks, conclusion, and next steps. Do not draft commit messages/files or ask for commit confirmation. Point interactive users to Phase 3.3 then Phase 3.4 `trellis-push`; run `/trellis:finish-work` only when explicitly requested after Phase 3.4.
+After Check-All, validated auto-loop must immediately `record + next`; otherwise report and stop. A later interactive next/continue after a passed result must run `trellis-update-spec`; no-op/written loads `trellis-push` in the same turn, while needs-review stops. Do not draft commit plans before that chain; run `/trellis:finish-work` only when explicitly requested after Phase 3.4.
 This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, load `trellis-push`; ordinary mode defaults to commit + push, and commit-only requires explicit user intent or valid auto-loop preauthorization. Never synthesize a substitute commit plan or run bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).
 This guard fully disables the lower Phase 3.4 `Proposed commits` / local-only / no-push walkthrough; do not reuse any part of it.
@@ -447,7 +449,7 @@ At project-local knowledge boundaries, run `python3 ./.trellis/scripts/spec_rout
 Inline workflow-state is not an inline route decision. Phase 2.1/2.2 must reuse explicit target-matched `route_decision`; otherwise invoke `trellis-route`. If unavailable, read local `trellis-route/SKILL.md`, show numbered choices, and wait.
 Summaries, preferences, `codex-mode`, raw `.runtime`, and empty/stale prefs are not route evidence unless `trellis-route` validates them; user reselect/override wins.
 Ignore lower direct-edit/check shortcuts. Do not default inline just because this state is inline or helper is unavailable. Dispatch subagents only when route selected subagent.
-After Check-All, validated auto-loop must immediately `record + next`; otherwise stop and report only check results, validations, residual risks, conclusion, and next steps. Do not draft commit messages/files or ask for commit confirmation. Point interactive users to Phase 3.3 then Phase 3.4 `trellis-push`; run `/trellis:finish-work` only when explicitly requested after Phase 3.4.
+After Check-All, validated auto-loop must immediately `record + next`; otherwise report and stop. A later interactive next/continue after a passed result must run `trellis-update-spec`; no-op/written loads `trellis-push` in the same turn, while needs-review stops. Do not draft commit plans before that chain; run `/trellis:finish-work` only when explicitly requested after Phase 3.4.
 This guard overrides any lower `Flow: ... -> /trellis:finish-work` line in this state block.
 At Phase 3.4, load `trellis-push`; ordinary mode defaults to commit + push, and commit-only requires explicit user intent or valid auto-loop preauthorization. Never synthesize a substitute commit plan or run bare `git commit`/`git push` on code (hub: Code Commit Confirmation Gate).
 This guard fully disables the lower Phase 3.4 `Proposed commits` / local-only / no-push walkthrough; do not reuse any part of it.

@@ -113,7 +113,7 @@ python3 ./.trellis/scripts/auto_loop.py next
 | `run_check_all` | 进入 Phase 2.2，先用 `trellis-route(target=check)`，按 action 的 requested depth 执行 Check-All | `record --action run_check_all --result ok --route-mode <mode> --route-source <source> --effective-check-depth <light|full> --check-depth-reason "<摘要>"` |
 | `run_fix` | 根据 `last_failure` 修复，复用当前任务 implement route | `record --action run_fix --result ok --route-mode <mode> --route-source <source>` |
 | `run_recheck` | 复用当前任务 check route，按 action 的 requested/minimum depth 重新 Check-All | `record --action run_recheck --result ok --route-mode <mode> --route-source <source> --effective-check-depth <light|full> --check-depth-reason "<摘要>"` |
-| `run_spec_update` | 有代码/测试证据时用 `trellis-update-spec`；无必要更新也 record ok | `record --action run_spec_update --result ok` |
+| `run_spec_update` | 调用 `trellis-update-spec` 自主返回三态 | `no-op` / `written`：`record --action run_spec_update --result ok` 后立即 `next`；`needs-review`：`record --action run_spec_update --result blocked --failure-type spec-needs-review` |
 | `commit_only` | 校验本 run 的预授权与文件归属，再把 exact files/message 交给 `trellis-push` 内部 commit-only 执行 | auto-loop 执行 `record --action commit_only --result ok --commit <hash>` |
 
 失败时写回：

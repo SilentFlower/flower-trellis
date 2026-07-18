@@ -752,7 +752,11 @@ def _action(action: str, item: dict[str, Any], extra: dict[str, Any] | None = No
     elif action == "run_recheck":
         base["instruction"] = "修复后重新执行统一 Check-All，不得低于 minimum_check_depth；完成后立即 record + next。"
     elif action == "run_spec_update":
-        base["instruction"] = "若有代码/测试证据支撑，执行 trellis-update-spec；否则直接 record ok。"
+        base["instruction"] = (
+            "执行 trellis-update-spec 并读取 spec_update_result：no-op/written 时 "
+            "record --action run_spec_update --result ok 后立即 next；needs-review 时 "
+            "record --action run_spec_update --result blocked --failure-type spec-needs-review。"
+        )
     elif action == "commit_only":
         base["instruction"] = "进入 trellis-push commit-only 语义：AI 先生成当前任务提交计划并复核 Git 状态，只提交可归属文件，不 push。"
     if extra:

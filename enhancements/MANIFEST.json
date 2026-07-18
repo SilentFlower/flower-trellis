@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-07-18T15:10:10.492Z",
+  "syncedAt": "2026-07-18T16:40:58.367Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "76bf8e35d3f2fece10f8ce575c22612a50e5c31c",
+  "sourceCommit": "a803bafc0af44fa8e7e73f69a71c682ebe04b40a",
   "common": {
     "codexSkills": [
       "craft-rpa",
@@ -140,7 +140,8 @@
         "planning.md"
       ],
       "skillOverrides": [
-        "trellis-finish-work.md"
+        "trellis-finish-work.md",
+        "trellis-update-spec.md"
       ],
       "hookOverrides": [
         "shared/inject-workflow-state.py"

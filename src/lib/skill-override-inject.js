@@ -121,7 +121,11 @@ export function injectSkillOverrides(target, variantDir, skills = []) {
 
   for (const file of files) {
     const name = file.replace(/\.md$/, "");
-    const aliases = name === "trellis-finish-work" ? ["finish-work-enhancement"] : [];
+    const aliases = name === "trellis-finish-work"
+      ? ["finish-work-enhancement"]
+      : name === "trellis-update-spec"
+        ? ["update-spec-enhancement"]
+        : [];
     if (!shouldInstallName(name, skills, aliases)) continue;
     const block = fs.readFileSync(path.join(srcDir, file), "utf8").replace(/\s+$/, "");
     const targetFiles = [

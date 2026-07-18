@@ -368,16 +368,34 @@ class StandaloneInstallerIntegrationTest(unittest.TestCase):
             ".claude/hooks/session-start.py",
             f"{_match('claude-session-start-no-task.py')}\n",
         )
+        self.update_spec_targets = self._write_update_spec_targets()
 
     def tearDown(self) -> None:
         """删除目标项目。"""
         self.target_temp.cleanup()
 
+    def _write_update_spec_targets(self) -> list[Path]:
+        """重建独立安装器需要注入的三个上游 Update-Spec 入口。"""
+        skill = "---\nname: trellis-update-spec\n---\n\n# Update Spec\n"
+        return [
+            _write(self.target, ".agents/skills/trellis-update-spec/SKILL.md", skill),
+            _write(self.target, ".claude/skills/trellis-update-spec/SKILL.md", skill),
+            _write(self.target, ".claude/commands/trellis/update-spec.md", "# Update Spec\n"),
+        ]
+
     def _install(
         self,
+        *skills: str,
         check: bool = True,
         scope: str = "trellis",
     ) -> subprocess.CompletedProcess[str]:
+        """运行独立安装器并返回结果。
+
+        @param skills 精细安装名称。
+        @param check 是否在失败时立即让测试失败。
+        @param scope 安装范围。
+        @return 安装器子进程结果。
+        """
         env = {**os.environ, "SKILL_GARDEN_BOOTSTRAPPED": "1"}
         result = subprocess.run(
             [
@@ -388,6 +406,7 @@ class StandaloneInstallerIntegrationTest(unittest.TestCase):
                 "--repo",
                 str(self.source),
                 str(self.target),
+                *skills,
             ],
             env=env,
             capture_output=True,
@@ -419,6 +438,11 @@ class StandaloneInstallerIntegrationTest(unittest.TestCase):
             (self.target / ".claude/hooks/session-start.py").read_text(encoding="utf-8"),
         )
         self.assertTrue((self.target / ".trellis/scripts/task_intent.py").is_file())
+        for file in self.update_spec_targets:
+            self.assertIn(
+                "BEGIN skill-garden skill override trellis-update-spec v0.6",
+                file.read_text(encoding="utf-8"),
+            )
         backup = self.target / ".trellis/.backup-flower/.trellis/workflow.md"
         self.assertEqual(backup.read_text(encoding="utf-8"), original)
         once = _snapshot(self.target)
@@ -443,6 +467,32 @@ class StandaloneInstallerIntegrationTest(unittest.TestCase):
         self.assertEqual(_snapshot(self.target), before)
         self.assertEqual(common.read_text(encoding="utf-8"), "user common skill\n")
         self.assertFalse((self.target / ".trellis/scripts/task_intent.py").exists())
+
+    def test_update_spec_override_precise_aliases_and_missing_targets(self) -> None:
+        """三个别名都注入已有入口，入口缺失时不创建平台文件。"""
+        for alias in (
+            "trellis-update-spec",
+            "update-spec",
+            "update-spec-enhancement",
+        ):
+            with self.subTest(alias=alias):
+                targets = self._write_update_spec_targets()
+                result = self._install(alias)
+                self.assertIn("[trellis-update-spec] inject skill override", result.stdout)
+                for file in targets:
+                    self.assertIn(
+                        "BEGIN skill-garden skill override trellis-update-spec v0.6",
+                        file.read_text(encoding="utf-8"),
+                    )
+
+        shutil.rmtree(self.target / ".agents/skills/trellis-update-spec")
+        shutil.rmtree(self.target / ".claude/skills/trellis-update-spec")
+        (self.target / ".claude/commands/trellis/update-spec.md").unlink()
+        result = self._install("update-spec-enhancement")
+        self.assertIn("skip:未找到目标已有 trellis-update-spec skill/command", result.stdout)
+        self.assertFalse((self.target / ".agents/skills/trellis-update-spec").exists())
+        self.assertFalse((self.target / ".claude/skills/trellis-update-spec").exists())
+        self.assertFalse((self.target / ".claude/commands/trellis/update-spec.md").exists())
 
 
 if __name__ == "__main__":

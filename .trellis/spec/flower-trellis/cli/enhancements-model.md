@@ -97,9 +97,10 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 8. **升级清理**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,删除本次
    变体不含的过期项。带 `--skills` 是精细操作,不动 manifest、不清理。
 9. **注入 workflow**(`workflow-inject.js`):全装,或显式指定 workflow 相关 skill 时执行。
-10. **skill override 注入**(`skill-override-inject.js`):全装,或显式指定 finish-work 相关
-   skill 时执行。注入位置为 frontmatter 后;无 frontmatter 的 command 文件优先插到首个
-   H1 标题后,避免 override 标题污染平台提取的命令描述。
+10. **skill override 注入**(`skill-override-inject.js`):全装,或显式指定 finish-work / Update-Spec
+   相关 skill 时执行。Update-Spec 精细别名固定为 `trellis-update-spec` / `update-spec` /
+   `update-spec-enhancement`。注入位置为 frontmatter 后;无 frontmatter 的 command 文件优先
+   插到首个 H1 标题后,避免 override 标题污染平台提取的命令描述。
 11. **hook override 注入**(`hook-override-inject.js`):仅全装时执行。读取
    `overrides/hooks/shared/<file>`,只覆盖目标项目已有的平台 hook 文件,不创建未启用的平台目录。
    hook override 是对 Trellis 原生 hook 的覆盖,不是 flower 自有资产,不得写入 manifest
@@ -757,6 +758,134 @@ outstanding action 执行 `record + next`,交互式停止只在非 validated aut
 
 ---
 
+## Scenario: Autonomous Update-Spec And Post-Check Resume
+
+### 1. Scope / Trigger
+
+- Trigger:interactive Check-All 通过后需要保留用户继续卡点,但用户回复“下一步”后不应再次询问
+  是否更新 spec,也不应在 Update-Spec 与 Trellis Push 之间再停一次。
+- Scope:`overrides/skills/trellis-update-spec.md` 保存自主三态、证据、最小写入和自校验;
+  workflow hub/state 只保存停止点与 resume-chain;auto-loop skill/runner 保存确定性 record 映射;
+  `skill-override-inject.js` 和独立 `install.sh` 负责增量注入已有上游入口。
+
+### 2. Signatures
+
+Update-Spec 结果固定为:
+
+```yaml
+spec_update_result:
+  status: no-op | written | needs-review
+  reason: string
+  evidence: [string]
+  changed_files: [path]
+  validation: [string]
+```
+
+普通流程:
+
+```text
+Check-All passed -> report + stop -> user next/continue
+  -> trellis-update-spec
+     no-op/written -> trellis-push plan in the same turn
+     needs-review  -> one focused question, no Push plan
+```
+
+auto-loop 保持原 action 顺序:
+
+```text
+run_check_all -> run_spec_update -> commit_only
+  no-op/written -> record ok -> next
+  needs-review  -> record blocked(spec-needs-review)
+```
+
+### 3. Contracts
+
+- Check-All 的 interactive stop 不变:通过报告输出后仍等待用户继续,不得提前运行 Update-Spec。
+- 通过后用户表达 next/continue 或直接要求 push 时,若没有当前有效结果,同一轮必须先调用
+  `trellis-update-spec`;不得询问“是否更新 spec”或先生成提交计划。
+- `no-op` 用于无可复用契约、现有 spec 已覆盖、一次性实现、纯文案/格式变化或用户当前明确
+  skip;不得为了避免 no-op 写原则性总结。
+- `written` 只在代码/测试证据充分且目标权威 spec 唯一时成立。新增修改只能位于
+  `.trellis/spec/**`,并且只改承载新契约所需的最小章节和最少文件;不得顺带整理、扩写或格式化
+  无关内容。新增 spec 文件时同步对应 index。
+- `needs-review` 只用于目标、语义、冲突或验证失败无法从仓库证据唯一解决的情况,只问一个
+  解除当前歧义所需的问题。
+- 证据顺序固定为任务 JSONL 引用 -> prd/design/implement -> Check-All 证据 -> 实际 diff、源码、
+  测试/提交 -> `spec_router.py` 命中的现有 spec/index。聊天摘要和任务标题不能单独授权写入。
+- `written` 返回前必须复读 spec diff、反向核对源码/测试并运行
+  `git diff --check -- .trellis/spec`;适用时继续跑 index/link、签名或项目专用验证。无法唯一修复
+  时降为 `needs-review`,越界修改不得进入 Push。spec 写入后不额外触发一次人工 Check-All。
+- interactive 的 `no-op` / `written` 在同一轮加载 `trellis-push`,但最终 exact plan 确认不变;
+  `needs-review` 不得进入 Phase 3.4。已有仍有效结果不重复运行,证据或用户意图变化后重新求值。
+- auto-loop 必须调用同一三态协议:`no-op` / `written` record ok 后立即 next;
+  `needs-review` record blocked 且 failure-type 固定为 `spec-needs-review`。
+- override 源只维护增量块,不复制上游整份 skill。flower 与独立安装器的全装和三个精细别名
+  必须一致;agents/claude/command 入口存在才注入,不存在时跳过且不创建平台入口。
+- 真实源先改 `vendor/skill-garden/.trellis/0.6`,再 `npm run sync` 和 dogfood update;
+  `enhancements/0.6`、当前 `.agents/.claude` 与 vendor 语义一致,0.5/old 不变。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| Check-All passed,用户尚未继续 | 报告并停止,不运行 Update-Spec |
+| 用户 next/continue,无新契约 | 返回 no-op,同轮进入 Trellis Push |
+| 新契约有代码/测试证据且目标唯一 | 最小 written + 自校验,同轮进入 Trellis Push |
+| 现有 spec 已完整覆盖 | no-op,不得重复写同义内容 |
+| 目标 spec 或业务语义不唯一 | needs-review,只问一个问题,不生成 Push 计划 |
+| 用户通过后直接要求 push,无当前结果 | 先补跑 Update-Spec,不得绕过 Phase 3.3 |
+| Update-Spec 新增非 `.trellis/spec/**` 修改 | needs-review/boundary-violation,停止并返回检查流程,不得进入 Push |
+| written 自校验失败且修复不唯一 | needs-review,不得伪报 written |
+| validated auto-loop 得到 no-op/written | `record ok -> next` |
+| validated auto-loop 得到 needs-review | `record blocked --failure-type spec-needs-review` |
+| 精细安装目标入口不存在 | 结构化 skip,不创建 skill/command |
+
+### 5. Good/Base/Bad Cases
+
+- Good:Check-All 通过后先停止;用户说“下一步”,Update-Spec 判断现有规范已覆盖并返回 no-op,
+  同一轮展示 Trellis Push 计划。
+- Good:实现新增确定性 CLI 契约;Update-Spec 只更新现有权威场景的一个章节,定向验证通过后
+  返回 written 并进入 Push。
+- Base:用户明确“不更新 spec,直接走”;结果为 no-op/user-explicit-skip,随后仍由 Trellis Push
+  展示最终确认。
+- Bad:Check-All 报告刚输出就自动写 spec,提前越过用户继续卡点。
+- Bad:为了让每次任务都有 spec diff,重写整份规范或顺带格式化无关章节。
+- Bad:Update-Spec 返回 needs-review 后仍生成提交计划,或 auto-loop 把它记录成 ok。
+
+### 6. Tests Required
+
+- 静态断言 override 包含三态、证据顺序、`.trellis/spec/**`、最小修改、self-validation、
+  interactive/auto-loop disposition。
+- 静态断言 Check-All 仍含 Interactive Post-Check Stop Gate;workflow 在该 gate 内包含
+  next/continue -> Update-Spec -> Push,且位于 Code Commit Confirmation Gate 之前。
+- JS consumer 覆盖全装、三个精细别名、agents/claude/command、缺目标和二次运行幂等。
+- Python 独立安装器覆盖相同别名、目标和 skip 行为。
+- auto-loop 静态/行为测试覆盖 no-op/written ok+next 与 needs-review blocked。
+- `npm run sync` 后比较 vendor/snapshot/dogfood;重复 enhance-only 的相关文件 hash 不变。
+- 运行 `npm test`、默认/strict AI context budget、JS/Python/Bash 语法与 `git diff --check`。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+Check-All passed -> auto Update-Spec -> ask whether to write -> stop -> ask whether to push
+```
+
+问题:提前越过既有 post-check 停止点,用户继续后仍保留两个机械卡点。
+
+#### Correct
+
+```text
+Check-All passed -> report + stop -> user next
+  -> autonomous Update-Spec(no-op/written/needs-review)
+  -> no-op/written loads Trellis Push in the same turn
+```
+
+原因:保留唯一用户继续边界和最终 Git 确认,把中间可由仓库证据决定的步骤自动化。
+
+---
+
 ## Scenario: Minimal Trellis Push And Task Progress
 
 ### 1. Scope / Trigger
@@ -776,7 +905,7 @@ outstanding action 执行 `record + next`,交互式停止只在非 validated aut
 ```text
 trellis-check-all
   -> post-check report + stop
-  -> existing Phase 3.3 trellis-update-spec flow
+  -> user continue -> autonomous Phase 3.3 trellis-update-spec
   -> Phase 3.4 trellis-push plan
   -> user confirmation
   -> exact git add / git commit --only / push
@@ -808,7 +937,8 @@ risk_items          ->始终逐项展示,不折叠
 - 普通 post-check 报告只含检查维度/问题数、实际验证、剩余风险、结论和下一步;输出后等待
   用户继续。不得包含 commit message、planned/staged files、`Proposed commits`、commit-only
   决策或提交确认提示。
-- Phase 3.3 的既有触发和 required-once 语义不变。本场景不在 check 通过后新增自动 spec update。
+- Check-All 通过后的停止点不变;用户继续后 Phase 3.3 自主返回三态,no-op/written 同轮加载
+  `trellis-push`,needs-review 停止。详细判断和写入边界由上一场景与 Update-Spec override 所有。
 - Phase 3.4 必须加载 `trellis-push`;在该 skill 外草拟提交计划不能作为等价替代。
 - workflow hub 只声明 Phase 3.4 门禁和格式所有权:详细计划/结果格式完全由 `trellis-push`
   管理。hub 不复制模板、字段顺序、仓库显示名、retained 用户标签或 8/12 文件阈值。
@@ -896,7 +1026,7 @@ risk_items          ->始终逐项展示,不折叠
 ### 5. Good/Base/Bad Cases
 
 - Good:check-all 通过后只报告三维检查、验证命令、Redis 未实机验证风险和下一步,等待用户;
-  用户继续后按现有 Phase 3.3 进入 `trellis-push`。
+  用户继续后自动完成 Phase 3.3,no-op/written 同轮进入 `trellis-push`。
 - Good:单仓 20 个普通 planned files 按目录压成 6 行,2 个未识别 dirty 文件仍逐项展示;
   用户回复“展开文件”后看到原 20 个 exact paths。
 - Good:两个业务仓库各自拥有 commit message 和 branch/upstream,顶部显示执行顺序和一行任务
@@ -924,6 +1054,8 @@ risk_items          ->始终逐项展示,不折叠
   和 workflow override 语义一致。
 - 静态扫描 post-check 文案,确认只允许检查结果/验证/风险/结论/下一步,且禁止
   `Proposed commits`、commit message、planned files 和提交确认。
+- 静态扫描用户继续后的 resume-chain,确认 Update-Spec no-op/written 同轮加载
+  `trellis-push`,且缺少当前结果时不能直接进入 Phase 3.4。
 - 静态扫描 Phase 3.4 文案,确认必须加载 `trellis-push`,普通默认 push,commit-only 仅来自
   明确用户意图或合法 auto-loop 预授权。
 - 静态扫描 hub 与 in-progress states,确认明确整段覆盖下层 `Proposed commits`、local-only、
@@ -965,7 +1097,7 @@ Proposed commits:
 Check-all 已通过。
 验证:5/5 通过。
 剩余风险:Redis 未实机执行。
-下一步:按现有 Phase 3.3 处理后进入 Phase 3.4 trellis-push。
+下一步:继续后自动执行 Phase 3.3,再进入 Phase 3.4 trellis-push。
 ```
 
 ```markdown
@@ -988,8 +1120,8 @@ Push：执行
 确认执行请回复 `确认`。
 ```
 
-原因:check 报告与 Git 计划职责分离,Phase 3.3 时机不变,Phase 3.4 的默认 push、文件范围
-和确认都由唯一入口负责。
+原因:check 报告与 Git 计划职责分离,Phase 3.3 只在用户继续后自主求值,Phase 3.4 的默认 push、
+文件范围和确认都由唯一入口负责。
 
 ---
 

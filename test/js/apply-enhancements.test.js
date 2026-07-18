@@ -75,6 +75,15 @@ function minimalWorkflow() {
   ].join("\n");
 }
 
+function writeUpdateSpecTargets(target) {
+  const skill = "---\nname: trellis-update-spec\n---\n\n# Update Spec\n";
+  return [
+    write(target, ".agents/skills/trellis-update-spec/SKILL.md", skill),
+    write(target, ".claude/skills/trellis-update-spec/SKILL.md", skill),
+    write(target, ".claude/commands/trellis/update-spec.md", "# Update Spec\n"),
+  ];
+}
+
 function snapshotTree(root) {
   const files = new Map();
   function walk(dir) {
@@ -139,6 +148,7 @@ test("fresh 0.6 apply 写入 transform/helper/manifest 且重复运行文件树�
     ".claude/hooks/session-start.py",
     `${match("claude-session-start-no-task.py")}\n`,
   );
+  const updateSpecTargets = writeUpdateSpecTargets(target);
 
   quietApply(target);
   const first = snapshotTree(target);
@@ -165,6 +175,12 @@ test("fresh 0.6 apply 写入 transform/helper/manifest 且重复运行文件树�
     fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")),
     true,
   );
+  for (const file of updateSpecTargets) {
+    assert.match(
+      fs.readFileSync(file, "utf8"),
+      /BEGIN skill-garden skill override trellis-update-spec v0\.6/,
+    );
+  }
   const manifest = JSON.parse(
     fs.readFileSync(path.join(target, ".trellis/.flower-manifest.json"), "utf8"),
   );
@@ -195,4 +211,53 @@ test("task-intent 与 intent-routing 精细安装都会刷新完整 intent unit"
       true,
     );
   }
+});
+
+test("Update-Spec 三个精细安装别名都注入已有 agents/claude/command", () => {
+  for (const alias of [
+    "trellis-update-spec",
+    "update-spec",
+    "update-spec-enhancement",
+  ]) {
+    const target = fs.mkdtempSync(
+      path.join(os.tmpdir(), `flower-update-spec-${alias}-`),
+    );
+    write(target, ".trellis/.version", "0.6.5\n");
+    const targets = writeUpdateSpecTargets(target);
+
+    quietApply(target, { variant: "0.6", skills: [alias] });
+    const first = snapshotTree(target);
+    for (const file of targets) {
+      assert.match(
+        fs.readFileSync(file, "utf8"),
+        /BEGIN skill-garden skill override trellis-update-spec v0\.6/,
+      );
+    }
+
+    quietApply(target, { variant: "0.6", skills: [alias] });
+    assert.deepEqual(snapshotTree(target), first);
+  }
+});
+
+test("Update-Spec 精细安装在目标入口缺失时不创建平台文件", () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-update-spec-missing-"));
+  write(target, ".trellis/.version", "0.6.5\n");
+
+  quietApply(target, {
+    variant: "0.6",
+    skills: ["update-spec-enhancement"],
+  });
+
+  assert.equal(
+    fs.existsSync(path.join(target, ".agents/skills/trellis-update-spec/SKILL.md")),
+    false,
+  );
+  assert.equal(
+    fs.existsSync(path.join(target, ".claude/skills/trellis-update-spec/SKILL.md")),
+    false,
+  );
+  assert.equal(
+    fs.existsSync(path.join(target, ".claude/commands/trellis/update-spec.md")),
+    false,
+  );
 });
