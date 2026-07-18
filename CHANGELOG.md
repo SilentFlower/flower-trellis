@@ -4,6 +4,44 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.0-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.4.12-beta.2...v0.5.0-beta.0) (2026-07-18)
+
+
+### ✨ 新功能 Features
+
+* **0.6:** 支持任务意图路由与声明式强化 ([64f06ac](https://github.com/SilentFlower/flower-trellis/commit/64f06ac01369aa5823c1f48213abcf8184c20295))
+  - 自动识别 discuss、inspect、direct_edit、task_plan、workflow_action。
+  - 支持“先讨论 / 不要任务 / 走任务 / 直接做”等当前请求内意图切换。
+  - 高置信复杂请求可自动创建 planning task，但不越过 brief、start 和 route 门禁。
+  - 新增 task_intent.py，记录 session 来源、Git dirty baseline 和自动创建元数据。
+  - 支持安全 discard 自动 planning task，并清理 task、父引用和 session。
+  - skill-garden 支持对 workflow、skill、command、hook 执行 insert / replace / remove。
+  - 新增 required preflight、optional skip、首次备份和 managed marker 幂等升级。
+  - JS 与 Python 双 consumer 使用同一份 transform 声明。
+  - 新增 AI context budget，默认分级告警，支持 strict 发布审计。
+  - 新增 Node/Python 零依赖测试体系。
+
+
+### 🐛 修复 Bug Fixes
+
+* **0.6:** 将当前任务产物纳入 Trellis Push ([462c6fd](https://github.com/SilentFlower/flower-trellis/commit/462c6fd54caa6fbc2ef4ad52e61806aad4909289))
+* **hooks:** SessionStart 不再重新注入机械 task consent。
+* **hooks:** Python hook 使用合法 hash marker，并支持旧 HTML marker 迁移。
+* **install:** task-intent / intent-routing 精细安装会同步完整 intent unit。
+* **install:** --scope all 在复制任何资产前完成 required preflight。
+* **package:** npm 发布包不再包含 Python bytecode cache。
+* **task:** create/discard 失败时补偿恢复 task、parent 和 session。
+* **task:** 手工或历史 task 不会被 auto-discard 误删。
+* **manifest:** 所有 required 强化步骤成功后才写成功 manifest。
+
+
+### 🔒 兼容与安全
+
+* 0.6 的 no_task 原正文改由 transform 接管，不再叠加重复 sentinel。
+* 0.5、old 和官方 Trellis 源保持不变。
+* required selector 漂移时零写入失败，不退化为猜测或追加。
+* workflow、hub、state、Phase summary 和 SessionStart 均纳入上下文预算。
+
 ## [0.4.12-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.4.12-beta.1...v0.4.12-beta.2) (2026-07-14)
 
 
