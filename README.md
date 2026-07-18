@@ -104,9 +104,9 @@ flower-trellis -v
 
 运行 `init` / `update` 时,flower-trellis 会顺带检测**自身**在 npm 上是否有新版本:
 
-- **联网、尽力而为**:带 2.5s 超时,离线 / 超时 / 失败一律静默跳过,绝不阻断安装/升级主流程。
-- **稳定版安装**:只跟随 npm `latest` 通道;发现稳定新版时提示 `npm i -g flower-trellis@latest`。
-- **beta 版安装**:版本号形如 `0.3.0-beta.1`,会同时检查 `beta` 与 `latest`;若 `latest` 已高于当前 beta,优先提示 `npm i -g flower-trellis@latest`,否则提示更新到 `npm i -g flower-trellis@beta`。
+- **联网、尽力而为**:带 5s 超时,离线 / 超时 / 失败一律静默跳过,绝不阻断安装/升级主流程。
+- **稳定版安装**:只跟随 npm `latest` 通道;发现稳定新版时安装已确认的精确版本,并使用 `--prefer-online` 避免旧 metadata 缓存。
+- **beta 版安装**:版本号形如 `0.3.0-beta.1`,会同时检查 `beta` 与 `latest`;若 `latest` 已高于当前 beta,优先回归稳定版,否则安装已确认的精确 beta 版本。
 - **发现新版**(交互终端):提示并询问是否立即升级;同意则执行推荐的安装命令,成功后请按提示重新运行命令(升级后强化包随新版更新,可再跑一次 `ft update` 重新叠加)。
 - **非交互**(`-y` 或非 TTY):仅打印一行升级提示,不弹确认、不阻塞。
 - **跳过检测**:经 `npx` 运行(本就是最新版)、或显式 `--no-update-check` / `FLOWER_NO_UPDATE_CHECK=1` 时不检测。

@@ -410,6 +410,12 @@ export async function buildSelfCheck(target, options = {}) {
     reason: null,
   };
 
+  const persistRemoteCache = (patch) => {
+    if (!writeCache || !manifest) return base;
+    writeUpdateCheck(absoluteTarget, patch);
+    return { ...base, updateCheck: readUpdateCheck(absoluteTarget) };
+  };
+
   if (!fs.existsSync(trellisDir)) {
     return { ...base, status: "skipped", reason: "not_trellis_project" };
   }
@@ -471,27 +477,25 @@ export async function buildSelfCheck(target, options = {}) {
 
   const metadata = await safeFetchPackageUpdateMetadata(fetchMetadata);
   if (!metadata) {
-    if (writeCache && manifest) {
-      writeUpdateCheck(absoluteTarget, {
-        lastStatus: "offline",
-        lastErrorCode: "fetch_failed",
-      });
-    }
+    const resultBase = persistRemoteCache({
+      lastStatus: "offline",
+      lastErrorCode: "fetch_failed",
+    });
     const remotePatch = { tags: updateCheck.lastRemote, errorCode: "fetch_failed" };
     if (projectOutOfSync) {
       const releaseNotesRange = projectReleaseNotesRange(projectFlower, currentFlower);
       return projectOutOfSyncResult(
-        base,
+        resultBase,
         absoluteTarget,
         remotePatch,
         cachedReleaseNotes(updateCheck, releaseNotesRange),
       );
     }
     return {
-      ...base,
+      ...resultBase,
       status: "offline",
       reason: "fetch_failed",
-      remote: { ...base.remote, ...remotePatch },
+      remote: { ...resultBase.remote, ...remotePatch },
     };
   }
 
@@ -502,24 +506,22 @@ export async function buildSelfCheck(target, options = {}) {
     ? updateReleaseNotesRange(currentFlower, recommendation)
     : projectReleaseNotesRange(projectFlower, currentFlower);
   const releaseNotes = releaseNotesFromMetadata(metadata, releaseNotesRange);
-  if (writeCache && manifest) {
-    writeUpdateCheck(absoluteTarget, {
-      lastCheckedAt: now.toISOString(),
-      lastRemote: tags,
-      lastReleaseNotes: releaseNotes && !releaseNotes.unavailable ? releaseNotes : null,
-      lastStatus: remoteStatus,
-      lastErrorCode: null,
-    });
-  }
+  const resultBase = persistRemoteCache({
+    lastCheckedAt: now.toISOString(),
+    lastRemote: tags,
+    lastReleaseNotes: releaseNotes && !releaseNotes.unavailable ? releaseNotes : null,
+    lastStatus: remoteStatus,
+    lastErrorCode: null,
+  });
 
   if (!recommendation) {
     if (projectOutOfSync) {
-      return projectOutOfSyncResult(base, absoluteTarget, { tags }, releaseNotes);
+      return projectOutOfSyncResult(resultBase, absoluteTarget, { tags }, releaseNotes);
     }
     return {
-      ...base,
+      ...resultBase,
       status: remoteStatus,
-      remote: { ...base.remote, tags },
+      remote: { ...resultBase.remote, tags },
     };
   }
 
@@ -528,9 +530,9 @@ export async function buildSelfCheck(target, options = {}) {
     absoluteTarget,
     updateCheck.policy,
     {
-      ...base,
+      ...resultBase,
       status: remoteStatus,
-      remote: { ...base.remote, tags },
+      remote: { ...resultBase.remote, tags },
       recommendation,
       commands: {
         recommended: command,

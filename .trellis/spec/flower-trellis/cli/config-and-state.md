@@ -83,8 +83,11 @@ gitignored 的 `.trellis/.flower-update-check.tmp` 运行缓存)。
   (`ctx.updateCheck===false` 或 `process.env.FLOWER_NO_UPDATE_CHECK` 非空)→ npx
   (`isRunningViaNpx()`,路径含 `_npx`)→ 探测失败 → 无升级推荐,任一命中即静默返回。
 - **通道推荐**:稳定版当前安装只比较 `latest`;beta/prerelease 当前安装先比较 `latest`,
-  若 `latest` 高于当前 beta 则推荐 `npm i -g flower-trellis@latest`,否则比较 `beta` 并推荐
-  `npm i -g flower-trellis@beta`。
+  若 `latest` 高于当前 beta 则推荐稳定版,否则比较 `beta`。安装命令必须锁定本次 registry
+  metadata 已确认存在的精确版本并追加 `--prefer-online`,不得在执行阶段重新解析可移动 tag。
+- **安装缓存竞争**:`checkForUpdate()` 与 `self-update` 共用 `installFlowerVersion()`。npm
+  返回 `ETARGET` 时等待 1 秒并只重试一次;其它错误不重试。最终失败仍按原有边界降级为
+  手动命令或中文错误,不得阻断 `init` / `update` 的既有容错路径。
 - **不引重依赖**:不引 `update-notifier` / `semver`;版本比较轻量支持
   `major.minor.patch` 与 `major.minor.patch-beta.n`。不认识的 prerelease label 宁可不提示,
   避免跨预发布线误判。
@@ -210,6 +213,8 @@ src/assets/flower_update_hook.py
   已有项目的 `.trellis/.flower-update-check.tmp` 缓存(`lastCheckedAt` / `lastRemote` /
   `lastStatus` / `lastErrorCode=null`),让主动更新后的下次 SessionStart 使用最新远程证据。目标没有
   `.flower-manifest.json` 时不得凭空创建半截 manifest;写缓存失败也不得阻断主流程。
+- `self-check --json` 本次写入远端缓存后,返回对象内的 `updateCheck` 必须重新读取写后视图;
+  顶层 `status` 与 `updateCheck.lastStatus` 不得滞后一轮。离线写入同样适用。
 - `checkForUpdate()` 必须同时尊重 `--no-update-check`、`FLOWER_NO_UPDATE_CHECK` 以及
   manifest 中的 `updateCheck.enabled=false` / `policy=off`。
 - 若远端 dist-tags 表明当前 flower-trellis 有新版可用,最终状态优先为
@@ -265,6 +270,7 @@ src/assets/flower_update_hook.py
 | `lastCheckedAt` 仍在 interval 内但缓存显示有更新 | 返回 `update_available`,来源标记为 cache |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目不 out-of-sync | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode`,不刷新 `lastCheckedAt` |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目 out-of-sync | 返回 `project_out_of_sync`,推荐 `--project-only`,同时标注远端 `errorCode` |
+| npm 精确版本安装命中 `ETARGET` | `--prefer-online` 等待 1 秒后只重试一次;仍失败则输出最终错误和精确手动命令 |
 | `init` / `update` 主动探测成功 | 写入 `.flower-update-check.tmp` 的 `lastRemote` / `lastCheckedAt` / `lastStatus`;无 manifest 时跳过 |
 | release notes metadata 缺失或损坏 | 版本判断照常;`releaseNotes.unavailable=true` 或不展示摘要 |
 | 远端探测成功且生成了可用 notes 摘要 | 写入 tmp 中的 `lastReleaseNotes`;`lastRemote` 仍只写 dist-tags |
@@ -302,6 +308,10 @@ src/assets/flower_update_hook.py
   - `git diff --check`
 - CLI 行为:
   - `self-check --json --target <dir> --no-update-check` 返回稳定 `disabled` JSON。
+  - 强制远端成功或失败并写入 tmp 后,当次返回的 `updateCheck.lastStatus` /
+    `lastErrorCode` 与写后缓存一致。
+  - 自动安装使用远端已确认的精确版本和 `--prefer-online`;仅 `ETARGET` 重试一次,
+    其它失败不重试。
   - 修改临时 manifest 的 `flowerVersion`,并在 `.flower-update-check.tmp` 把 `lastCheckedAt`
     设到未来,缓存无远端更新时
     返回 `project_out_of_sync`。

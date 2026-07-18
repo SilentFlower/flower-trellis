@@ -19,6 +19,8 @@ const REGISTRY = "https://registry.npmjs.org";
 const PKG = "flower-trellis";
 /** 网络探测超时(毫秒)—— 启动检查有 hook 总预算兜底,5s 可降低 registry 偶发慢响应误判。 */
 const TIMEOUT_MS = 5000;
+/** npm 刚发布后的 metadata 缓存竞争只允许等待并重试一次。 */
+const ETARGET_RETRY_DELAY_MS = 1000;
 /** npm package metadata 中保存 flower 内部发布说明的字段名。 */
 const RELEASE_NOTES_FIELD = "flowerReleaseNotes";
 /** 单次注入最多展示的版本数。 */
@@ -131,6 +133,59 @@ export async function fetchPackageDistTags() {
 export async function fetchLatestVersion() {
   const tags = await fetchPackageDistTags();
   return tags?.latest ?? null;
+}
+
+/** 同步等待短暂的 registry metadata 收敛窗口。 */
+function sleepSync(ms) {
+  const signal = new Int32Array(new SharedArrayBuffer(4));
+  Atomics.wait(signal, 0, 0, ms);
+}
+
+/** 判断 npm 安装结果是否为发布后 metadata 尚未收敛的 ETARGET。 */
+function isEtargetResult(result) {
+  return result?.status !== 0 && /\bETARGET\b/.test(String(result?.stderr || ""));
+}
+
+/**
+ * 安装更新检查已经确认存在的 flower-trellis 精确版本。
+ *
+ * 使用 `--prefer-online` 避免 npm CLI 复用发布前的旧 packument；若仍遇到 ETARGET，
+ * 只等待并重试一次，防止真正的版本错误进入无限循环。其它错误不重试。
+ *
+ * @param {string} version 已由 registry metadata 确认存在的精确版本
+ * @param {{cwd?:string,spawn?:Function,wait?:Function,stderr?:{write:Function},log?:Function,platform?:string}} options 运行参数与测试替身
+ * @returns {ReturnType<typeof spawnSync>} 最终一次 npm 安装结果
+ */
+export function installFlowerVersion(version, options = {}) {
+  const spawn = typeof options.spawn === "function" ? options.spawn : spawnSync;
+  const wait = typeof options.wait === "function" ? options.wait : sleepSync;
+  const stderr = options.stderr?.write ? options.stderr : process.stderr;
+  const log = typeof options.log === "function" ? options.log : console.log;
+  const platform = typeof options.platform === "string" ? options.platform : process.platform;
+  const args = ["i", "-g", `${PKG}@${version}`, "--prefer-online"];
+  const run = () => spawn("npm", args, {
+    cwd: options.cwd,
+    stdio: ["inherit", "inherit", "pipe"],
+    encoding: "utf8",
+    shell: platform === "win32",
+  });
+
+  const first = run();
+  if (!isEtargetResult(first)) {
+    if (first?.stderr) stderr.write(String(first.stderr));
+    return first;
+  }
+
+  // Registry 根文档和 npm packument 可能在刚发布后短暂不同步，等待后仅重试一次。
+  log("  · npm 版本元数据尚未收敛,1 秒后刷新并重试一次");
+  wait(ETARGET_RETRY_DELAY_MS);
+  const retried = run();
+  if (retried?.stderr) {
+    stderr.write(String(retried.stderr));
+  } else if (retried?.status !== 0 && first.stderr) {
+    stderr.write(String(first.stderr));
+  }
+  return retried;
 }
 
 /**
@@ -340,10 +395,18 @@ export function getUpdateRecommendation(current, tags) {
   const latestIsStable = latest && !isPrerelease(latest);
 
   if (latestIsStable && compareVersions(latest, current) === 1) {
-    return { version: latest, tag: "latest", command: `npm i -g ${PKG}@latest` };
+    return {
+      version: latest,
+      tag: "latest",
+      command: `npm i -g ${PKG}@${latest} --prefer-online`,
+    };
   }
   if (currentIsPrerelease && beta && compareVersions(beta, current) === 1) {
-    return { version: beta, tag: "beta", command: `npm i -g ${PKG}@beta` };
+    return {
+      version: beta,
+      tag: "beta",
+      command: `npm i -g ${PKG}@${beta} --prefer-online`,
+    };
   }
   return null;
 }
@@ -448,10 +511,7 @@ export async function checkForUpdate(ctx, commandLabel) {
   }
 
   // 8. 执行全局升级。失败(含 EACCES 权限问题、npm 不存在)不自行提权,降级为打印手动命令
-  const res = spawnSync("npm", ["i", "-g", `${PKG}@${recommendation.tag}`], {
-    stdio: "inherit",
-    shell: process.platform === "win32", // Windows 上 npm 实为 npm.cmd
-  });
+  const res = installFlowerVersion(recommendation.version);
   if (res.status === 0) {
     console.log(`\n  ✓ 已升级到 ${recommendation.version}(${recommendation.tag})`);
     console.log(`  · 请重新运行 ft ${commandLabel} 以使用新版本`);

@@ -5,6 +5,7 @@ import {
   projectUpdateForwardArgs,
   safetyState,
 } from "../lib/self-check.js";
+import { installFlowerVersion } from "../lib/update-check.js";
 
 /** 判断参数里是否包含指定 flag。 */
 function hasFlag(args, name) {
@@ -170,12 +171,11 @@ export async function selfUpdate(ctx) {
   }
 
   if (shouldInstallFlower) {
-    runCommand(
-      "npm",
-      ["i", "-g", `flower-trellis@${check.recommendation.tag}`],
-      ctx.target,
-      "全局 flower-trellis 升级失败",
-    );
+    const res = installFlowerVersion(check.recommendation.version, { cwd: ctx.target });
+    if (res.status !== 0) {
+      const reason = res.error ? res.error.message : `退出码 ${res.status ?? 1}`;
+      throw new Error(`全局 flower-trellis 升级失败(${reason})`);
+    }
   } else {
     console.log("  · 跳过全局 flower-trellis 升级");
   }
