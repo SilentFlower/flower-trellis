@@ -1667,3 +1667,38 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 48: 升级 Check-All 智能检查与 Auto-Loop 续跑
+
+**Date**: 2026-07-18
+**Task**: 升级 Check-All 智能检查与 Auto-Loop 续跑
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+统一 Check-All 入口并智能选择 light/full 深度，增加旧 route 兼容归一化和 auto-loop check_depth/last_check/record+next 协议；补齐回归测试、发布快照与上下文预算 code-spec。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `76bf8e3` | (see git log) |
+| `92a3372` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
