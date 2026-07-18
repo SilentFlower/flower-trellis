@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"约束 vendor/skill-garden 源优先、0.6 快照同步、dogfood 副本和幂等验证。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"约束 workflow hub/state 高频门禁去重、预算告警和 strict 审计。"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-injection-transforms.md","reason":"约束 0.6 control-plane 修改、源/快照边界与避免继续堆叠重复 override。"}
+{"file":".trellis/spec/flower-trellis/cli/module-guidelines.md","reason":"约束 Python/JS 代码结构、显式导入和公开接口文档。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"用于复用现有 auto-loop 状态机和 Check-All 问题模型，避免新增平行路由器。"}

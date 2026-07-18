@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查自动化测试、语法、diff、幂等和容错降级。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查 vendor/agents/claude/enhancements/dogfood 分发一致性。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查 hub/state/SessionStart 上下文增量和默认/strict 预算。"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"检查 gitignored runtime 状态、兼容读取和结构化输出约定。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 Check-All skill、workflow 注入和 auto-loop runner 跨层续跑链路。"}

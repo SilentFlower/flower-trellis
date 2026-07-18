@@ -1,0 +1,48 @@
+{
+  "id": "check-all-smart-depth",
+  "name": "check-all-smart-depth",
+  "title": "升级 Check-All 智能检查与 Auto-Loop 续跑",
+  "description": "由 trellis-check-all 统一识别 light/full 检查深度，并消除普通 Post-Check Stop Gate 对 running auto-loop record+next 的错误覆盖。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P1",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-18T13:17:45Z",
+      "contextKey": "codex_019f7414-497e-70e1-8ce9-a8c39e728963",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "0dc3dd9ff7dd821c6926ef63f45826dcbcd7d593",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-18T15:11:54Z",
+    "completedSteps": [
+      "完成 Check-All 统一入口和 light/full 智能深度",
+      "完成 route 旧 mode 兼容与 auto-loop check_depth/record+next",
+      "完成回归测试、快照同步和 code-spec 更新"
+    ],
+    "partialStep": null,
+    "nextStep": "用户验收后执行 trellis-finish-work 归档",
+    "notes": "npm test、strict 上下文预算和 check-snapshot 均通过"
+  }
+}
