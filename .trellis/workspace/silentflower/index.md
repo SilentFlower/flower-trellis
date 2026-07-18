@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 45
-- **Last Active**: 2026-07-14
+- **Total Sessions**: 46
+- **Last Active**: 2026-07-18
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1596 | Active |
+| `journal-1.md` | ~1631 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 46 | 2026-07-18 | 优化 Trellis Push 当前任务记录纳入 | `e01dd37`, `462c6fd` | `beta` |
 | 45 | 2026-07-14 | 优化 Check-All 检查与修复体验 | `7a2bfb8`, `55b5f12` | `beta` |
 | 44 | 2026-07-14 | 简化 Trellis 提交与收尾流程 | `90220a6`, `9460c3a` | `beta` |
 | 43 | 2026-07-13 | common skill 自动随新版更新 | `8b36bc7` | `main` |

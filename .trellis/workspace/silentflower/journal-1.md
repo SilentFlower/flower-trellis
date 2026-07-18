@@ -1594,3 +1594,38 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 46: 优化 Trellis Push 当前任务记录纳入
+
+**Date**: 2026-07-18
+**Task**: 优化 Trellis Push 当前任务记录纳入
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+优化普通 Trellis Push：将当前活动任务产物纳入独立任务记录/progress 提交，补齐全新未跟踪任务目录的文件级 exact scope；同步 skill-garden 0.6 源、增强快照、workflow 与双平台 dogfood，并通过 Check-All、依赖型多仓推送和快照一致性验证。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e01dd37` | (see git log) |
+| `462c6fd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
