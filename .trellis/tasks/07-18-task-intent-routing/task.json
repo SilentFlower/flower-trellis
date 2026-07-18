@@ -1,0 +1,35 @@
+{
+  "id": "task-intent-routing",
+  "name": "task-intent-routing",
+  "title": "优化 Trellis Task 意图识别与切换",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "skill-garden/0.6/intent-routing-and-transforms",
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-07-18T11:48:36Z",
+    "completedSteps": [
+      "完成任务意图路由、声明式变换、全量验证与双仓提交推送"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 finish-work 归档当前任务",
+    "notes": "Check-All 已通过；上下文预算 warning 均低于 review ceiling。"
+  }
+}

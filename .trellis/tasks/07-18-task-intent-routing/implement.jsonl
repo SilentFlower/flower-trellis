@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "强化包快照、注入流水线、幂等与 dogfood 约束"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "manifest 写入顺序、路径状态与兼容契约"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "ESM、命名导出、JSDoc 与模块边界"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "幂等、不误伤、测试与评审要求"}

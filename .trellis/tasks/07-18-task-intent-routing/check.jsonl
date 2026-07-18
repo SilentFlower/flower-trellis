@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "核对变换、快照、同步和 dogfood 全链路"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "核对幂等、删除安全、测试和残留风险"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "核对 manifest、session/runtime 与状态写入"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "核对 submodule pin、snapshot 与双仓发布顺序"}
