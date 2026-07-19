@@ -26,6 +26,52 @@ const localizedSubjects = new Map([
   ["afa9282", "精简 route state helper 默认输出"],
   ["reduce route state helper output", "精简 route state helper 默认输出"],
   ["cc98c02", "项目侧待更新提示会显示对应版本更新摘要"],
+  ["c4e83ab", "同步项目 Flower 版本状态"],
+  ["update flower manifest to 0.5.0-beta.1", "同步项目 Flower 版本状态"],
+]);
+
+const detailedReleaseSubjects = new Map([
+  [
+    "db4f943",
+    {
+      order: 0,
+      details: [
+        "将 0.6 的 Workflow、Skill、Hook 与平台配置统一为 `insert / replace / remove` Patch schema v2。",
+        "支持 Bundle 选择、全量 preflight、changed-only apply、首次备份、旧 marker 迁移和 manifest provenance。",
+        "Flower JS 与 Skill-Garden Python consumer 共享 Core Patch 声明和 fixture，并保持结构化结果 parity。",
+      ],
+    },
+  ],
+  [
+    "2472058",
+    {
+      order: 1,
+      details: [
+        "对全部 0.6 Patch 目标执行上游 baseline、Patch 与最终产物三方冲突检查。",
+        "运行时、`npm test`、`check-snapshot` 与维护者脚本复用同一套 compatibility/conflict evaluator。",
+      ],
+      sections: [
+        {
+          title: "🐛 修复 Bug Fixes",
+          items: [
+            "**workflow:** 清理 route、Check-All、Update-Spec 与 Trellis Push 的互斥协议和重复流程。",
+            "**config:** 结构化配置只修改受管字段，损坏 JSON/YAML/TOML 时失败且不覆盖用户配置。",
+            "**install:** required Patch 或冲突检查失败时，Patch、资产、stale 清理和 manifest 保持零写入。",
+            "**diagnostics:** 将未安装目标记为 info，并将 optional skip 与阻断错误分开报告。",
+          ],
+        },
+        {
+          title: "🔒 兼容与安全",
+          items: [
+            "Trellis `0.6.5` 已登记并通过完整验证。",
+            "未登记的同线 `0.6.x` 在完整 Patch 与冲突检查通过后 warning 放行。",
+            "`0.7+`、`1.x` 或无效版本会阻断强化，并提示使用匹配版本或 `--no-enhance`。",
+            "`0.5` / `old` 继续使用原有 legacy 注入路径。",
+          ],
+        },
+      ],
+    },
+  ],
 ]);
 
 const commitGroupOrder = types.flatMap((type) => type.section).filter(Boolean);
@@ -125,6 +171,34 @@ module.exports = {
             return `[@${user}](${usernameUrl})`;
           },
         );
+
+        const releaseSubject = detailedReleaseSubjects.get(commit.shortHash);
+        if (releaseSubject) {
+          const commitUrl = expandTemplate(
+            "{{host}}/{{owner}}/{{repository}}/commit/{{hash}}",
+            {
+              host: context.host,
+              owner: context.owner,
+              repository: context.repository,
+              hash: commit.hash,
+            },
+          );
+          const detailLines = releaseSubject.details.map((detail) => `  - ${detail}`);
+          const sectionLines = (releaseSubject.sections || []).flatMap((section) => [
+            "",
+            "",
+            `### ${section.title}`,
+            "",
+            ...section.items.map((item) => `* ${item}`),
+          ]);
+
+          commit.subject = [
+            `${commit.subject} ([${commit.shortHash}](${commitUrl}))`,
+            ...detailLines,
+            ...sectionLines,
+          ].join("\n");
+          commit.hash = null;
+        }
       }
 
       commit.references = commit.references.filter(
@@ -135,6 +209,18 @@ module.exports = {
     },
     commitGroupsSort(a, b) {
       return commitGroupOrder.indexOf(a.title) - commitGroupOrder.indexOf(b.title);
+    },
+    commitsSort(a, b) {
+      const aOrder = detailedReleaseSubjects.get(a.shortHash)?.order;
+      const bOrder = detailedReleaseSubjects.get(b.shortHash)?.order;
+
+      if (aOrder !== undefined || bOrder !== undefined) {
+        return (aOrder ?? Number.MAX_SAFE_INTEGER) - (bOrder ?? Number.MAX_SAFE_INTEGER);
+      }
+
+      return `${a.scope || ""}${a.subject || ""}`.localeCompare(
+        `${b.scope || ""}${b.subject || ""}`,
+      );
     },
   },
 };
