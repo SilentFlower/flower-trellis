@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "实现共享 conflict policy、写前断言、JS/Python parity 和 Workflow section Patch。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "实现运行时安装、精细 Bundle、dogfood、日志分级和源/快照同步。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "实现版本兼容状态、manifest provenance 和成功写入顺序。"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "控制 Hub/State/Skill 去重后的最终上下文和 warning-first 预算。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "接入 check-snapshot 发布门禁并保持 submodule/快照提交顺序。"}
+{"file": ".trellis/tasks/07-19-trellis-injection-conflict-resolution/research/current-conflict-inventory.md", "reason": "按 C-WF-001~005 证据实施当前冲突清理和正反向断言。"}

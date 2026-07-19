@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "审查 conflict evaluator 是否保持零写入、确定性断言和双消费者一致。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "审查完整/精细安装、日志分级、dogfood 与快照一致性。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "审查版本状态、manifest 最后写和失败边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "审查最终产物职责去重和默认/strict 预算。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "审查 check-snapshot 与发布前快照门禁。"}
+{"file": ".trellis/tasks/07-19-trellis-injection-conflict-resolution/research/current-conflict-inventory.md", "reason": "反向核对所有已知冲突候选、已解决项和版本风险均有验证。"}

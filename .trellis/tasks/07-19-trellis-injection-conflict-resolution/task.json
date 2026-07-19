@@ -1,0 +1,49 @@
+{
+  "id": "trellis-injection-conflict-resolution",
+  "name": "trellis-injection-conflict-resolution",
+  "title": "处理 Skill-Garden 注入与上游 Trellis 冲突",
+  "description": "系统识别并消除 Skill-Garden Patch 与上游 Trellis 工作流、技能、命令、Hook 之间的语义冲突、重复规则和升级漂移。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-19T01:38:42Z",
+      "contextKey": "codex_019f7414-497e-70e1-8ce9-a8c39e728963",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "200c255c8fce351a84912b97fa3ff57b49ee9994",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-19T03:32:04Z",
+    "completedSteps": [
+      "收敛 Workflow route/check/update-spec/push 内容所有权",
+      "实现共享 compatibility/conflict policy 与 JS/Python parity",
+      "接入 npm test、check-snapshot 和维护者冲突门禁",
+      "完成 Full Check-All 与双次 dogfood 幂等验证"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档任务",
+    "notes": "spec_update_result=no-op；现有 spec 已覆盖本轮执行契约。"
+  }
+}
