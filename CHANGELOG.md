@@ -4,6 +4,40 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.0-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.5.0-beta.1...v0.5.0-beta.2) (2026-07-19)
+
+
+### ✨ 新功能 Features
+
+* **0.6:** 统一 Patch Engine 与注入流程 ([db4f943](https://github.com/SilentFlower/flower-trellis/commit/db4f9430dfdafd807726df14c0f0b7b91dcf2b83))
+  - 将 0.6 的 Workflow、Skill、Hook 与平台配置统一为 `insert / replace / remove` Patch schema v2。
+  - 支持 Bundle 选择、全量 preflight、changed-only apply、首次备份、旧 marker 迁移和 manifest provenance。
+  - Flower JS 与 Skill-Garden Python consumer 共享 Core Patch 声明和 fixture，并保持结构化结果 parity。
+* **0.6:** 增加 Patch 冲突与兼容门禁 ([2472058](https://github.com/SilentFlower/flower-trellis/commit/2472058714f0986186a84de78b6fd7ad15a2f76b))
+  - 对全部 0.6 Patch 目标执行上游 baseline、Patch 与最终产物三方冲突检查。
+  - 运行时、`npm test`、`check-snapshot` 与维护者脚本复用同一套 compatibility/conflict evaluator。
+
+
+### 🐛 修复 Bug Fixes
+
+* **workflow:** 清理 route、Check-All、Update-Spec 与 Trellis Push 的互斥协议和重复流程。
+* **config:** 结构化配置只修改受管字段，损坏 JSON/YAML/TOML 时失败且不覆盖用户配置。
+* **install:** required Patch 或冲突检查失败时，Patch、资产、stale 清理和 manifest 保持零写入。
+* **diagnostics:** 将未安装目标记为 info，并将 optional skip 与阻断错误分开报告。
+
+
+### 🔒 兼容与安全
+
+* Trellis `0.6.5` 已登记并通过完整验证。
+* 未登记的同线 `0.6.x` 在完整 Patch 与冲突检查通过后 warning 放行。
+* `0.7+`、`1.x` 或无效版本会阻断强化，并提示使用匹配版本或 `--no-enhance`。
+* `0.5` / `old` 继续使用原有 legacy 注入路径。
+
+
+### 🧰 维护 Maintenance
+
+* **trellis:** 同步项目 Flower 版本状态 ([c4e83ab](https://github.com/SilentFlower/flower-trellis/commit/c4e83ab94df110118129d1bf6f8ad9717454dd65))
+
 ## [0.5.0-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.5.0-beta.0...v0.5.0-beta.1) (2026-07-18)
 
 
