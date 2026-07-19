@@ -185,7 +185,7 @@ def get_active_task(root: Path, input_data: dict) -> Optional[tuple[str, str, st
     if not task_dir.is_absolute():
         task_dir = root / task_dir
     if active.stale:
-        return task_dir.name, "missing_task", active.source
+        return task_dir.name, "stale_task", active.source
 
     task_json = task_dir / "task.json"
     if not task_json.is_file():

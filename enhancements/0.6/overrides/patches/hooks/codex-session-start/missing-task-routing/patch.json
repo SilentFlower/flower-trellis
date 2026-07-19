@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "id": "codex-session-start-missing-task",
+  "purpose": "intent_routing",
+  "operations": [{
+    "id": "codex-session-start-missing-task",
+    "operation": "replace",
+    "targets": [{ "kind": "hook", "path": ".codex/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" }],
+    "selector": { "type": "literal", "source": "selector.py" },
+    "content": { "source": "content.py" },
+    "legacyMarkers": [{ "namespace": "patch", "id": "codex-session-start-stale-task" }]
+  }]
+}

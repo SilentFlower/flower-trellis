@@ -683,11 +683,27 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 20)
+        self.assertEqual(len(plan["patches"]), 24)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
-            20,
+            24,
+        )
+
+    def test_real_catalog_task_intent_selects_complete_stale_recovery(self) -> None:
+        """验证 Python consumer 的精细安装包含完整 stale recovery Patch。"""
+        runner = _load_runner()
+        plan = runner.prepare_patches(OVERRIDES, ROOT, ["task-intent"])
+
+        self.assertEqual(plan["bundles"], ["intent-routing"])
+        self.assertTrue(
+            {
+                "workflow-state-missing-task",
+                "workflow-runtime-contract-reference",
+                "inject-workflow-state-shared-runtime",
+                "codex-session-start-missing-task",
+                "claude-session-start-missing-task",
+            }.issubset(set(plan["patches"]))
         )
 
 

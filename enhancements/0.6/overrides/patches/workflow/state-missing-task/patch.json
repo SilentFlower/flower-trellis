@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-state-missing-task",
+  "purpose": "workflow_state",
+  "operations": [{
+    "id": "workflow-state-missing-task",
+    "operation": "insert",
+    "position": "after",
+    "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+    "selector": { "type": "literal", "source": "selector.md" },
+    "content": { "source": "content.md" },
+    "legacyMarkers": [{ "namespace": "patch", "id": "workflow-state-stale-task" }]
+  }]
+}

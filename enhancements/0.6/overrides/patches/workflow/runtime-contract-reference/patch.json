@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-runtime-contract-reference",
+  "purpose": "workflow_state",
+  "operations": [
+    {
+      "id": "workflow-state-contract-comment",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "literal", "source": "state-contract-comment-selector.md" },
+      "content": { "source": "state-contract-comment-content.md" }
+    },
+    {
+      "id": "workflow-runtime-contract-reference",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "literal", "source": "runtime-reference-selector.md" },
+      "content": { "source": "runtime-reference-content.md" }
+    }
+  ]
+}

@@ -136,6 +136,114 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 ---
 
+## Scenario: Stale Task Pointer Intent Recovery
+
+### 1. Scope / Trigger
+
+- Trigger:shared per-turn workflow-state Hook 解析到 `ActiveTask.stale=true`,或 Codex / Claude
+  SessionStart 发现 session runtime 指向不存在的任务目录。
+- Scope:恢复流程只清理失效 pointer,不授权实现、编辑、任务创建或 `task.py start`。清理成功后,
+  当前用户请求必须在同一轮重新进入既有 `no_task` Request Intent Routing。
+
+### 2. Signatures
+
+```text
+workflow-state status = missing_task
+shared hook stale result = (task_dir.name, "missing_task", active.source)
+SessionStart stale status = MISSING TASK POINTER
+cleanup command = python3 ./.trellis/scripts/task.py finish
+```
+
+Patch 与 Bundle 入口固定为:
+
+```text
+workflow/state-missing-task
+hooks/inject-workflow-state/shared-runtime
+hooks/codex-session-start/missing-task-routing
+hooks/claude-session-start/missing-task-routing
+bundles/intent-routing.json
+```
+
+### 3. Contracts
+
+- shared Hook 必须把 `session`、`session-fallback` 等 stale 来源统一映射为固定状态
+  `missing_task`;`source_type` 只保留为诊断来源,不得继续拼进 workflow-state 名称。
+- `.trellis/workflow.md` 必须存在唯一 `[workflow-state:missing_task]` 权威正文,并明确:
+  1. 先运行 `python3 ./.trellis/scripts/task.py finish`;
+  2. 清理失败时报告并停止;
+  3. 清理成功后同轮把当前请求视为 `no_task`;
+  4. 完成分类前禁止编辑、创建/启动任务或归入已经失效的历史任务。
+- `missing_task` state 只引用 `[workflow-state:no_task]` / Request Intent Routing,不得复制五类意图的
+  完整判定规则。Hook 继续只读,不得自行修改 `.trellis/.runtime/sessions/`。
+- `missing_task` 通过带 managed marker 的 `literal insert after` 加到唯一
+  `[/workflow-state:no_task]` 后。Core `workflow-state` selector 只负责替换已有 body,不得为此
+  新增平行注入器。
+- shared whole-file Hook Patch 目标以 Trellis `SHARED_HOOKS_BY_PLATFORM` 的实际 per-turn
+  能力为准:Claude、Codex、Gemini、Qoder、Copilot、CodeBuddy、Droid、Kiro、Trae。
+  Cursor 当前没有 per-turn workflow-state Hook,不进入目标。所有目标 `missing=skip`,不得创建
+  未启用平台目录。
+- Codex / Claude 已有 SessionStart stale 分支必须与 per-turn state 保持一致;只替换已有入口,
+  不为其它平台创建 SessionStart 文件。
+- `intent-routing` Bundle 必须同时包含 `missing_task` workflow state、shared runtime 和 Codex/Claude
+  SessionStart Patch,保证全装及 `task-intent` / `intent-routing` 精细安装都完整生效。
+- whole-file desired content 升级时,baselines 必须同时包含 Trellis 0.6.5 上游原始 Hook和上一版
+  Flower 强化 Hook。未知用户改动继续返回 fingerprint drift,不得用宽松覆盖换取升级成功。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| stale 来源为 `session` 或 `session-fallback` | 都输出 `status=missing_task` |
+| workflow 缺 `missing_task` | 输出泛化 fallback,测试必须失败并阻止发布 |
+| `task.py finish` 失败 | 报告失败并停止,不执行后续编辑或任务动作 |
+| 清理成功 | 当前请求同轮按 `no_task` 分类,不再次机械询问用户下一步 |
+| 平台 per-turn Hook 不存在 | `missing-target`,不创建目录或文件 |
+| 目标是上游原始 Hook或上一版 Flower Hook | whole-file baseline 收敛到当前 desired content |
+| 目标含未知用户修改 | required fingerprint drift,全量 preflight 零写入 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:session runtime 指向已删除任务目录,shared Hook 输出 `missing_task`;AI 先运行
+  `task.py finish`,成功后同轮把当前用户请求按 `no_task` 意图重新分类。
+- Base:目标项目没有某个平台的 per-turn Hook 文件,Patch 返回 `missing-target`,不创建平台目录,
+  其它已存在平台仍正常升级。
+- Base:目标 Hook 等于 Trellis 0.6.5 上游原始内容或上一版 Flower 强化内容,whole-file Patch
+  都能通过 baseline 收敛到当前 desired content。
+- Bad:把 stale 来源拼成 `stale_session-fallback` workflow-state,导致 workflow 找不到正文并退化为
+  `Refer to workflow.md for current step.`。
+- Bad:`task.py finish` 成功后询问“下一步做什么”,或直接编辑文件,等于丢失当前用户请求的任务意图。
+
+### 6. Tests Required
+
+- Python Hook 行为测试覆盖 stale `session`、`session-fallback` 归一和权威 breadcrumb 加载;
+  普通 `no_task`、planning、in_progress 模板输出保持不变。
+- JS apply 测试覆盖 fresh apply、上一版 Flower Hook 升级、九个平台已有目标、缺平台 skip、
+  Codex/Claude SessionStart、两个 intent alias 和第二次运行幂等。
+- Python consumer 的真实 catalog preflight 必须断言 `task-intent` 选中完整 stale recovery Patch 集合。
+- `npm run sync` 后核对 vendor、`enhancements/0.6`、当前 dogfood workflow/Hook 与 provenance;
+  同时运行默认及 strict AI context budget,避免 stale state 复制长 `no_task` 正文。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+return task_dir.name, f"stale_{active.source_type}", active.source
+```
+
+问题:把诊断来源写进 workflow-state 名称,会生成未声明的动态状态,让 AI 只拿到泛化 fallback。
+
+#### Correct
+
+```python
+return task_dir.name, "missing_task", active.source
+```
+
+原因:`missing_task` 是固定伪状态;`active.source` 只作为诊断信息保留。workflow 能加载同一个恢复正文,
+AI 清理 pointer 后也能继续按 `no_task` 处理当前请求。
+
+---
+
 ## Scenario: AI-Facing Enhancement State Helpers
 
 ### 1. Scope / Trigger

@@ -8,10 +8,17 @@
     "targetPolicy": "each-existing",
     "targets": [
       { "kind": "file", "path": ".codex/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
-      { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" }
+      { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
+      { "kind": "file", "path": ".gemini/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
+      { "kind": "file", "path": ".qoder/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
+      { "kind": "file", "path": ".github/copilot/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
+      { "kind": "file", "path": ".codebuddy/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
+      { "kind": "file", "path": ".factory/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
+      { "kind": "file", "path": ".kiro/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
+      { "kind": "file", "path": ".trae/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" }
     ],
     "selector": { "type": "whole-file" },
-    "baselines": ["selector.py"],
+    "baselines": ["selector.py", "baseline-flower-beta2.py", "baseline-flower-stale-task.py"],
     "content": { "source": "content.py" }
   }]
 }

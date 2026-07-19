@@ -8,6 +8,17 @@ import { ENHANCEMENTS_ROOT } from "../../src/lib/paths.js";
 
 const V06_DIR = path.join(ENHANCEMENTS_ROOT, "0.6");
 const PATCHES = path.join(V06_DIR, "overrides", "patches");
+const SHARED_HOOK_TARGETS = [
+  ".codex/hooks/inject-workflow-state.py",
+  ".claude/hooks/inject-workflow-state.py",
+  ".gemini/hooks/inject-workflow-state.py",
+  ".qoder/hooks/inject-workflow-state.py",
+  ".github/copilot/hooks/inject-workflow-state.py",
+  ".codebuddy/hooks/inject-workflow-state.py",
+  ".factory/hooks/inject-workflow-state.py",
+  ".kiro/hooks/inject-workflow-state.py",
+  ".trae/hooks/inject-workflow-state.py",
+];
 
 function write(root, relativePath, value) {
   const file = path.join(root, ...relativePath.split("/"));
@@ -22,6 +33,8 @@ function patchSource(ref, name) {
 
 function minimalWorkflow() {
   return [
+    patchSource("workflow/runtime-contract-reference", "state-contract-comment-selector.md"),
+    "",
     "## Phase Index",
     "",
     "```",
@@ -90,6 +103,10 @@ function minimalWorkflow() {
     "Critical invariants:",
     patchSource("workflow/intent-routing/customization-intent-invariant", "selector.md"),
     "",
+    "### Full contract",
+    "",
+    patchSource("workflow/runtime-contract-reference", "runtime-reference-selector.md"),
+    "",
   ].join("\n");
 }
 
@@ -152,19 +169,28 @@ function writeIntentTargets(target) {
   write(
     target,
     ".codex/hooks/session-start.py",
-    `${patchSource("hooks/codex-session-start/no-task-routing", "selector.py")}\n`,
+    [
+      patchSource("hooks/codex-session-start/no-task-routing", "selector.py"),
+      patchSource("hooks/codex-session-start/missing-task-routing", "selector.py"),
+      "",
+    ].join("\n\n"),
   );
   write(
     target,
     ".claude/hooks/session-start.py",
-    `${patchSource("hooks/claude-session-start/no-task-routing", "selector.py")}\n`,
+    [
+      patchSource("hooks/claude-session-start/no-task-routing", "selector.py"),
+      patchSource("hooks/claude-session-start/missing-task-routing", "selector.py"),
+      "",
+    ].join("\n\n"),
   );
   const hookBaseline = patchSource(
     "hooks/inject-workflow-state/shared-runtime",
     "selector.py",
   );
-  write(target, ".codex/hooks/inject-workflow-state.py", `${hookBaseline}\n`);
-  write(target, ".claude/hooks/inject-workflow-state.py", `${hookBaseline}\n`);
+  for (const relativePath of SHARED_HOOK_TARGETS) {
+    write(target, relativePath, `${hookBaseline}\n`);
+  }
 }
 
 function snapshotTree(root) {
@@ -236,6 +262,15 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   const workflowText = fs.readFileSync(workflow, "utf8");
   assert.match(workflowText, /skill-garden patch workflow-request-triage/);
   assert.match(workflowText, /skill-garden patch workflow-state-in-progress/);
+  assert.match(workflowText, /skill-garden patch workflow-state-missing-task/);
+  assert.match(workflowText, /skill-garden patch workflow-state-contract-comment/);
+  assert.match(workflowText, /skill-garden patch workflow-runtime-contract-reference/);
+  assert.match(workflowText, /\[workflow-state:missing_task\]/);
+  assert.match(workflowText, /in the same turn treat the current user request as `no_task`/);
+  assert.match(workflowText, /This Flower variant uses fixed pseudo-status tag names `no_task` and `missing_task`/);
+  assert.doesNotMatch(workflowText, /stale_<source_type>/);
+  assert.doesNotMatch(workflowText, /\.trellis\/spec\/cli\/backend\/workflow-state-contract\.md/);
+  assert.doesNotMatch(workflowText, /\.trellis\/scripts\/inject-workflow-state\.py/);
   assert.match(workflowText, /#### Request Intent Routing/);
   assert.doesNotMatch(workflowText, /ask only whether this turn should create/);
   assert.doesNotMatch(workflowText, /Flow: .*finish-work/);
@@ -248,6 +283,26 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /Load `trellis-push`/);
   assert.match(workflowText, /task_intent\.py create --title/);
   assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")), true);
+  for (const relativePath of SHARED_HOOK_TARGETS) {
+    const value = fs.readFileSync(path.join(target, ...relativePath.split("/")), "utf8");
+    assert.match(value, /return task_dir\.name, "missing_task", active\.source/);
+    assert.doesNotMatch(value, /f"stale_\{active\.source_type\}"/);
+  }
+  assert.equal(
+    fs.existsSync(path.join(target, ".cursor/hooks/inject-workflow-state.py")),
+    false,
+  );
+  const codexSessionStart = fs.readFileSync(
+    path.join(target, ".codex/hooks/session-start.py"),
+    "utf8",
+  );
+  const claudeSessionStart = fs.readFileSync(
+    path.join(target, ".claude/hooks/session-start.py"),
+    "utf8",
+  );
+  assert.match(codexSessionStart, /treat the current request as NO ACTIVE TASK in the same turn/);
+  assert.match(claudeSessionStart, /treat the current request as NO ACTIVE TASK in the same/);
+  assert.doesNotMatch(claudeSessionStart, /ask the user what to work on next/);
 
   for (const file of updateSpecTargets) {
     const value = fs.readFileSync(file, "utf8");
@@ -270,6 +325,9 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.equal(manifest.patches.schemaVersion, 1);
   assert.match(manifest.patches.catalogHash, /^sha256:/);
   assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-in-progress"));
+  assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-missing-task"));
+  assert.ok(manifest.patches.applied.some((item) => item.id === "codex-session-start-missing-task"));
+  assert.ok(manifest.patches.applied.some((item) => item.id === "claude-session-start-missing-task"));
   assert.equal(fs.existsSync(path.join(target, ".codex/hooks.json")), true);
   assert.equal(fs.existsSync(path.join(target, ".claude/settings.json")), true);
 
@@ -362,17 +420,89 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
     const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-alias-${alias}-`));
     write(target, ".trellis/.version", "0.6.5\n");
     const workflow = write(target, ".trellis/workflow.md", minimalWorkflow());
+    writeIntentTargets(target);
 
     quietApply(target, { variant: "0.6", skills: [alias] });
+    const first = snapshotTree(target);
 
     const value = fs.readFileSync(workflow, "utf8");
     assert.match(value, /#### Request Intent Routing/);
     assert.match(value, /skill-garden patch workflow-request-triage/);
     assert.match(value, /skill-garden patch workflow-state-planning/);
+    assert.match(value, /skill-garden patch workflow-state-missing-task/);
+    assert.match(value, /skill-garden patch workflow-runtime-contract-reference/);
+    assert.match(value, /follow `\[workflow-state:no_task\]` \/ Request Intent Routing/);
+    assert.doesNotMatch(value, /stale_<source_type>/);
+    for (const relativePath of SHARED_HOOK_TARGETS) {
+      const hook = fs.readFileSync(path.join(target, ...relativePath.split("/")), "utf8");
+      assert.match(hook, /return task_dir\.name, "missing_task", active\.source/);
+    }
+    assert.match(
+      fs.readFileSync(path.join(target, ".codex/hooks/session-start.py"), "utf8"),
+      /before any edit, task creation, or task start/,
+    );
+    assert.match(
+      fs.readFileSync(path.join(target, ".claude/hooks/session-start.py"), "utf8"),
+      /before any edit, task creation, or task start/,
+    );
     assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")), true);
     assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/spec_router.py")), true);
     assert.equal(fs.existsSync(path.join(target, ".trellis/.flower-manifest.json")), false);
+
+    quietApply(target, { variant: "0.6", skills: [alias] });
+    assert.deepEqual(snapshotTree(target), first);
   }
+});
+
+test("beta.2 旧 shared Hook 可通过历史 baseline 升级", () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-hook-beta2-upgrade-"));
+  write(target, ".trellis/.version", "0.6.5\n");
+  write(target, ".trellis/workflow.md", minimalWorkflow());
+  const hook = write(
+    target,
+    ".codex/hooks/inject-workflow-state.py",
+    `${patchSource(
+      "hooks/inject-workflow-state/shared-runtime",
+      "baseline-flower-beta2.py",
+    )}\n`,
+  );
+
+  quietApply(target, { variant: "0.6", skills: ["task-intent"] });
+  assert.equal(
+    fs.readFileSync(hook, "utf8").trimEnd(),
+    patchSource("hooks/inject-workflow-state/shared-runtime", "content.py"),
+  );
+  assert.match(fs.readFileSync(hook, "utf8"), /return task_dir\.name, "missing_task", active\.source/);
+
+  const first = snapshotTree(target);
+  quietApply(target, { variant: "0.6", skills: ["task-intent"] });
+  assert.deepEqual(snapshotTree(target), first);
+});
+
+test("上一版 missing_task 改名前的 shared Hook 可通过历史 baseline 升级", () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-hook-stale-task-upgrade-"));
+  write(target, ".trellis/.version", "0.6.5\n");
+  write(target, ".trellis/workflow.md", minimalWorkflow());
+  const hook = write(
+    target,
+    ".codex/hooks/inject-workflow-state.py",
+    `${patchSource(
+      "hooks/inject-workflow-state/shared-runtime",
+      "baseline-flower-stale-task.py",
+    )}\n`,
+  );
+
+  quietApply(target, { variant: "0.6", skills: ["task-intent"] });
+  assert.equal(
+    fs.readFileSync(hook, "utf8").trimEnd(),
+    patchSource("hooks/inject-workflow-state/shared-runtime", "content.py"),
+  );
+  assert.match(fs.readFileSync(hook, "utf8"), /return task_dir\.name, "missing_task", active\.source/);
+  assert.doesNotMatch(fs.readFileSync(hook, "utf8"), /return task_dir\.name, "stale_task", active\.source/);
+
+  const first = snapshotTree(target);
+  quietApply(target, { variant: "0.6", skills: ["task-intent"] });
+  assert.deepEqual(snapshotTree(target), first);
 });
 
 test("Update-Spec 三个精细安装别名都替换已有入口且不创建缺失平台", () => {
