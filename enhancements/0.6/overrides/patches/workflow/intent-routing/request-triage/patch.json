@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-request-triage",
+  "purpose": "intent_routing",
+  "operations": [{
+    "id": "workflow-request-triage",
+    "operation": "replace",
+    "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+    "selector": { "type": "literal", "source": "selector.md" },
+    "content": { "source": "content.md" },
+    "legacyMarkers": [{ "namespace": "transform", "id": "workflow-request-triage" }]
+  }]
+}

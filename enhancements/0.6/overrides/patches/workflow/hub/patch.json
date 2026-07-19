@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-hub",
+  "purpose": "workflow_hub",
+  "operations": [{
+    "id": "workflow-hub",
+    "operation": "insert",
+    "position": "after",
+    "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+    "selector": { "type": "workflow-hub", "heading": "## Phase Index" },
+    "cleanup": [{ "type": "workflow-hub" }],
+    "content": { "source": "content.md" }
+  }]
+}

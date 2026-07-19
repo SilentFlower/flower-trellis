@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-states-planning",
+  "purpose": "workflow_state",
+  "operations": [
+    {
+      "id": "workflow-state-planning",
+      "operation": "replace",
+      "scope": "body",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "workflow-state", "name": "planning" },
+      "baselines": ["planning-baseline.md"],
+      "content": { "sources": ["common-content.md", "subagent-content.md"] },
+      "legacyMarkers": [{ "namespace": "workflow-state", "id": "planning" }]
+    },
+    {
+      "id": "workflow-state-planning-inline",
+      "operation": "replace",
+      "scope": "body",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "workflow-state", "name": "planning-inline" },
+      "baselines": ["planning-inline-baseline.md"],
+      "content": { "sources": ["common-content.md", "inline-content.md"] },
+      "legacyMarkers": [{ "namespace": "workflow-state", "id": "planning_inline" }]
+    }
+  ]
+}

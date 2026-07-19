@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "id": "trellis-finish-work",
+  "aliases": ["finish-work", "finish-work-enhancement"],
+  "installMode": "full-or-selected",
+  "patches": ["skills/trellis-finish-work/exact-bookkeeping"]
+}

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "id": "brainstorm-planning-authorization",
+  "purpose": "intent_routing",
+  "operations": [{
+    "id": "brainstorm-planning-authorization",
+    "operation": "replace",
+    "targets": [
+      { "kind": "skill", "path": ".agent/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".agents/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".claude/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".codebuddy/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".cursor/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".devin/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".factory/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".github/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kilocode/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kiro/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".opencode/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".pi/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".qoder/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".reasonix/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".trae/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".zcode/skills/trellis-brainstorm/SKILL.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "selector.md" },
+    "content": { "source": "content.md" },
+    "legacyMarkers": [{ "namespace": "transform", "id": "brainstorm-planning-authorization" }]
+  }]
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "id": "claude-session-start-no-task",
+  "purpose": "intent_routing",
+  "operations": [{
+    "id": "claude-session-start-no-task",
+    "operation": "replace",
+    "targets": [{ "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" }],
+    "selector": { "type": "literal", "source": "selector.py" },
+    "content": { "source": "content.py" },
+    "legacyMarkers": [{ "namespace": "transform", "id": "claude-session-start-no-task", "style": "hash" }]
+  }]
+}

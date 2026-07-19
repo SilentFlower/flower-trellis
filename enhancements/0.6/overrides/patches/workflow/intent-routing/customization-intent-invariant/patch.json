@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-customization-intent-invariant",
+  "purpose": "intent_routing",
+  "operations": [{
+    "id": "workflow-customization-intent-invariant",
+    "operation": "replace",
+    "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+    "selector": { "type": "literal", "source": "selector.md" },
+    "content": { "source": "content.md" },
+    "legacyMarkers": [{ "namespace": "transform", "id": "workflow-customization-intent-invariant" }]
+  }]
+}

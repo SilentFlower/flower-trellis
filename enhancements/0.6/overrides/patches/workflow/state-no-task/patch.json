@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-state-no-task",
+  "purpose": "workflow_state",
+  "operations": [{
+    "id": "workflow-state-no-task",
+    "operation": "replace",
+    "scope": "body",
+    "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+    "selector": { "type": "workflow-state", "name": "no_task" },
+    "baselines": ["selector.md"],
+    "content": { "source": "content.md" },
+    "legacyMarkers": [{ "namespace": "transform", "id": "workflow-no-task-body" }]
+  }]
+}

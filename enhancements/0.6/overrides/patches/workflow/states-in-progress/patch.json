@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-states-in-progress",
+  "purpose": "workflow_state",
+  "operations": [
+    {
+      "id": "workflow-state-in-progress",
+      "operation": "replace",
+      "scope": "body",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "workflow-state", "name": "in_progress" },
+      "baselines": ["in-progress-baseline.md"],
+      "content": { "sources": ["common-content.md", "subagent-content.md"] },
+      "legacyMarkers": [{ "namespace": "workflow-state", "id": "in_progress" }]
+    },
+    {
+      "id": "workflow-state-in-progress-inline",
+      "operation": "replace",
+      "scope": "body",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "workflow-state", "name": "in_progress-inline" },
+      "baselines": ["in-progress-inline-baseline.md"],
+      "content": { "sources": ["common-content.md", "inline-content.md"] },
+      "legacyMarkers": [{ "namespace": "workflow-state", "id": "in_progress_inline" }]
+    }
+  ]
+}

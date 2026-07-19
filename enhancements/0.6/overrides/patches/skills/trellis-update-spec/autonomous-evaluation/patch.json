@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "id": "trellis-update-spec-autonomous-evaluation",
+  "purpose": "skill_override",
+  "operations": [{
+    "id": "trellis-update-spec-autonomous-evaluation",
+    "operation": "replace",
+    "targetPolicy": "each-existing",
+    "targets": [
+      { "kind": "skill", "path": ".agents/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".claude/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".claude/commands/trellis/update-spec.md", "missing": "skip" }
+    ],
+    "selector": { "type": "markdown-section", "heading": "## Interactive Mode" },
+    "baselines": ["baseline.md"],
+    "cleanup": [{ "type": "skill-override", "id": "trellis-update-spec" }],
+    "content": { "source": "content.md" }
+  }]
+}

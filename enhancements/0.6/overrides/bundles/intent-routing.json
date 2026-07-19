@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "intent-routing",
+  "aliases": ["workflow-enhancement", "task-intent"],
+  "installMode": "full-or-selected",
+  "patches": [
+    "workflow/hub",
+    "workflow/state-no-task",
+    "workflow/states-planning",
+    "workflow/states-in-progress",
+    "workflow/intent-routing/phase-summary",
+    "workflow/intent-routing/request-triage",
+    "workflow/intent-routing/phase-index-create-task",
+    "workflow/intent-routing/phase-one-goal",
+    "workflow/intent-routing/create-task-rule",
+    "workflow/intent-routing/create-task-command",
+    "workflow/intent-routing/customization-intent-invariant",
+    "hooks/codex-session-start/no-task-routing",
+    "hooks/claude-session-start/no-task-routing",
+    "skills/trellis-start/no-task-routing",
+    "skills/trellis-brainstorm/planning-authorization",
+    "skills/trellis-brainstorm/auto-task-create"
+  ]
+}

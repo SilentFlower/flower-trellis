@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "id": "trellis-update-spec",
+  "aliases": ["update-spec", "update-spec-enhancement"],
+  "installMode": "full-or-selected",
+  "patches": ["skills/trellis-update-spec/autonomous-evaluation"]
+}

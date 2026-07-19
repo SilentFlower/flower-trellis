@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "id": "codex-session-start-no-task",
+  "purpose": "intent_routing",
+  "operations": [{
+    "id": "codex-session-start-no-task",
+    "operation": "replace",
+    "targets": [{ "kind": "hook", "path": ".codex/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" }],
+    "selector": { "type": "literal", "source": "selector.py" },
+    "content": { "source": "content.py" },
+    "legacyMarkers": [{ "namespace": "transform", "id": "codex-session-start-no-task", "style": "hash" }]
+  }]
+}

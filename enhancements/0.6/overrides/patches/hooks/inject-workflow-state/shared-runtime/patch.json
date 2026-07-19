@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "id": "inject-workflow-state-shared-runtime",
+  "purpose": "hook_override",
+  "operations": [{
+    "id": "inject-workflow-state-shared-runtime",
+    "operation": "replace",
+    "targetPolicy": "each-existing",
+    "targets": [
+      { "kind": "file", "path": ".codex/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
+      { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" }
+    ],
+    "selector": { "type": "whole-file" },
+    "baselines": ["selector.py"],
+    "content": { "source": "content.py" }
+  }]
+}
