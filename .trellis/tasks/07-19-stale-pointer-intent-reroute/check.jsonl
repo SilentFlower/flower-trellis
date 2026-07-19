@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "审查新增 literal insert、whole-file baseline、目标平台、幂等、首次备份和双 consumer 行为是否符合统一 Patch 协议。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "审查全装/精细安装、vendor/snapshot/dogfood、缺平台 skip 和 0.5/old 不回归。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "审查测试完整性、确定性升级、不误伤用户 Hook 和重复运行零变更。"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "审查 stale state 是否复制长 no_task 规则，以及默认/strict 预算结果。"}

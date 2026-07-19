@@ -1,0 +1,49 @@
+{
+  "id": "stale-pointer-intent-reroute",
+  "name": "stale-pointer-intent-reroute",
+  "title": "修复 stale pointer 后任务意图重路由",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-19T15:17:54Z",
+      "contextKey": "codex_019f7ae2-ca76-7343-9ea9-2c0560762bb4",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "9acef31fcee4e60233c51bc7043608796363a630",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-20T02:03:17+08:00",
+    "completedSteps": [
+      "实现 missing_task 恢复",
+      "Check-All 通过",
+      "Update-Spec 完成",
+      "业务提交已推送"
+    ],
+    "partialStep": null,
+    "nextStep": "Phase 3.4 已完成；如需结束会话，运行 /trellis:finish-work。",
+    "notes": "已推送 skill-garden ea9117c 与 flower-trellis 774f90f；本提交同步任务记录。"
+  }
+}
