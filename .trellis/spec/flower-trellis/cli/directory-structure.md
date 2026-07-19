@@ -36,9 +36,12 @@ flower-trellis/
 │       ├── pick-platforms.js  # inquirer 平台多选菜单
 │       ├── copy-skills.js     # 跟随平台铺设强化 skill / command
 │       ├── apply-enhancements.js # 叠加流水线总编排
-│       ├── workflow-inject.js # 向 workflow.md 注入/替换强化块
-│       ├── codex-tweaks.js    # codex 平台后处理(config.toml / hooks.json)
+│       ├── patch-engine.js    # 0.6 Patch catalog/preflight/apply/provenance
+│       ├── platform-patch-adapters.js # JSON/YAML/TOML 结构 selector
+│       ├── workflow-inject.js # 0.5/old workflow 兼容注入
+│       ├── codex-tweaks.js    # 0.5/old Codex 平台后处理
 │       └── legacy-blocks.js   # 0.5/old 变体的 workflow-state 文本常量
+│   └── patches/               # Flower 自有平台 Patch catalog 与 Bundle
 ├── scripts/
 │   └── sync-enhancements.mjs  # 开发期:把 skill-garden 同步成 enhancements/ 快照
 └── enhancements/<variant>/    # 随包发布的强化包快照 + MANIFEST.json
@@ -46,14 +49,15 @@ flower-trellis/
 
 ---
 
-## Transform / Test Paths
+## Patch / Test Paths
 
-- `src/lib/enhancement-transform.js`：声明式 `insert / replace / remove` 的 preflight 与 apply。
-- `scripts/check-ai-context-budget.mjs`：workflow、state、Phase summary 与 SessionStart 预算检查。
+- `src/lib/patch-engine.js`：统一 `insert / replace / remove`、Bundle 选择、preflight/apply 与 provenance。
+- `src/patches/platforms/`、`src/patches/bundles/`：Flower 平台配置 Patch 与全装 Bundle。
+- `scripts/check-ai-context-budget.mjs`：最终 workflow/state/skill、Phase summary、SessionStart 与控制面总量预算。
 - `test/js/`：Node 内置 `node:test`。
 - `test/python/`：Python 内置 `unittest`。
-- `enhancements/0.6/overrides/transforms/`：随包发布的 transform 声明、selector 与 content 快照。
-- `vendor/skill-garden/scripts/apply-trellis-transforms.py`：独立 `install.sh` 的声明式变换 consumer；协议必须与 JS 引擎一致。
+- `enhancements/0.6/overrides/patches/`、`bundles/`：随包发布的 Skill-Garden Patch catalog 快照。
+- `vendor/skill-garden/scripts/apply-trellis-patches.py`：独立 `install.sh` 的 Python consumer；协议必须与 JS 引擎一致。
 
 ## Module Organization
 

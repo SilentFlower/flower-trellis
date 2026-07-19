@@ -3,8 +3,6 @@ import path from "node:path";
 import { copySkills } from "./copy-skills.js";
 import { copyScriptAssets } from "./copy-scripts.js";
 import { injectWorkflow } from "./workflow-inject.js";
-import { injectSkillOverrides } from "./skill-override-inject.js";
-import { injectHookOverrides } from "./hook-override-inject.js";
 import { applyCodexTweaks } from "./codex-tweaks.js";
 import { applyClaudeTweaks } from "./claude-tweaks.js";
 import { copyFlowerAssets } from "./flower-assets.js";
@@ -13,10 +11,9 @@ import { flowerVersion } from "./versions.js";
 import { rmrf } from "./fs-utils.js";
 import { resolveEnhancementSnapshot } from "./enhancement-catalog.js";
 import { syncInstalledCommonSkills } from "./skill-catalog.js";
-import {
-  applyPreparedTransforms,
-  prepareEnhancementTransforms,
-} from "./enhancement-transform.js";
+import { PKG_ROOT } from "./paths.js";
+import { applyPatchPlan, preparePatchPlan } from "./patch-engine.js";
+import { flowerPatchAdapters } from "./platform-patch-adapters.js";
 
 /** 清理升级后可能变空的强化目录(深 → 浅)。 */
 function pruneEmptyDirs(target) {
@@ -38,8 +35,8 @@ function pruneEmptyDirs(target) {
 /**
  * 叠加强化包 —— init / update 共享。
  *
- * 流程:校验是 Trellis 项目 → 选变体 → 铺 skill → 升级清理(删过期)
- * → 注入 workflow → 注入 skill override → 注入 hook override。
+ * 流程:校验是 Trellis 项目 → 选变体 → 0.6 Patch 全量预检/应用
+ * → 铺 skill/脚本/Flower 资产 → 升级清理 → legacy 后处理 → 写成功 manifest。
  *
  * 升级清理:用 flower manifest 记录上次全装铺过的精确路径,本次全装时删除
  * 「上次有、这次变体不含」的过期项(覆盖 0.5/old → 0.6 升级)。仅全装(无 --skills)
@@ -56,27 +53,44 @@ export function applyEnhancements(target, opts = {}) {
   );
   const skills = opts.skills || [];
 
-  // required 变换必须在任何强化写入前完成全量 preflight，避免锚点漂移时
-  // 已经复制资产、清理旧路径或写入成功 manifest。
-  const transformPlan = prepareEnhancementTransforms(
-    target,
-    variantDir,
-    skills,
-  );
-  const transformResult = applyPreparedTransforms(target, transformPlan);
+  // 0.6 的 Skill-Garden 与 Flower 自有修改统一进入一个 Patch 计划。required
+  // 失败必须发生在任何资产复制、stale 清理和成功 manifest 写入之前。
+  let patchPlan = null;
+  let patchResult = null;
+  if (variant === "0.6") {
+    const skillGardenOverrides = path.join(variantDir, "overrides");
+    const flowerPatches = path.join(PKG_ROOT, "src", "patches");
+    patchPlan = preparePatchPlan(
+      target,
+      [
+        {
+          name: "skill-garden",
+          patchesDir: path.join(skillGardenOverrides, "patches"),
+          bundlesDir: path.join(skillGardenOverrides, "bundles"),
+        },
+        {
+          name: "flower",
+          patchesDir: path.join(flowerPatches, "platforms"),
+          bundlesDir: path.join(flowerPatches, "bundles"),
+        },
+      ],
+      { skills, adapters: flowerPatchAdapters() },
+    );
+    patchResult = applyPatchPlan(target, patchPlan);
+  }
 
   console.log(
     `\n强化包变体:${variant}${version ? `(项目 Trellis ${version})` : ""}`,
   );
-  if (transformPlan.declarations.length > 0) {
-    const notes = transformResult.backupNotes.join("");
+  if (patchPlan && patchPlan.bundles.length > 0) {
+    const notes = patchResult.backupNotes.join("");
     console.log(
-      `  ✓ 声明式变换:修改 ${transformResult.changed}、` +
-        `已是最新 ${transformResult.unchanged}、跳过 ${transformResult.skipped}${notes}`,
+      `  ✓ Patch:修改 ${patchResult.changed}、` +
+        `已是最新 ${patchResult.unchanged}、跳过 ${patchResult.skipped}${notes}`,
     );
-    for (const result of transformResult.results) {
+    for (const result of patchResult.results) {
       if (result.status === "optional-skip") {
-        console.log(`  · optional transform 跳过:${result.id}@${result.target}(${result.reason})`);
+        console.log(`  · optional Patch 跳过:${result.id}@${result.target}(${result.reason})`);
       }
     }
   }
@@ -150,16 +164,17 @@ export function applyEnhancements(target, opts = {}) {
       version,
       skills: installed,
       paths: newPaths,
+      ...(patchResult ? { patches: patchResult.provenance } : {}),
     };
   }
 
-  // intent routing 的精细安装别名必须同时刷新 transform、helper 与 workflow hub。
+  // intent routing 的精细安装别名必须同时刷新 Patch Bundle、helper 与 workflow hub。
   const wantWorkflow = skills.length === 0 || [
     "workflow-enhancement",
     "task-intent",
     "intent-routing",
   ].some((name) => skills.includes(name));
-  if (wantWorkflow) {
+  if (variant !== "0.6" && wantWorkflow) {
     const r = injectWorkflow(target, variantDir, variant);
     if (r.skipped) {
       console.log(`  · workflow 注入跳过(${r.reason})`);
@@ -170,59 +185,23 @@ export function applyEnhancements(target, opts = {}) {
     }
   }
 
-  const wantSkillOverrides =
-    skills.length === 0 ||
-    skills.includes("finish-work-enhancement") ||
-    skills.includes("trellis-finish-work") ||
-    skills.includes("finish-work") ||
-    skills.includes("update-spec-enhancement") ||
-    skills.includes("trellis-update-spec") ||
-    skills.includes("update-spec");
-  if (wantSkillOverrides) {
-    const r = injectSkillOverrides(target, variantDir, skills);
-    if (r.skipped) {
-      console.log(`  · skill override 注入跳过(${r.reason})`);
-    } else if (r.changed === 0 && r.unchanged === 0) {
-      console.log(`  · skill override 注入跳过(目标缺少可注入的上游入口)`);
-    } else if (r.changed === 0) {
-      const note = r.backupNotes.length ? r.backupNotes.join("") : "";
-      console.log(`  ✓ skill override 已是最新(${r.unchanged} 个入口)${note}`);
-    } else {
-      const note = r.backupNotes.length ? r.backupNotes.join("") : "";
-      console.log(`  ✓ skill override 已注入 ${r.changed} 个入口${note}`);
+  if (variant !== "0.6") {
+    // legacy 变体仍沿用旧平台后处理；0.6 已由 Flower Patch catalog 接管。
+    const codex = applyCodexTweaks(target);
+    if (codex.applied) {
+      const seg = codex.tomlChanged
+        ? "config.toml 已清理旧 multi_agent_v2"
+        : "config.toml 无需清理 multi_agent_v2";
+      const dispatch = codex.dispatchModeChanged
+        ? "dispatch_mode 已强制为 sub-agent"
+        : "dispatch_mode 已是 sub-agent";
+      console.log(`  ✓ codex 调整:${seg};hooks.json 已合并 SessionStart;${dispatch}`);
     }
-  }
 
-  if (skills.length === 0) {
-    const r = injectHookOverrides(target, variantDir);
-    if (r.skipped) {
-      console.log(`  · hook override 注入跳过(${r.reason})`);
-    } else if (r.changed === 0 && r.unchanged === 0) {
-      console.log(`  · hook override 注入跳过(目标缺少可覆盖的 hook)`);
-    } else if (r.changed === 0) {
-      const note = r.backupNotes.length ? r.backupNotes.join("") : "";
-      console.log(`  ✓ hook override 已是最新(${r.unchanged} 个入口)${note}`);
-    } else {
-      const note = r.backupNotes.length ? r.backupNotes.join("") : "";
-      console.log(`  ✓ hook override 已注入 ${r.changed} 个入口${note}`);
+    const claude = applyClaudeTweaks(target);
+    if (claude.applied) {
+      console.log("  ✓ claude 调整:settings.json 已合并 startup 更新检查 hook");
     }
-  }
-
-  // codex 平台后处理:旧 multi_agent_v2 兼容清理 + 合并 SessionStart hook + 强制 sub-agent 调度
-  const codex = applyCodexTweaks(target);
-  if (codex.applied) {
-    const seg = codex.tomlChanged
-      ? "config.toml 已清理旧 multi_agent_v2"
-      : "config.toml 无需清理 multi_agent_v2";
-    const dispatch = codex.dispatchModeChanged
-      ? "dispatch_mode 已强制为 sub-agent"
-      : "dispatch_mode 已是 sub-agent";
-    console.log(`  ✓ codex 调整:${seg};hooks.json 已合并 SessionStart;${dispatch}`);
-  }
-
-  const claude = applyClaudeTweaks(target);
-  if (claude.applied) {
-    console.log("  ✓ claude 调整:settings.json 已合并 startup 更新检查 hook");
   }
 
   if (nextManifest) {

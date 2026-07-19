@@ -7,6 +7,25 @@ function toDisplayPath(value) {
   return value.split(path.sep).join("/");
 }
 
+function assertExistingPathInside(targetRoot, candidate, label) {
+  const realRoot = fs.realpathSync(targetRoot);
+  const realCandidate = fs.realpathSync(candidate);
+  if (
+    realCandidate !== realRoot &&
+    !realCandidate.startsWith(`${realRoot}${path.sep}`)
+  ) {
+    throw new Error(`${label}通过软链逃逸项目:${candidate}`);
+  }
+}
+
+function assertWritableParentInside(targetRoot, targetFile) {
+  let existing = path.dirname(targetFile);
+  while (!fs.existsSync(existing) && existing !== targetRoot) {
+    existing = path.dirname(existing);
+  }
+  assertExistingPathInside(targetRoot, existing, "备份路径");
+}
+
 /**
  * 为 flower-trellis 修改过的目标文件保留首次备份。
  *
@@ -24,6 +43,7 @@ export function preserveFirstBackup(target, targetFile, legacyBackupFiles = []) 
   if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
     throw new Error(`备份目标不在项目内:${targetFile}`);
   }
+  assertExistingPathInside(targetRoot, sourceFile, "备份源文件");
 
   const backupRel = path.join(FLOWER_BACKUP_ROOT, rel);
   const backupFile = path.join(targetRoot, backupRel);
@@ -36,7 +56,9 @@ export function preserveFirstBackup(target, targetFile, legacyBackupFiles = []) 
   const existingLegacyFile = legacyFiles.find((p) => fs.existsSync(p));
 
   if (!fs.existsSync(backupFile)) {
+    assertWritableParentInside(targetRoot, backupFile);
     fs.mkdirSync(path.dirname(backupFile), { recursive: true });
+    assertWritableParentInside(targetRoot, backupFile);
     fs.copyFileSync(existingLegacyFile || sourceFile, backupFile);
     for (const legacyFile of legacyFiles) {
       if (fs.existsSync(legacyFile)) fs.unlinkSync(legacyFile);
@@ -47,6 +69,8 @@ export function preserveFirstBackup(target, targetFile, legacyBackupFiles = []) 
       backupNote: `(已创建 ${displayPath})`,
     };
   }
+
+  assertExistingPathInside(targetRoot, backupFile, "已有备份");
 
   for (const legacyFile of legacyFiles) {
     if (fs.existsSync(legacyFile)) fs.unlinkSync(legacyFile);

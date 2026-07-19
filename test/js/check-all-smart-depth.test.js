@@ -51,17 +51,20 @@ test("route 只决定 Check-All 执行位置", () => {
 });
 
 test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {
-  const workflow = read(sourceRoot, "overrides/workflow.md");
-  const state = read(sourceRoot, "overrides/workflow-states/in_progress.md");
-  const inlineState = read(sourceRoot, "overrides/workflow-states/in_progress-inline.md");
+  const workflow = read(sourceRoot, "overrides/patches/workflow/hub/content.md");
+  const state = read(
+    sourceRoot,
+    "overrides/patches/workflow/states-in-progress/common-content.md",
+  );
+  const inlineState = state;
   const autoLoop = read(sourceRoot, ".agents/skills/trellis-auto-loop/SKILL.md");
 
   assert.ok(
     workflow.indexOf("#### Auto-Loop Return Gate")
       < workflow.indexOf("#### Interactive Post-Check Stop Gate"),
   );
-  assert.match(state, /validated auto-loop must immediately `record \+ next`/);
-  assert.match(inlineState, /validated auto-loop must immediately `record \+ next`/);
+  assert.match(state, /validated auto-loop immediately records and advances/);
+  assert.match(inlineState, /validated auto-loop immediately records and advances/);
   assert.match(autoLoop, /--check-depth auto\|light\|full/);
   assert.match(autoLoop, /旧调用缺字段时只能按 `full \/ legacy-default-full`/);
 });
@@ -76,9 +79,10 @@ test("0.6 发布快照与智能检查源保持一致", () => {
     ".claude/skills/trellis-route/scripts/route_state.py",
     ".agents/skills/trellis-auto-loop/SKILL.md",
     ".claude/skills/trellis-auto-loop/SKILL.md",
-    "overrides/workflow.md",
-    "overrides/workflow-states/in_progress.md",
-    "overrides/workflow-states/in_progress-inline.md",
+    "overrides/patches/workflow/hub/content.md",
+    "overrides/patches/workflow/states-in-progress/common-content.md",
+    "overrides/patches/workflow/states-in-progress/subagent-content.md",
+    "overrides/patches/workflow/states-in-progress/inline-content.md",
     "scripts/auto_loop.py",
   ];
 

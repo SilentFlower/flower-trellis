@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-codex-remove-multi-agent-v2",
+  "purpose": "platform_config",
+  "operations": [{
+    "id": "flower-codex-remove-multi-agent-v2",
+    "operation": "remove",
+    "targets": [{
+      "kind": "toml",
+      "path": ".codex/config.toml",
+      "missing": "skip",
+      "requires": [".codex"]
+    }],
+    "selector": { "type": "toml-section", "name": "features.multi_agent_v2" }
+  }]
+}

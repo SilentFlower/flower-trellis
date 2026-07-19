@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "id": "text-example",
+  "purpose": "shared_core_fixture",
+  "operations": [
+    {
+      "id": "replace-rule",
+      "operation": "replace",
+      "targets": [
+        { "kind": "markdown", "path": "sample.md", "missing": "error" }
+      ],
+      "selector": { "type": "literal", "source": "replace.selector.md" },
+      "content": { "source": "replace.content.md" },
+      "legacyMarkers": [
+        { "namespace": "transform", "id": "replace-rule" }
+      ]
+    },
+    {
+      "id": "insert-rule",
+      "operation": "insert",
+      "position": "after",
+      "targets": [
+        { "kind": "markdown", "path": "sample.md", "missing": "error" }
+      ],
+      "selector": { "type": "literal", "source": "insert.selector.md" },
+      "content": { "sources": ["insert-a.md", "insert-b.md"] }
+    },
+    {
+      "id": "remove-rule",
+      "operation": "remove",
+      "targets": [
+        { "kind": "markdown", "path": "sample.md", "missing": "error" }
+      ],
+      "selector": { "type": "literal", "source": "remove.selector.md" }
+    }
+  ]
+}

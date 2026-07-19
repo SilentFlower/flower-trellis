@@ -8,18 +8,24 @@ import { PKG_ROOT } from "../src/lib/paths.js";
 const KIB = 1024;
 const BASELINES = {
   workflow: 56635,
-  hub: 10757,
+  workflowControl: 18200,
   statesTotal: 8546,
+  updateSpec: 13899,
+  finishWork: 4556,
   phaseSummary: 17935,
   sessionStart: 17841,
+  controlTotal: 114050,
 };
 const BUDGETS = {
   workflow: { target: 60 * KIB, review: 64 * KIB },
-  hub: { target: 11 * KIB, review: 12 * KIB },
-  state: { target: 2.5 * KIB, review: 3 * KIB },
-  statesTotal: { target: 9 * KIB, review: 10 * KIB },
+  workflowControl: { target: 28 * KIB, review: 32 * KIB },
+  state: { target: 3 * KIB, review: 4 * KIB },
+  statesTotal: { target: 12 * KIB, review: 14 * KIB },
+  updateSpec: { target: 16 * KIB, review: 18 * KIB },
+  finishWork: { target: 10 * KIB, review: 12 * KIB },
   phaseSummary: { target: 18 * KIB, review: 20 * KIB },
   sessionStart: { target: 18 * KIB, review: 20 * KIB },
+  controlTotal: { target: 116 * KIB, review: 128 * KIB },
 };
 
 function measureText(name, value, budget, baseline = null) {
@@ -33,11 +39,58 @@ function measureText(name, value, budget, baseline = null) {
   };
 }
 
+function measureTotal(name, bytes, budget, baseline = null) {
+  return {
+    name,
+    bytes,
+    lines: 0,
+    target: budget.target,
+    review: budget.review,
+    baseline,
+  };
+}
+
 function readRequired(file) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
     throw new Error(`上下文预算目标不存在:${path.relative(PKG_ROOT, file)}`);
   }
   return fs.readFileSync(file, "utf8");
+}
+
+function extractSection(text, startHeading, endHeading) {
+  const start = text.indexOf(startHeading);
+  const end = text.indexOf(endHeading, start + startHeading.length);
+  if (start < 0 || end < 0 || end <= start) {
+    throw new Error(`无法从最终 workflow 提取章节:${startHeading}`);
+  }
+  return text.slice(start, end);
+}
+
+function extractWorkflowStates(workflow) {
+  const states = [];
+  const pattern = /^\[workflow-state:([^\]\n]+)\]\n([\s\S]*?)^\[\/workflow-state:\1\]$/gm;
+  let match;
+  while ((match = pattern.exec(workflow)) !== null) {
+    states.push({ name: match[1], value: match[2] });
+  }
+  if (states.length === 0) {
+    throw new Error("最终 workflow 未包含 workflow-state body");
+  }
+  return states;
+}
+
+function readExistingTargets(relativePaths, label) {
+  const targets = relativePaths
+    .map((relativePath) => ({
+      name: relativePath,
+      file: path.join(PKG_ROOT, relativePath),
+    }))
+    .filter(({ file }) => fs.existsSync(file))
+    .map(({ name, file }) => ({ name, value: readRequired(file) }));
+  if (targets.length === 0) {
+    throw new Error(`缺少最终 ${label} 入口`);
+  }
+  return targets;
 }
 
 function copyIfExists(source, target) {
@@ -112,38 +165,38 @@ function measureSessionStart() {
  */
 export function collectAiContextMetrics() {
   const workflow = readRequired(path.join(PKG_ROOT, ".trellis", "workflow.md"));
-  const hub = readRequired(
-    path.join(
-      PKG_ROOT,
-      "vendor",
-      "skill-garden",
-      ".trellis",
-      "0.6",
-      "overrides",
-      "workflow.md",
-    ),
+  const workflowControl = extractSection(
+    workflow,
+    "## Phase Index",
+    "## Phase 1: Plan",
   );
-  const stateDir = path.join(
-    PKG_ROOT,
-    "vendor",
-    "skill-garden",
-    ".trellis",
-    "0.6",
-    "overrides",
-    "workflow-states",
+  const stateValues = extractWorkflowStates(workflow);
+  const updateSpecTargets = readExistingTargets([
+    ".agents/skills/trellis-update-spec/SKILL.md",
+    ".claude/skills/trellis-update-spec/SKILL.md",
+    ".claude/commands/trellis/update-spec.md",
+  ], "Update-Spec");
+  const finishWorkTargets = readExistingTargets([
+    ".agents/skills/trellis-finish-work/SKILL.md",
+    ".claude/skills/trellis-finish-work/SKILL.md",
+    ".claude/commands/trellis/finish-work.md",
+  ], "Finish-Work");
+  const phaseSummary = measurePhaseSummary();
+  const sessionStart = measureSessionStart();
+  const largestUpdateSpec = Math.max(
+    ...updateSpecTargets.map(({ value }) => Buffer.byteLength(value, "utf8")),
   );
-  if (!fs.existsSync(stateDir)) throw new Error("缺少 0.6 workflow-states 目录");
-  const stateFiles = fs.readdirSync(stateDir)
-    .filter((name) => name.endsWith(".md"))
-    .sort();
-  if (stateFiles.length === 0) throw new Error("0.6 workflow-states 为空");
-  const stateValues = stateFiles.map((name) => ({
-    name,
-    value: readRequired(path.join(stateDir, name)),
-  }));
+  const largestFinishWork = Math.max(
+    ...finishWorkTargets.map(({ value }) => Buffer.byteLength(value, "utf8")),
+  );
   const metrics = [
     measureText("workflow", workflow, BUDGETS.workflow, BASELINES.workflow),
-    measureText("hub", hub, BUDGETS.hub, BASELINES.hub),
+    measureText(
+      "workflow-control",
+      workflowControl,
+      BUDGETS.workflowControl,
+      BASELINES.workflowControl,
+    ),
     ...stateValues.map(({ name, value }) =>
       measureText(`state:${name}`, value, BUDGETS.state)
     ),
@@ -153,17 +206,43 @@ export function collectAiContextMetrics() {
       BUDGETS.statesTotal,
       BASELINES.statesTotal,
     ),
+    ...updateSpecTargets.map(({ name, value }) =>
+      measureText(
+        `update-spec:${name}`,
+        value,
+        BUDGETS.updateSpec,
+        BASELINES.updateSpec,
+      )
+    ),
+    ...finishWorkTargets.map(({ name, value }) =>
+      measureText(
+        `finish-work:${name}`,
+        value,
+        BUDGETS.finishWork,
+        BASELINES.finishWork,
+      )
+    ),
     measureText(
       "phase-summary",
-      measurePhaseSummary(),
+      phaseSummary,
       BUDGETS.phaseSummary,
       BASELINES.phaseSummary,
     ),
     measureText(
       "session-start",
-      measureSessionStart(),
+      sessionStart,
       BUDGETS.sessionStart,
       BASELINES.sessionStart,
+    ),
+    measureTotal(
+      "control-context-total",
+      Buffer.byteLength(workflow, "utf8") +
+        largestUpdateSpec +
+        largestFinishWork +
+        Buffer.byteLength(phaseSummary, "utf8") +
+        Buffer.byteLength(sessionStart, "utf8"),
+      BUDGETS.controlTotal,
+      BASELINES.controlTotal,
     ),
   ];
   return metrics;

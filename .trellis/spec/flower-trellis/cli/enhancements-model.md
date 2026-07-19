@@ -25,24 +25,20 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   同步脚本在清空旧快照前读取上一次 manifest,把“旧版存在、新版消失”的名称加入
   tombstone,并移除重新出现在当前快照中的名称。首次迁移保留已知历史移除项
   `sub2api-account-json-fix`,让旧仓库升级时能精确清理残留。
-- **改 0.6 强化 skill / workflow 覆盖时,先改源再同步**:`vendor/skill-garden/.trellis/0.6/`
+- **改 0.6 强化 skill / Patch 时,先改源再同步**:`vendor/skill-garden/.trellis/0.6/`
   是 `npm run sync` 的真实输入。不要只改 `enhancements/0.6/` 或当前项目 `.agents/` /
   `.claude/`;否则下一次 sync 会把改动覆盖回源里的旧版本。正确顺序是:
   1. 改 `vendor/skill-garden/.trellis/0.6/.agents` / `.claude` / `overrides` 对应源文件;
   2. 运行 `npm run sync`;
   3. 用 `diff -u vendor/... enhancements/...` 验证发布快照与源一致;
   4. 必要时再同步当前项目已安装副本(如 `.agents/skills/...`、`.claude/skills/...`)。
-- `overrides/workflow.md` 与 `overrides/workflow-states/*.md` 是 AI-facing control protocol，
-  必须保留既有源语言和稳定术语。当前英文协议正文只做语义级修改，不因项目中文文档规范
-  整段翻译；用户实际输入的字面命令（如 `展开文件`）按产品约定保留原文。
-- 0.6 `overrides/workflow.md` 是高优先级 hub,可以放轻量兜底提醒。例如
-  `<flower-update>` 的阻塞确认、release notes 展示和 `<flower-update-result>` →
-  `trellis-push` 确认联动应写在 hub 源文件,再同步到 `enhancements/0.6` 与当前 dogfood
-  `.trellis/workflow.md`。
-- 0.6 `overrides/hooks/shared/<file>` 是 shared hook override 源,用于覆盖目标项目已有的
-  Trellis 平台 hook 文件。首批支持 `inject-workflow-state.py`,从源同步到
-  `enhancements/0.6/overrides/hooks/shared/inject-workflow-state.py` 后,由全装叠加链路应用到
-  已存在的 `.codex/hooks/inject-workflow-state.py` / `.claude/hooks/inject-workflow-state.py`。
+- `overrides/patches/` 是 0.6 AI-facing 修改源，按 workflow/skills/hooks 目标组织；
+  `overrides/bundles/` 只提供安装别名与 Patch 组合。英文协议正文只做语义级修改，不因项目
+  中文文档规范整段翻译；用户实际输入的字面命令按产品约定保留原文。
+- workflow hub/state、Update-Spec、Finish-Work 和 shared hook 都必须通过 Patch leaf 表达。
+  需要共享正文时使用有序 `content.sources`，不得恢复独立 additive override 目录。
+- Flower 自有 Codex/Claude 配置 Patch 位于 `src/patches/`，不进入 Skill-Garden 源；两类 catalog
+  由 `applyEnhancements()` 在同一个 preflight/apply 计划中执行。
 - 随包发布靠 `package.json` 的 `files: ["bin","src","enhancements","README.md"]`。
 - **同步源 = git submodule `vendor/skill-garden`**(不在 `files` 白名单,不进 npm tarball)。
   `sync-enhancements.mjs` 三级路径解析:`SKILL_GARDEN_DIR` 环境变量 → `PKG_ROOT/vendor/skill-garden`
@@ -58,8 +54,7 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 - 三个变体:`old` / `0.5` / `0.6`(`src/constants.js` 的 `VARIANTS`)。
 - 选择依据:目标项目 `.trellis/.version`(见 `variant.js` 的规则),或 `--variant` 强制覆盖。
-- 差异:`0.6` 走 `overrides/workflow.md`(hub)+ `overrides/workflow-states/*.md`+
-  `overrides/transforms/*.json` 声明式原文变换;
+- 差异:`0.6` 走 `overrides/patches/` + `overrides/bundles/` 统一 Patch catalog；
   `0.5` 走 `overrides/trellis-route.md`;`old` 无 overrides,workflow-state 文本来自
   `legacy-blocks.js` 常量。
 
@@ -71,9 +66,9 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 1. **校验**:目标存在 `.trellis/`,否则抛错(不是 Trellis 项目)。
 2. **选变体**:`--variant` 优先并校验合法性,否则 `selectVariant` 读 `.version`。
-3. **声明式变换 preflight + apply**(`enhancement-transform.js`):先校验全部 required
-   `insert / replace / remove` 声明和目标锚点,required 失败时零写入终止;通过后按 managed marker
-   幂等应用。完整契约见 [Trellis Injection Transforms](./trellis-injection-transforms.md)。
+3. **统一 Patch preflight + apply**(`patch-engine.js`):同时加载 Skill-Garden 与 Flower platform
+   catalog，先校验全部 required `insert / replace / remove`、target、selector/baseline；required
+   失败时零写入终止。完整契约见 [Trellis Patch Engine](./trellis-patch-engine.md)。
 4. **铺 skill**(`copy-skills.js`):**跟随平台** —— 检测目标已有的 `.claude/` /
    `.agents/` 目录决定铺到哪;claude → `.claude/skills`(+ `.claude/commands/trellis`),
    codex/gemini 等共享层 → `.agents/skills`;两者皆无则兜底铺 claude。
@@ -96,16 +91,7 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
    进入 `.flower-manifest.json.paths`。
 8. **升级清理**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,删除本次
    变体不含的过期项。带 `--skills` 是精细操作,不动 manifest、不清理。
-9. **注入 workflow**(`workflow-inject.js`):全装,或显式指定 workflow 相关 skill 时执行。
-10. **skill override 注入**(`skill-override-inject.js`):全装,或显式指定 finish-work / Update-Spec
-   相关 skill 时执行。Update-Spec 精细别名固定为 `trellis-update-spec` / `update-spec` /
-   `update-spec-enhancement`。注入位置为 frontmatter 后;无 frontmatter 的 command 文件优先
-   插到首个 H1 标题后,避免 override 标题污染平台提取的命令描述。
-11. **hook override 注入**(`hook-override-inject.js`):仅全装时执行。读取
-   `overrides/hooks/shared/<file>`,只覆盖目标项目已有的平台 hook 文件,不创建未启用的平台目录。
-   hook override 是对 Trellis 原生 hook 的覆盖,不是 flower 自有资产,不得写入 manifest
-   `paths`,避免升级清理误删上游 hook。
-12. **平台后处理**:
+9. **legacy 后处理**:**仅 0.5/old** 执行 `workflow-inject.js` 和平台 tweak：
    - `codex-tweaks.js`:仅当目标存在 `.codex/` 时,兼容清理旧 `config.toml` 的
      `multi_agent_v2` 段,保留上游 hooks 并合并 Trellis / flower 的 `SessionStart`,同时强制
      `.trellis/config.yaml` 的 `codex.dispatch_mode: sub-agent`。Codex Trellis 主上下文 hook
@@ -114,8 +100,9 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
    - `claude-tweaks.js`:仅当目标存在 `.claude/` 时,只向 `.claude/settings.json` 的
      `SessionStart` `startup` matcher 合并 flower update hook,timeout 为 30,并清除
      `clear` / `compact` matcher 中的 flower update hook。
-13. **成功 manifest**(**仅全装**):全部 required 变换、注入与平台后处理完成后写
-    `.trellis/.flower-manifest.json`。中途失败保留旧 manifest,不能宣称本轮成功。
+   0.6 不调用这些旧入口；对应修改已经在第 3 步 Patch 计划中完成。
+10. **成功 manifest**(**仅全装**):全部 required Patch、资产复制、清理和 legacy 后处理完成后写
+    `.trellis/.flower-manifest.json`，并记录稳定 Patch provenance。中途失败保留旧 manifest。
 
 ---
 
@@ -125,15 +112,12 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 - `fs-utils.copyPath`:先删软链/旧目标再拷贝,无条件覆盖,不残留上游已删文件。
 - 升级清理只在**全装**时维护 manifest 与删除过期项,避免 `--skills` 精细操作误删。
-- 声明式变换先 preflight 后 apply;required selector/marker 漂移时目标与 manifest 都不写,
+- Patch 先 preflight 后 apply;required selector/marker 漂移时目标与 manifest 都不写,
   optional skip 必须进入结构化结果。完整规则见
-  [Trellis Injection Transforms](./trellis-injection-transforms.md)。
-- `workflow-inject` / `skill-override-inject`:先把首次回滚内容备份到
-  `.trellis/.backup-flower/<原相对路径>`(目录名命中 Trellis `.backup-*` 忽略规则),已存在则保留,
-  保证备份永远是首次注入前的原文。旧版本散落的 `.bak` /
-  `.flower-skill-garden.bak` 要迁入该目录并删除旧文件,避免污染目标项目 git。随后
-  `workflow-inject` 先 `stripBlocks` 清掉所有旧 skill-garden 段(SECTION + sentinel)再重新注入;
-  处理后内容与原文件相同则**不写盘**。
+  [Trellis Patch Engine](./trellis-patch-engine.md)。
+- 0.6 changed 目标由 Patch Engine 调用 `preserveFirstBackup()`，备份到
+  `.trellis/.backup-flower/<原相对路径>`；已存在则保留，保证备份永远是首次修改前原文。
+  legacy marker/additive override 由 Patch 声明迁移，重复运行只产生 unchanged。
 - `codex-tweaks`:`config.toml` 段头已注释/不存在则不再处理;`hooks.json` 合并后的
   内容一致则不写,避免覆盖 Trellis 上游 hook 参数。SessionStart 合并必须先从所有
   group 移除目标命令旧位置,再归位到目标 matcher group,避免旧版无 matcher group 与新版
@@ -144,10 +128,8 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   存在才调用 `copyPath` 覆盖;新名称不得自动安装。`removedSkills` 读取失败按空列表降级,
   删除前必须校验名称是单一路径段,并只在固定 common 根目录下拼接精确路径。重新进入
   当前快照的名称即使仍残留在旧 tombstone 中也不得删除。
-- `hook-override-inject`:只由全装执行。目标 hook 文件不存在时跳过,不得创建平台目录或 hook
-  文件;内容一致时不写盘;内容变化时先通过 `preserveFirstBackup()` 保存首次备份到
-  `.trellis/.backup-flower/<原相对路径>`。shared hook override 覆盖 `.codex` / `.claude`
-  等已有平台 hook,但不把这些原生 hook 路径写入 manifest `paths`。
+- shared hook Patch 只修改已存在平台目标，平台前置目录缺失时 `missing-target`；不得创建未启用
+  平台。上游 hook 路径不进入 manifest `paths`，由 Patch provenance 单独记录。
 - `claude-tweaks`:只追加缺失的 startup flower hook,重复运行不得重复;若历史版本把 flower
   hook 放到了 `clear` / `compact`,更新时必须移除这些非 startup 位置;若旧 hook 仍是
   8 秒 timeout,更新时必须迁移到 30 秒。
@@ -764,9 +746,9 @@ outstanding action 执行 `record + next`,交互式停止只在非 validated aut
 
 - Trigger:interactive Check-All 通过后需要保留用户继续卡点,但用户回复“下一步”后不应再次询问
   是否更新 spec,也不应在 Update-Spec 与 Trellis Push 之间再停一次。
-- Scope:`overrides/skills/trellis-update-spec.md` 保存自主三态、证据、最小写入和自校验;
+- Scope:`overrides/patches/skills/trellis-update-spec/autonomous-evaluation/` 保存自主三态、证据、最小写入和自校验;
   workflow hub/state 只保存停止点与 resume-chain;auto-loop skill/runner 保存确定性 record 映射;
-  `skill-override-inject.js` 和独立 `install.sh` 负责增量注入已有上游入口。
+  Patch Engine 和独立 Python consumer 负责替换已有上游入口。
 
 ### 2. Signatures
 
@@ -893,7 +875,7 @@ Check-All passed -> report + stop -> user next
 - Trigger:普通 `trellis-check` / `trellis-check-all` 完成后,主 agent 可能绕过 Phase 3.4
   `trellis-push`,自行草拟 `Proposed commits`、commit message 和 commit-only 确认;大型或多仓
   计划也可能把普通文件全部铺开,造成高噪声输出。
-- Scope:`overrides/workflow.md` 与 in-progress state 负责 post-check / Phase 3.4 硬门禁;
+- Scope:workflow hub Patch 与 in-progress state Patch 负责 post-check / Phase 3.4 硬门禁;
   `trellis-check-all` 负责纯检查汇总;`trellis-push` 只负责 exact plan、一次确认、业务 Git
   动作和普通 push 后的 task progress trigger;`task_progress.py` 只负责窄 schema 读写;
   `trellis-auto-loop` 仍只使用本地 commit-only 预授权。

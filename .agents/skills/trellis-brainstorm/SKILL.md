@@ -25,11 +25,11 @@ Use this skill during Phase 1 planning to turn the user's request into clear req
 
 ## Preconditions
 
-<!-- BEGIN skill-garden transform brainstorm-planning-authorization v0.6 -->
+<!-- BEGIN skill-garden patch brainstorm-planning-authorization v0.6 -->
 Use this skill after the user explicitly requests task planning, or after clear complex implementation intent authorizes creating a planning workspace. This authorization covers planning only; it never authorizes `task.py start` or implementation.
-<!-- END skill-garden transform brainstorm-planning-authorization v0.6 -->
+<!-- END skill-garden patch brainstorm-planning-authorization v0.6 -->
 
-<!-- BEGIN skill-garden transform brainstorm-auto-task-create v0.6 -->
+<!-- BEGIN skill-garden patch brainstorm-auto-task-create v0.6 -->
 If no task exists yet, choose the creator from the authorization source.
 
 For inferred high-confidence complex implementation intent, create an auto-routed planning task:
@@ -45,7 +45,7 @@ python3 ./.trellis/scripts/task.py create "<short task title>" --slug <slug>
 ```
 
 Use a concise title from the user's request and a slug without a date prefix. Both paths create the default `prd.md`; update it with the current understanding before asking follow-up questions.
-<!-- END skill-garden transform brainstorm-auto-task-create v0.6 -->
+<!-- END skill-garden patch brainstorm-auto-task-create v0.6 -->
 
 ## Planning Flow
 

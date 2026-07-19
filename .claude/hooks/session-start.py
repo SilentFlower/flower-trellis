@@ -329,14 +329,14 @@ def _get_task_status(trellis_dir: Path, input_data: dict) -> str:
     active = _resolve_active_task(trellis_dir, input_data)
 
     if not active.task_path:
-# BEGIN skill-garden transform claude-session-start-no-task v0.6
+# BEGIN skill-garden patch claude-session-start-no-task v0.6
         return (
             "Status: NO ACTIVE TASK\n"
             "Next-Action: Infer discuss, inspect, direct_edit, task_plan, or workflow_action. "
             "Proceed with high-confidence reversible routing; ask only for material ambiguity "
             "or independent safety gates."
         )
-# END skill-garden transform claude-session-start-no-task v0.6
+# END skill-garden patch claude-session-start-no-task v0.6
 
     task_ref = active.task_path
     task_dir = _resolve_task_dir(trellis_dir, task_ref)

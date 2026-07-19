@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "flower-platform-integration",
+  "aliases": [],
+  "installMode": "full-only",
+  "patches": [
+    "codex/session-start-hooks",
+    "codex/dispatch-mode",
+    "codex/remove-multi-agent-v2",
+    "claude/startup-update-hook"
+  ]
+}

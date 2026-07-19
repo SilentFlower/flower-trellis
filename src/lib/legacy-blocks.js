@@ -2,7 +2,7 @@
  * 0.5 / old 变体的 workflow-state 注入文本常量。
  *
  * 这些块在 skill-garden 的 install.sh 里是内嵌 Python 的 `LEGACY_*` 字面量
- * (0.6 变体的 state 文本改为从 overrides/workflow-states/*.md 读取,不走这里)。
+ * （0.6 变体的 workflow/state 已统一由 Patch Engine 处理，不走这里。）
  * 此处逐字符移植,**包括每个块结尾的两个换行**(state 替换时直接拼接,依赖此尾部空行)。
  * 改动需与上游 install.sh 保持一致。
  */

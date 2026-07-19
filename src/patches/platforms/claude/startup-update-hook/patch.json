@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-claude-startup-update-hook",
+  "purpose": "platform_config",
+  "operations": [{
+    "id": "flower-claude-startup-update-hook",
+    "operation": "replace",
+    "targets": [{
+      "kind": "json",
+      "path": ".claude/settings.json",
+      "missing": "create",
+      "requires": [".claude"]
+    }],
+    "selector": {
+      "type": "json-hook-command",
+      "event": "SessionStart",
+      "commandNeedle": ".trellis/scripts/flower_update_hook.py"
+    },
+    "content": {
+      "value": {
+        "matcher": "startup",
+        "timeout": 30,
+        "commandResolver": "claude-flower-update",
+        "prependGroup": true
+      }
+    }
+  }]
+}

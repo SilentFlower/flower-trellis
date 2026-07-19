@@ -10,13 +10,13 @@ import {
 import { preserveFirstBackup } from "./backup.js";
 
 /**
- * workflow.md 强化块注入。
+ * 0.5/old workflow.md 兼容注入。
  *
  * 纯 JS 移植 skill-garden install.sh 362-557 的内嵌 Python:
  *   1. 首次注入前备份到 .trellis/.backup-flower/(已存在则保留);
  *   2. 先清掉所有旧的 skill-garden 段(3 个 SECTION + 13 个 sentinel),保证可重复升级;
- *   3. 把 hub(0.6)/ route(0.5)块注入到 `## Phase Index` 之后(找不到则顶部 fallback);
- *   4. 替换当前变体管理的 workflow-state 块(0.6 为 4 个,legacy 走原常量);
+ *   3. 把 route 块注入到 `## Phase Index` 之后(找不到则顶部 fallback);
+ *   4. 用 legacy 常量替换当前变体管理的 workflow-state 块;
  *   5. 处理后内容与原文件相同则不写盘(幂等)。
  *
  * Python re.DOTALL|re.MULTILINE → JS 用 `[\s\S]` 代替 `.`(免 s flag)+ `m` flag;
@@ -121,18 +121,12 @@ function replaceState(value, re, block) {
   return [out, replaced];
 }
 
-/** 读取 0.6 的 workflow-state override 文件,语义同 Python:strip() + "\n\n"。 */
-function readStateBlock(stateDir, filename) {
-  const p = path.join(stateDir, filename);
-  return fs.readFileSync(p, "utf8").trim() + "\n\n";
-}
-
 /**
- * 对目标项目的 .trellis/workflow.md 执行强化注入。
+ * 对目标项目的 .trellis/workflow.md 执行 0.5/old 兼容注入。
  *
  * @param {string} target 目标项目根
  * @param {string} variantDir 该变体在 enhancements/ 下的目录
- * @param {string} variant "old" | "0.5" | "0.6"
+ * @param {string} variant "old" | "0.5"
  * @returns {{skipped?:boolean, reason?:string, changed?:boolean, action?:string, backupNote?:string}}
  */
 export function injectWorkflow(target, variantDir, variant) {
@@ -141,15 +135,10 @@ export function injectWorkflow(target, variantDir, variant) {
     return { skipped: true, reason: "目标无 .trellis/workflow.md" };
   }
 
-  const hubSrc = path.join(variantDir, "overrides", "workflow.md");
   const routeSrc = path.join(variantDir, "overrides", "trellis-route.md");
-  const stateDir = path.join(variantDir, "overrides", "workflow-states");
-  const isV06 = variant === "0.6" && fs.existsSync(hubSrc);
-
-  let source;
-  if (isV06) source = hubSrc;
-  else if (fs.existsSync(routeSrc)) source = routeSrc;
-  else return { skipped: true, reason: `变体 ${variant} 无 overrides` }; // old
+  if (!fs.existsSync(routeSrc)) {
+    return { skipped: true, reason: `变体 ${variant} 无 overrides` };
+  }
 
   const text = fs.readFileSync(dst, "utf8");
 
@@ -157,22 +146,15 @@ export function injectWorkflow(target, variantDir, variant) {
   const { backupNote } = preserveFirstBackup(target, dst, [`${dst}.bak`]);
 
   const clean = stripBlocks(text);
-  const block = fs.readFileSync(source, "utf8").replace(/\s+$/, "");
+  const block = fs.readFileSync(routeSrc, "utf8").replace(/\s+$/, "");
   const { value: phaseNew, action } = injectAfterPhaseIndex(clean, block);
 
-  const stateSpecs = isV06
-    ? [
-        ["planning", readStateBlock(stateDir, "planning.md")],
-        ["planning-inline", readStateBlock(stateDir, "planning-inline.md")],
-        ["in_progress", readStateBlock(stateDir, "in_progress.md")],
-        ["in_progress-inline", readStateBlock(stateDir, "in_progress-inline.md")],
-      ]
-    : [
-        ["no_task", LEGACY_NO_TASK_BLOCK + LEGACY_PUSH_PROGRESS_BLOCK],
-        ["planning", LEGACY_PLANNING_BLOCK],
-        ["in_progress", LEGACY_IN_PROGRESS_BLOCK + LEGACY_PUSH_SNAPSHOT_BLOCK],
-        ["in_progress-inline", LEGACY_PUSH_SNAPSHOT_BLOCK],
-      ];
+  const stateSpecs = [
+    ["no_task", LEGACY_NO_TASK_BLOCK + LEGACY_PUSH_PROGRESS_BLOCK],
+    ["planning", LEGACY_PLANNING_BLOCK],
+    ["in_progress", LEGACY_IN_PROGRESS_BLOCK + LEGACY_PUSH_SNAPSHOT_BLOCK],
+    ["in_progress-inline", LEGACY_PUSH_SNAPSHOT_BLOCK],
+  ];
 
   let newText = phaseNew;
   for (const [state, blk] of stateSpecs) {

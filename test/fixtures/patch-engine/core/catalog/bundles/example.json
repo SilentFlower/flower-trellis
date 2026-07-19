@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "id": "example",
+  "aliases": ["alias"],
+  "patches": ["text/example"]
+}

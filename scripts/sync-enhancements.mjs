@@ -172,7 +172,7 @@ for (const v of VARIANTS) {
     }
   }
 
-  // 统计(供人工核对:old=11 命令 / 0.5=13 skill / 0.6=12 skill + hub + 5 state + 1 skill override)
+  // 统计供人工核对：0.6 的全部文件修改声明只来自 patches/，bundles/ 仅提供选择别名。
   const claudeSkills = listDirs(path.join(DST, v, ".claude", "skills"));
   const agentsSkills = listDirs(path.join(DST, v, ".agents", "skills"));
   const commands = listFiles(
@@ -180,19 +180,11 @@ for (const v of VARIANTS) {
     ".md",
   );
   const overrides = listFiles(path.join(DST, v, "overrides"), ".md");
-  const states = listFiles(
-    path.join(DST, v, "overrides", "workflow-states"),
-    ".md",
+  const patchFiles = listRelativeFilesRecursive(
+    path.join(DST, v, "overrides", "patches"),
   );
-  const skillOverrides = listFiles(
-    path.join(DST, v, "overrides", "skills"),
-    ".md",
-  );
-  const hookOverrides = listRelativeFilesRecursive(
-    path.join(DST, v, "overrides", "hooks"),
-  );
-  const transformFiles = listRelativeFilesRecursive(
-    path.join(DST, v, "overrides", "transforms"),
+  const bundles = listRelativeFilesRecursive(
+    path.join(DST, v, "overrides", "bundles"),
   );
   const scripts = listFiles(path.join(DST, v, "scripts"));
   manifest.variants[v] = {
@@ -200,18 +192,15 @@ for (const v of VARIANTS) {
     agentsSkills,
     commands,
     overrides,
-    workflowStates: states,
-    skillOverrides,
-    hookOverrides,
-    transformFiles,
+    patchFiles,
+    bundles,
     scripts,
   };
 
   console.log(
     `✓ ${v}: claude/skills=${claudeSkills.length} agents/skills=${agentsSkills.length} ` +
-      `commands=${commands.length} overrides=${overrides.length} states=${states.length} ` +
-      `skillOverrides=${skillOverrides.length} hookOverrides=${hookOverrides.length} ` +
-      `transformFiles=${transformFiles.length} scripts=${scripts.length}`,
+      `commands=${commands.length} overrides=${overrides.length} ` +
+      `patchFiles=${patchFiles.length} bundles=${bundles.length} scripts=${scripts.length}`,
   );
 }
 

@@ -120,7 +120,7 @@ flower 自己的安装清单,是「精确升级清理」的依据:
 
 - 位置:目标项目 `.trellis/.flower-manifest.json`,随 Trellis 生命周期存在
   (`uninstall` 删 `.trellis/` 时一并消失)。
-- 内容:`{ flowerVersion, variant, version, skills[], paths[], updateCheck }` —— 记录**上一次全装铺过的精确路径**,
+- 内容:`{ flowerVersion, variant, version, skills[], paths[], patches, updateCheck }` —— 记录**上一次全装铺过的精确路径**,
   升级(如 `0.5`/`old` → `0.6`)时据此删除「上次有、本次变体不含」的过期项,
   **只删自己铺过的路径**,绝不误删用户或 Trellis 本体的文件。
   - `flowerVersion` = 铺包时的 **flower-trellis 工具版本**(`flowerVersion()` 读包根 `package.json`);
@@ -128,6 +128,9 @@ flower 自己的安装清单,是「精确升级清理」的依据:
     前者答「上次哪个 flower 铺的」,后者答「项目当时是哪个 trellis」,均服务后续升级判断。
   - 仅全装(无 `--skills`)时写 manifest;`--skills` 精细操作不动 manifest,故 `flowerVersion`
     只在全装时刷新。
+  - `patches` 是 0.6 Patch provenance：固定包含 `schemaVersion`、`catalogHash` 和
+    `applied[]`；每项记录 operation/patch/bundle/target、稳定 `status: applied` 与最终
+    `resultHash`。重复全装时 provenance 必须不因本轮 changed/unchanged 而变化。
   - `updateCheck` 在 manifest 内只保存启动更新检查的用户策略:
     `enabled` / `policy` / `intervalHours`。全装重写 manifest 时必须保留已有策略,
     不能把用户选择重置回默认值。
@@ -144,9 +147,9 @@ flower 自己的安装清单,是「精确升级清理」的依据:
   tmp 不存在时先迁移旧缓存,避免清理导致 interval / release notes 缓存立刻丢失。
 - `lastRemote` 只记录 npm `dist-tags.latest` / `dist-tags.beta` 版本事实;release notes /
   changelog 摘要必须写入 tmp 内独立的 `lastReleaseNotes`,不得混入 `lastRemote`。
-- 全装强化的成功 manifest 必须在声明式 transform、workflow/skill/hook 注入和平台后处理
-  全部成功后写入。required transform preflight 失败时不得刷新 manifest；保留旧清单供下次
-  全装恢复。详见 [Trellis Injection Transforms](./trellis-injection-transforms.md)。
+- 0.6 全装成功 manifest 必须在统一 Patch、资产复制和 stale 清理全部成功后写入；0.5/old
+  还要等待 legacy 后处理成功。required Patch preflight 失败时不得刷新 manifest，保留旧清单
+  供下次全装恢复。详见 [Trellis Patch Engine](./trellis-patch-engine.md)。
 
 ## Scenario: Startup Self-Update Check
 

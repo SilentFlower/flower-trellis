@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-codex-dispatch-mode",
+  "purpose": "platform_config",
+  "operations": [{
+    "id": "flower-codex-dispatch-mode",
+    "operation": "replace",
+    "targets": [{
+      "kind": "yaml",
+      "path": ".trellis/config.yaml",
+      "missing": "create",
+      "requires": [".codex"]
+    }],
+    "selector": { "type": "yaml-key", "path": "codex.dispatch_mode" },
+    "content": { "value": "sub-agent" }
+  }]
+}

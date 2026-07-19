@@ -7,7 +7,7 @@ import { applyEnhancements } from "../../src/lib/apply-enhancements.js";
 import { ENHANCEMENTS_ROOT } from "../../src/lib/paths.js";
 
 const V06_DIR = path.join(ENHANCEMENTS_ROOT, "0.6");
-const TRANSFORM_DIR = path.join(V06_DIR, "overrides", "transforms");
+const PATCHES = path.join(V06_DIR, "overrides", "patches");
 
 function write(root, relativePath, value) {
   const file = path.join(root, ...relativePath.split("/"));
@@ -16,8 +16,8 @@ function write(root, relativePath, value) {
   return file;
 }
 
-function match(name) {
-  return fs.readFileSync(path.join(TRANSFORM_DIR, "matches", name), "utf8").trimEnd();
+function patchSource(ref, name) {
+  return fs.readFileSync(path.join(PATCHES, ...ref.split("/"), name), "utf8").trimEnd();
 }
 
 function minimalWorkflow() {
@@ -25,63 +25,128 @@ function minimalWorkflow() {
     "## Phase Index",
     "",
     "```",
-    match("workflow-phase-summary.md"),
+    patchSource("workflow/intent-routing/phase-summary", "selector.md"),
     "Phase 2: Execute",
     "Phase 3: Finish",
     "```",
     "",
     "### Request Triage",
     "",
-    match("workflow-request-triage.md"),
+    patchSource("workflow/intent-routing/request-triage", "selector.md"),
     "",
     "[workflow-state:no_task]",
-    match("workflow-no-task-body.md"),
+    patchSource("workflow/state-no-task", "selector.md"),
     "[/workflow-state:no_task]",
     "",
     "### Phase 1: Plan",
-    match("workflow-phase-index-create-task.md"),
+    patchSource("workflow/intent-routing/phase-index-create-task", "selector.md"),
     "",
     "[workflow-state:planning]",
-    "Planning body.",
+    patchSource("workflow/states-planning", "planning-baseline.md"),
     "[/workflow-state:planning]",
     "",
     "[workflow-state:planning-inline]",
-    "Planning inline body.",
+    patchSource("workflow/states-planning", "planning-inline-baseline.md"),
     "[/workflow-state:planning-inline]",
     "",
     "[workflow-state:in_progress]",
-    "In progress body.",
+    patchSource("workflow/states-in-progress", "in-progress-baseline.md"),
     "[/workflow-state:in_progress]",
     "",
     "[workflow-state:in_progress-inline]",
-    "In progress inline body.",
+    patchSource("workflow/states-in-progress", "in-progress-inline-baseline.md"),
     "[/workflow-state:in_progress-inline]",
     "",
     "## Phase 1: Plan",
     "",
-    match("workflow-phase-one-goal.md"),
+    patchSource("workflow/intent-routing/phase-one-goal", "selector.md"),
     "",
     "#### 1.0 Create task `[required · once]`",
     "",
-    match("workflow-create-task-rule.md"),
+    patchSource("workflow/intent-routing/create-task-rule", "selector.md"),
     "",
-    match("workflow-create-task-command.md"),
+    patchSource("workflow/intent-routing/create-task-command", "selector.md"),
     "",
     "## Customizing Trellis (for forks)",
     "",
     "Critical invariants:",
-    match("workflow-customization-intent-invariant.md"),
+    patchSource("workflow/intent-routing/customization-intent-invariant", "selector.md"),
     "",
   ].join("\n");
 }
 
 function writeUpdateSpecTargets(target) {
-  const skill = "---\nname: trellis-update-spec\n---\n\n# Update Spec\n";
+  const body = [
+    "# Update Code-Spec",
+    "",
+    "KEEP BEFORE",
+    "",
+    patchSource("skills/trellis-update-spec/autonomous-evaluation", "baseline.md"),
+    "",
+    "## Quality Checklist",
+    "",
+    "KEEP AFTER",
+    "",
+  ].join("\n");
+  const skill = `---\nname: trellis-update-spec\n---\n\n${body}`;
   return [
     write(target, ".agents/skills/trellis-update-spec/SKILL.md", skill),
     write(target, ".claude/skills/trellis-update-spec/SKILL.md", skill),
-    write(target, ".claude/commands/trellis/update-spec.md", "# Update Spec\n"),
+    write(target, ".claude/commands/trellis/update-spec.md", body),
   ];
+}
+
+function writeFinishTargets(target) {
+  const agentBody = patchSource(
+    "skills/trellis-finish-work/exact-bookkeeping",
+    "baseline-agent.md",
+  );
+  const commandBody = patchSource(
+    "skills/trellis-finish-work/exact-bookkeeping",
+    "baseline-command.md",
+  );
+  return [
+    write(
+      target,
+      ".agents/skills/trellis-finish-work/SKILL.md",
+      `---\nname: trellis-finish-work\n---\n\n${agentBody}\n`,
+    ),
+    write(target, ".claude/commands/trellis/finish-work.md", `${commandBody}\n`),
+  ];
+}
+
+function writeIntentTargets(target) {
+  write(
+    target,
+    ".agents/skills/trellis-start/SKILL.md",
+    `# Start\n\n${patchSource("skills/trellis-start/no-task-routing", "selector.md")}\n`,
+  );
+  const brainstorm = [
+    "# Brainstorm",
+    "",
+    patchSource("skills/trellis-brainstorm/planning-authorization", "selector.md"),
+    "",
+    patchSource("skills/trellis-brainstorm/auto-task-create", "selector.md"),
+    "",
+  ].join("\n");
+  write(target, ".agents/skills/trellis-brainstorm/SKILL.md", brainstorm);
+  write(target, ".claude/skills/trellis-brainstorm/SKILL.md", brainstorm);
+  write(
+    target,
+    ".codex/hooks/session-start.py",
+    `${patchSource("hooks/codex-session-start/no-task-routing", "selector.py")}\n`,
+  );
+  write(
+    target,
+    ".claude/hooks/session-start.py",
+    `${patchSource("hooks/claude-session-start/no-task-routing", "selector.py")}\n`,
+  );
+  const hookBaseline = patchSource(
+    "hooks/inject-workflow-state/shared-runtime",
+    "selector.py",
+  );
+  write(target, ".codex/hooks/inject-workflow-state.py", `${hookBaseline}\n`);
+  write(target, ".claude/hooks/inject-workflow-state.py", `${hookBaseline}\n`);
 }
 
 function snapshotTree(root) {
@@ -109,13 +174,13 @@ function quietApply(target, options = { variant: "0.6" }) {
   }
 }
 
-test("required transform 漂移时强化流水线零写入且 manifest 不更新", () => {
+test("required Patch 漂移时强化流水线零写入且 manifest 不更新", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-apply-drift-"));
   write(target, ".trellis/.version", "0.6.5\n");
   const workflow = write(target, ".trellis/workflow.md", "upstream drift\n");
   const before = snapshotTree(target);
 
-  assert.throws(() => quietApply(target), /声明式强化变换预检失败/);
+  assert.throws(() => quietApply(target), /Patch 预检失败/);
   assert.deepEqual(snapshotTree(target), before);
   assert.equal(fs.readFileSync(workflow, "utf8"), "upstream drift\n");
   assert.equal(fs.existsSync(path.join(target, ".trellis/.flower-manifest.json")), false);
@@ -123,75 +188,55 @@ test("required transform 漂移时强化流水线零写入且 manifest 不更新
   assert.equal(fs.existsSync(path.join(target, ".claude")), false);
 });
 
-test("fresh 0.6 apply 写入 transform/helper/manifest 且重复运行文件树不变", () => {
+test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不变", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-apply-fresh-"));
   write(target, ".trellis/.version", "0.6.5\n");
   const workflow = write(target, ".trellis/workflow.md", minimalWorkflow());
-  write(
-    target,
-    ".agents/skills/trellis-start/SKILL.md",
-    `# Start\n\n${match("start-no-task-routing.md")}\n`,
-  );
-  write(
-    target,
-    ".agents/skills/trellis-brainstorm/SKILL.md",
-    `# Brainstorm\n\n${match("brainstorm-planning-authorization.md")}\n\n` +
-      `${match("brainstorm-auto-task-create.md")}\n`,
-  );
-  write(
-    target,
-    ".codex/hooks/session-start.py",
-    `${match("codex-session-start-no-task.py")}\n`,
-  );
-  write(
-    target,
-    ".claude/hooks/session-start.py",
-    `${match("claude-session-start-no-task.py")}\n`,
-  );
+  writeIntentTargets(target);
   const updateSpecTargets = writeUpdateSpecTargets(target);
+  const finishTargets = writeFinishTargets(target);
 
   quietApply(target);
   const first = snapshotTree(target);
   const workflowText = fs.readFileSync(workflow, "utf8");
-  assert.match(workflowText, /skill-garden transform workflow-request-triage/);
+  assert.match(workflowText, /skill-garden patch workflow-request-triage/);
+  assert.match(workflowText, /skill-garden patch workflow-state-in-progress/);
   assert.match(workflowText, /#### Request Intent Routing/);
   assert.doesNotMatch(workflowText, /ask only whether this turn should create/);
+  assert.doesNotMatch(workflowText, /Flow: .*finish-work/);
+  assert.doesNotMatch(workflowText, /This guard overrides any lower/);
   assert.match(workflowText, /task_intent\.py create --title/);
-  assert.match(workflowText, /only for a task auto-created by intent routing/);
-  assert.match(workflowText, /Keep manual or historical tasks unchanged/);
-  assert.match(
-    fs.readFileSync(path.join(target, ".agents/skills/trellis-brainstorm/SKILL.md"), "utf8"),
-    /task_intent\.py create --title/,
-  );
-  assert.doesNotMatch(
-    fs.readFileSync(path.join(target, ".codex/hooks/session-start.py"), "utf8"),
-    /task-creation consent/,
-  );
-  assert.doesNotMatch(
-    fs.readFileSync(path.join(target, ".claude/hooks/session-start.py"), "utf8"),
-    /asks only whether|task creation and planning are allowed/,
-  );
-  assert.equal(
-    fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")),
-    true,
-  );
+  assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")), true);
+
   for (const file of updateSpecTargets) {
-    assert.match(
-      fs.readFileSync(file, "utf8"),
-      /BEGIN skill-garden skill override trellis-update-spec v0\.6/,
-    );
+    const value = fs.readFileSync(file, "utf8");
+    assert.match(value, /BEGIN skill-garden patch trellis-update-spec-autonomous-evaluation/);
+    assert.doesNotMatch(value, /^## Interactive Mode$/m);
+    assert.match(value, /KEEP BEFORE/);
+    assert.match(value, /KEEP AFTER/);
+  }
+  for (const file of finishTargets) {
+    const value = fs.readFileSync(file, "utf8");
+    assert.match(value, /BEGIN skill-garden patch trellis-finish-work-exact-bookkeeping/);
+    assert.doesNotMatch(value, /## Step 1: Survey current state/);
+    assert.match(value, /### 1\. Current Task Release Audit/);
   }
   const manifest = JSON.parse(
     fs.readFileSync(path.join(target, ".trellis/.flower-manifest.json"), "utf8"),
   );
   assert.equal(manifest.variant, "0.6");
   assert.ok(manifest.paths.includes(".trellis/scripts/task_intent.py"));
+  assert.equal(manifest.patches.schemaVersion, 1);
+  assert.match(manifest.patches.catalogHash, /^sha256:/);
+  assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-in-progress"));
+  assert.equal(fs.existsSync(path.join(target, ".codex/hooks.json")), true);
+  assert.equal(fs.existsSync(path.join(target, ".claude/settings.json")), true);
 
   quietApply(target);
   assert.deepEqual(snapshotTree(target), first);
 });
 
-test("task-intent 与 intent-routing 精细安装都会刷新完整 intent unit", () => {
+test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", () => {
   for (const alias of ["task-intent", "intent-routing"]) {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-alias-${alias}-`));
     write(target, ".trellis/.version", "0.6.5\n");
@@ -201,63 +246,36 @@ test("task-intent 与 intent-routing 精细安装都会刷新完整 intent unit"
 
     const value = fs.readFileSync(workflow, "utf8");
     assert.match(value, /#### Request Intent Routing/);
-    assert.match(value, /skill-garden transform workflow-request-triage/);
-    assert.equal(
-      fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")),
-      true,
-    );
-    assert.equal(
-      fs.existsSync(path.join(target, ".trellis/scripts/spec_router.py")),
-      true,
-    );
+    assert.match(value, /skill-garden patch workflow-request-triage/);
+    assert.match(value, /skill-garden patch workflow-state-planning/);
+    assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")), true);
+    assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/spec_router.py")), true);
+    assert.equal(fs.existsSync(path.join(target, ".trellis/.flower-manifest.json")), false);
   }
 });
 
-test("Update-Spec 三个精细安装别名都注入已有 agents/claude/command", () => {
-  for (const alias of [
-    "trellis-update-spec",
-    "update-spec",
-    "update-spec-enhancement",
-  ]) {
-    const target = fs.mkdtempSync(
-      path.join(os.tmpdir(), `flower-update-spec-${alias}-`),
-    );
+test("Update-Spec 三个精细安装别名都替换已有入口且不创建缺失平台", () => {
+  for (const alias of ["trellis-update-spec", "update-spec", "update-spec-enhancement"]) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-update-spec-${alias}-`));
     write(target, ".trellis/.version", "0.6.5\n");
     const targets = writeUpdateSpecTargets(target);
 
     quietApply(target, { variant: "0.6", skills: [alias] });
     const first = snapshotTree(target);
     for (const file of targets) {
-      assert.match(
-        fs.readFileSync(file, "utf8"),
-        /BEGIN skill-garden skill override trellis-update-spec v0\.6/,
-      );
+      const value = fs.readFileSync(file, "utf8");
+      assert.match(value, /skill-garden patch trellis-update-spec-autonomous-evaluation/);
+      assert.doesNotMatch(value, /^## Interactive Mode$/m);
     }
+    assert.equal(fs.existsSync(path.join(target, ".codex")), false);
 
     quietApply(target, { variant: "0.6", skills: [alias] });
     assert.deepEqual(snapshotTree(target), first);
   }
-});
 
-test("Update-Spec 精细安装在目标入口缺失时不创建平台文件", () => {
-  const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-update-spec-missing-"));
-  write(target, ".trellis/.version", "0.6.5\n");
-
-  quietApply(target, {
-    variant: "0.6",
-    skills: ["update-spec-enhancement"],
-  });
-
-  assert.equal(
-    fs.existsSync(path.join(target, ".agents/skills/trellis-update-spec/SKILL.md")),
-    false,
-  );
-  assert.equal(
-    fs.existsSync(path.join(target, ".claude/skills/trellis-update-spec/SKILL.md")),
-    false,
-  );
-  assert.equal(
-    fs.existsSync(path.join(target, ".claude/commands/trellis/update-spec.md")),
-    false,
-  );
+  const missing = fs.mkdtempSync(path.join(os.tmpdir(), "flower-update-spec-missing-"));
+  write(missing, ".trellis/.version", "0.6.5\n");
+  quietApply(missing, { variant: "0.6", skills: ["update-spec-enhancement"] });
+  assert.equal(fs.existsSync(path.join(missing, ".agents/skills/trellis-update-spec/SKILL.md")), false);
+  assert.equal(fs.existsSync(path.join(missing, ".claude/skills/trellis-update-spec/SKILL.md")), false);
 });

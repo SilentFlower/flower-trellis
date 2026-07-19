@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-codex-session-start-hooks",
+  "purpose": "platform_config",
+  "operations": [
+    {
+      "id": "flower-codex-trellis-session-start",
+      "operation": "replace",
+      "targets": [{
+        "kind": "json",
+        "path": ".codex/hooks.json",
+        "missing": "create",
+        "requires": [".codex"]
+      }],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "SessionStart",
+        "commandNeedle": ".codex/hooks/session-start.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "startup|resume|clear|compact",
+          "timeout": 30,
+          "commandResolver": "codex-session-start"
+        }
+      }
+    },
+    {
+      "id": "flower-codex-update-session-start",
+      "operation": "replace",
+      "targets": [{
+        "kind": "json",
+        "path": ".codex/hooks.json",
+        "missing": "create",
+        "requires": [".codex"]
+      }],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "SessionStart",
+        "commandNeedle": ".trellis/scripts/flower_update_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "startup",
+          "timeout": 30,
+          "commandResolver": "codex-flower-update"
+        }
+      }
+    }
+  ]
+}
