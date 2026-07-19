@@ -1745,3 +1745,39 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 50: 统一 Patch Engine 与 Overrides 重构
+
+**Date**: 2026-07-19
+**Task**: 统一 Patch Engine 与 Overrides 重构
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+将 Skill-Garden 0.6 的 Workflow、Skill、Hook 与平台配置修改统一为 insert/replace/remove Patch Engine，完成 JS/Python 双消费者、全量预检、结构化适配器、快照与 dogfood 迁移；Update-Spec 注入统一为英文协议，上下文预算、完整测试与 check-snapshot 均通过，并已推送 beta。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d397786` | (see git log) |
+| `db4f943` | (see git log) |
+| `fd0d116` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
