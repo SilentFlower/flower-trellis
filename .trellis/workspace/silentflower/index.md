@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 51
-- **Last Active**: 2026-07-19
+- **Total Sessions**: 52
+- **Last Active**: 2026-07-20
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1818 | Active |
+| `journal-1.md` | ~1855 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 52 | 2026-07-20 | 修复 missing_task 意图恢复 | `ea9117c`, `774f90f`, `051acc1`, `344e5b3` | `beta` |
 | 51 | 2026-07-19 | 完成 Skill-Garden 注入冲突与升级门禁 | `8b905fe`,  `2472058` | `beta` |
 | 50 | 2026-07-19 | 统一 Patch Engine 与 Overrides 重构 | `d397786`, `db4f943`, `fd0d116` | `beta` |
 | 49 | 2026-07-19 | 升级 Update-Spec 自动决策并发布 0.5.0-beta.1 | `a803baf`, `74340ca`, `bfa3fbc`, `87da370` | `beta` |

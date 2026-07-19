@@ -1816,3 +1816,40 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 52: 修复 missing_task 意图恢复
+
+**Date**: 2026-07-20
+**Task**: 修复 missing_task 意图恢复
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 stale/missing task pointer 恢复修复：shared Hook 统一 missing_task，Codex/Claude SessionStart 清理后同轮 no_task 重路由，补齐 workflow runtime contract、测试、快照和规范；已推送 skill-garden 与 flower-trellis。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ea9117c` | (see git log) |
+| `774f90f` | (see git log) |
+| `051acc1` | (see git log) |
+| `344e5b3` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
