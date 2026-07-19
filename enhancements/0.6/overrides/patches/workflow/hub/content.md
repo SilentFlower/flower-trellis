@@ -1,10 +1,8 @@
-### HIGHEST PRIORITY: skill-garden overrides
+### Skill-Garden Workflow Control Hub
 
-> Central high-priority override hub for Trellis 0.6 workflow behavior. Source: github.com/SilentFlower/skill-garden.
+> Central control hub for Skill-Garden workflow behavior. Source: github.com/SilentFlower/skill-garden.
 
-**Priority**: This hub overrides any conflicting Trellis workflow, skill, command, or hook text for the scoped behaviors below.
-
-**Scope**: the behaviors covered by the sections below. Workflow-state bodies keep only current-state actions and short guards; long-form rules live here.
+**Scope**: the cross-stage behaviors covered by the sections below. Phase walkthroughs point to the owning Skill; workflow-state bodies keep only current-state actions and short guards.
 
 **Mechanical rule**: use this hub as the source of truth. Do not duplicate full hub or skill rules inside `workflow-state:*` bodies.
 
@@ -98,7 +96,7 @@ Plain preferences, summaries (including compact/SessionStart), replacement histo
 
 User reselect/override/use-X-this-time/clear-default wins over remembered route evidence, runtime state, and personal prefs.
 
-At Phase 2.1/2.2, this gate overrides lower "Active Task Routing" rows that say to dispatch `trellis-implement` / `trellis-check` directly. Do not ask meta continuation questions, and dispatch subagents only when the resolved route selected subagent.
+Phase 2.1/2.2 and Active Task Routing enter this gate through `trellis-route`; dispatch subagents only when the resolved route selected subagent.
 
 #### Auto-Loop Return Gate
 
@@ -117,8 +115,6 @@ After a passed stop, later `next` / `continue` or direct push must load `trellis
 Code commit/push belongs only to Phase 3.4 and must go through `trellis-push`; the main session must not run bare `git commit` / `git push` for code.
 
 Entering Phase 3.4 means loading and following `trellis-push`; drafting a commit message or file plan outside that skill is not an equivalent substitute. Ordinary mode defaults to exact commit + push. Commit-only is allowed only when the user explicitly requests a local commit, or when auto-loop invokes the internal executor after its own preauthorization check.
-
-This gate fully supersedes the lower Phase 3.4 walkthrough that drafts `Proposed commits`, runs local commits directly, or says never to push. Under skill-garden, treat that lower walkthrough as inactive; do not mix any of its plan, confirmation, or execution steps with `trellis-push`.
 
 `trellis-push` owns all detailed plan/result presentation; this hub must not duplicate its templates, field order, repository labels, retained-dirty wording, or display thresholds. The hub only requires one ordinary confirmation over the exact file set and commit message. Before approval, do not `git add`, commit, or push; after approval, use exact paths with `git commit --only`, never `git add -A` / `git add .`. Unrelated dirty/staged paths stay retained and do not block the exact commit, while unknown ahead commits remain a branch-level push risk.
 

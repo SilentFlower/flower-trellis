@@ -1,0 +1,54 @@
+{
+  "version": "0.6.6",
+  "policy": {
+    "compatibility": {
+      "schemaVersion": 1,
+      "variant": "0.6",
+      "compatibleLine": { "major": 0, "minor": 6 },
+      "testedVersions": ["0.6.5"],
+      "untestedPatchPolicy": "warning",
+      "newLinePolicy": "error"
+    },
+    "conflicts": {
+      "schemaVersion": 1,
+      "rules": [{
+        "id": "workflow-no-local-only-commit",
+        "severity": "error",
+        "target": ".trellis/workflow.md",
+        "whenOperations": ["workflow-phase-3-commit"],
+        "assertion": {
+          "type": "absent-literal",
+          "values": ["Never push to remote in this step."]
+        },
+        "owner": "trellis-push",
+        "reason": "Phase 3.4 不能保留上游 local-only 协议。"
+      }]
+    }
+  },
+  "plan": {
+    "catalogOperations": [{
+      "id": "workflow-phase-3-commit",
+      "targets": [".trellis/workflow.md"]
+    }],
+    "files": [{
+      "target": ".trellis/workflow.md",
+      "next": "Never push to remote in this step.\n",
+      "operations": ["workflow-phase-3-commit"]
+    }],
+    "results": [
+      {
+        "id": "missing-platform",
+        "patch": "platform-patch",
+        "target": ".missing/entry.md",
+        "status": "missing-target"
+      },
+      {
+        "id": "optional-drift",
+        "patch": "optional-patch",
+        "target": ".optional/entry.md",
+        "status": "optional-skip",
+        "reason": "selector 漂移"
+      }
+    ]
+  }
+}

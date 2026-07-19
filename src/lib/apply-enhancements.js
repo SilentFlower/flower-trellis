@@ -14,6 +14,13 @@ import { syncInstalledCommonSkills } from "./skill-catalog.js";
 import { PKG_ROOT } from "./paths.js";
 import { applyPatchPlan, preparePatchPlan } from "./patch-engine.js";
 import { flowerPatchAdapters } from "./platform-patch-adapters.js";
+import {
+  assertNoPatchConflictErrors,
+  buildPatchConflictReport,
+  evaluatePatchCompatibility,
+  formatPatchDiagnostic,
+  loadPatchPolicy,
+} from "./patch-conflicts.js";
 
 /** 清理升级后可能变空的强化目录(深 → 浅)。 */
 function pruneEmptyDirs(target) {
@@ -35,7 +42,7 @@ function pruneEmptyDirs(target) {
 /**
  * 叠加强化包 —— init / update 共享。
  *
- * 流程:校验是 Trellis 项目 → 选变体 → 0.6 Patch 全量预检/应用
+ * 流程:校验是 Trellis 项目 → 选变体 → 0.6 Patch 全量预检 → policy 检查 → 应用
  * → 铺 skill/脚本/Flower 资产 → 升级清理 → legacy 后处理 → 写成功 manifest。
  *
  * 升级清理:用 flower manifest 记录上次全装铺过的精确路径,本次全装时删除
@@ -44,7 +51,7 @@ function pruneEmptyDirs(target) {
  *
  * @param {string} target 目标项目根
  * @param {object} [opts] { variant?, skills?[] }
- * @returns {{variant: string, installed: string[]}}
+ * @returns {{variant: string, installed: string[], patchReport?: object}}
  */
 export function applyEnhancements(target, opts = {}) {
   const { variant, version, variantDir } = resolveEnhancementSnapshot(
@@ -52,14 +59,31 @@ export function applyEnhancements(target, opts = {}) {
     opts.variant,
   );
   const skills = opts.skills || [];
+  console.log(
+    `\n强化包变体:${variant}${version ? `(项目 Trellis ${version})` : ""}`,
+  );
 
   // 0.6 的 Skill-Garden 与 Flower 自有修改统一进入一个 Patch 计划。required
   // 失败必须发生在任何资产复制、stale 清理和成功 manifest 写入之前。
   let patchPlan = null;
   let patchResult = null;
+  let patchReport = null;
   if (variant === "0.6") {
     const skillGardenOverrides = path.join(variantDir, "overrides");
     const flowerPatches = path.join(PKG_ROOT, "src", "patches");
+    const policy = loadPatchPolicy(skillGardenOverrides);
+    const compatibility = evaluatePatchCompatibility(version, policy.compatibility);
+    const compatibilityReport = {
+      version: compatibility.version,
+      diagnostics: compatibility.diagnostics,
+      summary: {
+        errors: compatibility.diagnostics.filter((item) => item.severity === "error").length,
+        warnings: compatibility.diagnostics.filter((item) => item.severity === "warning").length,
+        info: compatibility.diagnostics.filter((item) => item.severity === "info").length,
+      },
+    };
+    // 未支持版本必须先返回可执行指引，不能被旧 catalog 的 selector 漂移错误掩盖。
+    assertNoPatchConflictErrors(compatibilityReport);
     patchPlan = preparePatchPlan(
       target,
       [
@@ -76,23 +100,24 @@ export function applyEnhancements(target, opts = {}) {
       ],
       { skills, adapters: flowerPatchAdapters() },
     );
+    patchReport = buildPatchConflictReport({ version, plan: patchPlan, policy });
+    for (const diagnostic of patchReport.diagnostics.filter(
+      (item) => item.severity === "warning",
+    )) {
+      console.log(`  · ${formatPatchDiagnostic(diagnostic)}`);
+    }
+    // 冲突检查必须先于 Patch、资产和 manifest 写入，保证不支持版本与互斥协议零写入。
+    assertNoPatchConflictErrors(patchReport);
     patchResult = applyPatchPlan(target, patchPlan);
   }
 
-  console.log(
-    `\n强化包变体:${variant}${version ? `(项目 Trellis ${version})` : ""}`,
-  );
   if (patchPlan && patchPlan.bundles.length > 0) {
     const notes = patchResult.backupNotes.join("");
     console.log(
       `  ✓ Patch:修改 ${patchResult.changed}、` +
-        `已是最新 ${patchResult.unchanged}、跳过 ${patchResult.skipped}${notes}`,
+        `已是最新 ${patchResult.unchanged}、未安装入口 ${patchResult.missingTargets}、` +
+        `可选失败 ${patchResult.optionalSkipped}${notes}`,
     );
-    for (const result of patchResult.results) {
-      if (result.status === "optional-skip") {
-        console.log(`  · optional Patch 跳过:${result.id}@${result.target}(${result.reason})`);
-      }
-    }
   }
 
   const { installed: skillInstalled, paths: skillPaths } = copySkills(
@@ -210,5 +235,9 @@ export function applyEnhancements(target, opts = {}) {
     writeManifest(target, nextManifest);
   }
 
-  return { variant, installed };
+  return {
+    variant,
+    installed,
+    ...(patchReport ? { patchReport } : {}),
+  };
 }

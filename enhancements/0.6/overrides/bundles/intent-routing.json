@@ -5,6 +5,7 @@
   "installMode": "full-or-selected",
   "patches": [
     "workflow/hub",
+    "workflow/phase-ownership",
     "workflow/state-no-task",
     "workflow/states-planning",
     "workflow/states-in-progress",

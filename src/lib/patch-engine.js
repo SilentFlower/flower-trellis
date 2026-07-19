@@ -684,6 +684,12 @@ function loadCatalog(catalog, skills, seenPatchIds, seenOperationIds, allowedSel
     patches: [...new Map(
       bundles.flatMap((bundle) => bundle.patches.map((patch) => [patch.id, { ...patch, bundle: bundle.id }])),
     ).values()],
+    catalogOperations: [...patchByRef.values()].flatMap((patch) =>
+      patch.operations.map((operation) => ({
+        id: operation.id,
+        targets: operation.targets.map((target) => target.path),
+      })),
+    ),
     catalogEntries: [...new Set(catalogFiles)].sort().map((file) => ({
       path: path.relative(catalogRoot, file).split(path.sep).join("/"),
       content: fs.readFileSync(file),
@@ -739,7 +745,7 @@ function prepareFilePlan(files, targetRoot, targetSpec, operation) {
  * @param {string} target 目标 Trellis 项目根目录
  * @param {Array<{name:string,patchesDir:string,bundlesDir:string}>} catalogs Patch catalog 列表
  * @param {{skills?:string[],adapters?:Record<string,Function>}} [options] 精细安装过滤和扩展 Adapter
- * @returns {{bundles:string[],patches:string[],files:Array<object>,results:Array<object>,catalogHash:string}} 可应用计划
+ * @returns {{bundles:string[],patches:string[],files:Array<object>,results:Array<object>,catalogHash:string,catalogOperations:Array<{id:string,targets:string[]}>}} 可应用计划
  */
 export function preparePatchPlan(target, catalogs, options = {}) {
   const targetRoot = path.resolve(target);
@@ -905,6 +911,7 @@ export function preparePatchPlan(target, catalogs, options = {}) {
     }),
     results,
     catalogHash,
+    catalogOperations: loaded.flatMap((item) => item.catalogOperations),
   };
 }
 
@@ -913,7 +920,7 @@ export function preparePatchPlan(target, catalogs, options = {}) {
  *
  * @param {string} target 目标 Trellis 项目根目录
  * @param {ReturnType<typeof preparePatchPlan>} plan 预检计划
- * @returns {{changed:number,unchanged:number,skipped:number,targets:string[],backupNotes:string[],results:Array<object>,provenance:object}} 应用结果
+ * @returns {{changed:number,unchanged:number,skipped:number,missingTargets:number,optionalSkipped:number,targets:string[],backupNotes:string[],results:Array<object>,provenance:object}} 应用结果
  */
 export function applyPatchPlan(target, plan) {
   for (const file of plan.files) {
@@ -950,9 +957,9 @@ export function applyPatchPlan(target, plan) {
     fs.writeFileSync(file.targetFile, file.next);
     changed++;
   }
-  const skipped = plan.results.filter((item) =>
-    item.status === "missing-target" || item.status === "optional-skip"
-  ).length;
+  const missingTargets = plan.results.filter((item) => item.status === "missing-target").length;
+  const optionalSkipped = plan.results.filter((item) => item.status === "optional-skip").length;
+  const skipped = missingTargets + optionalSkipped;
   const provenance = {
     schemaVersion: 1,
     catalogHash: plan.catalogHash,
@@ -969,6 +976,8 @@ export function applyPatchPlan(target, plan) {
     changed,
     unchanged,
     skipped,
+    missingTargets,
+    optionalSkipped,
     targets: plan.files.map((file) => file.target),
     backupNotes: [...backupNotes],
     results: plan.results,

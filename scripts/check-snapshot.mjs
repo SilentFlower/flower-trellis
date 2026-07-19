@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { runPatchConflictCheck } from "./check-patch-conflicts.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url)); // scripts/
 const PKG_ROOT = path.resolve(here, "..");
@@ -130,3 +131,9 @@ if (dirty) {
 console.log(
   `✓ 发布前检查通过:enhancements 快照与 submodule pin 一致(${pin.slice(0, 10)}),快照已提交`,
 );
+
+try {
+  runPatchConflictCheck();
+} catch (error) {
+  fail(`Patch 冲突门禁失败:${error.message}`);
+}

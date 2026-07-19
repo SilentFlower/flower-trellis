@@ -41,6 +41,17 @@ class PatchConsumerTest(unittest.TestCase):
         self.target = self.root / "target"
         self.overrides = self.root / "overrides"
         (self.target / ".trellis").mkdir(parents=True)
+        _write(self.target, ".trellis/.version", "0.6.5\n")
+        _write(
+            self.overrides,
+            "compatibility.json",
+            (OVERRIDES / "compatibility.json").read_text(encoding="utf-8"),
+        )
+        _write(
+            self.overrides,
+            "conflicts.json",
+            json.dumps({"schemaVersion": 1, "rules": []}) + "\n",
+        )
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -83,6 +94,14 @@ class PatchConsumerTest(unittest.TestCase):
             SHARED_CORE_FIXTURE / "target",
             self.target,
             dirs_exist_ok=True,
+        )
+
+    def use_real_conflicts(self) -> None:
+        """把生产 conflicts policy 写入当前临时 overrides。"""
+        _write(
+            self.overrides,
+            "conflicts.json",
+            (OVERRIDES / "conflicts.json").read_text(encoding="utf-8"),
         )
 
     def test_literal_three_operations_legacy_migration_and_idempotency(self) -> None:
@@ -159,6 +178,7 @@ class PatchConsumerTest(unittest.TestCase):
 
     def test_optional_target_policy_and_missing_create(self) -> None:
         """验证 optional skip、at-least-one 与受控文件创建。"""
+        _write(self.target, ".trellis/.version", "0.6.6\n")
         _write(self.target, "existing.md", "KEEP\n")
         (self.target / "generated").mkdir()
         self.add_patch(
@@ -219,6 +239,144 @@ class PatchConsumerTest(unittest.TestCase):
             (self.target / "generated/result.json").read_text(),
             '{"created":true}\n',
         )
+        self.assertIn("missing-target=1 optional-skip=1", result.stdout)
+        self.assertIn("Patch 信息:1 个目标入口未安装", result.stdout)
+        self.assertIn("Patch 警告:untested-upstream@.trellis/.version", result.stdout)
+        self.assertIn("证据:0.6.6", result.stdout)
+        self.assertLess(result.stdout.index("Patch 警告"), result.stdout.index("✓ Patch"))
+
+    def test_shared_policy_version_and_conflict_report(self) -> None:
+        """验证版本分级、最终产物断言和 error 零写入。"""
+        runner = _load_runner()
+        self.use_real_conflicts()
+        policy = runner.load_patch_policy(self.overrides)
+        plan = {
+            "files": [
+                {
+                    "target": ".trellis/workflow.md",
+                    "next": "Never push to remote in this step.\n",
+                    "operations": ["workflow-phase-3-commit"],
+                }
+            ],
+            "results": [],
+        }
+        report = runner.build_patch_conflict_report("0.6.6", plan, policy)
+        self.assertEqual(report["version"]["status"], "untested-compatible")
+        self.assertEqual(report["summary"], {"errors": 1, "warnings": 1, "info": 0})
+        self.assertEqual(
+            [item["id"] for item in report["diagnostics"]],
+            ["workflow-no-local-only-commit", "untested-upstream"],
+        )
+        with self.assertRaisesRegex(runner.PatchError, "Patch 冲突检查失败"):
+            runner.assert_no_patch_conflict_errors(report)
+
+    def test_policy_reference_and_boolean_schema_are_strict(self) -> None:
+        """验证错误 catalog 引用与 Python bool/int 差异都会阻断。"""
+        runner = _load_runner()
+        compatibility_file = self.overrides / "compatibility.json"
+        compatibility_file.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "variant": "0.6",
+                    "compatibleLine": {"major": True, "minor": 6},
+                    "testedVersions": ["0.6.5"],
+                    "untestedPatchPolicy": "warning",
+                    "newLinePolicy": "error",
+                }
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(runner.PatchError, "非负整数 major/minor"):
+            runner.load_patch_policy(self.overrides)
+
+        compatibility_file.write_text(
+            (OVERRIDES / "compatibility.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        _write(
+            self.overrides,
+            "conflicts.json",
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "rules": [
+                        {
+                            "id": "windows-drive",
+                            "severity": "error",
+                            "target": "C:/outside.md",
+                            "whenOperations": ["known-operation"],
+                            "assertion": {
+                                "type": "required-literal",
+                                "values": ["FINAL"],
+                            },
+                            "owner": "test",
+                            "reason": "test",
+                        }
+                    ],
+                }
+            ),
+        )
+        with self.assertRaisesRegex(runner.PatchError, "POSIX 相对路径"):
+            runner.load_patch_policy(self.overrides)
+
+        plan = {
+            "files": [],
+            "results": [],
+            "catalogOperations": [
+                {"id": "known-operation", "targets": [".trellis/workflow.md"]}
+            ],
+        }
+        conflicts = {
+            "schemaVersion": 1,
+            "rules": [
+                {
+                    "id": "reference-check",
+                    "severity": "error",
+                    "target": ".trellis/workflow.md",
+                    "whenOperations": ["missing-operation"],
+                    "assertion": {"type": "required-literal", "values": ["FINAL"]},
+                    "owner": "test",
+                    "reason": "test",
+                }
+            ],
+        }
+        with self.assertRaisesRegex(runner.PatchError, "引用未知 operation"):
+            runner.evaluate_patch_conflicts(plan, conflicts)
+
+    def test_unsupported_version_is_zero_write(self) -> None:
+        """验证跨兼容线时在 Patch 应用前退出。"""
+        _write(self.target, ".trellis/.version", "0.7.0\n")
+        _write(self.target, "sample.md", "UPSTREAM 0.7\n")
+        self.add_patch(
+            "version/guard",
+            {
+                "schemaVersion": 2,
+                "id": "version-guard",
+                "purpose": "test",
+                "operations": [
+                    {
+                        "id": "version-guard-replace",
+                        "operation": "replace",
+                        "targets": [
+                            {"kind": "markdown", "path": "sample.md", "missing": "error"}
+                        ],
+                        "selector": {"type": "literal", "source": "selector.md"},
+                        "content": {"source": "content.md"},
+                    }
+                ],
+            },
+            {"selector.md": "OLD", "content.md": "NEW"},
+        )
+        self.add_bundle(
+            {"schemaVersion": 1, "id": "version-guard", "patches": ["version/guard"]}
+        )
+
+        result = self.run_runner()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("unsupported-upstream-line", result.stderr)
+        self.assertIn("--no-enhance", result.stderr)
+        self.assertEqual((self.target / "sample.md").read_text(), "UPSTREAM 0.7\n")
 
     def test_missing_create_rejects_non_config_target(self) -> None:
         """验证独立 consumer 不允许用 create 新建普通文件。"""
@@ -525,7 +683,7 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 19)
+        self.assertEqual(len(plan["patches"]), 20)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),

@@ -52,7 +52,7 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 
 | 层 | 应保留 | 禁止 |
 |---|---|---|
-| workflow hub | 跨阶段门禁、优先级、短指向 | helper schema、完整交互模板、重复 skill 流程 |
+| workflow hub | 跨阶段门禁、短指向 | helper schema、完整交互模板、重复 skill 流程、覆盖下层的优先级声明 |
 | workflow-state | 当前状态的一跳动作、关键禁止事项 | 复制 hub 长段、解析 runtime/JSON/Git |
 | workflow body | 官方阶段结构和低频 walkthrough | 与 hub 同义的第二份完整规则 |
 | skill/command | 完整语义流程、选项、交互边界 | 手工实现可确定脚本逻辑 |
@@ -99,20 +99,20 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 
 ## Baseline
 
-Patch Engine 0.6 dogfood 后基线（2026-07-19）：
+Workflow 冲突收敛后基线（2026-07-19）：
 
 | 对象 | Lines | Bytes | 状态 |
 |---|---:|---:|---|
-| 完整 workflow | 910 | 55,710 | ok |
-| workflow control | 239 | 18,200 | ok |
-| 全部最终 state body 合计 | 47 | 6,730 | ok |
+| 完整 workflow | 785 | 48,827 | ok |
+| workflow control | 235 | 17,688 | ok |
+| 全部最终 state body 合计 | 39 | 5,226 | ok |
 | 最大 Update-Spec 最终入口 | 386 | 13,899 | ok |
 | 最大 Finish-Work 最终入口 | 93 | 4,556 | ok |
-| Phase summary | 291 | 20,274 | warn |
-| SessionStart | 285 | 19,611 | warn |
-| control-context-total | - | 114,050 | ok |
+| Phase summary | 279 | 19,527 | warn |
+| SessionStart | 280 | 19,067 | warn |
+| control-context-total | - | 105,876 | ok |
 
-checker 中保留更早的 workflow/state/Phase/Session baseline 时，可以继续显示跨版本 delta；新增最终入口和总量指标以本表为初始 baseline。
+本次只重登记 baseline，没有提高 target/review ceiling。Phase summary 与 SessionStart 保持 warning-first，默认和 strict 都只有超过 review ceiling 才阻断 strict。
 
 ## Change Review
 

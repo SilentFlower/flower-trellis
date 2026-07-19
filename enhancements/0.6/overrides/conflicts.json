@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "workflow-no-direct-dispatch-routing",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-active-task-routing"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "- `in_progress` implementation/check -> dispatch `trellis-implement` / `trellis-check`.",
+          "- Before editing -> `trellis-before-dev`; after editing -> `trellis-check`."
+        ]
+      },
+      "owner": "trellis-route",
+      "reason": "Phase 2.1/2.2 必须先解析 route_decision，不能由上游 routing 表直接选择执行模式。"
+    },
+    {
+      "id": "workflow-no-direct-implement-walkthrough",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-phase-2-implement"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "Spawn the implement sub-agent:"
+        ]
+      },
+      "owner": "trellis-route",
+      "reason": "Phase 2.1 只负责进入 trellis-route，具体 inline/subagent 执行由 route 结果所有。"
+    },
+    {
+      "id": "workflow-no-auto-fix-check",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-phase-2-check"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "- Auto-fix issues it finds",
+          "If issues are found → fix → re-check, until green."
+        ]
+      },
+      "owner": "trellis-check-all",
+      "reason": "Check-All 必须 audit-only collect-all，修复只能在统一报告后获得授权。"
+    },
+    {
+      "id": "workflow-no-local-only-commit",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-phase-3-commit"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "Proposed commits (in order):",
+          "Never push to remote in this step."
+        ]
+      },
+      "owner": "trellis-push",
+      "reason": "Phase 3.4 普通模式由 trellis-push 执行 exact commit + push。"
+    },
+    {
+      "id": "workflow-required-route-pointer",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-phase-2-implement",
+        "workflow-phase-2-check"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch workflow-phase-2-implement v0.6 -->\n#### 2.1 Implement `[required · repeatable]`\n\nImplementation requires an active `in_progress` task and reviewed planning artifacts. Run `trellis-route(target=implement)` before editing or dispatching.",
+          "<!-- BEGIN skill-garden patch workflow-phase-2-check v0.6 -->\n#### 2.2 Quality check `[required · repeatable]`\n\nRun `trellis-route(target=check)`, then execute the unified `trellis-check-all` entry using the validated inline/subagent route."
+        ]
+      },
+      "owner": "trellis-route",
+      "reason": "Phase 2.1/2.2 的受管 section 必须保留统一 route 入口。"
+    },
+    {
+      "id": "workflow-required-finish-pointers",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-phase-3-update-spec",
+        "workflow-phase-3-commit"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch workflow-phase-3-update-spec v0.6 -->\n#### 3.3 Spec update `[required · once]`\n\nLoad `trellis-update-spec` and let it decide whether the task produced executable knowledge that must be recorded.",
+          "<!-- BEGIN skill-garden patch workflow-phase-3-commit v0.6 -->\n#### 3.4 Commit changes `[required · once]`\n\nLoad `trellis-push`. It owns dirty-file classification, exact file/message planning, one-shot confirmation, Git safety checks, ordinary commit + push, and current-task progress synchronization."
+        ]
+      },
+      "owner": "workflow-phase-ownership",
+      "reason": "Phase 3.3/3.4 的受管 section 必须保留到权威 Skill 的一跳入口。"
+    },
+    {
+      "id": "workflow-no-covering-language",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-hub",
+        "workflow-active-task-routing",
+        "workflow-phase-3-commit"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "HIGHEST PRIORITY: skill-garden overrides",
+          "This hub overrides any conflicting Trellis workflow",
+          "overrides lower \"Active Task Routing\"",
+          "fully supersedes the lower Phase 3.4 walkthrough"
+        ]
+      },
+      "owner": "workflow-phase-ownership",
+      "reason": "冲突正文应被结构化替换，Hub 不再通过优先级文字压制下层协议。"
+    },
+    {
+      "id": "workflow-state-hub-pointer-budget",
+      "severity": "warning",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-state-in-progress",
+        "workflow-state-in-progress-inline"
+      ],
+      "assertion": {
+        "type": "max-occurrences",
+        "value": "The Workflow Hub is the source of truth for Task Brief, Routing, Post-Check, Commit, and Task Progress gates.",
+        "max": 0
+      },
+      "owner": "workflow-state",
+      "reason": "该 Hub 职责句已从两个 in-progress state 删除，任一回流都需要重新评审。"
+    }
+  ]
+}

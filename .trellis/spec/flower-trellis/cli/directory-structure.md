@@ -37,13 +37,15 @@ flower-trellis/
 │       ├── copy-skills.js     # 跟随平台铺设强化 skill / command
 │       ├── apply-enhancements.js # 叠加流水线总编排
 │       ├── patch-engine.js    # 0.6 Patch catalog/preflight/apply/provenance
+│       ├── patch-conflicts.js # 0.6 版本兼容与最终产物冲突 evaluator
 │       ├── platform-patch-adapters.js # JSON/YAML/TOML 结构 selector
 │       ├── workflow-inject.js # 0.5/old workflow 兼容注入
 │       ├── codex-tweaks.js    # 0.5/old Codex 平台后处理
 │       └── legacy-blocks.js   # 0.5/old 变体的 workflow-state 文本常量
 │   └── patches/               # Flower 自有平台 Patch catalog 与 Bundle
 ├── scripts/
-│   └── sync-enhancements.mjs  # 开发期:把 skill-garden 同步成 enhancements/ 快照
+│   ├── sync-enhancements.mjs  # 开发期:把 skill-garden 同步成 enhancements/ 快照
+│   └── check-patch-conflicts.mjs # pinned Trellis 完整 catalog 冲突门禁
 └── enhancements/<variant>/    # 随包发布的强化包快照 + MANIFEST.json
 ```
 
@@ -52,11 +54,12 @@ flower-trellis/
 ## Patch / Test Paths
 
 - `src/lib/patch-engine.js`：统一 `insert / replace / remove`、Bundle 选择、preflight/apply 与 provenance。
+- `src/lib/patch-conflicts.js`：读取共享 policy，评估 Trellis 版本和 `plan.files[].next` 最终产物；禁止执行变换。
 - `src/patches/platforms/`、`src/patches/bundles/`：Flower 平台配置 Patch 与全装 Bundle。
 - `scripts/check-ai-context-budget.mjs`：最终 workflow/state/skill、Phase summary、SessionStart 与控制面总量预算。
 - `test/js/`：Node 内置 `node:test`。
 - `test/python/`：Python 内置 `unittest`。
-- `enhancements/0.6/overrides/patches/`、`bundles/`：随包发布的 Skill-Garden Patch catalog 快照。
+- `enhancements/0.6/overrides/compatibility.json`、`conflicts.json`、`patches/`、`bundles/`：随包发布的 Skill-Garden policy 与 Patch catalog 快照。
 - `vendor/skill-garden/scripts/apply-trellis-patches.py`：独立 `install.sh` 的 Python consumer；协议必须与 JS 引擎一致。
 
 ## Module Organization

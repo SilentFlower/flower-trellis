@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-07-19T01:29:44.610Z",
+  "syncedAt": "2026-07-19T03:29:33.044Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "d39778659202ff80f63039f8a3e386862cb53727",
+  "sourceCommit": "8b905fe8f69dc606ab9e2523e07a16d1699c7771",
   "common": {
     "codexSkills": [
       "craft-rpa",
@@ -53,6 +53,7 @@
       "overrides": [],
       "patchFiles": [],
       "bundles": [],
+      "policyFiles": [],
       "scripts": []
     },
     "0.5": {
@@ -92,6 +93,7 @@
       ],
       "patchFiles": [],
       "bundles": [],
+      "policyFiles": [],
       "scripts": []
     },
     "0.6": {
@@ -176,6 +178,17 @@
         "workflow/intent-routing/request-triage/content.md",
         "workflow/intent-routing/request-triage/patch.json",
         "workflow/intent-routing/request-triage/selector.md",
+        "workflow/phase-ownership/active-task-routing-baseline.md",
+        "workflow/phase-ownership/active-task-routing-content.md",
+        "workflow/phase-ownership/patch.json",
+        "workflow/phase-ownership/phase-2-check-baseline.md",
+        "workflow/phase-ownership/phase-2-check-content.md",
+        "workflow/phase-ownership/phase-2-implement-baseline.md",
+        "workflow/phase-ownership/phase-2-implement-content.md",
+        "workflow/phase-ownership/phase-3-commit-baseline.md",
+        "workflow/phase-ownership/phase-3-commit-content.md",
+        "workflow/phase-ownership/phase-3-update-spec-baseline.md",
+        "workflow/phase-ownership/phase-3-update-spec-content.md",
         "workflow/state-no-task/content.md",
         "workflow/state-no-task/patch.json",
         "workflow/state-no-task/selector.md",
@@ -197,6 +210,10 @@
         "intent-routing.json",
         "shared-hook-runtime.json",
         "update-spec-flow.json"
+      ],
+      "policyFiles": [
+        "compatibility.json",
+        "conflicts.json"
       ],
       "scripts": [
         "auto_loop.py",

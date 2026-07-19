@@ -108,9 +108,11 @@ gitignored 的 `.trellis/.flower-update-check.tmp` 运行缓存)。
 ## Variant Selection (`src/lib/variant.js`)
 
 - `selectVariant(target)` 读目标 `.trellis/.version` → 返回 `{ variant, version }`。
+- `resolveEnhancementSnapshot(target, variantOverride)` 可以覆盖 `variant`，但无论是否覆盖都必须保留 `selectVariant()` 读到的真实 `version`，供 0.6 compatibility policy 判断。
 - 规则(逐字符移植 skill-garden `install.sh` 263-274):主版本 ≥1 或次版本 ≥6 → `0.6`;
   次版本 ≥5 → `0.5`;文件缺失/解析失败/更低 → `old`。次版本会先剥掉 `-beta.x` 后缀。
 - 改这条规则前先确认上游 install.sh 的对应逻辑,保持一致。
+- 映射到 `0.6` 不等于语义兼容：0.6.5 是已登记版本，同线未登记版本 warning，0.7+/1.x 由 Patch policy 阻断并提示 `--no-enhance`。
 
 ---
 

@@ -18,14 +18,13 @@ export function resolveEnhancementSnapshot(target, variantOverride) {
     throw new Error(`目标不是 Trellis 项目(缺 .trellis/):${target}`);
   }
 
-  let variant = variantOverride;
-  let version = "";
-  if (variant) {
+  const detected = selectVariant(target);
+  let variant = variantOverride || detected.variant;
+  const version = detected.version;
+  if (variantOverride) {
     if (!VARIANTS.includes(variant)) {
       throw new Error(`非法 --variant:${variant}(可选 ${VARIANTS.join(" / ")})`);
     }
-  } else {
-    ({ variant, version } = selectVariant(target));
   }
 
   const variantDir = path.join(ENHANCEMENTS_ROOT, variant);

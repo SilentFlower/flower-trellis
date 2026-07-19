@@ -186,6 +186,9 @@ for (const v of VARIANTS) {
   const bundles = listRelativeFilesRecursive(
     path.join(DST, v, "overrides", "bundles"),
   );
+  const policyFiles = ["compatibility.json", "conflicts.json"].filter((name) =>
+    fs.existsSync(path.join(DST, v, "overrides", name)),
+  );
   const scripts = listFiles(path.join(DST, v, "scripts"));
   manifest.variants[v] = {
     claudeSkills,
@@ -194,13 +197,15 @@ for (const v of VARIANTS) {
     overrides,
     patchFiles,
     bundles,
+    policyFiles,
     scripts,
   };
 
   console.log(
     `✓ ${v}: claude/skills=${claudeSkills.length} agents/skills=${agentsSkills.length} ` +
       `commands=${commands.length} overrides=${overrides.length} ` +
-      `patchFiles=${patchFiles.length} bundles=${bundles.length} scripts=${scripts.length}`,
+      `patchFiles=${patchFiles.length} bundles=${bundles.length} ` +
+      `policyFiles=${policyFiles.length} scripts=${scripts.length}`,
   );
 }
 

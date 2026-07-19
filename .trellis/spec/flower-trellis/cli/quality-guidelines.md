@@ -46,7 +46,7 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 
 - 本项目使用零第三方测试基础设施：JavaScript 用 Node 内置 `node:test`，Python 用
   `unittest`，统一入口为 `npm test`。不要引入 Jest/Vitest/Pytest 等重依赖，除非另有明确决策。
-- `npm test` 同时运行默认 AI context budget checker；大小超限只告警，结构性测量错误失败。
+- `npm test` 同时运行 pinned Trellis Patch 冲突门禁和默认 AI context budget checker；冲突 warning/大小超限只告警，结构错误与 conflict error 失败。
 - 提交前执行**自动测试 + 语法校验 + dogfood 手测**:
 
   ```bash
@@ -80,3 +80,4 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 - [ ] 纯 ESM(`node:` 前缀、命名导出、相对 import 带 `.js`)?
 - [ ] 输出前缀符号沿用既有语义(`✓` / `·` / `❌` / `🌸`)?
 - [ ] `npm test` 通过，context budget warning 已审阅且没有通过调高阈值掩盖重复内容?
+- [ ] `check-patch-conflicts` 覆盖全部声明 target，旧互斥协议未复现，vendor/snapshot overrides 一致?

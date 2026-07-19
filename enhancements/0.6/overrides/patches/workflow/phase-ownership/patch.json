@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-phase-ownership",
+  "purpose": "workflow_ownership",
+  "operations": [
+    {
+      "id": "workflow-active-task-routing",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "markdown-section", "heading": "### Active Task Routing" },
+      "baselines": ["active-task-routing-baseline.md"],
+      "content": { "source": "active-task-routing-content.md" }
+    },
+    {
+      "id": "workflow-phase-2-implement",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "markdown-section", "heading": "#### 2.1 Implement `[required · repeatable]`" },
+      "baselines": ["phase-2-implement-baseline.md"],
+      "content": { "source": "phase-2-implement-content.md" }
+    },
+    {
+      "id": "workflow-phase-2-check",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "markdown-section", "heading": "#### 2.2 Quality check `[required · repeatable]`" },
+      "baselines": ["phase-2-check-baseline.md"],
+      "content": { "source": "phase-2-check-content.md" }
+    },
+    {
+      "id": "workflow-phase-3-update-spec",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "markdown-section", "heading": "#### 3.3 Spec update `[required · once]`" },
+      "baselines": ["phase-3-update-spec-baseline.md"],
+      "content": { "source": "phase-3-update-spec-content.md" }
+    },
+    {
+      "id": "workflow-phase-3-commit",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "markdown-section", "heading": "#### 3.4 Commit changes `[required · once]`" },
+      "baselines": ["phase-3-commit-baseline.md"],
+      "content": { "source": "phase-3-commit-content.md" }
+    }
+  ]
+}

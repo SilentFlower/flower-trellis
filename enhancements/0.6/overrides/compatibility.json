@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "variant": "0.6",
+  "compatibleLine": {
+    "major": 0,
+    "minor": 6
+  },
+  "testedVersions": [
+    "0.6.5"
+  ],
+  "untestedPatchPolicy": "warning",
+  "newLinePolicy": "error"
+}

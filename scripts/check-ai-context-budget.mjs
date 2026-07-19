@@ -7,14 +7,14 @@ import { PKG_ROOT } from "../src/lib/paths.js";
 
 const KIB = 1024;
 const BASELINES = {
-  workflow: 56635,
-  workflowControl: 18200,
-  statesTotal: 8546,
+  workflow: 48827,
+  workflowControl: 17688,
+  statesTotal: 5226,
   updateSpec: 13899,
   finishWork: 4556,
-  phaseSummary: 17935,
-  sessionStart: 17841,
-  controlTotal: 114050,
+  phaseSummary: 19527,
+  sessionStart: 19067,
+  controlTotal: 105876,
 };
 const BUDGETS = {
   workflow: { target: 60 * KIB, review: 64 * KIB },

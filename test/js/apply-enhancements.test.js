@@ -57,6 +57,8 @@ function minimalWorkflow() {
     patchSource("workflow/states-in-progress", "in-progress-inline-baseline.md"),
     "[/workflow-state:in_progress-inline]",
     "",
+    patchSource("workflow/phase-ownership", "active-task-routing-baseline.md"),
+    "",
     "## Phase 1: Plan",
     "",
     patchSource("workflow/intent-routing/phase-one-goal", "selector.md"),
@@ -66,6 +68,22 @@ function minimalWorkflow() {
     patchSource("workflow/intent-routing/create-task-rule", "selector.md"),
     "",
     patchSource("workflow/intent-routing/create-task-command", "selector.md"),
+    "",
+    "## Phase 2: Execute",
+    "",
+    patchSource("workflow/phase-ownership", "phase-2-implement-baseline.md"),
+    "",
+    patchSource("workflow/phase-ownership", "phase-2-check-baseline.md"),
+    "",
+    "#### 2.3 Rollback `[on demand]`",
+    "",
+    "## Phase 3: Finish",
+    "",
+    patchSource("workflow/phase-ownership", "phase-3-update-spec-baseline.md"),
+    "",
+    patchSource("workflow/phase-ownership", "phase-3-commit-baseline.md"),
+    "",
+    "#### 3.5 Wrap-up reminder",
     "",
     "## Customizing Trellis (for forks)",
     "",
@@ -174,6 +192,21 @@ function quietApply(target, options = { variant: "0.6" }) {
   }
 }
 
+function captureApply(target, options, onLog) {
+  const original = console.log;
+  const logs = [];
+  console.log = (...args) => {
+    const line = args.join(" ");
+    logs.push(line);
+    onLog?.(line);
+  };
+  try {
+    return { result: applyEnhancements(target, options), logs };
+  } finally {
+    console.log = original;
+  }
+}
+
 test("required Patch 漂移时强化流水线零写入且 manifest 不更新", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-apply-drift-"));
   write(target, ".trellis/.version", "0.6.5\n");
@@ -196,7 +229,9 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   const updateSpecTargets = writeUpdateSpecTargets(target);
   const finishTargets = writeFinishTargets(target);
 
-  quietApply(target);
+  const applied = quietApply(target);
+  assert.equal(applied.patchReport.version.status, "tested");
+  assert.equal(applied.patchReport.summary.errors, 0);
   const first = snapshotTree(target);
   const workflowText = fs.readFileSync(workflow, "utf8");
   assert.match(workflowText, /skill-garden patch workflow-request-triage/);
@@ -205,6 +240,12 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.doesNotMatch(workflowText, /ask only whether this turn should create/);
   assert.doesNotMatch(workflowText, /Flow: .*finish-work/);
   assert.doesNotMatch(workflowText, /This guard overrides any lower/);
+  assert.doesNotMatch(workflowText, /Spawn the implement sub-agent:/);
+  assert.doesNotMatch(workflowText, /Auto-fix issues it finds/);
+  assert.doesNotMatch(workflowText, /Never push to remote in this step\./);
+  assert.match(workflowText, /trellis-route\(target=implement\)/);
+  assert.match(workflowText, /trellis-route\(target=check\)/);
+  assert.match(workflowText, /Load `trellis-push`/);
   assert.match(workflowText, /task_intent\.py create --title/);
   assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")), true);
 
@@ -234,6 +275,86 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
 
   quietApply(target);
   assert.deepEqual(snapshotTree(target), first);
+});
+
+test("0.6 未登记 patch 版本 warning 放行，跨兼容线 error 且零写入", () => {
+  const compatible = fs.mkdtempSync(path.join(os.tmpdir(), "flower-version-warning-"));
+  write(compatible, ".trellis/.version", "0.6.6\n");
+  const compatibleWorkflow = write(
+    compatible,
+    ".trellis/workflow.md",
+    minimalWorkflow(),
+  );
+  writeIntentTargets(compatible);
+  writeUpdateSpecTargets(compatible);
+  writeFinishTargets(compatible);
+
+  let warningBeforeApply = false;
+  const { result: warningResult, logs: warningLogs } = captureApply(
+    compatible,
+    { variant: "0.6" },
+    (line) => {
+      if (line.includes("Patch 警告:untested-upstream")) {
+        warningBeforeApply = !fs.readFileSync(compatibleWorkflow, "utf8").includes(
+          "workflow-phase-2-implement v0.6",
+        );
+      }
+    },
+  );
+  assert.equal(warningResult.patchReport.version.status, "untested-compatible");
+  assert.equal(warningBeforeApply, true);
+  assert.ok(warningLogs.some((line) => line.includes("证据:0.6.6")));
+  assert.ok(
+    warningResult.patchReport.diagnostics.some((item) => item.id === "untested-upstream"),
+  );
+
+  const unsupported = fs.mkdtempSync(path.join(os.tmpdir(), "flower-version-error-"));
+  write(unsupported, ".trellis/.version", "0.7.0\n");
+  write(unsupported, ".trellis/workflow.md", "# Trellis 0.7 changed upstream\n");
+  const before = snapshotTree(unsupported);
+
+  assert.throws(
+    () => quietApply(unsupported, { variant: "0.6" }),
+    /unsupported-upstream-line.*--no-enhance/,
+  );
+  assert.deepEqual(snapshotTree(unsupported), before);
+  assert.equal(
+    fs.existsSync(path.join(unsupported, ".trellis/.flower-manifest.json")),
+    false,
+  );
+
+  const invalid = fs.mkdtempSync(path.join(os.tmpdir(), "flower-version-invalid-"));
+  write(invalid, ".trellis/workflow.md", minimalWorkflow());
+  writeIntentTargets(invalid);
+  writeUpdateSpecTargets(invalid);
+  writeFinishTargets(invalid);
+  const invalidBefore = snapshotTree(invalid);
+  assert.throws(
+    () => quietApply(invalid, { variant: "0.6" }),
+    /invalid-upstream-version/,
+  );
+  assert.deepEqual(snapshotTree(invalid), invalidBefore);
+
+  const skillOnly = fs.mkdtempSync(path.join(os.tmpdir(), "flower-version-skill-only-"));
+  write(skillOnly, ".trellis/.version", "0.6.6\n");
+  fs.mkdirSync(path.join(skillOnly, ".agents"));
+  const { logs: skillOnlyLogs } = captureApply(
+    skillOnly,
+    { variant: "0.6", skills: ["trellis-push"] },
+  );
+  assert.ok(skillOnlyLogs.some((line) => line.includes(
+    "Patch 警告:untested-upstream@.trellis/.version",
+  )));
+});
+
+test("0.5/old legacy 变体不加载 0.6 compatibility policy", () => {
+  for (const variant of ["0.5", "old"]) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-legacy-${variant}-`));
+    write(target, ".trellis/.version", "0.7.0\n");
+    const result = quietApply(target, { variant, skills: ["not-installed"] });
+    assert.equal(result.variant, variant);
+    assert.equal(Object.hasOwn(result, "patchReport"), false);
+  }
 });
 
 test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", () => {

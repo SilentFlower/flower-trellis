@@ -46,7 +46,7 @@
 
 - **单一职责**:一个 lib 模块聚焦一件事;命令层(`src/commands/`)负责把多个 lib 编排起来。
 - **返回结果对象**:有多个结果维度时返回结构体而非裸值,便于调用方按需取用并打印,例如
-  `apply-enhancements.js` 返回 `{ variant, installed }`、`codex-tweaks.js` 返回
+  `apply-enhancements.js` 返回 `{ variant, installed, patchReport? }`、`codex-tweaks.js` 返回
   `{ applied, tomlChanged, hooksWritten }`、`copy-skills.js` 返回 `{ installed, paths }`。
 - **容错读取返回空值**:非致命的读取失败应吞掉异常并返回中性值(`listDirs`/`listFiles`
   失败返回 `[]`,`readManifest` 失败返回 `null`),让上层继续跑。

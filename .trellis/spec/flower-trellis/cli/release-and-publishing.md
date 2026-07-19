@@ -20,7 +20,8 @@ dist-tag;beta 预发布版发布到 npm `beta` dist-tag。
 |------|------|
 | `npm run release` | `node scripts/check-snapshot.mjs && commit-and-tag-version`;断言通过后 bump + 写 CHANGELOG + commit `chore(release): vX.Y.Z` + 打 tag。**不 push、不 publish** |
 | `npm run release:dry` | `commit-and-tag-version --dry-run`,预览版本号与 CHANGELOG,不落盘 |
-| `scripts/check-snapshot.mjs` | 发布前断言;失败 `exit(1)` 阻断 release |
+| `scripts/check-snapshot.mjs` | 发布前断言 submodule/快照干净一致，再执行 pinned Trellis Patch 冲突门禁；失败 `exit(1)` |
+| `scripts/check-patch-conflicts.mjs` | 通过 `resolveTrellisBin()` + `process.execPath` 跨平台启动 pinned Trellis，全平台 fixture 覆盖全部声明 Patch/target/target kind 并运行共享 evaluator |
 | `scripts/extract-changelog.mjs <version\|tag> <outFile>` | 抽 CHANGELOG 指定版本段供 Release notes(标题正则兼容 h2/h3) |
 | `scripts/lib/changelog-section.mjs` | CHANGELOG 指定版本段抽取的共享逻辑,供 GitHub Release notes 与 npm metadata 共用 |
 | `scripts/write-release-notes-metadata.mjs [--dry-run]` | `postchangelog` 后把当前版本 CHANGELOG 段写入 `package.json.flowerReleaseNotes` |
@@ -44,6 +45,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 - `npm run sync` 后若只有 `enhancements/MANIFEST.json` 的 `syncedAt` / `sourceCommit` 变化,说明快照内容未变、仅把随包发布的 source commit 指针补到当前 `vendor/skill-garden` pin;仍必须作为独立 `chore(snapshot): ...` 提交。
 - `npm run sync` 后若出现除 `MANIFEST.json` 以外的快照文件变化,必须把文件列表和摘要展示给用户审核,确认后再提交。
 - 快照提交完成后先跑 `node scripts/check-snapshot.mjs`;只有通过后才能继续执行真实 `npm run release...`。
+- `check-snapshot` 在 git 快照门禁通过后还必须执行 `check-patch-conflicts`；warning 允许继续，error/结构漂移阻断发布。
 - 如果真实 `npm run release...` 已经被 `check-snapshot` 阻断,停止发布流程,展示阻断原因和修复 diff;完成 `npm run sync` + 快照提交 + `check-snapshot` 通过后,重新从 release 命令开始。
 
 ---
@@ -98,6 +100,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 | `MANIFEST.sourceCommit` ≠ `vendor/skill-garden` HEAD | check-snapshot `exit(1)`:提示先 `npm run sync` 重建并提交快照 |
 | `vendor/skill-garden` 工作区有未提交改动 | check-snapshot `exit(1)`:提示先提交 skill-garden 源改动并更新 submodule pin,避免发布未提交源生成的快照 |
 | `enhancements/` 有未提交改动 | check-snapshot `exit(1)`:提示先提交快照 |
+| vendor/snapshot `overrides/` 文件树不一致或 pinned fixture 出现 conflict error | check-snapshot `exit(1)`:同步快照或升级 baseline/Patch 后重跑 |
 | `npm run sync` 只改 `MANIFEST.syncedAt` / `sourceCommit` | 展示为快照指针更新,独立提交后再跑 `node scripts/check-snapshot.mjs` |
 | 真实 release 已被快照门禁阻断 | 不继续 tag/push;按 `npm run sync` → 审核 diff → 提交快照 → `check-snapshot` 通过 → 重跑 release |
 | CHANGELOG 缺目标版本段 | extract-changelog `exit(1)`(等价"漏更新 CHANGELOG 就打 tag"的拦截) |
