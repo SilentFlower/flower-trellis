@@ -1,0 +1,54 @@
+{
+  "id": "patch-engine-overrides-restructure",
+  "name": "patch-engine-overrides-restructure",
+  "title": "统一 Patch 注入引擎与 Overrides 目录重构",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-18T17:43:07Z",
+      "contextKey": "codex_019f7414-497e-70e1-8ce9-a8c39e728963",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "c4e83ab94df110118129d1bf6f8ad9717454dd65",
+        "status": [
+          {
+            "status": " M",
+            "path": "vendor/skill-garden"
+          }
+        ]
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-19T01:31:13Z",
+    "completedSteps": [
+      "统一 Patch Engine 与 Overrides 目录重构已实现",
+      "Skill-Garden 与 Flower 双消费者及发布快照已同步",
+      "完整 Check-All、上下文预算与 check-snapshot 已通过",
+      "业务提交已推送至 beta"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档任务并记录会话",
+    "notes": ""
+  }
+}

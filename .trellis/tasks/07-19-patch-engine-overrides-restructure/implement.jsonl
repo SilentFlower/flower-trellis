@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查 schema v2、三种 operation、Bundle、marker、preflight、路径安全、provenance 和 JS/Python parity。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"强化快照、variant、apply pipeline、Skill/Workflow/Hook 注入、sync 与幂等的总规范。"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"Flower manifest、updateCheck 保留、平台 Hook 和成功写入顺序的状态契约。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"Workflow、state、Phase summary、SessionStart 的 warning-first 上下文预算与分层所有权。"}
+{"file":".trellis/tasks/07-19-patch-engine-overrides-restructure/research/current-injection-inventory.md","reason":"当前五套执行路径、双消费者差异、Skill 重复内容、基线和迁移风险的代码盘点。"}

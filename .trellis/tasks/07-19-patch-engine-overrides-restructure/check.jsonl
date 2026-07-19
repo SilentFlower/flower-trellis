@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查三种 operation、required 零写入、路径与软链安全、marker 迁移、创建边界和 JS/Python parity。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查 0.6 单 Patch 执行链、0.5/old 回归、快照同步、精细安装和幂等。"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"检查 manifest 最后写、Patch provenance、updateCheck 保留和平台配置不误覆盖。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查最终 Workflow/Skill 有效上下文、去重和默认 warning/strict high-warning 行为。"}
+{"file":".trellis/tasks/07-19-patch-engine-overrides-restructure/research/current-injection-inventory.md","reason":"反向核对所有旧执行路径已迁移、Flower/Skill-Garden catalog 边界和已知风险测试。"}
