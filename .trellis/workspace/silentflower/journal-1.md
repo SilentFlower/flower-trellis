@@ -1781,3 +1781,38 @@ craft-slides 升级:内置 seriph/geist/nord/apple-basic/dracula 5 套精选主�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 51: 完成 Skill-Garden 注入冲突与升级门禁
+
+**Date**: 2026-07-19
+**Task**: 完成 Skill-Garden 注入冲突与升级门禁
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+收敛 Workflow route/check/update-spec/push 所有权，新增共享 compatibility/conflict policy、JS/Python 写前门禁、维护者与发布冲突检查，并完成 Full Check-All、快照和幂等验证。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8b905fe` | (see git log) |
+| `2472058` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
