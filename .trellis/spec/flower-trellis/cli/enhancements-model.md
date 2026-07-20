@@ -35,6 +35,9 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 - `overrides/patches/` 是 0.6 AI-facing 修改源，按 workflow/skills/hooks 目标组织；
   `overrides/bundles/` 只提供安装别名与 Patch 组合。英文协议正文只做语义级修改，不因项目
   中文文档规范整段翻译；用户实际输入的字面命令按产品约定保留原文。
+- Patch 载荷继承目标文件的语言与风格:`selector.*` / `baseline-*` 必须保留目标原文，
+  `content.*` 注入英文目标时使用英文、注入中文目标时使用中文。这些文件是最终内容或匹配材料，
+  不按项目自有源码的维护性注释语言规则翻译。
 - `overrides/compatibility.json` 与 `conflicts.json` 是共享只读 policy；vendor 与 `enhancements/0.6` 的整个 `overrides/` 文件树必须由维护者门禁逐字节一致。
 - workflow hub/state、Update-Spec、Finish-Work 和 shared hook 都必须通过 Patch leaf 表达。
   需要共享正文时使用有序 `content.sources`，不得恢复独立 additive override 目录。
@@ -175,6 +178,10 @@ bundles/intent-routing.json
   4. 完成分类前禁止编辑、创建/启动任务或归入已经失效的历史任务。
 - `missing_task` state 只引用 `[workflow-state:no_task]` / Request Intent Routing,不得复制五类意图的
   完整判定规则。Hook 继续只读,不得自行修改 `.trellis/.runtime/sessions/`。
+- `workflow/state-missing-task` Patch 必须同时修正 `clear_active_task()`:当显式 context key
+  不可用、但 `resolve_active_task()` 已按“运行时目录中恰好一个 session 文件”返回
+  `session-fallback` 时,使用该结果的真实 `context_key` 清理 pointer。存在多个 session 时继续
+  拒绝猜测,不得批量删除或任选一个 session。
 - `missing_task` 通过带 managed marker 的 `literal insert after` 加到唯一
   `[/workflow-state:no_task]` 后。Core `workflow-state` selector 只负责替换已有 body,不得为此
   新增平行注入器。
@@ -217,6 +224,8 @@ bundles/intent-routing.json
 
 - Python Hook 行为测试覆盖 stale `session`、`session-fallback` 归一和权威 breadcrumb 加载;
   普通 `no_task`、planning、in_progress 模板输出保持不变。
+- Python CLI 行为测试必须实际执行 `task.py finish`:唯一 `session-fallback` 被清理,多个 session
+  保持不变且返回无当前任务,避免只验证提示文本而遗漏恢复动作。
 - JS apply 测试覆盖 fresh apply、上一版 Flower Hook 升级、九个平台已有目标、缺平台 skip、
   Codex/Claude SessionStart、两个 intent alias 和第二次运行幂等。
 - Python consumer 的真实 catalog preflight 必须断言 `task-intent` 选中完整 stale recovery Patch 集合。

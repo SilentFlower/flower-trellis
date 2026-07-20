@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-07-19T18:42:57.187Z",
+  "syncedAt": "2026-07-20T00:44:16.806Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "ea9117c62f620fab7a78d94b5e8e7f1582de1488",
+  "sourceCommit": "6ff1dcbcfa9164ab7239374af1071fffe648437e",
   "common": {
     "codexSkills": [
       "craft-rpa",
@@ -202,6 +202,8 @@
         "workflow/runtime-contract-reference/runtime-reference-selector.md",
         "workflow/runtime-contract-reference/state-contract-comment-content.md",
         "workflow/runtime-contract-reference/state-contract-comment-selector.md",
+        "workflow/state-missing-task/active-task-clear-fallback-content.py",
+        "workflow/state-missing-task/active-task-clear-fallback-selector.py",
         "workflow/state-missing-task/content.md",
         "workflow/state-missing-task/patch.json",
         "workflow/state-missing-task/selector.md",

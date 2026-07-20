@@ -705,6 +705,10 @@ class PatchConsumerTest(unittest.TestCase):
                 "claude-session-start-missing-task",
             }.issubset(set(plan["patches"]))
         )
+        self.assertIn(
+            "active-task-clear-session-fallback",
+            {item["id"] for item in plan["results"]},
+        )
 
 
 if __name__ == "__main__":

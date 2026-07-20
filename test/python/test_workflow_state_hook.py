@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -24,6 +25,38 @@ STALE_STATE_SOURCE = (
     / "vendor/skill-garden/.trellis/0.6/overrides/patches/workflow/"
     "state-missing-task/content.md"
 )
+SESSION_ENV_KEYS = (
+    "TRELLIS_CONTEXT_ID",
+    "CLAUDE_SESSION_ID",
+    "CLAUDE_CODE_SESSION_ID",
+    "CODEX_SESSION_ID",
+    "CODEX_THREAD_ID",
+    "CURSOR_SESSION_ID",
+    "OPENCODE_SESSION_ID",
+    "OPENCODE_SESSIONID",
+    "OPENCODE_RUN_ID",
+    "GEMINI_SESSION_ID",
+    "FACTORY_SESSION_ID",
+    "DROID_SESSION_ID",
+    "QODER_SESSION_ID",
+    "CODEBUDDY_SESSION_ID",
+    "KIRO_SESSION_ID",
+    "COPILOT_SESSION_ID",
+    "COPILOT_SESSIONID",
+    "PI_SESSION_ID",
+    "PI_SESSIONID",
+    "TRAE_SESSION_ID",
+    "CURSOR_CONVERSATION_ID",
+    "CURSOR_CONVERSATIONID",
+    "CLAUDE_TRANSCRIPT_PATH",
+    "CODEX_TRANSCRIPT_PATH",
+    "CURSOR_TRANSCRIPT_PATH",
+    "GEMINI_TRANSCRIPT_PATH",
+    "FACTORY_TRANSCRIPT_PATH",
+    "DROID_TRANSCRIPT_PATH",
+    "QODER_TRANSCRIPT_PATH",
+    "CODEBUDDY_TRANSCRIPT_PATH",
+)
 
 
 def _load_hook_module() -> types.ModuleType:
@@ -37,6 +70,19 @@ def _load_hook_module() -> types.ModuleType:
     source = HOOK_SOURCE.read_text(encoding="utf-8")
     exec(compile(source, str(HOOK_SOURCE), "exec"), module.__dict__)
     return module
+
+
+def _sessionless_env() -> dict[str, str]:
+    """返回移除平台会话身份后的环境副本。
+
+    Returns:
+        可用于验证 session-fallback 的子进程环境。
+    """
+    env = os.environ.copy()
+    for key in SESSION_ENV_KEYS:
+        env.pop(key, None)
+    env["PYTHONIOENCODING"] = "utf-8"
+    return env
 
 
 class WorkflowStateHookTest(unittest.TestCase):
@@ -73,6 +119,18 @@ class WorkflowStateHookTest(unittest.TestCase):
         output = json.loads(result.stdout)
         return output["hookSpecificOutput"]["additionalContext"]
 
+    def _install_task_scripts(self) -> Path:
+        """安装当前 dogfood 的任务脚本到隔离目录。
+
+        Returns:
+            隔离目录中的 task.py 路径。
+        """
+        scripts = self.root / ".trellis/scripts"
+        scripts.mkdir()
+        shutil.copytree(ROOT / ".trellis/scripts/common", scripts / "common")
+        shutil.copy2(ROOT / ".trellis/scripts/task.py", scripts / "task.py")
+        return scripts / "task.py"
+
     def test_stale_session_sources_share_stable_status(self) -> None:
         """验证 session 与 session-fallback 都归一为 missing_task。"""
         for source_type in ("session", "session-fallback"):
@@ -93,9 +151,7 @@ class WorkflowStateHookTest(unittest.TestCase):
 
     def test_real_stale_runtime_sources_emit_stable_breadcrumb(self) -> None:
         """验证真实 session runtime 的两种 stale 来源都输出权威恢复正文。"""
-        scripts = self.root / ".trellis/scripts"
-        scripts.mkdir()
-        shutil.copytree(ROOT / ".trellis/scripts/common", scripts / "common")
+        self._install_task_scripts()
         (self.root / ".trellis/workflow.md").write_text(
             STALE_STATE_SOURCE.read_text(encoding="utf-8"),
             encoding="utf-8",
@@ -118,6 +174,51 @@ class WorkflowStateHookTest(unittest.TestCase):
                 self.assertIn("python3 ./.trellis/scripts/task.py finish", breadcrumb)
                 self.assertIn("in the same turn", breadcrumb)
                 self.assertNotIn("Refer to workflow.md for current step.", breadcrumb)
+
+    def test_task_finish_clears_only_unique_session_fallback(self) -> None:
+        """验证 finish 清理唯一 fallback，但不跨多个 session 猜测。"""
+        task_script = self._install_task_scripts()
+        sessions = self.root / ".trellis/.runtime/sessions"
+        sessions.mkdir(parents=True)
+        fallback = sessions / "codex_context-id.json"
+        fallback.write_text(
+            json.dumps({"current_task": ".trellis/tasks/missing-task"}),
+            encoding="utf-8",
+        )
+
+        result = subprocess.run(
+            [sys.executable, str(task_script), "finish"],
+            cwd=self.root,
+            env=_sessionless_env(),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        self.assertFalse(fallback.exists())
+        self.assertIn("Cleared current task", result.stdout)
+        self.assertIn("session-fallback:codex_context-id", result.stdout)
+
+        first = sessions / "codex_first.json"
+        second = sessions / "codex_second.json"
+        for session in (first, second):
+            session.write_text(
+                json.dumps({"current_task": ".trellis/tasks/missing-task"}),
+                encoding="utf-8",
+            )
+
+        result = subprocess.run(
+            [sys.executable, str(task_script), "finish"],
+            cwd=self.root,
+            env=_sessionless_env(),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        self.assertTrue(first.exists())
+        self.assertTrue(second.exists())
+        self.assertIn("No current task set", result.stdout)
 
     def test_stale_breadcrumb_uses_workflow_contract(self) -> None:
         """验证 stale breadcrumb 加载恢复正文而不是泛化 fallback。"""
