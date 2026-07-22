@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查 Patch schema、selector/baseline、Bundle 选择、冲突断言和 consumer parity。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查 vendor、snapshot、dogfood 三层一致性与重复同步幂等。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查新增门禁没有通过重复文案或提高阈值破坏控制面预算。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查自动化测试、语法、diff 和不误伤约束。"}

@@ -1,0 +1,39 @@
+{
+  "id": "enforce-task-brief-gate",
+  "name": "enforce-task-brief-gate",
+  "title": "修复 Trellis brief 确认门禁绕过",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-22",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-07-22T16:12:27+08:00",
+    "completedSteps": [
+      "实现 workflow、brainstorm 与 task.py 三层 brief 门禁",
+      "同步 Skill-Garden 源、发布快照和当前 dogfood",
+      "通过完整测试、上下文预算和 Check-All",
+      "将 planning brief review 契约写入项目 spec",
+      "提交并推送 skill-garden 与 flower-trellis 业务变更"
+    ],
+    "partialStep": null,
+    "nextStep": "等待用户显式运行 trellis-finish-work",
+    "notes": ""
+  }
+}

@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"约束 0.6 Workflow/Skill/File Patch、Bundle、冲突断言、幂等与 JS/Python consumer parity。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"约束 Skill-Garden 真实源、enhancements 快照、dogfood 副本和同步顺序。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"约束 Workflow Hub、Phase summary、SessionStart 和最终 skill 的上下文预算。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"约束幂等、不误伤、测试入口和最终质量检查。"}
