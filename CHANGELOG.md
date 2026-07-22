@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.0-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.5.0-beta.5...v0.5.0-beta.6) (2026-07-22)
+
+
+### 🐛 修复 Bug Fixes
+
+* **update:** 防止升级后绕过 trellis-push ([8a34b91](https://github.com/SilentFlower/flower-trellis/commit/8a34b91aa381c73ee56b9ba5bed960778ba2bbd3))
+* **workflow:** 强制任务 brief 确认门禁 ([7750c62](https://github.com/SilentFlower/flower-trellis/commit/7750c62417cabdf519e249deae147e1ec0ec14ac))
+
 ## [0.5.0-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.5.0-beta.4...v0.5.0-beta.5) (2026-07-22)
 
 
