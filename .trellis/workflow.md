@@ -200,6 +200,14 @@ structured blocker. Never force-delete or silently leave a dormant planning task
 
 Before `task.py start`, unclear scope, unresolved decisions, or non-testable acceptance criteria must return to `trellis-brainstorm`.
 
+#### Task Brief Handoff
+
+Before Phase 1.4, use `trellis-task-brief` to refresh `<task>/brief.md`, display it in full, and wait for user confirmation before `task.py start`.
+
+Implementation intent before that handoff authorizes planning only, not review confirmation.
+
+`brief.md` is derived; `prd.md` / `design.md` / `implement.md` remain authoritative.
+
 #### Project Knowledge Discovery
 
 Before choosing an approach for non-trivial project work, run project knowledge
@@ -222,19 +230,14 @@ If nothing matches, continue normally. Skip pure Q&A, simple read-only inspectio
 opening local tools, or trivial edits unless project conventions or local SOPs may
 change the approach.
 
-#### Task Brief Handoff
-
-Before Phase 1.4 `task.py start`, use `trellis-task-brief` to refresh `<task>/brief.md` from latest task artifacts, display it in chat, and wait for user confirmation.
-
-`brief.md` is derived; `prd.md` / `design.md` / `implement.md` remain authoritative.
-
-Before the first implement route, restate existing `<task>/brief.md` in chat. If missing, read task artifacts and suggest backfilling brief; do not invent one from memory.
-
 #### Flower Update Confirmation
 
 If `<flower-update>` has `priority: blocking_confirmation_required`, handle it first: briefly show `release_notes` when present, show `recommended_command`, and ask before running it.
 
-If `<flower-update-result>` requests `run_trellis_push_confirmation`, enter `trellis-push` planning with update changes as default candidates; still require file-list and commit-message confirmation.
+If `<flower-update-result>` requests `run_trellis_push_confirmation`, load and follow
+`trellis-push` before any Git inspection or plan; never replace it with a hand-written
+Git summary. Use update changes as default candidates and wait for file-list and
+commit-message confirmation.
 
 #### Active Task Scope Guard
 
@@ -640,20 +643,21 @@ Skip this step. Context is loaded directly by the `trellis-before-dev` skill in 
 
 [/codex-inline, Kilo, Antigravity, Devin]
 
+<!-- BEGIN skill-garden patch workflow-phase-1-activate v0.6 -->
 #### 1.4 Activate task `[required · once]`
 
-After artifact review, flip the task status to `in_progress`:
+Before changing task status, load `trellis-task-brief`, refresh `<task>/brief.md`, display the full brief in chat, then stop the current turn and wait for planning review confirmation. Earlier implementation intent is not confirmation.
+
+Lightweight tasks need `prd.md`; complex tasks also need `design.md` and `implement.md`. Sub-agent routes require real entries in both JSONL manifests.
+
+Only after the user confirms the displayed brief in a later message, run:
 
 ```bash
 python3 ./.trellis/scripts/task.py start <task-dir>
 ```
 
-For lightweight tasks, `prd.md` can be enough. For complex tasks, `prd.md`, `design.md`, and `implement.md` must exist and be reviewed before start. On sub-agent-dispatch platforms, `implement.jsonl` and `check.jsonl` must both have real curated entries before start. Runtime consumers tolerate missing or seed-only manifests for compatibility, but that tolerance is not a planning-ready state.
-
-After this command succeeds, the breadcrumb auto-switches to `[workflow-state:in_progress]`, and the rest of Phase 2 / 3 follows.
-
-If `task.py start` errors with a session-identity message (no context key from hook input, `TRELLIS_CONTEXT_ID`, or platform-native session env), follow the hint in the error to set up session identity, then retry.
-
+If start rejects a missing or stale brief, repeat the brief handoff. Follow any session-identity hint; after success, enter `trellis-route(target=implement)`.
+<!-- END skill-garden patch workflow-phase-1-activate v0.6 -->
 #### 1.5 Completion criteria
 
 | Condition | Required |

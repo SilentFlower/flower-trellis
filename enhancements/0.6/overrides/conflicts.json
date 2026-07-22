@@ -105,6 +105,81 @@
       "reason": "Phase 3.3/3.4 的受管 section 必须保留到权威 Skill 的一跳入口。"
     },
     {
+      "id": "workflow-required-task-brief-review",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-phase-1-activate"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch workflow-phase-1-activate v0.6 -->\n#### 1.4 Activate task `[required · once]`\n\nBefore changing task status, load `trellis-task-brief`",
+          "display the full brief in chat, then stop the current turn and wait for planning review confirmation"
+        ]
+      },
+      "owner": "trellis-task-brief",
+      "reason": "Phase 1.4 必须自包含 brief 展示、停止和后续确认门禁。"
+    },
+    {
+      "id": "brainstorm-required-planning-handoff",
+      "severity": "error",
+      "target": ".agents/skills/trellis-brainstorm/SKILL.md",
+      "whenOperations": [
+        "brainstorm-planning-handoff",
+        "brainstorm-planning-readiness"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Planning Handoff",
+          "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n- Planning artifacts are ready for the final brief handoff.",
+          "Implementation intent expressed before the final artifacts and full brief are shown authorizes planning only"
+        ]
+      },
+      "owner": "trellis-brainstorm",
+      "reason": "Brainstorm 收尾必须交给 task brief review，不能复用早期实现意向。"
+    },
+    {
+      "id": "brainstorm-required-planning-handoff-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-brainstorm/SKILL.md",
+      "whenOperations": [
+        "brainstorm-planning-handoff",
+        "brainstorm-planning-readiness"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Planning Handoff",
+          "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n- Planning artifacts are ready for the final brief handoff.",
+          "Implementation intent expressed before the final artifacts and full brief are shown authorizes planning only"
+        ]
+      },
+      "owner": "trellis-brainstorm",
+      "reason": "Claude 的 Brainstorm 最终入口必须保留相同 planning handoff。"
+    },
+    {
+      "id": "task-start-required-brief-gate",
+      "severity": "error",
+      "target": ".trellis/scripts/task.py",
+      "whenOperations": [
+        "task-start-brief-validator",
+        "task-start-brief-guard"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch task-start-brief-validator v0.6",
+          "# BEGIN skill-garden patch task-start-brief-guard v0.6",
+          "Error: Planning task brief.md is missing.",
+          "Error: Planning task brief.md is stale; newer artifacts:"
+        ]
+      },
+      "owner": "task-start-brief-gate",
+      "reason": "planning → in_progress 前必须确定性阻断缺失或过期 brief。"
+    },
+    {
       "id": "workflow-no-covering-language",
       "severity": "error",
       "target": ".trellis/workflow.md",

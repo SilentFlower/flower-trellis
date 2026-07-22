@@ -254,6 +254,111 @@ node scripts/check-ai-context-budget.mjs --strict
 
 ---
 
+## Scenario: Planning Brief Review Gate
+
+### 1. Scope / Trigger
+
+- Trigger:修改 Phase 1.4、`trellis-brainstorm` planning handoff、`trellis-task-brief`，或
+  `.trellis/scripts/task.py start` 的 `planning -> in_progress` 行为。
+- Scope:brief review 由 workflow/skill 负责用户交互，`task.py` 只校验可确定的文件状态；
+  不新增无法证明真人确认的 review token、确认参数或独立任务状态。
+
+### 2. Signatures
+
+```bash
+python3 ./.trellis/scripts/task.py start <task-dir>
+```
+
+```python
+_validate_planning_brief(full_path, task_json_path) -> bool
+```
+
+权威 planning artifacts 固定为实际存在的：
+
+```text
+prd.md | design.md | implement.md
+```
+
+`brief.md` 是从上述文件生成的派生交接视图，不是新的需求或设计权威源。
+
+### 3. Contracts
+
+- Phase 1.4 必须加载 `trellis-task-brief`，从最终 planning artifacts 刷新 `brief.md`，在对话
+  完整展示后结束当前回合。只有用户在后续消息确认已展示的 brief，才可运行 `task.py start`。
+- `trellis-brainstorm` 的 Quality Bar 只表示 planning artifacts 可进入最终 brief handoff；
+  用户在最终产物和完整 brief 展示前表达的实现意向不能复用为 planning review。
+- `_validate_planning_brief()` 只对 `task.json.status == "planning"` 生效，并且必须在 active-task
+  pointer、任务状态和 `after_start` hook 的任何写入或副作用之前执行。
+- planning task 缺少 `brief.md`、读取任务状态失败、读取 artifact 元数据失败，或任一权威 artifact
+  的 `st_mtime_ns` 严格大于 brief 时，校验返回 `False`，命令退出非零并给出刷新/review 指引。
+- brief 与权威 artifact 时间相同视为未过期，避免文件系统时间粒度造成无意义阻断。
+- 已经 `in_progress` 的历史任务允许在没有 brief 时通过 `task.py start` 重新绑定 session pointer；
+  workflow-state 仍应提示读取三件套并建议回补，而不是从记忆生成未经 review 的 brief。
+- 规则必须从 `vendor/skill-garden/.trellis/0.6` 的 Workflow/Skill/File Patch 修改，经
+  `npm run sync` 生成发布快照，再应用到当前 dogfood；Hub、Phase、Skill 和 helper 只保留各自职责。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| planning task 缺少 `brief.md` | start 退出非零，状态/pointer/hook 不变，提示运行 `trellis-task-brief` |
+| `prd.md`、`design.md` 或 `implement.md` 晚于 brief | start 退出非零并列出过期来源 |
+| task/artifact 文件访问或解析失败 | 默认失败关闭，输出可恢复错误，不抛 traceback |
+| brief 存在且不早于所有实际存在的权威 artifact | 允许现有 start 流程进入 `in_progress` |
+| 历史任务已经是 `in_progress` 且没有 brief | 允许重新绑定，不批量强制迁移 |
+| 无 session identity | 仍先执行 brief guard；通过后才进入既有 degraded mode |
+| auto-loop planning task 缺少 brief | 先返回 `refresh_brief`，成功后再执行 `start_task` |
+| 重复同步和 enhance-only apply | 第二次 Patch 修改数为 0，marker/provenance 不重复 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:复杂任务同一回合完成 create 和三件套后直接调用 start；因为 brief 缺失，脚本在任何
+  状态或 hook 副作用前阻断，AI 返回最终 brief handoff。
+- Good:用户 review brief 后又修改 `design.md`；start 列出 `design.md` 为更新来源，要求刷新并
+  重新 review。
+- Base:轻量任务只有 `prd.md` 和更新后的 brief；校验通过，不机械要求不存在的 design/implement。
+- Base:旧 `in_progress` 任务没有 brief；重新绑定成功，后续 workflow 建议回补。
+- Bad:只在 `workflow-state:planning` 增加提示。该状态可能要到下一次用户输入才注入，同一回合
+  create -> plan -> start 仍可绕过。
+- Bad:在 task.json 写 `reviewed=true` 或接受 `--confirmed` 参数。脚本无法证明确认来自真人，
+  只会制造可伪造的安全状态和迁移成本。
+
+### 6. Tests Required
+
+- Python runtime 测试覆盖 create 后立即 start、brief 缺失、三种权威 artifact 任一过期、
+  artifact `stat` 异常、fresh brief、历史 `in_progress` 重绑和无 session identity。
+- 所有 guard 失败用例断言退出码非零、任务仍为 planning、`after_start` hook 未执行，并且不会
+  覆盖 create 已建立的 planning pointer。
+- JS/Python Patch consumer 都断言 Phase 1.4、Brainstorm readiness/handoff、task.py validator/guard
+  的最终 marker 与语义；`.agents`、`.claude` 目标至少各覆盖一次。
+- Patch conflict policy 同时要求 handoff/readiness 两个 operation，并检查最终 workflow、skill、
+  script 的唯一签名；selector/baseline 漂移继续保持全量预检零写入。
+- 运行 `npm run sync`、enhance-only 二次幂等、`npm test`、Patch conflict、默认及 strict context
+  budget，并逐字节比较 vendor 与 `enhancements/0.6/overrides`。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+task.py create -> 写 prd/design/implement -> task.py start -> 开始实现
+```
+
+问题:planning state 的下一回合 breadcrumb 尚未注入，提示词门禁和用户 review 都被跳过。
+
+#### Correct
+
+```text
+task.py create -> 完善最终 planning artifacts
+               -> trellis-task-brief -> 展示完整 brief -> 停止等待
+用户后续确认 -> task.py start -> brief freshness guard -> in_progress
+```
+
+原因:workflow/skill 保留真实用户确认边界，脚本只验证缺失、过期和 I/O 失败这类确定事实；
+三层职责互补且不会伪造确认状态。
+
+---
+
 ## Scenario: Stale Task Pointer Intent Recovery
 
 ### 1. Scope / Trigger

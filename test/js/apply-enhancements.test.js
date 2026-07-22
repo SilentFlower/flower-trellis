@@ -93,6 +93,8 @@ function minimalWorkflow() {
     "",
     patchSource("workflow/intent-routing/create-task-command", "selector.md"),
     "",
+    patchSource("workflow/task-brief-review", "phase-1-activate-baseline.md"),
+    "",
     "## Phase 2: Execute",
     "",
     patchSource("workflow/phase-ownership", "phase-2-implement-baseline.md"),
@@ -172,6 +174,23 @@ function writeActiveTaskTarget(target) {
   );
 }
 
+function writeTaskScriptTarget(target) {
+  return write(
+    target,
+    ".trellis/scripts/task.py",
+    [
+      patchSource("scripts/task-start-brief-gate", "helper-selector.py"),
+      "",
+      "def cmd_start(args):",
+      patchSource("scripts/task-start-brief-gate", "guard-selector.py"),
+      "",
+      "    if not resolve_context_key():",
+      "        return 0",
+      "",
+    ].join("\n"),
+  );
+}
+
 function writeIntentTargets(target) {
   writeActiveTaskTarget(target);
   write(
@@ -186,9 +205,12 @@ function writeIntentTargets(target) {
     "",
     patchSource("skills/trellis-brainstorm/auto-task-create", "selector.md"),
     "",
+    patchSource("skills/trellis-brainstorm/planning-handoff", "quality-bar-baseline.md"),
+    "",
   ].join("\n");
   write(target, ".agents/skills/trellis-brainstorm/SKILL.md", brainstorm);
   write(target, ".claude/skills/trellis-brainstorm/SKILL.md", brainstorm);
+  writeTaskScriptTarget(target);
   write(
     target,
     ".codex/hooks/session-start.py",
@@ -306,6 +328,50 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /trellis-route\(target=check\)/);
   assert.match(workflowText, /Load `trellis-push`/);
   assert.match(workflowText, /task_intent\.py create --title/);
+  assert.match(workflowText, /skill-garden patch workflow-phase-1-activate/);
+  assert.match(workflowText, /display the full brief in chat, then stop the current turn/);
+  assert.ok(
+    workflowText.indexOf("#### Task Brief Handoff") <
+      workflowText.indexOf("#### Project Knowledge Discovery"),
+  );
+  for (const relativePath of [
+    ".agents/skills/trellis-brainstorm/SKILL.md",
+    ".claude/skills/trellis-brainstorm/SKILL.md",
+  ]) {
+    const brainstormText = fs.readFileSync(path.join(target, relativePath), "utf8");
+    assert.match(brainstormText, /skill-garden patch brainstorm-planning-handoff/);
+    assert.match(brainstormText, /skill-garden patch brainstorm-planning-readiness/);
+    assert.match(brainstormText, /Planning readiness does not authorize `task\.py start`/);
+    assert.match(brainstormText, /Implementation intent expressed before the final artifacts/);
+    assert.doesNotMatch(brainstormText, /The user has reviewed the final planning artifacts/);
+  }
+  const handoffPatch = JSON.parse(
+    fs.readFileSync(
+      path.join(PATCHES, "skills/trellis-brainstorm/planning-handoff/patch.json"),
+      "utf8",
+    ),
+  );
+  const authorizationPatch = JSON.parse(
+    fs.readFileSync(
+      path.join(PATCHES, "skills/trellis-brainstorm/planning-authorization/patch.json"),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(
+    handoffPatch.operations[0].targets.map((item) => item.path).sort(),
+    authorizationPatch.operations[0].targets.map((item) => item.path).sort(),
+  );
+  assert.deepEqual(
+    handoffPatch.operations[1].targets.map((item) => item.path).sort(),
+    authorizationPatch.operations[0].targets.map((item) => item.path).sort(),
+  );
+  const taskScript = fs.readFileSync(
+    path.join(target, ".trellis/scripts/task.py"),
+    "utf8",
+  );
+  assert.match(taskScript, /skill-garden patch task-start-brief-validator/);
+  assert.match(taskScript, /skill-garden patch task-start-brief-guard/);
+  assert.match(taskScript, /Planning task brief\.md is stale/);
   assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")), true);
   for (const relativePath of SHARED_HOOK_TARGETS) {
     const value = fs.readFileSync(path.join(target, ...relativePath.split("/")), "utf8");
@@ -357,6 +423,9 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(manifest.patches.catalogHash, /^sha256:/);
   assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-in-progress"));
   assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-missing-task"));
+  assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-phase-1-activate"));
+  assert.ok(manifest.patches.applied.some((item) => item.id === "brainstorm-planning-handoff"));
+  assert.ok(manifest.patches.applied.some((item) => item.id === "task-start-brief-guard"));
   assert.ok(
     manifest.patches.applied.some((item) => item.id === "active-task-clear-session-fallback"),
   );
@@ -466,6 +535,8 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
     assert.match(value, /skill-garden patch workflow-state-planning/);
     assert.match(value, /skill-garden patch workflow-state-missing-task/);
     assert.match(value, /skill-garden patch workflow-runtime-contract-reference/);
+    assert.match(value, /skill-garden patch workflow-phase-1-activate/);
+    assert.match(value, /display the full brief in chat, then stop the current turn/);
     assert.match(value, /follow `\[workflow-state:no_task\]` \/ Request Intent Routing/);
     assert.doesNotMatch(value, /stale_<source_type>/);
     for (const relativePath of SHARED_HOOK_TARGETS) {
@@ -485,6 +556,19 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
       /skill-garden patch active-task-clear-session-fallback/,
     );
     assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")), true);
+    for (const relativePath of [
+      ".agents/skills/trellis-brainstorm/SKILL.md",
+      ".claude/skills/trellis-brainstorm/SKILL.md",
+    ]) {
+      const brainstormText = fs.readFileSync(path.join(target, relativePath), "utf8");
+      assert.match(brainstormText, /skill-garden patch brainstorm-planning-handoff/);
+      assert.match(brainstormText, /skill-garden patch brainstorm-planning-readiness/);
+      assert.doesNotMatch(brainstormText, /The user has reviewed the final planning artifacts/);
+    }
+    assert.match(
+      fs.readFileSync(path.join(target, ".trellis/scripts/task.py"), "utf8"),
+      /skill-garden patch task-start-brief-guard/,
+    );
     assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/spec_router.py")), true);
     assert.equal(fs.existsSync(path.join(target, ".trellis/.flower-manifest.json")), false);
 
@@ -498,6 +582,7 @@ test("beta.2 旧 shared Hook 可通过历史 baseline 升级", () => {
   write(target, ".trellis/.version", "0.6.5\n");
   write(target, ".trellis/workflow.md", minimalWorkflow());
   writeActiveTaskTarget(target);
+  writeTaskScriptTarget(target);
   const hook = write(
     target,
     ".codex/hooks/inject-workflow-state.py",
@@ -524,6 +609,7 @@ test("上一版 missing_task 改名前的 shared Hook 可通过历史 baseline �
   write(target, ".trellis/.version", "0.6.5\n");
   write(target, ".trellis/workflow.md", minimalWorkflow());
   writeActiveTaskTarget(target);
+  writeTaskScriptTarget(target);
   const hook = write(
     target,
     ".codex/hooks/inject-workflow-state.py",

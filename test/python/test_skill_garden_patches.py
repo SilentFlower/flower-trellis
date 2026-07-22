@@ -683,11 +683,11 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 24)
+        self.assertEqual(len(plan["patches"]), 27)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
-            24,
+            27,
         )
 
     def test_real_catalog_task_intent_selects_complete_stale_recovery(self) -> None:
@@ -703,6 +703,9 @@ class PatchConsumerTest(unittest.TestCase):
                 "inject-workflow-state-shared-runtime",
                 "codex-session-start-missing-task",
                 "claude-session-start-missing-task",
+                "workflow-task-brief-review",
+                "brainstorm-planning-handoff",
+                "task-start-brief-gate",
             }.issubset(set(plan["patches"]))
         )
         self.assertIn(
@@ -728,6 +731,51 @@ class PatchConsumerTest(unittest.TestCase):
         )
         self.assertIn("`fix item 1`, `change that`, `修一下`, `改一下`", workflow)
         self.assertIn("Only an explicit current-request workflow instruction", workflow)
+        self.assertIn("skill-garden patch workflow-phase-1-activate", workflow)
+        self.assertIn(
+            "display the full brief in chat, then stop the current turn",
+            workflow,
+        )
+        self.assertLess(
+            workflow.index("#### Task Brief Handoff"),
+            workflow.index("#### Project Knowledge Discovery"),
+        )
+        brainstorm = next(
+            item["next"]
+            for item in plan["files"]
+            if item["target"] == ".agents/skills/trellis-brainstorm/SKILL.md"
+        )
+        self.assertIn("skill-garden patch brainstorm-planning-handoff", brainstorm)
+        self.assertIn("skill-garden patch brainstorm-planning-readiness", brainstorm)
+        self.assertNotIn(
+            "The user has reviewed the final planning artifacts",
+            brainstorm,
+        )
+        self.assertIn(
+            "Implementation intent expressed before the final artifacts",
+            brainstorm,
+        )
+        claude_brainstorm = next(
+            item["next"]
+            for item in plan["files"]
+            if item["target"] == ".claude/skills/trellis-brainstorm/SKILL.md"
+        )
+        self.assertIn(
+            "skill-garden patch brainstorm-planning-readiness",
+            claude_brainstorm,
+        )
+        self.assertNotIn(
+            "The user has reviewed the final planning artifacts",
+            claude_brainstorm,
+        )
+        task_script = next(
+            item["next"]
+            for item in plan["files"]
+            if item["target"] == ".trellis/scripts/task.py"
+        )
+        self.assertIn("skill-garden patch task-start-brief-validator", task_script)
+        self.assertIn("skill-garden patch task-start-brief-guard", task_script)
+        self.assertIn("Planning task brief.md is stale", task_script)
 
 
 if __name__ == "__main__":

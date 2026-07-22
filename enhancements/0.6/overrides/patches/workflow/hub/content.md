@@ -50,6 +50,14 @@ structured blocker. Never force-delete or silently leave a dormant planning task
 
 Before `task.py start`, unclear scope, unresolved decisions, or non-testable acceptance criteria must return to `trellis-brainstorm`.
 
+#### Task Brief Handoff
+
+Before Phase 1.4, use `trellis-task-brief` to refresh `<task>/brief.md`, display it in full, and wait for user confirmation before `task.py start`.
+
+Implementation intent before that handoff authorizes planning only, not review confirmation.
+
+`brief.md` is derived; `prd.md` / `design.md` / `implement.md` remain authoritative.
+
 #### Project Knowledge Discovery
 
 Before choosing an approach for non-trivial project work, run project knowledge
@@ -71,14 +79,6 @@ the path, heading, index description, or reason clearly fits the intended change
 If nothing matches, continue normally. Skip pure Q&A, simple read-only inspection,
 opening local tools, or trivial edits unless project conventions or local SOPs may
 change the approach.
-
-#### Task Brief Handoff
-
-Before Phase 1.4 `task.py start`, use `trellis-task-brief` to refresh `<task>/brief.md` from latest task artifacts, display it in chat, and wait for user confirmation.
-
-`brief.md` is derived; `prd.md` / `design.md` / `implement.md` remain authoritative.
-
-Before the first implement route, restate existing `<task>/brief.md` in chat. If missing, read task artifacts and suggest backfilling brief; do not invent one from memory.
 
 #### Flower Update Confirmation
 

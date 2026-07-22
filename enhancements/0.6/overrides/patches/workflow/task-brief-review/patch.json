@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-task-brief-review",
+  "purpose": "planning_review",
+  "operations": [{
+    "id": "workflow-phase-1-activate",
+    "operation": "replace",
+    "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+    "selector": { "type": "markdown-section", "heading": "#### 1.4 Activate task `[required · once]`" },
+    "baselines": ["phase-1-activate-baseline.md"],
+    "content": { "source": "phase-1-activate-content.md" }
+  }]
+}

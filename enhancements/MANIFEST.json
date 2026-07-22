@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-07-22T03:47:34.337Z",
+  "syncedAt": "2026-07-22T08:10:15.015Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "2d16f1e3fb548d521a59096e2df755e7cec47cd3",
+  "sourceCommit": "6396573a9fb6776b326286390d41040ecdf4adcf",
   "common": {
     "codexSkills": [
       "craft-rpa",
@@ -147,12 +147,22 @@
         "hooks/inject-workflow-state/shared-runtime/content.py",
         "hooks/inject-workflow-state/shared-runtime/patch.json",
         "hooks/inject-workflow-state/shared-runtime/selector.py",
+        "scripts/task-start-brief-gate/guard-content.py",
+        "scripts/task-start-brief-gate/guard-selector.py",
+        "scripts/task-start-brief-gate/helper-content.py",
+        "scripts/task-start-brief-gate/helper-selector.py",
+        "scripts/task-start-brief-gate/patch.json",
         "skills/trellis-brainstorm/auto-task-create/content.md",
         "skills/trellis-brainstorm/auto-task-create/patch.json",
         "skills/trellis-brainstorm/auto-task-create/selector.md",
         "skills/trellis-brainstorm/planning-authorization/content.md",
         "skills/trellis-brainstorm/planning-authorization/patch.json",
         "skills/trellis-brainstorm/planning-authorization/selector.md",
+        "skills/trellis-brainstorm/planning-handoff/content.md",
+        "skills/trellis-brainstorm/planning-handoff/patch.json",
+        "skills/trellis-brainstorm/planning-handoff/quality-bar-baseline.md",
+        "skills/trellis-brainstorm/planning-handoff/readiness-content.md",
+        "skills/trellis-brainstorm/planning-handoff/readiness-selector.md",
         "skills/trellis-finish-work/exact-bookkeeping/baseline-agent.md",
         "skills/trellis-finish-work/exact-bookkeeping/baseline-command.md",
         "skills/trellis-finish-work/exact-bookkeeping/content.md",
@@ -221,7 +231,10 @@
         "workflow/states-planning/patch.json",
         "workflow/states-planning/planning-baseline.md",
         "workflow/states-planning/planning-inline-baseline.md",
-        "workflow/states-planning/subagent-content.md"
+        "workflow/states-planning/subagent-content.md",
+        "workflow/task-brief-review/patch.json",
+        "workflow/task-brief-review/phase-1-activate-baseline.md",
+        "workflow/task-brief-review/phase-1-activate-content.md"
       ],
       "bundles": [
         "finish-work.json",

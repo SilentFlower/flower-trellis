@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "id": "task-start-brief-gate",
+  "purpose": "planning_review",
+  "operations": [
+    {
+      "id": "task-start-brief-validator",
+      "operation": "insert",
+      "position": "after",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "helper-selector.py" },
+      "content": { "source": "helper-content.py" }
+    },
+    {
+      "id": "task-start-brief-guard",
+      "operation": "insert",
+      "position": "after",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "guard-selector.py" },
+      "content": { "source": "guard-content.py" }
+    }
+  ]
+}

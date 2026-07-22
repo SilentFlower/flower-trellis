@@ -6,6 +6,7 @@
   "patches": [
     "workflow/hub",
     "workflow/phase-ownership",
+    "workflow/task-brief-review",
     "workflow/state-no-task",
     "workflow/state-missing-task",
     "workflow/runtime-contract-reference",
@@ -25,6 +26,8 @@
     "hooks/claude-session-start/missing-task-routing",
     "skills/trellis-start/no-task-routing",
     "skills/trellis-brainstorm/planning-authorization",
-    "skills/trellis-brainstorm/auto-task-create"
+    "skills/trellis-brainstorm/auto-task-create",
+    "skills/trellis-brainstorm/planning-handoff",
+    "scripts/task-start-brief-gate"
   ]
 }
