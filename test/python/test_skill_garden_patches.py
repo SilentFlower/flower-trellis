@@ -709,6 +709,25 @@ class PatchConsumerTest(unittest.TestCase):
             "active-task-clear-session-fallback",
             {item["id"] for item in plan["results"]},
         )
+        workflow = next(
+            item["next"]
+            for item in plan["files"]
+            if item["target"] == ".trellis/workflow.md"
+        )
+        self.assertIn(
+            "Repair authorization and permission to skip task planning are separate",
+            workflow,
+        )
+        self.assertIn(
+            "repair scope is unknown, use `inspect` first and reclassify from evidence",
+            workflow,
+        )
+        self.assertIn(
+            "`direct_edit` requires known, bounded, local, low-risk, reversible scope",
+            workflow,
+        )
+        self.assertIn("`fix item 1`, `change that`, `修一下`, `改一下`", workflow)
+        self.assertIn("Only an explicit current-request workflow instruction", workflow)
 
 
 if __name__ == "__main__":

@@ -31,6 +31,17 @@ function patchSource(ref, name) {
   return fs.readFileSync(path.join(PATCHES, ...ref.split("/"), name), "utf8").trimEnd();
 }
 
+function assertIntentRoutingSemantics(value) {
+  assert.match(value, /Repair authorization and permission to skip task planning are separate/);
+  assert.match(value, /repair scope is unknown, use `inspect` first and reclassify from evidence/);
+  assert.match(value, /`direct_edit` requires known, bounded, local, low-risk, reversible scope/);
+  assert.match(value, /Permission\/authentication\/data-scope\/security/);
+  assert.match(value, /cross-package\/layer or multi-entry behavior/);
+  assert.match(value, /validation, or unknown scope are `task_plan` signals/);
+  assert.match(value, /`fix item 1`, `change that`, `修一下`, `改一下`/);
+  assert.match(value, /Only an explicit current-request workflow instruction/);
+}
+
 function minimalWorkflow() {
   return [
     patchSource("workflow/runtime-contract-reference", "state-contract-comment-selector.md"),
@@ -284,6 +295,7 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.doesNotMatch(workflowText, /\.trellis\/spec\/cli\/backend\/workflow-state-contract\.md/);
   assert.doesNotMatch(workflowText, /\.trellis\/scripts\/inject-workflow-state\.py/);
   assert.match(workflowText, /#### Request Intent Routing/);
+  assertIntentRoutingSemantics(workflowText);
   assert.doesNotMatch(workflowText, /ask only whether this turn should create/);
   assert.doesNotMatch(workflowText, /Flow: .*finish-work/);
   assert.doesNotMatch(workflowText, /This guard overrides any lower/);
@@ -449,6 +461,7 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
 
     const value = fs.readFileSync(workflow, "utf8");
     assert.match(value, /#### Request Intent Routing/);
+    assertIntentRoutingSemantics(value);
     assert.match(value, /skill-garden patch workflow-request-triage/);
     assert.match(value, /skill-garden patch workflow-state-planning/);
     assert.match(value, /skill-garden patch workflow-state-missing-task/);

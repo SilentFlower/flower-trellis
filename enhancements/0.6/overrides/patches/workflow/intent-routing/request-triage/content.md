@@ -1,4 +1,5 @@
 - Infer `discuss`, `inspect`, `direct_edit`, `task_plan`, or `workflow_action` from the current request, its scope, risk, side effects, active-task state, and the latest explicit switch. Do not classify from one keyword alone.
+- For repairs, inspect unknown scope before applying the hub's `direct_edit` / `task_plan` boundary.
 - High-confidence reversible steps proceed without a mechanical task-creation question. Explicit complex implementation intent authorizes creating a planning task and entering `trellis-brainstorm`; it does not authorize `task.py start` or implementation.
 - Ask one question only when ambiguity changes material side effects, or when destructive, production, database, credential, external-system, or permission boundaries require confirmation.
-- The latest explicit `走任务` / `不要任务` / `先讨论` / `直接做` / `先别做` style instruction wins for the current request. New unrelated requests return to automatic inference.
+- The current explicit workflow switch wins; repair selection does not. Unrelated requests reset inference.

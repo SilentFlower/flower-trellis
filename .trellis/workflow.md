@@ -163,6 +163,16 @@ For a new request, infer `discuss`, `inspect`, `direct_edit`, `task_plan`, or
 active-task state, and the latest explicit switch. High-confidence reversible
 steps proceed without a mechanical task-creation question.
 
+Repair authorization and permission to skip task planning are separate. If the
+repair scope is unknown, use `inspect` first and reclassify from evidence before
+editing.
+
+`direct_edit` requires known, bounded, local, low-risk, reversible scope and
+simple validation. Permission/authentication/data-scope/security, shared
+contracts, cross-package/layer or multi-entry behavior, database/migration/
+configuration/release/external effects, historical regressions, systematic
+validation, or unknown scope are `task_plan` signals.
+
 Clear complex implementation intent authorizes creating a planning task and
 entering `trellis-brainstorm`; it never authorizes `task.py start` or
 implementation. Ask one focused question only when ambiguity changes material
@@ -172,6 +182,10 @@ The latest explicit switch wins for the current request. `discuss` / `inspect`
 route silently; entering untracked `direct_edit`, creating/resuming a task, or
 switching intent gets one non-blocking status line. New unrelated requests
 return to automatic inference instead of inheriting a session-wide mode.
+
+Selecting a repair (`fix item 1`, `change that`, `修一下`, `改一下`) is not a
+no-task switch. Only an explicit current-request workflow instruction such as
+`直接做` / `不要任务` may override automatic `task_plan`.
 
 If the latest switch leaves an auto-created planning task for untracked work,
 run `task_intent.py discard --task <current-task>` before changing route. Proceed
@@ -307,9 +321,10 @@ Phase 3: Finish  → verify, update spec, commit, and wrap up
 
 <!-- BEGIN skill-garden patch workflow-request-triage v0.6 -->
 - Infer `discuss`, `inspect`, `direct_edit`, `task_plan`, or `workflow_action` from the current request, its scope, risk, side effects, active-task state, and the latest explicit switch. Do not classify from one keyword alone.
+- For repairs, inspect unknown scope before applying the hub's `direct_edit` / `task_plan` boundary.
 - High-confidence reversible steps proceed without a mechanical task-creation question. Explicit complex implementation intent authorizes creating a planning task and entering `trellis-brainstorm`; it does not authorize `task.py start` or implementation.
 - Ask one question only when ambiguity changes material side effects, or when destructive, production, database, credential, external-system, or permission boundaries require confirmation.
-- The latest explicit `走任务` / `不要任务` / `先讨论` / `直接做` / `先别做` style instruction wins for the current request. New unrelated requests return to automatic inference.
+- The current explicit workflow switch wins; repair selection does not. Unrelated requests reset inference.
 <!-- END skill-garden patch workflow-request-triage v0.6 -->
 
 ### Planning Artifacts
@@ -333,6 +348,7 @@ Create new children with `task.py create "<title>" --slug <name> --parent <paren
 [workflow-state:no_task]
 <!-- BEGIN skill-garden patch workflow-state-no-task v0.6 -->
 No active task. Infer the current request intent before acting.
+Repair intent alone is not a no-task switch; inspect unknown scope and reclassify before edits.
 Handle `discuss` and `inspect` silently. For `workflow_action`, load the named Trellis capability directly. For non-destructive `direct_edit`, state once that task/progress will not be recorded and proceed.
 For high-confidence complex implementation, create an auto-routed planning task through `task_intent.py create`, show one non-blocking switch hint, and enter `trellis-brainstorm`. Ask only for material ambiguity or independent safety gates.
 <!-- END skill-garden patch workflow-state-no-task v0.6 -->

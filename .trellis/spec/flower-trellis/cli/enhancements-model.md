@@ -139,6 +139,121 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 ---
 
+## Scenario: Complex Repair Intent Routing
+
+### 1. Scope / Trigger
+
+- Trigger:修改 0.6 Request Intent Routing、`workflow-state:no_task`，或修复“先检查 BUG、
+  用户确认修复后被误判为无任务 `direct_edit`”的行为。
+- Scope:这里只定义 AI-facing 意图契约及其 Patch/测试归属，不新增关键词分类器，也不让
+  `task_intent.py` 推断自然语言意图。
+
+### 2. Signatures
+
+意图分类集合固定为:
+
+```text
+discuss | inspect | direct_edit | task_plan | workflow_action
+```
+
+权威 Patch 入口固定为:
+
+```text
+workflow/hub
+workflow/intent-routing/request-triage
+workflow/state-no-task
+bundles/intent-routing.json
+```
+
+同步与验证入口固定为:
+
+```bash
+npm run sync
+node --test test/js/apply-enhancements.test.js
+python3 -m unittest discover -s test/python -p 'test_skill_garden_patches.py'
+node scripts/check-ai-context-budget.mjs --strict
+```
+
+### 3. Contracts
+
+- “允许修改”与“允许跳过任务规划”是两个独立判断。用户确认修复对象，只表示可以继续推进
+  修复流程，不自动得到 `direct_edit` 结论。
+- 仅要求查看、分析或定位问题时使用 `inspect`，获得修复授权前不得编辑业务文件。已经授权
+  修复但范围未知时仍先 `inspect`，再根据实际 scope、risk 和 side effects 重新分类。
+- `direct_edit` 只适用于范围已知、局部、低风险、可逆且验收简单的改动。权限/认证/数据范围/
+  安全、共享契约、跨包或跨层、多入口一致性、数据库/迁移/配置/发布/外部系统、历史回归、
+  系统性验证或范围仍未知，均是 `task_plan` 信号。
+- `fix item 1`、`change that`、`修一下`、`改一下` 等修复选择不是 no-task switch。只有当前请求
+  明确表达 `直接做`、`不要任务` 等工作流指令时，才可覆盖自动 `task_plan`；新且无关的请求
+  恢复自动推断。
+- 命中 `task_plan` 只授权创建 planning task 并进入 `trellis-brainstorm`，不得越过 brief、
+  `task.py start` 或 `trellis-route` 门禁直接实现。
+- workflow hub 保存完整权威语义；Request Triage 与 `workflow-state:no_task` 只保留一跳门禁和
+  hub 指向，禁止复制复杂信号清单。`task_intent.py` 继续只执行已经判定后的 create/discard。
+- 修改必须从 `vendor/skill-garden/.trellis/0.6` 源 Patch 开始，经 `npm run sync` 生成
+  `enhancements/0.6`，再应用到当前 dogfood workflow；禁止只改快照或最终安装副本。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 用户只要求查明问题 | `inspect`，不编辑 |
+| 用户授权修复但影响范围未知 | 先 `inspect`，得到证据后重新分类 |
+| 已知局部、低风险、可逆且验证简单 | 可进入 `direct_edit` |
+| 权限/数据范围、共享契约、跨层、多入口或系统性回归 | 进入 `task_plan` |
+| inspect 结论后用户说“修第 1 个”或“改一下” | 视为修复选择，不视为 no-task switch |
+| 当前请求明确说“直接做”或“不要任务” | 可覆盖自动 `task_plan`，但不覆盖独立安全确认 |
+| 命中 `task_plan` 后尚未完成 planning gate | 只能创建/完善任务，不得实现 |
+| vendor 与 snapshot 或 dogfood 漂移 | 验证失败，禁止发布 |
+| Phase summary 或 SessionStart 超过 review ceiling | strict budget 失败，先去重而非提高阈值 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:用户要求“查并修复权限 BUG”；Agent 先只读定位，确认涉及共享权限服务和多入口后创建
+  planning task，完成 brief/start/route 再实施。
+- Base:用户要求修复已定位的单文件文案错误；范围明确、低风险且验证简单，可使用
+  `direct_edit`，不机械创建任务。
+- Base:复杂修复已命中 `task_plan`，但用户在当前请求明确说“不要任务，直接做”；按显式流程
+  覆盖继续，同时仍遵守生产、凭据、破坏性操作等独立安全边界。
+- Bad:Agent 在 inspect 后看到用户回复“第 1 个改一下”，只按消息短或措辞简单判为
+  `direct_edit`，随后修改共享服务、DAO、配置和回归测试。
+- Bad:为防止误判，把所有包含“修复”的请求机械升级为 `task_plan`，导致已知局部小改也必须建任务。
+
+### 6. Tests Required
+
+- JS apply 测试必须对应用后的最终 workflow 断言两维授权、未知范围重分类、`direct_edit` 边界、
+  复杂信号、普通修复选择和显式覆盖语义；不得只搜索 Patch 源文件。
+- `task-intent` 与 `intent-routing` 两个精细安装 alias 都必须选择完整 Bundle，并在第二次应用后
+  保持文件树不变。
+- Python consumer 的真实 catalog preflight 必须从 `plan.files[].next` 断言相同最终 workflow
+  语义，防止 JS/Python consumer 或快照漂移。
+- `npm run sync` 后逐字节核对 vendor 与 `enhancements/0.6` 对应 Patch，并对当前 dogfood 重复
+  应用两次；第二次 Patch 修改数必须为 0。
+- 运行 `npm test`、Patch 冲突检查、默认及 strict AI context budget；新增文本不得通过调高
+  target/review ceiling 掩盖重复内容。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+用户说“改一下” -> direct_edit -> 立即编辑
+```
+
+问题:把修复授权当成跳过任务规划授权，没有使用已经查明的影响范围重新分类。
+
+#### Correct
+
+```text
+用户授权修复 -> 范围未知则 inspect -> 按实际影响重新分类
+                              -> 局部低风险: direct_edit
+                              -> 复杂实现信号: task_plan
+```
+
+原因:保留小修复的效率，同时让权限、共享契约、跨层和系统性回归等复杂修复经过任务门禁。
+
+---
+
 ## Scenario: Stale Task Pointer Intent Recovery
 
 ### 1. Scope / Trigger

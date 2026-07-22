@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-07-20T00:48:18.573Z",
+  "syncedAt": "2026-07-22T02:31:08.933Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "6ff1dcbcfa9164ab7239374af1071fffe648437e",
+  "sourceCommit": "39aa348603bed63ecb4eff5fbf938cf558167d24",
   "common": {
     "codexSkills": [
       "craft-rpa",
