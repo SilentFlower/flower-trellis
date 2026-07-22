@@ -1,0 +1,2 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"约束 skill-garden 源 Patch、发布快照、dogfood 同步顺序与幂等要求。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"约束 workflow hub/state 的职责边界和最终上下文预算验证。"}

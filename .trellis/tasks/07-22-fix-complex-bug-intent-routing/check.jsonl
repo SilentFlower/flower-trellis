@@ -1,0 +1,2 @@
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查幂等、测试体系、dogfood 验证和发布前质量门禁。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查新增意图规则未突破 workflow/state 与控制面预算。"}
