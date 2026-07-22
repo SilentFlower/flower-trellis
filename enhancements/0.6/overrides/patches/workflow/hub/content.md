@@ -84,7 +84,10 @@ Before the first implement route, restate existing `<task>/brief.md` in chat. If
 
 If `<flower-update>` has `priority: blocking_confirmation_required`, handle it first: briefly show `release_notes` when present, show `recommended_command`, and ask before running it.
 
-If `<flower-update-result>` requests `run_trellis_push_confirmation`, enter `trellis-push` planning with update changes as default candidates; still require file-list and commit-message confirmation.
+If `<flower-update-result>` requests `run_trellis_push_confirmation`, load and follow
+`trellis-push` before any Git inspection or plan; never replace it with a hand-written
+Git summary. Use update changes as default candidates and wait for file-list and
+commit-message confirmation.
 
 #### Active Task Scope Guard
 

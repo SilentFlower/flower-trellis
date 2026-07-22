@@ -200,6 +200,6 @@ export async function selfUpdate(ctx) {
     post_action: "run_trellis_push_confirmation",
     release_notes: check.releaseNotes || null,
     ai_instruction:
-      "汇总本次升级产生的文件变动,进入 trellis-push 执行计划,展示具体文件列表和 commit message 后等待用户确认。",
+      "必须先加载并遵循 `trellis-push`,不得用自行 Git 检查或手写计划替代;以本次升级变动为默认候选,展示文件列表和 commit message 后等待确认。",
   });
 }
