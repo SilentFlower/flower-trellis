@@ -37,7 +37,7 @@
 - [x] 运行 `node scripts/check-patch-conflicts.mjs` 和 strict AI context budget。
 - [x] 运行 `npm run sync`，检查 vendor 与 `enhancements/0.6` 的 overrides、scripts、skills 一致。
 - [x] 检查 `enhancements/MANIFEST.json` 的 patchFiles、bundles 和 scripts。
-- [ ] vendor 提交并更新 submodule pin 后，最终 `npm run sync` 刷新 `sourceCommit`。
+- [x] vendor 提交并更新 submodule pin 后，最终 `npm run sync` 刷新 `sourceCommit`。
 
 ## 5. Dogfood 应用与幂等
 
@@ -49,7 +49,7 @@
 ## 6. 最终质量门禁
 
 - [x] 运行定向 Python 测试与完整 `npm test`。
-- [ ] 运行 `npm run sync` 后的 snapshot consistency 检查。（已执行；检查器按设计要求先提交 vendor 并更新 submodule pin，留待提交阶段完成。）
+- [x] 运行 `npm run sync` 后的 snapshot consistency 检查。
 - [x] 运行 `git diff --check`，检查无 runtime 文件、临时文件或计划外 dogfood 手改进入 diff。
 - [x] 对照 PRD AC1-AC11 做最终映射，未纳入 F5/F8/F10/F11/F12 不得出现行为漂移。
 
