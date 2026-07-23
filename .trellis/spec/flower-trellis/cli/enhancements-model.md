@@ -606,6 +606,141 @@ python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target imp
 
 原因:prompt 保留边界,skill 保留语义,脚本负责 task 校验和跨任务 runtime 清理;压缩恢复稳定,每轮 token 也更低。
 
+## Scenario: Pre-Check Feedback Hold
+
+### 1. Scope / Trigger
+
+- Trigger: Phase 2.1 首次实现必须自动进入 Check-All,但首次检查后的连续产品/UI/交互/
+  业务调整需要暂缓下一次完整检查,且压缩或 resume 后不能遗忘最终检查。
+- Scope:只调整进入 Phase 2.2 之前的交互决策。Interactive Post-Check Stop Gate、
+  Check-All audit-only/collect-all、`CHK-*` 修复重检和 auto-loop runner action 均保持不变。
+
+### 2. Signatures
+
+随 0.6 `scripts/` 分发平台无关 helper:
+
+```bash
+python3 ./.trellis/scripts/pre_check_state.py status [--verbose]
+python3 ./.trellis/scripts/pre_check_state.py hold --source <user-explicit|follow-up-edit> [--verbose]
+python3 ./.trellis/scripts/pre_check_state.py clear [--verbose]
+```
+
+Runtime 只增加当前 session 文件中的可选字段:
+
+```json
+{
+  "pre_check_preference": {
+    "version": 1,
+    "task": ".trellis/tasks/<task>",
+    "mode": "hold",
+    "source": "user-explicit | follow-up-edit",
+    "updated_at": "<UTC ISO-8601>"
+  }
+}
+```
+
+### 3. Contracts
+
+- 默认行为:
+  - 任务首次完成实现和定向验证后,用户未明确暂缓时必须在同一流程进入
+    `trellis-route(target=check)`;不得把 Check-All 表述为可选下一步并提前结束。
+  - 用户当前消息明确“先不检查”时可覆盖默认,写入 `user-explicit` hold。
+  - 首次 Check-All 执行后的第一条追加修改在编辑前写入 `follow-up-edit` hold,无论检查是
+    干净通过还是报告了问题;
+    不等待第二轮修改,不持久化修改次数。
+- hold 是软偏好:
+  - 只持久化 `hold`,字段缺失即默认检查;当前消息最新明确意图始终优先。
+  - 暂缓期间完成修改和定向验证后停在 Phase 2.2 前,输出一条简短陈述式引导:
+    用户可以继续修改;准备检查时说“下一步”或“可以检查了”。不得机械提问或使用
+    “收口”等不自然表述。
+  - “下一步”“可以检查了”“提交”“部署”或等价继续语义先 clear 再进入检查/后续流程。
+  - Check-All 开始后清除 hold;Check-All 问题修复及重检不再进入 Pre-Check gate。
+- session 隔离:
+  - helper 必须同时校验 `resolve_context_key()` 的直接 context key、当前 active task 和
+    preference task。不得用 unique-session fallback 让新 AI session 继承旧 hold。
+  - 同一 session/window 的 compact 和 resume 继续命中;不同 context key、任务不匹配、
+    完成/归档后 session 清理均忽略或清除旧状态。
+  - JSON 写入保留 `current_task`、route、auto-loop 等其它字段,使用同目录临时文件、
+    flush/fsync 和 `os.replace`;损坏或 I/O 错误不得覆盖原文件。
+- 上下文预算:
+  - workflow hub/state 只保存短边界和一跳动作;完整优先级放 Phase 2.1 walkthrough/helper。
+  - Codex/Claude SessionStart 通过 helper 的只读 API 恢复。无匹配 hold 时零动态行;
+    命中时只追加 `Pre-check: deferred for current task; latest user intent may override.`。
+- auto-loop:
+  - validated runner 的 `run_implement -> run_check_all`、`run_fix -> run_recheck` 不读取 hold。
+  - `trellis-auto-loop` start/resume 前静默调用 `pre_check_state.py clear`;miss/task mismatch
+    是 no-op,损坏状态只记录诊断,不得阻断 runner 或增加确认卡点。
+  - auto-loop 运行中的显式暂缓使用 runner blocked/retry,不写交互 hold。
+- 分发:
+  - 真实源先改 `vendor/skill-garden/.trellis/0.6`,再 `npm run sync` 生成快照并应用 dogfood。
+  - `copyScriptAssets` 的 `workflow-enhancement`、`task-intent`、`intent-routing`、
+    `auto-loop`、`auto-loop-runner`、`trellis-auto-loop` 选择性安装必须携带 helper。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 首次实现,无显式暂缓/hold | 自动进入 Check-All |
+| 当前消息明确暂缓 | 写入 `user-explicit`,停在 Phase 2.2 前并引导 |
+| 首次检查后的第一条追加修改 | 编辑前写入 `follow-up-edit`;本轮只做定向验证 |
+| 当前消息明确继续/提交/部署 | clear 后立即进入检查或后续流程 |
+| 同 context key compact/resume | `status=hit`,SessionStart 注入一行 |
+| 新 context key,但仅有一个旧 session 文件 | 不接受 fallback hold,不注入 |
+| preference task 与 current task 不同 | `status=miss reason=task-mismatch`,不删除其它任务证据 |
+| runtime missing/无 hold | `status=miss`,默认检查 |
+| runtime corrupt/I/O error | `status=error`,不覆盖;SessionStart 省略提示并默认检查 |
+| auto-loop start/resume 有陈旧 hold | 静默 clear 后 runner 正常推进 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:首次实现通过定向测试后主 agent 直接进入 Check-All;不会像可选建议一样停住。
+- Good:第一次 Check-All 执行后,即使报告了待确认问题,用户提出第一处视觉调整时 AI 仍先写
+  `follow-up-edit` hold,
+  修改并定向验证后提示可以继续改,也可说“下一步”进入检查。
+- Good:上述修改过程中发生 compact;同一 session 的 SessionStart 只增加一行提示;
+  用户随后说“可以检查了”,AI clear 并进入 Phase 2.2。
+- Base:用户第一次实现时明确“先不走 check”;写 `user-explicit` 后正常停在检查前。
+- Base:新 AI session 只能通过 active-task unique fallback 看见旧任务;helper 因 direct context key
+  不匹配忽略旧 hold,恢复默认检查行为。
+- Bad:每轮追加修改都立即跑完整 Check-All并同步三件套,造成重复成本和反馈延迟。
+- Bad:把 hold 写入 `task.json` 或长期配置,导致新 session 和其他开发者继承个人交互节奏。
+- Bad:auto-loop 读取 hold 并等待用户说“继续”,破坏 runner outstanding action 权威。
+- Bad:暂缓完成后询问“是否收口并检查”,把软偏好变成每轮机械选择题。
+
+### 6. Tests Required
+
+- helper 单测覆盖 runtime missing、hold/status、clear、其它 runtime 字段保留、非法 source、
+  task mismatch、同 session 恢复、不同 context key 不继承、损坏/I/O 文件不覆盖和写入失败。
+- Codex/Claude 真实 SessionStart hook 测试覆盖匹配 hold 单行注入、无 hold 零动态行、
+  新 session 不继承唯一旧 session hold。
+- Patch/安装测试覆盖双平台 marker、helper 全装 manifest、选择性 workflow/auto-loop alias、
+  二次应用幂等和 vendor/snapshot/dogfood 一致。
+- 静态回归断言 auto-loop skill 在 start/resume 前 clear,runner 源不读取 pre-check 状态,
+  workflow 首次实现默认进入 check 且 Post-Check gate 保持不变。
+- 运行 `npm test`、`node scripts/check-ai-context-budget.mjs`、
+  `node scripts/check-ai-context-budget.mjs --strict`、Python/JS 语法检查和 `git diff --check`。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```markdown
+Implementation is done. Ask the user whether to run Check-All. Persist defer=true
+in task.json so future sessions keep waiting.
+```
+
+问题:首次实现可能提前结束,硬状态跨 session 泄漏,并把每轮反馈变成机械确认。
+
+#### Correct
+
+```markdown
+First implementation defaults to Check-All. After Check-All has run once,
+persist only a session-scoped hold for follow-up edits, whether the check passed
+cleanly or reported findings; latest user intent and validated auto-loop override it.
+```
+
+原因:默认流程完整,高频反馈成本低,压缩可恢复,同时不会把暂缓偏好固化成长期锁。
+
 ## Scenario: Audit-Only Check-All
 
 ### 1. Scope / Trigger

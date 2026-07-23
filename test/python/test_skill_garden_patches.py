@@ -683,7 +683,7 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 29)
+        self.assertEqual(len(plan["patches"]), 30)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
@@ -694,6 +694,8 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("task-finish-clear-result", operation_ids)
         self.assertIn("active-task-runtime-json-io", operation_ids)
         self.assertIn("task-create-parent-link", operation_ids)
+        self.assertIn("codex-session-start-pre-check-hold", operation_ids)
+        self.assertIn("claude-session-start-pre-check-hold", operation_ids)
         self.assertIn("runtime-state-integrity", set(plan["patches"]))
 
     def test_real_conflicts_cover_new_control_plane_operations(self) -> None:

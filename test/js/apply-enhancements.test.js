@@ -222,6 +222,7 @@ function writeIntentTargets(target) {
     [
       patchSource("hooks/codex-session-start/no-task-routing", "selector.py"),
       patchSource("hooks/codex-session-start/missing-task-routing", "selector.py"),
+      patchSource("hooks/session-start/pre-check-hold", "codex-selector.py"),
       "",
     ].join("\n\n"),
   );
@@ -231,6 +232,7 @@ function writeIntentTargets(target) {
     [
       patchSource("hooks/claude-session-start/no-task-routing", "selector.py"),
       patchSource("hooks/claude-session-start/missing-task-routing", "selector.py"),
+      patchSource("hooks/session-start/pre-check-hold", "claude-selector.py"),
       "",
     ].join("\n\n"),
   );
@@ -380,6 +382,7 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(taskScript, /Failed to persist task status before start/);
   assert.match(taskScript, /task-finish-clear-result/);
   assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/task_intent.py")), true);
+  assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/pre_check_state.py")), true);
   for (const relativePath of SHARED_HOOK_TARGETS) {
     const value = fs.readFileSync(path.join(target, ...relativePath.split("/")), "utf8");
     assert.match(value, /return task_dir\.name, "missing_task", active\.source/);
@@ -399,6 +402,10 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   );
   assert.match(codexSessionStart, /treat the current request as NO ACTIVE TASK in the same turn/);
   assert.match(claudeSessionStart, /treat the current request as NO ACTIVE TASK in the same/);
+  assert.match(codexSessionStart, /skill-garden patch codex-session-start-pre-check-hold/);
+  assert.match(claudeSessionStart, /skill-garden patch claude-session-start-pre-check-hold/);
+  assert.match(codexSessionStart, /from pre_check_state import session_start_hint/);
+  assert.match(claudeSessionStart, /from pre_check_state import session_start_hint/);
   assert.doesNotMatch(claudeSessionStart, /ask the user what to work on next/);
   const activeTask = fs.readFileSync(
     path.join(target, ".trellis/scripts/common/active_task.py"),
@@ -431,6 +438,7 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   );
   assert.equal(manifest.variant, "0.6");
   assert.ok(manifest.paths.includes(".trellis/scripts/task_intent.py"));
+  assert.ok(manifest.paths.includes(".trellis/scripts/pre_check_state.py"));
   assert.equal(manifest.patches.schemaVersion, 1);
   assert.match(manifest.patches.catalogHash, /^sha256:/);
   assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-in-progress"));
@@ -446,6 +454,8 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   );
   assert.ok(manifest.patches.applied.some((item) => item.id === "codex-session-start-missing-task"));
   assert.ok(manifest.patches.applied.some((item) => item.id === "claude-session-start-missing-task"));
+  assert.ok(manifest.patches.applied.some((item) => item.id === "codex-session-start-pre-check-hold"));
+  assert.ok(manifest.patches.applied.some((item) => item.id === "claude-session-start-pre-check-hold"));
   assert.equal(fs.existsSync(path.join(target, ".codex/hooks.json")), true);
   assert.equal(fs.existsSync(path.join(target, ".claude/settings.json")), true);
 

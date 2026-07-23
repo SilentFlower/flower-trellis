@@ -24,6 +24,7 @@
     "hooks/codex-session-start/missing-task-routing",
     "hooks/claude-session-start/no-task-routing",
     "hooks/claude-session-start/missing-task-routing",
+    "hooks/session-start/pre-check-hold",
     "skills/trellis-start/no-task-routing",
     "skills/trellis-brainstorm/planning-authorization",
     "skills/trellis-brainstorm/auto-task-create",

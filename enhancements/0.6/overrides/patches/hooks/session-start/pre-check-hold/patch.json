@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 2,
+  "id": "session-start-pre-check-hold",
+  "purpose": "session_recovery",
+  "operations": [
+    {
+      "id": "codex-session-start-pre-check-hold",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "hook",
+          "path": ".codex/hooks/session-start.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        }
+      ],
+      "selector": { "type": "literal", "source": "codex-selector.py" },
+      "content": { "source": "codex-content.py" }
+    },
+    {
+      "id": "claude-session-start-pre-check-hold",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "hook",
+          "path": ".claude/hooks/session-start.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        }
+      ],
+      "selector": { "type": "literal", "source": "claude-selector.py" },
+      "content": { "source": "claude-content.py" }
+    }
+  ]
+}

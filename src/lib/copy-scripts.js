@@ -48,6 +48,17 @@ export function copyScriptAssets(target, variantDir, skills = []) {
         "intent-routing",
         "workflow-enhancement",
       ];
+    } else if (name === "pre_check_state") {
+      aliases = [
+        "pre-check",
+        "pre-check-state",
+        "workflow-enhancement",
+        "task-intent",
+        "intent-routing",
+        "auto-loop",
+        "auto-loop-runner",
+        "trellis-auto-loop",
+      ];
     }
     if (!shouldInstallName(name, skills, aliases)) continue;
 

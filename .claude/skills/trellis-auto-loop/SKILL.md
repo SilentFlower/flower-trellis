@@ -23,10 +23,17 @@ description: "启动、恢复和推进 Trellis 自动任务循环。用于用户
 - 检查深度由 run 级 `--check-depth auto|light|full` 控制，默认 `auto`，与 `--route-check` 独立；历史 run 缺少该字段时按 `full` 兼容。
 - 代码提交必须复用 `trellis-push` 的内部 commit-only 执行能力；auto-loop 自己负责预授权校验和 runner 回写，不要裸 `git commit` / `git push`。
 - `Open Questions` 的确定性状态由 runner 处理：`- [ ]` 阻塞，`- [x]` 不阻塞，无章节或空章节放行。历史无 checkbox 列表只能按 `review_open_questions` action 做语义复核，不能自行跳过 runner 回写。
+- 启动或恢复 validated auto-loop 前先运行 `python3 ./.trellis/scripts/pre_check_state.py clear`，静默清除当前任务的交互式 Check-All 前暂缓偏好。清理返回 miss 或 task mismatch 视为无状态；runtime 损坏只记录诊断，不得阻断 runner，也不得让 runner 读取该偏好。
 
 ## 启动
 
 用户给了任务列表时，按原顺序传入；用户只说当前任务时，用 `task.py current --source` 的当前任务。
+
+启动前先静默清理交互式暂缓偏好：
+
+```bash
+python3 ./.trellis/scripts/pre_check_state.py clear
+```
 
 启动前对当前任务执行 route 准备度检查：
 
@@ -82,6 +89,7 @@ python3 ./.trellis/scripts/auto_loop.py next
 压缩、重开会话、用户说“继续自动跑 / continue auto loop”时：
 
 ```bash
+python3 ./.trellis/scripts/pre_check_state.py clear
 python3 ./.trellis/scripts/auto_loop.py resume
 python3 ./.trellis/scripts/auto_loop.py next
 ```

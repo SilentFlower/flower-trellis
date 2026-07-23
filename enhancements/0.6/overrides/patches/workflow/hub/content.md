@@ -114,6 +114,7 @@ Plain preferences, summaries (including compact/SessionStart), replacement histo
 User reselect/override/use-X-this-time/clear-default wins over remembered route evidence, runtime state, and personal prefs.
 
 Phase 2.1/2.2 and Active Task Routing enter this gate through `trellis-route`; dispatch subagents only when the resolved route selected subagent.
+Phase 2.1 owns Pre-Check; validated auto-loop bypasses it.
 
 #### Auto-Loop Return Gate
 

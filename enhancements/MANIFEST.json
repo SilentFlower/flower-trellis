@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-07-23T07:56:20.619Z",
+  "syncedAt": "2026-07-23T10:11:31.759Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "81455af582fe25f74ac4b8340ff18e295d4f2677",
+  "sourceCommit": "9823011f93fe3e57542b4ebe453d95b9b3feebd1",
   "common": {
     "codexSkills": [
       "craft-rpa",
@@ -147,6 +147,11 @@
         "hooks/inject-workflow-state/shared-runtime/content.py",
         "hooks/inject-workflow-state/shared-runtime/patch.json",
         "hooks/inject-workflow-state/shared-runtime/selector.py",
+        "hooks/session-start/pre-check-hold/claude-content.py",
+        "hooks/session-start/pre-check-hold/claude-selector.py",
+        "hooks/session-start/pre-check-hold/codex-content.py",
+        "hooks/session-start/pre-check-hold/codex-selector.py",
+        "hooks/session-start/pre-check-hold/patch.json",
         "scripts/runtime-state-integrity/active-task-fallback-content.py",
         "scripts/runtime-state-integrity/active-task-fallback-selector.py",
         "scripts/runtime-state-integrity/active-task-resolution-content.py",
@@ -294,6 +299,7 @@
       ],
       "scripts": [
         "auto_loop.py",
+        "pre_check_state.py",
         "spec_router.py",
         "task_intent.py",
         "task_progress.py"
