@@ -75,3 +75,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 59: 完成 Trellis 升级备份保留优化
+
+**Date**: 2026-07-24
+**Task**: 完成 Trellis 升级备份保留优化
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+新增 --backup-retention 参数，默认保留最近 3 份 Trellis 时间戳升级备份；完成路径安全、本轮备份保护、dry-run、失败降级、测试、规范同步与发布审计。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cead9c0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
