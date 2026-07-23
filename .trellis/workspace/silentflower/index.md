@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-1.md`
-- **Total Sessions**: 56
+- **Active File**: `journal-2.md`
+- **Total Sessions**: 57
 - **Last Active**: 2026-07-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1993 | Active |
+| `journal-2.md` | ~42 | Active |
+| `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 57 | 2026-07-23 | 完成 Workflow Gate 原生流程融合 | `b19faac`, `d20b417` | `beta` |
 | 56 | 2026-07-23 | 优化实现后检查卡点与暂缓状态 | `9823011` `d8a3dcd` | `beta` |
 | 55 | 2026-07-23 | 修复 Python 控制面语义边界 | `81455af`,  `74d5d12` | `beta` |
 | 54 | 2026-07-22 | 修复 Trellis brief 确认门禁绕过 | `6396573`, `7750c62` | `beta` |
