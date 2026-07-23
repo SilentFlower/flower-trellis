@@ -27,7 +27,7 @@ function assertTrellisProject(target) {
 /**
  * flower-trellis update-check:管理启动更新检查策略,并展示本地运行缓存。
  *
- * @param {object} ctx 见 cli.js 的 parse()
+ * @param {object} ctx 见 cli-args.js 的 parseCliArgs()
  */
 export async function updateCheck(ctx) {
   const args = ctx.passthrough;

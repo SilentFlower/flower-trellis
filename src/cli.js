@@ -5,6 +5,7 @@ import { flowerVersion, trellisVersion } from "./lib/versions.js";
 import { selectVariant } from "./lib/variant.js";
 import { readManifest } from "./lib/manifest.js";
 import { runTrellis } from "./lib/trellis-runner.js";
+import { parseCliArgs } from "./lib/cli-args.js";
 
 /**
  * flower-trellis CLI 主入口。
@@ -81,6 +82,7 @@ flower 自有 flag:
   --variant <old|0.5|0.6>  强制强化包变体(默认按 .trellis/.version 自动选)
   --target <dir>           目标目录(默认当前目录)
   --no-update-check        本次跳过 flower-trellis 新版本检测(等价 FLOWER_NO_UPDATE_CHECK=1)
+  --backup-retention <n>   update 成功后保留最近 n 份升级备份(默认 3,0=不清理)
 
 启动更新检查:
   self-check --json                 稳定输出检查 JSON
@@ -96,73 +98,6 @@ skill 可启用或停用通用技能，并只读展示工作流强化包。
 也可直接传 --claude / --codex / --cursor / --devin / --zcode / --trae 等指定,
 或用 -y 跳过菜单(默认 codex + claude)。--windsurf 仍作为 Devin 的旧别名透传。
 其余 flag 原样透传给 trellis(如 -u <name> -f --registry --template 等)。`);
-}
-
-/** 解析 argv → { command, ctx }。 */
-function parse(argv) {
-  let command = null;
-  let enhance = true;
-  let enhanceOnly = false;
-  let variant = null;
-  let target = process.cwd();
-  let updateCheck = true;
-  const skills = [];
-  const passthrough = [];
-  const forwarded = [];
-
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--") {
-      forwarded.push(...argv.slice(i + 1));
-      if (command !== "self-update") {
-        passthrough.push(...argv.slice(i + 1));
-      }
-      break;
-    }
-    // 第一个非 flag token 视为子命令
-    if (command === null && !a.startsWith("-")) {
-      command = a;
-      continue;
-    }
-    switch (a) {
-      case "--no-enhance":
-        enhance = false;
-        break;
-      case "--enhance-only":
-        enhanceOnly = true;
-        break;
-      case "--skills": {
-        const v = argv[++i] || "";
-        skills.push(...v.split(/[,\s]+/).filter(Boolean));
-        break;
-      }
-      case "--variant":
-        variant = argv[++i] || null;
-        break;
-      case "--target":
-        target = path.resolve(argv[++i] || ".");
-        break;
-      case "--no-update-check":
-        updateCheck = false;
-        break;
-      default:
-        passthrough.push(a);
-    }
-  }
-
-  return {
-    command,
-    ctx: {
-      target: path.resolve(target),
-      passthrough,
-      enhance,
-      enhanceOnly,
-      skills,
-      variant,
-      updateCheck,
-      forwarded,
-    },
-  };
 }
 
 async function main() {
@@ -181,7 +116,7 @@ async function main() {
     return;
   }
 
-  const { command, ctx } = parse(argv);
+  const { command, ctx } = parseCliArgs(argv);
   const cmd = command || "init"; // 裸跑等同 init
 
   // 互斥校验

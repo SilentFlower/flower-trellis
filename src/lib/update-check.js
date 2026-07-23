@@ -446,7 +446,7 @@ function rememberRemoteTags(target, tags, status, releaseNotes = null) {
  *    打印手动升级命令并继续主流程;拒绝则继续主流程。
  *  - 非交互(`-y`/`--yes` 或非 TTY):仅打印通知 + 升级命令,不弹确认、不阻塞。
  *
- * @param {object} ctx cli.js parse() 产出的上下文(用到 updateCheck / passthrough)
+ * @param {object} ctx cli-args.js parseCliArgs() 产出的上下文(用到 updateCheck / passthrough)
  * @param {string} commandLabel 当前命令名,用于「请重新运行 ft <command>」文案(如 "init"/"update")
  * @returns {Promise<void>} 注意:用户确认升级且成功时本函数会直接退出进程,不返回
  */

@@ -19,13 +19,14 @@ flower-trellis/
 ├── bin/
 │   └── flower-trellis.js      # 入口:仅 import("../src/cli.js"),带 shebang
 ├── src/
-│   ├── cli.js                 # argv 解析 + 子命令分发 + 顶层 try/catch
-│   ├── constants.js           # VARIANTS / PLATFORM_FLAGS / OWN_FLAGS
+│   ├── cli.js                 # help + 子命令分发 + 顶层 try/catch
+│   ├── constants.js           # VARIANTS / PLATFORM_FLAGS / OWN_FLAGS / 默认值
 │   ├── commands/              # 子命令编排层(一个命令一个文件)
 │   │   ├── init.js
 │   │   ├── update.js
 │   │   └── uninstall.js
 │   └── lib/                   # 单一职责工具/逻辑模块
+│       ├── cli-args.js        # argv 解析、Flower 自有参数与 Trellis 透传隔离
 │       ├── paths.js           # 包内路径定位(import.meta.url)
 │       ├── fs-utils.js        # ensureDir / rmrf / copyPath / listDirs / listFiles
 │       ├── versions.js        # 读自身与捆绑 trellis 版本
@@ -38,6 +39,7 @@ flower-trellis/
 │       ├── apply-enhancements.js # 叠加流水线总编排
 │       ├── patch-engine.js    # 0.6 Patch catalog/preflight/apply/provenance
 │       ├── patch-conflicts.js # 0.6 版本兼容与最终产物冲突 evaluator
+│       ├── update-backups.js  # Trellis 时间戳升级备份发现、规划与安全清理
 │       ├── platform-patch-adapters.js # JSON/YAML/TOML 结构 selector
 │       ├── workflow-inject.js # 0.5/old workflow 兼容注入
 │       ├── codex-tweaks.js    # 0.5/old Codex 平台后处理
@@ -69,6 +71,8 @@ flower-trellis/
 - **新子命令** → 在 `src/commands/` 下新建 `<name>.js`,导出同名 async 函数
   `(ctx) => {...}`,并在 `src/cli.js` 的分发处加一条动态 `import()` 分支
   (见 `src/cli.js:130-143`)。
+- **新增 Flower 自有参数** → 同步更新 `src/constants.js#OWN_FLAGS` 与
+  `src/lib/cli-args.js#parseCliArgs()`,确保参数不会进入 Trellis passthrough。
 - **可复用逻辑** → 放 `src/lib/`,一个文件聚焦一件事;命令层从这里 import,
   不要在命令文件里堆通用工具。
 - **新名单/常量** → 进 `src/constants.js`,不要散落在各处硬编码。

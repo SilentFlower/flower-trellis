@@ -27,7 +27,8 @@ gitignored 的 `.trellis/.flower-update-check.tmp` 运行缓存)。
 - `OWN_FLAGS` —— flower 自有、**不能透传给 trellis** 的 flag;值 `false`=布尔 flag,
   `true`=带取值 flag(剔除时要连带跳过其后一个 token)。
 
-> 新增 flower 自有 flag 时,务必同时更新 `OWN_FLAGS` 与 `cli.js` 的 `parse()`,
+> 新增 flower 自有 flag 时,务必同时更新 `OWN_FLAGS` 与
+> `src/lib/cli-args.js#parseCliArgs()`,
 > 否则会被错误透传给 trellis。
 
 ---
@@ -369,10 +370,118 @@ flower-trellis self-update --target . --yes -- --skip-all
 
 ---
 
+## Scenario: Update Backup Retention
+
+### 1. Scope / Trigger
+
+- Trigger: 新增或修改 `flower-trellis update` 的时间戳备份保留参数、备份发现/删除逻辑、
+  更新成功边界，或 `self-update -- ...` 的项目更新参数转发。
+- Scope: 只管理目标项目 `.trellis/` 直接子目录中严格匹配
+  `.backup-YYYY-MM-DDTHH-MM-SS` 的 Trellis 升级快照；`.backup-flower` 是 Patch Engine
+  首次修改前基线，永远不属于自动清理范围。
+
+### 2. Signatures
+
+```bash
+flower-trellis update --target <dir> [--backup-retention <n>] [--dry-run]
+flower-trellis self-update --target <dir> --yes -- --backup-retention <n>
+```
+
+```js
+parseCliArgs(argv, cwd)
+normalizeUpdateBackupRetention(value)
+snapshotUpdateBackups(target)
+planUpdateBackupRetention(names, retention, protectedNames)
+pruneUpdateBackups(target, options)
+```
+
+`DEFAULT_UPDATE_BACKUP_RETENTION` 固定为 `3`；`--backup-retention` 必须在 `OWN_FLAGS`
+登记为带值 flag，由 `parseCliArgs()` 消费并写入 `ctx.backupRetention`，不得进入
+`ctx.passthrough`。`self-update` 只在 `--` 后通过 `ctx.forwarded` 把该参数交给新的 Flower
+项目更新进程。
+
+### 3. Contracts
+
+- 参数只接受非负安全整数；缺失值、负数、小数、非数字或超出安全整数范围必须在 banner、
+  联网探测、上游 Trellis 和任何文件写入前抛出中文错误。`0` 表示本次完全不扫描、不清理。
+- 未显式传参时每次命令使用默认值 `3`，不得写入 manifest、项目配置或运行缓存。
+- 更新前后各读取一次合法备份集合，以差集识别本轮新备份并加入保护集合；即使系统时间回拨
+  导致名称排序较旧，本轮新备份也不得删除。保护项多于 retention 时允许临时超额保留。
+- 清理只能位于 `trellis update`、enhancements 和配置恢复 `finally` 全部完成后的成功路径。
+  任一主流程异常都会跳过清理，保留历史备份与本轮上游快照。
+- 候选名称必须匹配 `^\.backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$`，且是
+  `.trellis/` 的普通直接子目录。扫描和每次删除前都要用 `lstat`、`realpath`、
+  `path.relative` 重新验证项目根与 `.trellis/` 边界；文件、软链接、相似名称和路径逃逸零写入。
+- 合法候选按名称降序保留最新项，删除列表按从旧到新执行。单项目录删除失败只记录中文
+  warning 并继续，不能把已经成功的更新改判为失败。
+- `--dry-run` 使用同一个保留计划并展示预计保留/删除项，但不得调用删除；
+  `--enhance-only` 不创建上游升级备份，因此不扫描、不清理。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 未传 `--backup-retention` | 完整更新成功后默认保留最近 3 份合法升级备份 |
+| `--backup-retention 0` | 不读取备份目录，保留全部升级备份 |
+| 参数缺失、负数、小数、非数字 | 主流程副作用前抛中文参数错误，退出码非 0 |
+| 上游 update、enhancements 或配置恢复抛错 | 不进入 `pruneUpdateBackups()`，零删除 |
+| 更新前或更新后快照不可靠 | 返回 `skipped` 与 warning，零删除 |
+| `.trellis` 或候选真实路径逃逸 | 跳过并警告，项目外零写入 |
+| 候选是 `.backup-flower`、普通文件、软链接或相似名称 | 排除或跳过，绝不删除 |
+| 本轮新备份排序早于旧备份 | 仍加入 `protected`，必要时临时超过 retention |
+| 单个旧备份删除失败 | 记录 warning，继续删除其它候选，update 保持成功 |
+| `--dry-run` | 返回 `preview`，打印计划，文件系统不变 |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 原有 4 份备份，本轮新增 1 份，默认成功更新后保留最新 3 份并删除最旧 2 份。
+- Good: 系统时间回拨使本轮备份名称最旧，差集仍保护该目录，再用剩余额度保留最新历史备份。
+- Base: `--backup-retention 0` 或 `--enhance-only` 不触发目录扫描；dry-run 只输出计划。
+- Base: 某个候选因权限删除失败，其它合法旧备份继续处理，最终更新仍成功并输出 warning。
+- Bad: 用 `startsWith(".backup-")` 识别候选，或直接对拼接路径执行递归删除。
+- Bad: 在配置恢复 `finally` 之前清理，导致后续步骤失败时已经丢失回滚点。
+- Bad: 把 `.backup-flower` 当作普通升级备份，破坏 Patch Engine 首次基线语义。
+
+### 6. Tests Required
+
+- `normalizeUpdateBackupRetention()` 覆盖默认值、`0`、合法覆盖、缺失、负数、小数、非数字和
+  超出安全整数范围。
+- `parseCliArgs()` 覆盖默认值、显式值、缺失值、负数、`OWN_FLAGS` 与 passthrough 隔离；
+  `self-update -- ...` 覆盖 forwarded 原样转发。
+- 临时目录测试覆盖排序、本轮保护、`.backup-flower`、非法名称、文件、软链接、`.trellis`
+  路径逃逸、dry-run 零写入、单项删除失败继续和 retention=0 零扫描。
+- 编排测试或等价静态契约检查必须证明清理调用位于配置恢复 `finally` 之后。
+- 运行 `node --test test/js/update-backups.test.js`、完整 `npm test`、全量 `node --check`
+  与 `git diff --check`；dogfood 至少用隔离目标验证 dry-run 计划且不触碰真实项目备份。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```js
+for (const name of fs.readdirSync(trellisPath)) {
+  if (name.startsWith(".backup-")) fs.rmSync(path.join(trellisPath, name), { recursive: true });
+}
+```
+
+问题:名称边界过宽、没有类型和真实路径校验，也没有更新成功与本轮备份保护边界。
+
+#### Correct
+
+```js
+const beforeSnapshot = snapshotUpdateBackups(target);
+// 完整更新与配置恢复成功后再调用。
+pruneUpdateBackups(target, { retention, beforeSnapshot, dryRun });
+```
+
+原因:同一 helper 统一执行严格候选识别、前后差集保护、路径复核、dry-run 与非致命失败策略。
+
+---
+
 ## Common Mistakes
 
 - 在多个模块各自重算包根路径 —— 应统一用 `paths.js` 的 `PKG_ROOT` / `ENHANCEMENTS_ROOT`。
-- 新增自有 flag 只改了 `parse()` 没更 `OWN_FLAGS`(或反之)—— 两处必须同步。
+- 新增自有 flag 只改了 `parseCliArgs()` 没更 `OWN_FLAGS`(或反之)—— 两处必须同步。
 - 把版本/manifest 读取失败当致命错误抛出 —— 这类应容错降级。
 - 联网探测(版本检测)漏写超时或 try/catch —— 离线时会挂起或把错误抛进主流程,见
   [Network Probe](#network-probe-尽力而为联网探测)。

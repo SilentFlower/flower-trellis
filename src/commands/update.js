@@ -7,6 +7,32 @@ import {
   captureConfigPreserveSnapshot,
   restoreConfigPreserveSnapshot,
 } from "../lib/config-preserver.js";
+import {
+  normalizeUpdateBackupRetention,
+  pruneUpdateBackups,
+  snapshotUpdateBackups,
+} from "../lib/update-backups.js";
+
+function printBackupRetentionResult(result) {
+  if (result.status === "preview") {
+    console.log("\n升级备份清理预览:");
+    console.log(
+      `  · 保留策略:${result.retention} 份;预计保留 ${result.retained.length} 份;预计删除 ${result.removable.length} 份`,
+    );
+    for (const name of result.removable) {
+      console.log(`  · 将删除 .trellis/${name}`);
+    }
+  } else if (result.status === "completed" && result.removed.length > 0) {
+    console.log(`  ✓ 已清理 ${result.removed.length} 份旧升级备份，保留策略:${result.retention} 份`);
+  }
+
+  if (result.protected.length > result.retention) {
+    console.log(`  · 本轮新建备份受保护，当前临时保留 ${result.protected.length} 份`);
+  }
+  for (const warning of result.warnings) {
+    console.log(`  · 升级备份清理警告:${warning}`);
+  }
+}
 
 /**
  * flower-trellis update:驱动 `trellis update`,随后按(可能已升级的)版本重新叠加强化包。
@@ -15,11 +41,17 @@ import {
  * 同时过滤掉它重复打印的启动 banner / Developer。
  * `--dry-run` 时只让 trellis 预览,叠加阶段跳过。
  *
- * @param {object} ctx 见 cli.js 的 parse()
+ * @param {object} ctx 见 cli-args.js 的 parseCliArgs()
+ * @returns {Promise<void>} 升级、强化叠加与备份保留处理完成后返回
  */
 export async function update(ctx) {
   const { target } = ctx;
+  const backupRetention = normalizeUpdateBackupRetention(ctx.backupRetention);
   const dryRun = ctx.passthrough.includes("--dry-run");
+  const shouldManageBackups = !ctx.enhanceOnly && backupRetention > 0;
+  const backupSnapshot = shouldManageBackups
+    ? snapshotUpdateBackups(target)
+    : null;
   const configSnapshot = captureConfigPreserveSnapshot(target);
   let shouldRestoreConfig = false;
 
@@ -61,6 +93,17 @@ export async function update(ctx) {
         console.log(`  ✓ config.yaml 已保留本地配置: ${restored.keys.join(", ")}`);
       }
     }
+  }
+
+  if (shouldManageBackups) {
+    const backupResult = pruneUpdateBackups(target, {
+      retention: backupRetention,
+      beforeSnapshot: backupSnapshot,
+      dryRun,
+    });
+    printBackupRetentionResult(backupResult);
+  } else if (!ctx.enhanceOnly && backupRetention === 0) {
+    console.log("  · --backup-retention 0:保留全部升级备份");
   }
 
   console.log(`\n🌸 flower-trellis update 完成 → ${target}`);

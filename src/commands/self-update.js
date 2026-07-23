@@ -105,7 +105,7 @@ function printFlowerUpdateResult(fields) {
  * 默认项目 update 阶段追加 `--force`,等价 Trellis 交互里的 Apply Overwrite to all。
  * 用户可通过 `--` 透传 `--skip-all` / `--create-new` 等上游冲突策略覆盖默认。
  *
- * @param {object} ctx 见 cli.js 的 parse()
+ * @param {object} ctx 见 cli-args.js 的 parseCliArgs()
  * @returns {Promise<void>}
  */
 export async function selfUpdate(ctx) {

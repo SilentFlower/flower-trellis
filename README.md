@@ -52,6 +52,9 @@ flower-trellis init -u <your-name> -y
 # 升级 Trellis 并按新版本重新叠加强化包
 flower-trellis update
 
+# 临时保留最近 5 份升级备份；传 0 可关闭本次自动清理
+flower-trellis update --backup-retention 5
+
 # 检查当前项目是否需要更新(稳定 JSON,供 AI / hook 使用)
 flower-trellis self-check --json --target .
 
@@ -97,8 +100,22 @@ flower-trellis -v
 | `--variant <old\|0.5\|0.6>` | 强制指定强化包变体(默认按 `.trellis/.version` 自动选) |
 | `--target <dir>` | 目标目录(默认当前目录) |
 | `--no-update-check` | 本次跳过 flower-trellis 新版本检测(等价环境变量 `FLOWER_NO_UPDATE_CHECK=1`) |
+| `--backup-retention <n>` | `update` 成功后保留最近 n 份 `.trellis/.backup-<timestamp>` 快照(默认 3，`0` 表示本次不清理) |
 
 未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` / `--devin` / `--zcode` / `--trae` 等指定,或用 `-y` 跳过菜单。`--windsurf` 仍作为 Devin 的旧别名透传给 Trellis。其余未识别的 flag(如 `-u`、`-f`、`--template`、`--with-statusline`)一律透传给 Trellis。
+
+### 升级备份保留
+
+上游 `trellis update` 会在写入前创建 `.trellis/.backup-<timestamp>/` 完整快照。
+`flower-trellis update` 在 Trellis 更新、强化包叠加和本地配置恢复流程完成后，默认只保留最近 3 份：
+
+- 只有名称严格符合时间戳格式的直接子目录会参与清理；`.trellis/.backup-flower/`、普通文件、
+  软链接和相似名称目录不会被删除。
+- 更新失败时不清理，并保留本轮上游已经创建的备份。
+- `--dry-run` 只展示预计保留和删除的备份，不修改文件系统。
+- `--backup-retention 0` 可关闭本次自动清理；该设置只影响当前命令，不写入项目配置。
+- `self-update` 可通过 `--` 传入覆盖值，例如
+  `flower-trellis self-update --target . --yes -- --backup-retention 5`。
 
 ### 自动版本检测
 

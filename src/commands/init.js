@@ -15,7 +15,7 @@ import { PLATFORM_FLAGS } from "../constants.js";
  * trellis init 在伪终端(pty)里运行,**保留它原生的模板 / monorepo 等交互**,
  * 同时由 flower 过滤掉它重复打印的启动 banner / Developer。
  *
- * @param {object} ctx 见 cli.js 的 parse()
+ * @param {object} ctx 见 cli-args.js 的 parseCliArgs()
  */
 export async function init(ctx) {
   const { target } = ctx;

@@ -8,6 +8,9 @@
 /** 强化包支持的三个版本变体目录名。 */
 export const VARIANTS = ["old", "0.5", "0.6"];
 
+/** `flower-trellis update` 默认保留的 Trellis 时间戳备份数量。 */
+export const DEFAULT_UPDATE_BACKUP_RETENTION = 3;
+
 /**
  * Trellis init 支持的全部平台 flag。
  *
@@ -76,4 +79,5 @@ export const OWN_FLAGS = {
   "--variant": true,
   "--target": true,
   "--no-update-check": false,
+  "--backup-retention": true,
 };

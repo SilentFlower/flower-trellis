@@ -17,7 +17,7 @@ import { listDirs, listFiles, rmrf } from "../lib/fs-utils.js";
  * 流程:① 卸载前(.version 还在)读变体并列出强化清单 → ② 透传 trellis uninstall
  * → ③ 退出码 0 且非 dry-run 时,删除目标里名字精确匹配清单的强化条目。
  *
- * @param {object} ctx 见 cli.js 的 parse()
+ * @param {object} ctx 见 cli-args.js 的 parseCliArgs()
  * @returns {Promise<void>} 卸载与强化残留清理完成后返回
  */
 export async function uninstall(ctx) {

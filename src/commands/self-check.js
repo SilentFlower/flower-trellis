@@ -6,7 +6,7 @@ import { buildSelfCheck } from "../lib/self-check.js";
  * 供 Codex / Claude Code SessionStart hook 和 AI 自动化读取。无论是否发现更新,
  * 都稳定输出 JSON,避免 hook 侧靠空 stdout 猜状态。
  *
- * @param {object} ctx 见 cli.js 的 parse()
+ * @param {object} ctx 见 cli-args.js 的 parseCliArgs()
  * @returns {Promise<void>}
  */
 export async function selfCheck(ctx) {
