@@ -4,6 +4,27 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.1-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.5.0-beta.7...v0.5.1-beta.0) (2026-07-23)
+
+
+### ✨ 新功能 Features
+
+* 将 Workflow Gate 原生融入 Trellis 全流程 ([d20b417](https://github.com/SilentFlower/flower-trellis/commit/d20b417048c438d7611228b6d8f9323b1257a1b8))
+  - 将请求路由、任务规划、质量检查、提交发布、auto-loop 与进度恢复等 13 个 Workflow Gate 收敛到对应的原生 phase、state、skill、hook 或 helper。
+  - Workflow Hub 缩减为轻量 owner 索引和必要的跨阶段顺序，减少重复规则、上下文占用与后续所有权漂移。
+  - 为可确定判断的非法状态增加零副作用硬阻断，并通过 Patch 冲突检查、上下文预算和幂等安装测试保证升级兼容性。
+
+
+### 🐛 修复 Bug Fixes
+
+* 修复 Gate 迁移后的流程入口与跨平台兼容问题 ([b8dd135](https://github.com/SilentFlower/flower-trellis/commit/b8dd135cd93928828f337dc2d799ba221d49f223))
+  - 发布、部署等项目工作流动作会先发现项目 SOP，再进入准确能力，避免将 beta 发布误路由到只生成上线操作单的 `trellis-release`。
+  - 恢复 planning 与 in-progress 状态下的活动任务范围隔离，防止无关请求误入当前任务流程。
+  - `trellis-continue` 会在判断阶段前读取并克制展示未完成进度，同时保持不自动绑定任务、不从进度推断阶段。
+  - 恢复规划语义就绪检查与最新 brief 的显式确认，避免仅因规划文件存在就自动启动任务。
+  - 实现完成后重新进入 Pre-Check；交互式提交在 Git 操作前校验当前 Update-Spec 结果。
+  - 将 Workflow Gate Skill 与 Update-Spec、Finish-Work 入口同步到 17 个平台的原生目录，并统一安装、检测与卸载清理。
+
 ## [0.5.0-beta.7](https://github.com/SilentFlower/flower-trellis/compare/v0.5.0-beta.6...v0.5.0-beta.7) (2026-07-23)
 
 
