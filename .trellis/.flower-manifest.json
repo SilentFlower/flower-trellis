@@ -1,5 +1,5 @@
 {
-  "flowerVersion": "0.5.0-beta.7",
+  "flowerVersion": "0.5.1-beta.0",
   "variant": "0.6",
   "version": "0.6.5",
   "skills": [
@@ -659,7 +659,7 @@
         "bundle": "flower-platform-integration",
         "target": ".trellis/config.yaml",
         "status": "applied",
-        "resultHash": "sha256:7d018d938e61e12d26871fb7feb9da4091b3a0b1923f040a9e2c32cafbbb1eaa"
+        "resultHash": "sha256:094665861878895efdd30f3e8f248ab9d9d1f2a7b207bd5fd52ee40f26dc4d7c"
       },
       {
         "id": "flower-codex-remove-multi-agent-v2",
