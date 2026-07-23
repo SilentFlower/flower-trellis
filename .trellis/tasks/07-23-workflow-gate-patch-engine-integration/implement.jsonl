@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"遵守 0.6 所有最终修改必须进入 Patch Engine、owner 去重、baseline/marker/consumer parity 契约。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"控制 Hub、state、phase、skill 与 SessionStart 的内容所有权和最终上下文预算。"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"约束 runtime state、hook、manifest 和确定性 helper 的状态边界。"}
+{"file":".trellis/tasks/07-23-workflow-gate-patch-engine-integration/research/owner-matrix.md","reason":"按 13 个 Gate 的 primary policy owner、runtime owner 与 Hub residue 实施迁移。"}

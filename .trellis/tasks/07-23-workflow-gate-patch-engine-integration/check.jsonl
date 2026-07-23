@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查 Patch schema、owner 迁移、preflight、幂等和 JS/Python 最终产物一致性。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查 Hub 去重、层级所有权和最终 context budget delta。"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"检查硬阻断只覆盖确定性状态，且 runtime/hook/Git 状态无越权副作用。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查 KISS、差异范围、测试完整性、幂等和禁止重复实现。"}
+{"file":".trellis/tasks/07-23-workflow-gate-patch-engine-integration/research/owner-matrix.md","reason":"反向核对 13 个 Gate 全覆盖、primary owner 唯一和 Hub 最小残留。"}

@@ -1,0 +1,38 @@
+{
+  "id": "workflow-gate-patch-engine-integration",
+  "name": "workflow-gate-patch-engine-integration",
+  "title": "Workflow Hub Gate 原生流程融合",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-23",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-07-23T13:25:15Z",
+    "completedSteps": [
+      "implementation",
+      "check-all",
+      "spec-update",
+      "business-push"
+    ],
+    "partialStep": null,
+    "nextStep": "等待显式 finish-work 归档",
+    "notes": "13 个 Workflow Gate 已完成原生 owner 迁移、Hub 去重、冲突收敛、快照校验和双仓推送。"
+  }
+}
