@@ -1,0 +1,7 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"遵守 Skill-Garden 源、enhancements 快照和当前 dogfood 的同步顺序及幂等契约。"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"按唯一 policy owner、状态一跳引用、Patch 原位升级和 Bundle 自包含规则实施三个 Gate 修复。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"控制 Request Triage、Hub、states 和 skills 的最终高频上下文体积。"}
+{"file":".trellis/tasks/archive/2026-06/06-29-spec-router-sop-discovery/prd.md","reason":"恢复 Project Knowledge Discovery 的全局决策边界、workflow-state sentinel 和 release 正例。"}
+{"file":".trellis/tasks/archive/2026-07/07-13-optimize-trellis-push-flow/design.md","reason":"恢复 task progress 的只读展示、continue/recovery 边界以及不推断 Git/Phase 的原始设计。"}
+{"file":".trellis/tasks/archive/2026-07/07-23-workflow-gate-patch-engine-integration/research/owner-matrix.md","reason":"修正三个错误或不完整的 primary owner 决策，并保持其余 10 个 Gate 不变。"}
+{"file":".trellis/tasks/archive/2026-07/07-23-workflow-gate-patch-engine-integration/research/behavior-baseline.md","reason":"补齐迁移时遗漏的 knowledge、planning scope 和 progress recovery 可达性场景。"}

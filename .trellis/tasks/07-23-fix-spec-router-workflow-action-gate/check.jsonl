@@ -1,0 +1,6 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"反向检查唯一 owner、旧正文去重、conflict assertions、Bundle 自包含和最终产物幂等。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查最终 workflow control、states、Phase summary、SessionStart 和总控制面预算。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查源优先、快照一致、零依赖测试、差异范围和完整发布前门禁。"}
+{"file":".trellis/tasks/archive/2026-06/06-29-spec-router-sop-discovery/prd.md","reason":"确认 release/publish/tag 正例和 workflow-state 高频提示恢复且不过度触发。"}
+{"file":".trellis/tasks/archive/2026-07/07-13-optimize-trellis-push-flow/design.md","reason":"确认 continue 只 relay progress 恢复字段，不自动 rebind、不推断 phase/Git 动作。"}
+{"file":".trellis/tasks/archive/2026-07/07-23-workflow-gate-patch-engine-integration/research/conflict-inventory.md","reason":"核对三个 owner 修正没有恢复 Hub/Skill 双轨，也没有破坏其余 10 个 Gate。"}

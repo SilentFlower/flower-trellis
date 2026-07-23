@@ -1,0 +1,46 @@
+{
+  "id": "fix-spec-router-workflow-action-gate",
+  "name": "fix-spec-router-workflow-action-gate",
+  "title": "修复 Workflow Gate 迁移兼容性回归",
+  "description": "修复 Project Knowledge Discovery、Active Task Scope、Task Progress Recovery 的入口可达性，并补齐行为场景测试。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-23",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-23T13:59:05Z",
+      "contextKey": "codex_019f8f40-cdc6-7090-a945-46d4033d9c55",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "cd7ea426d36ebc2dfa93d7fe614689c168efbbd2",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-23T15:48:49Z",
+    "completedSteps": [
+      "Workflow Gate 全量修复、验证、规范更新与双仓推送"
+    ],
+    "partialStep": null,
+    "nextStep": "重新执行 0.6.0-beta.0 release dry-run 并等待发版确认",
+    "notes": "skill-garden=c1b31b5；flower-trellis=b8dd135"
+  }
+}
