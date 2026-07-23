@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查源、快照、dogfood、精细安装与幂等交付契约没有漂移。"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查 Patch catalog、双 consumer、conflict、provenance 和二次应用零变更。"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"检查 manifest/runtime/config 状态边界及失败语义。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查新增 Skill 文本没有超过默认或 strict 上下文预算。"}
+{"file":".trellis/tasks/07-23-audit-python-control-plane-semantics/research/python-control-plane-audit.md","reason":"对照已确认与已过滤项，防止实现扩大范围。"}
