@@ -12,6 +12,7 @@ function read(relativePath) {
 
 test("Flower 更新完成后必须加载 trellis-push", () => {
   const command = read("src/commands/self-update.js");
+  const hook = read("src/assets/flower_update_hook.py");
   const sourceWorkflow = read(
     "vendor/skill-garden/.trellis/0.6/overrides/patches/workflow/hub/content.md",
   );
@@ -21,7 +22,10 @@ test("Flower 更新完成后必须加载 trellis-push", () => {
 
   assert.match(command, /必须先加载并遵循 `trellis-push`/);
   assert.match(command, /不得用自行 Git 检查或手写计划替代/);
-  assert.match(sourceWorkflow, /load and follow\s+`trellis-push` before any Git inspection/);
-  assert.match(sourceWorkflow, /never replace it with a hand-written\s+Git summary/);
+  assert.match(command, /post_action: "run_trellis_push_confirmation"/);
+  assert.match(hook, /priority: blocking_confirmation_required/);
+  assert.match(hook, /确认前禁止执行 recommended_command/);
+  assert.match(sourceWorkflow, /Flower Update Confirmation \| SessionStart update context \+ Flower CLI/);
+  assert.doesNotMatch(sourceWorkflow, /load and follow\s+`trellis-push` before any Git inspection/);
   assert.equal(snapshotWorkflow, sourceWorkflow);
 });

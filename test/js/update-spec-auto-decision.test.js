@@ -60,14 +60,12 @@ test("交互 Check-All 保留停止点且用户继续后同轮进入 Update-Spec
     ".agents/skills/trellis-check-all/SKILL.md",
   );
 
-  const postCheck = workflow.slice(
-    workflow.indexOf("#### Interactive Post-Check Stop Gate"),
-    workflow.indexOf("#### Code Commit Confirmation Gate"),
+  const postCheck = checkAll.slice(
+    checkAll.indexOf("## Interactive Post-Check Stop Gate"),
+    checkAll.indexOf("## 反模式"),
   );
-  assert.match(postCheck, /Stop and wait for the user to continue/);
-  assert.match(postCheck, /must load `trellis-update-spec` in the same turn/);
-  assert.match(postCheck, /`no-op` \/ `written` then loads `trellis-push` in the same turn/);
-  assert.match(postCheck, /Missing current results run spec first/);
+  assert.match(postCheck, /立即停止并等待用户选择/);
+  assert.match(workflow, /Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`/);
   assert.doesNotMatch(postCheck, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.match(state, /next\/continue.*runs `trellis-update-spec`/);
   assert.match(inlineState, /next\/continue.*runs `trellis-update-spec`/);

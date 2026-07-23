@@ -322,6 +322,165 @@
       "reason": "冲突正文应被结构化替换，Hub 不再通过优先级文字压制下层协议。"
     },
     {
+      "id": "workflow-hub-required-owner-index",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-hub"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch workflow-hub v0.6 -->\n### Skill-Garden Workflow Owner Index",
+          "| Request Intent Routing | `Request Triage` + `trellis-start` | `task_intent.py` |",
+          "| Project Knowledge Discovery | `trellis-before-dev` | `spec_router.py` |",
+          "| Routing Gate | Phase 2 + `trellis-route` | `route_state.py` |",
+          "| Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` | `auto_loop.py record/next` |",
+          "| Code Commit Confirmation Gate | Phase 3.4 + `trellis-push` | exact Git safety checks |",
+          "| Bookkeeping Auto-commit Scope | `trellis-finish-work` | `safe_commit.py` + archive/journal commands |",
+          "| Task Progress Recovery | `trellis-push` recovery entry | `task_progress.py` |",
+          "A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.",
+          "Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; `trellis-finish-work` runs only after Phase 3.4"
+        ]
+      },
+      "owner": "workflow-hub",
+      "reason": "Hub 只允许保留 13 项 owner 索引和必要跨阶段顺序，不再保存各 Gate 的完整协议。"
+    },
+    {
+      "id": "workflow-hub-no-full-gate-sections",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-hub"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "#### Request Intent Routing",
+          "#### Brainstorm Gate",
+          "#### Task Brief Handoff",
+          "#### Project Knowledge Discovery",
+          "#### Flower Update Confirmation",
+          "#### Active Task Scope Guard",
+          "#### Routing Gate",
+          "#### Auto-Loop Return Gate",
+          "#### Interactive Post-Check Stop Gate",
+          "#### Code Commit Confirmation Gate",
+          "#### Auto-loop Commit-only Preauthorization",
+          "#### Bookkeeping Auto-commit Scope",
+          "#### Task Progress Recovery"
+        ]
+      },
+      "owner": "workflow-hub",
+      "reason": "旧 Hub 的 13 个完整 Gate section 必须被 owner index 原位替换，禁止新旧正文双轨共存。"
+    },
+    {
+      "id": "workflow-hub-single-owner-marker",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-hub"
+      ],
+      "assertion": {
+        "type": "max-occurrences",
+        "value": "<!-- BEGIN skill-garden patch workflow-hub v0.6 -->",
+        "max": 1
+      },
+      "owner": "workflow-hub",
+      "reason": "Hub operation 必须原位升级，不能通过新 marker 叠加第二份控制面。"
+    },
+    {
+      "id": "workflow-request-triage-required-owner-contract",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-request-triage"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch workflow-request-triage v0.6 -->",
+          "Repair authorization and permission to skip task planning are separate.",
+          "`direct_edit` requires known, bounded, local, low-risk, reversible scope and simple validation.",
+          "Only an explicit current-request workflow instruction such as `直接做` / `不要任务` may override automatic `task_plan`.",
+          "run `task_intent.py discard --task <current-task>` before changing route"
+        ]
+      },
+      "owner": "workflow-request-triage",
+      "reason": "Request Intent Routing 的完整语义由原生 Request Triage section 拥有，Hub 和 state 只保留索引或一跳动作。"
+    },
+    {
+      "id": "start-required-request-triage-pointer",
+      "severity": "error",
+      "target": ".agents/skills/trellis-start/SKILL.md",
+      "whenOperations": [
+        "start-no-task-routing"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch start-no-task-routing v0.6 -->",
+          "follow the workflow `Request Triage` contract before acting",
+          "Use `task_intent.py create` for inferred complex planning"
+        ]
+      },
+      "owner": "trellis-start",
+      "reason": "trellis-start 必须进入原生 Request Triage owner，而不是复制 Hub 正文或恢复机械询问。"
+    },
+    {
+      "id": "before-dev-required-project-knowledge-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-before-dev/SKILL.md",
+      "whenOperations": [
+        "before-dev-project-knowledge-discovery"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch before-dev-project-knowledge-discovery v0.6 -->\n## Project Knowledge Discovery",
+          "python3 ./.trellis/scripts/spec_router.py \"<short query describing the intended action>\"",
+          "Read high-confidence matches before acting"
+        ]
+      },
+      "owner": "trellis-before-dev",
+      "reason": "Project Knowledge Discovery 的完整执行契约必须位于真正的开发前入口。"
+    },
+    {
+      "id": "before-dev-required-project-knowledge-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-before-dev/SKILL.md",
+      "whenOperations": [
+        "before-dev-project-knowledge-discovery"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch before-dev-project-knowledge-discovery v0.6 -->\n## Project Knowledge Discovery",
+          "python3 ./.trellis/scripts/spec_router.py \"<short query describing the intended action>\""
+        ]
+      },
+      "owner": "trellis-before-dev",
+      "reason": "Claude 最终 before-dev 入口必须与 agents 入口保持相同知识发现契约。"
+    },
+    {
+      "id": "workflow-state-required-active-task-scope",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-state-in-progress",
+        "workflow-state-in-progress-inline"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "New work outside the active task title/brief must stop before routing or edits.",
+          "if the work belongs here, update artifacts first; if the user declines tracking, confirm untracked execution."
+        ]
+      },
+      "owner": "workflow-state-in-progress",
+      "reason": "Active Task Scope Guard 必须由当前 active state 在进入 route 或编辑前直接执行。"
+    },
+    {
       "id": "workflow-state-hub-pointer-budget",
       "severity": "warning",
       "target": ".trellis/workflow.md",

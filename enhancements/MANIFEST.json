@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-07-23T10:29:28.364Z",
+  "syncedAt": "2026-07-23T13:23:28.835Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "9823011f93fe3e57542b4ebe453d95b9b3feebd1",
+  "sourceCommit": "b19faacdf222d1a9a17c0a87f537b256cbcf014a",
   "common": {
     "codexSkills": [
       "craft-rpa",
@@ -195,6 +195,9 @@
         "scripts/task-store-write-integrity/set-branch-selector.py",
         "scripts/task-store-write-integrity/set-scope-content.py",
         "scripts/task-store-write-integrity/set-scope-selector.py",
+        "skills/trellis-before-dev/project-knowledge-discovery/content.md",
+        "skills/trellis-before-dev/project-knowledge-discovery/patch.json",
+        "skills/trellis-before-dev/project-knowledge-discovery/selector.md",
         "skills/trellis-brainstorm/auto-task-create/content.md",
         "skills/trellis-brainstorm/auto-task-create/patch.json",
         "skills/trellis-brainstorm/auto-task-create/selector.md",

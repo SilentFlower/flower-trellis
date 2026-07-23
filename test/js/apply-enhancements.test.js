@@ -203,6 +203,17 @@ function writeIntentTargets(target) {
     ".agents/skills/trellis-start/SKILL.md",
     `# Start\n\n${patchSource("skills/trellis-start/no-task-routing", "selector.md")}\n`,
   );
+  const beforeDev = [
+    "# Before Dev",
+    "",
+    patchSource(
+      "skills/trellis-before-dev/project-knowledge-discovery",
+      "selector.md",
+    ),
+    "",
+  ].join("\n");
+  write(target, ".agents/skills/trellis-before-dev/SKILL.md", beforeDev);
+  write(target, ".claude/skills/trellis-before-dev/SKILL.md", beforeDev);
   const brainstorm = [
     "# Brainstorm",
     "",
@@ -323,7 +334,8 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.doesNotMatch(workflowText, /stale_<source_type>/);
   assert.doesNotMatch(workflowText, /\.trellis\/spec\/cli\/backend\/workflow-state-contract\.md/);
   assert.doesNotMatch(workflowText, /\.trellis\/scripts\/inject-workflow-state\.py/);
-  assert.match(workflowText, /#### Request Intent Routing/);
+  assert.match(workflowText, /### Skill-Garden Workflow Owner Index/);
+  assert.doesNotMatch(workflowText, /#### Request Intent Routing/);
   assertIntentRoutingSemantics(workflowText);
   assert.doesNotMatch(workflowText, /ask only whether this turn should create/);
   assert.doesNotMatch(workflowText, /Flow: .*finish-work/);
@@ -338,9 +350,18 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /skill-garden patch workflow-phase-1-activate/);
   assert.match(workflowText, /display the full brief in chat, then stop the current turn/);
   assert.ok(
-    workflowText.indexOf("#### Task Brief Handoff") <
-      workflowText.indexOf("#### Project Knowledge Discovery"),
+    workflowText.indexOf("| Task Brief Handoff |") <
+      workflowText.indexOf("| Project Knowledge Discovery |"),
   );
+  for (const relativePath of [
+    ".agents/skills/trellis-before-dev/SKILL.md",
+    ".claude/skills/trellis-before-dev/SKILL.md",
+  ]) {
+    const beforeDevText = fs.readFileSync(path.join(target, relativePath), "utf8");
+    assert.match(beforeDevText, /skill-garden patch before-dev-project-knowledge-discovery/);
+    assert.match(beforeDevText, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
+    assert.match(beforeDevText, /Read high-confidence matches before acting/);
+  }
   for (const relativePath of [
     ".agents/skills/trellis-brainstorm/SKILL.md",
     ".claude/skills/trellis-brainstorm/SKILL.md",
@@ -554,7 +575,8 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
     const first = snapshotTree(target);
 
     const value = fs.readFileSync(workflow, "utf8");
-    assert.match(value, /#### Request Intent Routing/);
+    assert.match(value, /### Skill-Garden Workflow Owner Index/);
+    assert.doesNotMatch(value, /#### Request Intent Routing/);
     assertIntentRoutingSemantics(value);
     assert.match(value, /skill-garden patch workflow-request-triage/);
     assert.match(value, /skill-garden patch workflow-state-planning/);
@@ -563,6 +585,13 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
     assert.match(value, /skill-garden patch workflow-phase-1-activate/);
     assert.match(value, /display the full brief in chat, then stop the current turn/);
     assert.match(value, /follow `\[workflow-state:no_task\]` \/ Request Intent Routing/);
+    assert.match(
+      fs.readFileSync(
+        path.join(target, ".agents/skills/trellis-before-dev/SKILL.md"),
+        "utf8",
+      ),
+      /skill-garden patch before-dev-project-knowledge-discovery/,
+    );
     assert.doesNotMatch(value, /stale_<source_type>/);
     for (const relativePath of SHARED_HOOK_TARGETS) {
       const hook = fs.readFileSync(path.join(target, ...relativePath.split("/")), "utf8");

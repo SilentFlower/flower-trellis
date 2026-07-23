@@ -59,9 +59,9 @@ test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {
   const inlineState = state;
   const autoLoop = read(sourceRoot, ".agents/skills/trellis-auto-loop/SKILL.md");
 
-  assert.ok(
-    workflow.indexOf("#### Auto-Loop Return Gate")
-      < workflow.indexOf("#### Interactive Post-Check Stop Gate"),
+  assert.match(
+    workflow,
+    /A validated auto-loop result returns through matching `record` \+ `next` before the interactive post-check stop applies/,
   );
   assert.match(state, /validated auto-loop immediately records and advances/);
   assert.match(inlineState, /validated auto-loop immediately records and advances/);

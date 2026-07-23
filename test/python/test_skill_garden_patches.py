@@ -683,7 +683,7 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 30)
+        self.assertEqual(len(plan["patches"]), 31)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
@@ -697,6 +697,7 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("codex-session-start-pre-check-hold", operation_ids)
         self.assertIn("claude-session-start-pre-check-hold", operation_ids)
         self.assertIn("runtime-state-integrity", set(plan["patches"]))
+        self.assertIn("before-dev-project-knowledge-discovery", operation_ids)
 
     def test_real_conflicts_cover_new_control_plane_operations(self) -> None:
         """新增控制面 operation 必须进入最终产物冲突断言。"""
@@ -772,10 +773,22 @@ class PatchConsumerTest(unittest.TestCase):
             "display the full brief in chat, then stop the current turn",
             workflow,
         )
+        self.assertIn("### Skill-Garden Workflow Owner Index", workflow)
+        self.assertNotIn("#### Request Intent Routing", workflow)
         self.assertLess(
-            workflow.index("#### Task Brief Handoff"),
-            workflow.index("#### Project Knowledge Discovery"),
+            workflow.index("| Task Brief Handoff |"),
+            workflow.index("| Project Knowledge Discovery |"),
         )
+        before_dev = next(
+            item["next"]
+            for item in plan["files"]
+            if item["target"] == ".agents/skills/trellis-before-dev/SKILL.md"
+        )
+        self.assertIn(
+            "skill-garden patch before-dev-project-knowledge-discovery",
+            before_dev,
+        )
+        self.assertIn("spec_router.py", before_dev)
         brainstorm = next(
             item["next"]
             for item in plan["files"]

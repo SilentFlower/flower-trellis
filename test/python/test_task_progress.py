@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from argparse import Namespace
+from contextlib import redirect_stdout
 from importlib import util as importlib_util
+from io import StringIO
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -74,6 +78,57 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
             self.assertEqual(candidates, [])
             self.assertEqual(len(invalid), 1)
             self.assertEqual(warnings, [])
+
+    def test_invalid_write_keeps_task_json_unchanged(self) -> None:
+        """非法 progress schema 必须在写盘前失败。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-write-") as temp:
+            root = Path(temp)
+            self.write_task(root, "current", {"status": "in_progress"})
+            task_dir = root / ".trellis/tasks/current"
+            task_json = task_dir / "task.json"
+            before = task_json.read_bytes()
+            args = Namespace(
+                task=".trellis/tasks/current",
+                progress_json=json.dumps({"nextStep": "implement"}),
+                json=True,
+            )
+
+            with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
+                with redirect_stdout(StringIO()):
+                    result = self.module.cmd_write(args, root)
+
+            self.assertEqual(result, 1)
+            self.assertEqual(task_json.read_bytes(), before)
+
+    def test_atomic_replace_failure_keeps_task_json_unchanged(self) -> None:
+        """原子替换失败时旧 task.json 与目录内容保持不变。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-atomic-") as temp:
+            root = Path(temp)
+            self.write_task(root, "current", {"status": "in_progress"})
+            task_dir = root / ".trellis/tasks/current"
+            task_json = task_dir / "task.json"
+            before = task_json.read_bytes()
+            progress = {
+                "updatedAt": "2026-07-23T00:00:00Z",
+                "completedSteps": ["plan"],
+                "partialStep": None,
+                "nextStep": "implement",
+                "notes": "",
+            }
+            args = Namespace(
+                task=".trellis/tasks/current",
+                progress_json=json.dumps(progress),
+                json=True,
+            )
+
+            with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
+                with mock.patch.object(self.module.os, "replace", side_effect=OSError("boom")):
+                    with redirect_stdout(StringIO()):
+                        result = self.module.cmd_write(args, root)
+
+            self.assertEqual(result, 1)
+            self.assertEqual(task_json.read_bytes(), before)
+            self.assertEqual(list(task_dir.glob(".task.json.*.tmp")), [])
 
 
 if __name__ == "__main__":

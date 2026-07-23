@@ -139,6 +139,104 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 ---
 
+## Scenario: Native Workflow Gate Ownership
+
+### 1. Scope / Trigger
+
+- Trigger:新增、迁移或修改跨阶段 workflow Gate/Guard，尤其是同一规则同时出现在 Hub、Phase、
+  workflow-state、Skill、Hook 或 helper 中时。
+- Scope:使用现有 Patch Engine 将完整语义收敛到原生 owner；不新增 Gate Engine、平行状态机、
+  gate catalog 或独立 provenance 协议。
+
+### 2. Signatures
+
+每个 Gate 的所有权记录固定为：
+
+```text
+Gate -> one primary policy owner -> zero or one runtime owner -> short Hub residue
+```
+
+最终产物检查使用现有 conflict rule：
+
+```json
+{
+  "type": "required-literal | absent-literal | max-occurrences",
+  "whenOperations": ["<owning-operation>"],
+  "target": "<final-target>"
+}
+```
+
+### 3. Contracts
+
+- 每个 Gate 只能有一个 primary policy owner。完整语义、交互边界和异常处理必须位于真正执行
+  该动作的 Phase、workflow-state、Skill 或 Hook；确定性状态检查可由一个 runtime helper 承担。
+- Hub 只保留 owner 索引和必须常驻的跨阶段顺序，不得复制 helper schema、完整交互模板、错误矩阵、
+  Git path 规则或 owning Skill 的步骤。
+- workflow-state 只保留当前状态会改变下一动作的一跳门禁。它可以指向 owner，但不得成为第二份
+  完整 policy owner。
+- 自然语言意图、需求清晰度和语义归属由 policy owner 判断；task 状态、route/task 匹配、runner
+  action/profile、Git exact paths 和 progress schema 等确定事实才允许进入 runtime hard guard。
+- 迁移必须通过目标导向 Patch 执行 `replace/remove/insert`。旧正文不能以“低优先级”“inactive”或
+  “新规则覆盖旧规则”的形式保留，必须在最终文件中真实消失。
+- `conflicts.json` 必须同时证明新 owner 的唯一签名存在、旧冲突签名缺失或出现次数为零；断言读取
+  `plan.files[].next`，不得只检查 Patch 声明文件。
+- Bundle/alias 必须包含其指向 owner 所需的 Patch 或 helper，避免精细安装得到只有指针、没有实现的
+  不完整流程。operation ID 能原位迁移时保持稳定。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 同一完整规则出现在两个 policy owner | owner coverage/去重测试失败，禁止发布 |
+| Hub 只含 owner 索引和短顺序 | 允许，继续检查最终上下文预算 |
+| Hub 或 state 仍包含旧完整 Gate heading/body | conflict assertion 失败，写盘前停止 |
+| policy 判断被脚本硬编码为人工布尔 Gate 状态 | 设计不符合边界，退回 owning Skill/Phase |
+| runtime helper 发现 task/route/action/schema 不匹配 | 返回稳定 blocker，目标文件和 Git 状态不变 |
+| 精细 alias 包含 owner 指针但缺少 owning Patch/helper | Bundle 自包含测试失败 |
+| 第二次应用仍修改 owner 或 Hub | 幂等测试失败 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:Request Intent 完整规则位于 workflow `Request Triage`，`trellis-start` 只负责进入该 owner，
+  `task_intent.py` 只执行已判定的 create/discard 安全边界。
+- Good:Project Knowledge Discovery 完整触发/查询/读取契约位于 `trellis-before-dev`，brainstorm 只保留
+  一跳指针，`spec_router.py` 负责确定性检索。
+- Base:某 Gate 原本已经由 `trellis-push` 或 `trellis-check-all` 完整拥有；迁移只删除 Hub 副本并
+  增加 required/absent/max-occurrences 断言，不需要重写 owner。
+- Bad:保留 Hub 全文，同时在 Skill 追加“以 Skill 为准”；两个版本仍会漂移，且高频上下文没有下降。
+- Bad:为统一 13 个 Gate 新增 `gates.json` 和通用 controller；这会形成与 Trellis 原生 Phase/Skill
+  平行的第二套控制面。
+
+### 6. Tests Required
+
+- 静态 owner matrix 覆盖全部 Gate，断言 primary policy owner 唯一、runtime owner 至多一个。
+- 应用后的最终 workflow 必须只有一个 Hub marker；Hub 包含全部 owner 索引，但不包含旧 Gate heading
+  和被禁止的完整规则签名。
+- 对每个原生 owner 断言唯一 marker/heading/关键行为签名；对旧冲突正文使用
+  `absent-literal` 或 `max-occurrences: 0`。
+- JS/Python consumer 都从最终计划断言相同 owner、去重和 Bundle 自包含结果。
+- 运行 Patch conflict、strict context budget、源/快照一致性、完整场景矩阵和两次 dogfood；第二次
+  Patch 修改数必须为 0。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+Hub full Gate body + Skill full Gate body + "Hub wins" priority note
+```
+
+#### Correct
+
+```text
+Hub owner index -> owning Phase/Skill policy -> optional deterministic helper
+```
+
+原因:最终流程只有一个语义来源，helper 只阻断可证明的非法状态，Patch conflict 和上下文预算都能
+对最终产物给出可执行的回归证据。
+
+---
+
 ## Scenario: Complex Repair Intent Routing
 
 ### 1. Scope / Trigger
@@ -159,8 +257,8 @@ discuss | inspect | direct_edit | task_plan | workflow_action
 权威 Patch 入口固定为:
 
 ```text
-workflow/hub
 workflow/intent-routing/request-triage
+skills/trellis-start/no-task-routing
 workflow/state-no-task
 bundles/intent-routing.json
 ```
@@ -188,8 +286,8 @@ node scripts/check-ai-context-budget.mjs --strict
   恢复自动推断。
 - 命中 `task_plan` 只授权创建 planning task 并进入 `trellis-brainstorm`，不得越过 brief、
   `task.py start` 或 `trellis-route` 门禁直接实现。
-- workflow hub 保存完整权威语义；Request Triage 与 `workflow-state:no_task` 只保留一跳门禁和
-  hub 指向，禁止复制复杂信号清单。`task_intent.py` 继续只执行已经判定后的 create/discard。
+- workflow `Request Triage` 保存完整权威语义；`trellis-start` 与 `workflow-state:no_task` 只保留
+  一跳入口，Hub 只登记 owner。`task_intent.py` 继续只执行已经判定后的 create/discard。
 - 修改必须从 `vendor/skill-garden/.trellis/0.6` 源 Patch 开始，经 `npm run sync` 生成
   `enhancements/0.6`，再应用到当前 dogfood workflow；禁止只改快照或最终安装副本。
 
@@ -923,9 +1021,9 @@ inline/subagent、修复和重检仍服从 Trellis 既有路由与阶段边界�
 - Trigger: 0.6 强化包需要让 AI 在“项目局部知识可能影响做法”的决策边界主动
   发现项目 SOP / 经验 / 标准流程,但不能为每个 SOP 新增一个 Skill,也不能把
   纯问答、只读查看、打开本地工具或轻量编辑都变成检索流程。
-- Scope: `spec_router.py` 是随 0.6 `scripts/` 分发的通用发现器;workflow hub/state
-  只提示何时调用;目标项目自己的 `.trellis/spec/**/*.md`(含 `spec/guides/**/*.md`)
-  保存具体 SOP / spec / thinking guide。
+- Scope: `trellis-before-dev` 保存完整触发、查询和读取契约，`spec_router.py` 是随 0.6 `scripts/`
+  分发的通用发现器；brainstorm/workflow 只保留 owner 指针。目标项目自己的
+  `.trellis/spec/**/*.md`(含 `spec/guides/**/*.md`)保存具体 SOP / spec / thinking guide。
 
 ### 2. Signatures
 
@@ -973,9 +1071,9 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
   heading / index description / reason 明确相关时才读取,避免 helper 候选列表放大上下文。
 - 无 `.trellis/`、无 `.trellis/spec/`、读取失败或无匹配都不阻断流程;输出
   “No relevant project SOP/spec matched. Continue with the normal workflow.”
-- workflow hub/state 触发文案必须使用“项目局部知识可能影响做法的决策边界”语义,
-  不要退回宽泛的 `procedural or high-impact actions`。状态块只保留短提示,长规则
-  放在 workflow hub。
+- `trellis-before-dev` 的触发文案必须使用“项目局部知识可能影响做法的决策边界”语义，
+  不要退回宽泛的 `procedural or high-impact actions`。brainstorm/workflow 只保留短指针，
+  不复制查询构造、置信度读取或跳过条件。
 
 ### 4. Validation & Error Matrix
 
@@ -1375,8 +1473,8 @@ Check-All passed -> report + stop -> user next
 - Trigger:普通 `trellis-check` / `trellis-check-all` 完成后,主 agent 可能绕过 Phase 3.4
   `trellis-push`,自行草拟 `Proposed commits`、commit message 和 commit-only 确认;大型或多仓
   计划也可能把普通文件全部铺开,造成高噪声输出。
-- Scope:workflow hub Patch 与 in-progress state Patch 负责 post-check / Phase 3.4 硬门禁;
-  `trellis-check-all` 负责纯检查汇总;`trellis-push` 只负责 exact plan、一次确认、业务 Git
+- Scope:Phase 2.2 / in-progress state 负责 post-check 一跳边界，Phase 3.4 进入 `trellis-push`；
+  Hub 只登记 owner 和跨阶段顺序。`trellis-check-all` 负责纯检查汇总；`trellis-push` 只负责 exact plan、一次确认、业务 Git
   动作和普通 push 后的 task progress trigger;`task_progress.py` 只负责窄 schema 读写;
   `trellis-auto-loop` 仍只使用本地 commit-only 预授权。
 
@@ -1424,9 +1522,8 @@ risk_items          ->始终逐项展示,不折叠
 - Phase 3.4 必须加载 `trellis-push`;在该 skill 外草拟提交计划不能作为等价替代。
 - workflow hub 只声明 Phase 3.4 门禁和格式所有权:详细计划/结果格式完全由 `trellis-push`
   管理。hub 不复制模板、字段顺序、仓库显示名、retained 用户标签或 8/12 文件阈值。
-- skill-garden hub/state guard 必须明确整段覆盖上游 workflow 下层 Phase 3.4 的
-  `Proposed commits`、本地直接 commit 和 `Never push` walkthrough;目标项目保留上游正文,
-  但 AI 在强化模式下必须把该下层 walkthrough 视为 inactive,不得混用其中任一步骤。
+- Phase 3.4 Patch 必须直接替换与 `trellis-push` 冲突的上游 `Proposed commits`、本地直接 commit
+  和 `Never push` walkthrough；不得保留旧正文后再依赖 Hub 声明其 inactive。
 - 普通 `trellis-push` 默认 commit + push 当前分支;commit-only 只来自用户明确意图或已经由
   auto-loop 校验的内部调用。分支合并、release、finish-work 和 runner 状态不属于该 skill。
 - `trellis-push` 内部始终保存 exact planned files 与 exact retained/unrecognized dirty paths;
@@ -1469,6 +1566,9 @@ risk_items          ->始终逐项展示,不折叠
 - 当前任务进度 schema 固定为 `updatedAt`、`completedSteps`、`partialStep`、`nextStep`、`notes`;
   不保存 push mode、业务 commit hash、分支或完整计划。`task_progress.py write` 必须拒绝额外字段,
   只更新 `task.json.progress`,并在成功写入时移除 legacy `last_push_snapshot`。
+- `task_progress.py write` 必须在完整 schema 校验后，将 JSON 写入目标目录内的临时文件，执行
+  flush + `fsync` 后用 `os.replace` 原子替换 `task.json`。校验失败、临时写入失败或 replace 失败时，
+  旧 `task.json` 字节保持不变，并清理本次临时文件。
 - 普通业务 push 全部成功时写完整 progress;已有成功仓库而后续失败时写 partial/next/failure notes。
   尚无成功 Git 动作时不得伪造 completed steps。progress 使用固定 message 对首次确认的当前
   任务 exact files 生成独立 commit 并立即 push,不增加第二次确认;该集合包含 helper 更新后的
@@ -1482,7 +1582,7 @@ risk_items          ->始终逐项展示,不折叠
 |------|------|
 | 普通 check 汇总准备输出 commit message / planned files | 停止;只输出检查报告与下一步 |
 | Phase 3.4 未加载 `trellis-push` 却准备 commit | 阻断;进入本 skill 重新生成计划 |
-| 下层 Phase 3.4 `Proposed commits` / `Never push` 与 hub 同时存在 | hub/state guard 整段覆盖,下层 walkthrough inactive |
+| 旧 Phase 3.4 `Proposed commits` / `Never push` 正文仍存在 | conflict assertion 失败，禁止依赖 Hub 优先级继续 |
 | 普通 `trellis-push` 未收到 commit-only 意图 | mode 必须是 commit + push |
 | auto-loop outstanding action/profile/task 不匹配 | auto-loop 不得调用内部 commit-only,写回 failed/blocked |
 | 单仓 planned files = 8 | 逐项完整展示 |
@@ -1503,6 +1603,8 @@ risk_items          ->始终逐项展示,不折叠
 | 多仓第二仓执行失败且第一仓已 push | 保留第一仓结果,写 partial progress 与下一恢复动作 |
 | 业务动作成功但 progress push 失败 | 不回滚业务提交;单独报告 progress sync failed |
 | progress JSON 带额外字段 | helper 拒绝写入,防止旧 Git 编排状态混入 |
+| progress schema 非法 | 写盘前失败，原 `task.json` 字节不变 |
+| 临时写入或 `os.replace` 失败 | 删除临时文件，原 `task.json` 字节不变 |
 | 只有 legacy `last_push_snapshot` | status 映射为新 summary;下一次成功 write 迁移为 `progress` |
 
 ### 5. Good/Base/Bad Cases
@@ -1540,9 +1642,9 @@ risk_items          ->始终逐项展示,不折叠
   `trellis-push`,且缺少当前结果时不能直接进入 Phase 3.4。
 - 静态扫描 Phase 3.4 文案,确认必须加载 `trellis-push`,普通默认 push,commit-only 仅来自
   明确用户意图或合法 auto-loop 预授权。
-- 静态扫描 hub 与 in-progress states,确认明确整段覆盖下层 `Proposed commits`、local-only、
-  no-push walkthrough,而不是只依赖隐含优先级。
-- 静态扫描 hub,确认只引用 `trellis-push` 的格式所有权和必要 Git 门禁,不重复 skill 的展示细节。
+- 静态扫描最终 Phase 3.4，确认旧 `Proposed commits`、local-only、no-push walkthrough 已被
+  `replace/remove` 消除，而不是依赖 Hub 优先级声明。
+- 静态扫描 Hub，确认只登记 `trellis-push` owner 和必要跨阶段顺序，不重复 Skill 的展示细节。
 - 用 8 个、9 个和超过 12 个目录分组行的模拟计划验证展示阈值;风险文件始终逐项显示。
 - 模拟单仓、多仓、无活动任务、用户展开文件、计划漂移、部分仓库失败六类输出。
 - 模拟普通多仓生成命令:生成后 dirty paths 未超出预计 exact files 时只确认一次;新增计划外
@@ -1551,8 +1653,8 @@ risk_items          ->始终逐项展示,不折叠
   retained dirty 与真正 risk 分区展示。
 - 在临时 Git 仓库验证 `git commit --only -- <planned files>` 不消费计划外 staged 文件,
   并验证 retained-only 变化不会触发计划重确认。
-- `python3 -m py_compile` 验证 `task_progress.py`;临时任务覆盖新 progress 读写、额外字段拒绝、
-  legacy 读取与下一次 write 迁移。
+- `python3 -m py_compile` 验证 `task_progress.py`；临时任务覆盖新 progress 读写、额外字段拒绝、
+  legacy 读取与下一次 write 迁移，并模拟 schema 非法与 `os.replace` 失败，断言旧文件不变且无临时文件残留。
 - 临时多仓/裸远端覆盖普通成功、部分失败、progress sync 失败和显式 commit-only;验证 progress
   commit 只包含首次确认的当前任务产物与更新后的 `task.json`,其他任务保持原状;commit-only
   不 push 也不生成远端 progress。

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "id": "before-dev-project-knowledge-discovery",
+  "purpose": "project_knowledge_discovery",
+  "operations": [{
+    "id": "before-dev-project-knowledge-discovery",
+    "operation": "insert",
+    "position": "after",
+    "targets": [
+      { "kind": "skill", "path": ".agent/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".agents/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".claude/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".codebuddy/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".cursor/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".devin/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".factory/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".github/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".github/prompts/before-dev.prompt.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kilocode/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kiro/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".opencode/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".pi/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".qoder/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".reasonix/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".trae/skills/trellis-before-dev/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".zcode/skills/trellis-before-dev/SKILL.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "selector.md", "expectedMatches": 1 },
+    "content": { "source": "content.md" }
+  }]
+}

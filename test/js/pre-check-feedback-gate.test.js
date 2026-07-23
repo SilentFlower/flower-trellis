@@ -32,7 +32,7 @@ test("Pre-Check workflow 默认检查、软暂缓与 auto-loop 优先级完整",
     "overrides/patches/workflow/states-in-progress/common-content.md",
   );
 
-  assert.match(hub, /Phase 2\.1 owns Pre-Check; validated auto-loop bypasses it/);
+  assert.match(hub, /A validated auto-loop result returns through matching `record` \+ `next` before the interactive post-check stop applies/);
   assert.match(implement, /validated auto-loop outstanding action wins/);
   assert.match(implement, /hold --source follow-up-edit/);
   assert.match(implement, /whether it passed cleanly or reported findings/);
