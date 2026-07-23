@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.5.0-beta.6",
+  "version": "0.5.0-beta.7",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -61,9 +61,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.5.0-beta.6",
+    "version": "0.5.0-beta.7",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **update:** 防止升级后绕过 trellis-push ([8a34b91](https://github.com/SilentFlower/flower-trellis/commit/8a34b91aa381c73ee56b9ba5bed960778ba2bbd3))\n* **workflow:** 强制任务 brief 确认门禁 ([7750c62](https://github.com/SilentFlower/flower-trellis/commit/7750c62417cabdf519e249deae147e1ec0ec14ac))",
+    "body": "### ✨ 新功能 Features\n\n* **0.6:** 首次实现默认检查，连续调整可暂缓后续 Check-All ([d8a3dcd](https://github.com/SilentFlower/flower-trellis/commit/d8a3dcdd7c9783af7ac1223a0b7be0c513d8bd00))\n\n\n### 🐛 修复 Bug Fixes\n\n* **0.6:** 防止 Python 写入失败导致任务与 session 状态漂移 ([74d5d12](https://github.com/SilentFlower/flower-trellis/commit/74d5d12dd26e19133b591e24b1a762dac20ec17d))",
     "truncated": false
   }
 }

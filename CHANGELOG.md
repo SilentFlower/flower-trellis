@@ -4,6 +4,18 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.0-beta.7](https://github.com/SilentFlower/flower-trellis/compare/v0.5.0-beta.6...v0.5.0-beta.7) (2026-07-23)
+
+
+### ✨ 新功能 Features
+
+* **0.6:** 首次实现默认检查，连续调整可暂缓后续 Check-All ([d8a3dcd](https://github.com/SilentFlower/flower-trellis/commit/d8a3dcdd7c9783af7ac1223a0b7be0c513d8bd00))
+
+
+### 🐛 修复 Bug Fixes
+
+* **0.6:** 防止 Python 写入失败导致任务与 session 状态漂移 ([74d5d12](https://github.com/SilentFlower/flower-trellis/commit/74d5d12dd26e19133b591e24b1a762dac20ec17d))
+
 ## [0.5.0-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.5.0-beta.5...v0.5.0-beta.6) (2026-07-22)
 
 
