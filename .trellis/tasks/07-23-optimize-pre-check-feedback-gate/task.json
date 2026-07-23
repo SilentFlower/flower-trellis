@@ -1,0 +1,39 @@
+{
+  "id": "optimize-pre-check-feedback-gate",
+  "name": "optimize-pre-check-feedback-gate",
+  "title": "优化实现后检查卡点与暂缓状态",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-23",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-07-23T10:13:02Z",
+    "completedSteps": [
+      "实现 session-scoped Pre-Check hold 与 SessionStart 恢复",
+      "同步 workflow、auto-loop、snapshot 与 dogfood",
+      "修复 CHK-P1-001 和 CHK-P2-002",
+      "full Check-All、测试与上下文预算通过",
+      "skill-garden 与 flower-trellis 业务提交已推送"
+    ],
+    "partialStep": null,
+    "nextStep": "等待用户明确请求 trellis-finish-work",
+    "notes": "spec_update_result=no-op"
+  }
+}

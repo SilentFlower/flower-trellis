@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "CLI 分层、同步与质量检查总入口"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "强化源、Patch、runtime、Check-All 与 auto-loop 契约"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "workflow、SessionStart 与高频注入预算边界"}
