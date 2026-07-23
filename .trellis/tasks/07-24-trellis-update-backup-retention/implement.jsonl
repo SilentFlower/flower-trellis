@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "实现 Flower 自有 CLI 参数、状态边界与路径约定时必须遵循。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "确定 update 叠加流水线、成功 manifest 与 .backup-flower 首次备份边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "复用现有路径安全和首次备份约束，避免清理逻辑破坏 Patch Engine 契约。"}

@@ -1,0 +1,50 @@
+{
+  "id": "trellis-update-backup-retention",
+  "name": "trellis-update-backup-retention",
+  "title": "控制 Trellis 升级备份保留",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-24",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-23T16:18:49Z",
+      "contextKey": "codex_019f8fc2-3b51-7b03-b5dd-e20d2a392f36",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "a9082f1701ad10b7b88b47f922f814df211891e6",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-23T16:51:47Z",
+    "completedSteps": [
+      "完成 backup-retention CLI 参数、透传隔离与帮助文档",
+      "完成升级备份发现、保留计划、路径安全与非致命清理",
+      "完成 update 成功路径编排与 self-update 参数转发",
+      "通过完整 Check-All、测试、语法检查与隔离 dogfood 验证",
+      "完成项目 spec 同步并推送业务变更"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 完成任务归档与会话收尾",
+    "notes": ""
+  }
+}
