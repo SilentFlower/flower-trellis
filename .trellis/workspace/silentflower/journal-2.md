@@ -40,3 +40,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 58: 修复 Workflow Gate 迁移兼容性回归
+
+**Date**: 2026-07-23
+**Task**: 修复 Workflow Gate 迁移兼容性回归
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+恢复 Workflow Gate 的请求、规划、执行、提交与跨平台入口可达性；完成全量验证、规范更新和双仓推送，并保留 0.6.0-beta.0 重新 dry-run 与确认的发布交接。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c1b31b5` | (see git log) |
+| `b8dd135` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
