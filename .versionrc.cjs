@@ -28,6 +28,8 @@ const localizedSubjects = new Map([
   ["cc98c02", "项目侧待更新提示会显示对应版本更新摘要"],
   ["c4e83ab", "同步项目 Flower 版本状态"],
   ["update flower manifest to 0.5.0-beta.1", "同步项目 Flower 版本状态"],
+  ["d8a3dcd", "首次实现默认检查，连续调整可暂缓后续 Check-All"],
+  ["74d5d12", "防止 Python 写入失败导致任务与 session 状态漂移"],
 ]);
 
 const detailedReleaseSubjects = new Map([
