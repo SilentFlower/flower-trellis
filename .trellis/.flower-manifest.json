@@ -57,8 +57,160 @@
   ],
   "patches": {
     "schemaVersion": 1,
-    "catalogHash": "sha256:3f7c04a3fc80710c4673aeebe6f94b3597b112b55ccd4c729781c4cc237af847",
+    "catalogHash": "sha256:f1dc0ab6929a7560c2353c98978b6865e15c9d71bdedef0ca5ab68ab14f96558",
     "applied": [
+      {
+        "id": "task-store-write-helpers",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-create-duplicate-slug",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-create-initial-write",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-create-parent-link",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-create-active-warning",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-archive-metadata-guard",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-archive-status-write",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-add-subtask-pair-write",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-remove-subtask-pair-write",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-set-branch-write",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-set-base-branch-write",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "task-set-scope-write",
+        "patch": "task-store-write-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/task_store.py",
+        "status": "applied",
+        "resultHash": "sha256:a1a0e53823663130d37b946e38c7be3b105277390f751a2f0721cb7a5e6df20c"
+      },
+      {
+        "id": "active-task-runtime-json-io",
+        "patch": "runtime-state-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/active_task.py",
+        "status": "applied",
+        "resultHash": "sha256:ffb8fb1f24f06468ad2c9d702bf50fe98b09623dd05667b8f5d7a3ad1a9f2af5"
+      },
+      {
+        "id": "active-task-runtime-resolution",
+        "patch": "runtime-state-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/active_task.py",
+        "status": "applied",
+        "resultHash": "sha256:ffb8fb1f24f06468ad2c9d702bf50fe98b09623dd05667b8f5d7a3ad1a9f2af5"
+      },
+      {
+        "id": "active-task-runtime-fallback",
+        "patch": "runtime-state-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/active_task.py",
+        "status": "applied",
+        "resultHash": "sha256:ffb8fb1f24f06468ad2c9d702bf50fe98b09623dd05667b8f5d7a3ad1a9f2af5"
+      },
+      {
+        "id": "active-task-runtime-set",
+        "patch": "runtime-state-integrity",
+        "bundle": "control-plane-integrity",
+        "target": ".trellis/scripts/common/active_task.py",
+        "status": "applied",
+        "resultHash": "sha256:ffb8fb1f24f06468ad2c9d702bf50fe98b09623dd05667b8f5d7a3ad1a9f2af5"
+      },
+      {
+        "id": "active-task-clear-session-fallback",
+        "patch": "workflow-state-missing-task",
+        "bundle": "intent-routing",
+        "target": ".trellis/scripts/common/active_task.py",
+        "status": "applied",
+        "resultHash": "sha256:ffb8fb1f24f06468ad2c9d702bf50fe98b09623dd05667b8f5d7a3ad1a9f2af5"
+      },
+      {
+        "id": "active-task-clear-result-type",
+        "patch": "workflow-state-missing-task",
+        "bundle": "intent-routing",
+        "target": ".trellis/scripts/common/active_task.py",
+        "status": "applied",
+        "resultHash": "sha256:ffb8fb1f24f06468ad2c9d702bf50fe98b09623dd05667b8f5d7a3ad1a9f2af5"
+      },
+      {
+        "id": "active-task-clear-read-result",
+        "patch": "workflow-state-missing-task",
+        "bundle": "intent-routing",
+        "target": ".trellis/scripts/common/active_task.py",
+        "status": "applied",
+        "resultHash": "sha256:ffb8fb1f24f06468ad2c9d702bf50fe98b09623dd05667b8f5d7a3ad1a9f2af5"
+      },
       {
         "id": "trellis-finish-work-exact-bookkeeping",
         "patch": "trellis-finish-work-exact-bookkeeping",
@@ -252,12 +404,52 @@
         "resultHash": "sha256:4395c5661ef15efe653218463d1537b67c654df7eceb4c01e3769826fcefbbfe"
       },
       {
-        "id": "active-task-clear-session-fallback",
+        "id": "task-finish-clear-result",
         "patch": "workflow-state-missing-task",
         "bundle": "intent-routing",
-        "target": ".trellis/scripts/common/active_task.py",
+        "target": ".trellis/scripts/task.py",
         "status": "applied",
-        "resultHash": "sha256:fbbef48d67aa3710a3dae9e8747d6b2b0a0f9782925b7b229e17917bcec50f94"
+        "resultHash": "sha256:a92443e21e9fec403a9642e617a312cf37590cef1a0a0554a55b09d563639971"
+      },
+      {
+        "id": "task-start-brief-validator",
+        "patch": "task-start-brief-gate",
+        "bundle": "intent-routing",
+        "target": ".trellis/scripts/task.py",
+        "status": "applied",
+        "resultHash": "sha256:a92443e21e9fec403a9642e617a312cf37590cef1a0a0554a55b09d563639971"
+      },
+      {
+        "id": "task-start-brief-guard",
+        "patch": "task-start-brief-gate",
+        "bundle": "intent-routing",
+        "target": ".trellis/scripts/task.py",
+        "status": "applied",
+        "resultHash": "sha256:a92443e21e9fec403a9642e617a312cf37590cef1a0a0554a55b09d563639971"
+      },
+      {
+        "id": "task-start-degraded-write-gate",
+        "patch": "task-start-brief-gate",
+        "bundle": "intent-routing",
+        "target": ".trellis/scripts/task.py",
+        "status": "applied",
+        "resultHash": "sha256:a92443e21e9fec403a9642e617a312cf37590cef1a0a0554a55b09d563639971"
+      },
+      {
+        "id": "task-start-session-write-gate",
+        "patch": "task-start-brief-gate",
+        "bundle": "intent-routing",
+        "target": ".trellis/scripts/task.py",
+        "status": "applied",
+        "resultHash": "sha256:a92443e21e9fec403a9642e617a312cf37590cef1a0a0554a55b09d563639971"
+      },
+      {
+        "id": "paths-clear-current-result",
+        "patch": "workflow-state-missing-task",
+        "bundle": "intent-routing",
+        "target": ".trellis/scripts/common/paths.py",
+        "status": "applied",
+        "resultHash": "sha256:3a3f230ce3f007576b2542820f0af00ca984747e3517920aaff2acc1cf48c23f"
       },
       {
         "id": "inject-workflow-state-shared-runtime",
@@ -321,7 +513,7 @@
         "bundle": "intent-routing",
         "target": ".agents/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:13929929bb12377e4cdd41dab303c6ab50ab59360765362f1724b17cbcf083fd"
+        "resultHash": "sha256:d685a7e0ca1c0e2b6d7221daf553516b14690942295112af836b35954a60985a"
       },
       {
         "id": "brainstorm-auto-task-create",
@@ -329,7 +521,7 @@
         "bundle": "intent-routing",
         "target": ".agents/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:13929929bb12377e4cdd41dab303c6ab50ab59360765362f1724b17cbcf083fd"
+        "resultHash": "sha256:d685a7e0ca1c0e2b6d7221daf553516b14690942295112af836b35954a60985a"
       },
       {
         "id": "brainstorm-planning-handoff",
@@ -337,7 +529,7 @@
         "bundle": "intent-routing",
         "target": ".agents/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:13929929bb12377e4cdd41dab303c6ab50ab59360765362f1724b17cbcf083fd"
+        "resultHash": "sha256:d685a7e0ca1c0e2b6d7221daf553516b14690942295112af836b35954a60985a"
       },
       {
         "id": "brainstorm-planning-readiness",
@@ -345,7 +537,7 @@
         "bundle": "intent-routing",
         "target": ".agents/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:13929929bb12377e4cdd41dab303c6ab50ab59360765362f1724b17cbcf083fd"
+        "resultHash": "sha256:d685a7e0ca1c0e2b6d7221daf553516b14690942295112af836b35954a60985a"
       },
       {
         "id": "brainstorm-planning-authorization",
@@ -353,7 +545,7 @@
         "bundle": "intent-routing",
         "target": ".claude/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:13929929bb12377e4cdd41dab303c6ab50ab59360765362f1724b17cbcf083fd"
+        "resultHash": "sha256:d685a7e0ca1c0e2b6d7221daf553516b14690942295112af836b35954a60985a"
       },
       {
         "id": "brainstorm-auto-task-create",
@@ -361,7 +553,7 @@
         "bundle": "intent-routing",
         "target": ".claude/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:13929929bb12377e4cdd41dab303c6ab50ab59360765362f1724b17cbcf083fd"
+        "resultHash": "sha256:d685a7e0ca1c0e2b6d7221daf553516b14690942295112af836b35954a60985a"
       },
       {
         "id": "brainstorm-planning-handoff",
@@ -369,7 +561,7 @@
         "bundle": "intent-routing",
         "target": ".claude/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:13929929bb12377e4cdd41dab303c6ab50ab59360765362f1724b17cbcf083fd"
+        "resultHash": "sha256:d685a7e0ca1c0e2b6d7221daf553516b14690942295112af836b35954a60985a"
       },
       {
         "id": "brainstorm-planning-readiness",
@@ -377,23 +569,7 @@
         "bundle": "intent-routing",
         "target": ".claude/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:13929929bb12377e4cdd41dab303c6ab50ab59360765362f1724b17cbcf083fd"
-      },
-      {
-        "id": "task-start-brief-validator",
-        "patch": "task-start-brief-gate",
-        "bundle": "intent-routing",
-        "target": ".trellis/scripts/task.py",
-        "status": "applied",
-        "resultHash": "sha256:07b0a527ba4ff906a2e449e952f838f89804a5572a66f68c89dc611b6cc0f239"
-      },
-      {
-        "id": "task-start-brief-guard",
-        "patch": "task-start-brief-gate",
-        "bundle": "intent-routing",
-        "target": ".trellis/scripts/task.py",
-        "status": "applied",
-        "resultHash": "sha256:07b0a527ba4ff906a2e449e952f838f89804a5572a66f68c89dc611b6cc0f239"
+        "resultHash": "sha256:d685a7e0ca1c0e2b6d7221daf553516b14690942295112af836b35954a60985a"
       },
       {
         "id": "trellis-update-spec-autonomous-evaluation",
@@ -433,7 +609,7 @@
         "bundle": "flower-platform-integration",
         "target": ".trellis/config.yaml",
         "status": "applied",
-        "resultHash": "sha256:094665861878895efdd30f3e8f248ab9d9d1f2a7b207bd5fd52ee40f26dc4d7c"
+        "resultHash": "sha256:7d018d938e61e12d26871fb7feb9da4091b3a0b1923f040a9e2c32cafbbb1eaa"
       },
       {
         "id": "flower-codex-remove-multi-agent-v2",

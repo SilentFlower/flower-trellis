@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 2,
+  "id": "runtime-state-integrity",
+  "purpose": "control_plane_integrity",
+  "operations": [
+    {
+      "id": "active-task-runtime-json-io",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/active_task.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "active-task-runtime-io-selector.py" },
+      "content": { "source": "active-task-runtime-io-content.py" }
+    },
+    {
+      "id": "active-task-runtime-resolution",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/active_task.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "active-task-resolution-selector.py" },
+      "content": { "source": "active-task-resolution-content.py" }
+    },
+    {
+      "id": "active-task-runtime-fallback",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/active_task.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "active-task-fallback-selector.py" },
+      "content": { "source": "active-task-fallback-content.py" }
+    },
+    {
+      "id": "active-task-runtime-set",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/active_task.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "active-task-set-selector.py" },
+      "content": { "source": "active-task-set-content.py" }
+    }
+  ]
+}

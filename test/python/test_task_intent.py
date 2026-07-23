@@ -152,6 +152,26 @@ class TaskIntentTest(unittest.TestCase):
         self.assertNotIn(task_dir.relative_to(self.root).as_posix(), paths)
         self.assertEqual(data["status"], "planning")
 
+    def test_create_is_not_auto_discard_eligible_when_active_binding_misses(self) -> None:
+        """task 已创建但 active pointer 未绑定时不得承诺自动丢弃。"""
+        with self.loaded_helper() as module:
+            active = mock.Mock(
+                context_key="intent-test-session",
+                task_path=".trellis/tasks/other-task",
+            )
+            args = Namespace(
+                title="Auto task",
+                slug="binding-miss",
+                parent=None,
+                package=None,
+                priority="P2",
+                description="",
+            )
+            with mock.patch.object(module, "resolve_active_task", return_value=active):
+                payload = module.create_auto_task(args)
+
+        self.assertFalse(payload["autoDiscardEligible"])
+
     def test_discard_removes_task_session_and_preserves_business_dirty(self) -> None:
         """安全 discard 只清理 task 与 session，不删除业务 dirty 文件。"""
         business = self.root / "business.txt"

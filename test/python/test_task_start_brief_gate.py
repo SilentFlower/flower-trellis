@@ -56,7 +56,11 @@ class TaskStartBriefGateTest(unittest.TestCase):
         (self.root / ".trellis/tasks").mkdir(parents=True)
         (self.root / ".trellis/.developer").write_text("name=tester\n", encoding="utf-8")
         (self.root / ".trellis/config.yaml").write_text(
-            "hooks:\n  after_start:\n    - \"touch hook-ran.txt\"\n",
+            "hooks:\n"
+            "  after_start:\n"
+            "    - \"touch hook-ran.txt\"\n"
+            "  after_finish:\n"
+            "    - \"touch finish-hook-ran.txt\"\n",
             encoding="utf-8",
         )
         self.task_dir = self.root / ".trellis/tasks/07-22-brief-gate"
@@ -146,6 +150,7 @@ class TaskStartBriefGateTest(unittest.TestCase):
         self.assertIsNotNone(spec.loader)
         module = importlib_util.module_from_spec(spec)
         scripts_path = str(self.root / ".trellis/scripts")
+        old_cwd = Path.cwd()
         cached_common = {
             name: value
             for name, value in sys.modules.items()
@@ -157,8 +162,10 @@ class TaskStartBriefGateTest(unittest.TestCase):
         sys.modules[module_name] = module
         try:
             spec.loader.exec_module(module)
+            os.chdir(self.root)
             yield module
         finally:
+            os.chdir(old_cwd)
             sys.path.remove(scripts_path)
             sys.modules.pop(module_name, None)
             for name in list(sys.modules):
@@ -309,6 +316,123 @@ class TaskStartBriefGateTest(unittest.TestCase):
         self.assert_guard_blocked(result)
         self.assertIn("brief.md is missing", result.stdout)
         self.assertNotIn("degraded mode", result.stdout)
+
+    def test_status_write_failure_returns_nonzero_without_pointer_or_hook(self) -> None:
+        """planning 状态写入失败时不得设置 pointer 或执行 after_start。"""
+        self.write_task()
+        for name in ("prd.md", "design.md", "implement.md"):
+            self.write_artifact(name, 1_000_000_000)
+        self.write_artifact("brief.md", 2_000_000_000)
+        output = StringIO()
+
+        with self.loaded_task_module() as module:
+            with mock.patch.dict(os.environ, self.env, clear=False):
+                with mock.patch.object(module, "write_json", return_value=False):
+                    with redirect_stdout(output):
+                        result = module.cmd_start(module.argparse.Namespace(dir=self.task_dir.name))
+
+        self.assertEqual(result, 1)
+        self.assertEqual(self.read_status(), "planning")
+        self.assertFalse((self.root / "hook-ran.txt").exists())
+        self.assertFalse((self.root / ".trellis/.runtime/sessions").exists())
+        self.assertIn("Failed to persist task status", output.getvalue())
+
+    def test_pointer_failure_restores_planning_status_and_skips_hook(self) -> None:
+        """pointer 绑定失败时补偿恢复 planning。"""
+        self.write_task()
+        for name in ("prd.md", "design.md", "implement.md"):
+            self.write_artifact(name, 1_000_000_000)
+        self.write_artifact("brief.md", 2_000_000_000)
+
+        with self.loaded_task_module() as module:
+            real_write = module.write_json
+            with mock.patch.dict(os.environ, self.env, clear=False):
+                with mock.patch.object(module, "set_active_task", return_value=None):
+                    with mock.patch.object(module, "write_json", side_effect=real_write):
+                        result = module.cmd_start(module.argparse.Namespace(dir=self.task_dir.name))
+
+        self.assertEqual(result, 1)
+        self.assertEqual(self.read_status(), "planning")
+        self.assertFalse((self.root / "hook-ran.txt").exists())
+
+    def test_pointer_failure_and_rollback_failure_report_manual_recovery(self) -> None:
+        """pointer 与补偿写入都失败时保留真实状态并提示人工检查。"""
+        self.write_task()
+        for name in ("prd.md", "design.md", "implement.md"):
+            self.write_artifact(name, 1_000_000_000)
+        self.write_artifact("brief.md", 2_000_000_000)
+        output = StringIO()
+
+        with self.loaded_task_module() as module:
+            real_write = module.write_json
+            calls = 0
+
+            def controlled_write(path: Path, data: dict) -> bool:
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    return real_write(path, data)
+                return False
+
+            with mock.patch.dict(os.environ, self.env, clear=False):
+                with mock.patch.object(module, "set_active_task", return_value=None):
+                    with mock.patch.object(module, "write_json", side_effect=controlled_write):
+                        with redirect_stdout(output):
+                            result = module.cmd_start(
+                                module.argparse.Namespace(dir=self.task_dir.name)
+                            )
+
+        self.assertEqual(result, 1)
+        self.assertEqual(self.read_status(), "in_progress")
+        self.assertFalse((self.root / "hook-ran.txt").exists())
+        self.assertIn("Task status rollback also failed", output.getvalue())
+
+    def test_degraded_status_write_failure_returns_nonzero_without_hook(self) -> None:
+        """降级模式的 planning 状态写失败时同样失败关闭。"""
+        self.write_task()
+        for name in ("prd.md", "design.md", "implement.md"):
+            self.write_artifact(name, 1_000_000_000)
+        self.write_artifact("brief.md", 2_000_000_000)
+        degraded_env = {
+            key: value
+            for key, value in os.environ.items()
+            if key not in SESSION_ENV_KEYS
+        }
+        output = StringIO()
+
+        with self.loaded_task_module() as module:
+            with mock.patch.dict(os.environ, degraded_env, clear=True):
+                with mock.patch.object(module, "write_json", return_value=False):
+                    with redirect_stdout(output):
+                        result = module.cmd_start(
+                            module.argparse.Namespace(dir=self.task_dir.name)
+                        )
+
+        self.assertEqual(result, 1)
+        self.assertEqual(self.read_status(), "planning")
+        self.assertFalse((self.root / "hook-ran.txt").exists())
+        self.assertFalse((self.root / ".trellis/.runtime/sessions").exists())
+        self.assertIn("Failed to persist task status", output.getvalue())
+
+    def test_finish_unlink_failure_returns_nonzero_and_skips_hook(self) -> None:
+        """session 文件删除失败时 finish 不得报告成功或执行 hook。"""
+        self.write_task("in_progress")
+        session = self.root / ".trellis/.runtime/sessions/brief-gate-test.json"
+        session.parent.mkdir(parents=True)
+        session.write_text(
+            json.dumps({"current_task": self.task_dir.relative_to(self.root).as_posix()}),
+            encoding="utf-8",
+        )
+
+        with self.loaded_task_module() as module:
+            active_task = sys.modules["common.active_task"]
+            with mock.patch.dict(os.environ, self.env, clear=False):
+                with mock.patch.object(active_task, "_remove_file", return_value=False):
+                    result = module.cmd_finish(module.argparse.Namespace())
+
+        self.assertEqual(result, 1)
+        self.assertTrue(session.exists())
+        self.assertFalse((self.root / "finish-hook-ran.txt").exists())
 
 
 if __name__ == "__main__":

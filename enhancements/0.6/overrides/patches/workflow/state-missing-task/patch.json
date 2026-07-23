@@ -23,6 +23,56 @@
       }],
       "selector": { "type": "literal", "source": "active-task-clear-fallback-selector.py" },
       "content": { "source": "active-task-clear-fallback-content.py" }
+    },
+    {
+      "id": "active-task-clear-result-type",
+      "operation": "insert",
+      "position": "after",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/active_task.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "active-task-result-selector.py" },
+      "content": { "source": "active-task-result-content.py" }
+    },
+    {
+      "id": "active-task-clear-read-result",
+      "operation": "insert",
+      "position": "after",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/active_task.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "active-task-result-selector.py" },
+      "content": { "source": "active-task-read-result-content.py" }
+    },
+    {
+      "id": "task-finish-clear-result",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/task.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "task-finish-selector.py" },
+      "content": { "source": "task-finish-content.py" }
+    },
+    {
+      "id": "paths-clear-current-result",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/paths.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "paths-clear-current-selector.py" },
+      "content": { "source": "paths-clear-current-content.py" }
     }
   ]
 }

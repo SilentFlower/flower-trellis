@@ -220,6 +220,27 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertTrue(second.exists())
         self.assertIn("No current task set", result.stdout)
 
+    def test_task_finish_preserves_corrupt_unique_session_and_fails(self) -> None:
+        """唯一 fallback session 损坏时不得把它当成无任务或删除证据。"""
+        task_script = self._install_task_scripts()
+        corrupt = self.root / ".trellis/.runtime/sessions/codex_corrupt.json"
+        corrupt.parent.mkdir(parents=True)
+        corrupt.write_text("{broken", encoding="utf-8")
+
+        result = subprocess.run(
+            [sys.executable, str(task_script), "finish"],
+            cwd=self.root,
+            env=_sessionless_env(),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue(corrupt.exists())
+        self.assertEqual(corrupt.read_text(encoding="utf-8"), "{broken")
+        self.assertIn("session-runtime-corrupt", result.stdout)
+
     def test_stale_breadcrumb_uses_workflow_contract(self) -> None:
         """验证 stale breadcrumb 加载恢复正文而不是泛化 fallback。"""
         workflow = self.root / ".trellis/workflow.md"

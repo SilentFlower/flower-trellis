@@ -683,12 +683,36 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 27)
+        self.assertEqual(len(plan["patches"]), 29)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
             27,
         )
+        operation_ids = {item["id"] for item in plan["results"]}
+        self.assertIn("task-start-session-write-gate", operation_ids)
+        self.assertIn("task-finish-clear-result", operation_ids)
+        self.assertIn("active-task-runtime-json-io", operation_ids)
+        self.assertIn("task-create-parent-link", operation_ids)
+        self.assertIn("runtime-state-integrity", set(plan["patches"]))
+
+    def test_real_conflicts_cover_new_control_plane_operations(self) -> None:
+        """新增控制面 operation 必须进入最终产物冲突断言。"""
+        conflicts = json.loads((OVERRIDES / "conflicts.json").read_text(encoding="utf-8"))
+        covered = {
+            operation
+            for rule in conflicts["rules"]
+            for operation in rule.get("whenOperations", [])
+        }
+
+        self.assertTrue({
+            "task-create-active-warning",
+            "task-archive-metadata-guard",
+            "task-set-branch-write",
+            "task-set-base-branch-write",
+            "task-set-scope-write",
+            "paths-clear-current-result",
+        }.issubset(covered))
 
     def test_real_catalog_task_intent_selects_complete_stale_recovery(self) -> None:
         """验证 Python consumer 的精细安装包含完整 stale recovery Patch。"""
@@ -712,6 +736,16 @@ class PatchConsumerTest(unittest.TestCase):
             "active-task-clear-session-fallback",
             {item["id"] for item in plan["results"]},
         )
+        self.assertIn(
+            "active-task-clear-read-result",
+            {item["id"] for item in plan["results"]},
+        )
+        self.assertNotIn(
+            "active-task-runtime-json-io",
+            {item["id"] for item in plan["results"]},
+        )
+        self.assertNotIn("task-store-write-integrity", set(plan["patches"]))
+        self.assertNotIn("runtime-state-integrity", set(plan["patches"]))
         workflow = next(
             item["next"]
             for item in plan["files"]
@@ -776,6 +810,8 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("skill-garden patch task-start-brief-validator", task_script)
         self.assertIn("skill-garden patch task-start-brief-guard", task_script)
         self.assertIn("Planning task brief.md is stale", task_script)
+        self.assertIn("Failed to persist task status before start", task_script)
+        self.assertIn("Task status rollback also failed", task_script)
 
 
 if __name__ == "__main__":

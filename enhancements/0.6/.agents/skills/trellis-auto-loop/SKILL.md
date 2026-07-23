@@ -22,6 +22,7 @@ description: "启动、恢复和推进 Trellis 自动任务循环。用于用户
 - auto-loop 启动前若 implement 与 check 都缺 route，优先展示 auto-loop 专用的合并选择，不要把 `trellis-route` 的两套完整 fallback 原样贴给用户。仍允许用户回复高级格式 `implement 1, check 1`。
 - 检查深度由 run 级 `--check-depth auto|light|full` 控制，默认 `auto`，与 `--route-check` 独立；历史 run 缺少该字段时按 `full` 兼容。
 - 代码提交必须复用 `trellis-push` 的内部 commit-only 执行能力；auto-loop 自己负责预授权校验和 runner 回写，不要裸 `git commit` / `git push`。
+- `Open Questions` 的确定性状态由 runner 处理：`- [ ]` 阻塞，`- [x]` 不阻塞，无章节或空章节放行。历史无 checkbox 列表只能按 `review_open_questions` action 做语义复核，不能自行跳过 runner 回写。
 
 ## 启动
 
@@ -107,6 +108,7 @@ python3 ./.trellis/scripts/auto_loop.py next
 
 | runner action | 主 agent 动作 | 成功 record |
 | --- | --- | --- |
+| `review_open_questions` | 结合 PRD 语义判断历史裸列表是已解决、仍阻塞或无法确定 | 已解决：`record --action review_open_questions --result ok --review-verdict resolved --summary "<摘要>"`；仍阻塞/无法确定：使用 `--result blocked --review-verdict blocking|ambiguous` |
 | `refresh_brief` | 使用 `trellis-task-brief` 生成并展示 brief | `record --action refresh_brief --result ok` |
 | `start_task` | 执行返回的 `task.py start ...` 命令 | `record --action start_task --result ok` |
 | `run_implement` | 进入 Phase 2.1，先用 `trellis-route(target=implement)` 决定 inline/subagent，再实现 | `record --action run_implement --result ok --route-mode <mode> --route-source <source>` |
@@ -142,6 +144,8 @@ python3 ./.trellis/scripts/auto_loop.py record \
 ```
 
 runner 会按 3 轮 fix/recheck 预算决定继续、跳过当前任务或结束队列。
+
+`review_open_questions` 必须只依据 action 返回的 `questions` 和当前 PRD 判断。runner 会把结果绑定到 action 发出时的 PRD SHA-256；PRD 在复核期间发生变化时，record 会返回 `stale-open-questions-review`，此时重新运行 `next`，不得复用旧判断。`ambiguous` 必须保守阻塞，交由用户或 planning 收敛。
 
 `record` 默认只返回当前 item 的 `task`、`item_status`、`current_step`、`commit` 和紧凑 `summary`；只有排查状态漂移时才加 `--verbose` 查看完整 `item`。
 

@@ -134,7 +134,9 @@
         "values": [
           "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Planning Handoff",
           "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n- Planning artifacts are ready for the final brief handoff.",
-          "Implementation intent expressed before the final artifacts and full brief are shown authorizes planning only"
+          "Implementation intent expressed before the final artifacts and full brief are shown authorizes planning only",
+          "unresolved items are `- [ ]`",
+          "Do not write bare placeholders"
         ]
       },
       "owner": "trellis-brainstorm",
@@ -153,7 +155,9 @@
         "values": [
           "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Planning Handoff",
           "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n- Planning artifacts are ready for the final brief handoff.",
-          "Implementation intent expressed before the final artifacts and full brief are shown authorizes planning only"
+          "Implementation intent expressed before the final artifacts and full brief are shown authorizes planning only",
+          "unresolved items are `- [ ]`",
+          "Do not write bare placeholders"
         ]
       },
       "owner": "trellis-brainstorm",
@@ -165,19 +169,136 @@
       "target": ".trellis/scripts/task.py",
       "whenOperations": [
         "task-start-brief-validator",
-        "task-start-brief-guard"
+        "task-start-brief-guard",
+        "task-start-degraded-write-gate",
+        "task-start-session-write-gate"
       ],
       "assertion": {
         "type": "required-literal",
         "values": [
           "# BEGIN skill-garden patch task-start-brief-validator v0.6",
           "# BEGIN skill-garden patch task-start-brief-guard v0.6",
+          "# BEGIN skill-garden patch task-start-degraded-write-gate v0.6",
+          "# BEGIN skill-garden patch task-start-session-write-gate v0.6",
           "Error: Planning task brief.md is missing.",
-          "Error: Planning task brief.md is stale; newer artifacts:"
+          "Error: Planning task brief.md is stale; newer artifacts:",
+          "Error: Failed to persist task status before start.",
+          "Task status rollback also failed"
         ]
       },
       "owner": "task-start-brief-gate",
       "reason": "planning → in_progress 前必须确定性阻断缺失或过期 brief。"
+    },
+    {
+      "id": "active-task-required-clear-integrity",
+      "severity": "error",
+      "target": ".trellis/scripts/common/active_task.py",
+      "whenOperations": [
+        "active-task-clear-result-type",
+        "active-task-clear-read-result",
+        "active-task-clear-session-fallback"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch active-task-clear-read-result v0.6",
+          "class ClearActiveTaskResult:",
+          "session-file-delete-failed",
+          "session-runtime-{context_result['status']}"
+        ]
+      },
+      "owner": "active-task-clear",
+      "reason": "finish 清理必须返回结构化结果，并保留损坏 session 证据和删除失败。"
+    },
+    {
+      "id": "active-task-required-runtime-integrity",
+      "severity": "error",
+      "target": ".trellis/scripts/common/active_task.py",
+      "whenOperations": [
+        "active-task-runtime-json-io",
+        "active-task-runtime-resolution",
+        "active-task-runtime-fallback",
+        "active-task-runtime-set"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch active-task-runtime-json-io v0.6",
+          "os.replace(temp_path, path)",
+          "session-{result['status']}",
+          "Set the active task without overwriting corrupt session runtime state."
+        ]
+      },
+      "owner": "active-task-runtime",
+      "reason": "full-only runtime Patch 必须原子写入，并阻止损坏 session 被 fallback 或覆盖。"
+    },
+    {
+      "id": "task-finish-required-clear-result",
+      "severity": "error",
+      "target": ".trellis/scripts/task.py",
+      "whenOperations": ["task-finish-clear-result"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch task-finish-clear-result v0.6",
+          "if not result.cleared:",
+          "Failed to clear current task"
+        ]
+      },
+      "owner": "task-finish",
+      "reason": "finish 只有在 session pointer 实际清除后才能报告成功并执行 hook。"
+    },
+    {
+      "id": "task-store-required-write-integrity",
+      "severity": "error",
+      "target": ".trellis/scripts/common/task_store.py",
+      "whenOperations": [
+        "task-store-write-helpers",
+        "task-create-duplicate-slug",
+        "task-create-initial-write",
+        "task-create-parent-link",
+        "task-create-active-warning",
+        "task-archive-metadata-guard",
+        "task-add-subtask-pair-write",
+        "task-remove-subtask-pair-write",
+        "task-archive-status-write",
+        "task-set-branch-write",
+        "task-set-base-branch-write",
+        "task-set-scope-write"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch task-store-write-helpers v0.6",
+          "def _write_task_pair(",
+          "Error: Task directory already exists:",
+          "Failed to write initial task.json",
+          "Relationship rollback incomplete",
+          "Failed to persist completed task status",
+          "Task was created, but the active-task pointer could not be persisted.",
+          "task.json not found or invalid:",
+          "Failed to persist branch",
+          "Failed to persist base branch",
+          "Failed to persist scope"
+        ]
+      },
+      "owner": "task-store",
+      "reason": "task store 核心命令不得在关键 JSON 写入失败后继续输出成功。"
+    },
+    {
+      "id": "paths-required-clear-result",
+      "severity": "error",
+      "target": ".trellis/scripts/common/paths.py",
+      "whenOperations": ["paths-clear-current-result"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch paths-clear-current-result v0.6",
+          "return result.cleared"
+        ]
+      },
+      "owner": "active-task-clear",
+      "reason": "paths 兼容入口必须传播 session 清理的真实结果。"
     },
     {
       "id": "workflow-no-covering-language",

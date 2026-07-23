@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import socket
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -23,12 +25,14 @@ VALID_CHECK_DEPTHS = {"auto", "light", "full"}
 RECOVERABLE_BLOCK_REASONS = {
     "missing-prd",
     "open-questions",
+    "open-questions-ambiguous",
     "incomplete-complex-artifacts",
     "missing-implement-context",
     "missing-check-context",
     "unknown-step",
 }
 STEP_ACTIONS = {
+    "review_open_questions": "review_open_questions",
     "refresh_brief": "refresh_brief",
     "start_task": "start_task",
     "implement": "run_implement",
@@ -68,19 +72,45 @@ def _print(data: dict[str, Any]) -> int:
     return 0
 
 
-def _read_json(path: Path) -> dict[str, Any]:
-    """读取 JSON 对象，失败返回空对象。"""
+def _read_json_result(path: Path) -> dict[str, Any]:
+    """读取 runtime JSON，并保留缺失、损坏和 I/O 错误的区别。"""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return {}
+    except FileNotFoundError:
+        return {"status": "missing", "data": None, "error": None}
+    except json.JSONDecodeError as exc:
+        return {"status": "corrupt", "data": None, "error": str(exc)}
+    except OSError as exc:
+        return {"status": "io_error", "data": None, "error": str(exc)}
+    if not isinstance(data, dict):
+        return {"status": "corrupt", "data": None, "error": "JSON 根节点不是对象"}
+    return {"status": "ok", "data": data, "error": None}
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    """兼容非关键读取；仅返回成功解析的 JSON 对象。"""
+    result = _read_json_result(path)
+    data = result.get("data")
     return data if isinstance(data, dict) else {}
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
-    """写入格式化 JSON。"""
+    """使用同目录临时文件原子写入 runtime JSON。"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, path)
+    except Exception:
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _rel_path(repo_root: Path, path: Path) -> str:
@@ -330,25 +360,43 @@ def _has_real_jsonl_entries(path: Path, repo_root: Path) -> bool:
     return False
 
 
-def _open_questions(text: str) -> list[str]:
-    """提取 PRD 中仍存在的 open question 条目。"""
+def _open_questions(text: str) -> dict[str, list[str]]:
+    """按 checkbox 契约分类 PRD 中的 Open Questions 条目。"""
     lines = text.splitlines()
     collecting = False
-    questions: list[str] = []
+    questions: dict[str, list[str]] = {"unchecked": [], "checked": [], "bare": []}
     for line in lines:
         if line.startswith("## "):
             collecting = line.strip().lower() == "## open questions"
             continue
-        if collecting and line.strip().startswith("-"):
-            item = line.strip().lstrip("-").strip()
-            if item and item.upper() not in {"TBD", "N/A"}:
-                questions.append(item)
+        stripped = line.strip()
+        if not collecting or not stripped.startswith("-"):
+            continue
+        lowered = stripped.lower()
+        if lowered.startswith("- [ ]"):
+            item = stripped[5:].strip()
+            if item:
+                questions["unchecked"].append(item)
+        elif lowered.startswith("- [x]"):
+            item = stripped[5:].strip()
+            if item:
+                questions["checked"].append(item)
+        else:
+            item = stripped[1:].strip()
+            if item:
+                questions["bare"].append(item)
     return questions
+
+
+def _prd_sha256(content: bytes) -> str:
+    """返回用于绑定语义复核结果的 PRD 内容摘要。"""
+    return hashlib.sha256(content).hexdigest()
 
 
 def _start_gate(
     repo_root: Path,
     task_ref: str,
+    item: dict[str, Any],
     route_authorization: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """检查 planning -> start 前置条件。"""
@@ -357,13 +405,48 @@ def _start_gate(
     if not prd.is_file():
         return "blocked", {"reason": "missing-prd", "message": "缺少 prd.md"}
 
-    questions = _open_questions(prd.read_text(encoding="utf-8"))
-    if questions:
+    try:
+        prd_content = prd.read_bytes()
+    except OSError as exc:
+        return "blocked", {
+            "reason": "missing-prd",
+            "message": f"无法读取 prd.md:{exc}",
+        }
+    questions = _open_questions(prd_content.decode("utf-8"))
+    if questions["unchecked"]:
         return "blocked", {
             "reason": "open-questions",
             "message": "PRD 仍有阻塞性 Open Questions",
-            "questions": questions,
+            "questions": questions["unchecked"],
         }
+    if questions["bare"]:
+        prd_hash = _prd_sha256(prd_content)
+        review = item.get("open_questions_review")
+        if isinstance(review, dict) and review.get("prd_sha256") == prd_hash:
+            verdict = review.get("verdict")
+            if verdict == "resolved":
+                pass
+            elif verdict == "blocking":
+                return "blocked", {
+                    "reason": "open-questions",
+                    "message": "历史 Open Questions 经语义复核仍有未决事项",
+                    "questions": questions["bare"],
+                    "review": review,
+                }
+            else:
+                return "blocked", {
+                    "reason": "open-questions-ambiguous",
+                    "message": "历史 Open Questions 语义复核无法确定，需人工收敛",
+                    "questions": questions["bare"],
+                    "review": review,
+                }
+        else:
+            return "action", {
+                "action": "review_open_questions",
+                "message": "历史 PRD 使用无状态列表，需由 AI 复核是否仍有开放问题",
+                "questions": questions["bare"],
+                "prd_sha256": prd_hash,
+            }
 
     design = task_dir / "design.md"
     implement = task_dir / "implement.md"
@@ -421,44 +504,78 @@ def _link_session_run(repo_root: Path, run_id: str) -> None:
     if not context_key:
         return
     path = repo_root / ".trellis/.runtime/sessions" / f"{context_key}.json"
-    context = _read_json(path)
+    result = _read_json_result(path)
+    if result["status"] in {"corrupt", "io_error"}:
+        return
+    context = result["data"] if isinstance(result.get("data"), dict) else {}
     context.setdefault("platform", context_key.split("_", 1)[0] if "_" in context_key else "session")
     context["last_seen_at"] = _utc_now()
     context["current_auto_run"] = run_id
     _write_json(path, context)
 
 
+def _load_run_state(path: Path) -> dict[str, Any]:
+    """读取单个 run；损坏或 I/O 错误时保留证据并报错。"""
+    result = _read_json_result(path)
+    if result["status"] == "missing":
+        raise ValueError(f"auto run 不存在:{path.stem}")
+    if result["status"] != "ok":
+        raise ValueError(f"auto run 状态 {result['status']}:{path}:{result.get('error') or ''}")
+    return result["data"]
+
+
+def _healthy_running_runs(repo_root: Path) -> list[tuple[Path, dict[str, Any]]]:
+    """返回所有可解析且处于 running 的 run。"""
+    running: list[tuple[Path, dict[str, Any]]] = []
+    for path in _run_paths(repo_root):
+        result = _read_json_result(path)
+        state = result.get("data")
+        if result["status"] == "ok" and isinstance(state, dict) and state.get("status") == "running":
+            running.append((path, state))
+    return running
+
+
 def _load_current_state(repo_root: Path, run_id: str | None = None) -> tuple[Path, dict[str, Any]]:
     """加载指定或当前 auto run 状态。"""
     if run_id:
         path = _run_path(repo_root, run_id)
-        state = _read_json(path)
-        if not state:
-            raise ValueError(f"auto run 不存在:{run_id}")
-        return path, state
+        return path, _load_run_state(path)
 
-    pointer = _read_json(_current_pointer(repo_root))
+    pointer_path = _current_pointer(repo_root)
+    pointer_result = _read_json_result(pointer_path)
+    if pointer_result["status"] in {"corrupt", "io_error"}:
+        running = _healthy_running_runs(repo_root)
+        if len(running) == 1:
+            path, state = running[0]
+            _write_pointer(repo_root, str(state.get("run_id") or path.stem))
+            return path, state
+        raise ValueError(
+            f"auto current pointer {pointer_result['status']}:{pointer_path}:"
+            f"{pointer_result.get('error') or ''}"
+        )
+    pointer = pointer_result["data"] if isinstance(pointer_result.get("data"), dict) else {}
     current = pointer.get("run_id")
     if isinstance(current, str) and current:
         path = _run_path(repo_root, current)
-        state = _read_json(path)
+        run_result = _read_json_result(path)
+        if run_result["status"] in {"corrupt", "io_error"}:
+            raise ValueError(
+                f"current auto run {run_result['status']}:{path}:{run_result.get('error') or ''}"
+            )
+        state = run_result["data"] if isinstance(run_result.get("data"), dict) else {}
         if state and state.get("status") == "running":
             return path, state
         if state and state.get("status") in {"completed", "stopped"}:
             _clear_pointer_if_current(repo_root, current)
+        elif state:
+            return path, state
 
-    running: list[tuple[Path, dict[str, Any]]] = []
-    for path in _run_paths(repo_root):
-        state = _read_json(path)
-        if state.get("status") == "running":
-            running.append((path, state))
+    running = _healthy_running_runs(repo_root)
     if len(running) == 1:
         return running[0]
-    if isinstance(current, str) and current:
-        path = _run_path(repo_root, current)
-        state = _read_json(path)
-        if state:
-            return path, state
+    if len(running) > 1:
+        run_ids = ", ".join(str(state.get("run_id") or path.stem) for path, state in running[:8])
+        raise ValueError(f"存在多个 running auto run，请指定 --run-id。候选:{run_ids}")
     raise ValueError("没有可恢复的唯一 auto run")
 
 
@@ -494,9 +611,16 @@ def _recent_run_summaries(repo_root: Path, limit: int = 8) -> list[dict[str, Any
     """返回最近 auto run 的轻量状态列表。"""
     runs: list[dict[str, Any]] = []
     for path in _run_paths(repo_root)[:limit]:
-        state = _read_json(path)
-        if not state:
+        result = _read_json_result(path)
+        if result["status"] != "ok":
+            runs.append({
+                "run_id": path.stem,
+                "path": _rel_path(repo_root, path),
+                "run_status": result["status"],
+                "error": result.get("error"),
+            })
             continue
+        state = result["data"]
         counts = _queue_counts(state)
         current = _current_queue_item(state)
         runs.append({
@@ -532,7 +656,10 @@ def _clear_pointer_if_current(repo_root: Path, run_id: str | None) -> None:
     if not run_id:
         return
     pointer_path = _current_pointer(repo_root)
-    pointer = _read_json(pointer_path)
+    result = _read_json_result(pointer_path)
+    if result["status"] != "ok":
+        return
+    pointer = result["data"]
     if pointer.get("run_id") != run_id:
         return
     try:
@@ -738,7 +865,12 @@ def _action(action: str, item: dict[str, Any], extra: dict[str, Any] | None = No
         "task": task,
         "current_step": item.get("current_step"),
     }
-    if action == "start_task":
+    if action == "review_open_questions":
+        base["instruction"] = (
+            "语义复核历史 Open Questions 裸列表，并调用 record --action review_open_questions "
+            "--result <ok|blocked> --review-verdict <resolved|blocking|ambiguous> --summary <摘要>。"
+        )
+    elif action == "start_task":
         task_name = Path(str(task)).name
         base["command"] = f"python3 ./.trellis/scripts/task.py start {task_name}"
     elif action == "refresh_brief":
@@ -771,6 +903,8 @@ def _remember_action(item: dict[str, Any], action_data: dict[str, Any]) -> dict[
         "current_step": action_data.get("current_step"),
         "issued_at": _utc_now(),
     }
+    if action_data.get("prd_sha256"):
+        item["last_action"]["prd_sha256"] = action_data["prd_sha256"]
     item["updated_at"] = _utc_now()
     return action_data
 
@@ -825,13 +959,19 @@ def _next_item(repo_root: Path, state: dict[str, Any]) -> tuple[dict[str, Any] |
         item["task_status"] = _task_status(repo_root, task)
 
         if item["task_status"] == "planning":
-            gate_status, gate = _start_gate(repo_root, task, _effective_route_authorization(repo_root, task, state.get("route_authorization")))
+            gate_status, gate = _start_gate(
+                repo_root,
+                task,
+                item,
+                _effective_route_authorization(repo_root, task, state.get("route_authorization")),
+            )
             if gate_status == "blocked":
                 _block_item(item, gate["reason"], gate["message"], gate)
                 continue
             if gate_status == "action":
-                item["current_step"] = "refresh_brief"
-                return item, _remember_action(item, _action("refresh_brief", item, gate))
+                action_name = str(gate.get("action") or "refresh_brief")
+                item["current_step"] = action_name
+                return item, _remember_action(item, _action(action_name, item, gate))
             item["current_step"] = "start_task"
             return item, _remember_action(item, _action("start_task", item))
 
@@ -916,8 +1056,14 @@ def cmd_start(args: argparse.Namespace) -> int:
                 "suggested_command": f"python3 ./.trellis/scripts/auto_loop.py retry-blocked --run-id {current.get('run_id')}",
                 "summary": _format_summary(current, args),
             })
-    except ValueError:
-        pass
+    except ValueError as exc:
+        if str(exc) != "没有可恢复的唯一 auto run":
+            return _print({
+                "status": "error",
+                "reason": "current-auto-state-invalid",
+                "message": str(exc),
+                "runs": _recent_run_summaries(repo_root),
+            })
 
     route_authorization: dict[str, str] = {}
     if args.route_implement:
@@ -1102,6 +1248,79 @@ def _find_record_item(state: dict[str, Any], task_ref: str | None) -> dict[str, 
     for item in queue:
         if isinstance(item, dict) and item.get("status") == "running":
             return item
+    return None
+
+
+def _record_open_questions_review(
+    repo_root: Path,
+    item: dict[str, Any],
+    args: argparse.Namespace,
+) -> dict[str, Any] | None:
+    """校验并保存历史 Open Questions 的 AI 语义复核结果。"""
+    verdict = getattr(args, "review_verdict", None)
+    if verdict not in {"resolved", "blocking", "ambiguous"}:
+        return {
+            "status": "error",
+            "reason": "missing-review-verdict",
+            "message": "review_open_questions 必须提供 --review-verdict。",
+        }
+    expected_result = "ok" if verdict == "resolved" else "blocked"
+    if args.result != expected_result:
+        return {
+            "status": "error",
+            "reason": "review-result-mismatch",
+            "message": f"{verdict} 必须配合 --result {expected_result}。",
+        }
+
+    task_ref = str(item.get("task") or "")
+    prd = _task_dir(repo_root, task_ref) / "prd.md"
+    try:
+        content = prd.read_bytes()
+    except OSError as exc:
+        return {
+            "status": "error",
+            "reason": "review-prd-unreadable",
+            "message": str(exc),
+        }
+    actual_hash = _prd_sha256(content)
+    last_action = item.get("last_action")
+    expected_hash = last_action.get("prd_sha256") if isinstance(last_action, dict) else None
+    if expected_hash != actual_hash:
+        return {
+            "status": "error",
+            "reason": "stale-open-questions-review",
+            "expected_prd_sha256": expected_hash,
+            "actual_prd_sha256": actual_hash,
+            "message": "prd.md 已变化，请重新运行 next 获取新的复核 action。",
+        }
+
+    questions = _open_questions(content.decode("utf-8"))["bare"]
+    review = {
+        "prd_sha256": actual_hash,
+        "verdict": verdict,
+        "items": questions,
+        "summary": args.summary or "",
+        "reviewed_at": _utc_now(),
+    }
+    item["open_questions_review"] = review
+    item["last_action"] = None
+    if verdict == "resolved":
+        item["current_step"] = "start_task"
+        item["updated_at"] = _utc_now()
+        _append_item_decision(
+            item,
+            "open_questions_reviewed",
+            args.summary or "历史 Open Questions 已确认无阻塞事项",
+            review,
+        )
+    else:
+        reason = "open-questions" if verdict == "blocking" else "open-questions-ambiguous"
+        summary = args.summary or (
+            "历史 Open Questions 仍有未决事项"
+            if verdict == "blocking"
+            else "历史 Open Questions 无法确定是否已解决"
+        )
+        _block_item(item, reason, summary, {"questions": questions, "review": review})
     return None
 
 
@@ -1306,6 +1525,21 @@ def cmd_record(args: argparse.Namespace) -> int:
         })
 
     action = args.action
+    if action == "review_open_questions":
+        review_error = _record_open_questions_review(repo_root, item, args)
+        if review_error is not None:
+            review_error.update({"task": item.get("task"), "action": action})
+            return _print(review_error)
+        _write_state(path, state)
+        return _print({
+            "status": "recorded",
+            "run_id": state.get("run_id"),
+            "task": item.get("task"),
+            "item_status": item.get("status"),
+            "current_step": item.get("current_step"),
+            "summary": _format_summary(state, args),
+        })
+
     check_error = _check_record_error(state, item, action, args)
     if check_error is not None:
         check_error.update({"task": item.get("task"), "action": action})
@@ -1350,11 +1584,16 @@ def cmd_status(args: argparse.Namespace) -> int:
     try:
         path, state = _load_current_state(repo_root, args.run_id)
     except ValueError as exc:
+        message = str(exc)
+        invalid_runtime = any(
+            marker in message
+            for marker in (" corrupt:", " io_error:", "pointer corrupt:", "pointer io_error:")
+        )
         return _print({
             "status": "ok",
-            "run_status": "no-current-run",
-            "reason": "status-list",
-            "message": str(exc),
+            "run_status": "invalid-current-run" if invalid_runtime else "no-current-run",
+            "reason": "runtime-state-invalid" if invalid_runtime else "status-list",
+            "message": message,
             "runs": _recent_run_summaries(repo_root),
         })
     return _print({"status": "ok", "path": _rel_path(repo_root, path), **_format_summary(state, args)})
@@ -1414,6 +1653,7 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--route-source")
     record.add_argument("--effective-check-depth", choices=("light", "full"))
     record.add_argument("--check-depth-reason")
+    record.add_argument("--review-verdict", choices=("resolved", "blocking", "ambiguous"))
     record.add_argument("--verbose", action="store_true")
     record.set_defaults(func=cmd_record)
 
@@ -1443,6 +1683,8 @@ def main() -> int:
         return args.func(args)
     except ValueError as exc:
         return _print({"status": "error", "reason": "invalid-input", "message": str(exc)})
+    except OSError as exc:
+        return _print({"status": "error", "reason": "runtime-io-error", "message": str(exc)})
 
 
 if __name__ == "__main__":

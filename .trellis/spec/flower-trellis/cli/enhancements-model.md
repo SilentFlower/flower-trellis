@@ -519,7 +519,8 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - `.runtime` 自身不是 `route_decision.source`;raw runtime JSON 必须经 helper / skill 校验后才可复用。
   - `--save-pref` 才写个人默认;不带该 flag 只写当前 session runtime。
   - 写入当前任务任一 target 的 runtime 决策前,必须清理同一 session 中属于其他任务的 `route_decisions`,避免任务切换后 check 阶段误复用上个任务的选择。
-  - auto-loop 授权只在当前 session runtime 绑定 `current_auto_run`，或全局 auto-loop current 指针能指向唯一 running run 时生效。
+  - auto-loop 授权只在当前 session runtime 绑定 `current_auto_run`，或全局 auto-loop current 指针能指向唯一 running run 时生效；授权前还必须确认当前 task 位于该 run 的 pending/running 队列中。
+  - 当前 session runtime 本身损坏，或 session 显式绑定的 run JSON 损坏/I/O 失败时必须返回结构化 miss 并失败关闭；不得继续读取 prefs、全局 pointer 或其它健康 run，也不得覆盖损坏文件。仅 missing/stale pointer 保留唯一 running run fallback。
   - 默认 stdout 必须保持精简:命中时返回 `status`、当前 `task`、`mode`、决策 `source`,以及可选 `origin`(`runtime` / `route-prefs` / `auto-loop`);未命中返回 `status` + `reason`。完整 `decision`、`path`、`context_key`、`pref_path`、`auto_path`、写回标记等诊断字段只在 `--verbose` 输出。
 
 任务隔离属于 helper 的确定性逻辑,不要把 `task == current_task` 判断扩散到高频 workflow/state 文案里。workflow 维持轻量的 target-matched route 证据规则;`trellis-route` / `route_state.py` 负责 runtime 命中校验、写入清理和默认输出里的 `task` 诊断字段。
@@ -530,12 +531,14 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 |------|------|
 | 无 `.trellis/` | 返回 `status=miss/skipped`,不阻断外层流程 |
 | 无 current task 或无 session context key | 返回 `no-current-task` / `no-session-context`,继续展示 route 选项 |
-| runtime 文件缺失或 JSON 损坏 | 忽略 runtime,继续读 prefs 或展示选项;不要删除文件 |
+| session runtime 文件缺失 | 继续读 prefs/auto-loop 或展示选项 |
+| session runtime JSON 损坏或 I/O 失败 | 返回 `session-runtime-corrupt/io_error`,不读 prefs/auto-loop,不覆盖原文件 |
 | runtime 的 task / target / source / mode / scope 不匹配 | 返回 miss,不得复用 |
 | 同一 session 切换到新任务并写入 implement/check 决策 | 写入前清理其他任务的 runtime route 决策;个人 prefs 不受影响 |
 | prefs 缺失或值不合法 | 返回 miss,展示选项 |
 | prefs 命中 | 返回 hit,写回 runtime,`origin=route-prefs`,`source=route-prefs` |
-| auto-loop running run 存在合法 route_authorization | 返回 hit,写回 runtime,`origin=auto-loop`,`source=auto-loop` |
+| auto-loop running run 存在合法 route_authorization,且当前 task 属于未完成队列 | 返回 hit,写回 runtime,`origin=auto-loop`,`source=auto-loop` |
+| session 显式绑定的 auto run JSON 损坏/I/O 失败 | 返回 `session-auto-run-corrupt/io_error`,不得 fallback 到其它 run |
 | auto-loop 无绑定 run / 非唯一 running run / mode 不合法 | 返回 miss,展示选项 |
 | 用户明确重选 / 临时改 / 清除默认 | 忽略 runtime 和 prefs,重新进入 route 选项 |
 | compact 后只剩历史裸数字 `1` 和新的 check 选项摘要 | 不得写入 check route；必须重新展示当前 target 选项并等待紧邻回复 |
@@ -547,12 +550,14 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 - Base: runtime miss 但 `.route-prefs.tmp` 有 `implement=inline`;`resolve` 返回
   `origin=route-prefs`,`source=route-prefs` 并写回 runtime,后续同 session 直接 runtime hit。
 - Base: runtime 和 prefs 都 miss,但当前 session 的 `current_auto_run` 指向 running auto-loop state,且 `route_authorization.implement=subagent`;`resolve` 返回 `origin=auto-loop`,`source=auto-loop` 并写回 runtime。
+- Base: session 绑定 run 已 stopped 或缺失,项目中只有一个健康 running run 且包含当前 task;忽略 stale pointer 后允许 fallback。
 - Bad: compact summary 里只有“用户选过 inline”;workflow 不得把它当 route 证据,
   必须读取 `trellis-route` 并由 helper 校验 runtime / prefs。
 - Bad: implement 阶段用户曾紧邻回复 `1`;后续 check route miss 并发生 compact,
   恢复上下文里出现旧 `1` 和 check 选项摘要时,不得把旧 `1` 当作 check 的
   `numbered-fallback`,也不得写入 `check-all-inline`。
 - Bad: 同一 session 里任务 A 的 `route_decisions.check` 还在 runtime 中;切到任务 B 后不得把它当任务 B 的 check 证据。写入任务 B 任一路由时应清理任务 A 的 runtime route 决策。
+- Bad: session 绑定的 `auto-bad.json` 已截断,项目中另有 `auto-good.json`;不得把损坏绑定视为 missing 并套用 `auto-good` 授权。
 
 ### 6. Tests Required
 
@@ -568,6 +573,8 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - `write --save-pref` 验证只更新当前 target 并保留另一个 target。
   - `clear-pref --target check` 验证只清 check 默认。
   - prefs miss 时,当前 session 绑定 `current_auto_run` 且 auto-loop state 有合法授权,验证 `resolve` 命中 auto-loop 并写回 runtime。
+  - session 绑定 run 损坏且存在其它健康 run 时,验证 `resolve` 返回 `session-auto-run-corrupt` 且不写 runtime。
+  - auto-loop run 不包含当前 task 或队列项已 completed 时,验证授权 miss。
   - `.route-prefs.tmp` 存在时,验证个人偏好优先于 auto-loop 授权。
   - auto-loop running run 不唯一或 mode 不合法时,验证返回 miss 且不写 runtime。
   - prompt/workflow 回归:compact summary、ordinary summary、replacement history 或历史裸数字
@@ -956,6 +963,7 @@ returns candidate SOP/spec paths from natural document structure
 python3 ./.trellis/scripts/auto_loop.py start --tasks <task> [<task> ...] --profile commit-only [--check-depth auto|light|full]
 python3 ./.trellis/scripts/auto_loop.py next [--run-id <run-id>] [--verbose]
 python3 ./.trellis/scripts/auto_loop.py record --action <action> --result <ok|failed|blocked> [--effective-check-depth light|full] [--check-depth-reason <summary>] [...] [--verbose]
+python3 ./.trellis/scripts/auto_loop.py record --action review_open_questions --result <ok|blocked> --review-verdict <resolved|blocking|ambiguous> [--summary <text>]
 python3 ./.trellis/scripts/auto_loop.py retry-blocked [--run-id <run-id>] [--task <task>] [--check-depth auto|light|full] [--route-implement inline|subagent] [--route-check check-all-inline|check-all-subagent] [--all] [--verbose]
 python3 ./.trellis/scripts/auto_loop.py status [--run-id <run-id>] [--verbose]
 python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
@@ -974,6 +982,8 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
   subagent;避免把 `trellis-route` 两套完整 fallback 选项原样贴出。用户仍可用
   `implement 1, check 2` 这类高级格式分别选择。
 - runner 是调度器,不自行默认 inline/subagent,也不把 auto 临时授权展示成真实 route 结果。
+- planning PRD 的 `## Open Questions` 使用确定性 checkbox 契约:`- [ ]` 立即阻塞,`- [x]` 不阻塞,章节缺失或无有效条目直接放行。历史裸列表不得由 Python 关键词表猜语义,必须返回 `review_open_questions` action。
+- `review_open_questions` action 必须携带裸列表和 PRD SHA-256。AI 回写 `resolved|blocking|ambiguous`;runner 在 record 时重算 hash,拒绝陈旧判断。`blocking` 与 `ambiguous` 都进入 blocked,修正文档后使用 `retry-blocked` 在同一 run 重跑门禁。
 - 新 run 的 `check_depth` 默认 `auto`;显式 `--check-depth` 与 `--route-check` 独立。
   历史 state 缺少或包含非法值时按 full 读取,不要求迁移旧 JSON。
 - `run_check_all` / `run_recheck` action 必须输出 `requested_check_depth`;首次检查的
@@ -986,6 +996,8 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 - `route_state.py resolve` 顺序仍是 runtime -> prefs -> running auto-loop 临时授权;但
   session `current_auto_run` 或全局 `current.json` 指向非 running run 时必须忽略 stale pointer,
   再 fallback 扫描唯一 running run。
+- route 临时授权必须匹配当前 task 的 pending/running 队列项。session 显式绑定的 run 损坏时失败关闭,不得 fallback 到其它 run;只有 missing/stale pointer 才允许唯一健康 run 恢复。
+- auto-loop runtime 写入使用同目录临时文件、flush/fsync 和 `os.replace`;replace 失败保留旧文件。读取必须区分 missing、corrupt 和 I/O error;当前 run 损坏时非 `--force` start 不得创建第二个 run。
 - run completed/stopped 后,`auto_loop.py` 只在 current pointer 仍指向本 run 时删除
   `.trellis/.runtime/auto-loop/current.json`;显式 `--run-id` 仍可查看历史 run。
 - 队列处理完但存在 blocked item 时,run `status` 必须是 `blocked`,不能伪装成
@@ -1021,6 +1033,11 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 | 条件 | 行为 |
 |------|------|
 | start 无 route prefs/runtime | skill 先走 `trellis-route`;runner 不默认选择 |
+| Open Questions 包含 `- [ ]` | item 以 `open-questions` blocked |
+| Open Questions 只有 `- [x]`、空章节或无章节 | 继续 `start_task` |
+| Open Questions 是历史裸列表 | 返回带 PRD hash 的 `review_open_questions` action |
+| AI review 为 blocking/ambiguous | 分别以 `open-questions` / `open-questions-ambiguous` blocked |
+| review 后 PRD 内容变化 | record 返回 `stale-open-questions-review`,不得推进 |
 | 新 run 未传 `--check-depth` | 保存 `check_depth=auto` |
 | 旧 run 缺 `check_depth` | requested depth 按 full,不得静默变 light |
 | record 缺 effective depth但带自定义 reason | 保存 `full / legacy-default-full`,忽略自定义 reason |
@@ -1030,6 +1047,8 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 | 队列项 blocked 但 blocked reason 是非门禁类问题 | 默认不自动重试;指定 `--task` 或 `--all` 才重置 |
 | 多个历史 run 且无 current/running | `status` 返回最近 run 列表,不报 `status-failed` |
 | current.json 指向 completed/stopped run | route helper 忽略 stale pointer,扫描唯一 running run |
+| session 绑定的 run JSON 损坏但存在其它健康 run | route helper 返回结构化 miss,不得套用其它 run 授权 |
+| 当前 run JSON 损坏后 start 新 run | 非 force 返回 `current-auto-state-invalid`,保留损坏文件 |
 | run completed/stopped | 清理仍指向本 run 的 current pointer |
 | commit_only 时 staged 区已有文件 | auto-loop 记录当前 item blocked,不提交,queue 可继续 |
 | commit_only 无法解释某个 dirty 文件归属 | 保留未提交或 blocked,不得猜测纳入 planned files |
@@ -1050,6 +1069,7 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 - Good: 第一次 start 漏传 inline route,三个 planning task 因 seed-only JSONL blocked;AI
   执行 `retry-blocked --route-implement inline --route-check check-all-inline`,同一个
   `run_id` 继续,目录中不新增第二个 `auto-*.json`。
+- Good:历史 PRD 写 `- 无。当前实现口径已确认。`;runner 返回 review action,AI 以 `resolved` 结构化回写后进入 `start_task`。
 - Base: run completed 后用户查 `auto_loop.py status --run-id auto-...` 仍可读历史结果;无
   `--run-id` 时不会让 stale current 影响新 run。
 - Bad: `trellis-auto-loop` skill 默认传 `--route-implement subagent`;这绕过用户真实 route。
@@ -1057,6 +1077,7 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 - Bad: 旧 record 未传 effective depth但把调用方 reason 当作可信深度证据。
 - Bad: run blocked 后直接 `start --force` 启动同一任务队列,产生多个 JSON,用户难以判断哪次
   是权威状态。
+- Bad:Python 看到 `无问题`、`TBD` 等词就自行放行或阻断;历史裸列表必须交给 AI review,并绑定当前 PRD hash。
 - Bad: 主 agent 看到 `commit_only` action 后手动 `git add . && git commit`;这绕过
   `trellis-push` 边界且可能混入无关文件。
 
@@ -1064,6 +1085,9 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 
 - Python runner 测试覆盖 auto light pass、legacy full fallback、failed -> fix -> full recheck、
   blocked full retry、retry 更新 check depth、多任务检查通过后无确认续跑。
+- Open Questions 测试覆盖 unchecked/checked/空/无章节/TBD、resolved/blocking/ambiguous、stale hash 和 retry-blocked 后重新门禁。
+- runtime/route 测试覆盖损坏 current run 阻止新 run、损坏 pointer 唯一恢复、session 绑定 run 损坏不 fallback、task mismatch/completed item 不授权、replace 失败保留旧文件。
+- 健康集成回归必须覆盖 create -> active -> auto-loop `start_task` -> record/next,证明写入完整性修复不改变正常链路。
 - 断言缺 effective depth时 reason 固定为 `legacy-default-full`;minimum full 时 light record 被拒绝。
 - 静态测试检查 auto-loop skill 的 start/retry/record 参数、Check-All profile 和 workflow gate 顺序。
 - `npm run sync` 后比较 vendor、enhancements 和 dogfood runner/skill;重复 enhance-only 后 diff hash 不变。
@@ -1074,6 +1098,10 @@ python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
 
 **Correct**:runner 保存 run 级 requested depth和 item 级 effective result;Check-All 完成后匹配
 outstanding action 执行 `record + next`,交互式停止只在非 validated auto-loop 生效。
+
+**Wrong**:把历史 Open Questions 裸列表直接当作非空即阻塞,或用少量关键词在 Python 中推断自然语言。
+
+**Correct**:checkbox 走确定性解析;裸列表返回带 PRD hash 的 AI review action,结果结构化回写,无法判断时保守阻塞。
 
 ---
 

@@ -18,6 +18,20 @@
       "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "hash" }],
       "selector": { "type": "literal", "source": "guard-selector.py" },
       "content": { "source": "guard-content.py" }
+    },
+    {
+      "id": "task-start-degraded-write-gate",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "degraded-selector.py" },
+      "content": { "source": "degraded-content.py" }
+    },
+    {
+      "id": "task-start-session-write-gate",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "session-selector.py" },
+      "content": { "source": "session-content.py" }
     }
   ]
 }

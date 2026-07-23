@@ -298,3 +298,77 @@ npm test
 ```
 
 至少覆盖三种 operation、`content.sources`、Core selector、平台 adapter、legacy migration、required/optional、target policy、版本四态、最终产物正反断言、正常 missing target、JS/Python report parity、普通文件 create 拒绝、新建父目录与备份软链逃逸、首次备份、非目标内容保留、全量 preflight 零写入、manifest 最后写、全部声明 Patch/target/target kind 覆盖和二次 dogfood 幂等。
+
+## Scenario: Bundle Dependency Closure And Integrity Assertions
+
+### 1. Scope / Trigger
+
+- Trigger:新增/移动 Patch、调整 Bundle 归属、把通用控制面能力从精细安装 Bundle 拆到 `full-only`,或新增会改变 CLI 成败语义的 operation。
+- Scope:保证每种可选安装计划都能独立生成可运行最终文件,并让关键 operation 在 `conflicts.json` 中有最终产物证据。
+
+### 2. Signatures
+
+```python
+prepare_patches(overrides_dir, target_root, skills=[])
+prepare_patches(overrides_dir, target_root, skills=["task-intent"])
+```
+
+```json
+{
+  "id": "control-plane-integrity",
+  "installMode": "full-only",
+  "patches": ["scripts/task-store-write-integrity", "scripts/runtime-state-integrity"]
+}
+```
+
+### 3. Contracts
+
+- `full-or-selected` Bundle 的最终文件不得依赖只存在于 `full-only` Bundle 的 helper、import、类型或 marker。精细 alias 的 Patch 计划必须自包含。
+- 通用 runtime 原子写、损坏分类、resolution/fallback/set 属于 `full-only` 控制面 Patch;面向 `task-intent` 的 finish/clear 契约只保留自身需要的最小读取 helper,不得把整套 runtime Patch 塞回 alias。
+- Patch 移动后 operation ID 保持稳定,让已有 managed marker、backup 和 provenance 原位升级;不得通过新 ID 叠加第二份实现。
+- `conflicts.json` 的 `whenOperations` 必须覆盖所有新增的控制面成败语义 operation。不同 target 使用独立 rule;不得把 `.trellis/scripts/common/paths.py` 的断言藏在 task-store rule 中。
+- conflict rule 必须断言最终文件中的 marker 和关键行为字面量,不能只证明 Patch 声明文件存在。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+|---|---|
+| `task-intent` 精细计划包含 full-only runtime operation | 测试失败,视为 Bundle 范围扩大 |
+| 精细计划缺少自身 clear helper | 最终脚本不可运行,测试失败 |
+| full 计划缺少 runtime-state-integrity | preflight/测试失败 |
+| 新控制面 operation 未出现在任何 `whenOperations` | 静态覆盖测试失败 |
+| conflict rule target 不是 operation 实际 target | catalog policy 校验失败 |
+| full 与精细计划均可重复应用 | 第二次 Patch 修改数为 0 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:`runtime-state-integrity` 只在 full 安装出现;`task-intent` 仍包含 structured clear result 和其最小 JSON 分类 helper,最终 `active_task.py` 可运行。
+- Base:operation 从旧 Patch 移到新 Patch 但 ID 不变;已有 marker 被新 owner 原位升级,provenance 显示新 Patch/Bundle。
+- Bad:为复用 `_read_json_result` 把原子写、fallback、set 等所有 F7 operation 留在 `intent-routing`,导致安装单个 task-intent Skill 时隐式改变整个 runtime 控制面。
+- Bad:新增 `task-set-scope-write` 但 conflict rule 只覆盖 create/archive,最终产物回退时发布检查无法发现。
+
+### 6. Tests Required
+
+- Python consumer 分别生成 full 与 `task-intent` 计划;断言 full 包含 `runtime-state-integrity`,精细计划不含 `active-task-runtime-json-io/resolution/fallback/set` 且包含 clear helper。
+- JS apply 测试读取精细安装后的最终 `active_task.py`,断言 clear marker 存在、runtime marker 不存在,并验证第二次应用文件树不变。
+- 静态测试读取 `conflicts.json`,断言每个新增控制面 operation 至少被一个匹配 target 的 rule 覆盖。
+- 运行 `node scripts/check-patch-conflicts.mjs`、`npm test`、`npm run sync`,并比较 vendor 与 `enhancements/0.6/overrides` 逐字节一致。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+intent-routing -> state-missing-task -> clear + atomic I/O + fallback + set
+```
+
+精细安装为了一个 finish 契约顺带改变整个 session runtime。
+
+#### Correct
+
+```text
+intent-routing -> structured clear + minimal read classification
+full-only control-plane-integrity -> atomic I/O + resolution + fallback + set
+```
+
+每种安装模式只获得其声明职责,同时由 full/selected 计划测试和 conflict policy 验证最终产物。

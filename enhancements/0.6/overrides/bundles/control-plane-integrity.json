@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "control-plane-integrity",
+  "aliases": [],
+  "installMode": "full-only",
+  "patches": [
+    "scripts/task-store-write-integrity",
+    "scripts/runtime-state-integrity"
+  ]
+}

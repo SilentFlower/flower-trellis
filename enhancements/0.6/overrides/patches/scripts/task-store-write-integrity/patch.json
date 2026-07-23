@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 2,
+  "id": "task-store-write-integrity",
+  "purpose": "control_plane_integrity",
+  "operations": [
+    {
+      "id": "task-store-write-helpers",
+      "operation": "insert",
+      "position": "after",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "helpers-selector.py" },
+      "content": { "source": "helpers-content.py" }
+    },
+    {
+      "id": "task-create-duplicate-slug",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "create-duplicate-selector.py" },
+      "content": { "source": "create-duplicate-content.py" }
+    },
+    {
+      "id": "task-create-initial-write",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "create-write-selector.py" },
+      "content": { "source": "create-write-content.py" }
+    },
+    {
+      "id": "task-create-parent-link",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "create-parent-selector.py" },
+      "content": { "source": "create-parent-content.py" }
+    },
+    {
+      "id": "task-create-active-warning",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "create-active-selector.py" },
+      "content": { "source": "create-active-content.py" }
+    },
+    {
+      "id": "task-archive-metadata-guard",
+      "operation": "insert",
+      "position": "after",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "archive-guard-selector.py" },
+      "content": { "source": "archive-guard-content.py" }
+    },
+    {
+      "id": "task-archive-status-write",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "archive-write-selector.py" },
+      "content": { "source": "archive-write-content.py" }
+    },
+    {
+      "id": "task-add-subtask-pair-write",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "add-subtask-selector.py" },
+      "content": { "source": "add-subtask-content.py" }
+    },
+    {
+      "id": "task-remove-subtask-pair-write",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "remove-subtask-selector.py" },
+      "content": { "source": "remove-subtask-content.py" }
+    },
+    {
+      "id": "task-set-branch-write",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "set-branch-selector.py" },
+      "content": { "source": "set-branch-content.py" }
+    },
+    {
+      "id": "task-set-base-branch-write",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "set-base-branch-selector.py" },
+      "content": { "source": "set-base-branch-content.py" }
+    },
+    {
+      "id": "task-set-scope-write",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "set-scope-selector.py" },
+      "content": { "source": "set-scope-content.py" }
+    }
+  ]
+}

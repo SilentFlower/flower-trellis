@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from importlib import util as importlib_util
+import json
 from pathlib import Path
+import tempfile
 import unittest
+from unittest import mock
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -56,6 +59,135 @@ class RouteStateCompatibilityTest(unittest.TestCase):
         self.assertIsNotNone(normalized)
         self.assertEqual(normalized["mode"], "check-all-inline")
         self.assertEqual(decision["mode"], "check-inline")
+
+    def test_auto_route_requires_current_task_in_unfinished_queue(self) -> None:
+        """其它任务的 running run 不得向当前任务提供 route 授权。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-task-scope-") as temp:
+            root = Path(temp)
+            sessions = root / ".trellis/.runtime/sessions"
+            runs = root / ".trellis/.runtime/auto-loop"
+            sessions.mkdir(parents=True)
+            runs.mkdir(parents=True)
+            (sessions / "codex_test.json").write_text("{}\n", encoding="utf-8")
+            run_path = runs / "auto-test.json"
+            run_path.write_text(
+                json.dumps({
+                    "status": "running",
+                    "route_authorization": {"implement": "subagent"},
+                    "queue": [{"task": ".trellis/tasks/task-a", "status": "running"}],
+                }),
+                encoding="utf-8",
+            )
+
+            hit = self.module._auto_route_mode(
+                root,
+                "codex_test",
+                ".trellis/tasks/task-a",
+                "implement",
+            )
+            miss = self.module._auto_route_mode(
+                root,
+                "codex_test",
+                ".trellis/tasks/task-b",
+                "implement",
+            )
+
+            self.assertEqual(hit[0], "subagent")
+            self.assertEqual(miss[0], None)
+            self.assertEqual(miss[2], "auto-run-task-mismatch")
+
+    def test_completed_auto_item_does_not_authorize_route(self) -> None:
+        """已完成队列项不能继续提供临时 route 授权。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-completed-") as temp:
+            root = Path(temp)
+            sessions = root / ".trellis/.runtime/sessions"
+            runs = root / ".trellis/.runtime/auto-loop"
+            sessions.mkdir(parents=True)
+            runs.mkdir(parents=True)
+            (sessions / "codex_test.json").write_text("{}\n", encoding="utf-8")
+            (runs / "auto-test.json").write_text(
+                json.dumps({
+                    "status": "running",
+                    "route_authorization": {"implement": "inline"},
+                    "queue": [{"task": ".trellis/tasks/task-a", "status": "completed"}],
+                }),
+                encoding="utf-8",
+            )
+
+            mode, _, reason = self.module._auto_route_mode(
+                root,
+                "codex_test",
+                ".trellis/tasks/task-a",
+                "implement",
+            )
+
+            self.assertIsNone(mode)
+            self.assertEqual(reason, "auto-run-task-mismatch")
+
+    def test_corrupt_session_prevents_auto_fallback_and_overwrite(self) -> None:
+        """当前 session 损坏时不读取其它 run，也不覆盖证据。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-corrupt-") as temp:
+            root = Path(temp)
+            session = root / ".trellis/.runtime/sessions/codex_test.json"
+            session.parent.mkdir(parents=True)
+            session.write_text("{broken", encoding="utf-8")
+
+            mode, path, reason = self.module._auto_route_mode(
+                root,
+                "codex_test",
+                ".trellis/tasks/task-a",
+                "implement",
+            )
+
+            self.assertIsNone(mode)
+            self.assertEqual(path, session)
+            self.assertEqual(reason, "session-runtime-corrupt")
+            self.assertEqual(session.read_text(encoding="utf-8"), "{broken")
+
+    def test_corrupt_session_bound_run_prevents_healthy_run_fallback(self) -> None:
+        """session 显式绑定的 run 损坏时不得改用其它健康 run。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-bound-run-corrupt-") as temp:
+            root = Path(temp)
+            sessions = root / ".trellis/.runtime/sessions"
+            runs = root / ".trellis/.runtime/auto-loop"
+            sessions.mkdir(parents=True)
+            runs.mkdir(parents=True)
+            (sessions / "codex_test.json").write_text(
+                json.dumps({"current_auto_run": "auto-bad"}),
+                encoding="utf-8",
+            )
+            bad_run = runs / "auto-bad.json"
+            bad_run.write_text("{broken", encoding="utf-8")
+            (runs / "auto-good.json").write_text(
+                json.dumps({
+                    "status": "running",
+                    "route_authorization": {"implement": "inline"},
+                    "queue": [{"task": ".trellis/tasks/task-a", "status": "running"}],
+                }),
+                encoding="utf-8",
+            )
+
+            mode, path, reason = self.module._auto_route_mode(
+                root,
+                "codex_test",
+                ".trellis/tasks/task-a",
+                "implement",
+            )
+
+            self.assertIsNone(mode)
+            self.assertEqual(path, bad_run)
+            self.assertEqual(reason, "session-auto-run-corrupt")
+            self.assertEqual(bad_run.read_text(encoding="utf-8"), "{broken")
+
+    def test_atomic_route_write_preserves_old_file_on_replace_failure(self) -> None:
+        """route runtime 原子替换失败时保留旧文件。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-atomic-") as temp:
+            path = Path(temp) / "route.json"
+            path.write_text('{"old": true}\n', encoding="utf-8")
+            with mock.patch.object(self.module.os, "replace", side_effect=OSError("failed")):
+                with self.assertRaises(OSError):
+                    self.module._write_json(path, {"new": True})
+            self.assertEqual(path.read_text(encoding="utf-8"), '{"old": true}\n')
 
 
 if __name__ == "__main__":

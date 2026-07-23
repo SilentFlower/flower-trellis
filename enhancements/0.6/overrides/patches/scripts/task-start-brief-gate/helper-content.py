@@ -57,3 +57,42 @@ def _validate_planning_brief(full_path, task_json_path) -> bool:
         return False
 
     return True
+
+
+def _prepare_start_status(task_json_path):
+    """Persist planning -> in_progress before binding the session pointer.
+
+    Args:
+        task_json_path: Absolute path to the task metadata file.
+
+    Returns:
+        Tuple of original metadata, whether status changed, and success status.
+    """
+    if not task_json_path.is_file():
+        return None, False, True
+    data = read_json(task_json_path)
+    if not data:
+        print(colored("Error: Unable to read task.json before start.", Colors.RED))
+        return None, False, False
+    if data.get("status") != "planning":
+        return None, False, True
+    original = dict(data)
+    updated = dict(data)
+    updated["status"] = "in_progress"
+    if not write_json(task_json_path, updated):
+        print(colored("Error: Failed to persist task status before start.", Colors.RED))
+        return original, False, False
+    return original, True, True
+
+
+def _restore_start_status(task_json_path, original) -> bool:
+    """Restore task metadata after session pointer binding fails.
+
+    Args:
+        task_json_path: Absolute path to the task metadata file.
+        original: Metadata captured before the status transition.
+
+    Returns:
+        True when no restore is needed or the original metadata was written.
+    """
+    return original is None or write_json(task_json_path, original)
