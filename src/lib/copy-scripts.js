@@ -27,6 +27,9 @@ export function copyScriptAssets(target, variantDir, skills = []) {
     } else if (name === "task_progress") {
       aliases = [
         "task-progress",
+        "trellis-continue",
+        "continue",
+        "progress-recovery",
         "trellis-push",
         "push",
         "progress",

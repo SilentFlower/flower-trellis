@@ -24,19 +24,6 @@
     "script:flower_update_hook.py"
   ],
   "paths": [
-    ".agents/skills/trellis-auto-loop",
-    ".agents/skills/trellis-check-all",
-    ".agents/skills/trellis-create-command",
-    ".agents/skills/trellis-diff-brief",
-    ".agents/skills/trellis-extract-prd",
-    ".agents/skills/trellis-plan-version",
-    ".agents/skills/trellis-push",
-    ".agents/skills/trellis-release",
-    ".agents/skills/trellis-route",
-    ".agents/skills/trellis-run-full-chain",
-    ".agents/skills/trellis-task-brief",
-    ".agents/skills/trellis-verify-task",
-    ".agents/skills/trellis-visualize",
     ".claude/skills/trellis-auto-loop",
     ".claude/skills/trellis-check-all",
     ".claude/skills/trellis-create-command",
@@ -50,6 +37,19 @@
     ".claude/skills/trellis-task-brief",
     ".claude/skills/trellis-verify-task",
     ".claude/skills/trellis-visualize",
+    ".agents/skills/trellis-auto-loop",
+    ".agents/skills/trellis-check-all",
+    ".agents/skills/trellis-create-command",
+    ".agents/skills/trellis-diff-brief",
+    ".agents/skills/trellis-extract-prd",
+    ".agents/skills/trellis-plan-version",
+    ".agents/skills/trellis-push",
+    ".agents/skills/trellis-release",
+    ".agents/skills/trellis-route",
+    ".agents/skills/trellis-run-full-chain",
+    ".agents/skills/trellis-task-brief",
+    ".agents/skills/trellis-verify-task",
+    ".agents/skills/trellis-visualize",
     ".trellis/scripts/auto_loop.py",
     ".trellis/scripts/pre_check_state.py",
     ".trellis/scripts/spec_router.py",
@@ -59,7 +59,7 @@
   ],
   "patches": {
     "schemaVersion": 1,
-    "catalogHash": "sha256:750e70d7526bdc8444f1ef66bc5db786ed79e46477e0a2b40e62259a25053793",
+    "catalogHash": "sha256:c173782b0fc3c567ee071c2ea07ebd536c2c765a8a390ee7451fe2ad782e4c21",
     "applied": [
       {
         "id": "task-store-write-helpers",
@@ -235,7 +235,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-active-task-routing",
@@ -243,7 +243,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-phase-2-implement",
@@ -251,7 +251,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-phase-2-check",
@@ -259,7 +259,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-phase-3-update-spec",
@@ -267,7 +267,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-phase-3-commit",
@@ -275,7 +275,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-phase-1-activate",
@@ -283,7 +283,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-state-no-task",
@@ -291,7 +291,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-state-missing-task",
@@ -299,7 +299,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-state-contract-comment",
@@ -307,7 +307,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-runtime-contract-reference",
@@ -315,7 +315,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-state-planning",
@@ -323,7 +323,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-state-planning-inline",
@@ -331,7 +331,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-state-in-progress",
@@ -339,7 +339,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-state-in-progress-inline",
@@ -347,7 +347,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-phase-summary",
@@ -355,7 +355,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-request-triage",
@@ -363,7 +363,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-phase-index-create-task",
@@ -371,7 +371,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-phase-one-goal",
@@ -379,7 +379,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-create-task-rule",
@@ -387,7 +387,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-create-task-command",
@@ -395,7 +395,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "workflow-customization-intent-invariant",
@@ -403,7 +403,7 @@
         "bundle": "intent-routing",
         "target": ".trellis/workflow.md",
         "status": "applied",
-        "resultHash": "sha256:f9d212d9dc3cc80296cc0a75bcfd08d8f8b7fbe1bc9c9050857c27257589f9c5"
+        "resultHash": "sha256:516b8f5ac1bd31b3002303fc78846be94f82530b07e37e21a1e565f8bdb58fd6"
       },
       {
         "id": "task-finish-clear-result",
@@ -531,7 +531,7 @@
         "bundle": "intent-routing",
         "target": ".agents/skills/trellis-before-dev/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:c91e42c0b25e9046cb419cbaaf0d23e56ff20085aef1c68d9c9821d232e4ef48"
+        "resultHash": "sha256:b18fd4a93dc44422fc6c9b1a706090042c6ad46676879aea968db0db08bade69"
       },
       {
         "id": "before-dev-project-knowledge-discovery",
@@ -539,7 +539,7 @@
         "bundle": "intent-routing",
         "target": ".claude/skills/trellis-before-dev/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:c91e42c0b25e9046cb419cbaaf0d23e56ff20085aef1c68d9c9821d232e4ef48"
+        "resultHash": "sha256:b18fd4a93dc44422fc6c9b1a706090042c6ad46676879aea968db0db08bade69"
       },
       {
         "id": "brainstorm-planning-authorization",
@@ -547,7 +547,7 @@
         "bundle": "intent-routing",
         "target": ".agents/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:ca9b1f271b2ebe1523d0cd0fb83e5ce690bc9f16bef9d354f96f47779b05cff4"
+        "resultHash": "sha256:00d87ccadbd0345767717304a36fd889154e5976f800664773574050d5f9863d"
       },
       {
         "id": "brainstorm-auto-task-create",
@@ -555,7 +555,7 @@
         "bundle": "intent-routing",
         "target": ".agents/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:ca9b1f271b2ebe1523d0cd0fb83e5ce690bc9f16bef9d354f96f47779b05cff4"
+        "resultHash": "sha256:00d87ccadbd0345767717304a36fd889154e5976f800664773574050d5f9863d"
       },
       {
         "id": "brainstorm-planning-handoff",
@@ -563,7 +563,7 @@
         "bundle": "intent-routing",
         "target": ".agents/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:ca9b1f271b2ebe1523d0cd0fb83e5ce690bc9f16bef9d354f96f47779b05cff4"
+        "resultHash": "sha256:00d87ccadbd0345767717304a36fd889154e5976f800664773574050d5f9863d"
       },
       {
         "id": "brainstorm-planning-readiness",
@@ -571,7 +571,7 @@
         "bundle": "intent-routing",
         "target": ".agents/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:ca9b1f271b2ebe1523d0cd0fb83e5ce690bc9f16bef9d354f96f47779b05cff4"
+        "resultHash": "sha256:00d87ccadbd0345767717304a36fd889154e5976f800664773574050d5f9863d"
       },
       {
         "id": "brainstorm-planning-authorization",
@@ -579,7 +579,7 @@
         "bundle": "intent-routing",
         "target": ".claude/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:ca9b1f271b2ebe1523d0cd0fb83e5ce690bc9f16bef9d354f96f47779b05cff4"
+        "resultHash": "sha256:00d87ccadbd0345767717304a36fd889154e5976f800664773574050d5f9863d"
       },
       {
         "id": "brainstorm-auto-task-create",
@@ -587,7 +587,7 @@
         "bundle": "intent-routing",
         "target": ".claude/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:ca9b1f271b2ebe1523d0cd0fb83e5ce690bc9f16bef9d354f96f47779b05cff4"
+        "resultHash": "sha256:00d87ccadbd0345767717304a36fd889154e5976f800664773574050d5f9863d"
       },
       {
         "id": "brainstorm-planning-handoff",
@@ -595,7 +595,7 @@
         "bundle": "intent-routing",
         "target": ".claude/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:ca9b1f271b2ebe1523d0cd0fb83e5ce690bc9f16bef9d354f96f47779b05cff4"
+        "resultHash": "sha256:00d87ccadbd0345767717304a36fd889154e5976f800664773574050d5f9863d"
       },
       {
         "id": "brainstorm-planning-readiness",
@@ -603,7 +603,23 @@
         "bundle": "intent-routing",
         "target": ".claude/skills/trellis-brainstorm/SKILL.md",
         "status": "applied",
-        "resultHash": "sha256:ca9b1f271b2ebe1523d0cd0fb83e5ce690bc9f16bef9d354f96f47779b05cff4"
+        "resultHash": "sha256:00d87ccadbd0345767717304a36fd889154e5976f800664773574050d5f9863d"
+      },
+      {
+        "id": "trellis-continue-task-progress-recovery",
+        "patch": "trellis-continue-task-progress-recovery",
+        "bundle": "trellis-continue",
+        "target": ".agents/skills/trellis-continue/SKILL.md",
+        "status": "applied",
+        "resultHash": "sha256:4fb59e14cdc458ca5eacfd3e8b882d507b7c2deae2620a023d45d750bdbfae15"
+      },
+      {
+        "id": "trellis-continue-task-progress-recovery",
+        "patch": "trellis-continue-task-progress-recovery",
+        "bundle": "trellis-continue",
+        "target": ".claude/commands/trellis/continue.md",
+        "status": "applied",
+        "resultHash": "sha256:ff07399ed9ecc103167432fa4b853518111e1a76831878a7060f4b2846934f07"
       },
       {
         "id": "trellis-update-spec-autonomous-evaluation",

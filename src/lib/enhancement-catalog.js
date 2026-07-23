@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { VARIANTS } from "../constants.js";
+import { ENHANCEMENT_SKILL_TARGETS, VARIANTS } from "../constants.js";
 import { listDirs } from "./fs-utils.js";
 import { ENHANCEMENTS_ROOT } from "./paths.js";
 import { selectVariant } from "./variant.js";
@@ -57,8 +57,8 @@ export function listEnhancementSkillNames(variantDir) {
  * @returns {boolean} 任一平台目录存在即视为已安装
  */
 export function isEnhancementSkillInstalled(target, name) {
-  return [".agents/skills", ".claude/skills"].some((base) =>
-    fs.existsSync(path.join(target, ...base.split("/"), name)),
+  return ENHANCEMENT_SKILL_TARGETS.some(({ root }) =>
+    fs.existsSync(path.join(target, ...root.split("/"), name)),
   );
 }
 

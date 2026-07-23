@@ -41,8 +41,70 @@ function assertIntentRoutingSemantics(value) {
   assert.match(value, /Permission\/authentication\/data-scope\/security/);
   assert.match(value, /cross-package\/layer or multi-entry behavior/);
   assert.match(value, /validation, or unknown scope are `task_plan` signals/);
+  assert.match(value, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
+  assert.match(value, /Project Knowledge Discovery applies once per user intent/);
+  assert.match(value, /apply the Active Task Scope Guard before artifact ownership/);
+  assert.match(value, /without reusing the current task or progress/);
   assert.match(value, /`fix item 1`, `change that`, `修一下`, `改一下`/);
   assert.match(value, /Only an explicit current-request workflow instruction/);
+}
+
+function writeContinueTargets(target) {
+  const selector = patchSource(
+    "skills/trellis-continue/task-progress-recovery",
+    "selector.md",
+  );
+  const body = [
+    "# Continue Current Task",
+    "",
+    "## Step 1: Load Current Context",
+    "",
+    selector,
+    "",
+    "## Step 2: Load the Phase Index",
+    "",
+    "## Step 3: Decide Where You Are",
+    "",
+  ].join("\n");
+  return [
+    write(
+      target,
+      ".agents/skills/trellis-continue/SKILL.md",
+      `---\nname: trellis-continue\n---\n\n${body}`,
+    ),
+    write(target, ".claude/commands/trellis/continue.md", body),
+  ];
+}
+
+function writeAllContinueTargets(target) {
+  const patch = JSON.parse(patchSource(
+    "skills/trellis-continue/task-progress-recovery",
+    "patch.json",
+  ));
+  const selector = patchSource(
+    "skills/trellis-continue/task-progress-recovery",
+    "selector.md",
+  );
+  const body = [
+    "# Continue Current Task",
+    "",
+    "## Step 1: Load Current Context",
+    "",
+    selector,
+    "",
+    "## Step 2: Load the Phase Index",
+    "",
+  ].join("\n");
+
+  return patch.operations[0].targets.map(({ kind, path: relativePath }) => {
+    let content = body;
+    if (kind === "skill") {
+      content = `---\nname: trellis-continue\n---\n\n${body}`;
+    } else if (relativePath.endsWith(".toml")) {
+      content = `description = "Trellis: continue"\n\nprompt = """\n${body}\n"""\n`;
+    }
+    return write(target, relativePath, content);
+  });
 }
 
 function minimalWorkflow() {
@@ -164,6 +226,80 @@ function writeFinishTargets(target) {
     ),
     write(target, ".claude/commands/trellis/finish-work.md", `${commandBody}\n`),
   ];
+}
+
+function writeAllUpdateSpecTargets(target) {
+  const declaration = JSON.parse(patchSource(
+    "skills/trellis-update-spec/autonomous-evaluation",
+    "patch.json",
+  ));
+  const canonicalBody = [
+    "# Update Code-Spec",
+    "",
+    patchSource("skills/trellis-update-spec/autonomous-evaluation", "baseline.md"),
+    "",
+    "## Quality Checklist",
+    "",
+  ].join("\n");
+  const nativeBody = [
+    "# Update Code-Spec",
+    "",
+    "## Interactive Mode",
+    "",
+    "Legacy interactive body",
+    "",
+    "## Quality Checklist",
+    "",
+  ].join("\n");
+  const files = new Map();
+  for (const operation of declaration.operations) {
+    for (const targetConfig of operation.targets) {
+      const body = operation.id === "trellis-update-spec-autonomous-evaluation"
+        ? canonicalBody
+        : nativeBody;
+      const content = targetConfig.kind === "skill"
+        ? `---\nname: trellis-update-spec\n---\n\n${body}`
+        : body;
+      files.set(targetConfig.path, write(target, targetConfig.path, content));
+    }
+  }
+  return files;
+}
+
+function writeAllFinishTargets(target) {
+  const declaration = JSON.parse(patchSource(
+    "skills/trellis-finish-work/exact-bookkeeping",
+    "patch.json",
+  ));
+  const agentBody = patchSource(
+    "skills/trellis-finish-work/exact-bookkeeping",
+    "baseline-agent.md",
+  );
+  const commandBody = patchSource(
+    "skills/trellis-finish-work/exact-bookkeeping",
+    "baseline-command.md",
+  );
+  const files = new Map();
+  for (const operation of declaration.operations) {
+    for (const targetConfig of operation.targets) {
+      if (targetConfig.path === ".claude/skills/trellis-finish-work/SKILL.md") continue;
+      let content;
+      if (targetConfig.path.endsWith(".toml")) {
+        content = 'description = "Trellis: finish-work"\n\nprompt = """\n# Finish Work\n\nLegacy body\n"""\n';
+      } else if (operation.id === "trellis-finish-work-exact-bookkeeping") {
+        content = targetConfig.kind === "skill"
+          ? `---\nname: trellis-finish-work\n---\n\n${agentBody}\n`
+          : `${commandBody}\n`;
+      } else {
+        const body = "# Finish Work\n\nLegacy platform body\n";
+        content = targetConfig.kind === "skill"
+          ? `---\nname: trellis-finish-work\n---\n\n${body}`
+          : body;
+      }
+      files.set(targetConfig.path, write(target, targetConfig.path, content));
+    }
+  }
+  return files;
 }
 
 function writeActiveTaskTarget(target) {
@@ -315,6 +451,7 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   write(target, ".trellis/.version", "0.6.5\n");
   const workflow = write(target, ".trellis/workflow.md", minimalWorkflow());
   writeIntentTargets(target);
+  const continueTargets = writeContinueTargets(target);
   const updateSpecTargets = writeUpdateSpecTargets(target);
   const finishTargets = writeFinishTargets(target);
 
@@ -359,8 +496,17 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   ]) {
     const beforeDevText = fs.readFileSync(path.join(target, relativePath), "utf8");
     assert.match(beforeDevText, /skill-garden patch before-dev-project-knowledge-discovery/);
-    assert.match(beforeDevText, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
-    assert.match(beforeDevText, /Read high-confidence matches before acting/);
+    assert.match(beforeDevText, /Follow the workflow `Request Triage` Project Knowledge Discovery contract/);
+    assert.doesNotMatch(beforeDevText, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
+  }
+  for (const continueTarget of continueTargets) {
+    const continueText = fs.readFileSync(continueTarget, "utf8");
+    assert.match(continueText, /skill-garden patch trellis-continue-task-progress-recovery/);
+    assert.match(continueText, /task_progress\.py status --json/);
+    assert.ok(
+      continueText.indexOf("task_progress.py status --json")
+        < continueText.indexOf("## Step 2: Load the Phase Index"),
+    );
   }
   for (const relativePath of [
     ".agents/skills/trellis-brainstorm/SKILL.md",
@@ -639,6 +785,58 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
   }
 });
 
+test("trellis-continue 精细安装同时恢复入口与 task_progress helper", () => {
+  for (const alias of [
+    "trellis-continue",
+    "continue",
+    "task-progress",
+    "progress-recovery",
+  ]) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-continue-${alias}-`));
+    write(target, ".trellis/.version", "0.6.5\n");
+    const continueTargets = writeContinueTargets(target);
+
+    const result = quietApply(target, { variant: "0.6", skills: [alias] });
+    assert.ok(result.installed.includes("script:task_progress.py"));
+    assert.equal(result.patchReport.summary.errors, 0);
+    assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/task_progress.py")), true);
+    for (const continueTarget of continueTargets) {
+      const value = fs.readFileSync(continueTarget, "utf8");
+      assert.match(value, /skill-garden patch trellis-continue-task-progress-recovery/);
+      assert.match(value, /status=candidates/);
+      assert.match(value, /Never rebind the session or task automatically/);
+      assert.match(value, /enter `trellis-brainstorm` before using artifact presence/);
+      assert.match(value, /current explicit user confirmation before `task\.py start`/);
+      assert.ok(
+        value.indexOf("task_progress.py status --json")
+          < value.indexOf("## Step 2: Load the Phase Index"),
+      );
+    }
+
+    const first = snapshotTree(target);
+    quietApply(target, { variant: "0.6", skills: [alias] });
+    assert.deepEqual(snapshotTree(target), first);
+  }
+});
+
+test("trellis-continue Patch 覆盖全部平台入口且保持 Phase 前恢复顺序", () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-continue-platforms-"));
+  write(target, ".trellis/.version", "0.6.5\n");
+  const continueTargets = writeAllContinueTargets(target);
+
+  quietApply(target, { variant: "0.6", skills: ["trellis-continue"] });
+  assert.equal(continueTargets.length, 17);
+  for (const continueTarget of continueTargets) {
+    const value = fs.readFileSync(continueTarget, "utf8");
+    assert.match(value, /skill-garden patch trellis-continue-task-progress-recovery/);
+    assert.match(value, /### Planning Resume Gate/);
+    assert.ok(
+      value.indexOf("task_progress.py status --json")
+        < value.indexOf("## Step 2: Load the Phase Index"),
+    );
+  }
+});
+
 test("beta.2 旧 shared Hook 可通过历史 baseline 升级", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-hook-beta2-upgrade-"));
   write(target, ".trellis/.version", "0.6.5\n");
@@ -720,4 +918,46 @@ test("Update-Spec 三个精细安装别名都替换已有入口且不创建缺�
   quietApply(missing, { variant: "0.6", skills: ["update-spec-enhancement"] });
   assert.equal(fs.existsSync(path.join(missing, ".agents/skills/trellis-update-spec/SKILL.md")), false);
   assert.equal(fs.existsSync(path.join(missing, ".claude/skills/trellis-update-spec/SKILL.md")), false);
+});
+
+test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持幂等", () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-native-gate-matrix-"));
+  write(target, ".trellis/.version", "0.6.5\n");
+  const updateTargets = writeAllUpdateSpecTargets(target);
+  const finishTargets = writeAllFinishTargets(target);
+
+  quietApply(target, {
+    variant: "0.6",
+    skills: ["trellis-update-spec", "trellis-finish-work"],
+  });
+
+  const updateSkillTargets = [...updateTargets.entries()].filter(([relativePath]) =>
+    relativePath.endsWith("/trellis-update-spec/SKILL.md")
+  );
+  assert.equal(updateSkillTargets.length, 15);
+  for (const [relativePath, file] of updateTargets) {
+    const value = fs.readFileSync(file, "utf8");
+    assert.match(value, /BEGIN skill-garden patch trellis-update-spec-(?:autonomous-evaluation|native-autonomous-evaluation)/, relativePath);
+    assert.match(value, /## Autonomous Spec Evaluation/, relativePath);
+    assert.doesNotMatch(value, /^## Interactive Mode$/m, relativePath);
+  }
+
+  assert.equal(finishTargets.size, 17);
+  for (const [relativePath, file] of finishTargets) {
+    const value = fs.readFileSync(file, "utf8");
+    if (relativePath.endsWith(".toml")) {
+      assert.match(value, /BEGIN skill-garden patch trellis-finish-work-gemini-owner/, relativePath);
+      assert.match(value, /platform-native `trellis-finish-work` skill as the sole owner/, relativePath);
+    } else {
+      assert.match(value, /BEGIN skill-garden patch trellis-finish-work-(?:exact-bookkeeping|native-exact-bookkeeping)/, relativePath);
+      assert.match(value, /### 1\. Current Task Release Audit/, relativePath);
+    }
+  }
+
+  const first = snapshotTree(target);
+  quietApply(target, {
+    variant: "0.6",
+    skills: ["trellis-update-spec", "trellis-finish-work"],
+  });
+  assert.deepEqual(snapshotTree(target), first);
 });

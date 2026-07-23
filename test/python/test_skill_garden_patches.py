@@ -683,7 +683,7 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 31)
+        self.assertEqual(len(plan["patches"]), 32)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
@@ -698,6 +698,7 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("claude-session-start-pre-check-hold", operation_ids)
         self.assertIn("runtime-state-integrity", set(plan["patches"]))
         self.assertIn("before-dev-project-knowledge-discovery", operation_ids)
+        self.assertIn("trellis-continue-task-progress-recovery", operation_ids)
 
     def test_real_conflicts_cover_new_control_plane_operations(self) -> None:
         """新增控制面 operation 必须进入最终产物冲突断言。"""
@@ -768,6 +769,11 @@ class PatchConsumerTest(unittest.TestCase):
         )
         self.assertIn("`fix item 1`, `change that`, `修一下`, `改一下`", workflow)
         self.assertIn("Only an explicit current-request workflow instruction", workflow)
+        self.assertIn("python3 ./.trellis/scripts/spec_router.py", workflow)
+        self.assertIn(
+            "apply the Active Task Scope Guard before artifact ownership",
+            workflow,
+        )
         self.assertIn("skill-garden patch workflow-phase-1-activate", workflow)
         self.assertIn(
             "display the full brief in chat, then stop the current turn",
@@ -788,7 +794,11 @@ class PatchConsumerTest(unittest.TestCase):
             "skill-garden patch before-dev-project-knowledge-discovery",
             before_dev,
         )
-        self.assertIn("spec_router.py", before_dev)
+        self.assertIn(
+            "Follow the workflow `Request Triage` Project Knowledge Discovery contract",
+            before_dev,
+        )
+        self.assertNotIn("spec_router.py", before_dev)
         brainstorm = next(
             item["next"]
             for item in plan["files"]
@@ -827,6 +837,37 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("Planning task brief.md is stale", task_script)
         self.assertIn("Failed to persist task status before start", task_script)
         self.assertIn("Task status rollback also failed", task_script)
+
+    def test_real_catalog_continue_selects_progress_recovery(self) -> None:
+        """验证 Python consumer 的 continue 精细安装先恢复 progress 再判断 Phase。"""
+        runner = _load_runner()
+        plan = runner.prepare_patches(OVERRIDES, ROOT, ["trellis-continue"])
+
+        self.assertEqual(plan["bundles"], ["trellis-continue"])
+        self.assertEqual(
+            plan["patches"],
+            ["trellis-continue-task-progress-recovery"],
+        )
+        self.assertIn(
+            "trellis-continue-task-progress-recovery",
+            {item["id"] for item in plan["results"]},
+        )
+        for target in (
+            ".agents/skills/trellis-continue/SKILL.md",
+            ".claude/commands/trellis/continue.md",
+        ):
+            value = next(
+                item["next"]
+                for item in plan["files"]
+                if item["target"] == target
+            )
+            self.assertIn("task_progress.py status --json", value)
+            self.assertLess(
+                value.index("task_progress.py status --json"),
+                value.index("## Step 2: Load the Phase Index"),
+            )
+            self.assertIn("Never rebind the session or task automatically", value)
+            self.assertIn("Do not infer a Phase from progress", value)
 
 
 if __name__ == "__main__":

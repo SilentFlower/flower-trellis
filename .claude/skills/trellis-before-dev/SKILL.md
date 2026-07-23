@@ -7,17 +7,9 @@ Read the relevant development guidelines before starting your task.
 <!-- BEGIN skill-garden patch before-dev-project-knowledge-discovery v0.6 -->
 ## Project Knowledge Discovery
 
-Before choosing an approach for non-trivial project work, run:
+Follow the workflow `Request Triage` Project Knowledge Discovery contract before choosing an approach. If it has not run for the current user intent, workflow phase, or decision boundary, return to that owner now and carry its matched SOPs and specs into the package-specific discovery below.
 
-```bash
-python3 ./.trellis/scripts/spec_router.py "<short query describing the intended action>"
-```
-
-Build the query from the current request and immediate context: intended action, commands about to run, affected files or systems, package/layer, and relevant domain terms.
-
-Run discovery when project-local SOPs, package conventions, workflow rules, configuration/state contracts, release/deploy/rollback steps, Git history actions, data changes, cross-layer design, generated artifacts, install/sync pipelines, or destructive operations may change the correct approach. Read high-confidence matches before acting; read medium-confidence matches only when their path, heading, index description, or reason clearly fits.
-
-If nothing matches, continue with the package/spec discovery steps below. Skip this command for pure Q&A, simple read-only inspection, opening local tools, or trivial edits unless project conventions may change the approach.
+Do not maintain a narrower trigger list here. This skill is a development-time consumer of the global policy, not its primary owner.
 <!-- END skill-garden patch before-dev-project-knowledge-discovery v0.6 -->
 
 Execute these steps:

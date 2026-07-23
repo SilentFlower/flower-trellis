@@ -333,12 +333,13 @@
         "values": [
           "<!-- BEGIN skill-garden patch workflow-hub v0.6 -->\n### Skill-Garden Workflow Owner Index",
           "| Request Intent Routing | `Request Triage` + `trellis-start` | `task_intent.py` |",
-          "| Project Knowledge Discovery | `trellis-before-dev` | `spec_router.py` |",
+          "| Project Knowledge Discovery | `Request Triage` | `spec_router.py` |",
+          "| Active Task Scope Guard | `Request Triage` | `task_intent.py` scope safety |",
           "| Routing Gate | Phase 2 + `trellis-route` | `route_state.py` |",
           "| Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` | `auto_loop.py record/next` |",
           "| Code Commit Confirmation Gate | Phase 3.4 + `trellis-push` | exact Git safety checks |",
           "| Bookkeeping Auto-commit Scope | `trellis-finish-work` | `safe_commit.py` + archive/journal commands |",
-          "| Task Progress Recovery | `trellis-push` recovery entry | `task_progress.py` |",
+          "| Task Progress Recovery | `trellis-continue` | `task_progress.py` |",
           "A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.",
           "Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; `trellis-finish-work` runs only after Phase 3.4"
         ]
@@ -402,6 +403,10 @@
           "<!-- BEGIN skill-garden patch workflow-request-triage v0.6 -->",
           "Repair authorization and permission to skip task planning are separate.",
           "`direct_edit` requires known, bounded, local, low-risk, reversible scope and simple validation.",
+          "python3 ./.trellis/scripts/spec_router.py \"<short query describing the intended action>\"",
+          "Project Knowledge Discovery applies once per user intent, workflow phase, or decision boundary",
+          "When an active task exists, apply the Active Task Scope Guard before artifact ownership, task routing, or file edits.",
+          "proceed untracked without reusing the current task or progress",
           "Only an explicit current-request workflow instruction such as `直接做` / `不要任务` may override automatic `task_plan`.",
           "run `task_intent.py discard --task <current-task>` before changing route"
         ]
@@ -438,12 +443,12 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch before-dev-project-knowledge-discovery v0.6 -->\n## Project Knowledge Discovery",
-          "python3 ./.trellis/scripts/spec_router.py \"<short query describing the intended action>\"",
-          "Read high-confidence matches before acting"
+          "Follow the workflow `Request Triage` Project Knowledge Discovery contract before choosing an approach.",
+          "This skill is a development-time consumer of the global policy, not its primary owner."
         ]
       },
-      "owner": "trellis-before-dev",
-      "reason": "Project Knowledge Discovery 的完整执行契约必须位于真正的开发前入口。"
+      "owner": "workflow-request-triage",
+      "reason": "before-dev 只保留进入全局 Project Knowledge Discovery owner 的一跳引用，不能再保存更窄的触发矩阵。"
     },
     {
       "id": "before-dev-required-project-knowledge-claude",
@@ -456,29 +461,93 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch before-dev-project-knowledge-discovery v0.6 -->\n## Project Knowledge Discovery",
-          "python3 ./.trellis/scripts/spec_router.py \"<short query describing the intended action>\""
+          "Follow the workflow `Request Triage` Project Knowledge Discovery contract before choosing an approach."
         ]
       },
-      "owner": "trellis-before-dev",
-      "reason": "Claude 最终 before-dev 入口必须与 agents 入口保持相同知识发现契约。"
+      "owner": "workflow-request-triage",
+      "reason": "Claude before-dev 入口必须与 agents 入口一样指向全局 Request Triage owner。"
     },
     {
       "id": "workflow-state-required-active-task-scope",
       "severity": "error",
       "target": ".trellis/workflow.md",
       "whenOperations": [
+        "workflow-state-planning",
+        "workflow-state-planning-inline",
         "workflow-state-in-progress",
         "workflow-state-in-progress-inline"
       ],
       "assertion": {
         "type": "required-literal",
         "values": [
-          "New work outside the active task title/brief must stop before routing or edits.",
-          "if the work belongs here, update artifacts first; if the user declines tracking, confirm untracked execution."
+          "apply the `Request Triage` Active Task Scope Guard",
+          "New implementation work outside the active task title/brief stops here",
+          "explicitly proceeds untracked without reusing its progress"
         ]
       },
-      "owner": "workflow-state-in-progress",
-      "reason": "Active Task Scope Guard 必须由当前 active state 在进入 route 或编辑前直接执行。"
+      "owner": "workflow-request-triage",
+      "reason": "planning 与 in-progress 的全部 active state 必须在 artifacts、route 或编辑前进入全局 Active Task Scope Guard。"
+    },
+    {
+      "id": "workflow-hub-old-gate-owners-absent",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-hub"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "| Project Knowledge Discovery | `trellis-before-dev` | `spec_router.py` |",
+          "| Active Task Scope Guard | active workflow state | `task_intent.py` scope safety |",
+          "| Task Progress Recovery | `trellis-push` recovery entry | `task_progress.py` |"
+        ]
+      },
+      "owner": "workflow-hub",
+      "reason": "Hub 不得继续指向三个已证明不可达或不完整的旧 owner。"
+    },
+    {
+      "id": "continue-required-task-progress-recovery-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-continue/SKILL.md",
+      "whenOperations": [
+        "trellis-continue-task-progress-recovery"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-continue-task-progress-recovery v0.6 -->\n## Step 1.5: Recover Saved Task Progress",
+          "python3 ./.trellis/scripts/task_progress.py status --json",
+          "Never rebind the session or task automatically.",
+          "Progress never overrides the task `status`, planning artifacts, or workflow ordering.",
+          "### Planning Resume Gate",
+          "enter `trellis-brainstorm` before using artifact presence",
+          "wait for a current explicit user confirmation before `task.py start`"
+        ]
+      },
+      "owner": "trellis-continue",
+      "reason": "Codex continue 入口必须在 Phase 判断前恢复并只展示允许的 task progress 证据。"
+    },
+    {
+      "id": "continue-required-task-progress-recovery-claude",
+      "severity": "error",
+      "target": ".claude/commands/trellis/continue.md",
+      "whenOperations": [
+        "trellis-continue-task-progress-recovery"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-continue-task-progress-recovery v0.6 -->\n## Step 1.5: Recover Saved Task Progress",
+          "python3 ./.trellis/scripts/task_progress.py status --json",
+          "Do not infer a Phase from progress",
+          "### Planning Resume Gate",
+          "enter `trellis-brainstorm` before using artifact presence",
+          "wait for a current explicit user confirmation before `task.py start`"
+        ]
+      },
+      "owner": "trellis-continue",
+      "reason": "Claude continue 入口必须与 Codex 保持相同的 progress recovery 边界。"
     },
     {
       "id": "workflow-state-hub-pointer-budget",

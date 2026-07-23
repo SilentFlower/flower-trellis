@@ -59,6 +59,7 @@ test("交互 Check-All 保留停止点且用户继续后同轮进入 Update-Spec
     sourceRoot,
     ".agents/skills/trellis-check-all/SKILL.md",
   );
+  const push = read(sourceRoot, ".agents/skills/trellis-push/SKILL.md");
 
   const postCheck = checkAll.slice(
     checkAll.indexOf("## Interactive Post-Check Stop Gate"),
@@ -73,6 +74,11 @@ test("交互 Check-All 保留停止点且用户继续后同轮进入 Update-Spec
   assert.doesNotMatch(inlineState, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.match(checkAll, /## Interactive Post-Check Stop Gate/);
   assert.match(checkAll, /立即停止并等待用户选择/);
+  assert.match(state, /later interactive next\/continue runs `trellis-update-spec`/);
+  assert.match(push, /任何普通 push 或用户 `commit-only`/);
+  assert.match(push, /当前有效的 `spec_update_result`/);
+  assert.match(push, /先加载 `trellis-update-spec`/);
+  assert.match(push, /auto-loop 内部 `commit-only` 已由 runner/);
 });
 
 test("auto-loop 对 Update-Spec 三态使用确定性 record 映射", () => {

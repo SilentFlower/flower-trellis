@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-07-23T13:23:28.835Z",
+  "syncedAt": "2026-07-23T15:46:54.794Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "b19faacdf222d1a9a17c0a87f537b256cbcf014a",
+  "sourceCommit": "c1b31b575db75afc4939b64761c1e548247bbc38",
   "common": {
     "codexSkills": [
       "craft-rpa",
@@ -209,9 +209,14 @@
         "skills/trellis-brainstorm/planning-handoff/quality-bar-baseline.md",
         "skills/trellis-brainstorm/planning-handoff/readiness-content.md",
         "skills/trellis-brainstorm/planning-handoff/readiness-selector.md",
+        "skills/trellis-continue/task-progress-recovery/content.md",
+        "skills/trellis-continue/task-progress-recovery/patch.json",
+        "skills/trellis-continue/task-progress-recovery/selector.md",
         "skills/trellis-finish-work/exact-bookkeeping/baseline-agent.md",
         "skills/trellis-finish-work/exact-bookkeeping/baseline-command.md",
         "skills/trellis-finish-work/exact-bookkeeping/content.md",
+        "skills/trellis-finish-work/exact-bookkeeping/gemini-content.md",
+        "skills/trellis-finish-work/exact-bookkeeping/gemini-selector.txt",
         "skills/trellis-finish-work/exact-bookkeeping/patch.json",
         "skills/trellis-start/no-task-routing/content.md",
         "skills/trellis-start/no-task-routing/patch.json",
@@ -294,6 +299,7 @@
         "finish-work.json",
         "intent-routing.json",
         "shared-hook-runtime.json",
+        "task-progress-recovery.json",
         "update-spec-flow.json"
       ],
       "policyFiles": [

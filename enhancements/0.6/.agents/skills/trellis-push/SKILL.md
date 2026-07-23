@@ -28,6 +28,16 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 内部 `commit-only` 不接受临时扩大文件范围、远端推送或其他附加动作。安全条件不满足时返回失败，由调用方决定后续状态。
 
+## Step 0：交互式完成链门禁
+
+除 auto-loop 内部 `commit-only` 外，任何普通 push 或用户 `commit-only` 在读取 Git 提交计划前，都必须确认当前工作内容已经通过 Check-All，且该结论之后存在当前有效的 `spec_update_result`：
+
+- `status=no-op|written`：继续本 skill 的 Git 预检与计划。
+- 缺失，或实际 diff、Check-All 结论、用户 spec 意图已变化：先加载 `trellis-update-spec`，只有新的 `no-op|written` 才能回到本 skill。
+- `status=needs-review`：停止，不生成提交计划。
+
+用户直接说 push/提交不构成跳过 Phase 3.3 的授权。auto-loop 内部 `commit-only` 已由 runner 的 `run_spec_update -> commit_only` 状态机和预授权保证顺序，因此不得重复进入本门禁。
+
 ## Step 1：发现仓库与任务
 
 候选仓库包括：

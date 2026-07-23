@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { ENHANCEMENT_SKILL_TARGETS } from "../constants.js";
 import { copySkills } from "./copy-skills.js";
 import { copyScriptAssets } from "./copy-scripts.js";
 import { injectWorkflow } from "./workflow-inject.js";
@@ -24,12 +25,13 @@ import {
 
 /** 清理升级后可能变空的强化目录(深 → 浅)。 */
 function pruneEmptyDirs(target) {
-  for (const d of [
-    ".agents/skills",
-    ".agents",
+  const candidates = [...new Set([
+    ...ENHANCEMENT_SKILL_TARGETS.map(({ root }) => root),
     ".claude/commands/trellis",
     ".claude/commands",
-  ]) {
+    ...ENHANCEMENT_SKILL_TARGETS.map(({ root }) => path.posix.dirname(root)),
+  ])].sort((left, right) => right.split("/").length - left.split("/").length);
+  for (const d of candidates) {
     const abs = path.join(target, ...d.split("/"));
     try {
       if (fs.readdirSync(abs).length === 0) fs.rmdirSync(abs);
@@ -136,9 +138,9 @@ export function applyEnhancements(target, opts = {}) {
     : { installed: [], paths: [] };
   const installed = [...skillInstalled, ...scriptInstalled, ...flowerInstalled];
   const newPaths = [...skillPaths, ...scriptPaths, ...flowerPaths];
-  const where = [];
-  if (newPaths.some((p) => p.startsWith(".claude/skills"))) where.push(".claude/skills");
-  if (newPaths.some((p) => p.startsWith(".agents/skills"))) where.push(".agents/skills");
+  const where = ENHANCEMENT_SKILL_TARGETS
+    .map(({ root }) => root)
+    .filter((root) => newPaths.some((p) => p.startsWith(`${root}/`)));
   if (newPaths.some((p) => p.startsWith(".claude/commands"))) where.push(".claude/commands/trellis");
   if (newPaths.some((p) => p.startsWith(".trellis/scripts"))) where.push(".trellis/scripts");
   console.log(

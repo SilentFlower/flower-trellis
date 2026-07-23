@@ -38,6 +38,31 @@ export const PLATFORM_FLAGS = [
 ];
 
 /**
+ * Flower 工作流强化 Skill 的平台原生目标。
+ *
+ * `source` 指向强化快照中的 canonical Skill 源；Codex、Gemini 与 ZCode
+ * 共用 `.agents/skills`，因此这里只保留一个目标。Windsurf 没有 Skill root，
+ * 其 workflow 入口继续由 Patch Engine 单独维护。
+ */
+export const ENHANCEMENT_SKILL_TARGETS = [
+  { platform: "claude", root: ".claude/skills", source: "claude" },
+  { platform: "codex-gemini-zcode", root: ".agents/skills", source: "agents" },
+  { platform: "cursor", root: ".cursor/skills", source: "agents" },
+  { platform: "opencode", root: ".opencode/skills", source: "agents" },
+  { platform: "kilo", root: ".kilocode/skills", source: "agents" },
+  { platform: "kiro", root: ".kiro/skills", source: "agents" },
+  { platform: "antigravity", root: ".agent/skills", source: "agents" },
+  { platform: "devin", root: ".devin/skills", source: "agents" },
+  { platform: "qoder", root: ".qoder/skills", source: "agents" },
+  { platform: "codebuddy", root: ".codebuddy/skills", source: "agents" },
+  { platform: "copilot", root: ".github/skills", source: "agents" },
+  { platform: "droid", root: ".factory/skills", source: "agents" },
+  { platform: "pi", root: ".pi/skills", source: "agents" },
+  { platform: "trae", root: ".trae/skills", source: "agents" },
+  { platform: "reasonix", root: ".reasonix/skills", source: "agents" },
+];
+
+/**
  * flower-trellis 自有 flag —— 这些不能透传给 trellis,需在解析时剔除。
  *
  * 值含义:

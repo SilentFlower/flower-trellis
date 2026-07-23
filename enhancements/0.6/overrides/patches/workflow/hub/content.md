@@ -9,16 +9,16 @@ Complete contracts live in the owning phase, workflow state, skill, hook, or hel
 | Request Intent Routing | `Request Triage` + `trellis-start` | `task_intent.py` |
 | Brainstorm Gate | Phase 1.1 + `trellis-brainstorm` | `task.py start` readiness |
 | Task Brief Handoff | Phase 1.4 + `trellis-task-brief` | `task.py start` brief guard |
-| Project Knowledge Discovery | `trellis-before-dev` | `spec_router.py` |
+| Project Knowledge Discovery | `Request Triage` | `spec_router.py` |
 | Flower Update Confirmation | SessionStart update context + Flower CLI | update hook / `self-update` arguments |
-| Active Task Scope Guard | active workflow state | `task_intent.py` scope safety |
+| Active Task Scope Guard | `Request Triage` | `task_intent.py` scope safety |
 | Routing Gate | Phase 2 + `trellis-route` | `route_state.py` |
 | Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` | `auto_loop.py record/next` |
 | Interactive Post-Check Stop Gate | Phase 2.2 + `trellis-check-all` | current Check-All evidence |
 | Code Commit Confirmation Gate | Phase 3.4 + `trellis-push` | exact Git safety checks |
 | Auto-loop Commit-only Preauthorization | `trellis-auto-loop` | `auto_loop.py` + `trellis-push` internal commit-only |
 | Bookkeeping Auto-commit Scope | `trellis-finish-work` | `safe_commit.py` + archive/journal commands |
-| Task Progress Recovery | `trellis-push` recovery entry | `task_progress.py` |
+| Task Progress Recovery | `trellis-continue` | `task_progress.py` |
 
 Cross-stage ordering:
 

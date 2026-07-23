@@ -15,5 +15,27 @@
     "baselines": ["baseline.md"],
     "cleanup": [{ "type": "skill-override", "id": "trellis-update-spec" }],
     "content": { "source": "content.md" }
+  }, {
+    "id": "trellis-update-spec-native-autonomous-evaluation",
+    "operation": "replace",
+    "targetPolicy": "each-existing",
+    "targets": [
+      { "kind": "skill", "path": ".agent/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".codebuddy/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".cursor/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".devin/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".factory/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".github/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kilocode/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kiro/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".opencode/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".pi/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".qoder/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".reasonix/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".trae/skills/trellis-update-spec/SKILL.md", "missing": "skip" }
+    ],
+    "selector": { "type": "markdown-section", "heading": "## Interactive Mode" },
+    "cleanup": [{ "type": "skill-override", "id": "trellis-update-spec" }],
+    "content": { "source": "content.md" }
   }]
 }

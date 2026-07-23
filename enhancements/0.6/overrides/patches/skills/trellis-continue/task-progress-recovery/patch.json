@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 2,
+  "id": "trellis-continue-task-progress-recovery",
+  "purpose": "task_progress_recovery",
+  "operations": [{
+    "id": "trellis-continue-task-progress-recovery",
+    "operation": "insert",
+    "position": "after",
+    "targetPolicy": "each-existing",
+    "targets": [
+      { "kind": "command", "path": ".agent/workflows/continue.md", "missing": "skip" },
+      { "kind": "skill", "path": ".agents/skills/trellis-continue/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".claude/commands/trellis/continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".codebuddy/commands/trellis/continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".cursor/commands/trellis-continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".devin/workflows/trellis-continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".factory/commands/trellis/continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".gemini/commands/trellis/continue.toml", "missing": "skip" },
+      { "kind": "command", "path": ".github/prompts/continue.prompt.md", "missing": "skip" },
+      { "kind": "command", "path": ".kilocode/workflows/continue.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kiro/skills/trellis-continue/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".opencode/commands/trellis/continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".pi/prompts/trellis-continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".qoder/commands/trellis-continue.md", "missing": "skip" },
+      { "kind": "skill", "path": ".reasonix/skills/trellis-continue/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".trae/commands/trellis-continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".zcode/commands/trellis/continue.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "selector.md", "expectedMatches": 1 },
+    "content": { "source": "content.md" }
+  }]
+}

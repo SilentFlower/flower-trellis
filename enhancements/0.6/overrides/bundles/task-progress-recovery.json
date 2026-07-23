@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "id": "trellis-continue",
+  "aliases": ["continue", "task-progress", "progress-recovery"],
+  "installMode": "full-or-selected",
+  "patches": ["skills/trellis-continue/task-progress-recovery"]
+}

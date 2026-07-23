@@ -117,7 +117,9 @@ python3 ./.trellis/scripts/auto_loop.py next
 | runner action | 主 agent 动作 | 成功 record |
 | --- | --- | --- |
 | `review_open_questions` | 结合 PRD 语义判断历史裸列表是已解决、仍阻塞或无法确定 | 已解决：`record --action review_open_questions --result ok --review-verdict resolved --summary "<摘要>"`；仍阻塞/无法确定：使用 `--result blocked --review-verdict blocking|ambiguous` |
-| `refresh_brief` | 使用 `trellis-task-brief` 生成并展示 brief | `record --action refresh_brief --result ok` |
+| `review_planning_readiness` | 按 `trellis-brainstorm` Quality Bar 复核验收标准可测试、范围明确、关键决策收敛、仓库问题已研究 | ready：`record --action review_planning_readiness --result ok --readiness-verdict ready --summary "<摘要>"`；仍阻塞/无法确定：使用 `--result blocked --readiness-verdict blocking|ambiguous` |
+| `refresh_brief` | 使用 `trellis-task-brief` 刷新并展示 brief；这一步不代表用户确认 | `record --action refresh_brief --result ok` |
+| `confirm_brief` | 再次展示 action 对应的完整 brief，并等待用户显式确认 | 收到确认后：`record --action confirm_brief --result ok --summary "<确认摘要>"`；未确认时停止，不得 record |
 | `start_task` | 执行返回的 `task.py start ...` 命令 | `record --action start_task --result ok` |
 | `run_implement` | 进入 Phase 2.1，先用 `trellis-route(target=implement)` 决定 inline/subagent，再实现 | `record --action run_implement --result ok --route-mode <mode> --route-source <source>` |
 | `run_check_all` | 进入 Phase 2.2，先用 `trellis-route(target=check)`，按 action 的 requested depth 执行 Check-All | `record --action run_check_all --result ok --route-mode <mode> --route-source <source> --effective-check-depth <light|full> --check-depth-reason "<摘要>"` |
@@ -154,6 +156,10 @@ python3 ./.trellis/scripts/auto_loop.py record \
 runner 会按 3 轮 fix/recheck 预算决定继续、跳过当前任务或结束队列。
 
 `review_open_questions` 必须只依据 action 返回的 `questions` 和当前 PRD 判断。runner 会把结果绑定到 action 发出时的 PRD SHA-256；PRD 在复核期间发生变化时，record 会返回 `stale-open-questions-review`，此时重新运行 `next`，不得复用旧判断。`ambiguous` 必须保守阻塞，交由用户或 planning 收敛。
+
+`review_planning_readiness` 必须读取 action 指向的当前 planning artifacts，并按 Brainstorm Gate 的语义质量线复核，不能把文件存在、章节存在或 route context 已 curated 当作 ready。runner 会把结论绑定到 `prd.md`、存在时的 `design.md`/`implement.md` 内容；任一文件变化后旧结论失效。
+
+`refresh_brief` 成功后必须立即 `next`。runner 随后返回 `confirm_brief`，主 agent 要展示当前完整 brief 并停止等待用户；启动 auto-loop、选择 route 或生成 brief 都不构成确认。`confirm_brief` 只在收到明确确认后回写，且确认绑定 planning artifacts 与 brief 内容；任一文件变化后必须重新展示并确认。
 
 `record` 默认只返回当前 item 的 `task`、`item_status`、`current_step`、`commit` 和紧凑 `summary`；只有排查状态漂移时才加 `--verbose` 查看完整 `item`。
 

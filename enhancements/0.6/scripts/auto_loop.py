@@ -26,6 +26,8 @@ RECOVERABLE_BLOCK_REASONS = {
     "missing-prd",
     "open-questions",
     "open-questions-ambiguous",
+    "planning-readiness",
+    "planning-readiness-ambiguous",
     "incomplete-complex-artifacts",
     "missing-implement-context",
     "missing-check-context",
@@ -33,7 +35,9 @@ RECOVERABLE_BLOCK_REASONS = {
 }
 STEP_ACTIONS = {
     "review_open_questions": "review_open_questions",
+    "review_planning_readiness": "review_planning_readiness",
     "refresh_brief": "refresh_brief",
+    "confirm_brief": "confirm_brief",
     "start_task": "start_task",
     "implement": "run_implement",
     "check": "run_check_all",
@@ -393,6 +397,45 @@ def _prd_sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def _artifact_digest(paths: list[Path]) -> tuple[str, list[str]]:
+    """返回按路径和内容绑定的稳定摘要，以及参与摘要的文件名。"""
+    digest = hashlib.sha256()
+    names: list[str] = []
+    for path in paths:
+        if not path.is_file():
+            continue
+        content = path.read_bytes()
+        names.append(path.name)
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(content)
+        digest.update(b"\0")
+    return digest.hexdigest(), names
+
+
+def _planning_digest(task_dir: Path) -> tuple[str, list[str]]:
+    """返回当前 planning authoritative artifacts 的内容摘要。"""
+    return _artifact_digest([
+        task_dir / "prd.md",
+        task_dir / "design.md",
+        task_dir / "implement.md",
+    ])
+
+
+def _brief_is_stale(task_dir: Path) -> tuple[bool, list[str]]:
+    """判断 brief 是否早于任一 authoritative planning artifact。"""
+    brief = task_dir / "brief.md"
+    if not brief.is_file():
+        return True, ["brief.md"]
+    brief_mtime = brief.stat().st_mtime_ns
+    newer = [
+        path.name
+        for path in (task_dir / "prd.md", task_dir / "design.md", task_dir / "implement.md")
+        if path.is_file() and path.stat().st_mtime_ns > brief_mtime
+    ]
+    return bool(newer), newer
+
+
 def _start_gate(
     repo_root: Path,
     task_ref: str,
@@ -468,10 +511,69 @@ def _start_gate(
             "message": "check.jsonl 未 curated（当前 route 可能需要 sub-agent context）",
         }
 
-    if not (task_dir / "brief.md").is_file():
+    try:
+        planning_hash, planning_files = _planning_digest(task_dir)
+    except OSError as exc:
+        return "blocked", {
+            "reason": "planning-readiness",
+            "message": f"无法读取 planning artifacts:{exc}",
+        }
+    readiness = item.get("planning_readiness_review")
+    if not isinstance(readiness, dict) or readiness.get("planning_sha256") != planning_hash:
+        return "action", {
+            "action": "review_planning_readiness",
+            "message": "需要语义复核 planning artifacts 是否达到可实现状态",
+            "planning_sha256": planning_hash,
+            "planning_files": planning_files,
+        }
+    verdict = readiness.get("verdict")
+    if verdict == "blocking":
+        return "blocked", {
+            "reason": "planning-readiness",
+            "message": "planning artifacts 经语义复核仍不具备实现条件",
+            "review": readiness,
+        }
+    if verdict != "ready":
+        return "blocked", {
+            "reason": "planning-readiness-ambiguous",
+            "message": "planning artifacts 的实现就绪性无法确定，需继续收敛",
+            "review": readiness,
+        }
+
+    try:
+        brief_stale, newer_sources = _brief_is_stale(task_dir)
+    except OSError as exc:
+        return "blocked", {
+            "reason": "planning-readiness",
+            "message": f"无法检查 brief freshness:{exc}",
+        }
+    if brief_stale:
         return "action", {
             "action": "refresh_brief",
-            "message": "缺少 brief.md，需先用 trellis-task-brief 生成任务摘要",
+            "message": "brief.md 缺失或过期，需先用 trellis-task-brief 刷新并展示任务摘要",
+            "planning_sha256": planning_hash,
+            "newer_sources": newer_sources,
+        }
+
+    try:
+        handoff_hash, handoff_files = _artifact_digest([
+            task_dir / "prd.md",
+            task_dir / "design.md",
+            task_dir / "implement.md",
+            task_dir / "brief.md",
+        ])
+    except OSError as exc:
+        return "blocked", {
+            "reason": "planning-readiness",
+            "message": f"无法读取 brief handoff artifacts:{exc}",
+        }
+    confirmation = item.get("brief_confirmation")
+    if not isinstance(confirmation, dict) or confirmation.get("handoff_sha256") != handoff_hash:
+        return "action", {
+            "action": "confirm_brief",
+            "message": "展示当前 brief.md，并等待用户显式确认 planning artifacts 与 brief",
+            "handoff_sha256": handoff_hash,
+            "handoff_files": handoff_files,
         }
 
     return "ok", {"message": "start gate satisfied"}
@@ -870,11 +972,23 @@ def _action(action: str, item: dict[str, Any], extra: dict[str, Any] | None = No
             "语义复核历史 Open Questions 裸列表，并调用 record --action review_open_questions "
             "--result <ok|blocked> --review-verdict <resolved|blocking|ambiguous> --summary <摘要>。"
         )
+    elif action == "review_planning_readiness":
+        base["instruction"] = (
+            "按 trellis-brainstorm Quality Bar 复核验收标准是否可测试、范围/非目标是否明确、"
+            "关键决策是否收敛、仓库可回答的问题是否已研究；然后调用 record "
+            "--action review_planning_readiness --result <ok|blocked> "
+            "--readiness-verdict <ready|blocking|ambiguous> --summary <摘要>。"
+        )
     elif action == "start_task":
         task_name = Path(str(task)).name
         base["command"] = f"python3 ./.trellis/scripts/task.py start {task_name}"
     elif action == "refresh_brief":
-        base["instruction"] = "运行 trellis-task-brief 生成 brief.md，然后 record --result ok。"
+        base["instruction"] = "运行 trellis-task-brief 刷新并展示 brief.md，然后 record --result ok；这一步不代表用户确认。"
+    elif action == "confirm_brief":
+        base["instruction"] = (
+            "在对话中展示当前完整 brief.md，并等待用户显式确认；收到确认后才调用 "
+            "record --action confirm_brief --result ok --summary <确认摘要>。"
+        )
     elif action == "run_implement":
         base["instruction"] = "进入 Phase 2.1 implement route，并执行实现。"
     elif action == "run_check_all":
@@ -903,8 +1017,9 @@ def _remember_action(item: dict[str, Any], action_data: dict[str, Any]) -> dict[
         "current_step": action_data.get("current_step"),
         "issued_at": _utc_now(),
     }
-    if action_data.get("prd_sha256"):
-        item["last_action"]["prd_sha256"] = action_data["prd_sha256"]
+    for key in ("prd_sha256", "planning_sha256", "handoff_sha256"):
+        if action_data.get(key):
+            item["last_action"][key] = action_data[key]
     item["updated_at"] = _utc_now()
     return action_data
 
@@ -1324,6 +1439,109 @@ def _record_open_questions_review(
     return None
 
 
+def _record_planning_readiness_review(
+    repo_root: Path,
+    item: dict[str, Any],
+    args: argparse.Namespace,
+) -> dict[str, Any] | None:
+    """校验并保存绑定当前 artifacts 的 planning 语义就绪结论。"""
+    verdict = getattr(args, "readiness_verdict", None)
+    if verdict not in {"ready", "blocking", "ambiguous"}:
+        return {
+            "status": "error",
+            "reason": "missing-readiness-verdict",
+            "message": "review_planning_readiness 必须提供 --readiness-verdict。",
+        }
+    expected_result = "ok" if verdict == "ready" else "blocked"
+    if args.result != expected_result:
+        return {
+            "status": "error",
+            "reason": "readiness-result-mismatch",
+            "message": f"{verdict} 必须配合 --result {expected_result}。",
+        }
+
+    task_dir = _task_dir(repo_root, str(item.get("task") or ""))
+    try:
+        actual_hash, files = _planning_digest(task_dir)
+    except OSError as exc:
+        return {"status": "error", "reason": "planning-artifacts-unreadable", "message": str(exc)}
+    last_action = item.get("last_action")
+    expected_hash = last_action.get("planning_sha256") if isinstance(last_action, dict) else None
+    if expected_hash != actual_hash:
+        return {
+            "status": "error",
+            "reason": "stale-planning-readiness-review",
+            "expected_planning_sha256": expected_hash,
+            "actual_planning_sha256": actual_hash,
+            "message": "planning artifacts 已变化，请重新运行 next 获取新的复核 action。",
+        }
+
+    review = {
+        "planning_sha256": actual_hash,
+        "verdict": verdict,
+        "files": files,
+        "summary": args.summary or "",
+        "reviewed_at": _utc_now(),
+    }
+    item["planning_readiness_review"] = review
+    item["last_action"] = None
+    if verdict == "ready":
+        item["current_step"] = "start_task"
+        item["updated_at"] = _utc_now()
+        _append_item_decision(item, "planning_readiness_reviewed", args.summary or "planning artifacts 已具备实现条件", review)
+    else:
+        reason = "planning-readiness" if verdict == "blocking" else "planning-readiness-ambiguous"
+        summary = args.summary or ("planning artifacts 仍有阻塞项" if verdict == "blocking" else "planning readiness 无法确定")
+        _block_item(item, reason, summary, {"review": review})
+    return None
+
+
+def _record_brief_confirmation(
+    repo_root: Path,
+    item: dict[str, Any],
+    args: argparse.Namespace,
+) -> dict[str, Any] | None:
+    """校验并保存绑定当前 handoff artifacts 的显式 brief 确认。"""
+    if args.result != "ok":
+        return {
+            "status": "error",
+            "reason": "brief-confirmation-result-mismatch",
+            "message": "confirm_brief 只有收到用户显式确认后才能以 --result ok 回写。",
+        }
+    task_dir = _task_dir(repo_root, str(item.get("task") or ""))
+    try:
+        actual_hash, files = _artifact_digest([
+            task_dir / "prd.md",
+            task_dir / "design.md",
+            task_dir / "implement.md",
+            task_dir / "brief.md",
+        ])
+    except OSError as exc:
+        return {"status": "error", "reason": "brief-handoff-unreadable", "message": str(exc)}
+    last_action = item.get("last_action")
+    expected_hash = last_action.get("handoff_sha256") if isinstance(last_action, dict) else None
+    if expected_hash != actual_hash:
+        return {
+            "status": "error",
+            "reason": "stale-brief-confirmation",
+            "expected_handoff_sha256": expected_hash,
+            "actual_handoff_sha256": actual_hash,
+            "message": "planning artifacts 或 brief.md 已变化，请重新运行 next 并展示最新 brief。",
+        }
+    confirmation = {
+        "handoff_sha256": actual_hash,
+        "files": files,
+        "summary": args.summary or "",
+        "confirmed_at": _utc_now(),
+    }
+    item["brief_confirmation"] = confirmation
+    item["last_action"] = None
+    item["current_step"] = "start_task"
+    item["updated_at"] = _utc_now()
+    _append_item_decision(item, "brief_confirmed", args.summary or "用户已确认 planning artifacts 与 brief", confirmation)
+    return None
+
+
 def _advance_after_ok(item: dict[str, Any], action: str, args: argparse.Namespace) -> None:
     """根据成功动作推进 current_step。"""
     if action in ROUTE_ACTION_TARGETS:
@@ -1540,6 +1758,36 @@ def cmd_record(args: argparse.Namespace) -> int:
             "summary": _format_summary(state, args),
         })
 
+    if action == "review_planning_readiness":
+        review_error = _record_planning_readiness_review(repo_root, item, args)
+        if review_error is not None:
+            review_error.update({"task": item.get("task"), "action": action})
+            return _print(review_error)
+        _write_state(path, state)
+        return _print({
+            "status": "recorded",
+            "run_id": state.get("run_id"),
+            "task": item.get("task"),
+            "item_status": item.get("status"),
+            "current_step": item.get("current_step"),
+            "summary": _format_summary(state, args),
+        })
+
+    if action == "confirm_brief":
+        confirmation_error = _record_brief_confirmation(repo_root, item, args)
+        if confirmation_error is not None:
+            confirmation_error.update({"task": item.get("task"), "action": action})
+            return _print(confirmation_error)
+        _write_state(path, state)
+        return _print({
+            "status": "recorded",
+            "run_id": state.get("run_id"),
+            "task": item.get("task"),
+            "item_status": item.get("status"),
+            "current_step": item.get("current_step"),
+            "summary": _format_summary(state, args),
+        })
+
     check_error = _check_record_error(state, item, action, args)
     if check_error is not None:
         check_error.update({"task": item.get("task"), "action": action})
@@ -1654,6 +1902,7 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--effective-check-depth", choices=("light", "full"))
     record.add_argument("--check-depth-reason")
     record.add_argument("--review-verdict", choices=("resolved", "blocking", "ambiguous"))
+    record.add_argument("--readiness-verdict", choices=("ready", "blocking", "ambiguous"))
     record.add_argument("--verbose", action="store_true")
     record.set_defaults(func=cmd_record)
 

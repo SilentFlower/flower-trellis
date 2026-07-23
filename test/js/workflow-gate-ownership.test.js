@@ -15,6 +15,14 @@ function readSource(relativePath) {
   return fs.readFileSync(path.join(SOURCE, relativePath), "utf8");
 }
 
+function assertOrdered(value, first, second, scenario) {
+  const firstIndex = value.indexOf(first);
+  const secondIndex = value.indexOf(second);
+  assert.notEqual(firstIndex, -1, `${scenario}: 缺少 ${first}`);
+  assert.notEqual(secondIndex, -1, `${scenario}: 缺少 ${second}`);
+  assert.ok(firstIndex < secondIndex, `${scenario}: ${first} 必须先于 ${second}`);
+}
+
 const GATES = [
   "Request Intent Routing",
   "Brainstorm Gate",
@@ -66,14 +74,23 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   const brainstorm = readSource(
     "overrides/patches/skills/trellis-brainstorm/planning-handoff/content.md",
   );
+  const brainstormQualityBar = readSource(
+    "overrides/patches/skills/trellis-brainstorm/planning-handoff/quality-bar-baseline.md",
+  );
   const taskBrief = readSource(".agents/skills/trellis-task-brief/SKILL.md");
   const beforeDev = readSource(
     "overrides/patches/skills/trellis-before-dev/project-knowledge-discovery/content.md",
   );
   const updateHook = readRoot("src/assets/flower_update_hook.py");
   const selfUpdate = readRoot("src/commands/self-update.js");
+  const planningState = readSource(
+    "overrides/patches/workflow/states-planning/common-content.md",
+  );
   const activeState = readSource(
     "overrides/patches/workflow/states-in-progress/common-content.md",
+  );
+  const continueRecovery = readSource(
+    "overrides/patches/skills/trellis-continue/task-progress-recovery/content.md",
   );
   const route = readSource(".agents/skills/trellis-route/SKILL.md");
   const checkAll = readSource(".agents/skills/trellis-check-all/SKILL.md");
@@ -86,29 +103,130 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
 
   assert.match(requestTriage, /`direct_edit` requires known, bounded, local, low-risk, reversible scope/);
   assert.match(requestTriage, /task_intent\.py discard --task <current-task>/);
+  assert.match(requestTriage, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
+  assert.match(requestTriage, /apply the Active Task Scope Guard before artifact ownership, task routing, or file edits/);
   assert.match(brainstorm, /Wait for the user's planning review confirmation/);
+  assert.match(brainstormQualityBar, /contains testable acceptance criteria/);
+  assert.match(brainstormQualityBar, /Repository-answerable questions have already been answered/);
   assert.match(taskBrief, /等待用户确认 planning artifacts 和 brief/);
-  assert.match(beforeDev, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
+  assert.match(beforeDev, /Follow the workflow `Request Triage` Project Knowledge Discovery contract/);
+  assert.doesNotMatch(beforeDev, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(updateHook, /priority: blocking_confirmation_required/);
   assert.match(selfUpdate, /post_action: "run_trellis_push_confirmation"/);
-  assert.match(activeState, /New work outside the active task title\/brief must stop before routing or edits/);
+  assert.match(planningState, /apply the `Request Triage` Active Task Scope Guard/);
+  assert.match(activeState, /apply the `Request Triage` Active Task Scope Guard/);
   assert.match(route, /合法 route 决策必须能追溯到/);
+  assert.match(route, /回到 Phase 2\.1 completion contract 解析 Pre-Check/);
   assert.ok(
     checkAll.indexOf("## Auto-Loop Return Gate")
       < checkAll.indexOf("## Interactive Post-Check Stop Gate"),
   );
   assert.match(push, /Phase 3\.4 唯一的代码提交入口/);
+  assert.match(push, /## Step 0：交互式完成链门禁/);
+  assert.match(push, /当前有效的 `spec_update_result`/);
+  assert.match(push, /auto-loop 内部 `commit-only`/);
   assert.match(push, /git commit --only/);
   assert.match(autoLoop, /## Commit-Only 预授权/);
+  assert.match(autoLoop, /`review_planning_readiness`/);
+  assert.match(autoLoop, /`confirm_brief`/);
+  assert.match(autoLoop, /任一文件变化后旧结论失效/);
   assert.match(finish, /This skill owns only the current task's release audit, archive bookkeeping/);
+  assert.match(continueRecovery, /task_progress\.py status --json/);
+  assert.match(continueRecovery, /Never rebind the session or task automatically/);
   assert.match(progress, /def _validate_progress/);
   assert.match(progress, /os\.replace\(temp_path, path\)/);
+});
+
+test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
+  const requestTriage = readSource(
+    "overrides/patches/workflow/intent-routing/request-triage/content.md",
+  );
+  const noTask = readSource("overrides/patches/workflow/state-no-task/content.md");
+  const planning = readSource(
+    "overrides/patches/workflow/states-planning/common-content.md",
+  );
+  const inProgress = readSource(
+    "overrides/patches/workflow/states-in-progress/common-content.md",
+  );
+  const continueRecovery = readSource(
+    "overrides/patches/skills/trellis-continue/task-progress-recovery/content.md",
+  );
+  const route = readSource(".agents/skills/trellis-route/SKILL.md");
+  const push = readSource(".agents/skills/trellis-push/SKILL.md");
+  const autoLoop = readSource(".agents/skills/trellis-auto-loop/SKILL.md");
+
+  const noTaskPath = `${requestTriage}\n${noTask}`;
+  assertOrdered(
+    noTask,
+    "follow the `Request Triage` Project Knowledge Discovery contract",
+    "Load a Trellis capability directly only when",
+    "无任务 beta release",
+  );
+  assert.match(noTask, /project-specific workflow actions through the matched SOP/);
+  assert.match(noTask, /instead of keyword-mapping a general release\/publish request to `trellis-release`/);
+  assertOrdered(
+    noTaskPath,
+    "spec_router.py",
+    "For non-destructive `direct_edit`",
+    "无任务非平凡 inspect/direct_edit",
+  );
+
+  for (const [name, value, downstream] of [
+    ["planning", planning, "Before `task.py start`"],
+    ["in_progress", inProgress, "Enter Phase 2.1/2.2"],
+  ]) {
+    assertOrdered(
+      value,
+      "apply the `Request Triage` Active Task Scope Guard",
+      downstream,
+      `${name} 无关实现隔离`,
+    );
+    assert.match(value, /outside the active task title\/brief stops here/);
+    assert.match(value, /without reusing its progress/);
+  }
+
+  assertOrdered(
+    continueRecovery,
+    "task_progress.py status --json",
+    "Progress never overrides the task `status`",
+    "continue progress 恢复",
+  );
+  assert.match(continueRecovery, /summary\.partialStep/);
+  assert.match(continueRecovery, /summary\.nextStep/);
+  assert.match(continueRecovery, /status=candidates/);
+  assert.match(continueRecovery, /suggest an explicit rebind/);
+  assert.match(continueRecovery, /Never rebind the session or task automatically/);
+  assert.match(continueRecovery, /Do not infer a Phase from progress/);
+  assert.match(continueRecovery, /or resume Git\/commit orchestration from it/);
+  assert.match(continueRecovery, /### Planning Resume Gate/);
+  assert.match(continueRecovery, /enter `trellis-brainstorm` before using artifact presence/);
+  assert.match(continueRecovery, /files exist; they do not prove that acceptance criteria are testable/);
+  assert.match(continueRecovery, /wait for a current explicit user confirmation before `task\.py start`/);
+
+  assertOrdered(
+    inProgress,
+    "Enter Phase 2.1/2.2 through the target-matched `trellis-route`",
+    "return to the Phase 2.1 completion contract",
+    "implement route 返回 Pre-Check owner",
+  );
+  assert.match(route, /focused validation 完成后都必须返回 workflow Phase 2\.1/);
+  assertOrdered(
+    push,
+    "## Step 0：交互式完成链门禁",
+    "## Step 1：发现仓库与任务",
+    "direct push 先经过 Update-Spec 门禁",
+  );
+  assert.match(push, /缺失，或实际 diff、Check-All 结论、用户 spec 意图已变化/);
+  assert.match(autoLoop, /刷新并展示 brief；这一步不代表用户确认/);
+  assert.match(autoLoop, /未确认时停止，不得 record/);
 });
 
 test("最终 dogfood 产物只有一个 Hub marker 且 owner Patch 已落盘", () => {
   const workflow = readRoot(".trellis/workflow.md");
   const beforeDevAgents = readRoot(".agents/skills/trellis-before-dev/SKILL.md");
   const beforeDevClaude = readRoot(".claude/skills/trellis-before-dev/SKILL.md");
+  const continueAgents = readRoot(".agents/skills/trellis-continue/SKILL.md");
+  const continueClaude = readRoot(".claude/commands/trellis/continue.md");
 
   assert.equal(
     (workflow.match(/BEGIN skill-garden patch workflow-hub v0\.6/g) || []).length,
@@ -118,4 +236,12 @@ test("最终 dogfood 产物只有一个 Hub marker 且 owner Patch 已落盘", (
   assert.doesNotMatch(workflow, /#### Request Intent Routing/);
   assert.match(beforeDevAgents, /BEGIN skill-garden patch before-dev-project-knowledge-discovery/);
   assert.match(beforeDevClaude, /BEGIN skill-garden patch before-dev-project-knowledge-discovery/);
+  assert.match(continueAgents, /BEGIN skill-garden patch trellis-continue-task-progress-recovery/);
+  assert.match(continueClaude, /BEGIN skill-garden patch trellis-continue-task-progress-recovery/);
+  assertOrdered(
+    continueAgents,
+    "task_progress.py status --json",
+    "## Step 2: Load the Phase Index",
+    "dogfood continue 恢复顺序",
+  );
 });

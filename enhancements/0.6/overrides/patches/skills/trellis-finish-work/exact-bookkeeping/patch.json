@@ -16,5 +16,39 @@
     "baselines": ["baseline-agent.md", "baseline-command.md"],
     "cleanup": [{ "type": "skill-override", "id": "trellis-finish-work" }],
     "content": { "source": "content.md" }
+  }, {
+    "id": "trellis-finish-work-native-exact-bookkeeping",
+    "operation": "replace",
+    "scope": "body",
+    "targetPolicy": "each-existing",
+    "targets": [
+      { "kind": "command", "path": ".agent/workflows/finish-work.md", "missing": "skip" },
+      { "kind": "command", "path": ".codebuddy/commands/trellis/finish-work.md", "missing": "skip" },
+      { "kind": "command", "path": ".cursor/commands/trellis-finish-work.md", "missing": "skip" },
+      { "kind": "command", "path": ".devin/workflows/trellis-finish-work.md", "missing": "skip" },
+      { "kind": "command", "path": ".factory/commands/trellis/finish-work.md", "missing": "skip" },
+      { "kind": "command", "path": ".github/prompts/finish-work.prompt.md", "missing": "skip" },
+      { "kind": "command", "path": ".kilocode/workflows/finish-work.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kiro/skills/trellis-finish-work/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".opencode/commands/trellis/finish-work.md", "missing": "skip" },
+      { "kind": "command", "path": ".pi/prompts/trellis-finish-work.md", "missing": "skip" },
+      { "kind": "command", "path": ".qoder/commands/trellis-finish-work.md", "missing": "skip" },
+      { "kind": "skill", "path": ".reasonix/skills/trellis-finish-work/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".trae/commands/trellis-finish-work.md", "missing": "skip" },
+      { "kind": "command", "path": ".zcode/commands/trellis/finish-work.md", "missing": "skip" }
+    ],
+    "selector": { "type": "markdown-document", "preserveFrontmatter": false },
+    "cleanup": [{ "type": "skill-override", "id": "trellis-finish-work" }],
+    "content": { "source": "content.md" }
+  }, {
+    "id": "trellis-finish-work-gemini-owner",
+    "operation": "insert",
+    "position": "after",
+    "targetPolicy": "each-existing",
+    "targets": [
+      { "kind": "toml", "path": ".gemini/commands/trellis/finish-work.toml", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "gemini-selector.txt", "expectedMatches": 1 },
+    "content": { "source": "gemini-content.md" }
   }]
 }

@@ -31,6 +31,7 @@ test("Pre-Check workflow 默认检查、软暂缓与 auto-loop 优先级完整",
     sourceRoot,
     "overrides/patches/workflow/states-in-progress/common-content.md",
   );
+  const route = read(sourceRoot, ".agents/skills/trellis-route/SKILL.md");
 
   assert.match(hub, /A validated auto-loop result returns through matching `record` \+ `next` before the interactive post-check stop applies/);
   assert.match(implement, /validated auto-loop outstanding action wins/);
@@ -43,6 +44,8 @@ test("Pre-Check workflow 默认检查、软暂缓与 auto-loop 优先级完整",
   assert.match(check, /pre_check_state\.py clear/);
   assert.match(check, /damaged runtime.*safely defaults to checking/);
   assert.doesNotMatch(state, /pre_check_state\.py|Pre-Check hold/);
+  assert.match(state, /return to the Phase 2\.1 completion contract/);
+  assert.match(route, /回到 Phase 2\.1 completion contract 解析 Pre-Check/);
 });
 
 
