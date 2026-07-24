@@ -1,0 +1,50 @@
+{
+  "id": "auto-loop-unattended-run",
+  "name": "auto-loop-unattended-run",
+  "title": "升级 Auto-Loop 无人值守执行",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-24",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-24T06:46:16Z",
+      "contextKey": "codex_019f92d8-33a1-7ae3-9407-f57bef80ea5d",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "5361551e90b86480978aa6fe25f1a9699bba570b",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-24T17:46:59+08:00",
+    "completedSteps": [
+      "升级 Auto-Loop schema 2 runner 与决策日志",
+      "补齐 Finish-Work 与 Archive 决策审查和选择性安装",
+      "同步生成物并通过全量测试与 Check-All",
+      "更新 Auto-Loop 与上下文预算规范",
+      "提交并推送 Skill-Garden 与父仓业务变更"
+    ],
+    "partialStep": null,
+    "nextStep": "显式执行 finish-work 与归档",
+    "notes": "任务保持 in_progress；未执行归档。"
+  }
+}

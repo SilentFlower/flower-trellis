@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"实现 auto-loop runner、planning brief、commit-only、Patch 分发和兼容状态的权威契约。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"约束 auto-loop 与 finish-work 新规则的 owner 分层和最终上下文体积。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"设计 decision helper、原子写入和既有 runner helper 复用，避免重复实现。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 runner、skill、finish-work、archive guard、安装与 dogfood 的跨层数据流。"}
+{"file":".trellis/tasks/07-24-auto-loop-unattended-run/research/current-state.md","reason":"提供当前 runner、任务生命周期、finish-work、分发链路和测试缺口基线。"}

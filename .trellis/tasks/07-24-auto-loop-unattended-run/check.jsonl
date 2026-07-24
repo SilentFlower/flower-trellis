@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"核对 schema、action、brief、route、commit-only、Patch 与安装行为是否符合既有公开契约。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查 workflow/skill 最终产物是否保持唯一 owner 且未突破上下文预算。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"按 runner -> skill -> Git -> finish/archive -> 分发链路检查完整性和失败传播。"}
+{"file":".trellis/tasks/07-24-auto-loop-unattended-run/research/current-state.md","reason":"对照改造前基线检查兼容路径、原行为保留和新增覆盖缺口。"}
