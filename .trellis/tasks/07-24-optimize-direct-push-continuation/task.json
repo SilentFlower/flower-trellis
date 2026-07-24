@@ -1,0 +1,48 @@
+{
+  "id": "optimize-direct-push-continuation",
+  "name": "optimize-direct-push-continuation",
+  "title": "优化 Direct Push 检查后自动续行",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-24",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-24T05:47:55Z",
+      "contextKey": "codex_019f928f-97d9-7371-b73d-4f8b6a34ad73",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "e794ef792a36d34b9072f8ec1b0531662709f738",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-24T14:28:00+08:00",
+    "completedSteps": [
+      "完成 Direct Push 条件续行实现与问题修复",
+      "完成 full Check-All 和全部自动化验证",
+      "提交并推送 skill-garden 与 flower-trellis 业务变更"
+    ],
+    "partialStep": null,
+    "nextStep": "按需运行 /trellis:finish-work 完成任务归档",
+    "notes": "JS 81/81、Python 95/95、Patch conflict、compiled targets、strict context budget 和双仓 diff check 均通过。"
+  }
+}
