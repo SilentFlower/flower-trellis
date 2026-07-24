@@ -41,6 +41,10 @@ test("Pre-Check workflow 默认检查、软暂缓与 auto-loop 优先级完整",
   assert.match(implement, /immediately enter `trellis-route\(target=check\)`/);
   assert.match(implement, /Do not end the turn by presenting Check-All as an optional next step/);
   assert.match(implement, /do not ask a binary question or use closure jargon/);
+  assert.match(
+    implement,
+    /你可以继续提修改；准备检查时，使用 check-all，也可以直接说“下一步”或“可以检查了”。/,
+  );
   assert.match(check, /pre_check_state\.py clear/);
   assert.match(check, /damaged runtime.*safely defaults to checking/);
   assert.doesNotMatch(state, /pre_check_state\.py|Pre-Check hold/);
