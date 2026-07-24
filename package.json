@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.5.1-beta.0",
+  "version": "0.5.1-beta.1",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -64,9 +64,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.5.1-beta.0",
+    "version": "0.5.1-beta.1",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* 将 Workflow Gate 原生融入 Trellis 全流程 ([d20b417](https://github.com/SilentFlower/flower-trellis/commit/d20b417048c438d7611228b6d8f9323b1257a1b8))\n  - 将请求路由、任务规划、质量检查、提交发布、auto-loop 与进度恢复等 13 个 Workflow Gate 收敛到对应的原生 phase、state、skill、hook 或 helper。\n  - Workflow Hub 缩减为轻量 owner 索引和必要的跨阶段顺序，减少重复规则、上下文占用与后续所有权漂移。\n  - 为可确定判断的非法状态增加零副作用硬阻断，并通过 Patch 冲突检查、上下文预算和幂等安装测试保证升级兼容性。\n\n\n### 🐛 修复 Bug Fixes\n\n* 修复 Gate 迁移后的流程入口与跨平台兼容问题 ([b8dd135](https://github.com/SilentFlower/flower-trellis/commit/b8dd135cd93928828f337dc2d799ba221d49f223))\n  - 发布、部署等项目工作流动作会先发现项目 SOP，再进入准确能力，避免将 beta 发布误路由到只生成上线操作单的 `trellis-release`。\n  - 恢复 planning 与 in-progress 状态下的活动任务范围隔离，防止无关请求误入当前任务流程。\n  - `trellis-continue` 会在判断阶段前读取并克制展示未完成进度，同时保持不自动绑定任务、不从进度推断阶段。\n  - 恢复规划语义就绪检查与最新 brief 的显式确认，避免仅因规划文件存在就自动启动任务。\n  - 实现完成后重新进入 Pre-Check；交互式提交在 Git 操作前校验当前 Update-Spec 结果。\n  - 将 Workflow Gate Skill 与 Update-Spec、Finish-Work 入口同步到 17 个平台的原生目录，并统一安装、检测与卸载清理。",
+    "body": "### ✨ 新功能 Features\n\n* 优化 Direct Push 检查后自动续行 ([6d6582e](https://github.com/SilentFlower/flower-trellis/commit/6d6582e4b09fada7736e4059382efd93b1866d91))\n* 升级 Auto-Loop 无人值守执行 ([d847439](https://github.com/SilentFlower/flower-trellis/commit/d847439da91bde53ab8ef0e8909431bf6b856202))\n* 控制 Trellis 升级备份保留 ([cead9c0](https://github.com/SilentFlower/flower-trellis/commit/cead9c0e91dd99a6fe324081a71eb2801927131b))\n* 集成 Patch 顺序与编译目标 ([a2a3996](https://github.com/SilentFlower/flower-trellis/commit/a2a3996a380ad08ba667eafa8a6ba6568b5ce67e))\n\n\n### 🐛 修复 Bug Fixes\n\n* 优化 Check-All 暂缓引导 ([e794ef7](https://github.com/SilentFlower/flower-trellis/commit/e794ef792a36d34b9072f8ec1b0531662709f738))",
     "truncated": false
   }
 }

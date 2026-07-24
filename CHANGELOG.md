@@ -4,6 +4,21 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.1-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.5.1-beta.0...v0.5.1-beta.1) (2026-07-24)
+
+
+### ✨ 新功能 Features
+
+* 优化 Direct Push 检查后自动续行 ([6d6582e](https://github.com/SilentFlower/flower-trellis/commit/6d6582e4b09fada7736e4059382efd93b1866d91))
+* 升级 Auto-Loop 无人值守执行 ([d847439](https://github.com/SilentFlower/flower-trellis/commit/d847439da91bde53ab8ef0e8909431bf6b856202))
+* 控制 Trellis 升级备份保留 ([cead9c0](https://github.com/SilentFlower/flower-trellis/commit/cead9c0e91dd99a6fe324081a71eb2801927131b))
+* 集成 Patch 顺序与编译目标 ([a2a3996](https://github.com/SilentFlower/flower-trellis/commit/a2a3996a380ad08ba667eafa8a6ba6568b5ce67e))
+
+
+### 🐛 修复 Bug Fixes
+
+* 优化 Check-All 暂缓引导 ([e794ef7](https://github.com/SilentFlower/flower-trellis/commit/e794ef792a36d34b9072f8ec1b0531662709f738))
+
 ## [0.5.1-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.5.0-beta.7...v0.5.1-beta.0) (2026-07-23)
 
 
