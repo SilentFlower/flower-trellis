@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"实现 operation schema、preflight、marker、conflict、provenance 与 JS/Python consumer parity 的主契约。"}
+{"file":".trellis/spec/flower-trellis/cli/directory-structure.md","reason":"确定共享 helper、维护脚本、compiled-targets 顶层目录和模块职责。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"修改完整 Patch 检查与 npm test 入口时保持现有上下文预算门禁。"}
+{"file":".trellis/tasks/07-24-patch-order-compiled-targets/research/patch-planner-extension-points.md","reason":"提供当前 ID、Bundle provenance、Python parity、fixture 复用和插件安全边界的代码证据。"}

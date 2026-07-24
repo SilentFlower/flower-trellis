@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查排序错误、零写入、consumer parity、marker 迁移、conflict 与 provenance 契约。"}
+{"file":".trellis/spec/flower-trellis/cli/directory-structure.md","reason":"检查新 helper、生成脚本和 compiled-targets 是否位于正确职责边界。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查新增门禁没有遗漏或破坏既有 AI context budget 验证。"}
+{"file":".trellis/tasks/07-24-patch-order-compiled-targets/research/patch-planner-extension-points.md","reason":"复核多 catalog identity、内置 marker 兼容、生成产物与发布边界风险。"}
