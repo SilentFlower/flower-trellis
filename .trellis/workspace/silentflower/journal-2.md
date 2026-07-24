@@ -144,3 +144,43 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 61: 优化 Direct Push 检查后自动续行
+
+**Date**: 2026-07-24
+**Task**: 优化 Direct Push 检查后自动续行
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+让 direct Push 和用户主动 commit-only 在 Check-All 严格通过后沿用标准报告并同轮进入 Update-Spec 与唯一 Git 确认；修正 written spec diff 重检边界并保持 Stop Gate owner 唯一。
+
+### Main Changes
+
+- 在现有 Interactive Post-Check Stop Gate 内增加 direct Push / 用户主动 commit-only 的 strict-pass 条件续行，继续沿用标准 Check-All 报告。
+- 将 Update-Spec 和 Trellis Push 串成同轮完成链，并明确 `written.changed_files` 中受控 `.trellis/spec/**` 写入不会触发额外 Check-All。
+- 将 in-progress state 收敛为 owner 一跳指针，同步 vendor、发布快照、当前 dogfood 与 compiled targets，并补齐回归断言。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `81604a1` | feat(0.6): 优化 Direct Push 检查后自动续行 |
+| `6d6582e` | feat: 优化 Direct Push 检查后自动续行 |
+
+### Testing
+
+- [OK] Node.js 测试 81/81
+- [OK] Python 测试 95/95
+- [OK] Patch conflict 与 compiled targets 漂移检查
+- [OK] strict AI context budget、双仓 diff check 与 dogfood 幂等验证
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
