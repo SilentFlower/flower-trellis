@@ -44,7 +44,7 @@ class TaskStoreIntegrityTest(unittest.TestCase):
         cached = {
             name: value
             for name, value in sys.modules.items()
-            if name == "common" or name.startswith("common.")
+            if name == "common" or name.startswith("common.") or name == "decision_log"
         }
         for name in cached:
             sys.modules.pop(name, None)
@@ -57,7 +57,7 @@ class TaskStoreIntegrityTest(unittest.TestCase):
             os.chdir(old_cwd)
             sys.path.remove(scripts_path)
             for name in list(sys.modules):
-                if name == "common" or name.startswith("common."):
+                if name == "common" or name.startswith("common.") or name == "decision_log":
                     sys.modules.pop(name, None)
             sys.modules.update(cached)
 
@@ -155,6 +155,97 @@ class TaskStoreIntegrityTest(unittest.TestCase):
                     result = module.cmd_archive(Namespace(name="task", no_commit=True))
 
         self.assertEqual(result, 1)
+        archive.assert_not_called()
+        self.assertTrue(task_dir.is_dir())
+        self.assertEqual(json.loads(task_json.read_text(encoding="utf-8"))["status"], "in_progress")
+
+    def test_archive_unreviewed_decision_stops_before_status_write(self) -> None:
+        """存在未审 AI 决策时不得写状态、清 session 或移动目录。"""
+        task_dir = self.root / ".trellis/tasks/task"
+        task_dir.mkdir()
+        task_json = task_dir / "task.json"
+        task_json.write_text(
+            json.dumps({"status": "in_progress", "children": []}),
+            encoding="utf-8",
+        )
+
+        with self.loaded_store() as module:
+            decision_log = importlib.import_module("decision_log")
+            decision_log.append_decision(
+                task_dir,
+                run_id="run-test",
+                topic="实现方案",
+                options=["方案 A", "方案 B"],
+                choice="方案 A",
+                summary="仓库现有模式支持方案 A",
+                evidence=["现有测试覆盖"],
+                risk="low",
+                confidence="high",
+                requirements=["REQ-1"],
+                files=["src/example.py"],
+            )
+            with mock.patch.object(module, "write_json") as write_json:
+                with mock.patch.object(module, "archive_task_complete") as archive:
+                    result = module.cmd_archive(Namespace(name="task", no_commit=True))
+
+        self.assertEqual(result, 1)
+        write_json.assert_not_called()
+        archive.assert_not_called()
+        self.assertTrue(task_dir.is_dir())
+        self.assertEqual(json.loads(task_json.read_text(encoding="utf-8"))["status"], "in_progress")
+
+    def test_archive_accepted_decisions_permits_existing_archive_flow(self) -> None:
+        """当前决策摘要已接受时允许既有归档流程继续。"""
+        task_dir = self.root / ".trellis/tasks/task"
+        task_dir.mkdir()
+        (task_dir / "task.json").write_text(
+            json.dumps({"status": "in_progress", "children": []}),
+            encoding="utf-8",
+        )
+
+        with self.loaded_store() as module:
+            decision_log = importlib.import_module("decision_log")
+            decision_log.append_decision(
+                task_dir,
+                run_id="run-test",
+                topic="实现方案",
+                options=["方案 A", "方案 B"],
+                choice="方案 A",
+                summary="仓库现有模式支持方案 A",
+                evidence=["现有测试覆盖"],
+                risk="medium",
+                confidence="medium",
+                requirements=["REQ-1"],
+                files=["src/example.py"],
+            )
+            decision_log.review_decisions(task_dir, verdict="accepted")
+
+            result = module.cmd_archive(Namespace(name="task", no_commit=True))
+
+        archived = list((self.root / ".trellis/tasks/archive").glob("*/task"))
+        self.assertEqual(result, 0)
+        self.assertEqual(len(archived), 1)
+        archived_data = json.loads((archived[0] / "task.json").read_text(encoding="utf-8"))
+        self.assertEqual(archived_data["status"], "completed")
+
+    def test_archive_corrupt_decision_log_fails_closed(self) -> None:
+        """损坏的 decisions.jsonl 必须在任何归档写入前失败。"""
+        task_dir = self.root / ".trellis/tasks/task"
+        task_dir.mkdir()
+        task_json = task_dir / "task.json"
+        task_json.write_text(
+            json.dumps({"status": "in_progress", "children": []}),
+            encoding="utf-8",
+        )
+        (task_dir / "decisions.jsonl").write_text("{broken\n", encoding="utf-8")
+
+        with self.loaded_store() as module:
+            with mock.patch.object(module, "write_json") as write_json:
+                with mock.patch.object(module, "archive_task_complete") as archive:
+                    result = module.cmd_archive(Namespace(name="task", no_commit=True))
+
+        self.assertEqual(result, 1)
+        write_json.assert_not_called()
         archive.assert_not_called()
         self.assertTrue(task_dir.is_dir())
         self.assertEqual(json.loads(task_json.read_text(encoding="utf-8"))["status"], "in_progress")

@@ -12,12 +12,20 @@ const COMPILED_TARGETS_ROOT = path.join(
   "skill-garden",
   "compiled-targets",
 );
+const SKILL_GARDEN_SOURCE_ROOT = path.join(
+  PKG_ROOT,
+  "vendor",
+  "skill-garden",
+  ".trellis",
+  "0.6",
+);
 const BASELINES = {
   workflow: 46750,
   workflowControl: 12243,
   statesTotal: 7261,
   updateSpec: 13899,
   finishWork: 4556,
+  autoLoop: 15600,
   phaseSummary: 12892,
   sessionStart: 12300,
   controlTotal: 90397,
@@ -29,6 +37,7 @@ const BUDGETS = {
   statesTotal: { target: 12 * KIB, review: 14 * KIB },
   updateSpec: { target: 16 * KIB, review: 18 * KIB },
   finishWork: { target: 10 * KIB, review: 12 * KIB },
+  autoLoop: { target: 16 * KIB, review: 18 * KIB },
   phaseSummary: { target: 18 * KIB, review: 20 * KIB },
   sessionStart: { target: 18 * KIB, review: 20 * KIB },
   controlTotal: { target: 116 * KIB, review: 128 * KIB },
@@ -205,6 +214,10 @@ export function collectAiContextMetrics() {
     ".claude/skills/trellis-finish-work/SKILL.md",
     ".claude/commands/trellis/finish-work.md",
   ], "Finish-Work");
+  const autoLoopTargets = readExistingTargets(SKILL_GARDEN_SOURCE_ROOT, [
+    ".agents/skills/trellis-auto-loop/SKILL.md",
+    ".claude/skills/trellis-auto-loop/SKILL.md",
+  ], "Auto-Loop");
   const phaseSummary = measurePhaseSummary();
   const sessionStart = measureSessionStart();
   const largestUpdateSpec = Math.max(
@@ -244,6 +257,14 @@ export function collectAiContextMetrics() {
         value,
         BUDGETS.finishWork,
         BASELINES.finishWork,
+      )
+    ),
+    ...autoLoopTargets.map(({ name, value }) =>
+      measureText(
+        `auto-loop:${name}`,
+        value,
+        BUDGETS.autoLoop,
+        BASELINES.autoLoop,
       )
     ),
     measureText(

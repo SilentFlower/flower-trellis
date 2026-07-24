@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-07-24T06:25:42.793Z",
+  "syncedAt": "2026-07-24T09:45:21.461Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "81604a16582375a66638c9c948687dc994cd4abe",
+  "sourceCommit": "956600b1ba1bb55a409526ec712b8bdd8bb0dc60",
   "common": {
     "codexSkills": [
       "craft-rpa",
@@ -184,6 +184,8 @@
         "scripts/task-store-write-integrity/create-parent-selector.py",
         "scripts/task-store-write-integrity/create-write-content.py",
         "scripts/task-store-write-integrity/create-write-selector.py",
+        "scripts/task-store-write-integrity/decision-import-content.py",
+        "scripts/task-store-write-integrity/decision-import-selector.py",
         "scripts/task-store-write-integrity/helpers-content.py",
         "scripts/task-store-write-integrity/helpers-selector.py",
         "scripts/task-store-write-integrity/patch.json",
@@ -295,6 +297,7 @@
         "workflow/task-brief-review/phase-1-activate-content.md"
       ],
       "bundles": [
+        "auto-loop.json",
         "control-plane-integrity.json",
         "finish-work.json",
         "intent-routing.json",
@@ -308,6 +311,7 @@
       ],
       "scripts": [
         "auto_loop.py",
+        "decision_log.py",
         "pre_check_state.py",
         "spec_router.py",
         "task_intent.py",

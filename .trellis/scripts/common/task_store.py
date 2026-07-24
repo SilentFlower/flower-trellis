@@ -53,6 +53,10 @@ from .task_utils import (
     resolve_task_dir,
     run_task_hooks,
 )
+# BEGIN skill-garden patch task-store-decision-log-import v0.6
+
+from decision_log import DecisionLogError, decision_review_status
+# END skill-garden patch task-store-decision-log-import v0.6
 
 
 # =============================================================================
@@ -479,6 +483,19 @@ def cmd_archive(args: argparse.Namespace) -> int:
 
     if not task_json_path.is_file() or not read_json(task_json_path):
         print(colored(f"Error: task.json not found or invalid: {task_json_path}", Colors.RED), file=sys.stderr)
+        return 1
+
+    try:
+        decision_status = decision_review_status(task_dir)
+    except DecisionLogError as error:
+        print(colored(f"Error: Decision log is invalid: {error}", Colors.RED), file=sys.stderr)
+        return 1
+    if not decision_status["archive_allowed"]:
+        print(colored("Error: AI decisions require review before archive.", Colors.RED), file=sys.stderr)
+        print(
+            "Hint: Run decision_log.py status --task <task> --json, then record an accepted review.",
+            file=sys.stderr,
+        )
         return 1
 # END skill-garden patch task-archive-metadata-guard v0.6
     today = datetime.now().strftime("%Y-%m-%d")

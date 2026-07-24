@@ -9,7 +9,7 @@
 以下改动必须读取本规范并运行预算 checker：
 
 - 修改 `.trellis/workflow.md` 或会 Patch 到 workflow hub/state 的内容。
-- 修改 Update-Spec、Finish-Work 等会被完整加载的最终 skill/command body。
+- 修改 Update-Spec、Finish-Work、Auto-Loop 等会被完整加载的最终 skill/command body。
 - 修改 `get_context.py --mode phase`、SessionStart hook、workflow-state hook 或 task-status 注入。
 - 把长流程从 skill/helper 移入高频 prompt，或在多个层重复同一规则。
 - 调整任何 target、review ceiling、baseline 或总量公式。
@@ -24,6 +24,7 @@
 - workflow control：从 compiled full workflow 的 `## Phase Index` 到 `## Phase 1: Plan`。
 - state：从 compiled full workflow 动态提取全部 `[workflow-state:*]` body。
 - Update-Spec/Finish-Work：读取 compiled full 中实际存在的最终 `.agents`、`.claude/skills`、`.claude/commands` 入口。
+- Auto-Loop：该 skill 不是 Patch target，读取 `vendor/skill-garden/.trellis/0.6` 下直接铺设的 canonical `.agents/.claude` 入口；源、快照和 dogfood 一致性由同步测试单独保证。
 - Phase summary：真实运行 `python3 ./.trellis/scripts/get_context.py --mode phase`。
 - SessionStart：用隔离临时 fixture 调用真实 `.codex/hooks/session-start.py`，读取 `additionalContext`。
 
@@ -71,6 +72,7 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 | 全部最终 workflow-state body 合计 | 12 KiB | 14 KiB |
 | 单个最终 Update-Spec 入口 | 16 KiB | 18 KiB |
 | 单个最终 Finish-Work 入口 | 10 KiB | 12 KiB |
+| 单个最终 Auto-Loop 入口 | 16 KiB | 18 KiB |
 | Phase summary | 18 KiB | 20 KiB |
 | SessionStart `additionalContext` | 18 KiB | 20 KiB |
 | control-context-total | 116 KiB | 128 KiB |
@@ -99,7 +101,7 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 
 ## Baseline
 
-Skill-Garden Claude + Codex canonical full target 层基线（2026-07-24；target/review ceiling 未调整）：
+Skill-Garden Claude + Codex 最终入口基线（2026-07-24；target/review ceiling 未调整）：
 
 | 对象 | Lines | Bytes | 状态 |
 |---|---:|---:|---|
@@ -108,11 +110,12 @@ Skill-Garden Claude + Codex canonical full target 层基线（2026-07-24；targe
 | 全部最终 state body 合计 | 48 | 7,261 | ok |
 | 最大 Update-Spec 最终入口 | 386 | 13,899 | ok |
 | 最大 Finish-Work 最终入口 | 93 | 4,556 | ok |
+| 最大 Auto-Loop 最终入口 | 220 | 15,600 | ok |
 | Phase summary | 173 | 12,892 | ok |
 | SessionStart | 172 | 12,300 | ok |
 | control-context-total | - | 90,397 | ok |
 
-静态最终入口读取 Skill-Garden canonical compiled full target；Flower 全平台 matrix 只做临时集成验证，不参与预算重复计数。target/review ceiling 未提高，默认和 strict 仍只有超过 review ceiling 才由 strict 阻断。
+Patch 生成的静态最终入口读取 Skill-Garden canonical compiled full target；直接铺设的 Auto-Loop 读取 canonical variant skill。Flower 全平台 matrix 只做临时集成验证，不参与预算重复计数。target/review ceiling 未提高，默认和 strict 仍只有超过 review ceiling 才由 strict 阻断。
 
 ## Change Review
 
@@ -131,6 +134,7 @@ Skill-Garden Claude + Codex canonical full target 层基线（2026-07-24；targe
 - Check-All skill：保存 requested/effective depth、hard-full/light eligibility 和 disposition 全文。
 - Update-Spec 最终入口：保存 `no-op | written | needs-review`、证据顺序、最小写入和自检全文。
 - auto-loop runner/skill：保存确定性 state/record 字段和命令签名。
+- Auto-Loop 最终入口独立计量，不加入 `control-context-total`；manifest schema、Git 解析和错误矩阵下沉 runner/helper，skill 只保留语义边界和 action 调度。
 
 调整 target/review ceiling 必须同时提交：增长原因、旧/新最终实际值、去重仍无法解决的证据、checker 常量和本预算表。禁止通过调高阈值掩盖重复内容。
 
@@ -142,7 +146,7 @@ Skill-Garden Claude + Codex canonical full target 层基线（2026-07-24；targe
 | 某最终对象超过 review ceiling | high-warning；默认继续，strict 失败 |
 | Patch source 很小但最终入口超限 | 按最终入口告警，不采信 source 大小 |
 | SessionStart 无 JSON 或无 additionalContext | 结构错误，失败 |
-| workflow/state 或两类最终 skill 入口全部缺失 | 结构错误，失败 |
+| workflow/state 或三类最终 skill 入口全部缺失 | 结构错误，失败 |
 | 项目存在自定义 workflow-state | 动态计入 state 与 states-total |
 | 新规则复制到 hub/state/skill | 评审阻断，先去重 |
 | 只提高 ceiling 以消除 warning | 评审阻断 |
@@ -162,7 +166,7 @@ node scripts/check-ai-context-budget.mjs --strict
 - 结构性测量错误始终非 0。
 - SessionStart fixture 返回非空 `additionalContext`。
 - state 从最终 workflow 动态枚举，不写死文件数量。
-- Update-Spec/Finish-Work 从最终平台入口测量，不读取 Patch content。
+- Update-Spec/Finish-Work 从 compiled final 平台入口测量，不读取 Patch content；Auto-Loop 从直接铺设的 canonical variant skill 测量。
 - control-context-total 使用固定公式和最大平台入口。
 
 ## Wrong vs Correct

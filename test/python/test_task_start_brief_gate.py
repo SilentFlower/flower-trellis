@@ -52,6 +52,7 @@ class TaskStartBriefGateTest(unittest.TestCase):
         scripts = self.root / ".trellis/scripts"
         scripts.mkdir(parents=True)
         shutil.copy2(SOURCE_SCRIPTS / "task.py", scripts / "task.py")
+        shutil.copy2(SOURCE_SCRIPTS / "decision_log.py", scripts / "decision_log.py")
         shutil.copytree(SOURCE_SCRIPTS / "common", scripts / "common")
         (self.root / ".trellis/tasks").mkdir(parents=True)
         (self.root / ".trellis/.developer").write_text("name=tester\n", encoding="utf-8")

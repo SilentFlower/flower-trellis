@@ -83,9 +83,9 @@ test("auto-loop 启动和恢复清除交互 hold，runner 不读取该状态", (
   const runner = read(sourceRoot, "scripts/auto_loop.py");
 
   assert.equal(agents, claude);
-  assert.match(agents, /启动或恢复 validated auto-loop 前/);
-  assert.ok((agents.match(/pre_check_state\.py clear/g) || []).length >= 3);
-  assert.match(agents, /runtime 损坏只记录诊断，不得阻断 runner/);
+  assert.match(agents, /启动或恢复前静默清除交互式 pre-check hold/);
+  assert.ok((agents.match(/pre_check_state\.py clear/g) || []).length >= 1);
+  assert.match(agents, /损坏诊断不阻断 runner/);
   assert.doesNotMatch(runner, /pre_check_(state|preference)/);
 });
 
@@ -102,6 +102,25 @@ test("选择性 workflow 和 auto-loop 安装都会携带 pre-check helper", () 
     assert.deepEqual(result.installed, ["script:pre_check_state.py"], skill);
     assert.equal(
       fs.existsSync(path.join(target, ".trellis/scripts/pre_check_state.py")),
+      true,
+      skill,
+    );
+  }
+});
+
+
+test("选择性 auto-loop 和 finish-work 安装都会携带 decision log helper", () => {
+  for (const skill of ["auto-loop", "trellis-auto-loop", "finish-work", "trellis-finish-work"]) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-decision-log-copy-"));
+    const variant = path.join(target, "variant");
+    fs.mkdirSync(path.join(variant, "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(variant, "scripts/decision_log.py"), "# helper\n");
+
+    const result = copyScriptAssets(target, variant, [skill]);
+
+    assert.deepEqual(result.installed, ["script:decision_log.py"], skill);
+    assert.equal(
+      fs.existsSync(path.join(target, ".trellis/scripts/decision_log.py")),
       true,
       skill,
     );

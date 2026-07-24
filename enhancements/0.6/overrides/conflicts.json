@@ -254,6 +254,7 @@
       "target": ".trellis/scripts/common/task_store.py",
       "whenOperations": [
         "task-store-write-helpers",
+        "task-store-decision-log-import",
         "task-create-duplicate-slug",
         "task-create-initial-write",
         "task-create-parent-link",
@@ -270,6 +271,9 @@
         "type": "required-literal",
         "values": [
           "# BEGIN skill-garden patch task-store-write-helpers v0.6",
+          "# BEGIN skill-garden patch task-store-decision-log-import v0.6",
+          "decision_review_status(task_dir)",
+          "AI decisions require review before archive.",
           "def _write_task_pair(",
           "Error: Task directory already exists:",
           "Failed to write initial task.json",

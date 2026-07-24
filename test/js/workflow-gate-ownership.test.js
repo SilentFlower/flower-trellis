@@ -130,11 +130,15 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(push, /当前有效的 `spec_update_result`/);
   assert.match(push, /auto-loop 内部 `commit-only`/);
   assert.match(push, /git commit --only/);
-  assert.match(autoLoop, /## Commit-Only 预授权/);
+  assert.match(autoLoop, /## Commit-Only/);
   assert.match(autoLoop, /`review_planning_readiness`/);
-  assert.match(autoLoop, /`confirm_brief`/);
-  assert.match(autoLoop, /任一文件变化后旧结论失效/);
+  assert.match(autoLoop, /`resolve_open_questions`/);
+  assert.match(autoLoop, /不逐任务执行 `confirm_brief`/);
+	assert.match(autoLoop, /其它变化按 `artifact-drift` 阻塞/);
   assert.match(finish, /This skill owns only the current task's release audit, archive bookkeeping/);
+  assert.match(finish, /### 1\. Decision Audit/);
+  assert.match(finish, /decision_log\.py status --task <task-name> --json/);
+  assert.match(finish, /`task\.py archive` repeats this guard before any status write/);
   assert.match(continueRecovery, /task_progress\.py status --json/);
   assert.match(continueRecovery, /Never rebind the session or task automatically/);
   assert.match(progress, /def _validate_progress/);
@@ -230,8 +234,9 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
     "Check-All 有效后检查当前有效的 `spec_update_result`",
     "direct Git 前置结果分层复用",
   );
-  assert.match(autoLoop, /刷新并展示 brief；这一步不代表用户确认/);
-  assert.match(autoLoop, /未确认时停止，不得 record/);
+  assert.match(autoLoop, /`refresh_brief`/);
+  assert.match(autoLoop, /无需再次让用户确认/);
+  assert.doesNotMatch(autoLoop, /未确认时停止，不得 record/);
 });
 
 test("最终 dogfood 产物只有一个 Hub marker 且 owner Patch 已落盘", () => {

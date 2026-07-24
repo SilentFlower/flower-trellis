@@ -129,6 +129,7 @@ class WorkflowStateHookTest(unittest.TestCase):
         scripts.mkdir()
         shutil.copytree(ROOT / ".trellis/scripts/common", scripts / "common")
         shutil.copy2(ROOT / ".trellis/scripts/task.py", scripts / "task.py")
+        shutil.copy2(ROOT / ".trellis/scripts/decision_log.py", scripts / "decision_log.py")
         return scripts / "task.py"
 
     def test_stale_session_sources_share_stable_status(self) -> None:

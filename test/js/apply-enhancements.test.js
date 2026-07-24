@@ -598,7 +598,8 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     const value = fs.readFileSync(file, "utf8");
     assert.match(value, /BEGIN skill-garden patch trellis-finish-work-exact-bookkeeping/);
     assert.doesNotMatch(value, /## Step 1: Survey current state/);
-    assert.match(value, /### 1\. Current Task Release Audit/);
+    assert.match(value, /### 1\. Decision Audit/);
+    assert.match(value, /### 2\. Current Task Release Audit/);
   }
   const manifest = JSON.parse(
     fs.readFileSync(path.join(target, ".trellis/.flower-manifest.json"), "utf8"),
@@ -786,6 +787,29 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
   }
 });
 
+test("Auto-Loop 与 Finish-Work 精细安装同时携带决策归档硬门禁", () => {
+  for (const alias of ["trellis-auto-loop", "auto-loop", "trellis-finish-work", "finish-work"]) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-decision-audit-bundle-"));
+    write(target, ".trellis/.version", "0.6.5\n");
+    writeControlPlaneTargets(target);
+    fs.mkdirSync(path.join(target, ".agents/skills"), { recursive: true });
+
+    quietApply(target, { variant: "0.6", skills: [alias] });
+
+    const taskStore = fs.readFileSync(
+      path.join(target, ".trellis/scripts/common/task_store.py"),
+      "utf8",
+    );
+    assert.match(taskStore, /BEGIN skill-garden patch task-store-decision-log-import/, alias);
+    assert.match(taskStore, /decision_review_status\(task_dir\)/, alias);
+    assert.equal(
+      fs.existsSync(path.join(target, ".trellis/scripts/decision_log.py")),
+      true,
+      alias,
+    );
+  }
+});
+
 test("trellis-continue 精细安装同时恢复入口与 task_progress helper", () => {
   for (const alias of [
     "trellis-continue",
@@ -924,6 +948,7 @@ test("Update-Spec 三个精细安装别名都替换已有入口且不创建缺�
 test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持幂等", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-native-gate-matrix-"));
   write(target, ".trellis/.version", "0.6.5\n");
+  writeControlPlaneTargets(target);
   const updateTargets = writeAllUpdateSpecTargets(target);
   const finishTargets = writeAllFinishTargets(target);
 
@@ -951,7 +976,8 @@ test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持�
       assert.match(value, /platform-native `trellis-finish-work` skill as the sole owner/, relativePath);
     } else {
       assert.match(value, /BEGIN skill-garden patch trellis-finish-work-(?:exact-bookkeeping|native-exact-bookkeeping)/, relativePath);
-      assert.match(value, /### 1\. Current Task Release Audit/, relativePath);
+      assert.match(value, /### 1\. Decision Audit/, relativePath);
+      assert.match(value, /### 2\. Current Task Release Audit/, relativePath);
     }
   }
 

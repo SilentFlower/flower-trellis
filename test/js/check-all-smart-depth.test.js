@@ -62,6 +62,7 @@ test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {
   );
   const inlineState = state;
   const autoLoop = read(sourceRoot, ".agents/skills/trellis-auto-loop/SKILL.md");
+  const runner = read(sourceRoot, "scripts/auto_loop.py");
 
   assert.match(
     workflow,
@@ -70,7 +71,7 @@ test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {
   assert.match(state, /validated auto-loop immediately records and advances/);
   assert.match(inlineState, /validated auto-loop immediately records and advances/);
   assert.match(autoLoop, /--check-depth auto\|light\|full/);
-  assert.match(autoLoop, /旧调用缺字段时只能按 `full \/ legacy-default-full`/);
+  assert.match(runner, /legacy-default-full/);
 });
 
 test("0.6 发布快照与智能检查源保持一致", () => {

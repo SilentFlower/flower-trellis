@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "id": "trellis-auto-loop",
+  "aliases": ["auto-loop", "auto-loop-runner"],
+  "installMode": "full-or-selected",
+  "patches": ["scripts/task-store-write-integrity"]
+}

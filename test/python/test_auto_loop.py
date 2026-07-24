@@ -16,6 +16,7 @@ from unittest import mock
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_RUNNER = PROJECT_ROOT / "vendor/skill-garden/.trellis/0.6/scripts/auto_loop.py"
+SOURCE_DECISION_LOG = PROJECT_ROOT / "vendor/skill-garden/.trellis/0.6/scripts/decision_log.py"
 SOURCE_SCRIPTS = PROJECT_ROOT / ".trellis/scripts"
 
 
@@ -29,6 +30,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         scripts = self.root / ".trellis/scripts"
         scripts.mkdir(parents=True)
         shutil.copy2(SOURCE_RUNNER, scripts / "auto_loop.py")
+        shutil.copy2(SOURCE_DECISION_LOG, scripts / "decision_log.py")
         shutil.copy2(SOURCE_SCRIPTS / "task.py", scripts / "task.py")
         shutil.copytree(SOURCE_SCRIPTS / "common", scripts / "common")
         (self.root / ".trellis/.developer").write_text("name=tester\n", encoding="utf-8")
@@ -36,7 +38,11 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
             "project:\n  type: single\n",
             encoding="utf-8",
         )
-        self.env = {**os.environ, "TRELLIS_CONTEXT_ID": "auto-loop-test"}
+        self.env = {
+            **os.environ,
+            "TRELLIS_CONTEXT_ID": "auto-loop-test",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
         for name in ("task-one", "task-two"):
             task_dir = self.root / ".trellis/tasks" / name
             task_dir.mkdir(parents=True)
@@ -171,32 +177,13 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
             "验收标准可测试且关键决策已收敛",
         )
 
-    def confirm_current_brief(self) -> dict:
-        """确认 runner 当前返回的 brief handoff。
-
-        Returns:
-            confirmation record 输出。
-        """
-        action = self.runner("next")
-        self.assertEqual(action["action"], "confirm_brief")
-        return self.runner(
-            "record",
-            "--action",
-            "confirm_brief",
-            "--result",
-            "ok",
-            "--summary",
-            "用户已确认当前 planning artifacts 与 brief",
-        )
-
     def advance_planning_to_start(self) -> dict:
-        """完成 readiness 与 brief confirmation，并返回 start action。
+        """完成 readiness，并返回无需二次确认的 start action。
 
         Returns:
             start_task action。
         """
         self.record_planning_ready()
-        self.confirm_current_brief()
         action = self.runner("next")
         self.assertEqual(action["action"], "start_task")
         return action
@@ -213,10 +200,29 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         self.addCleanup(sys.modules.pop, name, None)
         return module
 
+    def init_git_repo(self) -> None:
+        """把隔离目录初始化为具有干净基线的 Git 仓库。"""
+        commands = (
+            ("init",),
+            ("config", "user.email", "test@example.com"),
+            ("config", "user.name", "Test User"),
+            ("add", "."),
+            ("commit", "-m", "baseline"),
+        )
+        for command in commands:
+            result = subprocess.run(
+                ["git", *command],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_open_questions_checkbox_contract(self) -> None:
-        """unchecked 阻塞，checked 与空章节进入 semantic readiness。"""
+        """unchecked 进入人工批量门禁，checked 与空章节进入 readiness。"""
         for content, expected in (
-            ("- [ ] 待确认", "blocked"),
+            ("- [ ] 待确认", "resolve_open_questions"),
             ("- [x] 已确认", "review_planning_readiness"),
             ("", "review_planning_readiness"),
         ):
@@ -225,12 +231,10 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
                 self.write_planning_task(content)
                 self.start_planning()
                 action = self.runner("next")
-                if expected == "blocked":
-                    self.assertEqual(action["status"], "blocked")
-                    state = json.loads(self.state_path().read_text(encoding="utf-8"))
-                    self.assertEqual(state["queue"][0]["blocked"]["reason"], "open-questions")
-                else:
-                    self.assertEqual(action["action"], expected)
+                self.assertEqual(action["action"], expected)
+                if expected == "resolve_open_questions":
+                    self.assertEqual(action["questions"][0]["question"], "待确认")
+                    self.assertEqual(action["questions"][0]["kind"], "unchecked")
 
     def test_missing_open_questions_section_enters_semantic_readiness(self) -> None:
         """PRD 不包含 Open Questions 章节时仍必须进入 semantic readiness。"""
@@ -241,130 +245,77 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
 
         self.assertEqual(self.runner("next")["action"], "review_planning_readiness")
 
-    def test_bare_open_questions_require_hash_bound_review(self) -> None:
-        """历史裸列表先复核，resolved 后才进入 start gate。"""
+    def test_bare_open_questions_require_human_normalization(self) -> None:
+        """历史裸列表必须由人工更新 artifacts，AI 不能代答。"""
         self.write_planning_task("- 无。当前实现口径已确认。")
         self.start_planning()
 
-        review = self.runner("next")
+        action = self.runner("next")
 
-        self.assertEqual(review["action"], "review_open_questions")
-        self.assertEqual(review["questions"], ["无。当前实现口径已确认。"])
+        self.assertEqual(action["action"], "resolve_open_questions")
+        self.assertEqual(action["questions"][0]["kind"], "bare")
+        prd = self.root / ".trellis/tasks/task-planning/prd.md"
+        prd.write_text("# Planning\n\n## Goal\n\nTest\n", encoding="utf-8")
         recorded = self.runner(
             "record",
             "--action",
-            "review_open_questions",
+            "resolve_open_questions",
             "--result",
             "ok",
-            "--review-verdict",
-            "resolved",
-            "--summary",
-            "语义明确表示无开放问题",
         )
-        self.assertEqual(recorded["current_step"], "start_task")
+        self.assertEqual(recorded["summary"]["run_status"], "preparing")
         self.assertEqual(self.runner("next")["action"], "review_planning_readiness")
 
-    def test_tbd_is_not_silently_ignored_and_stale_review_is_rejected(self) -> None:
-        """TBD 进入复核，PRD 变化后旧 action hash 失效。"""
+    def test_unresolved_open_questions_cannot_be_recorded_as_done(self) -> None:
+        """人工问题仍存在时 resolve record 必须拒绝。"""
         self.write_planning_task("- TBD")
         self.start_planning()
-        self.assertEqual(self.runner("next")["action"], "review_open_questions")
-        prd = self.root / ".trellis/tasks/task-planning/prd.md"
-        prd.write_text(prd.read_text(encoding="utf-8") + "\nUpdated\n", encoding="utf-8")
+        self.assertEqual(self.runner("next")["action"], "resolve_open_questions")
 
         rejected = self.runner(
             "record",
             "--action",
-            "review_open_questions",
+            "resolve_open_questions",
             "--result",
             "ok",
-            "--review-verdict",
-            "resolved",
-            "--summary",
-            "旧判断",
         )
 
-        self.assertEqual(rejected["reason"], "stale-open-questions-review")
+        self.assertEqual(rejected["reason"], "open-questions-still-unresolved")
 
-    def test_ambiguous_review_blocks_conservatively(self) -> None:
-        """无法确定的历史裸列表必须保守阻塞。"""
-        self.write_planning_task("- 可能需要再确认")
-        self.start_planning()
-        self.runner("next")
-
-        recorded = self.runner(
-            "record",
-            "--action",
-            "review_open_questions",
-            "--result",
-            "blocked",
-            "--review-verdict",
-            "ambiguous",
-            "--summary",
-            "语义不足",
+    def test_open_questions_are_collected_across_the_full_queue(self) -> None:
+        """prepare 必须一次汇总全部 planning 任务的人工问题。"""
+        self.write_planning_task("- [ ] 第一个问题")
+        second = self.root / ".trellis/tasks/task-planning-two"
+        second.mkdir()
+        (second / "task.json").write_text(json.dumps({"status": "planning"}), encoding="utf-8")
+        (second / "prd.md").write_text(
+            "# Two\n\n## Goal\n\nTest\n\n## Open Questions\n\n- [ ] 第二个问题\n",
+            encoding="utf-8",
         )
-
-        self.assertEqual(recorded["item_status"], "blocked")
-        state = json.loads(self.state_path().read_text(encoding="utf-8"))
-        self.assertEqual(state["queue"][0]["blocked"]["reason"], "open-questions-ambiguous")
-
-    def test_retry_blocked_rechecks_updated_open_questions(self) -> None:
-        """修正文档后 retry-blocked 必须重新执行 Open Questions 门禁。"""
-        self.write_planning_task("- 可能需要再确认")
-        self.start_planning()
-        self.runner("next")
+        (second / "brief.md").write_text("# Brief\n", encoding="utf-8")
         self.runner(
-            "record",
-            "--action",
-            "review_open_questions",
-            "--result",
-            "blocked",
-            "--review-verdict",
-            "ambiguous",
-            "--summary",
-            "语义不足",
-        )
-        prd = self.root / ".trellis/tasks/task-planning/prd.md"
-        prd.write_text("# Planning\n\n## Goal\n\nTest\n", encoding="utf-8")
-
-        retried = self.runner(
-            "retry-blocked",
+            "start",
             "--run-id",
             "auto-test",
-            "--task",
+            "--tasks",
             ".trellis/tasks/task-planning",
+            ".trellis/tasks/task-planning-two",
+            "--route-implement",
+            "inline",
+            "--route-check",
+            "check-all-inline",
         )
 
-        self.assertEqual(retried["status"], "retry-ready")
-        self.assertEqual(self.runner("next")["action"], "review_planning_readiness")
+        action = self.runner("next")
+
+        self.assertEqual(action["action"], "resolve_open_questions")
+        self.assertEqual([item["question"] for item in action["questions"]], ["第一个问题", "第二个问题"])
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["status"], "awaiting_input")
+        self.assertEqual(len(state["queue"]), 2)
 
     def test_planning_readiness_is_hash_bound_and_blocks_conservatively(self) -> None:
-        """readiness 结论绑定 artifacts，blocking/ambiguous 不能启动任务。"""
-        for verdict, reason in (
-            ("blocking", "planning-readiness"),
-            ("ambiguous", "planning-readiness-ambiguous"),
-        ):
-            with self.subTest(verdict=verdict):
-                shutil.rmtree(self.root / ".trellis/.runtime/auto-loop", ignore_errors=True)
-                self.write_planning_task("")
-                self.start_planning()
-                self.assertEqual(self.runner("next")["action"], "review_planning_readiness")
-                recorded = self.runner(
-                    "record",
-                    "--action",
-                    "review_planning_readiness",
-                    "--result",
-                    "blocked",
-                    "--readiness-verdict",
-                    verdict,
-                    "--summary",
-                    "验收标准仍不可测试",
-                )
-                self.assertEqual(recorded["item_status"], "blocked")
-                state = json.loads(self.state_path().read_text(encoding="utf-8"))
-                self.assertEqual(state["queue"][0]["blocked"]["reason"], reason)
-
-        shutil.rmtree(self.root / ".trellis/.runtime/auto-loop", ignore_errors=True)
+        """readiness 结论绑定 artifacts，blocking 不能启动任务。"""
         self.write_planning_task("")
         self.start_planning()
         self.assertEqual(self.runner("next")["action"], "review_planning_readiness")
@@ -383,8 +334,25 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         )
         self.assertEqual(rejected["reason"], "stale-planning-readiness-review")
 
-    def test_stale_brief_requires_refresh_then_explicit_confirmation(self) -> None:
-        """brief 过期时先刷新，刷新成功后仍必须等待显式确认。"""
+        shutil.rmtree(self.root / ".trellis/.runtime/auto-loop", ignore_errors=True)
+        self.write_planning_task("")
+        self.start_planning()
+        self.runner("next")
+        recorded = self.runner(
+            "record",
+            "--action",
+            "review_planning_readiness",
+            "--result",
+            "blocked",
+            "--readiness-verdict",
+            "blocking",
+            "--summary",
+            "验收标准仍不可测试",
+        )
+        self.assertEqual(recorded["item_status"], "blocked")
+
+    def test_stale_brief_refresh_enters_start_without_confirmation(self) -> None:
+        """brief 刷新后直接进入 start_task，不再返回 confirm_brief。"""
         self.write_planning_task("")
         prd = self.root / ".trellis/tasks/task-planning/prd.md"
         prd.write_text(prd.read_text(encoding="utf-8") + "\nNew requirement\n", encoding="utf-8")
@@ -398,27 +366,309 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         brief.write_text("# Brief\n\nUpdated\n", encoding="utf-8")
         self.runner("record", "--action", "refresh_brief", "--result", "ok")
 
-        self.assertEqual(self.runner("next")["action"], "confirm_brief")
+        self.assertEqual(self.runner("next")["action"], "start_task")
 
-    def test_brief_confirmation_is_hash_bound(self) -> None:
-        """brief 展示后内容变化时旧确认 action 必须失效。"""
+    def test_manifest_artifact_drift_blocks_current_item(self) -> None:
+        """manifest 冻结后无 decision 的 artifact 变化必须阻塞。"""
         self.write_planning_task("")
         self.start_planning()
         self.record_planning_ready()
-        self.assertEqual(self.runner("next")["action"], "confirm_brief")
+        self.assertEqual(self.runner("next")["action"], "start_task")
         brief = self.root / ".trellis/tasks/task-planning/brief.md"
         brief.write_text("# Brief\n\nChanged after display\n", encoding="utf-8")
 
-        rejected = self.runner(
+        recorded = self.runner(
             "record",
             "--action",
-            "confirm_brief",
+            "start_task",
+            "--result",
+            "ok",
+        )
+        self.assertEqual(recorded["item_status"], "blocked")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["queue"][0]["blocked"]["reason"], "artifact-drift")
+
+    def test_planning_repair_rechecks_with_independent_budget(self) -> None:
+        """repairable planning 会进入修复 action 并重新执行 readiness。"""
+        self.write_planning_task("")
+        self.start_planning()
+        self.assertEqual(self.runner("next")["action"], "review_planning_readiness")
+        self.runner(
+            "record",
+            "--action",
+            "review_planning_readiness",
+            "--result",
+            "ok",
+            "--readiness-verdict",
+            "repairable",
+            "--summary",
+            "验收标准需要改为可测试表达",
+        )
+        self.assertEqual(self.runner("next")["action"], "run_planning_repair")
+        prd = self.root / ".trellis/tasks/task-planning/prd.md"
+        prd.write_text(prd.read_text(encoding="utf-8") + "\n## Acceptance\n\n- [ ] 可验证\n", encoding="utf-8")
+        self.runner(
+            "record",
+            "--action",
+            "run_planning_repair",
             "--result",
             "ok",
             "--summary",
-            "旧确认",
+            "补齐可测试验收标准",
         )
-        self.assertEqual(rejected["reason"], "stale-brief-confirmation")
+
+        self.assertEqual(self.runner("next")["action"], "review_planning_readiness")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["queue"][0]["planning_attempts"], 1)
+
+    def test_explicit_dependencies_stably_reorder_queue(self) -> None:
+        """显式依赖冲突时稳定拓扑排序，不把原顺序当依赖。"""
+        self.start(
+            "--depends-on",
+            ".trellis/tasks/task-two=.trellis/tasks/task-one",
+            tasks=("task-two", "task-one"),
+        )
+
+        action = self.runner("next")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+
+        self.assertEqual(action["task"], ".trellis/tasks/task-one")
+        self.assertEqual(
+            [item["task"] for item in state["queue"]],
+            [".trellis/tasks/task-one", ".trellis/tasks/task-two"],
+        )
+        self.assertEqual(state["queue_reordered"]["reason"], "explicit-dependencies")
+
+    def test_dependency_failure_blocks_only_dependents(self) -> None:
+        """前置任务失败只传播到显式依赖项，独立任务继续。"""
+        third = self.root / ".trellis/tasks/task-three"
+        third.mkdir()
+        (third / "task.json").write_text(json.dumps({"status": "in_progress"}), encoding="utf-8")
+        self.start(
+            "--depends-on",
+            ".trellis/tasks/task-two=.trellis/tasks/task-one",
+            tasks=("task-one", "task-two", "task-three"),
+        )
+        self.assertEqual(self.runner("next")["task"], ".trellis/tasks/task-one")
+        self.runner(
+            "record",
+            "--action",
+            "run_implement",
+            "--result",
+            "blocked",
+            "--failure-type",
+            "product-decision",
+            "--summary",
+            "高风险事项需要人工处理",
+        )
+
+        action = self.runner("next")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+
+        self.assertEqual(action["task"], ".trellis/tasks/task-three")
+        dependent = next(item for item in state["queue"] if item["task"].endswith("task-two"))
+        self.assertEqual(dependent["blocked"]["reason"], "blocked-dependency")
+
+    def test_dependency_cycle_globally_blocks_before_running(self) -> None:
+        """循环依赖在 running 前进入稳定全局阻断。"""
+        self.start(
+            "--depends-on",
+            ".trellis/tasks/task-one=.trellis/tasks/task-two",
+            "--depends-on",
+            ".trellis/tasks/task-two=.trellis/tasks/task-one",
+            tasks=("task-one", "task-two"),
+        )
+
+        action = self.runner("next")
+
+        self.assertEqual(action["status"], "globally_blocked")
+        self.assertEqual(action["reason"], "invalid-task-dependencies")
+
+    def test_dirty_baseline_protects_unrelated_file(self) -> None:
+        """无关 dirty 文件可保留，但涉及它的任务 action 必须阻塞。"""
+        self.init_git_repo()
+        protected = self.root / "notes.txt"
+        protected.write_text("user work\n", encoding="utf-8")
+        self.start()
+        classify = self.runner("next")
+        self.assertEqual(classify["action"], "classify_dirty_baseline")
+        baseline = classify["dirty"][0]
+        key = f"{baseline['repository']}::{baseline['path']}"
+        recorded_classification = self.runner(
+            "record",
+            "--action",
+            "classify_dirty_baseline",
+            "--result",
+            "ok",
+            "--protected-retained",
+            key,
+        )
+        self.assertEqual(recorded_classification["status"], "recorded", recorded_classification)
+        self.assertEqual(self.runner("next")["action"], "run_implement")
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "run_implement",
+            "--result",
+            "ok",
+            "--files",
+            "notes.txt",
+        )
+
+        self.assertEqual(recorded["item_status"], "blocked")
+        self.assertEqual(protected.read_text(encoding="utf-8"), "user work\n")
+
+    def test_protected_baseline_drift_blocks_current_action(self) -> None:
+        """protected 文件即使未上报到 files，也会通过 hash 漂移阻塞当前任务。"""
+        self.init_git_repo()
+        protected = self.root / "notes.txt"
+        protected.write_text("user work\n", encoding="utf-8")
+        self.start()
+        classify = self.runner("next")
+        baseline = classify["dirty"][0]
+        key = f"{baseline['repository']}::{baseline['path']}"
+        self.runner(
+            "record",
+            "--action",
+            "classify_dirty_baseline",
+            "--result",
+            "ok",
+            "--protected-retained",
+            key,
+        )
+        self.assertEqual(self.runner("next")["action"], "run_implement")
+        protected.write_text("changed during action\n", encoding="utf-8")
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "run_implement",
+            "--result",
+            "ok",
+        )
+
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(recorded["item_status"], "blocked")
+        self.assertEqual(state["queue"][0]["blocked"]["reason"], "protected-baseline-drift")
+        self.assertEqual(state["protected_drifts"][0]["files"][0]["actual_sha256"], state["repositories"][0]["protected_retained"][0]["current_sha256"])
+
+    def test_protected_paths_keep_repository_identity(self) -> None:
+        """主仓与子仓同名路径只匹配各自的 repository::path。"""
+        module = self.load_runner_module()
+        state = {
+            "repositories": [
+                {"root": "vendor/module", "protected_retained": [{"path": "notes.txt"}]},
+            ],
+        }
+
+        self.assertEqual(module._protected_path_conflicts(state, ["notes.txt"]), [])
+        self.assertEqual(
+            module._protected_path_conflicts(state, ["vendor/module::notes.txt"]),
+            ["vendor/module::notes.txt"],
+        )
+
+    def test_staged_git_state_blocks_start(self) -> None:
+        """启动前存在 staged 文件时不得创建 runtime。"""
+        self.init_git_repo()
+        staged = self.root / "staged.txt"
+        staged.write_text("staged\n", encoding="utf-8")
+        subprocess.run(["git", "add", "staged.txt"], cwd=self.root, check=True)
+
+        result = self.start()
+
+        self.assertEqual(result["reason"], "git-global-safety-block")
+        self.assertFalse(self.state_path().exists())
+
+    def test_decision_persists_and_revises_manifest(self) -> None:
+        """自主决策同时进入任务 JSONL、runtime 摘要和新 manifest revision。"""
+        self.start()
+        self.assertEqual(self.runner("next")["action"], "run_implement")
+
+        decided = self.runner(
+            "decide",
+            "--task",
+            ".trellis/tasks/task-one",
+            "--topic",
+            "错误消息格式",
+            "--option",
+            "沿用现有格式",
+            "--option",
+            "新增格式",
+            "--choice",
+            "沿用现有格式",
+            "--summary",
+            "仓库既有输出保持一致",
+            "--evidence",
+            "src/example.py",
+            "--risk",
+            "low",
+            "--confidence",
+            "high",
+            "--requirement",
+            "R4",
+        )
+
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        events = (self.root / ".trellis/tasks/task-one/decisions.jsonl").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(decided["decision"]["decision_id"], "DEC-0001")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(state["queue"][0]["decision_count"], 1)
+        self.assertEqual(state["manifest_revision"], 1)
+
+    def test_decision_authorizes_artifact_rebind_on_next_record(self) -> None:
+        """决策列明的 planning/handoff 修改在下一次 record 生成新 manifest revision。"""
+        self.write_planning_task("")
+        self.start_planning()
+        self.advance_planning_to_start()
+        self.runner("record", "--action", "start_task", "--result", "ok")
+        self.assertEqual(self.runner("next")["action"], "run_implement")
+        task_ref = ".trellis/tasks/task-planning"
+        decided = self.runner(
+            "decide",
+            "--task",
+            task_ref,
+            "--topic",
+            "验收表达",
+            "--option",
+            "沿用现状",
+            "--option",
+            "补充边界",
+            "--choice",
+            "补充边界",
+            "--summary",
+            "现有需求已明确边界",
+            "--risk",
+            "low",
+            "--confidence",
+            "high",
+            "--file",
+            f"{task_ref}/prd.md",
+            "--file",
+            f"{task_ref}/brief.md",
+        )
+        self.assertTrue(decided["artifact_rebind_pending"])
+        task_dir = self.root / task_ref
+        (task_dir / "prd.md").write_text(
+            (task_dir / "prd.md").read_text(encoding="utf-8") + "\n## Acceptance\n\n- [ ] 覆盖边界\n",
+            encoding="utf-8",
+        )
+        (task_dir / "brief.md").write_text("# Brief\n\n已补充边界。\n", encoding="utf-8")
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "run_implement",
+            "--result",
+            "ok",
+        )
+
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(recorded["item_status"], "running")
+        self.assertEqual(state["manifest_revision"], 2)
+        self.assertEqual(state["manifest_revisions"][-1]["decision_id"], "DEC-0001")
+        self.assertEqual(state["queue"][0]["decision_ids"], ["DEC-0001"])
+        self.assertIsNone(state["queue"][0]["pending_artifact_decision"])
 
     def test_cross_repo_jsonl_entries_remain_valid(self) -> None:
         """相对越过仓库根和绝对外部路径继续可作为 context。"""
@@ -450,7 +700,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
 
         status = self.runner("status")
 
-        self.assertEqual(status["run_status"], "running")
+        self.assertEqual(status["run_status"], "preparing")
         self.assertEqual(json.loads(pointer.read_text(encoding="utf-8"))["run_id"], "auto-test")
 
     def test_corrupt_current_run_blocks_new_run(self) -> None:
@@ -504,6 +754,8 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         """旧 run 缺深度字段时 action 与旧 record 都按 full。"""
         self.start()
         state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        state["schema_version"] = 1
+        state["status"] = "running"
         state.pop("check_depth")
         state["queue"][0]["current_step"] = "check"
         self.state_path().write_text(json.dumps(state), encoding="utf-8")

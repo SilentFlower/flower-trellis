@@ -12,6 +12,14 @@
       "content": { "source": "helpers-content.py" }
     },
     {
+      "id": "task-store-decision-log-import",
+      "operation": "insert",
+      "position": "after",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "decision-import-selector.py" },
+      "content": { "source": "decision-import-content.py" }
+    },
+    {
       "id": "task-create-duplicate-slug",
       "operation": "replace",
       "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],

@@ -874,6 +874,7 @@ class PatchConsumerTest(unittest.TestCase):
 
         self.assertTrue({
             "task-create-active-warning",
+            "task-store-decision-log-import",
             "task-archive-metadata-guard",
             "task-set-branch-write",
             "task-set-base-branch-write",

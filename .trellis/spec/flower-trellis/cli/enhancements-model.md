@@ -376,9 +376,9 @@ node scripts/check-ai-context-budget.mjs --strict
 
 - Trigger:修改 Phase 1.4、`trellis-brainstorm` planning handoff、`trellis-task-brief`、
   auto-loop planning start gate，或 `.trellis/scripts/task.py start` 的 `planning -> in_progress` 行为。
-- Scope:planning semantic readiness 与 brief review 由 workflow/Skill/auto-loop action 负责；
-  `task.py` 只校验可确定的文件状态。auto-loop 可保存绑定当前内容摘要的 AI 复核与用户确认结果，
-  但不得把文件存在、启动授权或 brief 刷新等同于 planning ready/confirmed。
+- Scope:交互式 planning 的 semantic readiness 与 brief review 由 workflow/Skill 负责；
+  `task.py` 只校验可确定的文件状态。schema 2 auto-loop 使用绑定 planning/handoff hash 的 run manifest
+  授权，不逐任务确认 brief；schema 1 outstanding action 继续按旧确认协议恢复。
 
 ### 2. Signatures
 
@@ -391,8 +391,9 @@ _validate_planning_brief(full_path, task_json_path) -> bool
 ```
 
 ```text
-review_planning_readiness(planning_sha256, ready|blocking|ambiguous)
-confirm_brief(handoff_sha256)
+schema 2: review_planning_readiness(planning_sha256, ready|repairable|blocking)
+          refresh_brief -> manifest(planning_sha256, handoff_sha256) -> start_task
+schema 1: review_planning_readiness -> refresh_brief -> confirm_brief(handoff_sha256)
 ```
 
 权威 planning artifacts 固定为实际存在的：
@@ -409,12 +410,14 @@ prd.md | design.md | implement.md
   完整展示后结束当前回合。只有用户在后续消息确认已展示的 brief，才可运行 `task.py start`。
 - `trellis-brainstorm` 的 Quality Bar 只表示 planning artifacts 可进入最终 brief handoff；
   用户在最终产物和完整 brief 展示前表达的实现意向不能复用为 planning review。
-- auto-loop 在 `start_task` 前必须返回 `review_planning_readiness`，复核验收标准可测试、范围/非目标
-  明确、关键决策收敛、仓库可回答问题已经研究、剩余问题确实需要用户。结果绑定当前实际存在的
-  `prd.md` / `design.md` / `implement.md` 路径与内容 SHA-256；任一文件变化后旧结论失效。
-- readiness 为 ready 后，brief 缺失或晚于任一权威 artifact 时返回 `refresh_brief`。刷新成功只表示
-  派生视图已更新，不代表用户确认；下一步必须返回 `confirm_brief`，展示完整 brief 并等待显式确认。
-  确认绑定 planning artifacts 与 `brief.md` 的联合 SHA-256，任一文件变化后必须重新展示并确认。
+- schema 2 auto-loop 在 `start_task` 前必须返回 `review_planning_readiness`，复核验收标准可测试、
+  范围/非目标明确、关键决策收敛和仓库证据充分。结果绑定当前实际存在的 `prd.md` / `design.md` /
+  `implement.md` 路径与内容 SHA-256；`repairable` 进入最多 3 轮 planning repair，`blocking` 只阻塞当前项。
+- schema 2 readiness 为 ready 后，brief 缺失或早于任一权威 artifact 时返回 `refresh_brief`；刷新后
+  runner 重算 planning/handoff hash，并在全队列 prepare 完成后写入 manifest revision。用户的 start
+  指令已提供本 run 授权，因此不再返回逐任务 `confirm_brief`。
+- schema 1 runtime 保持旧 action 兼容：`refresh_brief` 后仍返回 `confirm_brief`，确认绑定 planning
+  artifacts 与 `brief.md` 的联合 SHA-256；不得把历史 run 自动迁移为 schema 2。
 - `_validate_planning_brief()` 只对 `task.json.status == "planning"` 生效，并且必须在 active-task
   pointer、任务状态和 `after_start` hook 的任何写入或副作用之前执行。
 - planning task 缺少 `brief.md`、读取任务状态失败、读取 artifact 元数据失败，或任一权威 artifact
@@ -436,9 +439,11 @@ prd.md | design.md | implement.md
 | 历史任务已经是 `in_progress` 且没有 brief | 允许重新绑定，不批量强制迁移 |
 | 无 session identity | 仍先执行 brief guard；通过后才进入既有 degraded mode |
 | planning readiness 尚未绑定当前 artifacts | 返回 `review_planning_readiness`，不得按文件存在启动 |
-| readiness 为 blocking/ambiguous | 以稳定 reason 阻塞，修正规划后在同一 run 重试 |
-| auto-loop planning task 缺少/过期 brief | 返回 `refresh_brief`；成功后进入 `confirm_brief`，不得直接 start |
-| brief 已展示但未确认，或确认后任一 handoff 文件变化 | 等待/重新返回 `confirm_brief`，不得执行 `start_task` |
+| schema 2 readiness 为 repairable | 返回 `run_planning_repair`；最多 3 轮，修改后重新计算 artifact hash |
+| schema 2 readiness 为 blocking/ambiguous | 以稳定 reason 阻塞当前项，独立后续任务继续 |
+| schema 2 planning task 缺少/过期 brief | 返回 `refresh_brief`；成功后进入 manifest prepare，不等待逐任务确认 |
+| schema 2 manifest 后 handoff 文件无授权变化 | 当前项以 `artifact-drift` 阻塞，不能沿用旧授权 |
+| schema 1 brief 未确认或确认后 handoff 变化 | 等待/重新返回 `confirm_brief`，不得执行 `start_task` |
 | 重复同步和 enhance-only apply | 第二次 Patch 修改数为 0，marker/provenance 不重复 |
 
 ### 5. Good/Base/Bad Cases
@@ -447,20 +452,21 @@ prd.md | design.md | implement.md
   状态或 hook 副作用前阻断，AI 返回最终 brief handoff。
 - Good:用户 review brief 后又修改 `design.md`；start 列出 `design.md` 为更新来源，要求刷新并
   重新 review。
-- Good:auto-loop 先完成内容绑定的 readiness review，再刷新并展示 brief；只有收到当前内容的显式
-  确认后才返回 `start_task`。
+- Good:schema 2 auto-loop 对全队列完成内容绑定的 readiness review 和 brief 刷新，manifest 固化
+  planning/handoff hash 后直接返回 `start_task`，运行阶段不再逐任务停顿。
 - Base:轻量任务只有 `prd.md` 和更新后的 brief；校验通过，不机械要求不存在的 design/implement。
 - Base:旧 `in_progress` 任务没有 brief；重新绑定成功，后续 workflow 建议回补。
 - Bad:只在 `workflow-state:planning` 增加提示。该状态可能要到下一次用户输入才注入，同一回合
   create -> plan -> start 仍可绕过。
-- Bad:auto-loop 看到三件套/brief 文件存在就直接 start，或把 `refresh_brief` 的成功 record 当成
-  用户确认；这会绕过语义质量线和 handoff。
+- Bad:schema 2 auto-loop 看到三件套/brief 文件存在就直接 start，或不生成 manifest 就把启动指令
+  当成对任意后续内容的授权；这会绕过语义质量线和内容漂移保护。
 
 ### 6. Tests Required
 
 - Python runtime 测试覆盖 create 后立即 start、brief 缺失、三种权威 artifact 任一过期、
   artifact `stat` 异常、fresh brief、历史 `in_progress` 重绑和无 session identity。
-- auto-loop 测试覆盖 readiness ready/blocking/ambiguous、planning hash 变化、brief 缺失/过期、
+- auto-loop 测试覆盖 schema 2 readiness ready/repairable/blocking、planning repair 预算、brief 缺失/
+  过期、manifest hash、合法 decision rebind 和无授权 artifact drift；schema 1 fixture 继续覆盖
   refresh 后等待确认、handoff hash 变化和确认后才能 start。
 - 所有 guard 失败用例断言退出码非零、任务仍为 planning、`after_start` hook 未执行，并且不会
   覆盖 create 已建立的 planning pointer。
@@ -1203,203 +1209,148 @@ returns candidate SOP/spec paths from natural document structure
 原因:高频提示保持短小,发现逻辑可测试,项目私有内容不进入 skill-garden,且 spec
 文档不需要额外维护一套 triggers。
 
-## Scenario: Auto Loop Runner
+## Scenario: Auto Loop Unattended Runner
 
 ### 1. Scope / Trigger
 
-- Trigger: 0.6 强化包需要提供接近 `/goal` 的自动任务循环,让用户显式启动后按单任务或显式多任务队列推进到本地 `commit-only`。
-- Scope: `.trellis/scripts/auto_loop.py` 负责确定性状态机;`trellis-auto-loop` skill 负责 agent 入口、触发词、恢复协议、action 映射、commit-only 预授权校验和 record 回写;`trellis-route` 只负责 implement/check 路由授权;`trellis-push` 只负责 exact commit-only 执行。
-
-### 2. Contracts
-
-- `trellis-auto-loop/SKILL.md` 是 AI 侧入口。没有这个 skill 时,脚本虽然可运行,但 agent 不知道何时启动、压缩后如何恢复、每个 action 如何映射回 Trellis workflow、以及何时调用 `record`。
-- `.trellis/scripts/auto_loop.py` 是状态权威,状态路径固定为 `.trellis/.runtime/auto-loop/<run-id>.json`;`resume_capsule` 只作人类摘要,由 `--verbose` 诊断输出动态生成,不要每次写回 runtime JSON。
-- `start` 支持显式多任务队列,按用户顺序执行;同一 worktree 不并发。
-- 默认 profile 为 `commit-only`;启动前由 `trellis-auto-loop` skill 通过 `trellis-route` 准备真实 route 决策或复用个人 `.trellis/.route-prefs.tmp`,runner 不默认写临时 route 授权。
-- planning start gate 按已解析的有效 route 判断 JSONL 是否必需:inline / check-all-inline 可不因 seed-only JSONL 停住,subagent 路径仍要求 curated context。
-- runner action 必须通过既有 Trellis 语义执行:`trellis-task-brief`、`task.py start`、`trellis-route`、implement/check、`trellis-update-spec`、`trellis-push commit-only`。
-- `next` 发出的 action 必须写入 runtime 的待回写状态;`record` 必须显式传入匹配 action,缺失或不匹配时返回 error,不得静默推进。
-- 默认 stdout 必须保持精简:只输出 run 状态、当前/待回写 action、队列计数、简短 blocked/pending/completed 列表和最近少量无 `data` 决策摘要。完整 blocked detail、完整 `decision_log.data`、`resume_capsule`、完整 `record` item 只在 `--verbose` 输出。
-- auto-loop 的 `commit-only` 是本次 run 内任务相关本地提交的预授权;普通 `trellis-push` 仍必须展示计划并等待确认。`trellis-auto-loop` 根据 `status` 的 profile/action/task、空 staged 区和文件语义归属完成判定,再把 exact files/message 交给 `trellis-push` 内部执行器;成功后由 auto-loop 调用 `record`。
-- `scripts/auto_loop.py` 必须随 0.6 快照发布,并可被 `--skills trellis-auto-loop` 精细安装带上。
-
-### 3. Validation
-
-- `python3 -m py_compile .trellis/scripts/auto_loop.py`
-- `python3 -m py_compile enhancements/0.6/scripts/auto_loop.py`
-- `cmp -s` 检查源、快照、当前 dogfood runner 一致。
-- 用临时目标安装 `--skills trellis-auto-loop`,确认同时铺设 `trellis-auto-loop` skill 和 `.trellis/scripts/auto_loop.py`。
-- 行为冒烟至少覆盖 start → next → record → check/fix/recheck → spec_update → commit_only → done。
-- 行为冒烟必须覆盖 `record` 缺失 / 不匹配 action 会被拒绝,以及 inline route 下 seed-only JSONL 不阻塞 planning start、个人 subagent 默认仍会阻塞。
-
----
-
-## Scenario: Auto Loop Runner Boundaries
-
-### 1. Scope / Trigger
-
-- Trigger: 0.6 强化包提供 `trellis-auto-loop` 自动推进任务到本地提交,但 runner
-  不能替代 `trellis-route` 的真实执行模式选择,也不能绕过 `trellis-push` 的提交边界。
-- Scope: `.trellis/scripts/auto_loop.py` 是状态机;`trellis-auto-loop/SKILL.md` 负责启动前
-  route 准备度、action 调度、commit-only 安全校验和 runner 回写;`route_state.py` 校验
-  route runtime/prefs;`trellis-push` 只负责接收 exact files/message 并执行本地提交。
+- Trigger:0.6 `trellis-auto-loop` 接收一次用户启动授权，对显式任务队列完成全量 prepare，
+  再无人值守推进到本地 `commit-only` 终态。
+- Scope:`auto_loop.py` 负责 schema、manifest、依赖、dirty baseline、预算和 action 状态机；
+  `trellis-auto-loop/SKILL.md` 负责语义边界与 action 调度；`decision_log.py` 保存可审计 AI 决策；
+  `trellis-route`、Check-All、`trellis-push` 和 `trellis-finish-work` 继续拥有各自完整流程。
 
 ### 2. Signatures
 
 ```bash
-python3 ./.trellis/scripts/auto_loop.py start --tasks <task> [<task> ...] --profile commit-only [--check-depth auto|light|full]
+python3 ./.trellis/scripts/auto_loop.py start \
+  --tasks <task> [<task> ...] \
+  [--depends-on <dependent>=<dependency>] \
+  --profile commit-only \
+  [--check-depth auto|light|full] \
+  [--route-implement inline|subagent] \
+  [--route-check check-all-inline|check-all-subagent]
 python3 ./.trellis/scripts/auto_loop.py next [--run-id <run-id>] [--verbose]
-python3 ./.trellis/scripts/auto_loop.py record --action <action> --result <ok|failed|blocked> [--effective-check-depth light|full] [--check-depth-reason <summary>] [...] [--verbose]
-python3 ./.trellis/scripts/auto_loop.py record --action review_open_questions --result <ok|blocked> --review-verdict <resolved|blocking|ambiguous> [--summary <text>]
+python3 ./.trellis/scripts/auto_loop.py record \
+  [--task <task>] --action <action> --result <ok|failed|blocked> \
+  [--owned-dirty <task>=<repository>::<path>] \
+  [--protected-retained <repository>::<path>] \
+  [--files <repository>::<path> ...] [...]
+python3 ./.trellis/scripts/auto_loop.py decide \
+  --task <task> --topic <topic> --option <option> [--option <option> ...] \
+  --choice <choice> --summary <summary> --risk low|medium \
+  --confidence low|medium|high [--requirement <id>] [--file <repository>::<path>]
 python3 ./.trellis/scripts/auto_loop.py retry-blocked [--run-id <run-id>] [--task <task>] [--check-depth auto|light|full] [--route-implement inline|subagent] [--route-check check-all-inline|check-all-subagent] [--all] [--verbose]
 python3 ./.trellis/scripts/auto_loop.py status [--run-id <run-id>] [--verbose]
 python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
+
+python3 ./.trellis/scripts/decision_log.py status --task <task> --json
+python3 ./.trellis/scripts/decision_log.py review \
+  --task <task> --verdict accepted|changes-requested \
+  [--decision-id <DEC-id>] [--notes <text>]
 ```
 
-`copy-scripts.js` 必须让 `auto_loop.py` 在全装时铺到目标 `.trellis/scripts/`,并让
-`--skills trellis-auto-loop` 精细安装也带上 runner 脚本。auto-loop commit-only 不引入
-额外提交 helper。
+`copy-scripts.js` 必须让 `auto_loop.py` 和 `decision_log.py` 在全装时铺到目标
+`.trellis/scripts/`。选择性 `trellis-auto-loop` 与 `trellis-finish-work` 都必须携带
+`decision_log.py` 和 archive decision guard，不能只安装 Skill 指针。
 
 ### 3. Contracts
 
-- auto-loop 默认 start 不写 `route_authorization`;缺少当前任务 route runtime 决策且无
-  `.route-prefs.tmp` 时,`trellis-auto-loop` skill 必须先走 `trellis-route` 询问/fallback。
-- 如果 implement 与 check 两个 target 都缺 route,`trellis-auto-loop` skill 应优先展示
-  auto-loop 专用合并选择:本次全 inline、本次全 subagent、保存默认全 inline、保存默认全
-  subagent;避免把 `trellis-route` 两套完整 fallback 选项原样贴出。用户仍可用
-  `implement 1, check 2` 这类高级格式分别选择。
-- runner 是调度器,不自行默认 inline/subagent,也不把 auto 临时授权展示成真实 route 结果。
-- planning PRD 的 `## Open Questions` 使用确定性 checkbox 契约:`- [ ]` 立即阻塞,`- [x]` 不阻塞,章节缺失或无有效条目直接放行。历史裸列表不得由 Python 关键词表猜语义,必须返回 `review_open_questions` action。
-- `review_open_questions` action 必须携带裸列表和 PRD SHA-256。AI 回写 `resolved|blocking|ambiguous`;runner 在 record 时重算 hash,拒绝陈旧判断。`blocking` 与 `ambiguous` 都进入 blocked,修正文档后使用 `retry-blocked` 在同一 run 重跑门禁。
-- Open Questions 门禁通过后仍必须返回 `review_planning_readiness`，不能直接进入 `start_task`。
-  action 携带当前实际存在的 planning artifact 名称与联合 SHA-256；AI 回写
-  `ready|blocking|ambiguous`，runner 重算摘要并拒绝 `stale-planning-readiness-review`。
-- readiness 为 ready 后，runner 按 brief freshness 返回 `refresh_brief` 或 `confirm_brief`。
-  `refresh_brief` 的成功 record 不构成用户确认；`confirm_brief` 只有收到明确确认后才能以 ok
-  回写，并绑定 planning artifacts + `brief.md` 的联合 SHA-256。内容变化返回
-  `stale-brief-confirmation`，不得推进。
-- 新 run 的 `check_depth` 默认 `auto`;显式 `--check-depth` 与 `--route-check` 独立。
-  历史 state 缺少或包含非法值时按 full 读取,不要求迁移旧 JSON。
-- `run_check_all` / `run_recheck` action 必须输出 `requested_check_depth`;首次检查的
-  `minimum_check_depth` 为 null,已有检查记录的 retry/recheck 使用上次 effective depth 作为下限。
-- 检查 action 的 record 必须保存 `item.last_check`:action、requested/minimum/effective depth、
-  reason、result、recorded_at。旧调用缺 `--effective-check-depth` 时无条件记录
-  `full / legacy-default-full`,即使调用方额外传了 reason 也不能覆盖兼容原因。
-- requested full 或 minimum full 时,runner 必须拒绝 effective light 并保留 outstanding action;
-  不得静默推进或替 agent 猜测结果。
-- `route_state.py resolve` 顺序仍是 runtime -> prefs -> running auto-loop 临时授权;但
-  session `current_auto_run` 或全局 `current.json` 指向非 running run 时必须忽略 stale pointer,
-  再 fallback 扫描唯一 running run。
-- route 临时授权必须匹配当前 task 的 pending/running 队列项。session 显式绑定的 run 损坏时失败关闭,不得 fallback 到其它 run;只有 missing/stale pointer 才允许唯一健康 run 恢复。
-- auto-loop runtime 写入使用同目录临时文件、flush/fsync 和 `os.replace`;replace 失败保留旧文件。读取必须区分 missing、corrupt 和 I/O error;当前 run 损坏时非 `--force` start 不得创建第二个 run。
-- run completed/stopped 后,`auto_loop.py` 只在 current pointer 仍指向本 run 时删除
-  `.trellis/.runtime/auto-loop/current.json`;显式 `--run-id` 仍可查看历史 run。
-- 队列处理完但存在 blocked item 时,run `status` 必须是 `blocked`,不能伪装成
-  `completed`;全 item 本地提交完成才是 `completed`。
-- blocked 是同一个 run 的可恢复状态。补齐 route / context / PRD 后,AI 应调用
-  `retry-blocked` 把可恢复 blocked item 重置为 `pending`,并继续 `next`;不要用
-  `start --force` 新建 run 来纠正漏传参数。
-- `retry-blocked` 只写现有 run JSON:合并本次显式 `--route-implement` /
-  `--route-check` 到 `route_authorization`,可更新 run 级 `check_depth`,清空 item 的 `blocked` / `last_action`,把 run
-  置回 `running`,并刷新 `current.json` 指针。它不创建新的 `auto-*.json`,不改任务文件,
-  不替用户默认选择 route。
-- runtime JSON 不再落盘派生的 `resume_capsule`;旧状态中的该字段只为兼容读取,下一次写状态时应移除。
-- `status` 在无唯一 running/current run 时仍返回 `status=ok`,并列出最近 run 的
-  `run_id`、`run_status`、completed / blocked / remaining 计数,方便用户指定 `--run-id`。
-- `record` 默认返回当前 item 的 `task`、`item_status`、`current_step`、`commit` 和紧凑 summary,不得返回完整 item;排障时由 `record --verbose` 返回完整 item。
-- `commit_only` action 由 `trellis-auto-loop` 根据当前任务 artifacts、
-  `git status`、`git diff` 和必要文件内容生成 planned files / retained files / commit
-  message / 归属理由,不得用脚本基于 dirty baseline 或时间差猜测文件归属。
-- `trellis-auto-loop` 必须复核当前 action/profile/task 匹配、staged 区为空、无冲突、
-  planned files 当前 dirty,且不含 `.trellis/.runtime/`、`.trellis/.route-prefs.tmp`、其他任务目录
-  或未解释文件;通过后调用 `trellis-push` 内部 commit-only。该内部执行器不读取 runtime、
-  不调用 `status`/`record`、不 push、不写远端任务进度。提交成功后由 auto-loop 回写 runner。
-- 单个 item 的 commit-only 预检失败只把该 item blocked/skipped 并记录原因;多任务 run
-  后续 pending item 必须继续。只有 merge/rebase 冲突、repo 状态不可读、脚本损坏或用户 stop
-  这类全局问题才停止整个 run。
-- runtime `decision_log` 只保留最近有限条结论、来源、文件列表、commit message、commit hash、blocked
-  原因和未归档提示;不得记录完整模型思维链。默认输出只给最近少量 `at/type/task/summary`,完整 `data` 只走 `--verbose`。
-- `completed` 在 auto-loop summary 中只表示 item 已本地提交。任务生命周期仍需用户显式
-  `trellis-finish-work` / archive;runner done 只输出非阻塞提醒。
+- 新 run 写 `schema_version=2`，状态固定为 `preparing -> awaiting_input|running -> completed|completed_with_blocked|globally_blocked|stopped`。schema 1 只兼容读取和恢复既有 action，不自动迁移或降级写回。
+- 用户发出 start 指令即授权本次 `commit-only` run。prepare 生成追加式 manifest revision，绑定原始/执行顺序、依赖、profile、route、check depth、repository baseline 及每项 planning/handoff hash；prepare 完成后不得二次确认 manifest。
+- prepare 必须扫描全部显式任务后才进入 running。任务状态只允许 `planning|in_progress`；staged、Git conflict、merge/rebase/cherry-pick/revert 等未完成集成在 runtime 创建前全局阻断。
+- implement/check route 必须来自 `trellis-route` 校验过的 session runtime、个人 prefs 或用户本次临时选择。runner 不自行猜测 inline/subagent；`check_depth` 与 route mode 相互独立。
+- 所有 dirty path 使用 `<repository>::<path>` 唯一键分类为某任务 `owned_dirty` 或 `protected_retained`。分类必须全覆盖、互斥且 hash 未漂移；protected 文件不得被 action 或 commit 使用，每次 record 重新校验内容摘要。
+- `## Open Questions` 是人工边界：`- [ ]` 和历史裸列表统一进入整队列 `resolve_open_questions`，run 保持 `awaiting_input`；`- [x]`、空章节或无章节放行。AI 不得代答、删除、改写或勾选，所有问题收敛后才可 record ok。
+- planning item 依次执行 `review_planning_readiness`、必要的 `run_planning_repair`、`refresh_brief`。repair 仅处理不改变目标且可由仓库证据确定的问题，单任务最多 3 轮；schema 2 不返回逐任务 `confirm_brief`。
+- 依赖只来自 `--depends-on` 或 planning artifacts 的明确契约，不从任务顺序、parent/child 或代码引用猜测。prepare 拒绝缺失、自依赖和循环；稳定拓扑排序只移动满足依赖所需的任务，并把原始/执行顺序写入 manifest。
+- AI 只可通过 `decide` 记录任务目标内、低/中风险、可逆且可测试的自主选择。Open Questions、高风险、生产/费用/权限/隐私、破坏性公开契约、push/merge/release/deploy/archive 必须 blocked。
+- `decisions.jsonl` 使用 append-only decision/review 事件；decision ID 单调递增，review 绑定当前全部 decision digest。新增 decision 会使旧 review 失效，损坏 JSONL 默认失败关闭。
+- decision 修改 planning/handoff 时，`--file` 必须列出全部 `<repository>::<path>`。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则以 `artifact-drift` 阻塞。
+- `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。检查 action 还必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
+- 任务级 failure、planning repair 预算耗尽、protected 冲突、artifact drift、spec needs-review 或 commit-only 归属失败只阻塞当前项，并传播到显式依赖项；独立任务继续。队列结束后不自动执行第二遍恢复扫描。
+- `retry-blocked` 只重置稳定 recoverable reason，复用同一 run；不得用 `start --force` 替代正常恢复。schema 2 队列含 blocked 项时终态为 `completed_with_blocked`。
+- `commit_only` 必须复用 `trellis-push` 内部 exact commit 执行器，排除 runtime、route prefs、protected paths 和其它任务目录；不得使用 `git add .`、`git add -A`、push 或时间差归属推断。
+- item `completed` 只表示本地提交完成，不修改 `task.json.status`。任务继续保持 `in_progress`，直到用户以后显式执行 finish/archive。
+- `trellis-finish-work` 在归档前运行 Decision Audit；`task.py archive` 在任何状态写入、session 清理或目录移动前再次调用 deterministic review guard。无 decision 放行，当前 digest 未 accepted、changes-requested 或日志损坏时零副作用失败。
+- 默认 stdout 只返回 run/action/计数/简短 blocked 与决策摘要；manifest、dirty、依赖链、protected drift、完整 decision data 和 resume capsule 只在 `--verbose` 输出。runtime 继续使用同目录临时文件、flush/fsync 和 `os.replace` 原子写入。
+- canonical 源位于 `vendor/skill-garden/.trellis/0.6`，经 `npm run sync` 生成快照，再由 enhance-only 更新 dogfood。第二次应用必须为零修改；Auto-Loop Skill 只保留语义边界和 action 调度，确定性 schema/校验/错误矩阵留在 runner/helper。
 
 ### 4. Validation & Error Matrix
 
 | 条件 | 行为 |
 |------|------|
-| start 无 route prefs/runtime | skill 先走 `trellis-route`;runner 不默认选择 |
-| Open Questions 包含 `- [ ]` | item 以 `open-questions` blocked |
-| Open Questions 只有 `- [x]`、空章节或无章节 | 继续 `review_planning_readiness`，不得直接 start |
-| Open Questions 是历史裸列表 | 返回带 PRD hash 的 `review_open_questions` action |
-| AI review 为 blocking/ambiguous | 分别以 `open-questions` / `open-questions-ambiguous` blocked |
-| review 后 PRD 内容变化 | record 返回 `stale-open-questions-review`,不得推进 |
-| planning readiness 未复核或 artifact 内容变化 | 返回新 `review_planning_readiness` action |
-| readiness 为 blocking/ambiguous | 分别以 `planning-readiness` / `planning-readiness-ambiguous` blocked |
-| brief 刷新完成但未确认 | 返回 `confirm_brief` 并停止，不得 record/start |
-| confirm action 发出后 handoff 内容变化 | record 返回 `stale-brief-confirmation`,不得推进 |
-| 新 run 未传 `--check-depth` | 保存 `check_depth=auto` |
-| 旧 run 缺 `check_depth` | requested depth 按 full,不得静默变 light |
-| record 缺 effective depth但带自定义 reason | 保存 `full / legacy-default-full`,忽略自定义 reason |
-| requested/minimum full 却 record light | 返回 `check-depth-below-minimum`,outstanding action 保留 |
-| full 检查 blocked 后 retry 同一 action | `minimum_check_depth=full`,不得重新降级 |
-| 启动漏传临时 route 导致 `missing-implement-context` / `missing-check-context` | `retry-blocked --route-implement ... --route-check ...` 复用同一 run |
-| 队列项 blocked 但 blocked reason 是非门禁类问题 | 默认不自动重试;指定 `--task` 或 `--all` 才重置 |
-| 多个历史 run 且无 current/running | `status` 返回最近 run 列表,不报 `status-failed` |
-| current.json 指向 completed/stopped run | route helper 忽略 stale pointer,扫描唯一 running run |
-| session 绑定的 run JSON 损坏但存在其它健康 run | route helper 返回结构化 miss,不得套用其它 run 授权 |
-| 当前 run JSON 损坏后 start 新 run | 非 force 返回 `current-auto-state-invalid`,保留损坏文件 |
-| run completed/stopped | 清理仍指向本 run 的 current pointer |
-| commit_only 时 staged 区已有文件 | auto-loop 记录当前 item blocked,不提交,queue 可继续 |
-| commit_only 无法解释某个 dirty 文件归属 | 保留未提交或 blocked,不得猜测纳入 planned files |
-| commit_only 发现非当前任务 `.trellis/tasks/**` | 保留未提交并记录 retained files |
-| commit_only 成功 | trellis-push 本地 exact commit;auto-loop 回写 runner commit hash、files/message 和 decision_log |
-| 多任务第一个 item blocked | `next` 继续后续 pending item,最终 summary 汇总 blocked/unarchived |
+| task 状态不是 planning/in_progress | start 返回 `task-status-not-runnable`，不创建 runtime |
+| staged、conflict 或未完成 Git 集成 | start 返回 `git-global-safety-block`，不创建 runtime |
+| dirty 分类遗漏、重复或出现未知 key | record 返回 `dirty-classification-incomplete` / `dirty-path-classified-twice`，保持 prepare action |
+| dirty 分类期间内容变化 | 返回 `dirty-baseline-drift`，不得接受陈旧分类 |
+| 任一任务存在 `- [ ]` 或历史裸 Open Questions | 整个 run 保持 `awaiting_input`，返回批量 `resolve_open_questions` |
+| Open Questions 尚未全部收敛就 record ok | 返回 `open-questions-still-unresolved` |
+| readiness 为 repairable | 返回 `run_planning_repair`，最多 3 轮 |
+| repair 未改 artifact 或预算耗尽 | 返回 `planning-repair-no-change` 或以 `planning-repair-budget-exhausted` 阻塞当前项 |
+| brief 刷新后仍过期 | 返回 `brief-still-stale`，保持 prepare action |
+| 依赖缺失、自依赖或循环 | start 返回 `invalid-task-dependencies`，不进入 running |
+| 前置任务 blocked | 依赖项以 `blocked-dependency` 结束，独立项继续 |
+| manifest 后 artifact 无 decision 变化 | 当前项以 `artifact-drift` 阻塞 |
+| decision 列明全部变化 artifact | record 重算 planning/handoff hash，追加绑定 decision ID 的 manifest revision |
+| decision 文件范围未覆盖实际变化 | 当前项以 `artifact-drift` 阻塞，不更新 manifest |
+| action files 命中 protected key | 当前项以 `protected-path-conflict` 阻塞 |
+| protected 内容在 action 期间变化 | 记录 repository/path/前后 hash，以 `protected-baseline-drift` 阻塞当前项 |
+| requested/minimum full 却 record light | 返回 `check-depth-below-minimum`，outstanding action 保留 |
+| schema 2 存在任务级 blocked，独立任务已处理完 | run 进入 `completed_with_blocked` |
+| runtime 损坏或仓库不可读 | 返回结构化全局错误或 `globally_blocked`，不得另建状态掩盖原 run |
+| decision log 无决策 | finish/archive 不增加 review 阻断 |
+| 当前 decision digest 未 accepted 或日志损坏 | archive 在任何副作用前退出非零 |
+| commit_only 成功 | exact 本地 commit 并回写 hash/files/message；任务状态仍为 `in_progress` |
 
 ### 5. Good/Base/Bad Cases
 
-- Good: 用户启动 auto-loop 前已有 `.route-prefs.tmp implement=inline`;`trellis-route` resolve
-  写回 runtime,runner 启动后记录真实 `route_resolved`。
-- Good: run 使用 `check_depth=auto`,局部检查 effective light 通过后 record `last_check`,立即
-  next 到 spec_update;后续任务无需用户确认。
-- Good: requested light 命中 workflow 控制面升级 full,失败后 run_fix -> run_recheck,
-  recheck action 保持 minimum full。
-- Good: 第一个任务 commit-only 因 staged 区不空 blocked;runner summary 记录 blocked,`next`
-  继续第二个 pending 任务。
-- Good: 第一次 start 漏传 inline route,三个 planning task 因 seed-only JSONL blocked;AI
-  执行 `retry-blocked --route-implement inline --route-check check-all-inline`,同一个
-  `run_id` 继续,目录中不新增第二个 `auto-*.json`。
-- Good:历史 PRD 写 `- 无。当前实现口径已确认。`;runner 返回 review action,AI 以 `resolved` 结构化回写后进入 `start_task`。
-- Base: run completed 后用户查 `auto_loop.py status --run-id auto-...` 仍可读历史结果;无
-  `--run-id` 时不会让 stale current 影响新 run。
-- Bad: `trellis-auto-loop` skill 默认传 `--route-implement subagent`;这绕过用户真实 route。
-- Bad: Check-All 返回后先展示 interactive 修复菜单,未执行 runner record/next。
-- Bad: 旧 record 未传 effective depth但把调用方 reason 当作可信深度证据。
-- Bad: run blocked 后直接 `start --force` 启动同一任务队列,产生多个 JSON,用户难以判断哪次
-  是权威状态。
-- Bad:Python 看到 `无问题`、`TBD` 等词就自行放行或阻断;历史裸列表必须交给 AI review,并绑定当前 PRD hash。
-- Bad: 主 agent 看到 `commit_only` action 后手动 `git add . && git commit`;这绕过
-  `trellis-push` 边界且可能混入无关文件。
+- Good:三个 planning 任务先共同完成 dirty 分类、Open Questions 收敛、readiness/repair 和 brief
+  刷新，再生成 manifest；running 后连续执行，不出现逐任务 `confirm_brief`。
+- Good:任务 B 显式依赖 A，任务 C 独立；A blocked 后 B 记录完整依赖链并进入
+  `blocked-dependency`，C 继续到 commit-only，run 最终为 `completed_with_blocked`。
+- Good:AI 先用 `decide --file .::.trellis/tasks/x/prd.md` 记录低风险选择，再修改 PRD；下一次
+  record 追加 manifest revision，并把 decision ID 写入任务 manifest 条目。
+- Good:主仓和子仓都有 `notes.txt`，protected 分类和 action files 始终使用不同的
+  `repository::path`，不会因同名路径互相阻塞。
+- Base:任务没有 AI decision；后续 finish/archive 直接沿用既有流程，不增加确认。
+- Base:schema 1 runtime 恢复到 outstanding `confirm_brief`；继续旧 action，不写 schema 2 字段。
+- Bad:prepare 只检查第一个任务就进入 running；后续任务的 Open Questions 会重新制造人工卡点。
+- Bad:AI 直接编辑 planning artifacts，再补 decision；旧 manifest 已经失去内容绑定，必须按
+  `artifact-drift` 处理。
+- Bad:把队列项 `completed` 同步写入 `task.json.status=completed`；这会绕过 finish/archive 生命周期。
+- Bad:只给 Auto-Loop 或 Finish-Work 安装 `decision_log.py`，却没有 task-store archive guard；直接
+  调用 `task.py archive` 仍可绕过 review。
+- Bad:为缩短 Skill 删除安全边界但没有 runner/helper 或其它 owner 承接；上下文预算不是减少契约的理由。
 
 ### 6. Tests Required
 
-- Python runner 测试覆盖 auto light pass、legacy full fallback、failed -> fix -> full recheck、
-  blocked full retry、retry 更新 check depth、多任务检查通过后无确认续跑。
-- Open Questions 测试覆盖 unchecked/checked/空/无章节/TBD、resolved/blocking/ambiguous、stale hash 和 retry-blocked 后重新门禁。
-- runtime/route 测试覆盖损坏 current run 阻止新 run、损坏 pointer 唯一恢复、session 绑定 run 损坏不 fallback、task mismatch/completed item 不授权、replace 失败保留旧文件。
-- 健康集成回归必须覆盖 create -> active -> auto-loop `start_task` -> record/next,证明写入完整性修复不改变正常链路。
-- 断言缺 effective depth时 reason 固定为 `legacy-default-full`;minimum full 时 light record 被拒绝。
-- 静态测试检查 auto-loop skill 的 start/retry/record 参数、Check-All profile 和 workflow gate 顺序。
-- `npm run sync` 后比较 vendor、enhancements 和 dogfood runner/skill;重复 enhance-only 后 diff hash 不变。
+- runner 测试覆盖 schema 1 恢复和 schema 2 全状态链：全队列 prepare、Open Questions、readiness/
+  repair 预算、brief、manifest、依赖排序/传播、部分失败继续和三种终态。
+- Git baseline 测试覆盖 staged/conflict 全局阻断、跨仓同名路径、分类全覆盖、protected path 冲突、
+  action 期间 hash 漂移和 exact commit files。
+- decision 测试覆盖 append、递增 ID、risk/choice 校验、digest、accepted、changes-requested、新 decision
+  使旧 review 失效、artifact rebind、未授权变化和原子写失败保留旧文件。
+- archive 测试断言无 decision 放行，未审查/changes-requested/损坏日志在状态写入、session 清理和
+  目录移动前零副作用失败；accepted 后保持既有归档行为。
+- Check-All 测试覆盖 requested/minimum/effective depth、legacy full fallback、failed -> fix -> full
+  recheck，以及 validated auto-loop 完成后立即 `record + next`。
+- selective install 对 `trellis-auto-loop`、`auto-loop`、`trellis-finish-work`、`finish-work` 分别断言
+  runner/helper、decision log 和 archive guard 自包含。
+- 运行 `npm test`、Patch conflict、compiled targets、strict AI context budget、Python `py_compile`、
+  `git diff --check`，并比较 vendor、enhancements、dogfood 副本。连续第二次 enhance-only 修改数必须为 0。
 
 ### 7. Wrong vs Correct
 
-**Wrong**:auto-loop 只保存 check route,检查后依赖聊天摘要判断该跑 light/full,并套用普通停止门禁。
+**Wrong**:start 后立即执行队列第一个任务，后续任务轮到时再处理 Open Questions、brief 和 route。
 
-**Correct**:runner 保存 run 级 requested depth和 item 级 effective result;Check-All 完成后匹配
-outstanding action 执行 `record + next`,交互式停止只在非 validated auto-loop 生效。
+**Correct**:schema 2 先 prepare 全队列并生成内容绑定的 manifest，running 阶段只消费冻结 action；
+任务级 failure 结构化记录并继续独立任务。
 
-**Wrong**:把历史 Open Questions 裸列表直接当作非空即阻塞,或用少量关键词在 Python 中推断自然语言。
+**Wrong**:Skill 中描述“AI 可以修改 planning”，runner 只在 next 时比较一个联合 hash，无法证明哪些
+文件由哪条 decision 授权。
 
-**Correct**:checkbox 走确定性解析;裸列表返回带 PRD hash 的 AI review action,结果结构化回写,无法判断时保守阻塞。
+**Correct**:`decide` 先保存 decision 与逐文件 baseline，下一次 record 只允许 `--file` 列明的变化，
+成功后追加绑定 decision ID 的 manifest revision；其它变化稳定阻塞。
 
 ---
 

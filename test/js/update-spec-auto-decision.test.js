@@ -108,8 +108,8 @@ test("auto-loop 对 Update-Spec 三态使用确定性 record 映射", () => {
   const runner = read(sourceRoot, "scripts/auto_loop.py");
 
   assert.equal(agents, claude);
-  assert.match(agents, /`no-op` \/ `written`.*--result ok/);
-  assert.match(agents, /`needs-review`.*--failure-type spec-needs-review/);
+  assert.match(agents, /`no-op\|written` 用 ok/);
+  assert.match(agents, /`needs-review` 用 blocked \+ `spec-needs-review`/);
   assert.match(runner, /no-op\/written[\s\S]*run_spec_update --result ok/);
   assert.match(runner, /needs-review[\s\S]*spec-needs-review/);
 });
