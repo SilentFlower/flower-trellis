@@ -29,6 +29,10 @@ test("Check-All 双平台副本统一智能深度契约", () => {
     agents.indexOf("## Auto-Loop Return Gate")
       < agents.indexOf("## Interactive Post-Check Stop Gate"),
   );
+  assert.match(agents, /最新用户消息识别 direct Git intent/);
+  assert.match(agents, /findings、blocked、部分验证或实质剩余风险/);
+  assert.match(agents, /普通 interactive 检查保持原行为/);
+  assert.match(agents, /不新增 direct Git 专用摘要/);
 });
 
 test("route 只决定 Check-All 执行位置", () => {

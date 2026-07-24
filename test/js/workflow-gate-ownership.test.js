@@ -121,6 +121,10 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
     checkAll.indexOf("## Auto-Loop Return Gate")
       < checkAll.indexOf("## Interactive Post-Check Stop Gate"),
   );
+  assert.equal((checkAll.match(/## Interactive Post-Check Stop Gate/g) || []).length, 1);
+  assert.match(checkAll, /不新增 direct Git 专用摘要/);
+  assert.match(activeState, /follow the `Interactive Post-Check Stop Gate`/);
+  assert.doesNotMatch(activeState, /no-op.*written|partial verification|material residual risk/);
   assert.match(push, /Phase 3\.4 唯一的代码提交入口/);
   assert.match(push, /## Step 0：交互式完成链门禁/);
   assert.match(push, /当前有效的 `spec_update_result`/);
@@ -216,7 +220,16 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
     "## Step 1：发现仓库与任务",
     "direct push 先经过 Update-Spec 门禁",
   );
-  assert.match(push, /缺失，或实际 diff、Check-All 结论、用户 spec 意图已变化/);
+  assert.match(push, /缺少有效 Check-All/);
+  assert.match(push, /Check-All 有效后检查当前有效的 `spec_update_result`/);
+  assert.match(push, /`spec_update_result\.status=written` 的 `changed_files`/);
+  assert.match(push, /该 Update-Spec 自校验结果不触发额外 Check-All/);
+  assertOrdered(
+    push,
+    "缺少有效 Check-All",
+    "Check-All 有效后检查当前有效的 `spec_update_result`",
+    "direct Git 前置结果分层复用",
+  );
   assert.match(autoLoop, /刷新并展示 brief；这一步不代表用户确认/);
   assert.match(autoLoop, /未确认时停止，不得 record/);
 });

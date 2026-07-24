@@ -28,6 +28,9 @@ test("Update-Spec Patch 使用英文协议、自主返回三态且限制最小�
   assert.match(override, /A `no-op` or `written` result must load `trellis-push` in the same turn/);
   assert.match(override, /spec-needs-review/);
   assert.match(override, /“下一步”, “继续”, `next`, `continue`/);
+  assert.match(override, /ordinary push or a user-initiated `commit-only`/);
+  assert.match(override, /existing standard Check-All report/);
+  assert.match(override, /Do not infer this intent from history, summaries, dirty state/);
   assert.doesNotMatch(
     override.replace("“下一步”, “继续”", ""),
     /\p{Script=Han}/u,
@@ -48,7 +51,7 @@ test("Update-Spec Patch 使用英文协议、自主返回三态且限制最小�
   }
 });
 
-test("交互 Check-All 保留停止点且用户继续后同轮进入 Update-Spec 和 Push", () => {
+test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Update-Spec 和 Push", () => {
   const workflow = read(sourceRoot, "overrides/patches/workflow/hub/content.md");
   const state = read(
     sourceRoot,
@@ -60,12 +63,20 @@ test("交互 Check-All 保留停止点且用户继续后同轮进入 Update-Spec
     ".agents/skills/trellis-check-all/SKILL.md",
   );
   const push = read(sourceRoot, ".agents/skills/trellis-push/SKILL.md");
+  const updateSpec = read(
+    sourceRoot,
+    "overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md",
+  );
 
   const postCheck = checkAll.slice(
     checkAll.indexOf("## Interactive Post-Check Stop Gate"),
     checkAll.indexOf("## 反模式"),
   );
-  assert.match(postCheck, /立即停止并等待用户选择/);
+  assert.match(postCheck, /最新用户消息识别 direct Git intent/);
+  assert.match(postCheck, /整体结论通过、问题数为 0、无阻塞、无部分验证/);
+  assert.match(postCheck, /标准报告输出后，同一轮进入 Phase 3\.3 `trellis-update-spec`/);
+  assert.match(postCheck, /普通 interactive 检查保持原行为：报告后立即停止并等待用户选择/);
+  assert.match(postCheck, /不新增 direct Git 专用摘要/);
   assert.match(workflow, /Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`/);
   assert.doesNotMatch(postCheck, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.match(state, /next\/continue.*runs `trellis-update-spec`/);
@@ -73,11 +84,21 @@ test("交互 Check-All 保留停止点且用户继续后同轮进入 Update-Spec
   assert.doesNotMatch(state, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.doesNotMatch(inlineState, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.match(checkAll, /## Interactive Post-Check Stop Gate/);
-  assert.match(checkAll, /立即停止并等待用户选择/);
+  assert.match(checkAll, /普通 interactive 检查保持原行为/);
   assert.match(state, /later interactive next\/continue runs `trellis-update-spec`/);
+  assert.match(state, /follow the `Interactive Post-Check Stop Gate`/);
+  assert.match(state, /matching direct Git strict pass may continue to `trellis-update-spec`/);
+  assert.doesNotMatch(state, /no-op.*written|partial verification|material residual risk/);
+  assert.match(updateSpec, /Interactive direct Git/);
   assert.match(push, /任何普通 push 或用户 `commit-only`/);
   assert.match(push, /当前有效的 `spec_update_result`/);
   assert.match(push, /先加载 `trellis-update-spec`/);
+  assert.match(push, /缺少有效 Check-All/);
+  assert.match(push, /此分支不得运行 Update-Spec，也不得读取 Git 计划/);
+  assert.match(push, /`spec_update_result\.status=written` 的 `changed_files`/);
+  assert.match(push, /全部位于 `\.trellis\/spec\/\*\*`/);
+  assert.match(push, /不触发额外 Check-All/);
+  assert.ok(push.indexOf("缺少有效 Check-All") < push.indexOf("当前有效的 `spec_update_result`"));
   assert.match(push, /auto-loop 内部 `commit-only` 已由 runner/);
 });
 
