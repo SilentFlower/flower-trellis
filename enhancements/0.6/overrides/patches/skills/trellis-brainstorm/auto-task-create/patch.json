@@ -4,6 +4,7 @@
   "purpose": "intent_routing",
   "operations": [{
     "id": "brainstorm-auto-task-create",
+    "dependsOn": ["brainstorm-planning-authorization"],
     "operation": "replace",
     "targets": [
       { "kind": "skill", "path": ".agent/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },

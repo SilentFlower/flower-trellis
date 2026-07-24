@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { applyPatchPlan, preparePatchPlan } from "../../src/lib/patch-engine.js";
@@ -29,7 +30,7 @@ function fixture() {
     target,
     catalog,
     catalogSpec: {
-      name: "test",
+      id: "skill-garden",
       patchesDir: path.join(catalog, "patches"),
       bundlesDir: path.join(catalog, "bundles"),
     },
@@ -82,6 +83,45 @@ test("literal insert/replace/remove 支持旧 transform marker 迁移且重复�
   const migratedText = fs.readFileSync(path.join(f.target, "sample.md"), "utf8");
   assert.match(migratedText, /skill-garden patch replace-rule/);
   assert.doesNotMatch(migratedText, /skill-garden transform replace-rule/);
+});
+
+test("JS/Python 对共享 Core fixture 返回相同结构化 plan 与 provenance", () => {
+  const f = sharedCoreFixture();
+  const plan = preparePatchPlan(f.target, [f.catalogSpec]);
+  const result = applyPatchPlan(f.target, plan);
+  const normalizedPlan = {
+    bundles: plan.bundles,
+    patches: plan.patches,
+    catalogs: plan.catalogs,
+    selectedBundles: plan.selectedBundles,
+    selectedPatches: plan.selectedPatches,
+    operationOrder: plan.operationOrder,
+    files: plan.files.map((item) => ({
+      target: item.target,
+      original: item.original,
+      originalExists: item.originalExists,
+      next: item.next,
+      operations: item.operations,
+      patches: item.patches,
+      bundles: item.bundles,
+      operationEntries: item.operationEntries,
+      changed: item.changed,
+      beforeHash: item.beforeHash,
+      afterHash: item.afterHash,
+    })),
+    results: plan.results,
+    catalogHash: plan.catalogHash,
+    catalogOperations: plan.catalogOperations,
+  };
+  const python = JSON.parse(execFileSync(
+    "python3",
+    [path.join(TEST_ROOT, "../python/patch_engine_plan_helper.py")],
+    { encoding: "utf8" },
+  ));
+  assert.deepEqual(python, {
+    plan: normalizedPlan,
+    provenance: result.provenance,
+  });
 });
 
 test("required 漂移在全部目标写入前失败", () => {
@@ -517,4 +557,362 @@ test("whole-file fingerprint、missing policy、路径逃逸和 Bundle 过滤", 
   }, { "selector.md": "A", "content.md": "B" });
   addBundle(unsafe, { schemaVersion: 1, id: "unsafe", patches: ["unsafe"] });
   assert.throws(() => preparePatchPlan(unsafe.target, [unsafe.catalogSpec]), /不安全路径片段/);
+});
+
+test("after、dependsOn 与声明顺序共同解析稳定 operation order", () => {
+  const f = fixture();
+  addPatch(f, "ordering/flow", {
+    schemaVersion: 2,
+    id: "ordering-flow",
+    purpose: "test",
+    operations: [
+      {
+        id: "auto-task-create",
+        dependsOn: ["planning-authorization"],
+        operation: "replace",
+        targets: [{ kind: "file", path: "missing-auto.txt", missing: "skip", markerStyle: "none" }],
+        selector: { type: "whole-file" },
+        content: { value: "auto" },
+      },
+      {
+        id: "planning-authorization",
+        operation: "replace",
+        targets: [{ kind: "file", path: "missing-auth.txt", missing: "skip", markerStyle: "none" }],
+        selector: { type: "whole-file" },
+        content: { value: "auth" },
+      },
+      {
+        id: "planning-handoff",
+        operation: "replace",
+        targets: [{ kind: "file", path: "missing-handoff.txt", missing: "skip", markerStyle: "none" }],
+        selector: { type: "whole-file" },
+        content: { value: "handoff" },
+      },
+      {
+        id: "planning-readiness",
+        after: ["planning-handoff"],
+        operation: "replace",
+        targets: [{ kind: "file", path: "missing-readiness.txt", missing: "skip", markerStyle: "none" }],
+        selector: { type: "whole-file" },
+        content: { value: "readiness" },
+      },
+    ],
+  });
+  addBundle(f, { schemaVersion: 1, id: "ordering", patches: ["ordering/flow"] });
+
+  const plan = preparePatchPlan(f.target, [f.catalogSpec]);
+  assert.deepEqual(
+    plan.operationOrder.map((item) => item.id),
+    ["planning-authorization", "auto-task-create", "planning-handoff", "planning-readiness"],
+  );
+  assert.deepEqual(plan.operationOrder[1].incomingEdges, [{
+    from: "skill-garden/planning-authorization",
+    type: "dependsOn",
+  }]);
+  assert.deepEqual(plan.operationOrder[3].incomingEdges, [{
+    from: "skill-garden/planning-handoff",
+    type: "after",
+  }]);
+});
+
+test("after 忽略未选 operation，dependsOn 对未选依赖阻断", () => {
+  const f = fixture();
+  addPatch(f, "selection/base", {
+    schemaVersion: 2,
+    id: "selection-base",
+    purpose: "test",
+    operations: [{
+      id: "selection-base",
+      operation: "replace",
+      targets: [{ kind: "file", path: "missing-base.txt", missing: "skip", markerStyle: "none" }],
+      selector: { type: "whole-file" },
+      content: { value: "base" },
+    }],
+  });
+  addPatch(f, "selection/after", {
+    schemaVersion: 2,
+    id: "selection-after",
+    purpose: "test",
+    operations: [{
+      id: "selection-after",
+      after: ["selection-base"],
+      operation: "replace",
+      targets: [{ kind: "file", path: "missing-after.txt", missing: "skip", markerStyle: "none" }],
+      selector: { type: "whole-file" },
+      content: { value: "after" },
+    }],
+  });
+  addPatch(f, "selection/depends", {
+    schemaVersion: 2,
+    id: "selection-depends",
+    purpose: "test",
+    operations: [{
+      id: "selection-depends",
+      dependsOn: ["selection-base"],
+      operation: "replace",
+      targets: [{ kind: "file", path: "missing-depends.txt", missing: "skip", markerStyle: "none" }],
+      selector: { type: "whole-file" },
+      content: { value: "depends" },
+    }],
+  });
+  addBundle(f, {
+    schemaVersion: 1,
+    id: "base",
+    aliases: ["base-only"],
+    patches: ["selection/base"],
+  });
+  addBundle(f, {
+    schemaVersion: 1,
+    id: "after",
+    aliases: ["after-only"],
+    patches: ["selection/after"],
+  });
+  addBundle(f, {
+    schemaVersion: 1,
+    id: "depends",
+    aliases: ["depends-only"],
+    patches: ["selection/depends"],
+  });
+
+  const afterPlan = preparePatchPlan(f.target, [f.catalogSpec], { skills: ["after-only"] });
+  assert.deepEqual(afterPlan.operationOrder.map((item) => item.id), ["selection-after"]);
+  assert.throws(
+    () => preparePatchPlan(f.target, [f.catalogSpec], { skills: ["depends-only"] }),
+    /dependsOn 未进入当前计划:skill-garden\/selection-base/,
+  );
+});
+
+test("未知依赖、自依赖和循环在 target preflight 前失败", () => {
+  const unknown = fixture();
+  addPatch(unknown, "invalid/unknown", {
+    schemaVersion: 2,
+    id: "invalid-unknown",
+    purpose: "test",
+    operations: [{
+      id: "invalid-unknown",
+      after: ["missing-operation"],
+      operation: "replace",
+      targets: [{ kind: "file", path: "missing.txt", missing: "skip", markerStyle: "none" }],
+      selector: { type: "whole-file" },
+      content: { value: "unknown" },
+    }],
+  });
+  addBundle(unknown, { schemaVersion: 1, id: "invalid", patches: ["invalid/unknown"] });
+  assert.throws(
+    () => preparePatchPlan(unknown.target, [unknown.catalogSpec]),
+    /引用未知 operation:missing-operation/,
+  );
+
+  const self = fixture();
+  addPatch(self, "invalid/self", {
+    schemaVersion: 2,
+    id: "invalid-self",
+    purpose: "test",
+    operations: [{
+      id: "invalid-self",
+      dependsOn: ["invalid-self"],
+      operation: "replace",
+      targets: [{ kind: "file", path: "missing.txt", missing: "skip", markerStyle: "none" }],
+      selector: { type: "whole-file" },
+      content: { value: "self" },
+    }],
+  });
+  addBundle(self, { schemaVersion: 1, id: "invalid", patches: ["invalid/self"] });
+  assert.throws(() => preparePatchPlan(self.target, [self.catalogSpec]), /不能依赖自身/);
+
+  const cycle = fixture();
+  addPatch(cycle, "invalid/cycle", {
+    schemaVersion: 2,
+    id: "invalid-cycle",
+    purpose: "test",
+    operations: [
+      {
+        id: "cycle-a",
+        after: ["cycle-b"],
+        operation: "replace",
+        targets: [{ kind: "file", path: "a.txt", missing: "skip", markerStyle: "none" }],
+        selector: { type: "whole-file" },
+        content: { value: "a" },
+      },
+      {
+        id: "cycle-b",
+        after: ["cycle-a"],
+        operation: "replace",
+        targets: [{ kind: "file", path: "b.txt", missing: "skip", markerStyle: "none" }],
+        selector: { type: "whole-file" },
+        content: { value: "b" },
+      },
+    ],
+  });
+  addBundle(cycle, { schemaVersion: 1, id: "invalid", patches: ["invalid/cycle"] });
+  assert.throws(() => preparePatchPlan(cycle.target, [cycle.catalogSpec]), /依赖循环/);
+
+  const duplicated = fixture();
+  addPatch(duplicated, "invalid/duplicated", {
+    schemaVersion: 2,
+    id: "invalid-duplicated",
+    purpose: "test",
+    operations: [
+      {
+        id: "base-operation",
+        operation: "replace",
+        targets: [{ kind: "file", path: "base.txt", missing: "skip", markerStyle: "none" }],
+        selector: { type: "whole-file" },
+        content: { value: "base" },
+      },
+      {
+        id: "consumer-operation",
+        after: ["base-operation"],
+        dependsOn: ["skill-garden/base-operation"],
+        operation: "replace",
+        targets: [{ kind: "file", path: "consumer.txt", missing: "skip", markerStyle: "none" }],
+        selector: { type: "whole-file" },
+        content: { value: "consumer" },
+      },
+    ],
+  });
+  addBundle(duplicated, {
+    schemaVersion: 1,
+    id: "invalid",
+    patches: ["invalid/duplicated"],
+  });
+  assert.throws(
+    () => preparePatchPlan(duplicated.target, [duplicated.catalogSpec]),
+    /同一依赖不能同时声明 after 和 dependsOn/,
+  );
+});
+
+test("多 catalog 可复用本地 ID，并以 qualified marker 和 provenance 隔离", () => {
+  const f = fixture();
+  write(f.target, "sample.md", "FIRST\nSECOND\n");
+  const catalogs = ["plugin-one", "plugin-two"].map((id, index) => {
+    const catalog = path.join(f.root, id);
+    const item = {
+      ...f,
+      catalog,
+      catalogSpec: {
+        id,
+        patchesDir: path.join(catalog, "patches"),
+        bundlesDir: path.join(catalog, "bundles"),
+      },
+    };
+    addPatch(item, "shared/patch", {
+      schemaVersion: 2,
+      id: "shared-patch",
+      purpose: "test",
+      operations: [{
+        id: "shared-operation",
+        operation: "replace",
+        targets: [{ kind: "markdown", path: "sample.md", missing: "error" }],
+        selector: { type: "literal", source: "selector.md" },
+        content: { source: "content.md" },
+      }],
+    }, {
+      "selector.md": index === 0 ? "FIRST" : "SECOND",
+      "content.md": index === 0 ? "ONE" : "TWO",
+    });
+    addBundle(item, { schemaVersion: 1, id: "shared-bundle", patches: ["shared/patch"] });
+    return item.catalogSpec;
+  });
+
+  const plan = preparePatchPlan(f.target, catalogs);
+  const result = applyPatchPlan(f.target, plan);
+  const value = fs.readFileSync(path.join(f.target, "sample.md"), "utf8");
+  assert.match(value, /skill-garden patch plugin-one\/shared-operation/);
+  assert.match(value, /skill-garden patch plugin-two\/shared-operation/);
+  assert.deepEqual(
+    plan.operationOrder.map((item) => item.qualifiedId),
+    ["plugin-one/shared-operation", "plugin-two/shared-operation"],
+  );
+  assert.equal(result.provenance.schemaVersion, 2);
+  assert.deepEqual(
+    result.provenance.applied.map((item) => item.qualifiedId),
+    ["plugin-one/shared-operation", "plugin-two/shared-operation"],
+  );
+});
+
+test("下游 catalog 可通过 qualified dependsOn 声明跨 catalog 强依赖", () => {
+  const f = fixture();
+  const declarations = [
+    {
+      id: "plugin-downstream",
+      operationId: "downstream-operation",
+      dependsOn: ["plugin-core/core-operation"],
+    },
+    { id: "plugin-core", operationId: "core-operation", dependsOn: [] },
+  ];
+  const catalogs = declarations.map((declaration) => {
+    const catalog = path.join(f.root, declaration.id);
+    const item = {
+      ...f,
+      catalog,
+      catalogSpec: {
+        id: declaration.id,
+        patchesDir: path.join(catalog, "patches"),
+        bundlesDir: path.join(catalog, "bundles"),
+      },
+    };
+    addPatch(item, "feature/runtime", {
+      schemaVersion: 2,
+      id: "feature-runtime",
+      purpose: "test",
+      operations: [{
+        id: declaration.operationId,
+        ...(declaration.dependsOn.length > 0 ? { dependsOn: declaration.dependsOn } : {}),
+        operation: "replace",
+        targets: [{
+          kind: "file",
+          path: `${declaration.id}.txt`,
+          missing: "skip",
+          markerStyle: "none",
+        }],
+        selector: { type: "whole-file" },
+        content: { value: declaration.id },
+      }],
+    });
+    addBundle(item, { schemaVersion: 1, id: "feature", patches: ["feature/runtime"] });
+    return item.catalogSpec;
+  });
+
+  const plan = preparePatchPlan(f.target, catalogs);
+  assert.deepEqual(
+    plan.operationOrder.map((item) => item.qualifiedId),
+    ["plugin-core/core-operation", "plugin-downstream/downstream-operation"],
+  );
+  assert.deepEqual(plan.operationOrder[1].incomingEdges, [{
+    from: "plugin-core/core-operation",
+    type: "dependsOn",
+  }]);
+});
+
+test("Patch 多 Bundle 归属稳定保留且 operation 只执行一次", () => {
+  const f = fixture();
+  write(f.target, "sample.md", "OLD\n");
+  addPatch(f, "shared/runtime", {
+    schemaVersion: 2,
+    id: "shared-runtime",
+    purpose: "test",
+    operations: [{
+      id: "shared-runtime",
+      operation: "replace",
+      targets: [{ kind: "markdown", path: "sample.md", missing: "error" }],
+      selector: { type: "literal", source: "selector.md" },
+      content: { source: "content.md" },
+    }],
+  }, { "selector.md": "OLD", "content.md": "NEW" });
+  addBundle(f, { schemaVersion: 1, id: "first", patches: ["shared/runtime"] });
+  addBundle(f, { schemaVersion: 1, id: "second", patches: ["shared/runtime"] });
+
+  const plan = preparePatchPlan(f.target, [f.catalogSpec]);
+  assert.equal(plan.operationOrder.length, 1);
+  assert.deepEqual(plan.selectedPatches[0].bundles, [
+    "skill-garden/first",
+    "skill-garden/second",
+  ]);
+  const result = applyPatchPlan(f.target, plan);
+  assert.equal(result.provenance.applied.length, 1);
+  assert.deepEqual(result.provenance.applied[0].bundles, [
+    "skill-garden/first",
+    "skill-garden/second",
+  ]);
 });

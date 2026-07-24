@@ -176,6 +176,166 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("Patch 预检失败", result.stderr)
         self.assertEqual((self.target / "valid.md").read_text(encoding="utf-8"), "VALID\n")
 
+    def test_operation_order_qualified_provenance_and_bundle_membership(self) -> None:
+        """验证 Python consumer 的稳定排序、qualified identity 与多 Bundle provenance。"""
+        _write(self.target, "sample.md", "AUTH\nAUTO\n")
+        self.add_patch(
+            "ordering/flow",
+            {
+                "schemaVersion": 2,
+                "id": "ordering-flow",
+                "purpose": "test",
+                "operations": [
+                    {
+                        "id": "auto-task-create",
+                        "dependsOn": ["planning-authorization"],
+                        "operation": "replace",
+                        "targets": [
+                            {"kind": "markdown", "path": "sample.md", "missing": "error"}
+                        ],
+                        "selector": {"type": "literal", "source": "auto-selector.md"},
+                        "content": {"source": "auto-content.md"},
+                    },
+                    {
+                        "id": "planning-authorization",
+                        "operation": "replace",
+                        "targets": [
+                            {"kind": "markdown", "path": "sample.md", "missing": "error"}
+                        ],
+                        "selector": {"type": "literal", "source": "auth-selector.md"},
+                        "content": {"source": "auth-content.md"},
+                    },
+                    {
+                        "id": "planning-handoff",
+                        "operation": "replace",
+                        "targets": [
+                            {"kind": "file", "path": "missing-handoff.txt", "missing": "skip"}
+                        ],
+                        "selector": {"type": "whole-file"},
+                        "content": {"value": "handoff"},
+                    },
+                    {
+                        "id": "planning-readiness",
+                        "after": ["planning-handoff"],
+                        "operation": "replace",
+                        "targets": [
+                            {"kind": "file", "path": "missing-readiness.txt", "missing": "skip"}
+                        ],
+                        "selector": {"type": "whole-file"},
+                        "content": {"value": "readiness"},
+                    },
+                ],
+            },
+            {
+                "auto-selector.md": "AUTO",
+                "auto-content.md": "AUTO UPDATED",
+                "auth-selector.md": "AUTH",
+                "auth-content.md": "AUTH UPDATED",
+            },
+        )
+        self.add_bundle(
+            {"schemaVersion": 1, "id": "first", "patches": ["ordering/flow"]}
+        )
+        self.add_bundle(
+            {"schemaVersion": 1, "id": "second", "patches": ["ordering/flow"]}
+        )
+
+        runner = _load_runner()
+        plan = runner.prepare_patches(self.overrides, self.target)
+        self.assertEqual(
+            [item["id"] for item in plan["operationOrder"]],
+            [
+                "planning-authorization",
+                "auto-task-create",
+                "planning-handoff",
+                "planning-readiness",
+            ],
+        )
+        self.assertEqual(
+            plan["selectedPatches"][0]["bundles"],
+            ["skill-garden/first", "skill-garden/second"],
+        )
+        result = runner.apply_prepared(self.target, plan)
+        self.assertEqual(result["provenance"]["schemaVersion"], 2)
+        self.assertEqual(
+            [item["qualifiedId"] for item in result["provenance"]["applied"]],
+            [
+                "skill-garden/planning-authorization",
+                "skill-garden/auto-task-create",
+            ],
+        )
+        self.assertEqual(
+            result["provenance"]["applied"][0]["bundles"],
+            ["skill-garden/first", "skill-garden/second"],
+        )
+
+    def test_operation_dependency_errors_fail_before_write(self) -> None:
+        """验证未知 qualified catalog、自依赖和循环不会写入目标。"""
+        _write(self.target, "sample.md", "KEEP\n")
+        self.add_patch(
+            "invalid/dependency",
+            {
+                "schemaVersion": 2,
+                "id": "invalid-dependency",
+                "purpose": "test",
+                "operations": [
+                    {
+                        "id": "invalid-dependency",
+                        "after": ["plugin/missing-operation"],
+                        "operation": "replace",
+                        "targets": [
+                            {"kind": "markdown", "path": "sample.md", "missing": "error"}
+                        ],
+                        "selector": {"type": "literal", "source": "selector.md"},
+                        "content": {"source": "content.md"},
+                    }
+                ],
+            },
+            {"selector.md": "KEEP", "content.md": "CHANGED"},
+        )
+        self.add_bundle(
+            {"schemaVersion": 1, "id": "invalid", "patches": ["invalid/dependency"]}
+        )
+
+        runner = _load_runner()
+        with self.assertRaisesRegex(runner.PatchError, "引用未知 operation"):
+            runner.prepare_patches(self.overrides, self.target)
+        self.assertEqual((self.target / "sample.md").read_text(encoding="utf-8"), "KEEP\n")
+
+        self.add_patch(
+            "invalid/dependency",
+            {
+                "schemaVersion": 2,
+                "id": "invalid-dependency",
+                "purpose": "test",
+                "operations": [
+                    {
+                        "id": "base-operation",
+                        "operation": "replace",
+                        "targets": [
+                            {"kind": "file", "path": "base.txt", "missing": "skip"}
+                        ],
+                        "selector": {"type": "whole-file"},
+                        "content": {"value": "base"},
+                    },
+                    {
+                        "id": "consumer-operation",
+                        "after": ["base-operation"],
+                        "dependsOn": ["skill-garden/base-operation"],
+                        "operation": "replace",
+                        "targets": [
+                            {"kind": "file", "path": "consumer.txt", "missing": "skip"}
+                        ],
+                        "selector": {"type": "whole-file"},
+                        "content": {"value": "consumer"},
+                    },
+                ],
+            },
+            {},
+        )
+        with self.assertRaisesRegex(runner.PatchError, "同一依赖不能同时声明"):
+            runner.prepare_patches(self.overrides, self.target)
+
     def test_optional_target_policy_and_missing_create(self) -> None:
         """验证 optional skip、at-least-one 与受控文件创建。"""
         _write(self.target, ".trellis/.version", "0.6.6\n")
@@ -241,7 +401,10 @@ class PatchConsumerTest(unittest.TestCase):
         )
         self.assertIn("missing-target=1 optional-skip=1", result.stdout)
         self.assertIn("Patch 信息:1 个目标入口未安装", result.stdout)
-        self.assertIn("Patch 警告:untested-upstream@.trellis/.version", result.stdout)
+        self.assertIn(
+            "Patch 警告:skill-garden/untested-upstream@.trellis/.version",
+            result.stdout,
+        )
         self.assertIn("证据:0.6.6", result.stdout)
         self.assertLess(result.stdout.index("Patch 警告"), result.stdout.index("✓ Patch"))
 

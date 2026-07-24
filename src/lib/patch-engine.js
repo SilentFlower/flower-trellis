@@ -34,6 +34,7 @@ const TARGET_POLICIES = new Set(["each-existing", "at-least-one", "required-all"
 const INSERT_POSITIONS = new Set(["before", "after"]);
 const MARKER_STYLES = new Set(["html", "hash", "slash", "none"]);
 const INSTALL_MODES = new Set(["full-or-selected", "full-only"]);
+const LEGACY_MARKER_CATALOGS = new Set(["skill-garden", "flower"]);
 
 function escapeRe(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -63,6 +64,20 @@ function assertLegacyId(value, label) {
   if (typeof value !== "string" || !LEGACY_ID_RE.test(value)) {
     throw new Error(`${label} 必须是安全的历史 ID`);
   }
+}
+
+function assertOperationRef(value, label) {
+  if (typeof value !== "string") {
+    throw new Error(`${label} 必须是 operation ID`);
+  }
+  const parts = value.split("/");
+  if (parts.length < 1 || parts.length > 2 || parts.some((part) => !ID_RE.test(part))) {
+    throw new Error(`${label} 必须是 local ID 或 <catalog-id>/<operation-id>`);
+  }
+}
+
+function qualifyId(catalogId, localId) {
+  return `${catalogId}/${localId}`;
 }
 
 function resolveRelativePath(root, relativePath, label) {
@@ -176,7 +191,7 @@ function activeManagedMarker(value, operation) {
   const candidates = [
     {
       namespace: "patch",
-      id: operation.id,
+      id: operation.markerId,
       style: operation.markerStyle,
       source: "managed-marker",
     },
@@ -190,7 +205,7 @@ function activeManagedMarker(value, operation) {
   if (operation.markerStyle !== "html") {
     candidates.push({
       namespace: "patch",
-      id: operation.id,
+      id: operation.markerId,
       style: "html",
       source: "legacy-marker-style",
     });
@@ -217,7 +232,7 @@ function activeManagedMarker(value, operation) {
 }
 
 function managedBlock(operation) {
-  return markerParts("patch", operation.id, operation.content, operation.markerStyle);
+  return markerParts("patch", operation.markerId, operation.content, operation.markerStyle);
 }
 
 function stripLegacySkillOverride(value, id) {
@@ -552,11 +567,35 @@ function normalizeSelector(raw, leafDir, patchId, operationId, allowedSelectors)
   return selector;
 }
 
+function normalizeOperationRefs(raw, label, catalogId) {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) throw new Error(`${label} 必须是字符串数组`);
+  raw.forEach((item, index) => assertOperationRef(item, `${label}[${index}]`));
+  const qualified = raw.map((item) => item.includes("/") ? item : qualifyId(catalogId, item));
+  if (new Set(qualified).size !== qualified.length) throw new Error(`${label} 不能重复`);
+  return raw;
+}
+
 function normalizeOperation(raw, leafDir, patch, seenOperationIds, allowedSelectors) {
   assertPlainObject(raw, `patch ${patch.id} operation`);
   assertId(raw.id, `patch ${patch.id} operation.id`);
   if (seenOperationIds.has(raw.id)) throw new Error(`重复 patch operation id:${raw.id}`);
   seenOperationIds.add(raw.id);
+  const after = normalizeOperationRefs(raw.after, `patch ${raw.id} after`, patch.catalog);
+  const dependsOn = normalizeOperationRefs(
+    raw.dependsOn,
+    `patch ${raw.id} dependsOn`,
+    patch.catalog,
+  );
+  const dependsOnIds = new Set(dependsOn.map((item) =>
+    item.includes("/") ? item : qualifyId(patch.catalog, item)
+  ));
+  const duplicatedRelation = after.find((item) => dependsOnIds.has(
+    item.includes("/") ? item : qualifyId(patch.catalog, item),
+  ));
+  if (duplicatedRelation) {
+    throw new Error(`patch ${raw.id} 同一依赖不能同时声明 after 和 dependsOn:${duplicatedRelation}`);
+  }
   if (!OPERATIONS.has(raw.operation)) {
     throw new Error(`patch ${raw.id} operation 不支持:${raw.operation}`);
   }
@@ -584,7 +623,13 @@ function normalizeOperation(raw, leafDir, patch, seenOperationIds, allowedSelect
   );
   return {
     id: raw.id,
+    catalog: patch.catalog,
+    qualifiedId: qualifyId(patch.catalog, raw.id),
+    markerId: patch.markerIdentity === "legacy"
+      ? raw.id
+      : qualifyId(patch.catalog, raw.id),
     patchId: patch.id,
+    qualifiedPatchId: patch.qualifiedId,
     purpose: patch.purpose,
     operation: raw.operation,
     required,
@@ -599,16 +644,77 @@ function normalizeOperation(raw, leafDir, patch, seenOperationIds, allowedSelect
     legacyMarkers: normalizeLegacyMarkers(raw.legacyMarkers, `patch ${raw.id} legacyMarkers`),
     cleanup: normalizeCleanup(raw.cleanup, `patch ${raw.id} cleanup`),
     baselines: normalizeBaselines(raw.baselines, leafDir, `patch ${raw.id} baselines`),
+    afterRefs: after,
+    dependsOnRefs: dependsOn,
   };
 }
 
-function loadCatalog(catalog, skills, seenPatchIds, seenOperationIds, allowedSelectors) {
+/**
+ * 校验 catalog descriptor 的 policy 文件边界并返回规范化绝对路径。
+ *
+ * @param {{id:string,patchesDir:string,policy?:object}} catalog catalog descriptor
+ * @returns {{compatibilityFile?:string,conflictsFile?:string}|null} 已校验 policy 路径
+ */
+export function resolvePatchCatalogPolicy(catalog) {
+  if (catalog.policy === undefined) return null;
+  assertPlainObject(catalog.policy, `catalog ${catalog.id} policy`);
+  if (typeof catalog.patchesDir !== "string" || !catalog.patchesDir) {
+    throw new Error(`catalog ${catalog.id} patchesDir 必须是目录路径`);
+  }
+  const catalogRoot = path.dirname(path.resolve(catalog.patchesDir));
+  if (!fs.existsSync(catalogRoot) || !fs.statSync(catalogRoot).isDirectory()) {
+    throw new Error(`catalog ${catalog.id} 根目录不存在:${catalogRoot}`);
+  }
+  const policy = {};
+  for (const key of ["compatibilityFile", "conflictsFile"]) {
+    const value = catalog.policy[key];
+    if (value === undefined) continue;
+    if (typeof value !== "string" || !value) {
+      throw new Error(`catalog ${catalog.id} policy.${key} 必须是文件路径`);
+    }
+    const file = path.resolve(value);
+    if (!file.startsWith(`${catalogRoot}${path.sep}`)) {
+      throw new Error(`catalog ${catalog.id} policy.${key} 必须位于 catalog 根目录内`);
+    }
+    if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
+      throw new Error(`catalog ${catalog.id} policy.${key} 不存在:${value}`);
+    }
+    assertExistingPathInside(catalogRoot, file, `catalog ${catalog.id} policy.${key}`);
+    policy[key] = file;
+  }
+  return policy;
+}
+
+function resolveCatalogPolicy(catalog, catalogFiles) {
+  const policy = resolvePatchCatalogPolicy(catalog);
+  if (policy) catalogFiles.push(...Object.values(policy));
+  return policy;
+}
+
+function loadCatalog(catalog, skills, allowedSelectors) {
   assertPlainObject(catalog, "Patch catalog");
+  assertId(catalog.id, "Patch catalog.id");
   const patchesDir = path.resolve(catalog.patchesDir);
   const bundlesDir = path.resolve(catalog.bundlesDir);
-  if (!fs.existsSync(patchesDir)) return { bundles: [], patches: [], catalogFiles: [] };
+  const catalogRoot = path.dirname(patchesDir);
+  if (!bundlesDir.startsWith(`${catalogRoot}${path.sep}`)) {
+    throw new Error(`catalog ${catalog.id} bundlesDir 必须位于 catalog 根目录内`);
+  }
+  if (!fs.existsSync(patchesDir)) {
+    return {
+      id: catalog.id,
+      bundles: [],
+      patches: [],
+      allPatches: [],
+      catalogEntries: [],
+      policy: null,
+    };
+  }
   const patchByRef = new Map();
   const catalogFiles = [];
+  const seenPatchIds = new Set();
+  const seenOperationIds = new Set();
+  const markerIdentity = LEGACY_MARKER_CATALOGS.has(catalog.id) ? "legacy" : "qualified";
   for (const file of listRecursive(patchesDir, (candidate) => path.basename(candidate) === "patch.json")) {
     const leafDir = path.dirname(file);
     const ref = path.relative(patchesDir, leafDir).split(path.sep).join("/");
@@ -632,7 +738,9 @@ function loadCatalog(catalog, skills, seenPatchIds, seenOperationIds, allowedSel
       purpose: raw.purpose,
       required: raw.required,
       operations: [],
-      catalog: catalog.name || "catalog",
+      catalog: catalog.id,
+      qualifiedId: qualifyId(catalog.id, raw.id),
+      markerIdentity,
     };
     patch.operations = raw.operations.map((operation) =>
       normalizeOperation(operation, leafDir, patch, seenOperationIds, allowedSelectors)
@@ -642,7 +750,10 @@ function loadCatalog(catalog, skills, seenPatchIds, seenOperationIds, allowedSel
   }
 
   const bundles = [];
+  const seenBundleIds = new Set();
   const referenced = new Set();
+  const selectedPatches = new Map();
+  const selectedMemberships = new Map();
   for (const file of listRecursive(bundlesDir, (candidate) => candidate.endsWith(".json"))) {
     const raw = JSON.parse(fs.readFileSync(file, "utf8"));
     const label = path.relative(bundlesDir, file).split(path.sep).join("/");
@@ -651,6 +762,8 @@ function loadCatalog(catalog, skills, seenPatchIds, seenOperationIds, allowedSel
       throw new Error(`bundle ${label} schemaVersion 不支持:${raw.schemaVersion}`);
     }
     assertId(raw.id, `bundle ${label} id`);
+    if (seenBundleIds.has(raw.id)) throw new Error(`重复 bundle id:${raw.id}`);
+    seenBundleIds.add(raw.id);
     const aliases = raw.aliases || [];
     if (!Array.isArray(aliases) || !aliases.every((item) => typeof item === "string" && item)) {
       throw new Error(`bundle ${label} aliases 必须是字符串数组`);
@@ -672,27 +785,177 @@ function loadCatalog(catalog, skills, seenPatchIds, seenOperationIds, allowedSel
       referenced.add(ref);
       return patchByRef.get(ref);
     });
-    if (selected) bundles.push({ id: raw.id, aliases, installMode, patches });
+    if (selected) {
+      const bundle = {
+        id: raw.id,
+        catalog: catalog.id,
+        qualifiedId: qualifyId(catalog.id, raw.id),
+        aliases,
+        installMode,
+        patches,
+      };
+      bundles.push(bundle);
+      for (const patch of patches) {
+        if (!selectedPatches.has(patch.id)) selectedPatches.set(patch.id, patch);
+        const memberships = selectedMemberships.get(patch.id) || [];
+        memberships.push(bundle);
+        selectedMemberships.set(patch.id, memberships);
+      }
+    }
     catalogFiles.push(file);
   }
   for (const ref of patchByRef.keys()) {
     if (!referenced.has(ref)) throw new Error(`未被 bundle 引用的 patch:${ref}`);
   }
-  const catalogRoot = path.dirname(patchesDir);
+  const policy = resolveCatalogPolicy(catalog, catalogFiles);
+  const patches = [...selectedPatches.values()].map((patch) => {
+    const memberships = selectedMemberships.get(patch.id) || [];
+    return {
+      ...patch,
+      bundle: memberships[0]?.id,
+      bundleIds: memberships.map((item) => item.id),
+      bundles: memberships.map((item) => item.qualifiedId),
+    };
+  });
   return {
+    id: catalog.id,
     bundles,
-    patches: [...new Map(
-      bundles.flatMap((bundle) => bundle.patches.map((patch) => [patch.id, { ...patch, bundle: bundle.id }])),
-    ).values()],
-    catalogOperations: [...patchByRef.values()].flatMap((patch) =>
-      patch.operations.map((operation) => ({
-        id: operation.id,
-        targets: operation.targets.map((target) => target.path),
-      })),
-    ),
+    patches,
+    allPatches: [...patchByRef.values()],
     catalogEntries: [...new Set(catalogFiles)].sort().map((file) => ({
+      catalog: catalog.id,
       path: path.relative(catalogRoot, file).split(path.sep).join("/"),
       content: fs.readFileSync(file),
+    })),
+    policy,
+  };
+}
+
+function resolveOperationRef(ref, operation, operationById) {
+  const qualifiedId = ref.includes("/") ? ref : qualifyId(operation.catalog, ref);
+  if (!operationById.has(qualifiedId)) {
+    throw new Error(`patch operation ${operation.qualifiedId} 引用未知 operation:${ref}`);
+  }
+  if (qualifiedId === operation.qualifiedId) {
+    throw new Error(`patch operation ${operation.qualifiedId} 不能依赖自身`);
+  }
+  return qualifiedId;
+}
+
+function stableTopologicalSort(operations, includeEdge) {
+  const baseIndex = new Map(operations.map((operation, index) => [operation.qualifiedId, index]));
+  const operationById = new Map(operations.map((operation) => [operation.qualifiedId, operation]));
+  const outgoing = new Map(operations.map((operation) => [operation.qualifiedId, new Set()]));
+  const indegree = new Map(operations.map((operation) => [operation.qualifiedId, 0]));
+
+  for (const operation of operations) {
+    for (const relation of [
+      ...operation.after.map((from) => ({ from, type: "after" })),
+      ...operation.dependsOn.map((from) => ({ from, type: "dependsOn" })),
+    ]) {
+      if (!operationById.has(relation.from) || !includeEdge(operation, relation)) continue;
+      const targets = outgoing.get(relation.from);
+      if (targets.has(operation.qualifiedId)) continue;
+      targets.add(operation.qualifiedId);
+      indegree.set(operation.qualifiedId, indegree.get(operation.qualifiedId) + 1);
+    }
+  }
+
+  const ready = operations
+    .filter((operation) => indegree.get(operation.qualifiedId) === 0)
+    .sort((left, right) => baseIndex.get(left.qualifiedId) - baseIndex.get(right.qualifiedId));
+  const resolved = [];
+  while (ready.length > 0) {
+    const operation = ready.shift();
+    resolved.push(operation);
+    for (const targetId of [...outgoing.get(operation.qualifiedId)].sort(
+      (left, right) => baseIndex.get(left) - baseIndex.get(right),
+    )) {
+      indegree.set(targetId, indegree.get(targetId) - 1);
+      if (indegree.get(targetId) === 0) {
+        ready.push(operationById.get(targetId));
+        ready.sort((left, right) => baseIndex.get(left.qualifiedId) - baseIndex.get(right.qualifiedId));
+      }
+    }
+  }
+  if (resolved.length !== operations.length) {
+    const cycle = operations
+      .filter((operation) => indegree.get(operation.qualifiedId) > 0)
+      .map((operation) => operation.qualifiedId);
+    throw new Error(`Patch operation 依赖循环:${cycle.join(" -> ")}`);
+  }
+  return resolved;
+}
+
+function resolveOperationOrder(loaded) {
+  const allOperations = loaded.flatMap((catalog) =>
+    catalog.allPatches.flatMap((patch) => patch.operations)
+  );
+  const operationById = new Map();
+  for (const operation of allOperations) {
+    if (operationById.has(operation.qualifiedId)) {
+      throw new Error(`重复 qualified patch operation id:${operation.qualifiedId}`);
+    }
+    operationById.set(operation.qualifiedId, operation);
+  }
+  for (const operation of allOperations) {
+    operation.after = operation.afterRefs.map((ref) =>
+      resolveOperationRef(ref, operation, operationById)
+    );
+    operation.dependsOn = operation.dependsOnRefs.map((ref) =>
+      resolveOperationRef(ref, operation, operationById)
+    );
+  }
+
+  // 全 catalog 先验证潜在关系图，避免损坏的未选 Bundle 被过滤条件长期隐藏。
+  stableTopologicalSort(allOperations, () => true);
+
+  const selectedOperations = loaded.flatMap((catalog) =>
+    catalog.patches.flatMap((patch) => patch.operations.map((operation) => ({
+      ...operation,
+      bundle: patch.bundle,
+      bundleIds: patch.bundleIds,
+      bundles: patch.bundles,
+    })))
+  );
+  const selectedIds = new Set(selectedOperations.map((operation) => operation.qualifiedId));
+  for (const operation of selectedOperations) {
+    for (const dependency of operation.dependsOn) {
+      if (!selectedIds.has(dependency)) {
+        throw new Error(
+          `patch operation ${operation.qualifiedId} dependsOn 未进入当前计划:${dependency}`,
+        );
+      }
+    }
+  }
+  const sorted = stableTopologicalSort(
+    selectedOperations,
+    (operation, relation) => relation.type === "dependsOn" || selectedIds.has(relation.from),
+  );
+  const resolvedIndex = new Map(sorted.map((operation, index) => [operation.qualifiedId, index]));
+  return {
+    allOperations,
+    selectedOperations: sorted,
+    operationOrder: sorted.map((operation) => ({
+      id: operation.id,
+      catalog: operation.catalog,
+      qualifiedId: operation.qualifiedId,
+      patch: operation.patchId,
+      qualifiedPatch: operation.qualifiedPatchId,
+      bundle: operation.bundle,
+      bundles: operation.bundles,
+      declarationIndex: selectedOperations.findIndex(
+        (item) => item.qualifiedId === operation.qualifiedId,
+      ),
+      resolvedIndex: resolvedIndex.get(operation.qualifiedId),
+      after: operation.after,
+      dependsOn: operation.dependsOn,
+      incomingEdges: [
+        ...operation.after
+          .filter((from) => selectedIds.has(from))
+          .map((from) => ({ from, type: "after" })),
+        ...operation.dependsOn.map((from) => ({ from, type: "dependsOn" })),
+      ],
     })),
   };
 }
@@ -733,6 +996,7 @@ function prepareFilePlan(files, targetRoot, targetSpec, operation) {
       operations: [],
       patches: [],
       bundles: [],
+      operationEntries: [],
     };
     files.set(targetSpec.path, filePlan);
   }
@@ -743,141 +1007,168 @@ function prepareFilePlan(files, targetRoot, targetSpec, operation) {
  * 读取选中的 Patch catalog，并在内存中计算全部目标文件结果。
  *
  * @param {string} target 目标 Trellis 项目根目录
- * @param {Array<{name:string,patchesDir:string,bundlesDir:string}>} catalogs Patch catalog 列表
+ * @param {Array<{id:string,patchesDir:string,bundlesDir:string,policy?:object}>} catalogs Patch catalog 列表
  * @param {{skills?:string[],adapters?:Record<string,Function>}} [options] 精细安装过滤和扩展 Adapter
- * @returns {{bundles:string[],patches:string[],files:Array<object>,results:Array<object>,catalogHash:string,catalogOperations:Array<{id:string,targets:string[]}>}} 可应用计划
+ * @returns {{bundles:string[],patches:string[],selectedBundles:Array<object>,selectedPatches:Array<object>,operationOrder:Array<object>,files:Array<object>,results:Array<object>,catalogHash:string,catalogOperations:Array<object>}} 可应用计划
  */
 export function preparePatchPlan(target, catalogs, options = {}) {
   const targetRoot = path.resolve(target);
   const skills = options.skills || [];
   const adapters = options.adapters || {};
   const allowedSelectors = new Set([...CORE_SELECTORS, ...Object.keys(adapters)]);
-  const seenPatchIds = new Set();
-  const seenOperationIds = new Set();
-  const loaded = catalogs.map((catalog) =>
-    loadCatalog(catalog, skills, seenPatchIds, seenOperationIds, allowedSelectors)
-  );
+  const seenCatalogIds = new Set();
+  for (const catalog of catalogs) {
+    assertPlainObject(catalog, "Patch catalog");
+    assertId(catalog.id, "Patch catalog.id");
+    if (seenCatalogIds.has(catalog.id)) throw new Error(`重复 Patch catalog id:${catalog.id}`);
+    seenCatalogIds.add(catalog.id);
+  }
+  const loaded = catalogs.map((catalog) => loadCatalog(catalog, skills, allowedSelectors));
+  const { allOperations, selectedOperations, operationOrder } = resolveOperationOrder(loaded);
   const bundles = loaded.flatMap((item) => item.bundles.map((bundle) => bundle.id));
-  const patches = [...new Map(
-    loaded.flatMap((item) => item.patches).map((patch) => [patch.id, patch]),
-  ).values()];
+  const patches = loaded.flatMap((item) => item.patches);
   const files = new Map();
   const results = [];
   const errors = [];
 
-  for (const patch of patches) {
-    for (const operation of patch.operations) {
-      let readyTargets = 0;
-      let existingTargets = 0;
-      for (const targetSpec of operation.targets) {
-        let prepared;
-        try {
-          prepared = prepareFilePlan(files, targetRoot, targetSpec, operation);
-        } catch (error) {
-          prepared = { error: error.message };
-        }
-        if (prepared.status === "missing-target") {
-          results.push({
-            id: operation.id,
-            patch: patch.id,
-            bundle: patch.bundle,
-            target: targetSpec.path,
-            status: "missing-target",
-            required: operation.required,
-          });
-          continue;
-        }
-        if (prepared.error) {
-          const result = {
-            id: operation.id,
-            patch: patch.id,
-            bundle: patch.bundle,
-            target: targetSpec.path,
-            status: operation.required ? "error" : "optional-skip",
-            required: operation.required,
-            reason: prepared.error,
-          };
-          results.push(result);
-          if (operation.required) errors.push(result);
-          continue;
-        }
-        existingTargets++;
-        const { filePlan } = prepared;
-        let cleaned;
-        try {
-          cleaned = applyCleanup(filePlan.next, operation.cleanup);
-        } catch (error) {
-          cleaned = { error: error.message };
-        }
-        let applied;
-        if (cleaned.error) applied = cleaned;
-        else {
-          const operationForTarget = { ...operation, markerStyle: targetSpec.markerStyle };
-          if (CORE_SELECTORS.has(operation.selector.type)) {
-            applied = applyCoreOperation(cleaned.value, operationForTarget);
-          } else {
-            applied = adapters[operation.selector.type]({
-              value: cleaned.value,
-              operation: operationForTarget,
-              targetSpec,
-              targetRoot,
-              targetFile: filePlan.targetFile,
-            });
-          }
-        }
-        if (applied.error) {
-          const result = {
-            id: operation.id,
-            patch: patch.id,
-            bundle: patch.bundle,
-            target: targetSpec.path,
-            status: operation.required ? "error" : "optional-skip",
-            required: operation.required,
-            reason: applied.error,
-          };
-          results.push(result);
-          if (operation.required) errors.push(result);
-          continue;
-        }
-        filePlan.next = applied.value;
-        filePlan.operations.push(operation.id);
-        filePlan.patches.push(patch.id);
-        filePlan.bundles.push(patch.bundle);
-        readyTargets++;
+  for (const operation of selectedOperations) {
+    let readyTargets = 0;
+    let existingTargets = 0;
+    for (const targetSpec of operation.targets) {
+      let prepared;
+      try {
+        prepared = prepareFilePlan(files, targetRoot, targetSpec, operation);
+      } catch (error) {
+        prepared = { error: error.message };
+      }
+      if (prepared.status === "missing-target") {
         results.push({
           id: operation.id,
-          patch: patch.id,
-          bundle: patch.bundle,
+          catalog: operation.catalog,
+          qualifiedId: operation.qualifiedId,
+          patch: operation.patchId,
+          qualifiedPatch: operation.qualifiedPatchId,
+          bundle: operation.bundle,
+          bundles: operation.bundles,
           target: targetSpec.path,
-          status: "ready",
+          status: "missing-target",
           required: operation.required,
-          source: cleaned.changed && applied.source === "selector"
-            ? "legacy-cleanup"
-            : applied.source,
         });
+        continue;
       }
-      if (
-        operation.required &&
-        operation.targetPolicy === "at-least-one" &&
-        readyTargets === 0
-      ) {
-        errors.push({
+      if (prepared.error) {
+        const result = {
           id: operation.id,
-          target: "<target-group>",
-          reason: "at-least-one target 未命中",
-        });
+          catalog: operation.catalog,
+          qualifiedId: operation.qualifiedId,
+          patch: operation.patchId,
+          qualifiedPatch: operation.qualifiedPatchId,
+          bundle: operation.bundle,
+          bundles: operation.bundles,
+          target: targetSpec.path,
+          status: operation.required ? "error" : "optional-skip",
+          required: operation.required,
+          reason: prepared.error,
+        };
+        results.push(result);
+        if (operation.required) errors.push(result);
+        continue;
       }
-      if (
-        operation.required &&
-        operation.targetPolicy === "required-all" &&
-        existingTargets !== operation.targets.length
-      ) {
-        errors.push({
+      existingTargets++;
+      const { filePlan } = prepared;
+      let cleaned;
+      try {
+        cleaned = applyCleanup(filePlan.next, operation.cleanup);
+      } catch (error) {
+        cleaned = { error: error.message };
+      }
+      let applied;
+      if (cleaned.error) applied = cleaned;
+      else {
+        const operationForTarget = { ...operation, markerStyle: targetSpec.markerStyle };
+        if (CORE_SELECTORS.has(operation.selector.type)) {
+          applied = applyCoreOperation(cleaned.value, operationForTarget);
+        } else {
+          applied = adapters[operation.selector.type]({
+            value: cleaned.value,
+            operation: operationForTarget,
+            targetSpec,
+            targetRoot,
+            targetFile: filePlan.targetFile,
+          });
+        }
+      }
+      if (applied.error) {
+        const result = {
           id: operation.id,
-          target: "<target-group>",
-          reason: "required-all target 不完整",
-        });
+          catalog: operation.catalog,
+          qualifiedId: operation.qualifiedId,
+          patch: operation.patchId,
+          qualifiedPatch: operation.qualifiedPatchId,
+          bundle: operation.bundle,
+          bundles: operation.bundles,
+          target: targetSpec.path,
+          status: operation.required ? "error" : "optional-skip",
+          required: operation.required,
+          reason: applied.error,
+        };
+        results.push(result);
+        if (operation.required) errors.push(result);
+        continue;
       }
+      filePlan.next = applied.value;
+      filePlan.operations.push(operation.id);
+      filePlan.patches.push(operation.patchId);
+      filePlan.bundles.push(operation.bundle);
+      filePlan.operationEntries.push({
+        id: operation.id,
+        catalog: operation.catalog,
+        qualifiedId: operation.qualifiedId,
+        patch: operation.patchId,
+        qualifiedPatch: operation.qualifiedPatchId,
+        bundle: operation.bundle,
+        bundles: operation.bundles,
+      });
+      readyTargets++;
+      results.push({
+        id: operation.id,
+        catalog: operation.catalog,
+        qualifiedId: operation.qualifiedId,
+        patch: operation.patchId,
+        qualifiedPatch: operation.qualifiedPatchId,
+        bundle: operation.bundle,
+        bundles: operation.bundles,
+        target: targetSpec.path,
+        status: "ready",
+        required: operation.required,
+        source: cleaned.changed && applied.source === "selector"
+          ? "legacy-cleanup"
+          : applied.source,
+      });
+    }
+    if (
+      operation.required &&
+      operation.targetPolicy === "at-least-one" &&
+      readyTargets === 0
+    ) {
+      errors.push({
+        id: operation.id,
+        qualifiedId: operation.qualifiedId,
+        target: "<target-group>",
+        reason: "at-least-one target 未命中",
+      });
+    }
+    if (
+      operation.required &&
+      operation.targetPolicy === "required-all" &&
+      existingTargets !== operation.targets.length
+    ) {
+      errors.push({
+        id: operation.id,
+        qualifiedId: operation.qualifiedId,
+        target: "<target-group>",
+        reason: "required-all target 不完整",
+      });
     }
   }
   if (errors.length > 0) {
@@ -892,13 +1183,29 @@ export function preparePatchPlan(target, catalogs, options = {}) {
   const catalogHash = sha256(
     loaded
       .flatMap((item) => item.catalogEntries)
-      .sort((a, b) => a.path.localeCompare(b.path))
-      .map((entry) => `${entry.path}\0${entry.content}`)
+      .sort((a, b) => (
+        a.catalog.localeCompare(b.catalog) || a.path.localeCompare(b.path)
+      ))
+      .map((entry) => `${entry.catalog}\0${entry.path}\0${entry.content}`)
       .join("\0"),
   );
   return {
     bundles,
     patches: patches.map((patch) => patch.id),
+    catalogs: loaded.map((item) => ({ id: item.id })),
+    selectedBundles: loaded.flatMap((item) => item.bundles.map((bundle) => ({
+      id: bundle.id,
+      catalog: bundle.catalog,
+      qualifiedId: bundle.qualifiedId,
+    }))),
+    selectedPatches: patches.map((patch) => ({
+      id: patch.id,
+      catalog: patch.catalog,
+      qualifiedId: patch.qualifiedId,
+      bundle: patch.bundle,
+      bundles: patch.bundles,
+    })),
+    operationOrder,
     files: [...files.values()].map((file) => {
       const next = file.operations.length > 0 ? normalizeText(file.next) : file.original;
       return {
@@ -911,7 +1218,17 @@ export function preparePatchPlan(target, catalogs, options = {}) {
     }),
     results,
     catalogHash,
-    catalogOperations: loaded.flatMap((item) => item.catalogOperations),
+    catalogOperations: allOperations.map((operation) => ({
+      id: operation.id,
+      catalog: operation.catalog,
+      qualifiedId: operation.qualifiedId,
+      patch: operation.patchId,
+      qualifiedPatch: operation.qualifiedPatchId,
+      targets: operation.targets.map((target) => target.path),
+    })),
+    policies: loaded
+      .filter((item) => item.policy)
+      .map((item) => ({ catalog: item.id, ...item.policy })),
   };
 }
 
@@ -961,12 +1278,10 @@ export function applyPatchPlan(target, plan) {
   const optionalSkipped = plan.results.filter((item) => item.status === "optional-skip").length;
   const skipped = missingTargets + optionalSkipped;
   const provenance = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     catalogHash: plan.catalogHash,
-    applied: plan.files.flatMap((file) => file.operations.map((id, index) => ({
-      id,
-      patch: file.patches[index],
-      bundle: file.bundles[index],
+    applied: plan.files.flatMap((file) => file.operationEntries.map((entry) => ({
+      ...entry,
       target: file.target,
       status: "applied",
       resultHash: file.afterHash,

@@ -44,6 +44,7 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 - Flower 自有 Codex/Claude 配置 Patch 位于 `src/patches/`，不进入 Skill-Garden 源；两类 catalog
   由 `applyEnhancements()` 在同一个 preflight/apply 计划中执行。
 - 随包发布靠 `package.json` 的 `files: ["bin","src","enhancements","README.md"]`。
+- `vendor/skill-garden/compiled-targets/` 是 Skill-Garden 子仓内的 Claude + Codex canonical 维护审阅产物，不属于 `.trellis/` 离线安装快照；`npm run sync` 只读取 variant 源，不读取或复制该目录。vendor 子仓不进入 npm tarball，维护期 `patch-fixture.js` 也继续显式排除。
 - **同步源 = git submodule `vendor/skill-garden`**(不在 `files` 白名单,不进 npm tarball)。
   `sync-enhancements.mjs` 三级路径解析:`SKILL_GARDEN_DIR` 环境变量 → `PKG_ROOT/vendor/skill-garden`
   → 都缺则 `exit(1)` 提示 `git submodule update --init --recursive`。

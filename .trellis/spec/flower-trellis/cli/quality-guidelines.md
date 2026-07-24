@@ -47,7 +47,7 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 
 - 本项目使用零第三方测试基础设施：JavaScript 用 Node 内置 `node:test`，Python 用
   `unittest`，统一入口为 `npm test`。不要引入 Jest/Vitest/Pytest 等重依赖，除非另有明确决策。
-- `npm test` 同时运行 pinned Trellis Patch 冲突门禁和默认 AI context budget checker；冲突 warning/大小超限只告警，结构错误与 conflict error 失败。
+- `npm test` 同时运行 Flower 全平台双 catalog Patch 冲突门禁、Skill-Garden canonical compiled targets 零漂移检查和默认 AI context budget checker；冲突 warning/大小超限只告警，结构错误、compiled 漂移与 conflict error 失败。
 - 提交前执行**自动测试 + 语法校验 + dogfood 手测**:
 
   ```bash
@@ -64,6 +64,7 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 
   `test-target/`、`.trellis-tmp/` 已在 `.gitignore` 中,可作本地目标。
 - 改动叠加逻辑后,记得 `npm run sync` 重建 `enhancements/` 快照再验证。
+- 改动 Skill-Garden Patch catalog、顺序、policy 或 pinned Trellis 结果后，运行 `npm run patch:targets` 刷新子仓 canonical target 层，再用 `npm run patch:targets:check` 验证零漂移。Flower adapter/平台 catalog 改动由全平台冲突门禁覆盖，不生成可提交 matrix。
 - 发布审计需要严格预算时显式运行 `node scripts/check-ai-context-budget.mjs --strict`；
   strict 不属于默认大小门禁。
 

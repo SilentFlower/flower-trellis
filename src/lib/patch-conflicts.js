@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { resolvePatchCatalogPolicy } from "./patch-engine.js";
 
 const SEVERITIES = new Set(["error", "warning", "info"]);
 const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -41,6 +42,19 @@ function requireId(value, label) {
   const id = requireString(value, label);
   if (!ID_RE.test(id)) throw new Error(`${label} 必须是小写连字符 ID`);
   return id;
+}
+
+function requireOperationRef(value, label) {
+  const ref = requireString(value, label);
+  const parts = ref.split("/");
+  if (parts.length < 1 || parts.length > 2 || parts.some((part) => !ID_RE.test(part))) {
+    throw new Error(`${label} 必须是 local ID 或 <catalog-id>/<operation-id>`);
+  }
+  return ref;
+}
+
+function qualifyId(catalogId, localId) {
+  return `${catalogId}/${localId}`;
 }
 
 function validateCompatibility(raw) {
@@ -129,7 +143,7 @@ function validateConflicts(raw) {
     }
     validateConflictTarget(rule.target, `${label}.target`);
     requireStringArray(rule.whenOperations, `${label}.whenOperations`).forEach(
-      (operationId, operationIndex) => requireId(
+      (operationId, operationIndex) => requireOperationRef(
         operationId,
         `${label}.whenOperations[${operationIndex}]`,
       ),
@@ -165,8 +179,17 @@ function countOccurrences(value, needle) {
   }
 }
 
-function diagnostic(id, severity, target, owner, reason, evidence) {
-  return { id, severity, target, owner, reason, evidence };
+function diagnostic(id, severity, target, owner, reason, evidence, catalog = "skill-garden") {
+  return {
+    id,
+    catalog,
+    qualifiedId: qualifyId(catalog, id),
+    severity,
+    target,
+    owner,
+    reason,
+    evidence,
+  };
 }
 
 function summarize(diagnostics) {
@@ -181,20 +204,83 @@ function summarize(diagnostics) {
   );
 }
 
+function evaluatePatchResultDiagnostics(plan, catalogId) {
+  const diagnostics = [];
+  for (const item of plan.results) {
+    if (item.status === "missing-target") {
+      diagnostics.push(diagnostic(
+        `missing-target:${item.id}:${item.target}`,
+        "info",
+        item.target,
+        item.patch,
+        "目标平台入口未安装，按声明跳过。",
+        [item.qualifiedId || item.id],
+        item.catalog || catalogId,
+      ));
+    } else if (item.status === "optional-skip") {
+      diagnostics.push(diagnostic(
+        `optional-skip:${item.id}:${item.target}`,
+        "warning",
+        item.target,
+        item.patch,
+        "可选 Patch 未应用，需要评审其漂移原因。",
+        [item.reason || "unknown"],
+        item.catalog || catalogId,
+      ));
+    }
+  }
+  return diagnostics;
+}
+
 /**
  * 读取并校验 Skill-Garden Patch 的版本兼容与最终产物冲突声明。
  *
  * @param {string} overridesDir Skill-Garden 变体的 overrides 目录
- * @returns {{compatibility:object,conflicts:object}} 已校验 policy
+ * @param {string} [catalogId] policy 所属 catalog ID
+ * @returns {{catalog:string,compatibility:object,conflicts:object}} 已校验 policy
  */
-export function loadPatchPolicy(overridesDir) {
+export function loadPatchPolicy(overridesDir, catalogId = "skill-garden") {
+  requireId(catalogId, "policy catalog id");
   const compatibility = validateCompatibility(
     readJson(path.join(overridesDir, "compatibility.json"), "compatibility policy"),
   );
   const conflicts = validateConflicts(
     readJson(path.join(overridesDir, "conflicts.json"), "conflict policy"),
   );
-  return { compatibility, conflicts };
+  return { catalog: catalogId, compatibility, conflicts };
+}
+
+/**
+ * 按 catalog descriptor 加载并校验其声明式 Patch policy。
+ *
+ * @param {Array<{id:string,policy?:{compatibilityFile?:string,conflictsFile?:string}}>} catalogs catalog 描述符
+ * @returns {Array<{catalog:string,compatibility?:object,conflicts?:object}>} 已校验的 policy 列表
+ */
+export function loadPatchPolicies(catalogs) {
+  if (!Array.isArray(catalogs)) throw new Error("Patch catalogs 必须是数组");
+  return catalogs
+    .filter((catalog) => catalog.policy)
+    .map((catalog, index) => {
+      const catalogId = requireId(catalog.id, `catalogs[${index}].id`);
+      const paths = resolvePatchCatalogPolicy(catalog);
+      const policy = { catalog: catalogId };
+      if (paths.compatibilityFile) {
+        policy.compatibility = validateCompatibility(readJson(
+          paths.compatibilityFile,
+          `${catalogId} compatibility policy`,
+        ));
+      }
+      if (paths.conflictsFile) {
+        policy.conflicts = validateConflicts(readJson(
+          paths.conflictsFile,
+          `${catalogId} conflict policy`,
+        ));
+      }
+      if (!policy.compatibility && !policy.conflicts) {
+        throw new Error(`catalog ${catalogId} policy 至少声明一个文件`);
+      }
+      return policy;
+    });
 }
 
 /**
@@ -202,9 +288,10 @@ export function loadPatchPolicy(overridesDir) {
  *
  * @param {string} version 目标项目 `.trellis/.version` 原值
  * @param {object} compatibility `compatibility.json` 内容
+ * @param {string} [catalogId] policy 所属 catalog ID
  * @returns {{version:{value:string,status:string},diagnostics:Array<object>}} 版本结果与诊断
  */
-export function evaluatePatchCompatibility(version, compatibility) {
+export function evaluatePatchCompatibility(version, compatibility, catalogId = "skill-garden") {
   const parsed = parseVersion(version);
   if (!parsed) {
     return {
@@ -216,6 +303,7 @@ export function evaluatePatchCompatibility(version, compatibility) {
         "patch-compatibility",
         "0.6 Patch 需要可解析的 Trellis semver 版本。",
         [version || "<empty>"],
+        catalogId,
       )],
     };
   }
@@ -238,6 +326,7 @@ export function evaluatePatchCompatibility(version, compatibility) {
         "patch-compatibility",
         "目标版本位于兼容线内但尚未登记 baseline；只有完整预检和冲突断言通过后才允许继续。",
         [parsed.value],
+        catalogId,
       )],
     };
   }
@@ -250,7 +339,41 @@ export function evaluatePatchCompatibility(version, compatibility) {
       "patch-compatibility",
       "该 Trellis minor/major 尚无受支持 Patch baseline；请使用匹配的 Flower 版本或 --no-enhance。",
       [parsed.value],
+      catalogId,
     )],
+  };
+}
+
+/**
+ * 聚合多个 catalog 的版本兼容 policy，任一不兼容结果都会成为阻断诊断。
+ *
+ * @param {{version:string,policies:Array<{catalog?:string,compatibility?:object}>}} input 兼容性评估输入
+ * @returns {{version:object,diagnostics:Array<object>,summary:{errors:number,warnings:number,info:number}}} 兼容性报告
+ */
+export function buildPatchCompatibilityReport({ version, policies }) {
+  const activePolicies = policies.filter((item) => item?.compatibility);
+  if (activePolicies.length === 0) throw new Error("Patch compatibility policy 不能为空");
+  const reports = activePolicies.map((item) => evaluatePatchCompatibility(
+    version,
+    item.compatibility,
+    item.catalog || "skill-garden",
+  ));
+  const versionOrder = { invalid: 0, unsupported: 1, "untested-compatible": 2, tested: 3 };
+  const resolvedVersion = reports
+    .map((item) => item.version)
+    .sort((left, right) => versionOrder[left.status] - versionOrder[right.status])[0];
+  const order = { error: 0, warning: 1, info: 2 };
+  const diagnostics = reports
+    .flatMap((item) => item.diagnostics)
+    .sort((a, b) =>
+      order[a.severity] - order[b.severity] ||
+      a.qualifiedId.localeCompare(b.qualifiedId) ||
+      a.target.localeCompare(b.target)
+    );
+  return {
+    version: resolvedVersion,
+    diagnostics,
+    summary: summarize(diagnostics),
   };
 }
 
@@ -259,36 +382,55 @@ export function evaluatePatchCompatibility(version, compatibility) {
  *
  * @param {object} plan `preparePatchPlan()` 返回的完整计划
  * @param {object} conflicts `conflicts.json` 内容
+ * @param {string} [catalogId] policy 所属 catalog ID
+ * @param {{includePlanDiagnostics?:boolean}} [options] 是否包含 plan 级 missing/optional 诊断
  * @returns {{diagnostics:Array<object>}} 最终产物诊断
  */
-export function evaluatePatchConflicts(plan, conflicts) {
+export function evaluatePatchConflicts(
+  plan,
+  conflicts,
+  catalogId = "skill-garden",
+  options = {},
+) {
+  const resolveOperationId = (operationId) => operationId.includes("/")
+    ? operationId
+    : qualifyId(catalogId, operationId);
   if (Array.isArray(plan.catalogOperations)) {
     const operationTargets = new Map(
-      plan.catalogOperations.map((operation) => [operation.id, new Set(operation.targets)]),
+      plan.catalogOperations.map((operation) => [
+        operation.qualifiedId || qualifyId(operation.catalog || catalogId, operation.id),
+        new Set(operation.targets),
+      ]),
     );
     for (const rule of conflicts.rules) {
       for (const operationId of rule.whenOperations) {
-        const targets = operationTargets.get(operationId);
+        const qualifiedOperationId = resolveOperationId(operationId);
+        const targets = operationTargets.get(qualifiedOperationId);
         if (!targets) {
-          throw new Error(`conflict rule ${rule.id} 引用未知 operation:${operationId}`);
+          throw new Error(
+            `conflict rule ${qualifyId(catalogId, rule.id)} 引用未知 operation:${operationId}`,
+          );
         }
         if (!targets.has(rule.target)) {
           throw new Error(
-            `conflict rule ${rule.id} target 未被 operation ${operationId} 修改:${rule.target}`,
+            `conflict rule ${qualifyId(catalogId, rule.id)} target 未被 operation ` +
+              `${qualifiedOperationId} 修改:${rule.target}`,
           );
         }
       }
     }
   }
   const selectedOperations = new Set(
-    plan.files.flatMap((file) => file.operations),
+    plan.files.flatMap((file) => file.operationEntries
+      ? file.operationEntries.map((operation) => operation.qualifiedId)
+      : file.operations.map((id) => qualifyId(catalogId, id))),
   );
   const files = new Map(plan.files.map((file) => [file.target, file.next]));
   const diagnostics = [];
 
   for (const rule of conflicts.rules) {
     // 精细安装只审计本次实际选中的能力，避免把未修改的上游入口误报为冲突。
-    if (!rule.whenOperations.every((id) => selectedOperations.has(id))) continue;
+    if (!rule.whenOperations.every((id) => selectedOperations.has(resolveOperationId(id)))) continue;
     const value = files.get(rule.target);
     if (typeof value !== "string") continue;
     const assertion = rule.assertion;
@@ -315,30 +457,13 @@ export function evaluatePatchConflicts(plan, conflicts) {
         rule.owner,
         rule.reason,
         evidence,
+        catalogId,
       ));
     }
   }
 
-  for (const item of plan.results) {
-    if (item.status === "missing-target") {
-      diagnostics.push(diagnostic(
-        `missing-target:${item.id}:${item.target}`,
-        "info",
-        item.target,
-        item.patch,
-        "目标平台入口未安装，按声明跳过。",
-        [item.id],
-      ));
-    } else if (item.status === "optional-skip") {
-      diagnostics.push(diagnostic(
-        `optional-skip:${item.id}:${item.target}`,
-        "warning",
-        item.target,
-        item.patch,
-        "可选 Patch 未应用，需要评审其漂移原因。",
-        [item.reason || "unknown"],
-      ));
-    }
+  if (options.includePlanDiagnostics !== false) {
+    diagnostics.push(...evaluatePatchResultDiagnostics(plan, catalogId));
   }
   return { diagnostics };
 }
@@ -346,21 +471,36 @@ export function evaluatePatchConflicts(plan, conflicts) {
 /**
  * 合并版本兼容与最终产物诊断，生成稳定三态汇总。
  *
- * @param {{version:string,plan:object,policy:{compatibility:object,conflicts:object}}} input 评估输入
+ * @param {{version:string,plan:object,policy?:{catalog?:string,compatibility:object,conflicts:object},policies?:Array<object>}} input 评估输入
  * @returns {{version:object,diagnostics:Array<object>,summary:{errors:number,warnings:number,info:number}}} 完整报告
  */
-export function buildPatchConflictReport({ version, plan, policy }) {
-  const compatibility = evaluatePatchCompatibility(version, policy.compatibility);
-  const conflicts = evaluatePatchConflicts(plan, policy.conflicts);
+export function buildPatchConflictReport({ version, plan, policy, policies }) {
+  const activePolicies = policies || [policy];
+  if (!activePolicies.length || activePolicies.some((item) => !item)) {
+    throw new Error("Patch policy 不能为空");
+  }
+  const compatibilityReport = buildPatchCompatibilityReport({ version, policies: activePolicies });
+  const conflictReports = activePolicies
+    .filter((item) => item.conflicts)
+    .map((item) => evaluatePatchConflicts(
+      plan,
+      item.conflicts,
+      item.catalog || "skill-garden",
+      { includePlanDiagnostics: false },
+    ));
   const order = { error: 0, warning: 1, info: 2 };
-  const diagnostics = [...compatibility.diagnostics, ...conflicts.diagnostics]
+  const diagnostics = [
+    ...compatibilityReport.diagnostics,
+    ...conflictReports.flatMap((item) => item.diagnostics),
+    ...evaluatePatchResultDiagnostics(plan, activePolicies[0].catalog || "skill-garden"),
+  ]
     .sort((a, b) =>
       order[a.severity] - order[b.severity] ||
-      a.id.localeCompare(b.id) ||
+      a.qualifiedId.localeCompare(b.qualifiedId) ||
       a.target.localeCompare(b.target)
     );
   return {
-    version: compatibility.version,
+    version: compatibilityReport.version,
     diagnostics,
     summary: summarize(diagnostics),
   };
@@ -380,7 +520,7 @@ export function assertNoPatchConflictErrors(report) {
       const evidence = item.evidence.length > 0
         ? `;证据:${item.evidence.join(" | ")}`
         : "";
-      return `${item.id}@${item.target}:${item.reason}${evidence}`;
+      return `${item.qualifiedId || item.id}@${item.target}:${item.reason}${evidence}`;
     })
     .join("; ");
   const error = new Error(`Patch 冲突检查失败:${detail}`);
@@ -400,5 +540,6 @@ export function formatPatchDiagnostic(diagnostic) {
     ? diagnostic.evidence.join(" | ")
     : "<none>";
   return `Patch ${labels[diagnostic.severity] || diagnostic.severity}:` +
-    `${diagnostic.id}@${diagnostic.target}(${diagnostic.reason};证据:${evidence})`;
+    `${diagnostic.qualifiedId || diagnostic.id}@${diagnostic.target}` +
+    `(${diagnostic.reason};证据:${evidence})`;
 }

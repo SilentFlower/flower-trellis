@@ -39,6 +39,7 @@ flower-trellis/
 │       ├── apply-enhancements.js # 叠加流水线总编排
 │       ├── patch-engine.js    # 0.6 Patch catalog/preflight/apply/provenance
 │       ├── patch-conflicts.js # 0.6 版本兼容与最终产物冲突 evaluator
+│       ├── patch-fixture.js   # pinned Trellis full Patch 维护夹具
 │       ├── update-backups.js  # Trellis 时间戳升级备份发现、规划与安全清理
 │       ├── platform-patch-adapters.js # JSON/YAML/TOML 结构 selector
 │       ├── workflow-inject.js # 0.5/old workflow 兼容注入
@@ -47,8 +48,12 @@ flower-trellis/
 │   └── patches/               # Flower 自有平台 Patch catalog 与 Bundle
 ├── scripts/
 │   ├── sync-enhancements.mjs  # 开发期:把 skill-garden 同步成 enhancements/ 快照
-│   └── check-patch-conflicts.mjs # pinned Trellis 完整 catalog 冲突门禁
-└── enhancements/<variant>/    # 随包发布的强化包快照 + MANIFEST.json
+│   ├── check-patch-conflicts.mjs # pinned Trellis 完整 catalog 冲突门禁
+│   └── run-skill-garden-compiled-targets.mjs # 调用子仓 canonical target 生成器
+├── enhancements/<variant>/    # 随包发布的强化包快照 + MANIFEST.json
+└── vendor/skill-garden/
+    ├── scripts/generate-compiled-targets.py # 独立 Python consumer 的生成/check 入口
+    └── compiled-targets/<version>/full/{plan.json,targets/} # canonical 最终文件与 diff sidecar
 ```
 
 ---
@@ -62,7 +67,9 @@ flower-trellis/
 - `test/js/`：Node 内置 `node:test`。
 - `test/python/`：Python 内置 `unittest`。
 - `enhancements/0.6/overrides/compatibility.json`、`conflicts.json`、`patches/`、`bundles/`：随包发布的 Skill-Garden policy 与 Patch catalog 快照。
+- `vendor/skill-garden/compiled-targets/<version>/full/{plan.json,targets/}`：由子仓生成器维护的 Claude + Codex canonical full 计划；最终文件按原路径保存，changed target 的 `<target>.diff` sidecar 与文件并排。禁止手工修改，vendor 子仓不进入 `package.json.files`。
 - `vendor/skill-garden/scripts/apply-trellis-patches.py`：独立 `install.sh` 的 Python consumer；协议必须与 JS 引擎一致。
+- `src/lib/patch-fixture.js`：Flower 全平台 Skill-Garden + Flower 双 catalog 临时 fixture；只用于 coverage、compatibility 与 conflict 门禁，不保存全平台 files/diffs。
 
 ## Module Organization
 

@@ -6,15 +6,21 @@ import { fileURLToPath } from "node:url";
 import { PKG_ROOT } from "../src/lib/paths.js";
 
 const KIB = 1024;
+const COMPILED_TARGETS_ROOT = path.join(
+  PKG_ROOT,
+  "vendor",
+  "skill-garden",
+  "compiled-targets",
+);
 const BASELINES = {
-  workflow: 48827,
-  workflowControl: 17688,
-  statesTotal: 5226,
+  workflow: 46750,
+  workflowControl: 12243,
+  statesTotal: 7261,
   updateSpec: 13899,
   finishWork: 4556,
-  phaseSummary: 19527,
-  sessionStart: 19067,
-  controlTotal: 105876,
+  phaseSummary: 12892,
+  sessionStart: 12300,
+  controlTotal: 90397,
 };
 const BUDGETS = {
   workflow: { target: 60 * KIB, review: 64 * KIB },
@@ -50,11 +56,28 @@ function measureTotal(name, bytes, budget, baseline = null) {
   };
 }
 
-function readRequired(file) {
+function readRequired(file, displayRoot = PKG_ROOT) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
-    throw new Error(`上下文预算目标不存在:${path.relative(PKG_ROOT, file)}`);
+    throw new Error(`上下文预算目标不存在:${path.relative(displayRoot, file)}`);
   }
   return fs.readFileSync(file, "utf8");
+}
+
+function resolveCompiledFullRoot() {
+  if (!fs.existsSync(COMPILED_TARGETS_ROOT)) {
+    throw new Error("compiled targets 不存在;请先运行 npm run patch:targets");
+  }
+  const versions = fs.readdirSync(COMPILED_TARGETS_ROOT, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  if (versions.length !== 1) {
+    throw new Error(`compiled targets 必须只保留一个版本:${versions.join(",")}`);
+  }
+  const fullRoot = path.join(COMPILED_TARGETS_ROOT, versions[0], "full", "targets");
+  if (!fs.existsSync(fullRoot) || !fs.statSync(fullRoot).isDirectory()) {
+    throw new Error(`compiled targets 缺少 full files:${versions[0]}`);
+  }
+  return fullRoot;
 }
 
 function extractSection(text, startHeading, endHeading) {
@@ -79,14 +102,14 @@ function extractWorkflowStates(workflow) {
   return states;
 }
 
-function readExistingTargets(relativePaths, label) {
+function readExistingTargets(root, relativePaths, label) {
   const targets = relativePaths
     .map((relativePath) => ({
       name: relativePath,
-      file: path.join(PKG_ROOT, relativePath),
+      file: path.join(root, relativePath),
     }))
     .filter(({ file }) => fs.existsSync(file))
-    .map(({ name, file }) => ({ name, value: readRequired(file) }));
+    .map(({ name, file }) => ({ name, value: readRequired(file, root) }));
   if (targets.length === 0) {
     throw new Error(`缺少最终 ${label} 入口`);
   }
@@ -164,19 +187,20 @@ function measureSessionStart() {
  * @returns {Array<{name:string,bytes:number,lines:number,target:number,review:number,baseline:number|null}>} 指标列表
  */
 export function collectAiContextMetrics() {
-  const workflow = readRequired(path.join(PKG_ROOT, ".trellis", "workflow.md"));
+  const compiledRoot = resolveCompiledFullRoot();
+  const workflow = readRequired(path.join(compiledRoot, ".trellis", "workflow.md"), compiledRoot);
   const workflowControl = extractSection(
     workflow,
     "## Phase Index",
     "## Phase 1: Plan",
   );
   const stateValues = extractWorkflowStates(workflow);
-  const updateSpecTargets = readExistingTargets([
+  const updateSpecTargets = readExistingTargets(compiledRoot, [
     ".agents/skills/trellis-update-spec/SKILL.md",
     ".claude/skills/trellis-update-spec/SKILL.md",
     ".claude/commands/trellis/update-spec.md",
   ], "Update-Spec");
-  const finishWorkTargets = readExistingTargets([
+  const finishWorkTargets = readExistingTargets(compiledRoot, [
     ".agents/skills/trellis-finish-work/SKILL.md",
     ".claude/skills/trellis-finish-work/SKILL.md",
     ".claude/commands/trellis/finish-work.md",

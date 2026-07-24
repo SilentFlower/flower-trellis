@@ -606,8 +606,9 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.equal(manifest.variant, "0.6");
   assert.ok(manifest.paths.includes(".trellis/scripts/task_intent.py"));
   assert.ok(manifest.paths.includes(".trellis/scripts/pre_check_state.py"));
-  assert.equal(manifest.patches.schemaVersion, 1);
+  assert.equal(manifest.patches.schemaVersion, 2);
   assert.match(manifest.patches.catalogHash, /^sha256:/);
+  assert.ok(manifest.patches.applied.every((item) => item.qualifiedId.includes("/")));
   assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-in-progress"));
   assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-missing-task"));
   assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-phase-1-activate"));
@@ -647,7 +648,7 @@ test("0.6 未登记 patch 版本 warning 放行，跨兼容线 error 且零写�
     compatible,
     { variant: "0.6" },
     (line) => {
-      if (line.includes("Patch 警告:untested-upstream")) {
+      if (line.includes("Patch 警告:skill-garden/untested-upstream")) {
         warningBeforeApply = !fs.readFileSync(compatibleWorkflow, "utf8").includes(
           "workflow-phase-2-implement v0.6",
         );
@@ -696,7 +697,7 @@ test("0.6 未登记 patch 版本 warning 放行，跨兼容线 error 且零写�
     { variant: "0.6", skills: ["trellis-push"] },
   );
   assert.ok(skillOnlyLogs.some((line) => line.includes(
-    "Patch 警告:untested-upstream@.trellis/.version",
+    "Patch 警告:skill-garden/untested-upstream@.trellis/.version",
   )));
 });
 

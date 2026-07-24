@@ -10,7 +10,7 @@ import { flowerPatchAdapters } from "../../src/lib/platform-patch-adapters.js";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const FLOWER_PATCHES = path.join(ROOT, "src", "patches");
 const CATALOG = {
-  name: "flower",
+  id: "flower",
   patchesDir: path.join(FLOWER_PATCHES, "platforms"),
   bundlesDir: path.join(FLOWER_PATCHES, "bundles"),
 };

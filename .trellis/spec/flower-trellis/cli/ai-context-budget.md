@@ -18,12 +18,12 @@
 
 ## Final-Output Principle
 
-预算必须测最终 dogfood 文件和真实运行输出，禁止把 Patch source 当成最终上下文：
+预算必须测 pinned full 最终文件和真实运行输出，禁止把 Patch source 当成最终上下文：
 
-- workflow：读取最终 `.trellis/workflow.md`。
-- workflow control：从最终 workflow 的 `## Phase Index` 到 `## Phase 1: Plan`。
-- state：从最终 workflow 动态提取全部 `[workflow-state:*]` body，包括项目自定义 state。
-- Update-Spec/Finish-Work：读取当前平台实际存在的最终 `.agents`、`.claude/skills`、`.claude/commands` 入口。
+- workflow：读取当前 `vendor/skill-garden/compiled-targets/<version>/full/targets/.trellis/workflow.md`。
+- workflow control：从 compiled full workflow 的 `## Phase Index` 到 `## Phase 1: Plan`。
+- state：从 compiled full workflow 动态提取全部 `[workflow-state:*]` body。
+- Update-Spec/Finish-Work：读取 compiled full 中实际存在的最终 `.agents`、`.claude/skills`、`.claude/commands` 入口。
 - Phase summary：真实运行 `python3 ./.trellis/scripts/get_context.py --mode phase`。
 - SessionStart：用隔离临时 fixture 调用真实 `.codex/hooks/session-start.py`，读取 `additionalContext`。
 
@@ -99,20 +99,20 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 
 ## Baseline
 
-Workflow 冲突收敛后基线（2026-07-19）：
+Skill-Garden Claude + Codex canonical full target 层基线（2026-07-24；target/review ceiling 未调整）：
 
 | 对象 | Lines | Bytes | 状态 |
 |---|---:|---:|---|
-| 完整 workflow | 785 | 48,827 | ok |
-| workflow control | 235 | 17,688 | ok |
-| 全部最终 state body 合计 | 39 | 5,226 | ok |
+| 完整 workflow | 710 | 46,750 | ok |
+| workflow control | 139 | 12,243 | ok |
+| 全部最终 state body 合计 | 48 | 7,261 | ok |
 | 最大 Update-Spec 最终入口 | 386 | 13,899 | ok |
 | 最大 Finish-Work 最终入口 | 93 | 4,556 | ok |
-| Phase summary | 279 | 19,527 | warn |
-| SessionStart | 280 | 19,067 | warn |
-| control-context-total | - | 105,876 | ok |
+| Phase summary | 173 | 12,892 | ok |
+| SessionStart | 172 | 12,300 | ok |
+| control-context-total | - | 90,397 | ok |
 
-本次只重登记 baseline，没有提高 target/review ceiling。Phase summary 与 SessionStart 保持 warning-first，默认和 strict 都只有超过 review ceiling 才阻断 strict。
+静态最终入口读取 Skill-Garden canonical compiled full target；Flower 全平台 matrix 只做临时集成验证，不参与预算重复计数。target/review ceiling 未提高，默认和 strict 仍只有超过 review ceiling 才由 strict 阻断。
 
 ## Change Review
 

@@ -17,10 +17,10 @@ import { applyPatchPlan, preparePatchPlan } from "./patch-engine.js";
 import { flowerPatchAdapters } from "./platform-patch-adapters.js";
 import {
   assertNoPatchConflictErrors,
+  buildPatchCompatibilityReport,
   buildPatchConflictReport,
-  evaluatePatchCompatibility,
   formatPatchDiagnostic,
-  loadPatchPolicy,
+  loadPatchPolicies,
 } from "./patch-conflicts.js";
 
 /** 清理升级后可能变空的强化目录(深 → 浅)。 */
@@ -73,36 +73,32 @@ export function applyEnhancements(target, opts = {}) {
   if (variant === "0.6") {
     const skillGardenOverrides = path.join(variantDir, "overrides");
     const flowerPatches = path.join(PKG_ROOT, "src", "patches");
-    const policy = loadPatchPolicy(skillGardenOverrides);
-    const compatibility = evaluatePatchCompatibility(version, policy.compatibility);
-    const compatibilityReport = {
-      version: compatibility.version,
-      diagnostics: compatibility.diagnostics,
-      summary: {
-        errors: compatibility.diagnostics.filter((item) => item.severity === "error").length,
-        warnings: compatibility.diagnostics.filter((item) => item.severity === "warning").length,
-        info: compatibility.diagnostics.filter((item) => item.severity === "info").length,
+    const catalogs = [
+      {
+        id: "skill-garden",
+        patchesDir: path.join(skillGardenOverrides, "patches"),
+        bundlesDir: path.join(skillGardenOverrides, "bundles"),
+        policy: {
+          compatibilityFile: path.join(skillGardenOverrides, "compatibility.json"),
+          conflictsFile: path.join(skillGardenOverrides, "conflicts.json"),
+        },
       },
-    };
+      {
+        id: "flower",
+        patchesDir: path.join(flowerPatches, "platforms"),
+        bundlesDir: path.join(flowerPatches, "bundles"),
+      },
+    ];
+    const policies = loadPatchPolicies(catalogs);
+    const compatibilityReport = buildPatchCompatibilityReport({ version, policies });
     // 未支持版本必须先返回可执行指引，不能被旧 catalog 的 selector 漂移错误掩盖。
     assertNoPatchConflictErrors(compatibilityReport);
     patchPlan = preparePatchPlan(
       target,
-      [
-        {
-          name: "skill-garden",
-          patchesDir: path.join(skillGardenOverrides, "patches"),
-          bundlesDir: path.join(skillGardenOverrides, "bundles"),
-        },
-        {
-          name: "flower",
-          patchesDir: path.join(flowerPatches, "platforms"),
-          bundlesDir: path.join(flowerPatches, "bundles"),
-        },
-      ],
+      catalogs,
       { skills, adapters: flowerPatchAdapters() },
     );
-    patchReport = buildPatchConflictReport({ version, plan: patchPlan, policy });
+    patchReport = buildPatchConflictReport({ version, plan: patchPlan, policies });
     for (const diagnostic of patchReport.diagnostics.filter(
       (item) => item.severity === "warning",
     )) {

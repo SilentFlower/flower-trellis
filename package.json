@@ -21,6 +21,7 @@
   "files": [
     "bin",
     "src",
+    "!src/lib/patch-fixture.js",
     "enhancements",
     "!enhancements/**/__pycache__",
     "!enhancements/**/*.pyc",
@@ -28,8 +29,10 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --test test/js/*.test.js && python3 -m unittest discover -s test/python -p 'test_*.py' && node scripts/check-patch-conflicts.mjs && node scripts/check-ai-context-budget.mjs",
+    "test": "node --test test/js/*.test.js && python3 -m unittest discover -s test/python -p 'test_*.py' && node scripts/check-patch-conflicts.mjs && npm run patch:targets:check && node scripts/check-ai-context-budget.mjs",
     "sync": "node scripts/sync-enhancements.mjs",
+    "patch:targets": "node scripts/run-skill-garden-compiled-targets.mjs",
+    "patch:targets:check": "node scripts/run-skill-garden-compiled-targets.mjs --check",
     "postinstall": "node scripts/sync-global-trellis.mjs",
     "prepublishOnly": "node scripts/sync-enhancements.mjs",
     "release": "node scripts/check-snapshot.mjs && commit-and-tag-version",

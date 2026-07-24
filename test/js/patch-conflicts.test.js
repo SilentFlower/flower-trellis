@@ -10,6 +10,7 @@ import {
   evaluatePatchCompatibility,
   evaluatePatchConflicts,
   formatPatchDiagnostic,
+  loadPatchPolicies,
   loadPatchPolicy,
 } from "../../src/lib/patch-conflicts.js";
 
@@ -144,7 +145,7 @@ test("完整报告稳定排序且 error 会抛聚合错误", () => {
   assert.equal(report.diagnostics[0].severity, "error");
   assert.throws(
     () => assertNoPatchConflictErrors(report),
-    /Patch 冲突检查失败:old-rule@\.trellis\/workflow\.md/,
+    /Patch 冲突检查失败:skill-garden\/old-rule@\.trellis\/workflow\.md/,
   );
 });
 
@@ -208,6 +209,25 @@ test("policy loader 拒绝不安全 target 和未知 assertion", () => {
   assert.throws(() => loadPatchPolicy(root), /完整 semver/);
 });
 
+test("catalog policy 在读取前拒绝 catalog 根目录外路径", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "flower-policy-boundary-"));
+  const catalog = path.join(root, "catalog");
+  const outside = path.join(root, "outside");
+  fs.mkdirSync(path.join(catalog, "patches"), { recursive: true });
+  fs.mkdirSync(outside);
+  const compatibilityFile = path.join(outside, "compatibility.json");
+  fs.writeFileSync(compatibilityFile, JSON.stringify(compatibility));
+  assert.throws(
+    () => loadPatchPolicies([{
+      id: "plugin",
+      patchesDir: path.join(catalog, "patches"),
+      bundlesDir: path.join(catalog, "bundles"),
+      policy: { compatibilityFile },
+    }]),
+    /必须位于 catalog 根目录内/,
+  );
+});
+
 test("catalog operation/target 引用错误会阻断而不是静默跳过", () => {
   const basePlan = plan("FINAL\n", [], ["known-operation"]);
   basePlan.catalogOperations = [{
@@ -236,8 +256,75 @@ test("catalog operation/target 引用错误会阻断而不是静默跳过", () =
         whenOperations: ["known-operation"],
       }],
     }),
-    /target 未被 operation known-operation 修改/,
+    /target 未被 operation skill-garden\/known-operation 修改/,
   );
+});
+
+test("多 catalog policy 可复用 rule/operation 本地 ID 并以 qualified identity 隔离", () => {
+  const multiCatalogPlan = {
+    files: [{
+      target: ".trellis/workflow.md",
+      next: "PLUGIN ONE\nPLUGIN TWO\n",
+      operations: ["shared-operation", "shared-operation"],
+      operationEntries: [
+        { id: "shared-operation", catalog: "plugin-one", qualifiedId: "plugin-one/shared-operation" },
+        { id: "shared-operation", catalog: "plugin-two", qualifiedId: "plugin-two/shared-operation" },
+      ],
+    }],
+    results: [{
+      id: "missing-operation",
+      catalog: "plugin-one",
+      qualifiedId: "plugin-one/missing-operation",
+      patch: "missing-patch",
+      target: ".plugin/missing.md",
+      status: "missing-target",
+    }],
+    catalogOperations: [
+      {
+        id: "shared-operation",
+        catalog: "plugin-one",
+        qualifiedId: "plugin-one/shared-operation",
+        targets: [".trellis/workflow.md"],
+      },
+      {
+        id: "shared-operation",
+        catalog: "plugin-two",
+        qualifiedId: "plugin-two/shared-operation",
+        targets: [".trellis/workflow.md"],
+      },
+    ],
+  };
+  const policy = (catalog, literal) => ({
+    catalog,
+    compatibility,
+    conflicts: {
+      schemaVersion: 1,
+      rules: [{
+        id: "shared-rule",
+        severity: "warning",
+        target: ".trellis/workflow.md",
+        whenOperations: ["shared-operation"],
+        assertion: { type: "absent-literal", values: [literal] },
+        owner: catalog,
+        reason: "catalog 隔离",
+      }],
+    },
+  });
+
+  const report = buildPatchConflictReport({
+    version: "0.6.5",
+    plan: multiCatalogPlan,
+    policies: [policy("plugin-one", "PLUGIN ONE"), policy("plugin-two", "PLUGIN TWO")],
+  });
+  assert.deepEqual(
+    report.diagnostics.map((item) => item.qualifiedId),
+    [
+      "plugin-one/shared-rule",
+      "plugin-two/shared-rule",
+      "plugin-one/missing-target:missing-operation:.plugin/missing.md",
+    ],
+  );
+  assert.equal(report.summary.info, 1);
 });
 
 test("Phase 正向断言不能被其它段落中的裸 Skill 指针误满足", () => {

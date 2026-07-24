@@ -31,6 +31,7 @@
     },
     {
       "id": "brainstorm-planning-readiness",
+      "after": ["brainstorm-planning-handoff"],
       "operation": "replace",
       "targets": [
         { "kind": "skill", "path": ".agent/skills/trellis-brainstorm/SKILL.md", "missing": "skip" },
