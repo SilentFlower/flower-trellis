@@ -72,10 +72,21 @@ test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Upd
     checkAll.indexOf("## Interactive Post-Check Stop Gate"),
     checkAll.indexOf("## 反模式"),
   );
+  const autoLoopReturn = checkAll.slice(
+    checkAll.indexOf("## Auto-Loop Return Gate"),
+    checkAll.indexOf("## Interactive Post-Check Stop Gate"),
+  );
+  assert.match(autoLoopReturn, /不提示用户回复“继续”/);
+  assert.match(autoLoopReturn, /`record \+ next` 就是唯一后续动作/);
+  assert.doesNotMatch(autoLoopReturn, /提示用户回复 `继续`/);
   assert.match(postCheck, /最新用户消息识别 direct Git intent/);
   assert.match(postCheck, /整体结论通过、问题数为 0、无阻塞、无部分验证/);
   assert.match(postCheck, /标准报告输出后，同一轮进入 Phase 3\.3 `trellis-update-spec`/);
   assert.match(postCheck, /普通 interactive 检查保持原行为：报告后立即停止并等待用户选择/);
+  assert.match(postCheck, /### 交互式下一步引导/);
+  assert.match(postCheck, /direct Git 严格通过：说明本轮正在进入 `trellis-update-spec`/);
+  assert.match(postCheck, /无 direct Git intent 且严格通过：提示用户回复 `继续`/);
+  assert.match(postCheck, /完成后重新运行 Check-All/);
   assert.match(postCheck, /不新增 direct Git 专用摘要/);
   assert.match(workflow, /Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`/);
   assert.doesNotMatch(postCheck, /spec_update_result|changed_files|\.trellis\/spec/);

@@ -29,9 +29,26 @@ test("Check-All 双平台副本统一智能深度契约", () => {
     agents.indexOf("## Auto-Loop Return Gate")
       < agents.indexOf("## Interactive Post-Check Stop Gate"),
   );
+  const autoLoopGate = agents.slice(
+    agents.indexOf("## Auto-Loop Return Gate"),
+    agents.indexOf("## Interactive Post-Check Stop Gate"),
+  );
+  const interactiveGate = agents.slice(
+    agents.indexOf("## Interactive Post-Check Stop Gate"),
+    agents.indexOf("## 反模式"),
+  );
+  assert.match(autoLoopGate, /validated auto-loop 不渲染交互式下一步段/);
+  assert.match(autoLoopGate, /匹配 action 的 `record \+ next` 就是唯一后续动作/);
+  assert.doesNotMatch(autoLoopGate, /提示用户回复 `继续`/);
+  assert.match(interactiveGate, /本节只适用于非 validated auto-loop/);
+  assert.match(interactiveGate, /提示用户回复 `继续`/);
   assert.match(agents, /最新用户消息识别 direct Git intent/);
   assert.match(agents, /findings、blocked、部分验证或实质剩余风险/);
   assert.match(agents, /普通 interactive 检查保持原行为/);
+  assert.match(agents, /所有 interactive 标准报告都必须在末尾输出 `### 下一步`/);
+  assert.match(agents, /有 blocked、部分验证或实质剩余风险：指出解除阻塞所需的精确决策、授权或验证/);
+  assert.match(agents, /无 direct Git intent 且严格通过：提示用户回复 `继续`/);
+  assert.match(agents, /停止边界只控制是否自动推进，不能让报告在没有下一步提示的情况下结束/);
   assert.match(agents, /不新增 direct Git 专用摘要/);
 });
 

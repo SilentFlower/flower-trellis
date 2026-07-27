@@ -322,12 +322,17 @@ interactive 模式完成所有可继续检查后，严格按以下顺序输出�
 修复后：定向验证 -> Check-All 重检
 
 操作：`修复全部`、`修复 CHK-001,CHK-003`、`仅保留报告`
+
+### 下一步
+
+<按下方 `Interactive Post-Check Stop Gate` 输出一个明确、可执行的主动作>
 ```
 
 展示规则：
 
 - 没有问题时省略“问题清单”“修复批次”和操作行，只报告通过结果、验证和剩余风险。
 - 有问题时只在报告末尾提供一次修复范围选择，不再逐项提问。
+- interactive 标准报告必须以“下一步”段结束；停止等待不等于省略引导，不得只列出风险或写“等待用户选择”。
 - 独立问题不得因数量多而静默省略；先合并同根因重复项，再完整列出剩余问题。
 - 报告不得包含 commit message、拟提交/暂存文件、commit-only 决策或提交确认。
 - light 通过正式满足 Phase 2.2 检查门禁；未执行维度必须标记 `N/A`，不得伪装为已验证。
@@ -359,7 +364,11 @@ interactive 模式完成所有可继续检查后，严格按以下顺序输出�
 
 - <问题或风险；没有时写“无”>
 
-结论：<重检结论与下一步>
+结论：<重检结论>
+
+### 下一步
+
+<按下方 `Interactive Post-Check Stop Gate` 输出一个明确、可执行的主动作>
 ```
 
 检查通过后的动作由下方 `Interactive Post-Check Stop Gate` 判断：普通交互停止等待，符合 direct Git 严格通过条件时同轮进入 Phase 3.3 `trellis-update-spec`，再到 Phase 3.4 `trellis-push`。仍有问题时停留在修复/重检循环。
@@ -374,6 +383,7 @@ validated auto-loop 复用相同的 audit-only 检查、画像和问题模型，
 - 真正需要用户产品决策、越权、生产副作用或破坏性安全决策：使用同样深度字段 `record --result blocked`，随后按 runner 状态停止。
 - 无问题：`record --result ok --effective-check-depth <light|full> --check-depth-reason <summary>`，随后立即 `next`。
 - subagent 只返回结构化报告和 `check_profile`；主会话收到后必须立即完成匹配 action 的 `record + next`，不得先套用 interactive 停止边界。
+- validated auto-loop 不渲染交互式下一步段、不提示用户回复“继续”、不等待普通修复范围选择；匹配 action 的 `record + next` 就是唯一后续动作。
 - 不修改 runner 的 fix/recheck 预算、commit-only 授权或队列行为。
 
 ---
@@ -387,13 +397,26 @@ validated auto-loop 复用相同的 audit-only 检查、画像和问题模型，
 3. findings、blocked、部分验证或实质剩余风险均不满足条件：输出标准报告并停止，不运行 Update-Spec，也不生成 Git 计划。原始 Git 请求不授权自动修复、忽略问题或扩大 Git 权限。
 4. 没有匹配 direct Git intent 的普通 interactive 检查保持原行为：报告后立即停止并等待用户选择。
 
+### 交互式下一步引导
+
+本节只适用于非 validated auto-loop；Auto-Loop Return Gate 已经先行完成 `record + next`。
+
+所有 interactive 标准报告都必须在末尾输出 `### 下一步`，并按以下首个命中分支给出一个明确主动作：
+
+1. 有 findings：提示用户回复 `修复全部`、精确问题 ID 或 `仅保留报告`；不得重复提出逐项确认。
+2. 有 blocked、部分验证或实质剩余风险：指出解除阻塞所需的精确决策、授权或验证，以及完成后重新运行 Check-All；涉及生产、外部系统或破坏性副作用时只引导用户授权，不自行执行。
+3. direct Git 严格通过：说明本轮正在进入 `trellis-update-spec`，不要求用户再次回复“继续”或确认 Git 计划。
+4. 无 direct Git intent 且严格通过：提示用户回复 `继续`，下一轮进入 `trellis-update-spec`，再由 `trellis-push` 生成提交计划。
+
+停止边界只控制是否自动推进，不能让报告在没有下一步提示的情况下结束。
+
 允许 Check-All 标准报告输出的内容只有：
 
 - 各维度状态、问题数和问题清单；
 - 已执行验证及结果；
 - 未覆盖验证和剩余风险；
 - 总体结论；
-- 有问题时的一次修复范围选择，或通过时的 Phase 3.3 / Phase 3.4 下一步指向。
+- 与当前结论匹配的唯一主动作引导；有问题时是一次修复范围选择，部分验证/阻塞时是补充决策或验证，通过时是 Phase 3.3 / Phase 3.4 指向。
 
 Check-All 不新增 direct Git 专用摘要，也不得自行生成提交计划、commit message、拟提交文件或要求用户确认提交；strict pass 后的 Git 计划仍由 Update-Spec disposition 和 `trellis-push` owner 生成。
 
