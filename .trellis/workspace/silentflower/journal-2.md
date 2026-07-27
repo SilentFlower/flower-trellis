@@ -184,3 +184,39 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 62: 归档 Auto-Loop 无人值守执行
+
+**Date**: 2026-07-27
+**Task**: 归档 Auto-Loop 无人值守执行
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 Auto-Loop schema 2 无人值守、决策审计与归档门禁，并补充 Check-All 交互式下一步引导且保持 Auto-Loop record+next 隔离。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d847439` | (see git log) |
+| `fa488f8` | (see git log) |
+| `3841c8b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
