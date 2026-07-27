@@ -35,13 +35,14 @@
     }
   },
   "progress": {
-    "updatedAt": "2026-07-24T17:46:59+08:00",
+    "updatedAt": "2026-07-27T14:15:00+08:00",
     "completedSteps": [
       "升级 Auto-Loop schema 2 runner 与决策日志",
       "补齐 Finish-Work 与 Archive 决策审查和选择性安装",
       "同步生成物并通过全量测试与 Check-All",
       "更新 Auto-Loop 与上下文预算规范",
-      "提交并推送 Skill-Garden 与父仓业务变更"
+      "提交并推送 Skill-Garden 与父仓业务变更",
+      "同步 Flower 0.5.1-beta.1 项目清单"
     ],
     "partialStep": null,
     "nextStep": "显式执行 finish-work 与归档",
