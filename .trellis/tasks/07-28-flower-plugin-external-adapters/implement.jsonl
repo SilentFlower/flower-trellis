@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-contracts.md", "reason": "扩展 SourceDescriptor、Marketplace source、lock 与 canonical package 契约时使用唯一 DTO/schema 真源。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md", "reason": "外部格式必须通过标准候选复用 Resolver、内容投影、InstallPlan 和事务，不能建立第二套 Runtime。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md", "reason": "提取共享远程 archive/cache helper，并保持 GitLab OAuth、零网络、锁定更新和敏感输出边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-authoring.md", "reason": "更新内置作者 Skill、references、forward validation 和受限 Patch 指南。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-capabilities.md", "reason": "确保 GitHub 与外部格式 Adapter 只能获得 standard 被动内容能力，不能伪造 integration/system 信任。"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "实现新增来源类型选择、兼容性预览、非 TTY 和 JSON 输出时保持现有终端契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "新增 ESM 模块、中文 JSDoc、动态远程编排与 @inquirer prompts 时遵循项目实现规范。"}
+{"file": ".trellis/tasks/07-28-flower-plugin-external-adapters/research/external-plugin-formats.md", "reason": "实现 Codex、Claude Code 与 GitHub Adapter 时以已核对的官方格式和安全边界为依据。"}
