@@ -1,4 +1,5 @@
 import { runTrellisPty } from "../lib/trellis-runner.js";
+import { trellisUpdatePassthroughArgs } from "../lib/cli-args.js";
 import { plugin } from "./plugin.js";
 import { printBanner, getDeveloper } from "../lib/banner.js";
 import { checkForUpdate } from "../lib/update-check.js";
@@ -67,9 +68,11 @@ export async function update(ctx) {
 
   try {
     if (!ctx.enhanceOnly) {
-      const code = await runTrellisPty(["update", ...ctx.passthrough], target, {
-        stripBanner: true,
-      });
+      const code = await runTrellisPty(
+        ["update", ...trellisUpdatePassthroughArgs(ctx.passthrough)],
+        target,
+        { stripBanner: true },
+      );
       if (code !== 0) {
         throw new Error(`trellis update 失败(退出码 ${code}),已中止,未重新叠加`);
       }

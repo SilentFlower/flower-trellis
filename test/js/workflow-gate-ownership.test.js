@@ -225,9 +225,17 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
     "direct push 先经过 Update-Spec 门禁",
   );
   assert.match(push, /缺少有效 Check-All/);
+  assert.match(push, /运行 check-all`（推荐）或 `跳过检查并继续 push/);
+  assert.match(push, /用户已接受跳过 Check-All 风险/);
   assert.match(push, /Check-All 有效后检查当前有效的 `spec_update_result`/);
   assert.match(push, /`spec_update_result\.status=written` 的 `changed_files`/);
   assert.match(push, /该 Update-Spec 自校验结果不触发额外 Check-All/);
+  assertOrdered(
+    push,
+    "缺少有效 Check-All",
+    "跳过检查并继续 push",
+    "direct Git 缺少检查时先给出跳过选项",
+  );
   assertOrdered(
     push,
     "缺少有效 Check-All",

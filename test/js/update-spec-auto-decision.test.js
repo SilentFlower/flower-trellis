@@ -105,7 +105,7 @@ test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Upd
   assert.match(push, /当前有效的 `spec_update_result`/);
   assert.match(push, /先加载 `trellis-update-spec`/);
   assert.match(push, /缺少有效 Check-All/);
-  assert.match(push, /此分支不得运行 Update-Spec，也不得读取 Git 计划/);
+  assert.match(push, /此分支不得运行 Update-Spec；除用户明确选择跳过检查外，不得读取 Git 计划/);
   assert.match(push, /`spec_update_result\.status=written` 的 `changed_files`/);
   assert.match(push, /全部位于 `\.trellis\/spec\/\*\*`/);
   assert.match(push, /不触发额外 Check-All/);

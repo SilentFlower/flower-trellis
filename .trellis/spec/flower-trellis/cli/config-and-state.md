@@ -107,6 +107,96 @@ gitignored 的 `.flower/update-check.tmp` 运行缓存)。旧 `.trellis/.flower-
 无 try/catch(失败抛进 init/update 主流程)、无字段校验。
 **Correct**:见 `src/lib/update-check.js#fetchPackageUpdateMetadata`(AbortController + 三道防线 + `finally` 清 timer)。
 
+## Scenario: Update Command Passthrough Boundaries
+
+### 1. Scope / Trigger
+
+- Trigger: 修改 `flower-trellis update` 的 argv 解析、非交互兼容 flag、`trellis update`
+  透传参数或提交前 dogfood 命令。
+- Scope: `update` 可以接受 `-y` / `--yes` 作为 Flower 非交互兼容 flag，但 Trellis
+  `update` 不支持该 flag；真正调用上游前必须过滤。`init` 的 `-y` / `--yes` 行为不变。
+
+### 2. Signatures
+
+```bash
+flower-trellis update --target <dir> [-y|--yes] [--dry-run] [--backup-retention <n>] [trellis update flags]
+flower-trellis init --target <dir> [-y|--yes] [trellis init flags]
+```
+
+```js
+parseCliArgs(argv, cwd)
+trellisUpdatePassthroughArgs(passthrough)
+update(ctx)
+checkForUpdate(ctx, label)
+```
+
+### 3. Contracts
+
+- `parseCliArgs()` 保留 `-y` / `--yes` 到 `ctx.passthrough`，供 `checkForUpdate()` 判断
+  本轮为非交互模式；不得把它们登记进全局 `OWN_FLAGS`，否则 `init -y` 会失去上游语义。
+- `update(ctx)` 调用 `runTrellisPty(["update", ...])` 前必须使用
+  `trellisUpdatePassthroughArgs(ctx.passthrough)`；该 helper 只移除 `-y` / `--yes`，
+  其它 Trellis update flag 必须原样保留。
+- `--dry-run`、`--force`、`--skip-all` 等真实 Trellis update 参数继续透传；
+  `--backup-retention` 仍由 `parseCliArgs()` 消费，不进入上游。
+- `init(ctx)` 继续把 `-y` / `--yes` 透传给 Trellis init，并用它们选择默认平台。
+- `self-update --yes` 仍由 self-update 命令自身消费；`--` 之后的项目 update 参数按
+  `projectUpdateForwardArgs()` 规则转给新的 Flower update 进程。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| `flower-trellis update -y --dry-run` | Flower 识别非交互；Trellis 仅收到 `update --dry-run` |
+| `flower-trellis update --yes --force` | Flower 识别非交互；Trellis 仅收到 `update --force` |
+| `flower-trellis init -y` | `-y` 继续透传给 Trellis init，并默认 codex + claude |
+| `flower-trellis update --backup-retention 5 --dry-run` | backup-retention 被消费；Trellis 收到 `--dry-run` |
+| 未知 Trellis update flag | 保留在 `ctx.passthrough` 并透传，除非已被 Flower 明确定义为命令级兼容 flag |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 提交前 dogfood 使用 `flower-trellis update --target ./test-target -y --dry-run`，
+  Flower 不弹自身更新确认，上游 Trellis 不收到不支持的 `-y`。
+- Base: `flower-trellis update --target ./test-target --dry-run` 与过去行为一致。
+- Base: `flower-trellis init --target ./test-target -y` 仍由 Trellis init 非交互创建默认平台。
+- Bad: 把 `-y` 加入全局 `OWN_FLAGS`，导致 init 不再把非交互意图传给 Trellis。
+- Bad: `update(ctx)` 直接使用 `ctx.passthrough` 调用上游，导致 Trellis update 报
+  `unknown option '-y'`。
+
+### 6. Tests Required
+
+- `parseCliArgs()` 必须覆盖 `update -y --yes --dry-run` 保留原始 `ctx.passthrough`，
+  同时 `trellisUpdatePassthroughArgs()` 返回只含真实上游参数的集合。
+- Dogfood 必须覆盖隔离目标上的
+  `flower-trellis init --target <tmp> -y`、
+  `flower-trellis update --target <tmp> -y --dry-run`、
+  `flower-trellis uninstall --target <tmp> --dry-run`。
+- 运行 `node --test test/js/update-backups.test.js`、完整 `npm test`、相关 `node --check`
+  与 `git diff --check`。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```js
+const code = await runTrellisPty(["update", ...ctx.passthrough], target);
+```
+
+问题:`ctx.passthrough` 需要同时服务 Flower 自身的非交互更新检查和上游 Trellis 参数；
+直接透传会把 `-y` / `--yes` 交给不支持它们的 Trellis update。
+
+#### Correct
+
+```js
+const code = await runTrellisPty(
+  ["update", ...trellisUpdatePassthroughArgs(ctx.passthrough)],
+  target,
+);
+```
+
+原因:命令级 helper 保留 `init` 的全局兼容性，同时只在 `update` 上游调用边界过滤不支持的
+Flower 兼容 flag。
+
 ---
 
 ## Variant Selection (`src/lib/variant.js`)

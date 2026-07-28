@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { OWN_FLAGS } from "../../src/constants.js";
-import { parseCliArgs } from "../../src/lib/cli-args.js";
+import { parseCliArgs, trellisUpdatePassthroughArgs } from "../../src/lib/cli-args.js";
 import { projectUpdateForwardArgs } from "../../src/lib/self-check.js";
 import {
   normalizeUpdateBackupRetention,
@@ -79,6 +79,13 @@ test("CLI 消费 backup-retention 并保留其它 Trellis 参数", () => {
   assert.equal(negative.ctx.backupRetention, "-1");
   assert.deepEqual(negative.ctx.passthrough, ["--force"]);
   assert.equal(OWN_FLAGS["--backup-retention"], true);
+
+  const nonInteractive = parseCliArgs(["update", "-y", "--yes", "--dry-run"], base);
+  assert.deepEqual(nonInteractive.ctx.passthrough, ["-y", "--yes", "--dry-run"]);
+  assert.deepEqual(
+    trellisUpdatePassthroughArgs(nonInteractive.ctx.passthrough),
+    ["--dry-run"],
+  );
 });
 
 test("self-update 将 backup-retention 原样转发给项目 Flower update", () => {

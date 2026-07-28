@@ -86,3 +86,15 @@ export function parseCliArgs(argv, cwd = process.cwd()) {
     },
   };
 }
+
+/**
+ * 生成传给 `trellis update` 的参数。
+ *
+ * @param {string[]} passthrough parseCliArgs() 保留的原始透传参数
+ * @returns {string[]} 已移除 update 不支持的 Flower 兼容 flag
+ */
+export function trellisUpdatePassthroughArgs(passthrough) {
+  // `-y/--yes` 仍保留在 ctx.passthrough 里供 Flower 自身的非交互更新检查识别；
+  // Trellis update 不支持该 flag，真正调用上游前需要过滤。
+  return passthrough.filter((arg) => arg !== "-y" && arg !== "--yes");
+}
