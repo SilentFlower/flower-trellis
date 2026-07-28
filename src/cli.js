@@ -71,6 +71,7 @@ function printHelp() {
   flower-trellis self-update --target <dir> --yes        自更新 + 项目重叠加
   flower-trellis update-check <get|set|disable|enable>   管理启动更新策略
   flower-trellis skill [flower flags]                    交互管理通用技能
+  flower-trellis plugin <list|add|update|remove|verify>   管理项目 Plugin 生命周期
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
   flower-trellis -v                                      打印版本
@@ -144,6 +145,10 @@ async function main() {
     } else if (cmd === "skill") {
       const { skill } = await import("./commands/skill.js");
       await skill(ctx);
+    } else if (cmd === "plugin") {
+      const { plugin } = await import("./commands/plugin.js");
+      const code = await plugin(ctx);
+      if (code !== 0) process.exitCode = code;
     } else if (cmd === "uninstall") {
       const { uninstall } = await import("./commands/uninstall.js");
       await uninstall(ctx);
