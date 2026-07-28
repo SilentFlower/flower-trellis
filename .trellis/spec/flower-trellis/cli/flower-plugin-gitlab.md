@@ -84,6 +84,7 @@ GitLabSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - archive 仅允许普通目录和普通文件，拒绝绝对路径、反斜杠、空片段、`.`、`..`、软链、硬链和特殊文件；单条目、总条目、总解压字节及目标 subdir 均受限。
 - 解包后的 Plugin 根必须通过 manifest 校验和 P1 canonical tree hash。缓存键绑定 `baseUrl/project/commit/subdir/integrity`；metadata 绑定 `sourceId/baseUrl/project/commit/subdir/integrity`，不得包含 token、header 或用户身份。
 - 缓存命中仍须复核 tree hash、manifest ID 和版本。损坏缓存只删除对应不可变缓存项并重新下载，不修改 lock。`prepareLocked()` 只能接受 lock 的 `indexCommit/version/commit/integrity/reference` 与锁定 Marketplace 完全一致的条目。
+- `prepareLocked()` 只表示旧 lock 的固定包已经可重放，可以向候选集合登记锁定版本，但不得把 canonical ID 标记为“最新 Marketplace 已准备”。显式远程 `plugin update` 必须在恢复旧 lock 后继续执行 `prepare()`，重新解析 source `ref`、读取当前索引并加载新版候选；Provider 应使用独立的 prepared 状态，不能用 `candidates.has(id)` 兼任索引准备标记。
 - `plugin source list`、`plugin auth status` 和未引用远程 source 的本地生命周期保持零网络。远程 add/update 只负责异步准备 Provider，最终解析和写盘复用 `PluginApplicationService`。
 
 ## 4. Validation & Error Matrix
@@ -103,6 +104,7 @@ GitLabSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 | manifest 身份、版本、trust 或 lock/index 不一致 | `PLUGIN_TARGET_DRIFT` 或来源配置错误，不进入 Runtime 写盘 |
 | digest 不匹配 | P1 完整性错误包装为稳定 Runtime 错误，删除 staging/损坏缓存 |
 | Keyring 不可用 | 使用进程内 store，`persistent=false`，不创建明文凭据文件 |
+| `prepareLocked()` 已登记旧候选后执行显式远程 update | 仍须读取当前 Marketplace 并把满足约束的新版候选交给 Resolver；不得因旧候选存在而提前返回 |
 
 ## 5. Good / Base / Bad Cases
 
@@ -110,6 +112,7 @@ GitLabSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 
 - 用户执行 `plugin auth login rd-guide`，PKCE 获取的实际 scopes 同时包含 `read_api/read_repository`，凭据进入系统 Keyring；随后 `plugin search --source rd-guide` 使用 Bearer REST 读取固定索引。
 - 已锁定 Plugin 的 metadata、tree hash、manifest 身份全部匹配时，`prepareLocked()` 直接复用缓存，不访问 GitLab。
+- 项目先锁定 `rd-guide/demo@1.0.0`，Marketplace 当前索引随后发布 `1.1.0`；显式 `plugin update rd-guide/demo` 先恢复 1.0.0 固定包，再读取新索引并由 Resolver 选择 1.1.0。
 
 ### Base
 
@@ -122,6 +125,7 @@ GitLabSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 用 `read_repository` scope 失败后绕过 `repository/tree`，或申请具有写权限的完整 `api` scope。
 - archive 解包后不校验 subdir、manifest 和 canonical tree hash就发布缓存。
 - Keyring 返回损坏 JSON 时吞掉错误并切换到内存，让调用方误以为只是“未登录”。
+- 把 `candidates.has(canonicalId)` 当作 `prepare()` 的幂等门禁；`prepareLocked()` 会先写入旧候选，导致显式远程 update 永远看不到新索引版本。
 
 ## 6. Tests Required
 
@@ -131,6 +135,7 @@ GitLabSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - `plugin-gitlab-rest-client.test.js`：Bearer、project/file 编码、commit/tree/files/archive、大小限制、超时和一次重试。
 - `plugin-gitlab-provider.test.js`：index commit、candidate/lock 字段、不可变缓存、损坏重下、archive 链接/路径/限额、subdir、digest、manifest 身份和 trust 上限。
 - `plugin-remote-cli.test.js`：source/auth/search 参数、非敏感 JSON、管理命令零网络、远程 add/update 复用 Application Service、自定义 local source ID 不误判为 GitLab。
+- `plugin-e2e-gitlab.test.js`：真实 CLI 跨进程覆盖 Device Flow、PKCE、search、v1 add、切换 Marketplace 后的 v2 update、禁用零网络，以及 stdout/stderr/项目文件敏感值扫描；必须断言旧 lock 候选不会阻止当前索引准备。
 - 修改本契约后必须运行上述定向测试、完整 `npm test`、`npm pack --dry-run --json`、敏感字段扫描与 `git diff --check`。
 
 ## 7. Wrong vs Correct
@@ -156,3 +161,24 @@ await provider.prepare("rd-guide/code-review");
 ```
 
 认证、只读请求和固定包准备分别由现有公共入口负责；Provider 产出 P1 DTO，项目写盘继续交给 Runtime/Application Service。
+
+### Wrong: 用候选集合代替索引准备状态
+
+```js
+async prepare(canonicalId) {
+  if (this.candidates.has(canonicalId)) return;
+}
+```
+
+`prepareLocked()` 也会登记旧候选，因此这种门禁会让显式 update 在读取当前 Marketplace 前提前返回。
+
+### Correct: 分离固定包恢复与当前索引准备
+
+```js
+if (this.preparedIds.has(canonicalId) || this.preparing.has(canonicalId)) return;
+// ...当前 Marketplace 索引和该 Plugin 的全部版本完成校验与固定包准备...
+this.candidates.set(canonicalId, candidates);
+this.preparedIds.add(canonicalId);
+```
+
+锁定候选用于 lock-first 重放，`preparedIds` 只在当前索引候选完成加载后设置；两种状态不能互相替代。

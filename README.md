@@ -86,6 +86,7 @@ flower-trellis -v
 | `self-update` | 受控升级 flower-trellis 并对目标项目执行完整 `flower-trellis update` 重叠加 |
 | `update-check` | 管理 `.trellis/.flower-manifest.json` 内的启动更新检查策略 |
 | `skill` | 打开交互菜单:启用或停用通用技能,只读查看工作流强化包 |
+| `plugin` | 管理 Flower Plugin、Marketplace 来源、GitLab 授权和作者校验 |
 | `uninstall` | 移除 Trellis 本体并清理强化包残留(支持 `-y` / `--dry-run`) |
 | `<其它命令>` | 原样透传给 Trellis,覆盖其现有及未来子命令 |
 | `-v` / `-h` | 打印版本 / 帮助 |
@@ -103,6 +104,53 @@ flower-trellis -v
 | `--backup-retention <n>` | `update` 成功后保留最近 n 份 `.trellis/.backup-<timestamp>` 快照(默认 3，`0` 表示本次不清理) |
 
 未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` / `--devin` / `--zcode` / `--trae` 等指定,或用 `-y` 跳过菜单。`--windsurf` 仍作为 Devin 的旧别名透传给 Trellis。其余未识别的 flag(如 `-u`、`-f`、`--template`、`--with-statusline`)一律透传给 Trellis。
+
+## Flower Plugin
+
+Flower Plugin 是 flower-trellis 自有的扩展格式,本期不以兼容 Codex Plugin 或其它宿主 Plugin 格式为目标。Runtime 负责来源解析、依赖锁定、内容投影、能力校验、事务写入和卸载所有权,第三方 Plugin 的 `scripts/` 只作为 Skill 资源分发,不会在生命周期命令中自动执行。
+
+完整 `flower-trellis init` 会安装 Trellis,并默认声明和应用内置 `flower/skill-garden`。独立的 `plugin add` 只建立最小 Plugin Runtime,安装目标 Plugin 及其显式依赖,不会隐式安装 `skill-garden`,因此也可以在没有 `.trellis/` 的普通项目中使用:
+
+```bash
+# 普通项目安装本地 standard Plugin,不会生成 .trellis/
+flower-trellis plugin add local/example --source plugins/example --platform codex
+
+# 查看、校验、升级和卸载项目 Plugin
+flower-trellis plugin list --json
+flower-trellis plugin verify local/example --json
+flower-trellis plugin update local/example --dry-run --json
+flower-trellis plugin remove local/example --dry-run --json
+```
+
+项目状态分为可提交期望与本机应用结果:
+
+| 路径 | 边界 |
+|------|------|
+| `.flower/plugins.json` | 可提交;只记录用户直接声明的 Plugin |
+| `.flower/plugin-lock.json` | 可提交;记录固定版本、完整依赖图、来源与完整性摘要 |
+| `.flower/state.json` | 本机;记录实际平台、生成路径、ownership 与 Patch provenance |
+| `.flower/cache/`、`.flower/transactions/` | 本机;可清理缓存与事务恢复证据 |
+
+`rd-guide` 是随包预注册、默认启用但惰性访问的 GitLab Marketplace。普通启动、本地 Plugin 操作和 `plugin source list` 不会连接 GitLab;首次搜索、远程安装或显式登录时才访问来源。OAuth 使用公共客户端 PKCE 或 Device Flow,只申请 `read_api read_repository`,Application Secret 和 token 都不会写入项目文件:
+
+```bash
+flower-trellis plugin source list --json
+flower-trellis plugin auth login rd-guide
+flower-trellis plugin search --source rd-guide --json
+flower-trellis plugin add rd-guide/example --platform codex --dry-run --json
+```
+
+能力分为 `standard`、`integration`、`system`:外部 Plugin 不能获得 `system`;`integration` 的首次 Patch 需要项目确认,批准摘要随锁文件冻结,版本、内容或权限变化后必须重新确认。所有 Patch 在统一 preflight 后进入事务 writer,任一 required operation 失败都应保持零写入。
+
+维护 Plugin 或 Marketplace 时使用内置作者工具。scaffold 和校验都复用 Runtime 的 manifest、完整性、依赖和 capability 真源:
+
+```bash
+flower-trellis plugin init --id rd-guide/example --name "示例规范" --profile standard --non-interactive
+flower-trellis plugin validate .flower-plugin --subject plugin --json
+flower-trellis plugin add flower/flower-plugin-author --platform codex --json
+```
+
+旧 `.trellis/.flower-manifest.json` 只作为迁移证据读取。下一次完整 init/update 会把期望、锁定和本机状态迁移到 `.flower/`,保留旧文件供核对;普通 `flower-trellis update` 重放已锁定版本,只有显式 `plugin update` 才解析外部 Plugin 新版本。
 
 ### 升级备份保留
 

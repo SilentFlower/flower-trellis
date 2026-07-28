@@ -77,6 +77,7 @@ export class GitLabSourceProvider {
     this.indexCommit = null;
     this.candidates = new Map();
     this.packageRoots = new Map();
+    this.preparedIds = new Set();
     this.preparing = new Set();
   }
 
@@ -118,7 +119,7 @@ export class GitLabSourceProvider {
    * @returns {Promise<void>} 准备完成
    */
   async prepare(canonicalId) {
-    if (this.candidates.has(canonicalId) || this.preparing.has(canonicalId)) return;
+    if (this.preparedIds.has(canonicalId) || this.preparing.has(canonicalId)) return;
     const { sourceId, pluginId } = parseCanonicalPluginId(canonicalId);
     if (sourceId !== this.id) return;
     this.preparing.add(canonicalId);
@@ -166,6 +167,7 @@ export class GitLabSourceProvider {
         this.packageRoots.set(this.#key(candidate), root);
       }
       this.candidates.set(canonicalId, candidates);
+      this.preparedIds.add(canonicalId);
       const dependencies = new Set(candidates.flatMap((candidate) => Object.keys(candidate.manifest.dependencies || {})));
       for (const dependency of [...dependencies].sort(compareUtf8)) await this.prepare(dependency);
     } finally {

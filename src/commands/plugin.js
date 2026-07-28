@@ -282,12 +282,12 @@ function printPluginHelp(output) {
     : "";
   output.log(`用法:
   flower-trellis plugin list [--json]
-  flower-trellis plugin add <plugin> --source <项目内路径> [--version <range>] [--platform <id>] [--dry-run] [--json]
+  flower-trellis plugin add <plugin> [--source <来源 ID|项目内路径>] [--version <range>] [--platform <id>] [--dry-run] [--json]
   flower-trellis plugin update [plugin] [--platform <id>] [--dry-run] [--json]
   flower-trellis plugin remove <plugin> [--dry-run] [--json]
   flower-trellis plugin verify [plugin] [--json]
-  flower-trellis plugin init --id <source/plugin> --name <name> [--profile <standard|integration>] [--patches] [--marketplace]
-  flower-trellis plugin validate [path] [--subject <plugin|entry|marketplace>] [--checkout-map <file>] [--ci] [--json]${managementHelp}`);
+  flower-trellis plugin init --id <source/plugin> --name <name> [--version <semver>] [--profile <standard|integration>] [--patches] [--marketplace] [--non-interactive] [--json]
+  flower-trellis plugin validate [path] [--subject <plugin|entry|marketplace>] [--source-id <id>] [--checkout-map <file>] [--ci] [--json]${managementHelp}`);
 }
 
 /**
