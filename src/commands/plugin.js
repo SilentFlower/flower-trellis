@@ -15,6 +15,7 @@ import { compareUtf8 } from "../plugin/stable-order.js";
 
 const REMOTE_PLUGIN_ENTRY = new URL("./plugin-remote.js", import.meta.url);
 const PATCH_RUNTIME_ENTRY = new URL("../plugin/install/patch-planner.js", import.meta.url);
+const CAPABILITY_APPROVAL_REQUIRED = "PLUGIN_CAPABILITY_APPROVAL_REQUIRED";
 let remotePluginRuntimePromise = null;
 
 const PLUGIN_CONFLICT_CODES = new Set([
@@ -29,6 +30,7 @@ const PLUGIN_CONFLICT_CODES = new Set([
   PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
   PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
   PLUGIN_RUNTIME_ERROR_CODES.VERIFY_FAILED,
+  CAPABILITY_APPROVAL_REQUIRED,
 ]);
 
 /**
@@ -299,6 +301,66 @@ async function loadOptionalPatchRuntime() {
 }
 
 /**
+ * 打印 Integration capability 批准范围。
+ *
+ * @param {object[]} requests 待批准请求
+ * @param {{log:(message:string)=>void}} output 输出适配器
+ * @returns {void}
+ */
+function printApprovalRequests(requests, output) {
+  for (const request of requests || []) {
+    const source = request.source || {};
+    output.log(`  · 需要批准 ${request.pluginId}@${request.version} [${source.type}:${source.id}]`);
+    output.log(`    能力:${request.granted.join(", ")}`);
+    for (const operation of request.operations) {
+      const selector = operation.selector.heading || operation.selector.source || operation.selector.type;
+      for (const target of operation.targets) {
+        output.log(
+          `    ${operation.operation} ${target.path} selector=${operation.selector.type}:${selector} missing=${target.missing}`,
+        );
+      }
+    }
+  }
+}
+
+/**
+ * 在真实写入缺少 Integration 批准时执行零写入预览并请求交互确认。
+ *
+ * JSON 与非 TTY 场景不得自动批准；它们保留原始稳定错误，供 CI 先显式 dry-run 审计。
+ *
+ * @param {(approvals:string[])=>object} execute 执行真实生命周期
+ * @param {()=>object} preview 执行 dry-run 预览
+ * @param {{interactive:boolean,confirmApproval?:(requests:object[])=>Promise<boolean>|boolean}} options 确认选项
+ * @param {{log:(message:string)=>void}} output 输出适配器
+ * @returns {Promise<object>} 生命周期结果
+ */
+async function executeWithCapabilityApproval(execute, preview, options, output) {
+  try {
+    return execute([]);
+  } catch (error) {
+    if (error?.code !== CAPABILITY_APPROVAL_REQUIRED) throw error;
+    if (!options.interactive || (!process.stdin.isTTY && !options.confirmApproval)) throw error;
+    const previewResult = preview();
+    if (!Array.isArray(previewResult.approvalRequests) || previewResult.approvalRequests.length === 0) {
+      throw error;
+    }
+    printApprovalRequests(previewResult.approvalRequests, output);
+    let approved;
+    if (options.confirmApproval) {
+      approved = await options.confirmApproval(previewResult.approvalRequests);
+    } else {
+      const { confirm } = await import("@inquirer/prompts");
+      approved = await confirm({
+        message: `批准 ${previewResult.approvalRequests.length} 个 Plugin 的 Integration Patch?`,
+        default: false,
+      });
+    }
+    if (!approved) throw error;
+    return execute(previewResult.approvalRequests.map(({ pluginId }) => pluginId));
+  }
+}
+
+/**
  * 把 local source 绝对路径转换为项目内 POSIX 引用。
  *
  * @param {string} projectRoot 项目根
@@ -368,6 +430,7 @@ function printResult(result, json, output) {
   for (const diagnostic of result.diagnostics.filter(({ severity }) => severity === "warning")) {
     output.log(`  · ${diagnostic.message}`);
   }
+  printApprovalRequests(result.approvalRequests, output);
   if (result.orphans.length > 0) output.log(`孤立依赖:${result.orphans.join(", ")}`);
 }
 
@@ -391,7 +454,7 @@ function pluginExitCode(error) {
  * 执行 Plugin 生命周期命令。
  *
  * @param {object} ctx cli-args.js 的执行上下文
- * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void}}} [options] 测试与后续 Provider 注入
+ * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},confirmApproval?:(requests:object[])=>Promise<boolean>|boolean}} [options] 测试、Provider 与交互确认注入
  * @returns {Promise<number>} 进程退出码
  */
 export async function plugin(ctx, options = {}) {
@@ -486,18 +549,30 @@ export async function plugin(ctx, options = {}) {
     if (parsed.command === "list") {
       result = { ok: true, command: "list", ...service.list(), diagnostics: [] };
     } else if (parsed.command === "add") {
-      result = service.add({
+      const addOptions = {
         id: canonicalId,
         version: parsed.version || "*",
         platforms: parsed.platforms,
         dryRun: parsed.dryRun,
-      });
+      };
+      result = parsed.dryRun ? service.add(addOptions) : await executeWithCapabilityApproval(
+        (approvals) => service.add({ ...addOptions, approvals }),
+        () => service.add({ ...addOptions, dryRun: true }),
+        { interactive: !parsed.json, confirmApproval: options.confirmApproval },
+        output,
+      );
     } else if (parsed.command === "update") {
-      result = service.update({
+      const updateOptions = {
         id: canonicalId,
         platforms: parsed.platforms,
         dryRun: parsed.dryRun,
-      });
+      };
+      result = parsed.dryRun ? service.update(updateOptions) : await executeWithCapabilityApproval(
+        (approvals) => service.update({ ...updateOptions, approvals }),
+        () => service.update({ ...updateOptions, dryRun: true }),
+        { interactive: !parsed.json, confirmApproval: options.confirmApproval },
+        output,
+      );
     } else if (parsed.command === "remove") {
       result = service.remove({
         id: canonicalId,

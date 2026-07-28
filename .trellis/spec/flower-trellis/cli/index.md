@@ -76,6 +76,7 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [Flower Plugin Contracts](./flower-plugin-contracts.md) | Plugin/Marketplace schema、共享 DTO、canonical hash 与 `.flower/` Project Store 契约 |
 | [Flower Plugin Runtime And Lifecycle](./flower-plugin-runtime.md) | Source Registry、依赖解析、多平台投影、InstallPlan、事务恢复与项目级 Plugin 生命周期 CLI 契约 |
 | [Flower Plugin GitLab Sources](./flower-plugin-gitlab.md) | GitLab Marketplace、OAuth/Keyring、只读 REST、安全 archive、不可变缓存与远程 CLI 契约 |
+| [Flower Plugin Capability Policy](./flower-plugin-capabilities.md) | standard/integration/system 授权交集、批准摘要、内置信任根与受限 Patch Planner 契约 |
 | [AI Context Budget](./ai-context-budget.md) | 最终 workflow/state/skill、Phase summary、SessionStart 与控制面总量的告警预算 |
 | [Release & Publishing](./release-and-publishing.md) | 发版流程、CI 发布(OIDC)、CHANGELOG 约定 |
 | [Quality Guidelines](./quality-guidelines.md) | 必守模式、禁用模式、评审清单 |

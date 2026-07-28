@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -32,6 +33,20 @@ test("builtin 与 local provider 返回同一标准候选模型", (t) => {
   assert.equal(localCandidate.integrity, builtinCandidate.integrity);
   assert.equal(localProvider.readPackage(localCandidate).manifest.version, "1.0.0");
   assert.equal(builtinProvider.readPackage(builtinCandidate).manifest.version, "1.0.0");
+});
+
+test("capability 晚于 builtin Provider 加载时仍补登记进程内信任", () => {
+  const script = `
+    const { BuiltinSourceProvider } = await import(${JSON.stringify(new URL("../../src/plugin/sources/builtin-provider.js", import.meta.url).href)});
+    const provider = new BuiltinSourceProvider({ id: "flower", root: process.cwd() });
+    const { isBuiltinProviderTrusted } = await import(${JSON.stringify(new URL("../../src/plugin/capabilities/builtin-trust.js", import.meta.url).href)});
+    if (!isBuiltinProviderTrusted(provider)) process.exit(1);
+  `;
+  const result = spawnSync(process.execPath, ["--input-type=module", "--eval", script], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
 });
 
 test("Source Registry 拒绝重复 source ID", (t) => {
