@@ -113,6 +113,7 @@
  * @property {string|null} commit 不可变 Git commit
  * @property {string} integrity canonical tree SHA-256
  * @property {PluginManifest} manifest Plugin manifest
+ * @property {"standard"|"integration"} [marketplaceMaxProfile] Marketplace 进程内来源上限
  */
 
 /**

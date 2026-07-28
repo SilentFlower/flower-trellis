@@ -1,0 +1,251 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { PluginIoError } from "../errors.js";
+import { PLUGIN_RUNTIME_ERROR_CODES, PluginRuntimeError } from "../runtime-errors.js";
+import {
+  assertSafePosixRelativePath,
+  isGitLabProjectPath,
+  isPluginId,
+} from "../schemas/shared.js";
+import { compareUtf8 } from "../stable-order.js";
+
+const SOURCE_CONFIG_VERSION = 1;
+const BUILTIN_DESCRIPTOR_PATH = fileURLToPath(
+  new URL("../../builtin-marketplaces/rd-guide.json", import.meta.url),
+);
+const SECRET_FIELDS = new Set([
+  "accessToken",
+  "refreshToken",
+  "token",
+  "clientSecret",
+  "applicationSecret",
+]);
+
+/**
+ * 返回当前平台的 Flower 用户配置目录。
+ *
+ * @param {NodeJS.ProcessEnv} [env] 环境变量
+ * @returns {string} 用户配置目录
+ */
+export function flowerConfigDirectory(env = process.env) {
+  if (env.XDG_CONFIG_HOME) return path.join(env.XDG_CONFIG_HOME, "flower-trellis");
+  if (process.platform === "win32" && env.APPDATA) return path.join(env.APPDATA, "flower-trellis");
+  return path.join(os.homedir(), ".config", "flower-trellis");
+}
+
+/**
+ * 校验 GitLab source descriptor。
+ *
+ * @param {unknown} value 原始 descriptor
+ * @returns {object} 规范化 descriptor
+ */
+export function validateGitLabSourceDescriptor(value) {
+  const source = /** @type {Record<string,unknown>} */ (value);
+  const allowedFields = new Set([
+    "schemaVersion", "id", "type", "name", "enabled", "baseUrl", "project", "ref",
+    "marketplacePath", "oauth", "builtin",
+  ]);
+  const unknownField = Object.keys(source || {}).find((key) => !allowedFields.has(key));
+  const unknownOauthField = Object.keys(/** @type {object} */ (source?.oauth || {}))
+    .find((key) => !["applicationId", "scopes"].includes(key));
+  if (unknownField || unknownOauthField) {
+    throw new PluginRuntimeError(`Source 配置包含未知字段:${unknownField || `oauth.${unknownOauthField}`}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+      path: String(source?.id || ""),
+    });
+  }
+  for (const key of SECRET_FIELDS) {
+    if (key in (source || {}) || key in /** @type {object} */ (source?.oauth || {})) {
+      throw new PluginRuntimeError(`Source 配置不得包含敏感字段:${key}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+        path: String(source?.id || ""),
+      });
+    }
+  }
+  let baseUrl;
+  try {
+    baseUrl = new URL(String(source?.baseUrl));
+  } catch (error) {
+    throw new PluginRuntimeError("GitLab source baseUrl 无效", {
+      code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+      cause: error,
+    });
+  }
+  const oauth = /** @type {Record<string,unknown>} */ (source?.oauth || {});
+  const scopes = Array.isArray(oauth?.scopes) ? [...oauth.scopes].sort(compareUtf8) : [];
+  if (
+    source.schemaVersion !== SOURCE_CONFIG_VERSION ||
+    !isPluginId(source.id) ||
+    source.type !== "gitlab" ||
+    typeof source.name !== "string" || !source.name ||
+    typeof source.enabled !== "boolean" ||
+    !["http:", "https:"].includes(baseUrl.protocol) ||
+    Boolean(baseUrl.username || baseUrl.password) ||
+    !isGitLabProjectPath(source.project) ||
+    typeof source.ref !== "string" || !source.ref ||
+    typeof source.marketplacePath !== "string" || !source.marketplacePath ||
+    typeof oauth?.applicationId !== "string" || !oauth.applicationId ||
+    scopes.join(" ") !== "read_api read_repository"
+  ) {
+    throw new PluginRuntimeError(`GitLab source 配置无效:${String(source?.id || "")}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+      path: String(source?.id || ""),
+    });
+  }
+  const marketplacePath = assertSafePosixRelativePath(source.marketplacePath, "Marketplace index path");
+  baseUrl.pathname = baseUrl.pathname.replace(/\/+$/, "");
+  baseUrl.search = "";
+  baseUrl.hash = "";
+  return {
+    schemaVersion: SOURCE_CONFIG_VERSION,
+    id: source.id,
+    type: "gitlab",
+    name: source.name,
+    enabled: source.enabled,
+    baseUrl: baseUrl.toString().replace(/\/$/, ""),
+    project: source.project,
+    ref: source.ref,
+    marketplacePath,
+    oauth: { applicationId: oauth.applicationId, scopes },
+  };
+}
+
+/**
+ * XDG 用户级 Plugin source 存储。
+ */
+export class UserSourceStore {
+  /**
+   * 创建用户级 source 存储。
+   *
+   * @param {{configFile?:string,builtinDescriptors?:object[]}} [options] 路径与内置来源注入
+   */
+  constructor(options = {}) {
+    this.configFile = options.configFile || path.join(flowerConfigDirectory(), "plugin-sources.json");
+    this.builtinDescriptors = options.builtinDescriptors || [
+      JSON.parse(fs.readFileSync(BUILTIN_DESCRIPTOR_PATH, "utf8")),
+    ];
+  }
+
+  /**
+   * 列出合并后的全部来源。
+   *
+   * @returns {object[]} 稳定排序的来源
+   */
+  list() {
+    const merged = new Map(this.builtinDescriptors.map((source) => [
+      source.id,
+      { ...validateGitLabSourceDescriptor(source), builtin: true },
+    ]));
+    for (const source of this.#readUserSources()) {
+      merged.set(source.id, { ...source, builtin: merged.has(source.id) });
+    }
+    return [...merged.values()].sort((left, right) => compareUtf8(left.id, right.id));
+  }
+
+  /**
+   * 读取一个启用来源。
+   *
+   * @param {string} id 来源 ID
+   * @param {{includeDisabled?:boolean}} [options] 是否包含禁用来源
+   * @returns {object} 来源
+   */
+  get(id, options = {}) {
+    const source = this.list().find((entry) => entry.id === id);
+    if (!source || (!source.enabled && !options.includeDisabled)) {
+      throw new PluginRuntimeError(`Plugin source 不存在或已禁用:${id}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_NOT_FOUND,
+        path: id,
+      });
+    }
+    return source;
+  }
+
+  /**
+   * 新增或替换用户来源。
+   *
+   * @param {object} source 来源 descriptor
+   * @returns {object} 保存后的来源
+   */
+  set(source) {
+    const normalized = validateGitLabSourceDescriptor({ schemaVersion: 1, ...source });
+    const sources = this.#readUserSources().filter((entry) => entry.id !== normalized.id);
+    sources.push(normalized);
+    this.#writeUserSources(sources);
+    return normalized;
+  }
+
+  /**
+   * 删除用户覆盖；内置来源会恢复默认值。
+   *
+   * @param {string} id 来源 ID
+   * @returns {boolean} 是否删除用户记录
+   */
+  remove(id) {
+    const existing = this.#readUserSources();
+    const sources = existing.filter((entry) => entry.id !== id);
+    if (sources.length === existing.length) return false;
+    this.#writeUserSources(sources);
+    return true;
+  }
+
+  /**
+   * 切换来源启用状态。
+   *
+   * @param {string} id 来源 ID
+   * @param {boolean} enabled 新状态
+   * @returns {object} 保存后的来源
+   */
+  setEnabled(id, enabled) {
+    const source = this.get(id, { includeDisabled: true });
+    return this.set({ ...source, enabled, builtin: undefined });
+  }
+
+  /** @returns {object[]} 用户配置中的来源 */
+  #readUserSources() {
+    if (!fs.existsSync(this.configFile)) return [];
+    try {
+      const raw = JSON.parse(fs.readFileSync(this.configFile, "utf8"));
+      if (raw.schemaVersion !== SOURCE_CONFIG_VERSION || !Array.isArray(raw.sources)) {
+        throw new TypeError("用户 source 配置 schemaVersion 或 sources 无效");
+      }
+      const sources = raw.sources.map((source) => validateGitLabSourceDescriptor(source));
+      if (new Set(sources.map(({ id }) => id)).size !== sources.length) {
+        throw new TypeError("用户 source 配置包含重复 ID");
+      }
+      return sources;
+    } catch (error) {
+      if (error instanceof PluginRuntimeError) throw error;
+      throw new PluginRuntimeError(`用户 source 配置损坏:${this.configFile}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+        path: this.configFile,
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * 原子写入用户配置。
+   *
+   * @param {object[]} sources 用户来源
+   */
+  #writeUserSources(sources) {
+    const parent = path.dirname(this.configFile);
+    const temporary = `${this.configFile}.${process.pid}.tmp`;
+    try {
+      fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
+      fs.writeFileSync(temporary, `${JSON.stringify({
+        schemaVersion: SOURCE_CONFIG_VERSION,
+        sources: [...sources].sort((left, right) => compareUtf8(left.id, right.id)),
+      }, null, 2)}\n`, { mode: 0o600 });
+      fs.renameSync(temporary, this.configFile);
+    } catch (error) {
+      fs.rmSync(temporary, { force: true });
+      throw new PluginIoError(`无法写入用户 source 配置:${this.configFile}`, {
+        path: this.configFile,
+        cause: error,
+      });
+    }
+  }
+}
