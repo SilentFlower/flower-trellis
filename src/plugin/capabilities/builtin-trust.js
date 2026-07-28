@@ -1,4 +1,7 @@
-import { registerBuiltinTrustMarker } from "../runtime-extensions.js";
+import {
+  registerBuiltinTrustInspector,
+  registerBuiltinTrustMarker,
+} from "../runtime-extensions.js";
 
 const trustedBuiltinProviders = new WeakSet();
 const trustedSourceProfiles = new WeakMap();
@@ -67,3 +70,4 @@ export function trustedSourceProviderProfile(provider) {
 }
 
 registerBuiltinTrustMarker(markBuiltinProviderTrusted);
+registerBuiltinTrustInspector(isBuiltinProviderTrusted);

@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { preparePatchPlan as prepareCorePatchPlan } from "../../lib/patch-engine.js";
 import {
   assertNoPatchConflictErrors,
+  buildPatchCompatibilityReport,
   buildPatchConflictReport,
   loadPatchPolicies,
 } from "../../lib/patch-conflicts.js";
@@ -404,14 +405,20 @@ export function buildPluginPatchPayloads(plan) {
  * @param {import("../contracts.js").PatchMutation[]} patchMutations Patch mutation
  * @returns {void}
  */
-export function assertNoContentPatchConflicts(contentMutations, patchMutations) {
+export function assertNoContentPatchConflicts(contentMutations, patchMutations, allowedOwners = new Set()) {
   const contentOwners = new Map();
   for (const mutation of contentMutations || []) {
     const owners = contentOwners.get(mutation.target) || [];
     owners.push(mutation.owner);
     contentOwners.set(mutation.target, owners);
   }
-  const conflict = patchMutations.find((mutation) => contentOwners.has(mutation.target));
+  const conflict = patchMutations.find((mutation) => (
+    contentOwners.has(mutation.target) &&
+    !(
+      allowedOwners.has(mutation.owner) &&
+      contentOwners.get(mutation.target).every((owner) => owner === mutation.owner)
+    )
+  ));
   if (conflict) {
     throw new PluginCapabilityError(`Plugin 内容与 Patch 目标冲突:${conflict.target}`, {
       code: PLUGIN_CAPABILITY_ERROR_CODES.MUTATION_CONFLICT,
@@ -433,8 +440,8 @@ export function assertNoContentPatchConflicts(contentMutations, patchMutations) 
  * frozen digest 或本轮显式批准时失败。此函数不调用 `applyPatchPlan()`，不会写目标项目。
  *
  * @param {string} target 项目根目录
- * @param {Array<{plugin:{id:string,version:string,integrity:string,source:import("../contracts.js").SourceDescriptor},manifest:import("../contracts.js").PluginManifest,packageRoot:string,marketplaceMaxProfile?:"standard"|"integration",provider?:object,catalog?:object}>} entries Plugin 固定包
- * @param {{contentMutations?:import("../contracts.js").ContentMutation[],approvedDigests?:Map<string,string>|Record<string,string>,approvals?:string[],approvalMode?:"require"|"preview",nonInteractive?:boolean,systemAdapters?:Record<string,Function>,preparePatchPlan?:typeof prepareCorePatchPlan,trellisVersion?:string}} [options] 计划选项
+ * @param {Array<{plugin:{id:string,version:string,integrity:string,source:import("../contracts.js").SourceDescriptor},manifest:import("../contracts.js").PluginManifest,packageRoot:string,marketplaceMaxProfile?:"standard"|"integration",provider?:object,catalog?:object,catalogs?:object[]}>} entries Plugin 固定包
+ * @param {{contentMutations?:import("../contracts.js").ContentMutation[],approvedDigests?:Map<string,string>|Record<string,string>,approvals?:string[],approvalMode?:"require"|"preview",nonInteractive?:boolean,systemAdapters?:Record<string,Function>,patchOptions?:object,contentPatchOverlapOwners?:Set<string>,preparePatchPlan?:typeof prepareCorePatchPlan,trellisVersion?:string}} [options] 计划选项
  * @returns {{grants:Array<{pluginId:string,grant:import("../contracts.js").CapabilityGrant,reusedApproval:boolean}>,approvalRequests:object[],diagnostics:object[],patchPlan:ReturnType<typeof prepareCorePatchPlan>,patchMutations:import("../contracts.js").PatchMutation[],patchPayloads:Map<string,Buffer>,patchReport:object|null}} 统一计划
  */
 export function preparePluginPatchPlan(target, entries, options = {}) {
@@ -466,11 +473,11 @@ export function preparePluginPatchPlan(target, entries, options = {}) {
 
     let inspected;
     if (evaluation.trustedBuiltin && evaluation.grant.profile === CAPABILITY_PROFILES.SYSTEM) {
-      const descriptor = entry.catalog || (() => {
+      const descriptors = entry.catalogs || [entry.catalog || (() => {
         const paths = catalogPaths(entry);
         return { id: externalPluginCatalogId(entry.plugin.id), ...paths };
-      })();
-      inspected = { catalog: descriptor, operations: [] };
+      })()];
+      inspected = { catalogs: descriptors, operations: [] };
       hasTrustedSystemCatalog = true;
     } else {
       const requestedPatchInsert = (
@@ -487,10 +494,13 @@ export function preparePluginPatchPlan(target, entries, options = {}) {
       if (entry.catalog) {
         throw policyError(`外部 Plugin 不得注入预构造 catalog descriptor:${entry.plugin.id}`, entry.plugin.id);
       }
-      inspected = inspectExternalPatchCatalog(entry);
+      const external = inspectExternalPatchCatalog(entry);
+      inspected = { catalogs: [external.catalog], operations: external.operations };
     }
-    catalogs.push(inspected.catalog);
-    ownerByCatalog.set(inspected.catalog.id, entry.plugin.id);
+    for (const catalog of inspected.catalogs) {
+      catalogs.push(catalog);
+      ownerByCatalog.set(catalog.id, entry.plugin.id);
+    }
 
     let authorization = { grant: evaluation.grant, reusedApproval: false };
     if (evaluation.requiresApproval) {
@@ -536,8 +546,17 @@ export function preparePluginPatchPlan(target, entries, options = {}) {
   let patchReport = null;
   try {
     const policies = loadPatchPolicies(catalogs);
+    if (policies.length > 0) {
+      const compatibilityReport = buildPatchCompatibilityReport({
+        version: options.trellisVersion ?? readTargetTrellisVersion(target),
+        policies,
+      });
+      // 兼容线错误必须先于 selector 预检返回，确保用户得到可执行的版本指引。
+      assertNoPatchConflictErrors(compatibilityReport);
+    }
     patchPlan = prepare(target, catalogs, {
       adapters: hasTrustedSystemCatalog ? (options.systemAdapters || {}) : {},
+      ...(hasTrustedSystemCatalog ? (options.patchOptions || {}) : {}),
     });
     if (policies.length > 0) {
       patchReport = buildPatchConflictReport({
@@ -554,7 +573,11 @@ export function preparePluginPatchPlan(target, entries, options = {}) {
   }
   const patchMutations = buildPluginPatchMutations(patchPlan, ownerByCatalog);
   const patchPayloads = buildPluginPatchPayloads(patchPlan);
-  assertNoContentPatchConflicts(options.contentMutations || [], patchMutations);
+  assertNoContentPatchConflicts(
+    options.contentMutations || [],
+    patchMutations,
+    options.contentPatchOverlapOwners || new Set(),
+  );
   return {
     grants,
     approvalRequests,

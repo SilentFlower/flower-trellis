@@ -4,6 +4,7 @@ import {
   manifestPath,
   readManifest,
   readUpdateCheck,
+  settingsPath,
   updateCheckCachePath,
   writeUpdateCheck,
 } from "../lib/manifest.js";
@@ -37,8 +38,9 @@ export async function updateCheck(ctx) {
   if (action === "get") {
     const manifest = readManifest(ctx.target);
     const cachePath = updateCheckCachePath(ctx.target);
-    console.log(`manifest: ${manifestPath(ctx.target)}`);
+    console.log(`settings: ${settingsPath(ctx.target)}`);
     console.log(`cache: ${cachePath}`);
+    console.log(`legacy manifest: ${manifestPath(ctx.target)}`);
     console.log(JSON.stringify(readUpdateCheck(ctx.target), null, 2));
     if (!manifest) console.log("  · manifest 不存在,当前显示默认策略");
     if (!fs.existsSync(cachePath)) {

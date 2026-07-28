@@ -4,6 +4,7 @@ import chalk from "chalk";
 import { flowerVersion, trellisVersion } from "./lib/versions.js";
 import { selectVariant } from "./lib/variant.js";
 import { readManifest } from "./lib/manifest.js";
+import { ProjectStore } from "./plugin/state/project-store.js";
 import { runTrellis } from "./lib/trellis-runner.js";
 import { parseCliArgs } from "./lib/cli-args.js";
 
@@ -40,10 +41,12 @@ function printVersion(cwd) {
       const { version } = selectVariant(cwd);
       if (version) projectRows.push([".trellis", version]);
     }
-    // 项目里 flower 上次铺包时戳入的自身版本(来自 .trellis/.flower-manifest.json);
-    // 与首行「当前工具版本」对比即可看出该项目是否需要重新 update。
+    // 新项目优先读取 Plugin lock；旧 manifest 只作为兼容证据。
+    const lockedSkillGarden = new ProjectStore(cwd).readLock()?.plugins
+      .find(({ id }) => id === "flower/skill-garden");
     const mf = readManifest(cwd);
-    if (mf && mf.flowerVersion) projectRows.unshift(["flower", mf.flowerVersion]);
+    const projectFlower = lockedSkillGarden?.version || mf?.flowerVersion;
+    if (projectFlower) projectRows.unshift(["flower", projectFlower]);
   } catch {
     // 忽略:版本读取失败不应影响 -v 输出
   }

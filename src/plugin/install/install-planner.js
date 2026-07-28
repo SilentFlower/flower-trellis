@@ -85,13 +85,22 @@ export function createInstallPlan(graph, mutations, options) {
       continue;
     }
     const currentOwner = ownership.get(mutation.target);
-    if (mutation.operation === "write" && mutation.beforeHash !== null && currentOwner !== mutation.owner) {
+    if (
+      mutation.operation === "write" &&
+      mutation.beforeHash !== null &&
+      currentOwner !== mutation.owner &&
+      mutation.allowUnownedWrite !== true
+    ) {
       conflict(`目标已存在且不归当前 Plugin 管理:${mutation.target}`, mutation.target, {
         owner: mutation.owner,
         currentOwner: currentOwner || null,
       });
     }
-    if (mutation.operation === "remove" && currentOwner !== mutation.owner) {
+    if (
+      mutation.operation === "remove" &&
+      currentOwner !== mutation.owner &&
+      mutation.allowUnownedRemove !== true
+    ) {
       conflict(`Plugin 无权删除目标:${mutation.target}`, mutation.target, {
         owner: mutation.owner,
         currentOwner: currentOwner || null,

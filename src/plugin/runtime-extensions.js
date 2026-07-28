@@ -1,5 +1,6 @@
 let patchPlanner = null;
 let builtinTrustMarker = null;
+let builtinTrustInspector = null;
 const pendingBuiltinProviders = new Set();
 
 /**
@@ -45,6 +46,21 @@ export function registerBuiltinTrustMarker(marker) {
 }
 
 /**
+ * 注册 builtin Provider 的进程内信任检查函数。
+ *
+ * @param {Function} inspector 信任检查函数
+ * @returns {Function} 已登记的检查函数
+ */
+export function registerBuiltinTrustInspector(inspector) {
+  if (typeof inspector !== "function") throw new TypeError("builtin Provider 信任检查必须是函数");
+  if (builtinTrustInspector && builtinTrustInspector !== inspector) {
+    throw new Error("builtin Provider 信任检查已由其他模块登记");
+  }
+  builtinTrustInspector = inspector;
+  return inspector;
+}
+
+/**
  * 在 capability 模块可用时标记 builtin Provider。
  *
  * @param {object|Function} provider builtin Provider 实例
@@ -54,4 +70,14 @@ export function markRuntimeBuiltinProvider(provider) {
   if (builtinTrustMarker) return builtinTrustMarker(provider);
   pendingBuiltinProviders.add(provider);
   return provider;
+}
+
+/**
+ * 判断 Provider 是否持有 capability 模块登记的进程内 builtin 信任。
+ *
+ * @param {unknown} provider Provider 候选
+ * @returns {boolean} 是否为可信 builtin Provider
+ */
+export function isRuntimeBuiltinProviderTrusted(provider) {
+  return builtinTrustInspector ? builtinTrustInspector(provider) : false;
 }

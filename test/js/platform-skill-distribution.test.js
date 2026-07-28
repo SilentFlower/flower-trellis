@@ -67,12 +67,14 @@ test("没有平台 root 时仅使用 Claude fallback", () => {
   assert.equal(fs.existsSync(path.join(target, ".agents")), false);
 });
 
-test("应用清理与卸载共同复用集中平台映射", () => {
-  const applySource = fs.readFileSync(new URL("../../src/lib/apply-enhancements.js", import.meta.url), "utf8");
+test("应用投影复用集中平台映射，卸载只读取 Plugin state", () => {
+  const applySource = fs.readFileSync(new URL("../../src/builtin-plugins/skill-garden/content-adapter.js", import.meta.url), "utf8");
   const uninstallSource = fs.readFileSync(new URL("../../src/commands/uninstall.js", import.meta.url), "utf8");
   const catalogSource = fs.readFileSync(new URL("../../src/lib/enhancement-catalog.js", import.meta.url), "utf8");
 
-  for (const source of [applySource, uninstallSource, catalogSource]) {
+  for (const source of [applySource, catalogSource]) {
     assert.match(source, /ENHANCEMENT_SKILL_TARGETS/);
   }
+  assert.match(uninstallSource, /planSkillGardenUninstall/);
+  assert.doesNotMatch(uninstallSource, /ENHANCEMENT_SKILL_TARGETS/);
 });

@@ -6,9 +6,9 @@
 
 ## Overview
 
-flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文件随包发布为离线
-快照,安装/升级时按目标的 Trellis 版本选择变体,跟随用户实际平台铺设到对应目录,
-并以 manifest 驱动精确的升级清理。整条链路**处处幂等**,可重复执行而结果一致。
+flower-trellis 在 Trellis 之上通过内置 `flower/skill-garden` system Plugin 叠加强化包：
+强化文件仍随包发布为离线快照，安装/升级时按目标 Trellis 版本选择变体，最终由
+Plugin Runtime 的统一计划、事务、lock 和 state 管理。整条链路**处处幂等**。
 
 ---
 
@@ -42,7 +42,7 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 - workflow hub/state、Update-Spec、Finish-Work 和 shared hook 都必须通过 Patch leaf 表达。
   需要共享正文时使用有序 `content.sources`，不得恢复独立 additive override 目录。
 - Flower 自有 Codex/Claude 配置 Patch 位于 `src/patches/`，不进入 Skill-Garden 源；两类 catalog
-  由 `applyEnhancements()` 在同一个 preflight/apply 计划中执行。
+  由 builtin Provider 交给 Plugin Patch Planner，在同一个 preflight/事务中执行。
 - 随包发布靠 `package.json` 的 `files: ["bin","src","enhancements","README.md"]`。
 - `vendor/skill-garden/compiled-targets/` 是 Skill-Garden 子仓内的 Claude + Codex canonical 维护审阅产物，不属于 `.trellis/` 离线安装快照；`npm run sync` 只读取 variant 源，不读取或复制该目录。vendor 子仓不进入 npm tarball，维护期 `patch-fixture.js` 也继续显式排除。
 - **同步源 = git submodule `vendor/skill-garden`**(不在 `files` 白名单,不进 npm tarball)。
@@ -65,52 +65,30 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 ---
 
-## Apply Pipeline (`src/lib/apply-enhancements.js`)
+## Apply Pipeline (`flower/skill-garden`)
 
-`applyEnhancements(target, opts)` 是 init / update 共享的总编排,顺序固定:
+`applyEnhancements(target, opts)` 只保留兼容参数、日志和返回结构，实际顺序固定：
 
-1. **校验**:目标存在 `.trellis/`,否则抛错(不是 Trellis 项目)。
-2. **选变体并保留真实版本**:`--variant` 只覆盖变体；`.trellis/.version` 始终读取。
-3. **兼容线早期门禁**(`patch-conflicts.js`):读取共享 policy；invalid 或未支持的新 minor/major 在旧 catalog preflight 前返回包含 `--no-enhance` 的 error，避免 selector 漂移掩盖真实处理方式。
-4. **统一 Patch preflight 与冲突检查**(`patch-engine.js` + `patch-conflicts.js`):同时加载 Skill-Garden 与 Flower platform catalog，在内存得到最终文件；校验 rule operation/target 引用后断言最终产物。同一兼容线未登记版本到此时才在写入前展示 rule/target/reason/evidence warning；任一 error 零写入，通过后才 apply Patch。
-5. **铺 skill**(`copy-skills.js`):**跟随平台原生 Skill root** —— `src/constants.js` 的
-   `ENHANCEMENT_SKILL_TARGETS` 集中维护 Claude、共享 `.agents` 与其余平台原生 root；copy、
-   installed detection、stale managed-root 清理和 uninstall 必须复用同一映射。只向目标中已存在的
-   root 复制；完全没有识别到平台 root 时才兜底创建 `.claude/skills`。Claude 使用 `.claude`
-   canonical source，其余平台使用 `.agents` canonical source；不得只铺 `.agents/.claude` 而让
-   Cursor、Kiro、Qoder、Gemini 等平台的真实原生入口保持旧行为。
-6. **铺脚本资产**(`copy-scripts.js`):只复制变体 `scripts/` 下的直接文件到目标
-   `.trellis/scripts/`。脚本资产跟随 `--skills` 过滤;例如 `auto_loop.py` 可由
-   `auto_loop` / `auto-loop` / `auto-loop-runner` / `trellis-auto-loop` 命中,确保只安装
-   `trellis-auto-loop` 时也会带上 runner 脚本;`task_progress.py` 可由 `task-progress` /
-   `trellis-continue` / `continue` / `progress-recovery` / `progress` / `trellis-push` / `push` 及
-   legacy `push-snapshot` / `snapshot` 命中,确保 progress recovery 与写入入口都带上同一 helper。
-   旧 `push_snapshot.py` 从新快照移除后,全装升级只能按 flower manifest 记录的精确旧路径清理,
-   不得删除用户自有文件。
-7. **铺 flower 自有资产**(`flower-assets.js`):仅全装时把 flower-trellis 自身能力复制到
-   目标 `.trellis/scripts/`,例如 `src/assets/flower_update_hook.py` → `.trellis/scripts/flower_update_hook.py`。
-   这类资产不属于 skill-garden 快照,不要放进 `enhancements/<variant>/scripts/`。
-8. **同步已启用 common skill**(**仅全装、无 `--skills` 时**):当前快照只覆盖目标
-   `.codex/skills/<name>` / `.claude/skills/<name>` / 历史 `.agents/skills/<name>` 中
-   已经存在的精确同名目录,不创建未启用项;历史 `removedSkills` 只删除这些固定根目录下
-   的精确 tombstone 名称。legacy `.agents` 使用 Codex 快照原地刷新,不迁移到 canonical
-   路径。若旧 manifest 仍把后来迁入 common 的路径记在 `paths`,本轮已刷新的路径必须
-   临时加入 stale-path 保留集合,避免刷新后又被删除;写入新 manifest 时 common 路径仍不
-   进入 `.flower-manifest.json.paths`。
-9. **升级清理**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,删除本次
-   变体不含的过期项。带 `--skills` 是精细操作,不动 manifest、不清理。
-10. **legacy 后处理**:**仅 0.5/old** 执行 `workflow-inject.js` 和平台 tweak：
-   - `codex-tweaks.js`:仅当目标存在 `.codex/` 时,兼容清理旧 `config.toml` 的
-     `multi_agent_v2` 段,保留上游 hooks 并合并 Trellis / flower 的 `SessionStart`,同时强制
-     `.trellis/config.yaml` 的 `codex.dispatch_mode: sub-agent`。Codex Trellis 主上下文 hook
-     必须归位到 `matcher: "startup|resume|clear|compact"`、`timeout: 30`;flower 更新检查
-     hook 必须归位到 `matcher: "startup"`、`timeout: 30`。
-   - `claude-tweaks.js`:仅当目标存在 `.claude/` 时,只向 `.claude/settings.json` 的
-     `SessionStart` `startup` matcher 合并 flower update hook,timeout 为 30,并清除
-     `clear` / `compact` matcher 中的 flower update hook。
-   0.6 不调用这些旧入口；对应修改已经在第 3-4 步完成。
-11. **成功 manifest**(**仅全装**):全部 required Patch、policy、资产复制、清理和 legacy 后处理完成后写
-    `.trellis/.flower-manifest.json`，并记录稳定 Patch provenance。中途失败保留旧 manifest。
+1. 校验 `.trellis/`，选择 `old|0.5|0.6` 并保留真实 Trellis 版本。
+2. 构造目标绑定的 `SkillGardenBuiltinProvider`；digest 绑定 Flower 版本、variant、去除
+   `syncedAt` 的快照 manifest，以及当前 variant、common、Flower assets/lib/patches 和 builtin
+   Plugin 的 canonical 内容；忽略 `__pycache__` / `.pyc`。
+3. 通过 `PluginApplicationService.add/update()` 声明或重放 `flower/skill-garden`。
+4. builtin 内容 adapter 按 `ENHANCEMENT_SKILL_TARGETS` 投影 skill/command，按原 alias 过滤
+   变体脚本，并在全装时投影 Flower update hook。
+5. 0.6 同时加载 Skill-Garden 与 Flower catalog，先做兼容线门禁，再做一次统一 Patch
+   preflight；同 owner 内容/Patch 重叠只有最终 hash 相同时才合并。
+6. old/0.5 在临时镜像中调用 workflow/Codex/Claude legacy 函数，收集最终文件与首次备份，
+   目标项目本身不发生预事务写入。
+7. 全装只刷新目标中已经启用的 common skill，并将其记录为 `shared` ownership；不会安装
+   用户未启用的新 common skill，卸载不删除 shared 路径。
+8. Plugin Transaction Writer 一次性写目标 mutation、`plugins.json`、lock 和最后的 state。
+   旧 manifest 只读迁移并原字节保留，不再作为成功写链。
+
+`init` 默认显式声明 builtin Plugin；`--enhance-only` 使用同一 Runtime。普通 `update` 只允许
+skill-garden 以当前 Flower 精确版本刷新直接声明并重新选 variant，其它 Plugin lock-first 重放；
+`--no-enhance` 冻结 skill-garden 的完整 lock 约束、capability grant 和 state，但仍重放外部 Plugin。
+独立 `plugin add` 不隐式声明 skill-garden。
 
 ---
 
@@ -118,9 +96,9 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 叠加链路的每一步都要可重复执行:
 
-- `fs-utils.copyPath`:先删软链/旧目标再拷贝,无条件覆盖,不残留上游已删文件。
-- 升级清理只在**全装**时维护 manifest 与删除过期项,避免 `--skills` 精细操作误删。
-- Patch 先 preflight 后 apply;required selector/marker 漂移时目标与 manifest 都不写,
+- builtin adapter 对每个受管目录生成逐文件 write/remove mutation，不残留快照已删除文件。
+- 精细 `--skills` 会合并既有 skill-garden state，未选择路径与 Patch provenance 原样保留。
+- Patch 先 preflight 后进入事务；required selector/marker 漂移时目标与 `.flower/` 都不写，
   optional skip 必须进入结构化结果。完整规则见
   [Trellis Patch Engine](./trellis-patch-engine.md)。
 - 0.6 changed 目标由 Patch Engine 调用 `preserveFirstBackup()`，备份到
@@ -130,14 +108,10 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   内容一致则不写,避免覆盖 Trellis 上游 hook 参数。SessionStart 合并必须先从所有
   group 移除目标命令旧位置,再归位到目标 matcher group,避免旧版无 matcher group 与新版
   matcher group 同时触发;其它用户自定义 hooks 必须保留。
-- `flower-assets`:只由全装复制,并把 `.trellis/scripts/flower_update_hook.py` 写入 manifest
-  `paths`,让升级清理和 uninstall 只按 manifest 精确管理自己铺过的脚本。
-- `syncInstalledCommonSkills`:只由全装执行。当前快照名称必须先检查目标精确目录是否存在,
-  存在才调用 `copyPath` 覆盖;新名称不得自动安装。`removedSkills` 读取失败按空列表降级,
-  删除前必须校验名称是单一路径段,并只在固定 common 根目录下拼接精确路径。重新进入
-  当前快照的名称即使仍残留在旧 tombstone 中也不得删除。
+- `flower-assets` 只由全装投影，`.trellis/scripts/flower_update_hook.py` 进入 state ownership。
+- common skill 只在目标精确目录已经存在时刷新；state 标为 `shared`，卸载与不可达清理跳过。
 - shared hook Patch 只修改已存在平台目标，平台前置目录缺失时 `missing-target`；不得创建未启用
-  平台。上游 hook 路径不进入 manifest `paths`，由 Patch provenance 单独记录。
+  平台。上游 hook 路径由 Plugin Patch provenance 记录。
 - `claude-tweaks`:只追加缺失的 startup flower hook,重复运行不得重复;若历史版本把 flower
   hook 放到了 `clear` / `compact`,更新时必须移除这些非 startup 位置;若旧 hook 仍是
   8 秒 timeout,更新时必须迁移到 30 秒。

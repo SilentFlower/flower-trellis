@@ -45,6 +45,7 @@ new PluginApplicationService(projectRoot, { registry, store?, writer?, platformD
 PluginApplicationService.list() -> { plugins, lock, state }
 PluginApplicationService.add(options) -> LifecycleResult
 PluginApplicationService.update(options?) -> LifecycleResult
+PluginApplicationService.replay(options?) -> LifecycleResult
 PluginApplicationService.remove(options) -> LifecycleResult
 PluginApplicationService.verify(options?) -> { ok, diagnostics }
 
@@ -73,6 +74,7 @@ Source Provider 最小接口固定为：
 - builtin/local Provider 都通过 P1 package reader 校验 manifest、包根边界和 canonical tree hash。local reference 必须位于项目内，不能因开发用途放宽安全校验。
 - Resolver 以 canonical Plugin ID 为唯一节点键，递归收集直接和传递依赖约束，并输出依赖优先的稳定拓扑。
 - 普通重放优先选择仍满足约束且摘要未漂移的旧 lock 候选；只有 `update` 指定的节点或 `update="all"` 才允许选择更高兼容版本。
+- `update({id,version})` 必须先把该直接声明改为请求的精确约束，再进入解析；未指定 ID 时禁止携带 version。builtin skill-garden 更新必须用当前 Flower 包版本刷新直接声明，不能只更新 Provider 候选而留下旧约束。
 - 候选、约束、roots、orphans 和 lock 输出必须按 UTF-8 稳定排序，不能依赖 Provider、对象或文件系统返回顺序。
 
 ### Platform And Install Plan
@@ -90,7 +92,7 @@ Source Provider 最小接口固定为：
 - 写入顺序固定为目标 mutation、`plugins.json`、`plugin-lock.json`、最后 `state.json`。失败时逆序恢复；恢复不完整时保留 `.flower/transactions/<id>/` 证据并返回 repair blocker。
 - `dryRun` 返回同一 graph、plan、changes 和 diagnostics，但不创建 `.flower/`、事务目录或目标文件。
 - changed-only：before/after hash 相同的目标不重写；空项目 `plugin update` 返回 `unchanged`，且不初始化 Runtime。
-- `remove` 只删除 state 中归属当前 Plugin 且当前 hash 仍匹配的路径，并只清理不再从 roots 可达的传递依赖。
+- `remove` 只删除 state 中归属当前 Plugin 且当前 hash 仍匹配的路径，并只清理不再从 roots 可达的传递依赖。单个路径冲突不得阻止其它 hash-clean exclusive 路径清理；冲突、shared 和仍被其它 owner 使用的证据继续保留在 state。
 - `verify` 只读检查声明、lock roots/可达性、固定包、state ownership、版本和目标 hash，不更新 Provider、不修复文件。
 
 ### Optional Runtime Boundaries
@@ -98,6 +100,19 @@ Source Provider 最小接口固定为：
 - `src/commands/plugin.js` 可以通过 `import()` 按需加载 `plugin-remote.js` 和 Patch planner；基础模块不得静态导入 GitLab/OAuth、用户 source store 或 capability planner。
 - 远程模块只负责管理命令、Provider 登记和异步候选准备；最终依赖解析、计划、事务和输出结果仍由 P2 Application Service 完成。
 - 进程内扩展注册必须与模块加载顺序无关：扩展实现晚于基础对象加载时，需要回补此前等待的实例或请求，不能静默丢失。
+- 自定义内容投影只允许持有进程内 builtin 信任标记的 Provider 实现。外部 Provider 即使伪造 `type=builtin`、同名 source 或序列化字段，也不得取得 `projectContent()`、多 system catalog、adapter 或 unowned takeover 权限。
+- system 投影可以为迁移声明 `allowUnownedWrite` / `allowUnownedRemove`，但这些标记只能由可信自定义投影产生；普通 Plugin 仍必须遵守既有 state ownership。
+- `replay({ preserveIds })` 用于冻结已锁定节点：被冻结节点必须复用旧 lock 的 version/source/commit/integrity、精确 dependencies、compatibility、capability profile/grant 和旧 state，不能从当前随包 manifest 重算约束或生成 mutation；其余节点仍走完整 lock-first 解析、校验和事务。
+
+### Builtin Skill-Garden
+
+- `flower/skill-garden` 是显式 builtin system Plugin。完整 `init` 默认声明它；独立 `plugin add` 不得隐式声明。
+- Provider digest 稳定绑定 Flower 版本、variant、去除 `syncedAt` 的快照 manifest，以及当前 variant、`enhancements/common`、`src/assets`、`src/lib`、`src/patches` 和 builtin Plugin 目录的 canonical 内容；不得包含绝对路径、mtime、同步时间、`__pycache__` 或 `.pyc`。
+- 0.6 的 skill-garden/flower catalog 必须进入同一个 Patch preflight；内容与 Patch 同目标仅在同 owner、可信 system 且最终 hash 完全相同时合并，否则按内容冲突失败。
+- old/0.5 后处理必须在临时镜像中计算最终字节，再作为普通 mutation 进入事务；不得直接对目标调用 legacy 写函数。
+- common skill 刷新记录为 `shared` ownership，Plugin 更新可刷新，卸载和 orphan 清理不得删除。
+- `--no-enhance` 更新使用冻结 replay：skill-garden lock/state 原样保留，外部 Plugin 仍按固定 lock 重放，且不允许升级未显式请求的外部版本。
+- `flower-trellis uninstall` 必须在调用 Trellis 前检查 lock 中的反向依赖；仍有外部 Plugin 依赖 `flower/skill-garden` 时整次卸载失败关闭，Trellis 与 Plugin 目标均不得写入。
 
 ## 4. Validation & Error Matrix
 
@@ -144,6 +159,7 @@ Source Provider 最小接口固定为：
 - `plugin-install-planner.test.js`：同目标、ownership、用户文件、文件目录前缀及普通内容/Patch 冲突。
 - `plugin-transaction-writer.test.js`：before/payload 漂移、state 最后写、changed-only、dry-run、回滚和 retained evidence。
 - `plugin-lifecycle-cli.test.js`：parser、真实 add/update/remove/verify、空项目 update、无平台零写入、JSON/人类输出、短 ID 和退出码。
+- `plugin-skill-garden.test.js`：builtin trust/digest、legacy 迁移、冻结 replay、shared common ownership 和 state/hash 卸载。
 - 修改本契约后必须运行完整 `npm test`、`npm pack --dry-run --json`、全部受影响 JS 的 `node --check` 和 `git diff --check`。
 
 ## 7. Wrong vs Correct

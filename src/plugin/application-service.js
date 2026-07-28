@@ -14,6 +14,7 @@ import { createInstallPlan } from "./install/install-planner.js";
 import { TransactionWriter } from "./install/transaction-writer.js";
 import { hashDirectoryIfExists, hashFileIfExists } from "./install/content-hash.js";
 import { getPluginPatchPlanner } from "./runtime-extensions.js";
+import { isRuntimeBuiltinProviderTrusted } from "./runtime-extensions.js";
 import { compareUtf8 } from "./stable-order.js";
 
 /**
@@ -118,7 +119,7 @@ export class PluginApplicationService {
   /**
    * 添加或更新一个直接 Plugin 声明并应用完整图。
    *
-   * @param {{id:string,version?:string,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean}} options 添加选项
+   * @param {{id:string,version?:string,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,onPreflight?:(result:object)=>void}} options 添加选项
    * @returns {object} 生命周期结果
    */
   add(options) {
@@ -145,13 +146,14 @@ export class PluginApplicationService {
       approvals: options.approvals || [],
       approvedDigests: options.approvedDigests,
       nonInteractive: options.nonInteractive,
+      onPreflight: options.onPreflight,
     });
   }
 
   /**
    * 更新一个或全部直接 Plugin，同时保持未请求节点的 lock-first 语义。
    *
-   * @param {{id?:string|null,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean}} [options] 更新选项
+   * @param {{id?:string|null,version?:string,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,onPreflight?:(result:object)=>void}} [options] 更新选项
    * @returns {object} 生命周期结果
    */
   update(options = {}) {
@@ -165,14 +167,50 @@ export class PluginApplicationService {
     if (!options.id && pluginsFile.plugins.length === 0) {
       return unchangedLifecycleResult("update");
     }
+    if (options.version && !options.id) {
+      throw new PluginRuntimeError("更新 Plugin 版本约束时必须指定 Plugin ID", {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: "version",
+      });
+    }
+    const nextPlugins = options.version
+      ? {
+        ...pluginsFile,
+        plugins: pluginsFile.plugins.map((plugin) => (
+          plugin.id === options.id ? { ...plugin, version: options.version } : plugin
+        )),
+      }
+      : pluginsFile;
     return this.#applyLifecycle("update", {
-      plugins: pluginsFile,
+      plugins: nextPlugins,
       platforms: options.platforms || [],
       dryRun: Boolean(options.dryRun),
       update: options.id ? [options.id] : "all",
       approvals: options.approvals || [],
       approvedDigests: options.approvedDigests,
       nonInteractive: options.nonInteractive,
+      onPreflight: options.onPreflight,
+    });
+  }
+
+  /**
+   * 按现有 lock-first 身份重放完整 Plugin 图，并可冻结指定节点的 mutation/state。
+   *
+   * @param {{platforms?:string[],dryRun?:boolean,preserveIds?:string[],nonInteractive?:boolean}} [options] 重放选项
+   * @returns {object} 生命周期结果
+   */
+  replay(options = {}) {
+    const pluginsFile = this.store.readPlugins();
+    if (pluginsFile.plugins.length === 0) return unchangedLifecycleResult("update");
+    return this.#applyLifecycle("update", {
+      plugins: pluginsFile,
+      platforms: options.platforms || [],
+      dryRun: Boolean(options.dryRun),
+      update: [],
+      approvals: [],
+      approvedDigests: null,
+      nonInteractive: options.nonInteractive ?? true,
+      preserveIds: options.preserveIds || [],
     });
   }
 
@@ -380,7 +418,7 @@ export class PluginApplicationService {
    * 解析、投影、规划并执行一次生命周期变更。
    *
    * @param {"add"|"update"|"remove"} command 生命周期命令
-   * @param {{plugins:import("./contracts.js").ProjectPluginsFile,platforms:string[],dryRun:boolean,update:string[]|"all",approvals:string[],approvedDigests?:Map<string,string>|Record<string,string>|null,nonInteractive?:boolean}} input 变更输入
+   * @param {{plugins:import("./contracts.js").ProjectPluginsFile,platforms:string[],dryRun:boolean,update:string[]|"all",approvals:string[],approvedDigests?:Map<string,string>|Record<string,string>|null,nonInteractive?:boolean,onPreflight?:(result:object)=>void,preserveIds?:string[]}} input 变更输入
    * @returns {object} 生命周期结果
    */
   #applyLifecycle(command, input) {
@@ -396,6 +434,7 @@ export class PluginApplicationService {
       payloads: new Map(),
       state: { schemaVersion: 1, transactionVersion: 1, plugins: [] },
       directoryClaims: [],
+      directoryRemovals: [],
     };
     let platformSelection = { platforms: [], targets: [] };
     if (resolution.graph.plugins.length > 0) {
@@ -406,7 +445,36 @@ export class PluginApplicationService {
         selected: resolution.selected,
         registry: this.registry,
         platformSelection,
+        previousState,
       });
+    }
+    const preservedIds = new Set(input.preserveIds || []);
+    if (preservedIds.size > 0) {
+      for (const id of preservedIds) {
+        const previousEntry = previousState?.plugins.find((plugin) => plugin.id === id);
+        const nextIndex = projection.state.plugins.findIndex((plugin) => plugin.id === id);
+        if (!previousEntry || nextIndex < 0) {
+          throw new PluginRuntimeError(`冻结 Plugin 缺少既有 state:${id}`, {
+            code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
+            path: id,
+          });
+        }
+        projection.state.plugins[nextIndex] = structuredClone(previousEntry);
+        const previousLocked = previousLock?.plugins.find((plugin) => plugin.id === id);
+        const graphIndex = resolution.graph.plugins.findIndex((plugin) => plugin.id === id);
+        if (!previousLocked || graphIndex < 0) {
+          throw new PluginRuntimeError(`冻结 Plugin 缺少既有 lock:${id}`, {
+            code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
+            path: id,
+          });
+        }
+        resolution.graph.plugins[graphIndex] = structuredClone(previousLocked);
+      }
+      projection.mutations = projection.mutations.filter(({ owner }) => !preservedIds.has(owner));
+      projection.directoryClaims = projection.directoryClaims.filter(({ owner }) => !preservedIds.has(owner));
+      projection.directoryRemovals = projection.directoryRemovals
+        .filter(({ owner }) => !preservedIds.has(owner));
+      if (previousState?.migration) projection.state.migration = structuredClone(previousState.migration);
     }
 
     const previousDirectories = new Map();
@@ -454,9 +522,10 @@ export class PluginApplicationService {
       projection.state.plugins.flatMap((plugin) => plugin.paths.map(({ path: target }) => target)),
     );
     const removalMutations = [];
-    const directoryRemovals = [];
+    const directoryRemovals = [...projection.directoryRemovals];
     for (const plugin of previousState?.plugins || []) {
       for (const entry of plugin.paths) {
+        if (entry.ownership === "shared") continue;
         if (entry.kind === "directory") {
           if (desiredDirectoryPaths.has(entry.path)) continue;
           const target = path.join(this.projectRoot, ...entry.path.split("/"));
@@ -468,7 +537,9 @@ export class PluginApplicationService {
               details: { expected: entry.hash, actual: currentHash },
             });
           }
-          directoryRemovals.push({ owner: plugin.id, path: entry.path, beforeHash: currentHash });
+          if (!directoryRemovals.some(({ path: targetPath }) => targetPath === entry.path)) {
+            directoryRemovals.push({ owner: plugin.id, path: entry.path, beforeHash: currentHash });
+          }
           continue;
         }
         if (desiredPaths.has(entry.path)) continue;
@@ -501,18 +572,32 @@ export class PluginApplicationService {
           .map(({ id, capabilities }) => [id, capabilities.approvalDigest]),
       );
       const selectedById = new Map(resolution.selected.map((candidate) => [candidate.id, candidate]));
-      const patchEntries = resolution.graph.plugins.map((plugin) => {
-        const candidate = selectedById.get(plugin.id);
-        if (!candidate) throw new Error(`Resolved Plugin 缺少 Patch 候选:${plugin.id}`);
-        const pluginPackage = this.registry.readPackage(candidate);
-        return {
-          plugin: candidate,
-          manifest: pluginPackage.manifest,
-          packageRoot: pluginPackage.root,
-          marketplaceMaxProfile: candidate.marketplaceMaxProfile,
-          provider: typeof this.registry.get === "function" ? this.registry.get(candidate.source.id) : undefined,
-        };
-      });
+      const patchEntries = resolution.graph.plugins
+        .filter((plugin) => !preservedIds.has(plugin.id))
+        .map((plugin) => {
+          const candidate = selectedById.get(plugin.id);
+          if (!candidate) throw new Error(`Resolved Plugin 缺少 Patch 候选:${plugin.id}`);
+          const pluginPackage = this.registry.readPackage(candidate);
+          return {
+            plugin: candidate,
+            manifest: pluginPackage.manifest,
+            packageRoot: pluginPackage.root,
+            marketplaceMaxProfile: candidate.marketplaceMaxProfile,
+            provider: typeof this.registry.get === "function" ? this.registry.get(candidate.source.id) : undefined,
+            catalogs: pluginPackage.catalogs,
+            systemAdapters: pluginPackage.systemAdapters,
+            patchOptions: pluginPackage.patchOptions,
+            allowContentPatchOverlap: pluginPackage.allowContentPatchOverlap === true &&
+              isRuntimeBuiltinProviderTrusted(
+                typeof this.registry.get === "function" ? this.registry.get(candidate.source.id) : null,
+              ),
+          };
+        });
+      const contentPatchOverlapOwners = new Set(
+        patchEntries
+          .filter(({ allowContentPatchOverlap }) => allowContentPatchOverlap)
+          .map(({ plugin }) => plugin.id),
+      );
       const approvedDigests = input.approvedDigests || previousApprovals;
       patchResult = patchPlanner(this.projectRoot, patchEntries, {
         contentMutations: [...projection.mutations, ...removalMutations],
@@ -520,11 +605,47 @@ export class PluginApplicationService {
         approvals: input.approvals,
         approvalMode: input.dryRun ? "preview" : "require",
         nonInteractive: input.nonInteractive,
+        systemAdapters: Object.assign(
+          {},
+          ...patchEntries.map((entry) => entry.systemAdapters || {}),
+        ),
+        patchOptions: Object.assign(
+          {},
+          ...patchEntries
+            .filter(({ allowContentPatchOverlap }) => allowContentPatchOverlap)
+            .map((entry) => entry.patchOptions || {}),
+        ),
+        contentPatchOverlapOwners,
       });
+      if (contentPatchOverlapOwners.size > 0) {
+        const patchByTarget = new Map(
+          patchResult.patchMutations.map((mutation) => [mutation.target, mutation]),
+        );
+        projection.mutations = projection.mutations.filter((mutation) => {
+          const patch = patchByTarget.get(mutation.target);
+          if (!patch) return true;
+          if (
+            mutation.owner !== patch.owner ||
+            !contentPatchOverlapOwners.has(mutation.owner) ||
+            mutation.operation !== "write" ||
+            mutation.afterHash !== patch.afterHash
+          ) {
+            throw new PluginRuntimeError(`Plugin 内容与 Patch 最终字节不一致:${mutation.target}`, {
+              code: PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
+              path: mutation.target,
+            });
+          }
+          return false;
+        });
+      }
     }
     const grants = new Map(patchResult.grants.map(({ pluginId, grant }) => [pluginId, grant]));
     for (const plugin of resolution.graph.plugins) {
-      const grant = grants.get(plugin.id);
+      const grant = grants.get(plugin.id) || (
+        preservedIds.has(plugin.id)
+          ? previousLock?.plugins.find(({ id }) => id === plugin.id)?.capabilities
+          : null
+      );
       if (!grant) throw new Error(`Resolved Plugin 缺少 capability grant:${plugin.id}`);
       plugin.capabilities = grant;
     }
@@ -532,6 +653,9 @@ export class PluginApplicationService {
       const plugin = projection.state.plugins.find(({ id }) => id === mutation.owner);
       if (!plugin) throw new Error(`Patch mutation 缺少 Plugin state:${mutation.owner}`);
       for (const provenance of mutation.provenance) {
+        plugin.patches = plugin.patches.filter((entry) => !(
+          entry.operation === provenance.qualifiedId && entry.target === mutation.target
+        ));
         plugin.patches.push({
           operation: provenance.qualifiedId,
           target: mutation.target,
@@ -554,6 +678,12 @@ export class PluginApplicationService {
         diagnostics: patchResult.diagnostics,
       },
     );
+    input.onPreflight?.({
+      diagnostics: [...plan.diagnostics],
+      approvalRequests: [...patchResult.approvalRequests],
+      patchReport: patchResult.patchReport,
+      plan,
+    });
     const transaction = this.writer.apply({
       plan,
       payloads: projection.payloads,

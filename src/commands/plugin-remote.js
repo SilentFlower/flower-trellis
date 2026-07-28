@@ -205,7 +205,7 @@ export async function runPluginManagementCommand(parsed, ctx, options, output) {
  * @returns {Promise<void>} 登记完成
  */
 export async function registerRemotePluginSources({ parsed, projectRoot, options, registry, lock }) {
-  const remoteIds = new Set(["update", "remove", "verify"].includes(parsed.command)
+  const remoteIds = new Set(["add", "update", "remove", "verify", "replay"].includes(parsed.command)
     ? (lock?.plugins || []).filter(({ source }) => source.type === "gitlab").map(({ source }) => source.id)
     : []);
   let sourceStore = null;
@@ -280,13 +280,17 @@ export async function registerRemotePluginSources({ parsed, projectRoot, options
  */
 export async function prepareRemotePluginCandidates({ parsed, canonicalId, registry, lock }) {
   if (parsed.command === "add" && registry.has(parseCanonicalPluginId(canonicalId).sourceId)) {
+    await prepareRemoteLock(registry, lock);
     await prepareRemoteClosure(registry, [canonicalId]);
   } else if (parsed.command === "update") {
+    // 更新单一 Plugin 时，解析器仍会 lock-first 重放完整图；先恢复全部远程固定包，
+    // 再只为本轮显式更新目标加载新候选，避免顺带升级其它外部 Plugin。
+    await prepareRemoteLock(registry, lock);
     const updateIds = canonicalId
       ? [canonicalId]
       : (lock?.plugins || []).filter(({ source }) => source.type === "gitlab").map(({ id }) => id);
     await prepareRemoteClosure(registry, updateIds);
-  } else if (["remove", "verify"].includes(parsed.command)) {
+  } else if (["remove", "verify", "replay"].includes(parsed.command)) {
     await prepareRemoteLock(registry, lock);
   }
 }

@@ -232,15 +232,15 @@ Phase 正向断言必须包含 managed marker、heading 和 section 首句形成
 
 ## Unified Apply Pipeline
 
-Trellis 0.6 的 `applyEnhancements()` 顺序固定：
+Trellis 0.6 的 builtin skill-garden Runtime 顺序固定：
 
 1. 解析 variant 和精细安装选择。
 2. 读取共享 policy 并先执行版本兼容检查；invalid 或未支持的新 minor/major 直接返回包含 `--no-enhance` 的 error，不能被旧 catalog 的 selector/baseline 漂移掩盖。
 3. 同时加载 Skill-Garden catalog 与 Flower platform catalog，对所有 required Patch 全量 preflight，在内存得到最终文件。
 4. 校验 conflict rule 的 operation/target 引用并执行最终产物断言；同一兼容线未登记版本到此时才输出 warning，任一 error 时零写入。
-5. 统一 apply，再复制 skill、script、Flower asset 和已启用 common skill。
-6. 全装时按旧 manifest 精确清理 stale path。
-7. 所有步骤成功后写包含 Patch provenance 的 manifest。
+5. 把 PatchMutation 与内容 mutation 合并为一个 InstallPlan；同 owner 重叠必须最终 hash 相同。
+6. Transaction Writer 一次写目标、声明、lock 和 state；Patch provenance 写 state `patches[]`。
+7. 旧 manifest 只读迁移并保留，不进入成功写链。
 
 0.6 禁止再调用 `injectWorkflow()`、skill/hook override injector 或 Codex/Claude tweak。`injectWorkflow()` 与旧 tweak 只服务 0.5/old。
 
@@ -257,7 +257,8 @@ Skill-Garden 独立安装器顺序同样固定：版本/目标解析 → 共享 
 
 ## Provenance
 
-全装成功 manifest 必须写：
+全装成功 state 的 `flower/skill-garden.patches[]` 必须写 qualified operation、target 与 resultHash；
+旧 manifest 的下列 provenance 结构只用于迁移兼容，不再新写：
 
 ```json
 {

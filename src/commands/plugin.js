@@ -12,6 +12,10 @@ import { ProjectStore } from "../plugin/state/project-store.js";
 import { LocalSourceProvider } from "../plugin/sources/local-provider.js";
 import { SourceRegistry } from "../plugin/sources/source-registry.js";
 import { compareUtf8 } from "../plugin/stable-order.js";
+import {
+  SKILL_GARDEN_PLUGIN_ID,
+  SkillGardenBuiltinProvider,
+} from "../builtin-plugins/skill-garden/provider.js";
 
 const REMOTE_PLUGIN_ENTRY = new URL("./plugin-remote.js", import.meta.url);
 const PATCH_RUNTIME_ENTRY = new URL("../plugin/install/patch-planner.js", import.meta.url);
@@ -203,7 +207,7 @@ export function parsePluginArgs(argv) {
     } else positional.push(token);
   }
 
-  const supported = new Set(["list", "add", "update", "remove", "verify"]);
+  const supported = new Set(["list", "add", "update", "remove", "verify", "replay"]);
   if (!supported.has(command)) {
     throw new PluginRuntimeError(`未知 Plugin 命令:${command}`, {
       code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
@@ -216,7 +220,7 @@ export function parsePluginArgs(argv) {
       path: command,
     });
   }
-  if (["list"].includes(command) && positional.length !== 0 && !help) {
+  if (["list", "replay"].includes(command) && positional.length !== 0 && !help) {
     throw new PluginRuntimeError(`plugin ${command} 不接受位置参数`, {
       code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
       path: command,
@@ -240,13 +244,13 @@ export function parsePluginArgs(argv) {
       path: version,
     });
   }
-  if (!["add", "update"].includes(command) && platforms.length > 0) {
+  if (!["add", "update", "replay"].includes(command) && platforms.length > 0) {
     throw new PluginRuntimeError(`--platform 不支持 plugin ${command}`, {
       code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
       path: command,
     });
   }
-  if (!["add", "update", "remove"].includes(command) && dryRun) {
+  if (!["add", "update", "remove", "replay"].includes(command) && dryRun) {
     throw new PluginRuntimeError(`--dry-run 不支持 plugin ${command}`, {
       code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
       path: command,
@@ -476,6 +480,20 @@ export async function plugin(ctx, options = {}) {
     const lock = store.readLock();
     const state = store.readState();
     const registry = new SourceRegistry(options.providers || []);
+    const needsSkillGardenProvider = (
+      parsed.pluginId === SKILL_GARDEN_PLUGIN_ID ||
+      parsed.source === "flower" ||
+      pluginsFile.plugins.some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID) ||
+      lock?.plugins.some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID)
+    );
+    if (needsSkillGardenProvider && !registry.has("flower")) {
+      registry.register(new SkillGardenBuiltinProvider({
+        projectRoot: ctx.target,
+        previousState: state,
+        lockedPlugin: lock?.plugins.find(({ id }) => id === SKILL_GARDEN_PLUGIN_ID) || null,
+        ...(options.skillGarden || {}),
+      }));
+    }
     const localReferences = localReferencesFromLock(lock);
     let canonicalId = parsed.pluginId;
     const remoteRuntime = fs.existsSync(REMOTE_PLUGIN_ENTRY)
@@ -551,7 +569,11 @@ export async function plugin(ctx, options = {}) {
     } else if (parsed.command === "add") {
       const addOptions = {
         id: canonicalId,
-        version: parsed.version || "*",
+        version: parsed.version || (
+          parseCanonicalPluginId(canonicalId).sourceId === "flower"
+            ? registry.get("flower").manifest.version
+            : "*"
+        ),
         platforms: parsed.platforms,
         dryRun: parsed.dryRun,
       };
@@ -564,6 +586,9 @@ export async function plugin(ctx, options = {}) {
     } else if (parsed.command === "update") {
       const updateOptions = {
         id: canonicalId,
+        ...(canonicalId === SKILL_GARDEN_PLUGIN_ID
+          ? { version: registry.get("flower").manifest.version }
+          : {}),
         platforms: parsed.platforms,
         dryRun: parsed.dryRun,
       };
@@ -578,6 +603,12 @@ export async function plugin(ctx, options = {}) {
         id: canonicalId,
         platforms: parsed.platforms,
         dryRun: parsed.dryRun,
+      });
+    } else if (parsed.command === "replay") {
+      result = service.replay({
+        platforms: parsed.platforms,
+        dryRun: parsed.dryRun,
+        preserveIds: options.preserveIds || [],
       });
     } else {
       result = { command: "verify", ...service.verify({ id: canonicalId }) };

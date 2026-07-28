@@ -222,6 +222,37 @@ function listRemovedCommonSkillNames() {
 }
 
 /**
+ * 描述当前项目中已启用 common skill 的无写入同步输入。
+ *
+ * @param {string} target 目标项目根目录
+ * @returns {{refreshes:Array<{source:string,target:string,name:string}>,removedTargets:string[]}} 快照来源与 tombstone 目标
+ */
+export function describeInstalledCommonSkillSync(target) {
+  const refreshes = [];
+  const currentNames = new Set(listCommonSnapshotNames());
+  for (const name of currentNames) {
+    for (const dir of allCommonSkillDirs()) {
+      const targetPath = `${dir.target}/${name}`;
+      if (!fs.existsSync(path.join(target, ...targetPath.split("/")))) continue;
+      const source = path.join(ENHANCEMENTS_ROOT, "common", dir.source, name);
+      if (!fs.existsSync(source)) continue;
+      refreshes.push({ source, target: targetPath, name });
+    }
+  }
+  const removedTargets = [];
+  for (const name of listRemovedCommonSkillNames()) {
+    if (currentNames.has(name)) continue;
+    for (const dir of allCommonSkillDirs()) {
+      const targetPath = `${dir.target}/${name}`;
+      if (fs.existsSync(path.join(target, ...targetPath.split("/")))) {
+        removedTargets.push(targetPath);
+      }
+    }
+  }
+  return { refreshes, removedTargets };
+}
+
+/**
  * 查找通用技能的源 SKILL.md。
  *
  * @param {string} name skill 名称

@@ -123,6 +123,7 @@ test("真实 CLI 完成 add/update/verify/remove，dry-run 始终零写入", (t)
   assert.equal(fs.existsSync(path.join(project, ".flower/plugin-lock.json")), true);
   assert.equal(fs.existsSync(path.join(project, ".trellis")), false);
   const installedState = JSON.parse(fs.readFileSync(path.join(project, ".flower/state.json"), "utf8"));
+  assert.equal(installedState.plugins.some(({ id }) => id === "flower/skill-garden"), false);
   assert.deepEqual(
     installedState.plugins[0].paths.filter(({ kind }) => kind === "directory").map(({ path: targetPath }) => targetPath),
     [".agents/skills/demo", ".agents/skills/demo/references"],

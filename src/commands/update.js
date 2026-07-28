@@ -1,5 +1,5 @@
 import { runTrellisPty } from "../lib/trellis-runner.js";
-import { applyEnhancements } from "../lib/apply-enhancements.js";
+import { plugin } from "./plugin.js";
 import { printBanner, getDeveloper } from "../lib/banner.js";
 import { checkForUpdate } from "../lib/update-check.js";
 import { syncGlobalTrellis } from "../lib/global-trellis-sync.js";
@@ -12,6 +12,8 @@ import {
   pruneUpdateBackups,
   snapshotUpdateBackups,
 } from "../lib/update-backups.js";
+import { ProjectStore } from "../plugin/state/project-store.js";
+import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
 
 function printBackupRetentionResult(result) {
   if (result.status === "preview") {
@@ -78,13 +80,31 @@ export async function update(ctx) {
     }
 
     if (ctx.enhance) {
-      if (dryRun) {
-        console.log("· --dry-run:跳过强化包叠加(仅预览 trellis update)");
-      } else {
-        applyEnhancements(target, { variant: ctx.variant, skills: ctx.skills });
-      }
+      const declared = new ProjectStore(target).readPlugins().plugins
+        .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
+      const code = await plugin({
+        ...ctx,
+        passthrough: [
+          declared ? "update" : "add",
+          SKILL_GARDEN_PLUGIN_ID,
+          ...(dryRun ? ["--dry-run"] : []),
+        ],
+      }, {
+        skillGarden: { variant: ctx.variant, skills: ctx.skills },
+      });
+      if (code !== 0) throw new Error(`Plugin Runtime 重放失败(退出码 ${code})`);
     } else {
       console.log("· --no-enhance:跳过强化包叠加");
+      const preserveSkillGarden = new ProjectStore(target).readLock()?.plugins
+        .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID) === true;
+      const code = await plugin({
+        ...ctx,
+        passthrough: ["replay", ...(dryRun ? ["--dry-run"] : [])],
+      }, {
+        skillGarden: { preserve: preserveSkillGarden },
+        preserveIds: preserveSkillGarden ? [SKILL_GARDEN_PLUGIN_ID] : [],
+      });
+      if (code !== 0) throw new Error(`外部 Plugin 重放失败(退出码 ${code})`);
     }
   } finally {
     if (shouldRestoreConfig) {

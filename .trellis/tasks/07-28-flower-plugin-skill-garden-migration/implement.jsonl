@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "保持 enhancement snapshot、variant、apply pipeline、manifest 与幂等语义兼容。"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "保持内置 catalog marker、provenance、conflict 和 compiled targets 兼容。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "验证 snapshot、sync、npm pack 与发布门禁。"}
+{"file": ".trellis/tasks/07-28-flower-plugin-system/research/current-architecture.md", "reason": "读取 init/update/uninstall、旧 manifest 和 builtin adapter 迁移证据。"}

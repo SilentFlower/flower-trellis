@@ -601,30 +601,35 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     assert.match(value, /### 1\. Decision Audit/);
     assert.match(value, /### 2\. Current Task Release Audit/);
   }
-  const manifest = JSON.parse(
-    fs.readFileSync(path.join(target, ".trellis/.flower-manifest.json"), "utf8"),
+  const plugins = JSON.parse(
+    fs.readFileSync(path.join(target, ".flower/plugins.json"), "utf8"),
   );
-  assert.equal(manifest.variant, "0.6");
-  assert.ok(manifest.paths.includes(".trellis/scripts/task_intent.py"));
-  assert.ok(manifest.paths.includes(".trellis/scripts/pre_check_state.py"));
-  assert.equal(manifest.patches.schemaVersion, 2);
-  assert.match(manifest.patches.catalogHash, /^sha256:/);
-  assert.ok(manifest.patches.applied.every((item) => item.qualifiedId.includes("/")));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-in-progress"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-missing-task"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-phase-1-activate"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "brainstorm-planning-handoff"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "task-start-brief-guard"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "task-start-session-write-gate"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "task-finish-clear-result"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "task-create-parent-link"));
-  assert.ok(
-    manifest.patches.applied.some((item) => item.id === "active-task-clear-session-fallback"),
+  const state = JSON.parse(
+    fs.readFileSync(path.join(target, ".flower/state.json"), "utf8"),
   );
-  assert.ok(manifest.patches.applied.some((item) => item.id === "codex-session-start-missing-task"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "claude-session-start-missing-task"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "codex-session-start-pre-check-hold"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "claude-session-start-pre-check-hold"));
+  const skillGarden = state.plugins.find(({ id }) => id === "flower/skill-garden");
+  assert.ok(plugins.plugins.some(({ id }) => id === "flower/skill-garden"));
+  assert.ok(skillGarden.paths.some(({ path: value }) => value === ".trellis/scripts/task_intent.py"));
+  assert.ok(skillGarden.paths.some(({ path: value }) => value === ".trellis/scripts/pre_check_state.py"));
+  assert.ok(skillGarden.patches.every((item) => item.operation.includes("/")));
+  for (const operation of [
+    "workflow-state-in-progress",
+    "workflow-state-missing-task",
+    "workflow-phase-1-activate",
+    "brainstorm-planning-handoff",
+    "task-start-brief-guard",
+    "task-start-session-write-gate",
+    "task-finish-clear-result",
+    "task-create-parent-link",
+    "active-task-clear-session-fallback",
+    "codex-session-start-missing-task",
+    "claude-session-start-missing-task",
+    "codex-session-start-pre-check-hold",
+    "claude-session-start-pre-check-hold",
+  ]) {
+    assert.ok(skillGarden.patches.some((item) => item.operation.endsWith(`/${operation}`)));
+  }
+  assert.equal(fs.existsSync(path.join(target, ".trellis/.flower-manifest.json")), false);
   assert.equal(fs.existsSync(path.join(target, ".codex/hooks.json")), true);
   assert.equal(fs.existsSync(path.join(target, ".claude/settings.json")), true);
 

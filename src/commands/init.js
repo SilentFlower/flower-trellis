@@ -1,10 +1,12 @@
 import fs from "node:fs";
 import { runTrellisPty } from "../lib/trellis-runner.js";
-import { applyEnhancements } from "../lib/apply-enhancements.js";
+import { plugin } from "./plugin.js";
 import { pickPlatforms } from "../lib/pick-platforms.js";
 import { printBanner, getDeveloper } from "../lib/banner.js";
 import { checkForUpdate } from "../lib/update-check.js";
 import { PLATFORM_FLAGS } from "../constants.js";
+import { ProjectStore } from "../plugin/state/project-store.js";
+import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
 
 /**
  * flower-trellis init:驱动 `trellis init`,随后叠加强化包。
@@ -62,7 +64,15 @@ export async function init(ctx) {
   }
 
   if (ctx.enhance) {
-    applyEnhancements(target, { variant: ctx.variant, skills: ctx.skills });
+    const declared = new ProjectStore(target).readPlugins().plugins
+      .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
+    const code = await plugin({
+      ...ctx,
+      passthrough: [declared ? "update" : "add", SKILL_GARDEN_PLUGIN_ID],
+    }, {
+      skillGarden: { variant: ctx.variant, skills: ctx.skills },
+    });
+    if (code !== 0) throw new Error(`Plugin Runtime 安装失败(退出码 ${code})`);
   } else {
     console.log("· --no-enhance:跳过强化包叠加");
   }

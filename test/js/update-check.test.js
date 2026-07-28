@@ -4,7 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { buildSelfCheck } from "../../src/lib/self-check.js";
-import { readUpdateCheck, writeManifest, writeUpdateCheck } from "../../src/lib/manifest.js";
+import {
+  readUpdateCheck,
+  settingsPath,
+  updateCheckCachePath,
+  writeManifest,
+  writeUpdateCheck,
+} from "../../src/lib/manifest.js";
 import {
   getUpdateRecommendation,
   installFlowerVersion,
@@ -149,4 +155,58 @@ test("强制远端检查返回离线写入后的缓存视图", async (t) => {
   assert.equal(result.updateCheck.lastStatus, "offline");
   assert.equal(result.updateCheck.lastErrorCode, "fetch_failed");
   assert.deepEqual(result.updateCheck, readUpdateCheck(target));
+});
+
+test("update-check 单向迁移到 .flower 并保留旧 manifest 证据", (t) => {
+  const target = createTarget(t);
+  const legacyPath = path.join(target, ".trellis/.flower-manifest.json");
+  const legacyBefore = fs.readFileSync(legacyPath, "utf8");
+
+  writeUpdateCheck(target, {
+    policy: "notify",
+    enabled: true,
+    lastCheckedAt: "2026-07-28T00:00:00.000Z",
+    lastStatus: "up_to_date",
+  });
+
+  assert.equal(fs.existsSync(settingsPath(target)), true);
+  assert.equal(fs.existsSync(updateCheckCachePath(target)), true);
+  assert.equal(fs.readFileSync(legacyPath, "utf8"), legacyBefore);
+  assert.equal(readUpdateCheck(target).policy, "notify");
+  assert.equal(readUpdateCheck(target).lastStatus, "up_to_date");
+  assert.match(fs.readFileSync(path.join(target, ".flower/.gitignore"), "utf8"), /\*\.tmp/);
+});
+
+test("update-check 拒绝覆盖损坏的 settings 证据", (t) => {
+  const target = createTarget(t);
+  fs.mkdirSync(path.dirname(settingsPath(target)), { recursive: true });
+  fs.writeFileSync(settingsPath(target), "{broken\n");
+
+  assert.throws(
+    () => writeUpdateCheck(target, { policy: "off", lastStatus: "offline" }),
+    /settings 损坏，拒绝覆盖/,
+  );
+  assert.equal(fs.readFileSync(settingsPath(target), "utf8"), "{broken\n");
+  assert.equal(fs.existsSync(updateCheckCachePath(target)), false);
+});
+
+test("update-check cache 拒绝软链且项目外零写入", (t) => {
+  if (process.platform === "win32") {
+    t.skip("Windows 普通用户默认不能创建文件软链");
+    return;
+  }
+  const target = createTarget(t);
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "flower-update-check-outside-"));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  const outsideFile = path.join(outside, "cache.json");
+  fs.writeFileSync(outsideFile, "outside\n");
+  fs.mkdirSync(path.dirname(updateCheckCachePath(target)), { recursive: true });
+  fs.symlinkSync(outsideFile, updateCheckCachePath(target));
+
+  assert.throws(
+    () => writeUpdateCheck(target, { lastStatus: "offline" }),
+    /状态必须是普通文件/,
+  );
+  assert.equal(fs.readFileSync(outsideFile, "utf8"), "outside\n");
+  assert.equal(fs.lstatSync(updateCheckCachePath(target)).isSymbolicLink(), true);
 });

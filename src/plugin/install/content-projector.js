@@ -8,6 +8,7 @@ import {
 } from "../runtime-errors.js";
 import { assertSafePosixRelativePath } from "../schemas/shared.js";
 import { compareUtf8 } from "../stable-order.js";
+import { isRuntimeBuiltinProviderTrusted } from "../runtime-extensions.js";
 import { hashContent, hashFileIfExists } from "./content-hash.js";
 
 const CONTENT_KINDS = ["skills", "specs", "assets", "scripts", "tests"];
@@ -129,20 +130,56 @@ function addDirectoryClaims(claims, owner, prefix, relative) {
 /**
  * 把 resolved Plugin 内容投影为 P1 ContentMutation 与本机 state。
  *
- * @param {{projectRoot:string,graph:import("../contracts.js").ResolvedGraph,selected:import("../contracts.js").PluginCandidate[],registry:{readPackage:(plugin:object)=>{root:string,manifest:import("../contracts.js").PluginManifest}},platformSelection:{platforms:string[],targets:Array<{root:string,source:string,platforms:string[]}>}}} options 投影输入
- * @returns {{mutations:import("../contracts.js").ContentMutation[],payloads:Map<string,Buffer>,directoryClaims:Array<{owner:string,path:string}>,state:import("../contracts.js").PluginState}} 投影结果
+ * @param {{projectRoot:string,graph:import("../contracts.js").ResolvedGraph,selected:import("../contracts.js").PluginCandidate[],registry:{readPackage:(plugin:object)=>{root:string,manifest:import("../contracts.js").PluginManifest}},platformSelection:{platforms:string[],targets:Array<{root:string,source:string,platforms:string[]}>},previousState?:import("../contracts.js").PluginState|null}} options 投影输入
+ * @returns {{mutations:import("../contracts.js").ContentMutation[],payloads:Map<string,Buffer>,directoryClaims:Array<{owner:string,path:string}>,directoryRemovals:Array<{owner:string,path:string,beforeHash:string}>,state:import("../contracts.js").PluginState}} 投影结果
  */
 export function projectPluginContent(options) {
   const selectedById = new Map(options.selected.map((candidate) => [candidate.id, candidate]));
   const payloads = new Map();
   const mutations = [];
   const directoryClaims = new Map();
+  const directoryRemovals = new Map();
   const stateEntries = [];
+  let migration;
 
   for (const resolved of options.graph.plugins) {
     const candidate = selectedById.get(resolved.id);
     if (!candidate) throw new Error(`Resolved Plugin 缺少候选:${resolved.id}`);
     const pluginPackage = options.registry.readPackage(candidate);
+    const provider = typeof options.registry.get === "function"
+      ? options.registry.get(candidate.source.id)
+      : null;
+    if (typeof provider?.projectContent === "function") {
+      if (!isRuntimeBuiltinProviderTrusted(provider)) {
+        throw new PluginRuntimeError(`外部 Plugin 不得注册自定义内容投影:${resolved.id}`, {
+          code: PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
+          path: resolved.id,
+        });
+      }
+      const custom = provider.projectContent({
+        projectRoot: options.projectRoot,
+        resolved,
+        candidate,
+        pluginPackage,
+        platformSelection: options.platformSelection,
+        previousState: options.previousState,
+      });
+      custom.mutations.forEach((mutation) => mutations.push(mutation));
+      for (const [key, value] of custom.payloads) {
+        const previous = payloads.get(key);
+        if (previous && !previous.equals(value)) throw new Error(`Plugin 投影 payload 冲突:${key}`);
+        payloads.set(key, value);
+      }
+      for (const claim of custom.directoryClaims || []) {
+        directoryClaims.set(`${claim.owner}\u0000${claim.path}`, claim);
+      }
+      for (const removal of custom.directoryRemovals || []) {
+        directoryRemovals.set(`${removal.owner}\u0000${removal.path}`, removal);
+      }
+      stateEntries.push(custom.stateEntry);
+      if (custom.migration) migration = custom.migration;
+      continue;
+    }
     const paths = new Map();
     for (const kind of CONTENT_KINDS) {
       for (const entry of [...(pluginPackage.manifest.content[kind] || [])].sort(compareUtf8)) {
@@ -228,10 +265,13 @@ export function projectPluginContent(options) {
     payloads,
     directoryClaims: [...directoryClaims.values()]
       .sort((left, right) => compareUtf8(left.path, right.path) || compareUtf8(left.owner, right.owner)),
+    directoryRemovals: [...directoryRemovals.values()]
+      .sort((left, right) => compareUtf8(left.path, right.path) || compareUtf8(left.owner, right.owner)),
     state: {
       schemaVersion: 1,
       transactionVersion: 1,
       plugins: stateEntries,
+      ...(migration ? { migration } : {}),
     },
   };
 }

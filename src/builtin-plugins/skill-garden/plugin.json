@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "skill-garden",
+  "name": "Flower Skill Garden",
+  "version": "0.5.1-beta.1",
+  "compatibility": {
+    "flower": "*"
+  },
+  "capabilities": {
+    "profile": "system",
+    "required": [
+      "content.skills",
+      "content.scripts",
+      "patch.insert",
+      "patch.replace",
+      "patch.remove",
+      "patch.hook",
+      "patch.migration",
+      "patch.adapter"
+    ]
+  },
+  "content": {
+    "assets": [
+      "payload.marker"
+    ]
+  },
+  "patches": {
+    "catalog": "payload.marker"
+  }
+}
