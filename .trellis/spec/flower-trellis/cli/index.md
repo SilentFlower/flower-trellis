@@ -73,6 +73,7 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [Config & State](./config-and-state.md) | 常量、路径、版本、manifest 状态 |
 | [Enhancements Model](./enhancements-model.md) | 强化包快照与叠加流水线 |
 | [Trellis Patch Engine](./trellis-patch-engine.md) | Skill-Garden/Flower 对 workflow、skill、hook、平台配置的统一 Patch、Bundle、迁移与 provenance 协议 |
+| [Flower Plugin Contracts](./flower-plugin-contracts.md) | Plugin/Marketplace schema、共享 DTO、canonical hash 与 `.flower/` Project Store 契约 |
 | [AI Context Budget](./ai-context-budget.md) | 最终 workflow/state/skill、Phase summary、SessionStart 与控制面总量的告警预算 |
 | [Release & Publishing](./release-and-publishing.md) | 发版流程、CI 发布(OIDC)、CHANGELOG 约定 |
 | [Quality Guidelines](./quality-guidelines.md) | 必守模式、禁用模式、评审清单 |

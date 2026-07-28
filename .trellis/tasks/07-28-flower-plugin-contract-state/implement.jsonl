@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "掌握现有 enhancement manifest、幂等铺设和 skill-garden 状态边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "复用现有路径安全、摘要、qualified identity 和零写入契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "验证新增运行时依赖、npm pack 文件范围和发布门禁。"}
+{"file": ".trellis/tasks/07-28-flower-plugin-system/research/current-architecture.md", "reason": "读取父任务对现有 manifest、fs-utils、Patch Engine 和 Plugin 边界的代码研究结论。"}

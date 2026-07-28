@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "理解现有 CLI 增强链、平台投影、manifest 和幂等约束。"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "对齐统一 preflight、路径安全、before/after hash 和零写入边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "读取 flower-trellis CLI 包级规范入口与关联规则。"}
+{"file": ".trellis/tasks/07-28-flower-plugin-system/research/current-architecture.md", "reason": "掌握现有 CLI、copySkills、fs-utils 和 Runtime 拆分证据。"}
+{"file": ".trellis/tasks/07-28-flower-plugin-contract-state/research/contracts-handoff.md", "reason": "复用 P1 冻结的 DTO、source identity、schema、ProjectStore 和 canonical tree hash 契约。"}
