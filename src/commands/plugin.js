@@ -3,6 +3,7 @@ import path from "node:path";
 import { PLUGIN_ERROR_CODES, PluginError } from "../plugin/errors.js";
 import { PluginApplicationService } from "../plugin/application-service.js";
 import { stringifyCanonicalJson } from "../plugin/integrity/canonical-json.js";
+import { parsePluginAuthoringArgs } from "../plugin/authoring/args.js";
 import {
   PLUGIN_RUNTIME_ERROR_CODES,
   PluginRuntimeError,
@@ -168,6 +169,8 @@ function parseManagementArgs(argv) {
  * @returns {{command:string,pluginId:string|null,source:string|null,version:string|null,platforms:string[],dryRun:boolean,json:boolean,help:boolean}} 解析结果
  */
 export function parsePluginArgs(argv) {
+  const authoring = parsePluginAuthoringArgs(argv);
+  if (authoring) return authoring;
   const management = parseManagementArgs(argv);
   if (management) return management;
   const rootHelp = argv[0] === "--help" || argv[0] === "-h";
@@ -282,7 +285,169 @@ function printPluginHelp(output) {
   flower-trellis plugin add <plugin> --source <项目内路径> [--version <range>] [--platform <id>] [--dry-run] [--json]
   flower-trellis plugin update [plugin] [--platform <id>] [--dry-run] [--json]
   flower-trellis plugin remove <plugin> [--dry-run] [--json]
-  flower-trellis plugin verify [plugin] [--json]${managementHelp}`);
+  flower-trellis plugin verify [plugin] [--json]
+  flower-trellis plugin init --id <source/plugin> --name <name> [--profile <standard|integration>] [--patches] [--marketplace]
+  flower-trellis plugin validate [path] [--subject <plugin|entry|marketplace>] [--checkout-map <file>] [--ci] [--json]${managementHelp}`);
+}
+
+/**
+ * 读取作者命令所需的交互值。
+ *
+ * @param {object} parsed 已解析参数
+ * @param {{promptAuthoring?:(current:object)=>Promise<object>|object}} options 注入选项
+ * @returns {Promise<object>} 完整 scaffold 参数
+ */
+async function resolveAuthoringInitOptions(parsed, options) {
+  let values = { ...parsed };
+  const missing = () => !values.id || !values.name;
+  if (missing() && (parsed.nonInteractive || parsed.json)) {
+    throw new PluginRuntimeError("plugin init 非交互模式需要 --id 与 --name", {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: "plugin init",
+    });
+  }
+  if (missing() && options.promptAuthoring) values = { ...values, ...await options.promptAuthoring(values) };
+  if (missing()) {
+    const { input, select } = await import("@inquirer/prompts");
+    values.id ||= await input({ message: "Canonical Plugin ID", required: true });
+    values.name ||= await input({ message: "Plugin 名称", required: true });
+    values.profile ||= await select({
+      message: "Capability profile",
+      choices: [
+        { name: "standard", value: "standard" },
+        { name: "integration", value: "integration" },
+      ],
+      default: "standard",
+    });
+  }
+  return values;
+}
+
+/**
+ * 读取 JSON 文件并隐藏绝对路径。
+ *
+ * @param {string} file 文件路径
+ * @param {string} label 诊断标签
+ * @returns {object} JSON 对象
+ */
+function readAuthoringJson(file, label) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new PluginRuntimeError(`${label} JSON 无法读取`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: label,
+      cause: error,
+    });
+  }
+}
+
+/**
+ * 执行作者 scaffold 命令。
+ *
+ * @param {object} parsed 已解析参数
+ * @param {object} ctx CLI 上下文
+ * @param {object} options 测试注入
+ * @param {{log:(message:string)=>void}} output 输出适配器
+ * @returns {Promise<number>} 退出码
+ */
+async function runAuthoringInit(parsed, ctx, options, output) {
+  const values = await resolveAuthoringInitOptions(parsed, options);
+  const { scaffoldFlowerPlugin } = await import("../plugin/authoring/scaffold.js");
+  const result = scaffoldFlowerPlugin(ctx.target, values);
+  if (parsed.json) output.log(stringifyCanonicalJson(result).trimEnd());
+  else {
+    output.log(`Plugin scaffold 已生成:${result.root}`);
+    output.log(`digest:${result.digest}`);
+    if (result.marketplaceEntry) output.log(`Marketplace entry:${result.marketplaceEntry}`);
+  }
+  return 0;
+}
+
+/**
+ * 执行作者校验命令。
+ *
+ * @param {object} parsed 已解析参数
+ * @param {object} ctx CLI 上下文
+ * @param {{checkoutMap?:Record<string,string>}} options 测试注入
+ * @param {{log:(message:string)=>void}} output 输出适配器
+ * @returns {Promise<number>} 退出码
+ */
+async function runAuthoringValidate(parsed, ctx, options, output) {
+  const {
+    validateAuthorMarketplace,
+    validateAuthorMarketplaceEntry,
+    validateAuthorPlugin,
+  } = await import("../plugin/authoring/validator.js");
+  const target = path.resolve(ctx.target, parsed.targetPath);
+  const subject = parsed.subject || (fs.existsSync(target) && fs.statSync(target).isDirectory()
+    ? "plugin"
+    : "marketplace");
+  let checkoutMap = options.checkoutMap || null;
+  if (parsed.checkoutMap) checkoutMap = readAuthoringJson(
+    path.resolve(ctx.target, parsed.checkoutMap),
+    "checkout-map",
+  );
+  let result;
+  if (subject === "plugin") {
+    const entryPath = path.join(path.dirname(target), "marketplace-entry.json");
+    if (fs.existsSync(entryPath)) {
+      const entry = readAuthoringJson(entryPath, "marketplace-entry.json");
+      const sourceId = parsed.sourceId || "rd-guide";
+      const version = entry.versions?.[0]?.version || "unknown";
+      result = validateAuthorPlugin(target, {
+        sourceId,
+        sourceType: entry.source?.type === "gitlab" ? "gitlab" : "local",
+        maxProfile: entry.trust?.maxProfile,
+      });
+      const entryResult = validateAuthorMarketplaceEntry(entry, {
+        sourceId,
+        baseDir: path.dirname(target),
+        checkoutMap: {
+          [`${sourceId}/${entry.id}@${version}`]: {
+            path: path.relative(path.dirname(target), target) || ".",
+            commit: entry.versions?.[0]?.commit || null,
+          },
+        },
+        ci: parsed.ci,
+      });
+      result = {
+        ...result,
+        ok: result.ok && entryResult.ok,
+        issues: [...result.issues, ...entryResult.issues]
+          .sort((left, right) => compareUtf8(left.path, right.path) || compareUtf8(left.code, right.code)),
+        review: entryResult.review,
+      };
+    } else {
+      result = validateAuthorPlugin(target, { sourceId: parsed.sourceId || "local" });
+    }
+  } else {
+    const value = readAuthoringJson(target, subject === "entry" ? "marketplace-entry.json" : "marketplace.json");
+    if (subject === "entry" && !checkoutMap) {
+      const sourceId = parsed.sourceId || "rd-guide";
+      const siblingPackage = path.join(path.dirname(target), ".flower-plugin");
+      if (fs.existsSync(siblingPackage)) {
+        checkoutMap = Object.fromEntries((value.versions || []).map((version) => [
+          `${sourceId}/${value.id}@${version.version}`,
+          { path: ".flower-plugin", commit: version.commit },
+        ]));
+      }
+    }
+    const validationOptions = {
+      baseDir: path.dirname(target),
+      checkoutMap: checkoutMap || {},
+      ci: parsed.ci,
+    };
+    result = subject === "entry"
+      ? validateAuthorMarketplaceEntry(value, {
+        ...validationOptions,
+        sourceId: parsed.sourceId || "rd-guide",
+      })
+      : validateAuthorMarketplace(value, validationOptions);
+  }
+  if (parsed.json || parsed.ci) output.log(stringifyCanonicalJson(result).trimEnd());
+  else output.log(result.ok ? "Plugin 作者校验通过" : `Plugin 作者校验失败:${result.issues.length} 项`);
+  return result.ok ? 0 : 3;
 }
 
 /**
@@ -470,6 +635,8 @@ export async function plugin(ctx, options = {}) {
       printPluginHelp(output);
       return 0;
     }
+    if (parsed.command === "init") return await runAuthoringInit(parsed, ctx, options, output);
+    if (parsed.command === "validate") return await runAuthoringValidate(parsed, ctx, options, output);
     if (["source", "auth", "search"].includes(parsed.command)) {
       const remoteRuntime = await loadRemotePluginRuntime();
       return await remoteRuntime.runPluginManagementCommand(parsed, ctx, options, output);
@@ -481,10 +648,10 @@ export async function plugin(ctx, options = {}) {
     const state = store.readState();
     const registry = new SourceRegistry(options.providers || []);
     const needsSkillGardenProvider = (
-      parsed.pluginId === SKILL_GARDEN_PLUGIN_ID ||
+      parsed.pluginId?.startsWith("flower/") ||
       parsed.source === "flower" ||
-      pluginsFile.plugins.some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID) ||
-      lock?.plugins.some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID)
+      pluginsFile.plugins.some(({ id }) => id.startsWith("flower/")) ||
+      lock?.plugins.some(({ id }) => id.startsWith("flower/"))
     );
     if (needsSkillGardenProvider && !registry.has("flower")) {
       registry.register(new SkillGardenBuiltinProvider({
@@ -571,7 +738,7 @@ export async function plugin(ctx, options = {}) {
         id: canonicalId,
         version: parsed.version || (
           parseCanonicalPluginId(canonicalId).sourceId === "flower"
-            ? registry.get("flower").manifest.version
+            ? registry.listCandidates(canonicalId)[0]?.version || "*"
             : "*"
         ),
         platforms: parsed.platforms,

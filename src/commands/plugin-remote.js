@@ -230,7 +230,12 @@ export async function registerRemotePluginSources({ parsed, projectRoot, options
         });
       }
       remoteIds.add(declaredSourceId);
-    } else if (declaredSourceId && !parsed.source && declaredSourceId !== "local") {
+    } else if (
+      declaredSourceId &&
+      !parsed.source &&
+      declaredSourceId !== "local" &&
+      !registry.has(declaredSourceId)
+    ) {
       remoteIds.add(declaredSourceId);
     }
     if (simpleSourceOption && configuredIds.has(simpleSourceOption)) {

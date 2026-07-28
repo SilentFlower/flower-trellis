@@ -7,6 +7,7 @@ import { ENHANCEMENTS_ROOT, PKG_ROOT } from "../../lib/paths.js";
 import { listCanonicalTreeFiles } from "../../plugin/integrity/canonical-tree.js";
 import { validatePluginManifest } from "../../plugin/schemas/plugin-manifest.js";
 import { markRuntimeBuiltinProvider } from "../../plugin/runtime-extensions.js";
+import { BuiltinSourceProvider } from "../../plugin/sources/builtin-provider.js";
 import { flowerPatchAdapters } from "../../lib/platform-patch-adapters.js";
 import { projectSkillGardenContent } from "./content-adapter.js";
 
@@ -89,6 +90,34 @@ function runtimeManifest(variant) {
 }
 
 /**
+ * 按需初始化依赖目标 Trellis 的 skill-garden 状态。
+ *
+ * @param {SkillGardenBuiltinProvider} provider Flower builtin Provider
+ * @returns {void}
+ */
+function ensureSkillGardenReady(provider) {
+  if (provider.snapshot) return;
+  provider.snapshot = resolveEnhancementSnapshot(provider.projectRoot, provider.variantOverride);
+  provider.manifest = runtimeManifest(provider.snapshot.variant);
+  provider.integrity = stablePayloadDigest([
+    { label: `enhancements/${provider.snapshot.variant}`, root: provider.snapshot.variantDir },
+    { label: "enhancements/common", root: path.join(ENHANCEMENTS_ROOT, "common") },
+    { label: "src/assets", root: path.join(PKG_ROOT, "src", "assets") },
+    { label: "src/lib", root: path.join(PKG_ROOT, "src", "lib") },
+    { label: "src/patches", root: path.join(PKG_ROOT, "src", "patches") },
+    { label: "builtin", root: provider.packageRoot },
+  ], {
+    flowerVersion: flowerVersion(),
+    variant: provider.snapshot.variant,
+    manifest: provider.manifest,
+    snapshotManifest: stableSnapshotManifest(),
+  });
+  provider.resolutionManifest = provider.preserve && provider.lockedPlugin
+    ? lockedRuntimeManifest(provider.manifest, provider.lockedPlugin)
+    : provider.manifest;
+}
+
+/**
  * 内置 `flower/skill-garden` Source Provider。
  */
 export class SkillGardenBuiltinProvider {
@@ -107,24 +136,16 @@ export class SkillGardenBuiltinProvider {
     this.preserve = options.preserve === true;
     this.lockedPlugin = options.lockedPlugin || null;
     this.packageRoot = path.join(PKG_ROOT, "src", "builtin-plugins", "skill-garden");
-    this.snapshot = resolveEnhancementSnapshot(this.projectRoot, this.variantOverride);
-    this.manifest = runtimeManifest(this.snapshot.variant);
-    this.integrity = stablePayloadDigest([
-      { label: `enhancements/${this.snapshot.variant}`, root: this.snapshot.variantDir },
-      { label: "enhancements/common", root: path.join(ENHANCEMENTS_ROOT, "common") },
-      { label: "src/assets", root: path.join(PKG_ROOT, "src", "assets") },
-      { label: "src/lib", root: path.join(PKG_ROOT, "src", "lib") },
-      { label: "src/patches", root: path.join(PKG_ROOT, "src", "patches") },
-      { label: "builtin", root: this.packageRoot },
-    ], {
-      flowerVersion: flowerVersion(),
-      variant: this.snapshot.variant,
-      manifest: this.manifest,
-      snapshotManifest: stableSnapshotManifest(),
+    this.genericProvider = new BuiltinSourceProvider({
+      id: "flower",
+      root: path.join(PKG_ROOT, "src", "builtin-plugins"),
+      referencePrefix: "package",
     });
-    this.resolutionManifest = this.preserve && this.lockedPlugin
-      ? lockedRuntimeManifest(this.manifest, this.lockedPlugin)
-      : this.manifest;
+    this.snapshot = null;
+    this.manifest = null;
+    this.integrity = null;
+    this.resolutionManifest = null;
+    if (fs.existsSync(path.join(this.projectRoot, ".trellis", ".version"))) ensureSkillGardenReady(this);
     markRuntimeBuiltinProvider(this);
   }
 
@@ -135,7 +156,10 @@ export class SkillGardenBuiltinProvider {
    * @returns {import("../../plugin/contracts.js").PluginCandidate[]} 唯一候选
    */
   listCandidates(canonicalId) {
-    if (canonicalId !== SKILL_GARDEN_PLUGIN_ID) return [];
+    if (canonicalId !== SKILL_GARDEN_PLUGIN_ID) {
+      return this.genericProvider.listCandidates(canonicalId);
+    }
+    ensureSkillGardenReady(this);
     if (this.preserve && this.lockedPlugin) {
       return [{
         id: this.lockedPlugin.id,
@@ -167,6 +191,8 @@ export class SkillGardenBuiltinProvider {
    * @returns {object} 固定包与适配器
    */
   readPackage(plugin) {
+    if (plugin.id !== SKILL_GARDEN_PLUGIN_ID) return this.genericProvider.readPackage(plugin);
+    ensureSkillGardenReady(this);
     const acceptedIntegrity = this.preserve && this.lockedPlugin
       ? this.lockedPlugin.integrity
       : this.integrity;
@@ -205,9 +231,11 @@ export class SkillGardenBuiltinProvider {
    * 把旧 enhancement payload 投影成统一 Runtime mutation。
    *
    * @param {object} options Runtime 投影输入
-   * @returns {ReturnType<typeof projectSkillGardenContent>} 自定义内容投影
+   * @returns {ReturnType<typeof projectSkillGardenContent>|null} 自定义内容投影；普通 builtin 返回 null
    */
   projectContent(options) {
+    if (options.resolved.id !== SKILL_GARDEN_PLUGIN_ID) return null;
+    ensureSkillGardenReady(this);
     if (this.preserve) {
       const previous = this.previousState?.plugins.find(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
       if (!previous) throw new Error("冻结 skill-garden 缺少既有 state");

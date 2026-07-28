@@ -38,6 +38,7 @@ export function applySkillGardenPlugin(projectRoot, options = {}) {
     skills: options.skills,
     previousState: store.readState(),
   });
+  provider.listCandidates(SKILL_GARDEN_PLUGIN_ID);
   const registry = new SourceRegistry([provider, ...(options.providers || [])]);
   const service = new PluginApplicationService(projectRoot, { registry, store });
   const declared = store.readPlugins().plugins.some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);

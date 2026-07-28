@@ -164,21 +164,23 @@ export function projectPluginContent(options) {
         platformSelection: options.platformSelection,
         previousState: options.previousState,
       });
-      custom.mutations.forEach((mutation) => mutations.push(mutation));
-      for (const [key, value] of custom.payloads) {
-        const previous = payloads.get(key);
-        if (previous && !previous.equals(value)) throw new Error(`Plugin 投影 payload 冲突:${key}`);
-        payloads.set(key, value);
+      if (custom) {
+        custom.mutations.forEach((mutation) => mutations.push(mutation));
+        for (const [key, value] of custom.payloads) {
+          const previous = payloads.get(key);
+          if (previous && !previous.equals(value)) throw new Error(`Plugin 投影 payload 冲突:${key}`);
+          payloads.set(key, value);
+        }
+        for (const claim of custom.directoryClaims || []) {
+          directoryClaims.set(`${claim.owner}\u0000${claim.path}`, claim);
+        }
+        for (const removal of custom.directoryRemovals || []) {
+          directoryRemovals.set(`${removal.owner}\u0000${removal.path}`, removal);
+        }
+        stateEntries.push(custom.stateEntry);
+        if (custom.migration) migration = custom.migration;
+        continue;
       }
-      for (const claim of custom.directoryClaims || []) {
-        directoryClaims.set(`${claim.owner}\u0000${claim.path}`, claim);
-      }
-      for (const removal of custom.directoryRemovals || []) {
-        directoryRemovals.set(`${removal.owner}\u0000${removal.path}`, removal);
-      }
-      stateEntries.push(custom.stateEntry);
-      if (custom.migration) migration = custom.migration;
-      continue;
     }
     const paths = new Map();
     for (const kind of CONTENT_KINDS) {

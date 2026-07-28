@@ -75,6 +75,7 @@ function printHelp() {
   flower-trellis update-check <get|set|disable|enable>   管理启动更新策略
   flower-trellis skill [flower flags]                    交互管理通用技能
   flower-trellis plugin <list|add|update|remove|verify>   管理项目 Plugin 生命周期
+  flower-trellis plugin <init|validate> [...]             创建和校验 Plugin/Marketplace
   flower-trellis plugin <source|auth|search> [...]        管理 Plugin 来源与 GitLab 授权
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
