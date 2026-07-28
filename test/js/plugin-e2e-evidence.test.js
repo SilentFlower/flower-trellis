@@ -9,7 +9,7 @@ test("父任务与 P7 的每条验收标准都有机器可读证据映射", () =
   const matrix = JSON.parse(fs.readFileSync(MATRIX, "utf8"));
   const expected = [
     ...Array.from({ length: 27 }, (_, index) => `PARENT-AC-${String(index + 1).padStart(2, "0")}`),
-    ...Array.from({ length: 10 }, (_, index) => `P7-AC-${String(index + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 14 }, (_, index) => `P7-AC-${String(index + 1).padStart(2, "0")}`),
   ];
   const ids = matrix.evidence.map(({ id }) => id);
   assert.deepEqual([...ids].sort(), [...expected].sort());

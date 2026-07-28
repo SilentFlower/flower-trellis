@@ -29,6 +29,9 @@ const PLUGIN_CONFLICT_CODES = new Set([
   PLUGIN_ERROR_CODES.INTEGRITY_MISMATCH,
   PLUGIN_RUNTIME_ERROR_CODES.SOURCE_NOT_FOUND,
   PLUGIN_RUNTIME_ERROR_CODES.SOURCE_AMBIGUOUS,
+  PLUGIN_RUNTIME_ERROR_CODES.FORMAT_UNRECOGNIZED,
+  PLUGIN_RUNTIME_ERROR_CODES.FORMAT_UNSUPPORTED,
+  PLUGIN_RUNTIME_ERROR_CODES.EXTERNAL_VERSION_REUSED,
   PLUGIN_RUNTIME_ERROR_CODES.DEPENDENCY_MISSING,
   PLUGIN_RUNTIME_ERROR_CODES.DEPENDENCY_CONFLICT,
   PLUGIN_RUNTIME_ERROR_CODES.DEPENDENCY_CYCLE,
@@ -77,11 +80,17 @@ function parseManagementArgs(argv) {
   let json = false;
   let help = false;
   let device = false;
+  let clearSubdir = false;
   const valueFlags = new Map([
     ["--source", "source"],
+    ["--type", "sourceType"],
     ["--url", "baseUrl"],
     ["--project", "project"],
+    ["--repo", "repository"],
     ["--ref", "ref"],
+    ["--subdir", "subdir"],
+    ["--format", "format"],
+    ["--entry-path", "entryPath"],
     ["--marketplace-path", "marketplacePath"],
     ["--application-id", "applicationId"],
     ["--name", "name"],
@@ -100,6 +109,7 @@ function parseManagementArgs(argv) {
       index += 1;
     } else if (token === "--json") json = true;
     else if (token === "--device") device = true;
+    else if (token === "--clear-subdir") clearSubdir = true;
     else if (token === "--help" || token === "-h") help = true;
     else if (token.startsWith("-")) {
       throw new PluginRuntimeError(`未知 Plugin 参数:${token}`, {
@@ -109,7 +119,7 @@ function parseManagementArgs(argv) {
     } else positional.push(token);
   }
   if (group === "search") {
-    if (device || Object.keys(values).some((key) => key !== "source")) {
+    if (device || clearSubdir || Object.keys(values).some((key) => key !== "source")) {
       throw new PluginRuntimeError("plugin search 仅支持 --source 与 --json", {
         code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
         path: group,
@@ -151,6 +161,18 @@ function parseManagementArgs(argv) {
     `plugin ${group} ${subcommand} 最多接受一个 source ID`,
     { code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR, path: subcommand },
   );
+  if (clearSubdir && (group !== "source" || !["add", "update"].includes(subcommand))) {
+    throw new PluginRuntimeError("--clear-subdir 仅支持 plugin source add/update", {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: subcommand,
+    });
+  }
+  if (clearSubdir && values.subdir) {
+    throw new PluginRuntimeError("--clear-subdir 不能与 --subdir 同时使用", {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: subcommand,
+    });
+  }
   return {
     command: group,
     subcommand,
@@ -158,6 +180,7 @@ function parseManagementArgs(argv) {
     ...values,
     json,
     device,
+    ...(clearSubdir ? { clearSubdir: true } : {}),
     help,
   };
 }
@@ -278,7 +301,7 @@ export function parsePluginArgs(argv) {
  */
 function printPluginHelp(output) {
   const managementHelp = fs.existsSync(REMOTE_PLUGIN_ENTRY)
-    ? `\n  flower-trellis plugin source <add|list|remove|update|enable|disable> [source] [--json]\n  flower-trellis plugin auth <login|logout|status> [source] [--device] [--json]\n  flower-trellis plugin search [query] [--source <id>] [--json]`
+    ? `\n  flower-trellis plugin source <add|list|remove|update|enable|disable> [source] [--type <gitlab|github>] [--json]\n  flower-trellis plugin auth <login|logout|status> [source] [--device] [--json]\n  flower-trellis plugin search [query] [--source <id>] [--json]`
     : "";
   output.log(`用法:
   flower-trellis plugin list [--json]
@@ -623,14 +646,27 @@ function pluginExitCode(error) {
  * 执行 Plugin 生命周期命令。
  *
  * @param {object} ctx cli-args.js 的执行上下文
- * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},confirmApproval?:(requests:object[])=>Promise<boolean>|boolean}} [options] 测试、Provider 与交互确认注入
+ * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},interactive?:boolean,prompts?:object,confirmApproval?:(requests:object[])=>Promise<boolean>|boolean}} [options] 测试、Provider 与交互确认注入
  * @returns {Promise<number>} 进程退出码
  */
 export async function plugin(ctx, options = {}) {
   const output = options.output || console;
   let parsed;
   try {
-    parsed = parsePluginArgs(ctx.passthrough || []);
+    const passthrough = ctx.passthrough || [];
+    const interactive = options.interactive ?? Boolean(process.stdin.isTTY && process.stdout.isTTY);
+    if (passthrough.length === 0 && interactive) {
+      const { runPluginInteractive } = await import("./plugin-interactive.js");
+      return await runPluginInteractive(ctx, {
+        ...options,
+        output,
+        runCommand: (args, commandOptions = {}) => plugin(
+          { ...ctx, passthrough: args },
+          { ...options, ...commandOptions, output },
+        ),
+      });
+    }
+    parsed = parsePluginArgs(passthrough);
     if (parsed.help) {
       printPluginHelp(output);
       return 0;

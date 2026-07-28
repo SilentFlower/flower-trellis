@@ -3,6 +3,7 @@ import { PluginSchemaError } from "../errors.js";
 import {
   isCanonicalPluginId,
   isGitCommit,
+  isGitHubRepository,
   isGitLabProjectPath,
   isPluginId,
   isSafePosixRelativePath,
@@ -20,6 +21,7 @@ ajv.addFormat("posix-relative-path", { type: "string", validate: isSafePosixRela
 ajv.addFormat("sha256", { type: "string", validate: isSha256Digest });
 ajv.addFormat("git-commit", { type: "string", validate: isGitCommit });
 ajv.addFormat("gitlab-project", { type: "string", validate: isGitLabProjectPath });
+ajv.addFormat("github-repository", { type: "string", validate: isGitHubRepository });
 
 /**
  * 把 Ajv instancePath 转为稳定 JSON Pointer。

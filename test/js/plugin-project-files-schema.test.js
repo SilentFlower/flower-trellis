@@ -96,6 +96,28 @@ test("锁文件拒绝平台运行态和未知依赖", () => {
   );
 });
 
+test("锁文件接受固定 GitHub 来源并拒绝不完整 Marketplace 身份", () => {
+  const lock = validLock();
+  lock.roots = ["github/sample"];
+  lock.plugins[0].id = "github/sample";
+  lock.plugins[0].source = {
+    id: "github",
+    type: "github",
+    reference: "example/plugins",
+    format: "codex",
+    entryPath: ".codex-plugin/plugin.json",
+  };
+  lock.plugins[0].commit = "a".repeat(40);
+  assert.equal(validatePluginLock(lock), lock);
+
+  lock.plugins[0].source.indexReference = "example/catalog";
+  assert.throws(
+    () => validatePluginLock(lock),
+    (error) => error instanceof PluginSchemaError &&
+      error.issues.some((issue) => issue.code === "lock.github-index-incomplete"),
+  );
+});
+
 test("GitLab 锁必须包含 Plugin commit 与 Marketplace index commit", () => {
   const lock = validLock();
   lock.plugins[0].source = {

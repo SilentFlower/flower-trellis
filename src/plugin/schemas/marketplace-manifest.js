@@ -22,6 +22,16 @@ const sourceSchema = {
         subdir: SAFE_PATH_SCHEMA,
       },
     },
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["type", "repository"],
+      properties: {
+        type: { const: "github" },
+        repository: { type: "string", format: "github-repository" },
+        subdir: SAFE_PATH_SCHEMA,
+      },
+    },
   ],
 };
 

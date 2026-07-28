@@ -8,7 +8,7 @@
 
 - 修改 `src/plugin/application-service.js`、`resolver/**`、builtin/local Source Provider、`install/**` 或 `src/commands/plugin.js` 的生命周期路径。
 - 改变 `plugin list/add/update/remove/verify` 参数、退出码、JSON 输出、平台检测、锁定优先、依赖求解、目标 ownership 或事务恢复语义。
-- 为 GitLab、Patch capability、内置 Plugin 或作者工具接入基础 Runtime。
+- 为 GitLab、GitHub、外部格式 Adapter、Patch capability、内置 Plugin 或作者工具接入基础 Runtime。
 
 P2 Runtime 只负责项目级解析、计划和写盘。远程认证与候选准备、Patch 授权、旧增强迁移必须通过可选模块或进程内扩展点接入，不能把 P3/P4/P5 实现静态并入基础生命周期模块。
 
@@ -51,6 +51,11 @@ PluginApplicationService.verify(options?) -> { ok, diagnostics }
 
 parsePluginArgs(argv) -> PluginCommand
 plugin(ctx, options?) -> Promise<0 | 1 | 2 | 3>
+
+new PluginFormatRegistry(adapters?)
+PluginFormatRegistry.detect(snapshotRoot, { format? }?) -> DetectionResult[]
+PluginFormatRegistry.selectSingle(detections) -> DetectionResult
+PluginFormatRegistry.normalize(selection, context) -> NormalizedPlugin
 ```
 
 Source Provider 最小接口固定为：
@@ -97,8 +102,12 @@ Source Provider 最小接口固定为：
 
 ### Optional Runtime Boundaries
 
-- `src/commands/plugin.js` 可以通过 `import()` 按需加载 `plugin-remote.js` 和 Patch planner；基础模块不得静态导入 GitLab/OAuth、用户 source store 或 capability planner。
+- `src/commands/plugin.js` 可以通过 `import()` 按需加载 `plugin-remote.js` 和 Patch planner；基础模块不得静态导入 GitLab/GitHub 网络客户端、OAuth、用户 source store 或 capability planner。
 - 远程模块只负责管理命令、Provider 登记和异步候选准备；最终依赖解析、计划、事务和输出结果仍由 P2 Application Service 完成。
+- 远程 Provider 只负责把 branch/tag/default branch 解析为不可变 commit、下载安全快照和准备候选；格式 Adapter 只负责检测、兼容性分析与规范化，二者不得相互复制来源或写盘逻辑。
+- 自动检测必须返回全部稳定排序的有效入口。零候选返回 `PLUGIN_FORMAT_UNRECOGNIZED`；多个候选返回带 `detections[]` 的 `PLUGIN_SOURCE_AMBIGUOUS`。交互管理器必须让用户选择并用固定 `format/entryPath` 重试，非交互模式不得猜测。
+- Claude Code、Codex 与 skill-only 内容只能先规范化为标准 Flower package。首版只导入 Skills 和可转换的 Claude commands；hooks、MCP、LSP、bin、settings、apps 等仅进入兼容报告，不复制到可执行位置，也不运行。
+- 来源新增/更新的兼容预览使用操作系统临时目录中的独立 cache root，并在成功或失败后清理。确认前、取消和探测失败不得创建项目 `.flower/cache` 或写用户 source store。
 - 进程内扩展注册必须与模块加载顺序无关：扩展实现晚于基础对象加载时，需要回补此前等待的实例或请求，不能静默丢失。
 - 自定义内容投影只允许持有进程内 builtin 信任标记的 Provider 实现。外部 Provider 即使伪造 `type=builtin`、同名 source 或序列化字段，也不得取得 `projectContent()`、多 system catalog、adapter 或 unowned takeover 权限。
 - system 投影可以为迁移声明 `allowUnownedWrite` / `allowUnownedRemove`，但这些标记只能由可信自定义投影产生；普通 Plugin 仍必须遵守既有 state ownership。
@@ -120,6 +129,7 @@ Source Provider 最小接口固定为：
 | --- | --- | --- |
 | Provider 缺少接口或 source 重复 | `TypeError` / `PLUGIN_SOURCE_DUPLICATE` | Resolver 未运行 |
 | source 未注册或候选来源歧义 | `PLUGIN_SOURCE_NOT_FOUND` / `PLUGIN_SOURCE_AMBIGUOUS` | 零写入 |
+| 仓库没有受支持入口或外部内容不可安全导入 | `PLUGIN_FORMAT_UNRECOGNIZED` / `PLUGIN_FORMAT_UNSUPPORTED` | source store、`.flower/` 与目标文件零写入 |
 | 依赖缺失、约束冲突、自依赖或循环 | `PLUGIN_DEPENDENCY_MISSING` / `PLUGIN_DEPENDENCY_CONFLICT` / `PLUGIN_DEPENDENCY_CYCLE` | 零写入，details 保留稳定约束或 cycle |
 | 平台未知或未选择 | `PLUGIN_PLATFORM_UNKNOWN` / `PLUGIN_PLATFORM_SELECTION_REQUIRED` | 不创建 `.flower/` 和平台 root |
 | 同目标 ownership/内容或前缀冲突 | `PLUGIN_CONTENT_CONFLICT` | 事务目录尚未创建 |
@@ -142,6 +152,7 @@ Source Provider 最小接口固定为：
 
 - 空项目执行 `plugin list` 或无参数 `plugin update`：返回空视图或 `unchanged`，不创建 `.flower/`。
 - dry-run 计划包含目标变化和孤立依赖，但项目字节、mtime 和事务目录不变化。
+- GitHub 来源预览发现两个格式入口：交互模式展示候选并固定用户选择；同一输入在非 TTY 下返回结构化歧义错误。
 - 同一 lock 和平台选择重复应用：第二次目标与 plugins/lock/state 全部 changed-only。
 
 ### Bad
@@ -150,6 +161,7 @@ Source Provider 最小接口固定为：
 - local Plugin 在无平台项目中隐式创建 `.claude/skills`。
 - Provider 返回绝对缓存路径进入 lock/JSON，或 Resolver 直接访问网络和目标文件系统。
 - 为 GitLab 或 Patch capability 复制一套依赖求解、InstallPlan 或事务 writer。
+- 在 Provider 内按遍历顺序选择第一个外部 manifest，或让 Adapter 直接写 `.agents/skills`、`.claude/skills`、`.flower/`。
 
 ## 6. Tests Required
 
@@ -158,6 +170,8 @@ Source Provider 最小接口固定为：
 - `plugin-content-projector.test.js`：显式/检测平台、共享物理 root、override 和无平台阻断。
 - `plugin-install-planner.test.js`：同目标、ownership、用户文件、文件目录前缀及普通内容/Patch 冲突。
 - `plugin-transaction-writer.test.js`：before/payload 漂移、state 最后写、changed-only、dry-run、回滚和 retained evidence。
+- `plugin-format-adapters.test.js`：Flower/Codex/Claude/skill-only 检测、歧义、路径边界、commands 转换、主动组件仅诊断和标准包校验。
+- `plugin-interactive.test.js` 与 `plugin-remote-cli.test.js`：歧义选择、非 TTY 零 prompt、兼容预览、临时 cache 成功/失败清理和确认前零持久化。
 - `plugin-lifecycle-cli.test.js`：parser、真实 add/update/remove/verify、空项目 update、无平台零写入、JSON/人类输出、短 ID 和退出码。
 - `plugin-skill-garden.test.js`：builtin trust/digest、legacy 迁移、冻结 replay、shared common ownership 和 state/hash 卸载。
 - 修改本契约后必须运行完整 `npm test`、`npm pack --dry-run --json`、全部受影响 JS 的 `node --check` 和 `git diff --check`。
@@ -184,3 +198,5 @@ const result = service.add({ id: "rd-guide/demo", version: "^1.0.0", platforms: 
 ```
 
 Provider 只产出和复核固定包；Application Service 统一协调 Resolver、平台投影、InstallPlan 和 Transaction Writer。新增来源或 capability 只能接入这些公共边界，不能复制生命周期实现。
+
+外部格式的正确接入同样先调用 `PluginFormatRegistry.detect()/normalize()` 产生标准候选，再把候选交给既有 `SourceRegistry` 与 `PluginApplicationService`；禁止为 Claude Code/Codex 另建 Installer 或直接复制上游目录。

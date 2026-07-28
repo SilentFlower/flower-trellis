@@ -7,7 +7,7 @@
 以下改动必须先读本规范：
 
 - 修改 `src/plugin/capabilities/**`、`src/plugin/install/patch-planner.js`、`install-planner.js`、`transaction-writer.js` 或 `PluginApplicationService` 的 Patch 接线。
-- 改变 `standard/integration/system` 档位、可信 Provider 标记、Marketplace `maxProfile`、approval digest、Integration target/selector/operation 白名单。
+- 改变 `standard/integration/system` 档位、可信 Provider 标记、Marketplace `maxProfile`、外部格式归一化、approval digest、Integration target/selector/operation 白名单。
 - 让 Plugin catalog 进入现有 Patch Engine、改变 `PatchMutation`/`patchPayloads`、state provenance 或 dry-run 批准输出。
 
 Runtime 不执行外部 Plugin JavaScript，不加载外部 adapter，也不为外部 Plugin 开放 hook、migration、replace、remove 或配置文件 Patch。
@@ -75,6 +75,7 @@ TransactionWriter.apply({
 - 外部来源的 Runtime 硬上限是 `integration`。`system` 只接受当前进程 `WeakSet` 中的 builtin Provider 实例；source ID、catalog ID、JSON、lock、CLI 参数和结构化克隆都不能携带该信任。
 - local Provider 默认上限为 `standard`。宿主代码只有通过 `markSourceProviderTrusted(provider, maxProfile)` 登记当前实例，才能显式授予 `integration`；该上限保存在 `WeakMap`，不得写入用户配置或 lock。
 - GitLab Provider 从已校验 Marketplace 条目把 `trust.maxProfile` 放入候选的运行时字段 `marketplaceMaxProfile`。该字段供授权和摘要计算使用，不进入 lock schema；缺失时必须降为 `standard`。
+- GitHub 上的 Claude Code、Codex 与 skill-only Adapter 固定生成 `profile=standard`、`required=["content.skills"]` 的 Flower manifest，不读取或映射上游 capability/trust。外部 hooks、MCP、LSP、bin、settings、app 和脚本只进入 compatibility report，不能请求 `integration/system`。
 - `BuiltinSourceProvider` 构造时登记 builtin 信任根。外部 Plugin 数据不得调用或模拟该构造路径。
 - builtin Provider 与 capability 模块的加载顺序不能改变授权结果：Provider 先构造时，Runtime 扩展点必须暂存实例，并在 `registerBuiltinTrustMarker()` 后逐个补登记；不同 marker 重复注册必须显式失败，不能静默替换信任根。
 
@@ -111,6 +112,7 @@ TransactionWriter.apply({
 | required capability 超出请求/来源/Runtime 交集 | `PLUGIN_CAPABILITY_DENIED`，零写入 |
 | optional capability 被拒绝 | 跳过该能力并产生 `PLUGIN_CAPABILITY_OPTIONAL_DENIED` |
 | 外部请求 `system` 或伪造 builtin/source/catalog 身份 | `PLUGIN_CAPABILITY_DENIED` 或 `PLUGIN_PATCH_POLICY_INVALID` |
+| 外部格式声明 hook/MCP/bin 或自报 capability/trust | 忽略授权声明并只记录 compatibility omitted；不复制、不执行 |
 | Integration approval 缺失、摘要变化或非交互自动批准 | `PLUGIN_CAPABILITY_APPROVAL_REQUIRED` |
 | human TTY 拒绝首次 Integration 确认 | 保留 `PLUGIN_CAPABILITY_APPROVAL_REQUIRED`，目标与 `.flower/` 零写入 |
 | 外部 catalog 含未知字段、越权 operation/selector/target/path | `PLUGIN_PATCH_POLICY_INVALID`，错误不得泄漏绝对路径 |
@@ -125,6 +127,7 @@ TransactionWriter.apply({
 ### Good
 
 - GitLab Marketplace 为 `rd-guide` 声明 `integration` 上限；用户首次批准规范化 insert 计划后，Runtime 一次 preflight 所有 catalog，并在同一事务中写 workflow、lock 和 state provenance。
+- GitHub Claude/Codex Plugin 同时包含 Skills 与 hooks：只安装规范化 Skills，候选 profile 保持 `standard`，hooks 仅作为风险诊断展示。
 - 同一 Plugin 未变更 update 时，候选来源上限、integrity、计划和 Runtime policy 均不变，旧 lock digest 精确匹配，非交互运行可复用批准且结果 `unchanged`。
 - Flower builtin system Plugin 使用进程内可信 Provider 和内部 adapter，仍经过统一 plan、policy report 与 transaction writer。
 
@@ -136,6 +139,7 @@ TransactionWriter.apply({
 ### Bad
 
 - 从 Plugin JSON 读取 `trusted:true`、`maxProfile:system`、catalog ID 或 adapter 路径并直接授予权限。
+- 把 Claude/Codex hooks、MCP 或 bin 转换成 Flower scripts，或因仓库来自 GitHub 就授予 integration。
 - 为每个 Plugin 分别调用 `preparePatchPlan()` / `applyPatchPlan()`，导致跨 catalog 顺序、冲突和事务原子性丢失。
 - Patch 写完后再写 lock/state，失败时只回滚普通内容，留下不可审计的 marker 或 provenance。
 - 使用旧 lock 中的摘要但不重算当前版本、integrity、来源上限和 Patch 计划。
@@ -143,6 +147,7 @@ TransactionWriter.apply({
 ## 6. Tests Required
 
 - `plugin-capability-policy.test.js`：三档 capability、required/optional、builtin WeakSet、local WeakMap、序列化伪造与非交互批准。
+- `plugin-format-adapters.test.js`：外部 manifest 的 capability/trust 不进入标准包，主动组件只出现在 omitted，最终 manifest 固定 standard/content.skills。
 - `plugin-source-registry.test.js`：在独立进程中先构造 `BuiltinSourceProvider`、后加载 capability 模块，断言实例被补登记为可信 builtin。
 - `plugin-capability-approval.test.js`：canonical 排序、版本/integrity/source/index commit/上限/Runtime policy/operation/selector/target 变化导致摘要变化。
 - `plugin-patch-planner.test.js`：外部子协议、qualified catalog、多 catalog 单次 preflight、system policy report、普通内容冲突、零写入、Application Service 真实事务链，以及 CLI human dry-run/非交互拒绝/交互批准链。

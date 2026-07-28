@@ -163,6 +163,20 @@ export function isGitLabProjectPath(value) {
   );
 }
 
+/**
+ * 判断 GitHub 仓库是否使用 `owner/repository` 形式。
+ *
+ * @param {unknown} value 待判断值
+ * @returns {boolean} 是否合法
+ */
+export function isGitHubRepository(value) {
+  if (typeof value !== "string" || value.includes("\\")) return false;
+  const segments = value.split("/");
+  return segments.length === 2 && segments.every((segment) => (
+    /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/.test(segment)
+  ));
+}
+
 /** 可复用的安全相对路径 JSON Schema。 */
 export const SAFE_PATH_SCHEMA = Object.freeze({ type: "string", format: "posix-relative-path" });
 

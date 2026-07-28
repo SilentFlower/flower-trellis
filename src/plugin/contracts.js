@@ -48,7 +48,14 @@
  * @property {string} [subdir] 仓库内 POSIX 相对目录
  */
 
-/** @typedef {MarketplacePathSource|MarketplaceGitLabSource} MarketplaceSource */
+/**
+ * @typedef {object} MarketplaceGitHubSource
+ * @property {"github"} type GitHub 来源
+ * @property {string} repository GitHub `owner/repository`
+ * @property {string} [subdir] 仓库内 POSIX 相对目录
+ */
+
+/** @typedef {MarketplacePathSource|MarketplaceGitLabSource|MarketplaceGitHubSource} MarketplaceSource */
 
 /**
  * @typedef {object} MarketplaceVersionEntry
@@ -97,7 +104,19 @@
  * @property {string} [indexCommit] Marketplace 索引 commit
  */
 
-/** @typedef {BuiltinSourceDescriptor|LocalSourceDescriptor|GitLabSourceDescriptor} SourceDescriptor */
+/**
+ * @typedef {object} GitHubSourceDescriptor
+ * @property {string} id 来源 ID
+ * @property {"github"} type GitHub 来源
+ * @property {string} reference GitHub `owner/repository`
+ * @property {string} [subdir] Plugin 仓库子目录
+ * @property {"flower"|"codex"|"claude-code"|"skill-only"} format 已确认格式
+ * @property {string} entryPath 格式入口相对路径
+ * @property {string} [indexReference] Marketplace 仓库 `owner/repository`
+ * @property {string} [indexCommit] Marketplace 索引 commit
+ */
+
+/** @typedef {BuiltinSourceDescriptor|LocalSourceDescriptor|GitLabSourceDescriptor|GitHubSourceDescriptor} SourceDescriptor */
 
 /**
  * @typedef {object} CompatibilityConstraint
@@ -114,6 +133,7 @@
  * @property {string} integrity canonical tree SHA-256
  * @property {PluginManifest} manifest Plugin manifest
  * @property {"standard"|"integration"} [marketplaceMaxProfile] Marketplace 进程内来源上限
+ * @property {object} [compatibilityReport] 外部格式兼容性摘要
  */
 
 /**

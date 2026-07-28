@@ -39,6 +39,21 @@ const sourceDescriptorSchema = {
         indexCommit: { type: "string", format: "git-commit" },
       },
     },
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "type", "reference", "format", "entryPath"],
+      properties: {
+        id: { type: "string", format: "plugin-id" },
+        type: { const: "github" },
+        reference: { type: "string", format: "github-repository" },
+        subdir: SAFE_PATH_SCHEMA,
+        format: { enum: ["flower", "codex", "claude-code", "skill-only"] },
+        entryPath: SAFE_PATH_SCHEMA,
+        indexReference: { type: "string", format: "github-repository" },
+        indexCommit: { type: "string", format: "git-commit" },
+      },
+    },
   ],
 };
 
@@ -264,6 +279,19 @@ const validateLock = createSchemaValidator(
       }
       if (plugin.source.type === "gitlab" && !plugin.source.indexCommit) {
         issues.push(schemaIssue("lock.index-commit-required", `/plugins/${index}/source/indexCommit`, "GitLab Plugin 必须锁定 Marketplace index commit"));
+      }
+      if (plugin.source.type === "github" && !plugin.commit) {
+        issues.push(schemaIssue("lock.github-commit-required", `/plugins/${index}/commit`, "GitHub Plugin 必须锁定 commit"));
+      }
+      if (
+        plugin.source.type === "github" &&
+        Boolean(plugin.source.indexReference) !== Boolean(plugin.source.indexCommit)
+      ) {
+        issues.push(schemaIssue(
+          "lock.github-index-incomplete",
+          `/plugins/${index}/source`,
+          "GitHub Marketplace 来源必须同时锁定 indexReference 与 indexCommit",
+        ));
       }
       Object.keys(plugin.dependencies).forEach((dependency) => {
         if (!ids.has(dependency)) {

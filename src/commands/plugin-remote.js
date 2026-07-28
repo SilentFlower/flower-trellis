@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { stringifyCanonicalJson } from "../plugin/integrity/canonical-json.js";
 import {
   PLUGIN_RUNTIME_ERROR_CODES,
@@ -7,7 +10,9 @@ import { parseCanonicalPluginId } from "../plugin/schemas/shared.js";
 import { createCredentialStore } from "../plugin/auth/keyring-credential-store.js";
 import { GitLabCredentialManager, GitLabOAuthClient } from "../plugin/auth/gitlab-oauth.js";
 import { GitLabRestClient } from "../plugin/gitlab/rest-client.js";
+import { GitHubRestClient } from "../plugin/github/rest-client.js";
 import { GitLabSourceProvider } from "../plugin/sources/gitlab-provider.js";
+import { GitHubSourceProvider } from "../plugin/sources/github-provider.js";
 import { UserSourceStore } from "../plugin/sources/user-source-store.js";
 import { compareUtf8 } from "../plugin/stable-order.js";
 
@@ -27,7 +32,7 @@ function printManagementResult(result, json, output) {
   if (result.command === "source") {
     if (result.subcommand === "list") {
       for (const source of result.sources) {
-        output.log(`${source.id} ${source.enabled ? "enabled" : "disabled"} ${source.type} ${source.project}`);
+        output.log(`${source.id} ${source.enabled ? "enabled" : "disabled"} ${source.type} ${source.project || source.repository}`);
       }
     } else output.log(`Plugin source ${result.subcommand} 完成:${result.source.id}`);
     return;
@@ -35,6 +40,7 @@ function printManagementResult(result, json, output) {
   if (result.command === "search") {
     if (result.results.length === 0) output.log("未找到匹配 Plugin");
     for (const entry of result.results) output.log(`${entry.id} ${entry.versions.join(",")} ${entry.description}`);
+    for (const diagnostic of result.diagnostics || []) output.log(`! ${diagnostic.source}: ${diagnostic.message}`);
     return;
   }
   if (result.subcommand === "status") {
@@ -62,6 +68,166 @@ function createGitLabProvider(source, projectRoot, credentialManager, options) {
     ? options.gitlabClientFactory({ source, credentialManager })
     : new GitLabRestClient({ source, credentialManager, fetch: options.fetch });
   return new GitLabSourceProvider({ source, projectRoot, client });
+}
+
+/**
+ * 构造 GitHub Provider 依赖。
+ *
+ * @param {object} source 来源 descriptor
+ * @param {string} projectRoot 项目根
+ * @param {object} options 测试注入
+ * @param {string} [cacheRoot] 显式缓存根；预览时使用临时目录
+ * @returns {GitHubSourceProvider|object} Provider
+ */
+function createGitHubProvider(source, projectRoot, options, cacheRoot) {
+  if (options.githubProviderFactory) return options.githubProviderFactory({ source, projectRoot, cacheRoot });
+  const client = options.githubClientFactory
+    ? options.githubClientFactory({ source })
+    : new GitHubRestClient({ fetch: options.fetch });
+  return new GitHubSourceProvider({ source, projectRoot, client, ...(cacheRoot ? { cacheRoot } : {}) });
+}
+
+/**
+ * 按来源类型构造远程 Provider。
+ *
+ * @param {object} source 来源 descriptor
+ * @param {string} projectRoot 项目根
+ * @param {object|null} credentialManager GitLab 凭据管理器
+ * @param {object} options 测试注入
+ * @returns {GitLabSourceProvider|GitHubSourceProvider|object} Provider
+ */
+function createRemoteProvider(source, projectRoot, credentialManager, options) {
+  if (source.type === "github") return createGitHubProvider(source, projectRoot, options);
+  return createGitLabProvider(source, projectRoot, credentialManager, options);
+}
+
+/**
+ * 读取一个 GitLab source 的结构化登录状态。
+ *
+ * @param {string} sourceId source ID
+ * @param {object} [options] source、凭据和测试注入
+ * @returns {Promise<object>} 非敏感登录状态
+ */
+export async function getPluginAuthStatus(sourceId, options = {}) {
+  const sourceStore = options.sourceStore || new UserSourceStore(options.sourceStoreOptions);
+  const source = sourceStore.get(sourceId, { includeDisabled: true });
+  if (source.type === "github") {
+    return {
+      ok: true,
+      command: "auth",
+      subcommand: "status",
+      sourceId: source.id,
+      authorized: true,
+      authRequired: false,
+      scopes: [],
+      expiresAt: null,
+      persistent: false,
+    };
+  }
+  const credentialBundle = options.credentialBundle || await createCredentialStore(options.credentialStoreOptions);
+  const credential = await credentialBundle.store.get(source);
+  return {
+    ok: true,
+    command: "auth",
+    subcommand: "status",
+    sourceId: source.id,
+    authorized: Boolean(credential),
+    scopes: credential?.scope || [],
+    expiresAt: credential?.expiresAt || null,
+    persistent: credentialBundle.persistent,
+  };
+}
+
+/**
+ * 搜索已启用 GitLab Marketplace，并返回结构化结果。
+ *
+ * @param {{query?:string,source?:string}} parsed 搜索参数
+ * @param {object} ctx CLI 上下文
+ * @param {object} [options] Provider、凭据和测试注入
+ * @returns {Promise<object>} 搜索结果
+ */
+export async function searchPluginMarketplaces(parsed, ctx, options = {}) {
+  const sourceStore = options.sourceStore || new UserSourceStore(options.sourceStoreOptions);
+  const sources = parsed.source ? [sourceStore.get(parsed.source)] : sourceStore.list().filter(({ enabled }) => enabled);
+  let manager = null;
+  if (sources.some(({ type }) => type === "gitlab")) {
+    const credentialBundle = options.credentialBundle || await createCredentialStore(options.credentialStoreOptions);
+    const oauth = options.oauth || new GitLabOAuthClient({
+      fetch: options.fetch,
+      openUrl: options.openUrl,
+      sleep: options.sleep,
+      now: options.now,
+    });
+    manager = new GitLabCredentialManager({ store: credentialBundle.store, oauth, now: options.now });
+  }
+  const results = [];
+  const diagnostics = [];
+  for (const entry of sources) {
+    const provider = createRemoteProvider(entry, ctx.target, manager, options);
+    try {
+      results.push(...await provider.search(parsed.query || ""));
+    } catch (error) {
+      if (parsed.source) throw error;
+      diagnostics.push({
+        source: entry.id,
+        code: error?.code || "PLUGIN_REMOTE_FAILED",
+        message: error?.message || String(error),
+      });
+    }
+  }
+  return {
+    ok: true,
+    command: "search",
+    query: parsed.query || "",
+    results: results.sort((left, right) => compareUtf8(left.id || left.source, right.id || right.source)),
+    diagnostics: diagnostics.sort((left, right) => compareUtf8(left.source, right.source)),
+  };
+}
+
+/**
+ * 探测 GitHub 来源并返回可持久化 descriptor 与兼容性结果。
+ *
+ * @param {object} source GitHub 来源草稿
+ * @param {object} ctx CLI 上下文
+ * @param {object} [options] Provider 与网络注入
+ * @returns {Promise<object>} 探测结果
+ */
+export async function inspectGitHubPluginSource(source, ctx, options = {}) {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "flower-plugin-inspect-"));
+  try {
+    const provider = createGitHubProvider(source, ctx.target, options, temporaryRoot);
+    if (typeof provider.inspect !== "function") {
+      throw new TypeError("GitHub Provider 必须实现 inspect()");
+    }
+    return await provider.inspect();
+  } finally {
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+/**
+ * 汇总 GitHub 来源探测结果，供 JSON 输出稳定消费。
+ *
+ * @param {object} inspection Provider 探测结果
+ * @returns {{detectedFormat:string,entryPath:string,resolvedCommit:string,compatibility:object}} 非敏感探测摘要
+ */
+function githubInspectionSummary(inspection) {
+  const candidates = inspection.candidates || (inspection.candidate ? [inspection.candidate] : []);
+  const reports = candidates.map(({ id, version, compatibilityReport }) => ({
+    id,
+    version,
+    report: compatibilityReport,
+  }));
+  return {
+    detectedFormat: inspection.detection.format,
+    entryPath: inspection.detection.entryPath,
+    resolvedCommit: inspection.resolvedCommit,
+    compatibility: inspection.candidate?.compatibilityReport || {
+      status: reports.some(({ report }) => report?.status === "partial") ? "partial" : "compatible",
+      plugins: reports,
+      diagnostics: inspection.diagnostics || [],
+    },
+  };
 }
 
 /**
@@ -104,8 +270,29 @@ export async function runPluginManagementCommand(parsed, ctx, options, output) {
         path: parsed.sourceId,
       });
       const base = existing || {};
-      const source = sourceStore.set({
-        schemaVersion: 1,
+      const sourceType = parsed.sourceType || base.type || "gitlab";
+      if (!new Set(["gitlab", "github"]).has(sourceType)) {
+        throw new PluginRuntimeError(`不支持的 Plugin source 类型:${sourceType}`, {
+          code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+          path: sourceType,
+        });
+      }
+      const githubFormat = parsed.format ?? base.format ?? "auto";
+      const githubSubdir = parsed.clearSubdir ? undefined : (parsed.subdir ?? base.subdir);
+      const githubEntryPath = githubFormat === "auto" ? undefined : (parsed.entryPath ?? base.entryPath);
+      const descriptor = sourceType === "github" ? {
+        schemaVersion: 2,
+        id: parsed.sourceId,
+        type: "github",
+        name: parsed.name || base.name || parsed.sourceId,
+        enabled: base.enabled ?? true,
+        repository: parsed.repository ?? base.repository,
+        ...(parsed.ref ?? base.ref ? { ref: parsed.ref ?? base.ref } : {}),
+        ...(githubSubdir ? { subdir: githubSubdir } : {}),
+        format: githubFormat,
+        ...(githubEntryPath ? { entryPath: githubEntryPath } : {}),
+      } : {
+        schemaVersion: 2,
         id: parsed.sourceId,
         type: "gitlab",
         name: parsed.name || base.name || parsed.sourceId,
@@ -118,8 +305,25 @@ export async function runPluginManagementCommand(parsed, ctx, options, output) {
           applicationId: parsed.applicationId || base.oauth?.applicationId,
           scopes: ["read_api", "read_repository"],
         },
-      });
-      result = { ok: true, command: "source", subcommand: parsed.subcommand, source };
+      };
+      if (sourceType === "github") {
+        const inspection = await inspectGitHubPluginSource(descriptor, ctx, options);
+        const source = sourceStore.set(inspection.source);
+        result = {
+          ok: true,
+          command: "source",
+          subcommand: parsed.subcommand,
+          source,
+          ...githubInspectionSummary(inspection),
+        };
+      } else {
+        result = {
+          ok: true,
+          command: "source",
+          subcommand: parsed.subcommand,
+          source: sourceStore.set(descriptor),
+        };
+      }
     }
     printManagementResult(result, parsed.json, output);
     return 0;
@@ -127,6 +331,12 @@ export async function runPluginManagementCommand(parsed, ctx, options, output) {
 
   if (parsed.command === "auth") {
     const source = sourceStore.get(parsed.sourceId, { includeDisabled: true });
+    if (source.type !== "gitlab") {
+      throw new PluginRuntimeError(`GitHub 公共来源无需登录:${source.id}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: source.id,
+      });
+    }
     const credentialBundle = options.credentialBundle || await createCredentialStore(options.credentialStoreOptions);
     const oauth = options.oauth || new GitLabOAuthClient({
       fetch: options.fetch,
@@ -139,17 +349,11 @@ export async function runPluginManagementCommand(parsed, ctx, options, output) {
       await credentialBundle.store.delete(source);
       result = { ok: true, command: "auth", subcommand: "logout", sourceId: source.id, persistent: credentialBundle.persistent };
     } else if (parsed.subcommand === "status") {
-      const credential = await credentialBundle.store.get(source);
-      result = {
-        ok: true,
-        command: "auth",
-        subcommand: "status",
-        sourceId: source.id,
-        authorized: Boolean(credential),
-        scopes: credential?.scope || [],
-        expiresAt: credential?.expiresAt || null,
-        persistent: credentialBundle.persistent,
-      };
+      result = await getPluginAuthStatus(source.id, {
+        ...options,
+        sourceStore,
+        credentialBundle,
+      });
     } else {
       let credential;
       const onVerification = ({ verificationUri, verificationUriComplete, userCode }) => {
@@ -179,21 +383,7 @@ export async function runPluginManagementCommand(parsed, ctx, options, output) {
     return 0;
   }
 
-  const credentialBundle = options.credentialBundle || await createCredentialStore(options.credentialStoreOptions);
-  const oauth = options.oauth || new GitLabOAuthClient({
-    fetch: options.fetch,
-    openUrl: options.openUrl,
-    sleep: options.sleep,
-    now: options.now,
-  });
-  const manager = new GitLabCredentialManager({ store: credentialBundle.store, oauth, now: options.now });
-  const sources = parsed.source ? [sourceStore.get(parsed.source)] : sourceStore.list().filter(({ enabled }) => enabled);
-  const results = [];
-  for (const entry of sources) {
-    const provider = createGitLabProvider(entry, ctx.target, manager, options);
-    results.push(...await provider.search(parsed.query));
-  }
-  const result = { ok: true, command: "search", query: parsed.query, results: results.sort((left, right) => compareUtf8(left.id, right.id)) };
+  const result = await searchPluginMarketplaces(parsed, ctx, { ...options, sourceStore });
   printManagementResult(result, parsed.json, output);
   return 0;
 }
@@ -206,7 +396,7 @@ export async function runPluginManagementCommand(parsed, ctx, options, output) {
  */
 export async function registerRemotePluginSources({ parsed, projectRoot, options, registry, lock }) {
   const remoteIds = new Set(["add", "update", "remove", "verify", "replay"].includes(parsed.command)
-    ? (lock?.plugins || []).filter(({ source }) => source.type === "gitlab").map(({ source }) => source.id)
+    ? (lock?.plugins || []).filter(({ source }) => ["gitlab", "github"].includes(source.type)).map(({ source }) => source.id)
     : []);
   let sourceStore = null;
   let configuredSources = null;
@@ -262,18 +452,21 @@ export async function registerRemotePluginSources({ parsed, projectRoot, options
       path: missing[0] || "",
     });
   }
-  const credentialBundle = options.credentialBundle || await createCredentialStore(options.credentialStoreOptions);
-  const oauth = options.oauth || new GitLabOAuthClient({
-    fetch: options.fetch,
-    openUrl: options.openUrl,
-    sleep: options.sleep,
-    now: options.now,
-  });
-  const manager = new GitLabCredentialManager({ store: credentialBundle.store, oauth, now: options.now });
+  let manager = null;
+  if (sources.some(({ type }) => type === "gitlab")) {
+    const credentialBundle = options.credentialBundle || await createCredentialStore(options.credentialStoreOptions);
+    const oauth = options.oauth || new GitLabOAuthClient({
+      fetch: options.fetch,
+      openUrl: options.openUrl,
+      sleep: options.sleep,
+      now: options.now,
+    });
+    manager = new GitLabCredentialManager({ store: credentialBundle.store, oauth, now: options.now });
+  }
   // 依赖闭包可能跨 source，因此登记全部可用来源，而不是只登记入口来源。
   for (const source of sources) {
     if (registry.has(source.id)) continue;
-    registry.register(createGitLabProvider(source, projectRoot, manager, options));
+    registry.register(createRemoteProvider(source, projectRoot, manager, options));
   }
 }
 
@@ -293,8 +486,9 @@ export async function prepareRemotePluginCandidates({ parsed, canonicalId, regis
     await prepareRemoteLock(registry, lock);
     const updateIds = canonicalId
       ? [canonicalId]
-      : (lock?.plugins || []).filter(({ source }) => source.type === "gitlab").map(({ id }) => id);
+      : (lock?.plugins || []).filter(({ source }) => ["gitlab", "github"].includes(source.type)).map(({ id }) => id);
     await prepareRemoteClosure(registry, updateIds);
+    assertExternalVersionsNotReused(registry, lock, updateIds);
   } else if (["remove", "verify", "replay"].includes(parsed.command)) {
     await prepareRemoteLock(registry, lock);
   }
@@ -334,9 +528,36 @@ async function prepareRemoteClosure(registry, initialIds) {
  */
 async function prepareRemoteLock(registry, lock) {
   for (const plugin of lock?.plugins || []) {
-    if (plugin.source.type !== "gitlab" || !registry.has(plugin.source.id)) continue;
+    if (!["gitlab", "github"].includes(plugin.source.type) || !registry.has(plugin.source.id)) continue;
     const provider = registry.get(plugin.source.id);
     if (typeof provider.prepareLocked === "function") await provider.prepareLocked(plugin);
     else if (typeof provider.prepare === "function") await provider.prepare(plugin.id);
+  }
+}
+
+/**
+ * 阻止外部来源在相同显式 SemVer 下替换内容。
+ *
+ * @param {object} registry Provider 注册表
+ * @param {import("../plugin/contracts.js").PluginLock|null} lock 当前 lock
+ * @param {string[]} ids 本轮显式更新目标
+ * @returns {void}
+ */
+function assertExternalVersionsNotReused(registry, lock, ids) {
+  const locked = new Map((lock?.plugins || []).map((plugin) => [plugin.id, plugin]));
+  for (const id of ids) {
+    const previous = locked.get(id);
+    if (!previous || previous.source.type !== "github" || !registry.has(previous.source.id)) continue;
+    for (const candidate of registry.get(previous.source.id).listCandidates(id)) {
+      if (
+        candidate.version === previous.version &&
+        (candidate.commit !== previous.commit || candidate.integrity !== previous.integrity)
+      ) {
+        throw new PluginRuntimeError(`外部 Plugin 复用了已发布版本:${id}@${candidate.version}`, {
+          code: PLUGIN_RUNTIME_ERROR_CODES.EXTERNAL_VERSION_REUSED,
+          path: id,
+        });
+      }
+    }
   }
 }

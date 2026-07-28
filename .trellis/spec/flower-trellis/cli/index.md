@@ -75,7 +75,7 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [Trellis Patch Engine](./trellis-patch-engine.md) | Skill-Garden/Flower 对 workflow、skill、hook、平台配置的统一 Patch、Bundle、迁移与 provenance 协议 |
 | [Flower Plugin Contracts](./flower-plugin-contracts.md) | Plugin/Marketplace schema、共享 DTO、canonical hash 与 `.flower/` Project Store 契约 |
 | [Flower Plugin Runtime And Lifecycle](./flower-plugin-runtime.md) | Source Registry、依赖解析、多平台投影、InstallPlan、事务恢复与项目级 Plugin 生命周期 CLI 契约 |
-| [Flower Plugin GitLab Sources](./flower-plugin-gitlab.md) | GitLab Marketplace、OAuth/Keyring、只读 REST、安全 archive、不可变缓存与远程 CLI 契约 |
+| [Flower Plugin Remote Sources](./flower-plugin-gitlab.md) | GitLab/GitHub 来源、OAuth/匿名 REST、外部格式探测、安全 archive、不可变缓存与远程 CLI 契约 |
 | [Flower Plugin Capability Policy](./flower-plugin-capabilities.md) | standard/integration/system 授权交集、批准摘要、内置信任根与受限 Patch Planner 契约 |
 | [Flower Plugin Authoring And Marketplace CI](./flower-plugin-authoring.md) | 作者 Plugin/Skill、确定性 scaffold、ownership、validate、rd-guide CI 与 CODEOWNERS 契约 |
 | [AI Context Budget](./ai-context-budget.md) | 最终 workflow/state/skill、Phase summary、SessionStart 与控制面总量的告警预算 |

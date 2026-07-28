@@ -52,7 +52,8 @@ test("README Plugin 示例与真实 help 保持命令面同步", (t) => {
     assert.equal(readme.includes(command), true, `README 缺少 ${command}`);
     assert.equal(help.stdout.includes(command), true, `help 缺少 ${command}`);
   }
-  assert.match(readme, /不以兼容 Codex Plugin/);
+  assert.match(readme, /自动识别 Flower、Codex、Claude Code 与 Skill-only/);
+  assert.match(readme, /hooks、agents、MCP.*只展示兼容性诊断，不会执行/);
   assert.match(readme, /独立的 `plugin add`.*不会隐式安装 `skill-garden`/s);
   assert.match(readme, /\.flower\/plugin-lock\.json/);
 });

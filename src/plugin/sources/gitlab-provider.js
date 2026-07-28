@@ -1,60 +1,17 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { extract } from "tar";
 import { PluginIntegrityError, PluginIoError, PluginPathError } from "../errors.js";
 import { hashCanonicalTree } from "../integrity/canonical-tree.js";
 import { PLUGIN_RUNTIME_ERROR_CODES, PluginRuntimeError } from "../runtime-errors.js";
 import { validateMarketplaceManifest } from "../schemas/marketplace-manifest.js";
 import { validatePluginManifest } from "../schemas/plugin-manifest.js";
-import { assertSafePosixRelativePath, composeCanonicalPluginId, parseCanonicalPluginId } from "../schemas/shared.js";
+import { composeCanonicalPluginId, parseCanonicalPluginId } from "../schemas/shared.js";
 import { compareUtf8 } from "../stable-order.js";
 import { verifyPluginPackage } from "./package-reader.js";
+import { copyOrdinaryDirectory, extractRemoteArchive } from "./remote-archive.js";
 
-const ALLOWED_ARCHIVE_TYPES = new Set(["File", "Directory"]);
-const MAX_ENTRY_BYTES = 25 * 1024 * 1024;
-const MAX_ARCHIVE_ENTRIES = 10_000;
-const MAX_EXTRACTED_BYTES = 250 * 1024 * 1024;
 const PROFILE_RANK = Object.freeze({ standard: 0, integration: 1, system: 2 });
-
-/**
- * 从已提取归档中找到 GitLab 自动生成的唯一顶层目录。
- *
- * @param {string} root 提取根
- * @returns {string} 仓库根目录
- */
-function findArchiveRepositoryRoot(root) {
-  const entries = fs.readdirSync(root, { withFileTypes: true });
-  if (entries.length !== 1 || !entries[0].isDirectory()) {
-    throw new PluginRuntimeError("GitLab archive 顶层结构无效", {
-      code: PLUGIN_RUNTIME_ERROR_CODES.REMOTE_ARCHIVE_INVALID,
-    });
-  }
-  return path.join(root, entries[0].name);
-}
-
-/**
- * 安全复制普通文件目录树。
- *
- * @param {string} source 来源目录
- * @param {string} target 目标目录
- */
-function copyDirectory(source, target) {
-  const sourceStat = fs.lstatSync(source);
-  if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) {
-    throw new PluginPathError(`远程 Plugin 根必须是普通目录:${source}`);
-  }
-  fs.mkdirSync(target, { recursive: true });
-  for (const entry of fs.readdirSync(source, { withFileTypes: true }).sort((left, right) => compareUtf8(left.name, right.name))) {
-    const from = path.join(source, entry.name);
-    const to = path.join(target, entry.name);
-    const stat = fs.lstatSync(from);
-    if (stat.isSymbolicLink()) throw new PluginPathError(`远程 Plugin 不允许链接:${entry.name}`);
-    if (stat.isDirectory()) copyDirectory(from, to);
-    else if (stat.isFile()) fs.copyFileSync(from, to);
-    else throw new PluginPathError(`远程 Plugin 不允许特殊文件:${entry.name}`);
-  }
-}
 
 /**
  * GitLab Marketplace Provider；网络阶段由 prepare() 显式触发。
@@ -72,7 +29,7 @@ export class GitLabSourceProvider {
     this.projectRoot = path.resolve(options.projectRoot);
     this.client = options.client;
     this.cacheRoot = options.cacheRoot || path.join(this.projectRoot, ".flower", "cache", "gitlab");
-    this.extractArchive = options.extractArchive || extract;
+    this.extractArchive = options.extractArchive;
     this.index = null;
     this.indexCommit = null;
     this.candidates = new Map();
@@ -338,52 +295,15 @@ export class GitLabSourceProvider {
     try {
       fs.mkdirSync(extractRoot);
       fs.writeFileSync(archiveFile, await this.client.downloadArchive(project, commit));
-      let unsafeEntry = null;
-      let archiveEntries = 0;
-      let extractedBytes = 0;
-      await this.extractArchive({
-        file: archiveFile,
-        cwd: extractRoot,
-        strict: true,
-        preservePaths: false,
-        chmod: false,
-        preserveOwner: false,
-        filter: (entryPath, entry) => {
-          const normalized = entryPath.replace(/\/$/, "");
-          archiveEntries += 1;
-          extractedBytes += Number(entry.size || 0);
-          const segments = normalized.split("/");
-          if (
-            path.posix.isAbsolute(normalized) ||
-            path.win32.isAbsolute(normalized) ||
-            normalized.includes("\\") ||
-            segments.some((segment) => !segment || segment === "." || segment === "..") ||
-            !ALLOWED_ARCHIVE_TYPES.has(entry.type) ||
-            Number(entry.size || 0) > MAX_ENTRY_BYTES ||
-            archiveEntries > MAX_ARCHIVE_ENTRIES ||
-            extractedBytes > MAX_EXTRACTED_BYTES
-          ) {
-            unsafeEntry ||= entryPath;
-            return false;
-          }
-          return true;
-        },
+      const { selectedRoot } = await extractRemoteArchive({
+        archiveFile,
+        extractRoot,
+        subdir,
+        label: "GitLab Plugin",
+        sourceId: this.id,
+        extractArchive: this.extractArchive,
       });
-      if (unsafeEntry) {
-        throw new PluginRuntimeError(`GitLab archive 包含不安全条目:${unsafeEntry}`, {
-          code: PLUGIN_RUNTIME_ERROR_CODES.REMOTE_ARCHIVE_INVALID,
-          path: this.id,
-        });
-      }
-      const repositoryRoot = findArchiveRepositoryRoot(extractRoot);
-      const selected = subdir
-        ? path.join(repositoryRoot, ...assertSafePosixRelativePath(subdir, "GitLab Plugin subdir").split("/"))
-        : repositoryRoot;
-      const relative = path.relative(repositoryRoot, selected);
-      if (relative.startsWith("..") || path.isAbsolute(relative) || !fs.existsSync(selected)) {
-        throw new PluginPathError(`GitLab Plugin subdir 不存在:${subdir || "."}`, { path: this.id });
-      }
-      copyDirectory(selected, packageRoot);
+      copyOrdinaryDirectory(selectedRoot, packageRoot, "GitLab Plugin");
       validatePluginManifest(JSON.parse(fs.readFileSync(path.join(packageRoot, "plugin.json"), "utf8")));
       const integrity = hashCanonicalTree(packageRoot);
       if (integrity !== version.integrity) {

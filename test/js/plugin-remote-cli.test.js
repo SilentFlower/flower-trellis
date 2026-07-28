@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { plugin, parsePluginArgs } from "../../src/commands/plugin.js";
+import { inspectGitHubPluginSource } from "../../src/commands/plugin-remote.js";
 import { PluginRuntimeError } from "../../src/plugin/runtime-errors.js";
 import { MemoryCredentialStore } from "../../src/plugin/auth/memory-credential-store.js";
 import { hashCanonicalTree } from "../../src/plugin/integrity/canonical-tree.js";
@@ -55,6 +56,228 @@ test("Plugin parser 支持 source、auth 与 search 命令", () => {
     json: true,
     help: false,
   });
+  assert.deepEqual(parsePluginArgs([
+    "source", "add", "public-guides",
+    "--type", "github",
+    "--repo", "example/public-guides",
+    "--ref", "main",
+    "--format", "auto",
+    "--json",
+  ]), {
+    command: "source",
+    subcommand: "add",
+    sourceId: "public-guides",
+    sourceType: "github",
+    repository: "example/public-guides",
+    ref: "main",
+    format: "auto",
+    json: true,
+    device: false,
+    help: false,
+  });
+});
+
+test("GitHub source 新增先探测固定格式，再复用现有生命周期安装", async (t) => {
+  const root = createPluginTestRoot(t, "flower-github-cli-add-");
+  const packageRoot = writePluginPackage(root, "github-package", pluginManifest({ id: "review" }));
+  const integrity = hashCanonicalTree(packageRoot);
+  const candidate = {
+    id: "public-guides/review",
+    version: "1.0.0",
+    source: {
+      id: "public-guides",
+      type: "github",
+      reference: "example/public-guides",
+      format: "codex",
+      entryPath: ".codex-plugin/plugin.json",
+    },
+    commit: "c".repeat(40),
+    integrity,
+    manifest: pluginManifest({ id: "review" }),
+    compatibilityReport: { status: "compatible", format: "codex", imported: [], omitted: [], diagnostics: [] },
+  };
+  const provider = {
+    id: "public-guides",
+    type: "github",
+    inspect: async () => ({
+      source: {
+        schemaVersion: 2,
+        id: "public-guides",
+        type: "github",
+        name: "Public Guides",
+        enabled: true,
+        repository: "example/public-guides",
+        ref: "main",
+        format: "codex",
+        entryPath: ".codex-plugin/plugin.json",
+      },
+      resolvedCommit: candidate.commit,
+      detection: { format: "codex", kind: "plugin", entryPath: ".codex-plugin/plugin.json" },
+      candidate,
+    }),
+    prepare: async () => {},
+    search: async () => [{
+      id: candidate.id,
+      description: "Review workflows",
+      versions: [candidate.version],
+      source: "public-guides",
+      detectedFormat: "codex",
+      entryPath: ".codex-plugin/plugin.json",
+      resolvedCommit: candidate.commit,
+      compatibility: candidate.compatibilityReport,
+    }],
+    listCandidates: () => [candidate],
+    readPackage: () => ({ root: packageRoot, manifest: candidate.manifest, integrity }),
+  };
+  const sourceStore = new UserSourceStore({
+    configFile: path.join(root, "source-config.json"),
+    builtinDescriptors: [],
+  });
+  const common = { sourceStore, githubProviderFactory: () => provider };
+  const sourceOutput = outputCollector();
+  assert.equal(await plugin({
+    target: root,
+    passthrough: [
+      "source", "add", "public-guides",
+      "--type", "github",
+      "--repo", "example/public-guides",
+      "--name", "Public Guides",
+      "--format", "auto",
+      "--json",
+    ],
+  }, { ...common, output: sourceOutput.output }), 0);
+  const persisted = sourceStore.get("public-guides");
+  assert.equal(persisted.format, "codex");
+  assert.equal(persisted.entryPath, ".codex-plugin/plugin.json");
+  const sourceResult = JSON.parse(sourceOutput.stdout[0]);
+  assert.equal(sourceResult.detectedFormat, "codex");
+  assert.equal(sourceResult.entryPath, ".codex-plugin/plugin.json");
+  assert.equal(sourceResult.resolvedCommit, candidate.commit);
+  assert.equal(sourceResult.compatibility.status, "compatible");
+
+  const addOutput = outputCollector();
+  assert.equal(await plugin({
+    target: root,
+    passthrough: ["add", candidate.id, "--platform", "codex", "--json"],
+  }, { ...common, output: addOutput.output }), 0);
+  assert.equal(JSON.parse(addOutput.stdout[0]).graph.plugins[0].source.type, "github");
+  assert.equal(fs.readFileSync(path.join(root, ".agents/skills/demo/SKILL.md"), "utf8"), "# Demo\n");
+});
+
+test("GitHub source 更新可清空 subdir，format=auto 不继承旧 entryPath", async (t) => {
+  const root = createPluginTestRoot(t, "flower-github-cli-update-");
+  const sourceStore = new UserSourceStore({
+    configFile: path.join(root, "source-config.json"),
+    builtinDescriptors: [],
+  });
+  sourceStore.set({
+    id: "public-guides",
+    type: "github",
+    name: "Public Guides",
+    enabled: true,
+    repository: "example/public-guides",
+    ref: "main",
+    subdir: "plugins/review",
+    format: "codex",
+    entryPath: ".codex-plugin/plugin.json",
+  });
+  let inspectedSource;
+  const output = outputCollector();
+  const code = await plugin({
+    target: root,
+    passthrough: [
+      "source", "update", "public-guides",
+      "--type", "github",
+      "--format", "auto",
+      "--clear-subdir",
+      "--json",
+    ],
+  }, {
+    sourceStore,
+    output: output.output,
+    githubProviderFactory: ({ source }) => ({
+      inspect: async () => {
+        inspectedSource = source;
+        return {
+          source: { ...source, format: "claude-code", entryPath: ".claude-plugin/plugin.json" },
+          resolvedCommit: "d".repeat(40),
+          detection: { format: "claude-code", kind: "plugin", entryPath: ".claude-plugin/plugin.json" },
+          candidate: {
+            id: "public-guides/review",
+            version: "1.0.0",
+            compatibilityReport: { status: "compatible", imported: [], omitted: [], diagnostics: [] },
+          },
+        };
+      },
+    }),
+  });
+  assert.equal(code, 0);
+  assert.equal("subdir" in inspectedSource, false);
+  assert.equal("entryPath" in inspectedSource, false);
+  assert.equal(inspectedSource.format, "auto");
+  assert.equal("subdir" in sourceStore.get("public-guides"), false);
+});
+
+test("GitHub 来源预览只写临时缓存且结束后清理", async (t) => {
+  const root = createPluginTestRoot(t, "flower-github-inspect-readonly-");
+  let cacheRoot;
+  const inspection = await inspectGitHubPluginSource({
+    schemaVersion: 2,
+    id: "public-guides",
+    type: "github",
+    name: "Public Guides",
+    enabled: true,
+    repository: "example/public-guides",
+    format: "auto",
+  }, { target: root }, {
+    githubProviderFactory: (options) => {
+      cacheRoot = options.cacheRoot;
+      return {
+        inspect: async () => {
+          fs.mkdirSync(cacheRoot, { recursive: true });
+          fs.writeFileSync(path.join(cacheRoot, "preview"), "temporary\n");
+          return {
+            source: { ...options.source, ref: "trunk", format: "codex", entryPath: ".codex-plugin/plugin.json" },
+            resolvedCommit: "e".repeat(40),
+            detection: { format: "codex", kind: "plugin", entryPath: ".codex-plugin/plugin.json" },
+            candidate: null,
+            candidates: [],
+            diagnostics: [],
+          };
+        },
+      };
+    },
+  });
+  assert.equal(inspection.source.ref, "trunk");
+  assert.equal(fs.existsSync(cacheRoot), false);
+  assert.equal(fs.existsSync(path.join(root, ".flower")), false);
+});
+
+test("GitHub 来源预览失败也清理临时缓存且不写项目", async (t) => {
+  const root = createPluginTestRoot(t, "flower-github-inspect-failed-");
+  let cacheRoot;
+  await assert.rejects(() => inspectGitHubPluginSource({
+    schemaVersion: 2,
+    id: "public-guides",
+    type: "github",
+    name: "Public Guides",
+    enabled: true,
+    repository: "example/public-guides",
+    format: "auto",
+  }, { target: root }, {
+    githubProviderFactory: (options) => {
+      cacheRoot = options.cacheRoot;
+      return {
+        inspect: async () => {
+          fs.mkdirSync(cacheRoot, { recursive: true });
+          fs.writeFileSync(path.join(cacheRoot, "preview"), "temporary\n");
+          throw new PluginRuntimeError("格式未识别", { code: "PLUGIN_FORMAT_UNRECOGNIZED" });
+        },
+      };
+    },
+  }), (error) => error.code === "PLUGIN_FORMAT_UNRECOGNIZED");
+  assert.equal(fs.existsSync(cacheRoot), false);
+  assert.equal(fs.existsSync(path.join(root, ".flower")), false);
 });
 
 test("source list 与 auth status 保持零网络并输出非敏感 JSON", async (t) => {

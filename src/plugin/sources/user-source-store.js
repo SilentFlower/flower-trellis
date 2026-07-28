@@ -6,12 +6,15 @@ import { PluginIoError } from "../errors.js";
 import { PLUGIN_RUNTIME_ERROR_CODES, PluginRuntimeError } from "../runtime-errors.js";
 import {
   assertSafePosixRelativePath,
+  isGitHubRepository,
   isGitLabProjectPath,
   isPluginId,
 } from "../schemas/shared.js";
 import { compareUtf8 } from "../stable-order.js";
 
-const SOURCE_CONFIG_VERSION = 1;
+const SOURCE_CONFIG_VERSION = 2;
+const LEGACY_SOURCE_CONFIG_VERSION = 1;
+const EXTERNAL_FORMATS = new Set(["auto", "flower", "codex", "claude-code", "skill-only"]);
 const BUILTIN_DESCRIPTOR_PATH = fileURLToPath(
   new URL("../../builtin-marketplaces/rd-guide.json", import.meta.url),
 );
@@ -76,7 +79,7 @@ export function validateGitLabSourceDescriptor(value) {
   const oauth = /** @type {Record<string,unknown>} */ (source?.oauth || {});
   const scopes = Array.isArray(oauth?.scopes) ? [...oauth.scopes].sort(compareUtf8) : [];
   if (
-    source.schemaVersion !== SOURCE_CONFIG_VERSION ||
+    ![LEGACY_SOURCE_CONFIG_VERSION, SOURCE_CONFIG_VERSION].includes(source.schemaVersion) ||
     !isPluginId(source.id) ||
     source.type !== "gitlab" ||
     typeof source.name !== "string" || !source.name ||
@@ -113,6 +116,127 @@ export function validateGitLabSourceDescriptor(value) {
 }
 
 /**
+ * 把 GitHub URL 或 shorthand 规范化为 `owner/repository`。
+ *
+ * @param {unknown} value 原始仓库地址
+ * @returns {string} GitHub 仓库标识
+ */
+export function normalizeGitHubRepository(value) {
+  const raw = String(value || "").trim();
+  let repository = raw;
+  if (/^https?:\/\//i.test(raw)) {
+    let url;
+    try {
+      url = new URL(raw);
+    } catch (error) {
+      throw new PluginRuntimeError("GitHub 仓库地址无效", {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+        cause: error,
+      });
+    }
+    if (url.hostname.toLowerCase() !== "github.com" || url.username || url.password || url.search || url.hash) {
+      throw new PluginRuntimeError("GitHub 来源只允许无凭据的 github.com 公共仓库 URL", {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+        path: raw,
+      });
+    }
+    repository = url.pathname.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+  } else {
+    repository = raw.replace(/\.git$/i, "").replace(/^\/+|\/+$/g, "");
+  }
+  if (!isGitHubRepository(repository)) {
+    throw new PluginRuntimeError(`GitHub 仓库标识无效:${repository}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+      path: repository,
+    });
+  }
+  return repository;
+}
+
+/**
+ * 校验 GitHub 公共 source descriptor。
+ *
+ * @param {unknown} value 原始 descriptor
+ * @returns {object} 规范化 descriptor
+ */
+export function validateGitHubSourceDescriptor(value) {
+  const source = /** @type {Record<string,unknown>} */ (value);
+  const allowedFields = new Set([
+    "schemaVersion", "id", "type", "name", "enabled", "repository", "ref",
+    "subdir", "format", "entryPath", "builtin",
+  ]);
+  const unknownField = Object.keys(source || {}).find((key) => !allowedFields.has(key));
+  if (unknownField) {
+    throw new PluginRuntimeError(`GitHub source 配置包含未知字段:${unknownField}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+      path: String(source?.id || ""),
+    });
+  }
+  for (const key of SECRET_FIELDS) {
+    if (key in (source || {})) {
+      throw new PluginRuntimeError(`Source 配置不得包含敏感字段:${key}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+        path: String(source?.id || ""),
+      });
+    }
+  }
+  const format = String(source?.format || "auto");
+  if (
+    Number(source?.schemaVersion) !== SOURCE_CONFIG_VERSION ||
+    !isPluginId(source?.id) ||
+    source?.type !== "github" ||
+    typeof source?.name !== "string" || !source.name ||
+    typeof source?.enabled !== "boolean" ||
+    typeof source?.ref !== "string" || !source.ref ||
+    !EXTERNAL_FORMATS.has(format)
+  ) {
+    throw new PluginRuntimeError(`GitHub source 配置无效:${String(source?.id || "")}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+      path: String(source?.id || ""),
+    });
+  }
+  const subdir = source.subdir === undefined
+    ? undefined
+    : assertSafePosixRelativePath(source.subdir, "GitHub source subdir");
+  const entryPath = source.entryPath === undefined
+    ? undefined
+    : assertSafePosixRelativePath(source.entryPath, "GitHub source entryPath");
+  if ((format === "auto") !== (entryPath === undefined)) {
+    throw new PluginRuntimeError("GitHub source 自动格式不能固定 entryPath，已确认格式必须固定 entryPath", {
+      code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+      path: String(source.id),
+    });
+  }
+  return {
+    schemaVersion: SOURCE_CONFIG_VERSION,
+    id: source.id,
+    type: "github",
+    name: source.name,
+    enabled: source.enabled,
+    repository: normalizeGitHubRepository(source.repository),
+    ref: source.ref,
+    ...(subdir ? { subdir } : {}),
+    format,
+    ...(entryPath ? { entryPath } : {}),
+  };
+}
+
+/**
+ * 按来源类型校验用户 source descriptor。
+ *
+ * @param {unknown} value 原始 descriptor
+ * @returns {object} 规范化 descriptor
+ */
+export function validateSourceDescriptor(value) {
+  if (value?.type === "gitlab") return validateGitLabSourceDescriptor(value);
+  if (value?.type === "github") return validateGitHubSourceDescriptor(value);
+  throw new PluginRuntimeError(`未知 Plugin source 类型:${String(value?.type || "")}`, {
+    code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+    path: String(value?.id || ""),
+  });
+}
+
+/**
  * XDG 用户级 Plugin source 存储。
  */
 export class UserSourceStore {
@@ -136,7 +260,7 @@ export class UserSourceStore {
   list() {
     const merged = new Map(this.builtinDescriptors.map((source) => [
       source.id,
-      { ...validateGitLabSourceDescriptor(source), builtin: true },
+      { ...validateSourceDescriptor(source), builtin: true },
     ]));
     for (const source of this.#readUserSources()) {
       merged.set(source.id, { ...source, builtin: merged.has(source.id) });
@@ -169,7 +293,7 @@ export class UserSourceStore {
    * @returns {object} 保存后的来源
    */
   set(source) {
-    const normalized = validateGitLabSourceDescriptor({ schemaVersion: 1, ...source });
+    const normalized = validateSourceDescriptor({ schemaVersion: SOURCE_CONFIG_VERSION, ...source });
     const sources = this.#readUserSources().filter((entry) => entry.id !== normalized.id);
     sources.push(normalized);
     this.#writeUserSources(sources);
@@ -191,6 +315,16 @@ export class UserSourceStore {
   }
 
   /**
+   * 判断来源是否存在用户级覆盖。
+   *
+   * @param {string} id 来源 ID
+   * @returns {boolean} 是否存在用户级覆盖
+   */
+  hasOverride(id) {
+    return this.#readUserSources().some((entry) => entry.id === id);
+  }
+
+  /**
    * 切换来源启用状态。
    *
    * @param {string} id 来源 ID
@@ -207,10 +341,16 @@ export class UserSourceStore {
     if (!fs.existsSync(this.configFile)) return [];
     try {
       const raw = JSON.parse(fs.readFileSync(this.configFile, "utf8"));
-      if (raw.schemaVersion !== SOURCE_CONFIG_VERSION || !Array.isArray(raw.sources)) {
+      if (![LEGACY_SOURCE_CONFIG_VERSION, SOURCE_CONFIG_VERSION].includes(raw.schemaVersion) || !Array.isArray(raw.sources)) {
         throw new TypeError("用户 source 配置 schemaVersion 或 sources 无效");
       }
-      const sources = raw.sources.map((source) => validateGitLabSourceDescriptor(source));
+      if (raw.schemaVersion === LEGACY_SOURCE_CONFIG_VERSION && raw.sources.some(({ type }) => type !== "gitlab")) {
+        throw new TypeError("schemaVersion 1 只允许旧 GitLab source");
+      }
+      const sources = raw.sources.map((source) => validateSourceDescriptor({
+        ...source,
+        schemaVersion: source.schemaVersion || raw.schemaVersion,
+      }));
       if (new Set(sources.map(({ id }) => id)).size !== sources.length) {
         throw new TypeError("用户 source 配置包含重复 ID");
       }

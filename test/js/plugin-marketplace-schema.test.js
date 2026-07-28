@@ -38,8 +38,15 @@ function validMarketplace() {
   };
 }
 
-test("Marketplace v1 接受 GitLab 与共仓条目", () => {
+test("Marketplace v1 接受 GitLab、GitHub 与共仓条目", () => {
   const marketplace = validMarketplace();
+  marketplace.plugins.push({
+    id: "github-guide",
+    description: "GitHub 规范",
+    source: { type: "github", repository: "example/guides", subdir: "plugin" },
+    trust: { maxProfile: "standard" },
+    versions: [{ version: "1.0.0", ref: "v1.0.0", commit: COMMIT, integrity: DIGEST }],
+  });
   assert.equal(validateMarketplaceManifest(marketplace), marketplace);
 });
 

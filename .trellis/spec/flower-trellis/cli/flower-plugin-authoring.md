@@ -8,7 +8,7 @@
 
 - 修改 `src/plugin/authoring/**`、`flower/flower-plugin-author`、`plugin init` 或 `plugin validate`。
 - 修改作者 scaffold 文件树、ownership 覆盖语义、checkout map、Marketplace CI JSON 或 integration CODEOWNERS 门禁。
-- 为外部团队新增 Plugin/Skill/Marketplace 作者流程或 rd-guide 注册模板。
+- 为外部团队新增 Plugin/Skill/Marketplace 作者流程、GitHub 公共来源、Claude Code/Codex 接入或 rd-guide 注册模板。
 
 作者层只能组合 P1-P4 公共实现；不得复制 schema、Resolver、canonical hash、capability 或 Patch Engine。
 
@@ -24,6 +24,9 @@ flower-trellis plugin init --id <source/plugin> --name <name>
 flower-trellis plugin validate [path]
   [--subject plugin|entry|marketplace] [--source-id <id>]
   [--checkout-map <json>] [--ci] [--json]
+
+flower-trellis plugin source add <source-id>
+  --type github --repo <owner/repository> [--ref <ref>] [--subdir <path>]
 ```
 
 ```js
@@ -73,6 +76,14 @@ validateAuthorMarketplace(marketplace, options) -> AuthorValidationResult
 - `marketplaceDigest` 必须等于本轮 validation JSON 的 digest。Marketplace 内容变化后必须同步更新 companion 文件。
 - CODEOWNERS 保护 companion 路径，GitLab protected approval rule 要求 integration owner 批准；普通作者仅修改 entry 不能绕过该门禁。
 
+### External Format And GitHub Guidance
+
+- 内置 `flower-plugin-author` Skill 必须把 Flower 原生格式作为唯一 scaffold 输出；`plugin init` 不生成或反向导出 Claude Code/Codex manifest。
+- `references/external-formats.md` 负责 Flower、Claude Code、Codex、skill-only 的检测入口、被动内容兼容矩阵、歧义选择和主动组件限制；`references/github-release.md` 负责公开仓库、默认/显式 ref、固定 commit、兼容预览和来源登记。
+- Claude/Codex 已有仓库通过 `plugin source add --type github` 接入，必须先展示 `detectedFormat/entryPath/resolvedCommit/compatibility` 再持久化；多个入口要求显式选择，不能要求作者预先声明平台格式。
+- 外部 Skill 及其辅助文件必须保持在声明的普通目录和来源根内。hooks、MCP、LSP、bin、settings、apps 和安装脚本不得因兼容导入而执行或获得 Patch 权限。
+- rd-guide 的 GitLab Marketplace、CI、MR、CODEOWNERS 与受限 integration Patch Engine 继续沿用原有 reference；GitHub 外部格式默认 standard，不能借作者指南绕过审批。
+
 ## 4. Validation & Error Matrix
 
 | 条件 | 错误 / 结果 |
@@ -86,6 +97,9 @@ validateAuthorMarketplace(marketplace, options) -> AuthorValidationResult
 | checkout commit、manifest version 或 digest 不一致 | `marketplace.commit-mismatch` / `marketplace.version-mismatch` / `PLUGIN_INTEGRITY_MISMATCH` |
 | CI 缺 checkout 或使用零 commit | `marketplace.checkout-missing` / `marketplace.placeholder-commit` |
 | integration 缺 companion 或 digest 过期 | review gate 非零退出，MR 不得合并 |
+| GitHub 仓库格式歧义 | `PLUGIN_SOURCE_AMBIGUOUS`，作者选择固定 entryPath 后重新预览 |
+| 外部 Skill 路径逃逸来源根，或没有可安全导入内容 | `PLUGIN_UNSAFE_PATH` / `PLUGIN_FORMAT_UNSUPPORTED`，不登记来源 |
+| 外部 manifest 声明 hooks/MCP/bin | compatibility 标记 omitted；scaffold、安装计划和 Patch catalog 均不生成对应执行能力 |
 
 ## 5. Good / Base / Bad Cases
 
@@ -99,12 +113,14 @@ validateAuthorMarketplace(marketplace, options) -> AuthorValidationResult
 
 - 不带 `--marketplace` 时不生成 entry；零 commit 只允许作为本地草稿，CI 必须拒绝。
 - 普通项目没有 `.trellis/`：仍可安装 `flower/flower-plugin-author` 并投影 Skill。
+- 公开 GitHub skill-only 仓库省略 ref：来源流程解析默认分支和固定 commit，预览 compatible 后再保存来源。
 
 ### Bad
 
 - 从当前 manifest 反推“旧模板”并据此覆盖；用户的有效手改会被误认作 scaffold 原始内容。
 - checkout map 指向 `/tmp/plugin`、`../plugin` 或工作区内指向外部的软链。
 - 只输出 `review.required=true`，但不强制更新 CODEOWNERS 保护的 digest companion。
+- 在作者 Skill 中建议直接运行 `claude plugin install`/`codex plugin install`，或把外部 hooks 转成 Flower integration Patch。
 
 ## 6. Tests Required
 
@@ -112,6 +128,7 @@ validateAuthorMarketplace(marketplace, options) -> AuthorValidationResult
 - `plugin-authoring-validate.test.js`：P1/P2/P4 真源、稳定 digest、依赖闭包、system/capability 拒绝、绝对路径脱敏。
 - `plugin-marketplace-ci.test.js`：不可变 ref、ref/commit、checkout commit、工作区/软链边界、version/digest、依赖闭包和 integration companion/CODEOWNERS。
 - 作者 Skill 必须运行 `quick_validate.py`，并至少用两个隔离临时目录 forward-test 新建 standard 与修复越权 integration。
+- 外部格式指南必须覆盖 Claude/Codex 接入、GitHub skill-only 发布、格式歧义和主动组件 omitted；相关 CLI/provider tests 断言预览在持久化前完成。
 - 修改本契约后运行完整 `npm test`、受影响文件 `node --check`、`npm pack --dry-run --json` 和 `git diff --check`。
 
 ## 7. Wrong vs Correct
@@ -138,3 +155,5 @@ if (state.files[relative] !== contentDigest(current)) {
 ```
 
 路径先做词法与真实路径边界校验；覆盖只接受 ownership 账本中与当前字节完全一致的摘要，最终 digest 在全部写入前预演。
+
+外部格式的正确作者流程是保留上游仓库结构，通过 GitHub source 检测和兼容预览导入被动内容；需要 Flower 原生发布或 integration Patch 时，再显式维护 Flower manifest、Marketplace 与现有审批材料，不能把两条信任路径混为一体。

@@ -73,10 +73,7 @@ function printHelp() {
   flower-trellis self-check --json [--target <dir>]      输出启动更新检查 JSON
   flower-trellis self-update --target <dir> --yes        自更新 + 项目重叠加
   flower-trellis update-check <get|set|disable|enable>   管理启动更新策略
-  flower-trellis skill [flower flags]                    交互管理通用技能
-  flower-trellis plugin <list|add|update|remove|verify>  管理项目 Plugin 生命周期
-  flower-trellis plugin <init|validate> [...]            创建和校验 Plugin/Marketplace
-  flower-trellis plugin <source|auth|search> [...]       管理 Plugin 来源与 GitLab 授权
+  flower-trellis plugin                                 交互管理 Plugin、来源与 GitLab 授权
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
   flower-trellis -v                                      打印版本
@@ -98,7 +95,8 @@ flower 自有 flag:
 
 命令别名:flower-trellis 可简写为 ftl 或 ft(三者完全等价)。
 init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联网、带超时,失败静默)。
-skill 可启用或停用通用技能，并只读展示工作流强化包。
+通用技能管理已整合到 Plugin 管理器的 Flower 内置 Skill Garden 入口；
+原 flower-trellis skill 命令继续保留为高级兼容入口。
 
 平台选择:未指定平台时,交互模式会弹出多选菜单(默认勾 Claude Code + Codex);
 也可直接传 --claude / --codex / --cursor / --devin / --zcode / --trae 等指定,
