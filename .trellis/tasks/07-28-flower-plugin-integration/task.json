@@ -18,7 +18,9 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "07-28-flower-plugin-external-adapters"
+  ],
   "parent": "07-28-flower-plugin-system",
   "relatedFiles": [],
   "notes": "",

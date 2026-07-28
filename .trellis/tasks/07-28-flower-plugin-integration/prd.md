@@ -12,6 +12,15 @@
 
 - 统一顶层 help、Plugin 子命令 help、退出码、交互提示和错误格式。
 - 命令面完整覆盖 source、auth、search、list、add、update、remove、verify、init、validate。
+- 顶层 help 只展示一个 `flower-trellis plugin` 产品入口，不展开 lifecycle、authoring、source/auth/search 三组子命令；这些显式子命令保留为交互管理器内部复用、CI 和高级自动化接口，只在 `plugin --help` 与高级文档中说明。
+- 交互 TTY 中裸执行 `flower-trellis plugin` 必须进入持续存在的 Plugin 管理器，而不是直接打印 `plugin list`。管理器采用借鉴 Claude Code `/plugin` 信息架构的 `发现 / 已安装 / 来源 / 问题` 四页签，不再使用六项平铺首页菜单；只借鉴交互模型，不兼容 Claude Plugin 格式。
+- 页签切换、详情页返回和操作完成后必须保留当前搜索词、筛选条件与选中位置，避免每次操作都退回初始首页。
+- 非 TTY 中裸执行 `flower-trellis plugin` 保持现有只读 `plugin list` 行为，不得等待输入；显式子命令、`--json` 和自动化调用始终保持确定性的命令模式，不显示横幅或 prompt。
+- `发现` 页合并展示所有已启用 Marketplace 的 Plugin，并以来源标签区分；只有一个来源时不要求用户先理解或选择来源。进入页面时刷新 Marketplace，新增 Plugin 或版本自动出现在列表中，刷新失败必须明确显示旧缓存状态。
+- 浏览安装流程至少串联搜索、详情、版本与目标平台选择、dry-run 变更摘要、capability 摘要与最终确认；远程来源需要认证时默认直接启动 Device Flow，立即展示授权地址与授权码，授权成功后自动返回原详情或搜索位置。PKCE 只保留为高级认证入口。首版保持单 Plugin 事务边界，不提供可能产生部分成功的批量安装。
+- `已安装` 页集中提供详情、verify、update、remove，并把错误、待处理项和可更新项置顶；`来源` 页管理 Marketplace、登录状态与刷新；`问题` 页集中展示认证、依赖、完整性、目标漂移和加载错误诊断。
+- 已安装管理必须从项目 `plugins/lock/state` 展示直接声明、解析版本、来源和应用平台，并提供 verify、update、remove；危险操作先展示预览并二次确认。
+- 来源与认证管理必须展示 source 启停状态和 GitLab 登录状态，并复用现有 source/auth 命令契约完成新增、修改、启停、登录和退出，不复制 OAuth、Keyring 或 source schema。
 - `--dry-run`、`--json`、`--platform`、`--source` 等公共参数行为一致，不因子命令产生近似但不同的格式。
 - 未知 Plugin 子命令返回 Flower 用法错误；非 Plugin 未知顶层命令继续透传 Trellis。
 - JSON stdout 只包含一个稳定 JSON 文档；人类提示、进度和浏览器说明进入 stderr 或交互通道。
@@ -19,6 +28,7 @@
 ### R2. README 与使用文档
 
 - README 说明 Flower Plugin 是自有格式，不以 Codex Plugin 兼容为目标。
+- README 以交互式 `flower-trellis plugin` 为首要使用路径，不要求普通用户记忆 lifecycle、authoring 或 GitLab 管理子命令；显式命令集中放在高级/自动化章节。
 - 说明完整 init 默认安装 `skill-garden`，独立 plugin add 不隐式安装，普通项目可只使用 Plugin Runtime。
 - 覆盖 `.flower/` 可提交/本机边界、Marketplace/source/auth、生命周期、capability、作者流程和迁移行为。
 - 不在 README 写入 OAuth secret、真实 token、device code 或内部 GitLab 凭据。
@@ -71,6 +81,10 @@
 ## 验收标准
 
 - [ ] 所有 Plugin 子命令 help、退出码、dry-run 和 JSON 输出一致并有 snapshot/contract 测试。
+- [ ] 顶层 help 只保留单一 Plugin 管理入口，不再枚举三组底层子命令；`plugin --help` 仍能为 CI 和高级用户提供完整参数参考。
+- [ ] 交互 TTY 裸执行 `flower-trellis plugin` 打开 `发现 / 已安装 / 来源 / 问题` 四页签管理器，可完成 Marketplace 浏览安装、已安装管理、更新和来源认证；未授权来源自动进入 Device Flow，授权完成继续原安装流程；页签、搜索和选中状态可恢复，退出不写项目。
+- [ ] 非 TTY 裸命令不阻塞并保持 list 兼容；显式子命令和 `--json` 不进入交互模式，stdout 契约不漂移。
+- [ ] 交互安装和卸载在确认前展示 dry-run、依赖、capability 与目标变化；取消确认满足零写入。
 - [ ] README 示例与实际 CLI 同步，清楚表达完整 init 与独立 Plugin 模式。
 - [ ] npm tarball 包含全部运行资产和作者 Skill，不包含测试秘密、缓存、runtime 或不应发布文件。
 - [ ] 场景矩阵覆盖无 Trellis、新 Trellis、旧迁移、多平台、多 Plugin、GitLab、capability、作者工具和 uninstall。
@@ -87,3 +101,4 @@
 - 不修改真实 rd-guide 仓库或 GitLab 管理配置。
 - 不新增父任务未定义的 Plugin 协议、权限档位或来源类型。
 - 不通过集成层重写 P1-P6 核心实现。
+- 不引入 Ink、React、Blessed 等常驻全屏 TUI 框架，不新增跨多个 Plugin 的批量事务。

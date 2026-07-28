@@ -3,3 +3,7 @@
 {"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "覆盖 Patch conflict、compiled targets、零写入和 parity 门禁。"}
 {"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "确保新增 Plugin/作者 Skill 不造成高频 AI 上下文重复。"}
 {"file": ".trellis/tasks/07-28-flower-plugin-system/research/current-architecture.md", "reason": "读取父任务现状证据和跨模块集成风险。"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "检查 TTY/非 TTY 分流、prompt、退出码和 JSON stdout 契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "检查交互实现是否复用 @inquirer/prompts、保持 ESM/JSDoc 和分层边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md", "reason": "检查 UI 未复制 Runtime，dry-run、确认、取消和单 Plugin 事务语义一致。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md", "reason": "检查交互搜索/auth 的零网络、凭据、结构化结果和敏感输出边界。"}
