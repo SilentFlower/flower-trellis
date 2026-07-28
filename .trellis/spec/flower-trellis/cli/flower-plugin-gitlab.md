@@ -7,7 +7,7 @@
 以下改动必须先读本规范：
 
 - 修改 `src/plugin/auth/**`、`src/plugin/gitlab/**`、`src/plugin/github/**`、`src/plugin/formats/**`、`src/plugin/sources/*-provider.js`、`remote-archive.js`、`user-source-store.js` 或 `src/builtin-marketplaces/*.json`。
-- 修改 `plugin source`、`plugin auth`、`plugin search` 或远程 `plugin add/update/verify/remove` 的接入方式。
+- 修改 `plugin source`、`plugin auth`、`plugin search`、交互式来源管理器或远程 `plugin add/update/verify/remove` 的接入方式。
 - 改变 OAuth scope、公共客户端参数、Keyring 降级、GitLab REST 端点、archive 解包、远程缓存键或敏感信息输出边界。
 
 远程 Provider 只负责认证（如需要）、索引、固定快照和候选准备；格式 Adapter 负责检测与标准包归一化。依赖求解、内容写盘和项目事务必须继续交给 Plugin Runtime/Application Service。
@@ -24,6 +24,12 @@ flower-trellis plugin source add <source-id>
   [--subdir <path>] [--format auto|flower|codex|claude-code|skill-only]
   [--entry-path <path>] [--json]
 flower-trellis plugin source update <source-id> [--clear-subdir] [...]
+
+Interactive source manager:
+  来源 -> 新增来源 -> GitHub 公共仓库 | GitLab Marketplace | 返回来源 | 退出管理
+  GitHub add: prompt <repository-url-or-owner/repository> only, then inspect -> ambiguity choice -> preview -> confirm -> source add
+  GitLab add: prompt <project-url> only, then reuse known OAuth applicationId or ask for Application ID -> source add
+  GitHub edit: prompt repository/ref/subdir/name, then reset format=auto -> inspect -> preview -> confirm -> source update
 ```
 
 ```js
@@ -103,7 +109,9 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 
 - 首次准备先把 source `ref` 解析为 40 位 commit，再在该 commit 读取并验证 Marketplace。Marketplace ID 必须等于 source ID。
 - candidate 的 GitLab `source.reference` 只保存 project path，`source.indexCommit` 保存索引 commit；Plugin 自身同时固定 `commit` 和 `integrity`。
-- archive 仅允许普通目录和普通文件，拒绝绝对路径、反斜杠、空片段、`.`、`..`、软链、硬链和特殊文件；单条目、总条目、总解压字节及目标 subdir 均受限。
+- archive 的全局危险路径必须一律拒绝：绝对路径、Windows 绝对路径、反斜杠、空片段、`.`、`..` 和条目总数超限都属于 `PLUGIN_REMOTE_ARCHIVE_INVALID`。总解压字节超限也必须失败，不能只跳过后续条目。
+- archive 普通包内容只允许普通目录和普通文件。软链、硬链、特殊文件或单文件超限位于调用方显式选中的 `subdir` 内时必须失败；位于全仓扫描阶段的未选中目录或仓库根无关位置时允许跳过，避免公开仓库根目录的 `AGENTS.md`、文档 symlink 等无关条目误阻断格式检测。
+- 解包后的规范化复制仍必须使用 ordinary-directory 边界：实际进入 Plugin/Skill 包根的软链、硬链和特殊文件一律拒绝。跳过无关 archive 条目不能放宽已选 Plugin 子树或目标写盘边界。
 - 解包后的 Plugin 根必须通过 manifest 校验和 P1 canonical tree hash。缓存键绑定 `baseUrl/project/commit/subdir/integrity`；metadata 绑定 `sourceId/baseUrl/project/commit/subdir/integrity`，不得包含 token、header 或用户身份。
 - 缓存命中仍须复核 tree hash、manifest ID 和版本。损坏缓存只删除对应不可变缓存项并重新下载，不修改 lock。`prepareLocked()` 只能接受 lock 的 `indexCommit/version/commit/integrity/reference` 与锁定 Marketplace 完全一致的条目。
 - `prepareLocked()` 只表示旧 lock 的固定包已经可重放，可以向候选集合登记锁定版本，但不得把 canonical ID 标记为“最新 Marketplace 已准备”。显式远程 `plugin update` 必须在恢复旧 lock 后继续执行 `prepare()`，重新解析 source `ref`、读取当前索引并加载新版候选；Provider 应使用独立的 prepared 状态，不能用 `candidates.has(id)` 兼任索引准备标记。
@@ -114,6 +122,9 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - GitHub 首版只访问 `api.github.com` 的公共仓库，不创建凭据，也不进入 `plugin auth`。省略 ref 时先读取仓库 `default_branch`；branch/tag/default branch 最终都必须解析成 40 位 commit。
 - archive 重定向只接受 HTTPS 的 `api.github.com`、`github.com` 或 `codeload.github.com`。GitHub 与 GitLab 共用 `remote-archive.js` 的危险条目、条目数、单文件、解压总量、subdir 和普通文件边界。
 - 首次检查下载固定 commit archive 后在本地检测 Flower、Codex、Claude Code 与 skill-only 入口。多个入口必须返回结构化 `PLUGIN_SOURCE_AMBIGUOUS`；交互选择后以固定 `format/entryPath` 重试。
+- 交互式新增来源不得先询问内部 `Source ID`。GitHub 新增只问仓库 URL 或 `owner/repository`，从仓库名生成唯一 source ID 和显示名；ref、subdir 和显示名属于编辑或高级 CLI。GitLab 新增只问项目 URL，从 URL 拆分 `baseUrl/project`，复用同 GitLab 地址已有 OAuth Application ID；仅没有可复用值时再询问 Application ID。
+- 交互式新增来源类型页必须有明确的 `返回来源` 和 `退出管理` 动作。用户选择返回、退出、取消预览或确认前失败时不得调用 `source add/update`。
+- GitHub 交互检测必须在耗时动作前输出进度：初次检测、歧义选择后重试、保存来源都要给出可读状态。检测失败不退出到 shell，应记录到管理器问题页并保持 source store、项目 `.flower/` 和临时 cache 零持久化。
 - Flower Marketplace 搜索只读取并缓存索引快照，按 Plugin ID 聚合全部版本并按 SemVer 降序展示；只有 `prepare(canonicalId)` 才下载被选 Plugin 的版本，禁止发现页预取整个 Marketplace。
 - Claude/Codex Marketplace 支持同仓相对路径、GitHub shorthand、GitHub HTTPS URL，以及 GitHub `git-subdir`。公开跨仓条目分别解析目标仓库默认分支或显式 ref；SSH、私有仓库、非 GitHub git-subdir、npm、通用 Git host 和远程 JSON 只产生 unsupported 诊断。
 - 没有 Marketplace 时允许把 `plugins/*` 中的多个可识别目录作为一个来源目录；每个目录独立归一化为候选。歧义只在单个选择边界内解决，不能因遍历顺序静默选中。
@@ -134,6 +145,8 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 | refresh 失败 | 删除旧凭据并返回 `PLUGIN_AUTH_REQUIRED` |
 | REST 超时、网络错误、4xx/5xx 或无效 JSON | `PLUGIN_REMOTE_REQUEST_FAILED`；5xx/网络最多重试一次 |
 | archive 超限、危险条目或顶层结构无效 | `PLUGIN_REMOTE_ARCHIVE_INVALID`，不发布缓存 |
+| 全仓扫描遇到未选中目录或仓库根的软链、硬链、特殊文件或单文件超限 | 跳过该条目继续检测；不得发布被跳过条目进入规范化包 |
+| 显式 `subdir` 或已选 Plugin/Skill 包根内出现软链、硬链、特殊文件或单文件超限 | `PLUGIN_REMOTE_ARCHIVE_INVALID` / `PLUGIN_UNSAFE_PATH`，不发布缓存 |
 | manifest 身份、版本、trust 或 lock/index 不一致 | `PLUGIN_TARGET_DRIFT` 或来源配置错误，不进入 Runtime 写盘 |
 | digest 不匹配 | P1 完整性错误包装为稳定 Runtime 错误，删除 staging/损坏缓存 |
 | Keyring 不可用 | 使用进程内 store，`persistent=false`，不创建明文凭据文件 |
@@ -141,6 +154,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 | GitHub 403/429 且匿名额度耗尽 | `PLUGIN_REMOTE_RATE_LIMITED`，保留 limit/reset 非敏感诊断，零持久化 |
 | GitHub 仓库/ref 不存在、无效 JSON、超时或 5xx | `PLUGIN_REMOTE_REQUEST_FAILED`；5xx/网络最多重试一次 |
 | 格式零候选或多候选 | `PLUGIN_FORMAT_UNRECOGNIZED` / `PLUGIN_SOURCE_AMBIGUOUS`；source store 与项目零写入 |
+| 交互 GitHub 检测失败 | 管理器切到问题页并记录稳定错误；不退出 shell、不执行 `source add/update` |
 | 外部 Skill 路径、Marketplace subdir 或 archive 逃逸来源根 | `PLUGIN_UNSAFE_PATH` 或 `PLUGIN_REMOTE_ARCHIVE_INVALID`，不得包装成泛化 IO 错误 |
 | 预览成功、失败或用户取消 | 临时 cache 清理；用户 source store 与项目 `.flower/` 保持不变 |
 
@@ -157,6 +171,8 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 系统没有 Keyring：登录只在当前进程有效，`auth status --json` 输出 `persistent:false`，不生成 token 文件。
 - 用户只执行本地 Plugin 命令或禁用 `rd-guide`：GitLab 请求数为 0。
 - GitHub source 省略 ref：Provider 读取默认分支，持久化实际 ref/format/entryPath，并在 JSON 中返回固定 commit 与兼容性摘要。
+- 交互新增 GitHub source：用户只输入 `https://github.com/obra/superpowers`，检测返回多个入口，用户选择 `.claude-plugin/plugin.json` 后预览 `superpowers/superpowers@6.2.0`，14 个 skills 导入，hooks 仅展示为不会安装，确认后才保存 `format/entryPath`。
+- 交互新增 GitLab source：用户输入 `http://gitlab.example.test/team/guide`，UI 自动派生 source ID `guide`、项目路径 `team/guide`，并复用同地址已有 OAuth Application ID。
 
 ### Bad
 
@@ -167,6 +183,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 把 `candidates.has(canonicalId)` 当作 `prepare()` 的幂等门禁；`prepareLocked()` 会先写入旧候选，导致显式远程 update 永远看不到新索引版本。
 - 在发现页下载 Marketplace 的每个 Plugin archive，或用项目 `.flower/cache` 承载尚未确认的来源预览。
 - 捕获 `PLUGIN_UNSAFE_PATH`、schema 或格式歧义后统一包装成 `PLUGIN_IO_ERROR`，导致调用方失去稳定诊断。
+- 交互新增来源时先问 `Source ID`、`format`、`entryPath` 等内部字段，或检测失败后直接退出管理器让用户回到 shell。
 
 ## 6. Tests Required
 
@@ -178,9 +195,9 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - `plugin-remote-cli.test.js`：source/auth/search 参数、非敏感 JSON、管理命令零网络、远程 add/update 复用 Application Service、自定义 local source ID 不误判为 GitLab。
 - `plugin-e2e-gitlab.test.js`：真实 CLI 跨进程覆盖 Device Flow、PKCE、search、v1 add、切换 Marketplace 后的 v2 update、禁用零网络，以及 stdout/stderr/项目文件敏感值扫描；必须断言旧 lock 候选不会阻止当前索引准备。
 - `plugin-github-rest-client.test.js`：默认分支、commit/date、允许的 redirect host、匿名限流、大小限制、超时和重试。
-- `plugin-github-provider.test.js`：Flower 索引懒加载与版本聚合、跨仓 Marketplace、多 Plugin 目录、固定/默认 ref、cache、locked replay、危险路径和稳定错误类型。
+- `plugin-github-provider.test.js`：Flower 索引懒加载与版本聚合、跨仓 Marketplace、多 Plugin 目录、固定/默认 ref、cache、locked replay、全仓扫描无关软链跳过、已选子树危险条目拒绝和稳定错误类型。
 - `plugin-format-adapters.test.js`：检测顺序、歧义、Codex/Claude/skill-only 规范化、Skill 路径 containment、主动组件只诊断和 YAML frontmatter 安全。
-- `plugin-remote-cli.test.js` 与 `plugin-interactive.test.js`：source v2、`--clear-subdir`、format 重置、JSON 字段、歧义选择和临时预览 cache 清理。
+- `plugin-remote-cli.test.js` 与 `plugin-interactive.test.js`：source v2、`--clear-subdir`、format 重置、JSON 字段、来源类型返回/退出、GitHub/GitLab 新增只问用户可识别 locator、检测进度、失败留在问题页、歧义选择和临时预览 cache 清理。
 - 修改本契约后必须运行上述定向测试、完整 `npm test`、`npm pack --dry-run --json`、敏感字段扫描与 `git diff --check`。
 
 ## 7. Wrong vs Correct
@@ -249,3 +266,25 @@ try {
 ```
 
 只有 inspect 成功且用户确认后才写入 source store；真正安装仍通过 Runtime 使用项目不可变缓存。
+
+### Wrong: 把 archive 不支持条目一概当作致命错误
+
+```js
+if (!ALLOWED_ARCHIVE_TYPES.has(entry.type)) {
+  unsafeEntry = entry.path;
+  return false;
+}
+```
+
+公开 GitHub 仓库根目录可能包含与 Plugin 无关的 symlink，例如 `AGENTS.md -> CLAUDE.md`。全仓格式检测阶段直接失败会阻断本可安全导入的 `.codex-plugin` 或 `.claude-plugin`。
+
+### Correct: 只对已选子树保持致命，未选中无关条目跳过
+
+```js
+if (!ALLOWED_ARCHIVE_TYPES.has(entry.type) || entrySize > MAX_ENTRY_BYTES) {
+  if (isInsideSelectedSubdir(normalizedEntryPath, selectedSubdir)) unsafeEntry ||= entryPath;
+  return false;
+}
+```
+
+路径穿越、绝对路径、反斜杠、`.`/`..`、条目数和解压总量仍是全局致命错误；真正进入 Plugin/Skill 包根的复制阶段还会再次拒绝软链和特殊文件。

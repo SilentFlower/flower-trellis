@@ -34,7 +34,16 @@ function printManagementResult(result, json, output) {
       for (const source of result.sources) {
         output.log(`${source.id} ${source.enabled ? "enabled" : "disabled"} ${source.type} ${source.project || source.repository}`);
       }
-    } else output.log(`Plugin source ${result.subcommand} 完成:${result.source.id}`);
+    } else {
+      const labels = {
+        add: "新增",
+        update: "更新",
+        remove: "删除",
+        enable: "启用",
+        disable: "停用",
+      };
+      output.log(`Plugin 来源${labels[result.subcommand] || result.subcommand}完成:${result.source.id}`);
+    }
     return;
   }
   if (result.command === "search") {

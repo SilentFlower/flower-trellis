@@ -150,8 +150,8 @@ test("GitLab Provider 删除损坏缓存后重新下载并恢复内容", async (
 for (const [name, entryPath, type] of [
   ["路径穿越", "../escape", "File"],
   ["Windows 路径", "repo-root\\escape", "File"],
-  ["硬链", "repo-root/hard-link", "Link"],
-  ["特殊文件", "repo-root/device", "CharacterDevice"],
+  ["硬链", "repo-root/plugins/demo/hard-link", "Link"],
+  ["特殊文件", "repo-root/plugins/demo/device", "CharacterDevice"],
 ]) {
   test(`GitLab Provider 拒绝 archive ${name}`, async (t) => {
     const root = createPluginTestRoot(t, `flower-gitlab-provider-${name}-`);

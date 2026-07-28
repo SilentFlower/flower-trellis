@@ -317,6 +317,28 @@ test("GitHub Provider 省略 ref 时固定仓库默认分支", async (t) => {
   assert.equal(inspected.source.ref, "trunk");
 });
 
+test("GitHub Provider 跳过全仓扫描阶段的无关软链", async (t) => {
+  const root = createPluginTestRoot(t, "flower-github-root-symlink-");
+  const container = path.join(root, "archive-source");
+  const repository = path.join(container, "repo-root");
+  write(repository, ".codex-plugin/plugin.json", JSON.stringify({ name: "review", version: "1.0.0" }));
+  write(repository, "skills/review/SKILL.md", "# Review\n");
+  write(repository, "CLAUDE.md", "# Claude\n");
+  fs.symlinkSync("CLAUDE.md", path.join(repository, "AGENTS.md"));
+  const archive = await archiveDirectory(container, "repo-root", path.join(root, "archive.tar.gz"));
+  const provider = new GitHubSourceProvider({
+    source: SOURCE,
+    projectRoot: path.join(root, "project"),
+    client: {
+      resolveCommit: async () => ({ sha: COMMIT, committedAt: COMMITTED_AT }),
+      downloadArchive: async () => archive,
+    },
+  });
+  const inspected = await provider.inspect();
+  assert.equal(inspected.detection.format, "codex");
+  assert.equal(inspected.candidate.id, "public-guides/review");
+});
+
 test("GitHub Provider 拒绝 archive 路径穿越", async (t) => {
   const root = createPluginTestRoot(t, "flower-github-provider-unsafe-");
   const provider = new GitHubSourceProvider({

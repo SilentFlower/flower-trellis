@@ -12,6 +12,19 @@ const MAX_ARCHIVE_ENTRIES = 10_000;
 const MAX_EXTRACTED_BYTES = 250 * 1024 * 1024;
 
 /**
+ * 判断 archive 条目是否落在调用方明确选中的子目录内。
+ *
+ * @param {string} normalizedEntryPath 已规范化的 archive 条目路径
+ * @param {string|null|undefined} subdir 选中的仓库子目录
+ * @returns {boolean} 是否位于选中子目录
+ */
+function isInsideSelectedSubdir(normalizedEntryPath, subdir) {
+  if (!subdir) return false;
+  const relative = normalizedEntryPath.split("/").slice(1).join("/");
+  return relative === subdir || relative.startsWith(`${subdir}/`);
+}
+
+/**
  * 从远程仓库归档中找到唯一顶层目录。
  *
  * @param {string} root 提取根
@@ -73,18 +86,24 @@ export async function extractRemoteArchive(options) {
     filter: (entryPath, entry) => {
       const normalized = entryPath.replace(/\/$/, "");
       archiveEntries += 1;
-      extractedBytes += Number(entry.size || 0);
+      const entrySize = Number(entry.size || 0);
       const segments = normalized.split("/");
       if (
         path.posix.isAbsolute(normalized) ||
         path.win32.isAbsolute(normalized) ||
         normalized.includes("\\") ||
         segments.some((segment) => !segment || segment === "." || segment === "..") ||
-        !ALLOWED_ARCHIVE_TYPES.has(entry.type) ||
-        Number(entry.size || 0) > MAX_ENTRY_BYTES ||
-        archiveEntries > MAX_ARCHIVE_ENTRIES ||
-        extractedBytes > MAX_EXTRACTED_BYTES
+        archiveEntries > MAX_ARCHIVE_ENTRIES
       ) {
+        unsafeEntry ||= entryPath;
+        return false;
+      }
+      if (!ALLOWED_ARCHIVE_TYPES.has(entry.type) || entrySize > MAX_ENTRY_BYTES) {
+        if (isInsideSelectedSubdir(normalized, options.subdir)) unsafeEntry ||= entryPath;
+        return false;
+      }
+      extractedBytes += entrySize;
+      if (extractedBytes > MAX_EXTRACTED_BYTES) {
         unsafeEntry ||= entryPath;
         return false;
       }

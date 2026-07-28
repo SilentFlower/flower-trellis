@@ -13,7 +13,10 @@ import {
   listPluginPlatforms,
 } from "../plugin/install/platform-detector.js";
 import { PLUGIN_RUNTIME_ERROR_CODES } from "../plugin/runtime-errors.js";
-import { UserSourceStore } from "../plugin/sources/user-source-store.js";
+import {
+  normalizeGitHubRepository,
+  UserSourceStore,
+} from "../plugin/sources/user-source-store.js";
 import { ProjectStore } from "../plugin/state/project-store.js";
 import {
   pluginActionPrompt,
@@ -89,38 +92,221 @@ function withPlatforms(args, platforms) {
 }
 
 /**
+ * 把用户可识别的仓库或项目名转换成内部来源标识。
+ *
+ * @param {unknown} value 来源名称、项目路径或仓库地址
+ * @returns {string} 可作为 source ID 的基础值
+ */
+function slugifySourceId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\.git$/i, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+/**
+ * 取路径最后一段作为默认来源标识，避免把内部 source ID 放到第一步交互。
+ *
+ * @param {unknown} value 项目路径或仓库地址
+ * @returns {string} 默认来源标识基础值
+ */
+function sourceIdBaseName(value) {
+  const segments = String(value || "")
+    .trim()
+    .replace(/\.git$/i, "")
+    .replace(/^https?:\/\/[^/]+\//i, "")
+    .split("/")
+    .filter(Boolean);
+  return segments.at(-1) || "source";
+}
+
+/**
+ * 为新增来源生成不会冲突的内部来源标识。
+ *
+ * @param {unknown} base 来源基础值
+ * @param {Set<string>} existingIds 已存在来源 ID
+ * @returns {string} 唯一 source ID
+ */
+function uniqueSourceId(base, existingIds) {
+  const normalized = slugifySourceId(base) || "source";
+  if (!existingIds.has(normalized)) return normalized;
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = `${normalized}-${index}`;
+    if (!existingIds.has(candidate)) return candidate;
+  }
+  return `source-${Date.now()}`;
+}
+
+/**
+ * 计算新增来源可用的现有 ID 集合。
+ *
+ * @param {UserSourceStore} sourceStore 来源存储
+ * @param {string} [currentId] 编辑中的当前 ID
+ * @returns {Set<string>} 已占用 ID
+ */
+function existingSourceIds(sourceStore, currentId) {
+  return new Set(sourceStore.list()
+    .map(({ id }) => id)
+    .filter((id) => id !== currentId));
+}
+
+/**
+ * 从 GitHub 输入中推导默认来源标识。
+ *
+ * @param {unknown} repository GitHub URL 或 owner/repository
+ * @returns {string} 来源标识基础值
+ */
+function githubSourceIdBase(repository) {
+  try {
+    return sourceIdBaseName(normalizeGitHubRepository(repository));
+  } catch {
+    return sourceIdBaseName(repository);
+  }
+}
+
+/**
+ * 根据来源标识生成更适合展示的默认名称。
+ *
+ * @param {unknown} value 来源基础值
+ * @returns {string} 默认显示名称
+ */
+function defaultSourceName(value) {
+  const slug = slugifySourceId(value);
+  if (!slug) return "Plugin Source";
+  return slug.split("-")
+    .map((segment) => `${segment.slice(0, 1).toUpperCase()}${segment.slice(1)}`)
+    .join(" ");
+}
+
+/**
+ * 规范化 GitLab 地址，便于复用已有来源的默认 OAuth 应用。
+ *
+ * @param {unknown} value GitLab 地址
+ * @returns {string} 规范化地址
+ */
+function normalizeGitLabBaseUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    url.pathname = url.pathname.replace(/\/+$/, "");
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return String(value || "").trim().replace(/\/+$/, "");
+  }
+}
+
+/**
+ * 生成 GitLab 项目 URL，作为新增来源时的用户可读默认值。
+ *
+ * @param {object|null} source GitLab 来源
+ * @returns {string|undefined} 项目 URL
+ */
+function gitLabProjectUrl(source) {
+  if (!source?.baseUrl || !source?.project) return undefined;
+  return `${normalizeGitLabBaseUrl(source.baseUrl)}/${String(source.project).replace(/^\/+/, "")}`;
+}
+
+/**
+ * 解析 GitLab Marketplace 项目 URL，保留 group/project 兼容作为隐藏兜底。
+ *
+ * @param {unknown} value 项目 URL
+ * @param {string} fallbackBaseUrl 默认 GitLab 地址
+ * @returns {{baseUrl:string,project:string}} 解析后的地址与项目路径
+ */
+function parseGitLabProjectLocator(value, fallbackBaseUrl = "") {
+  const raw = String(value || "").trim();
+  if (!/^https?:\/\//i.test(raw)) return {
+    baseUrl: normalizeGitLabBaseUrl(fallbackBaseUrl),
+    project: raw.replace(/^\/+|\/+$/g, ""),
+  };
+  const url = new URL(raw);
+  const segments = url.pathname.replace(/^\/+|\/+$/g, "").split("/").filter(Boolean);
+  const marker = segments.indexOf("-");
+  const project = (marker === -1 ? segments : segments.slice(0, marker)).join("/");
+  return {
+    baseUrl: normalizeGitLabBaseUrl(`${url.protocol}//${url.host}`),
+    project,
+  };
+}
+
+/**
+ * 找到同 GitLab 地址的已有来源，用于补全新增来源默认值。
+ *
+ * @param {UserSourceStore} sourceStore 来源存储
+ * @param {string} [baseUrl] GitLab 地址
+ * @returns {object|null} 已有 GitLab 来源
+ */
+function findGitLabDefaultSource(sourceStore, baseUrl = "") {
+  const sources = sourceStore.list().filter(({ type }) => type === "gitlab");
+  const normalizedBaseUrl = normalizeGitLabBaseUrl(baseUrl);
+  return sources.find((source) => normalizeGitLabBaseUrl(source.baseUrl) === normalizedBaseUrl)
+    || sources[0]
+    || null;
+}
+
+/**
  * 收集 GitLab source 表单值。
  *
  * @param {object} prompts prompt adapter
  * @param {object|null} current 当前 source
+ * @param {Set<string>} existingIds 已存在来源 ID
+ * @param {UserSourceStore} sourceStore 来源存储
  * @returns {Promise<object>} source 表单值
  */
-async function promptGitLabSource(prompts, current) {
+async function promptGitLabSource(prompts, current, existingIds, sourceStore) {
   const values = {};
-  if (!current) values.id = await prompts.input({ message: "Source ID", required: true });
-  values.name = await prompts.input({
-    message: "显示名称",
-    default: current?.name || values.id,
-    required: true,
-  });
+  if (!current) {
+    const existing = findGitLabDefaultSource(sourceStore);
+    const locator = await prompts.input({
+      message: "GitLab 项目 URL",
+      default: gitLabProjectUrl(existing),
+      required: true,
+    });
+    const parsed = parseGitLabProjectLocator(locator, existing?.baseUrl);
+    values.baseUrl = parsed.baseUrl || await prompts.input({
+      message: "GitLab 地址（http/https）",
+      default: existing?.baseUrl,
+      required: true,
+    });
+    values.project = parsed.project;
+    const defaults = findGitLabDefaultSource(sourceStore, values.baseUrl);
+    values.id = uniqueSourceId(sourceIdBaseName(values.project), existingIds);
+    values.name = defaultSourceName(values.id);
+    values.ref = "main";
+    values.marketplacePath = ".flower-marketplace/marketplace.json";
+    values.applicationId = defaults?.oauth?.applicationId || await prompts.input({
+      message: "OAuth 应用 ID（Application ID）",
+      required: true,
+    });
+    return values;
+  }
   values.baseUrl = await prompts.input({
-    message: "GitLab 地址",
+    message: "GitLab 地址（http/https）",
     default: current?.baseUrl,
     required: true,
   });
   values.project = await prompts.input({
-    message: "Marketplace 项目路径",
+    message: "Marketplace 项目路径（group/project）",
     default: current?.project,
     required: true,
   });
-  values.ref = await prompts.input({ message: "索引 ref", default: current?.ref || "main", required: true });
+  values.name = await prompts.input({
+    message: "显示名称",
+    default: current?.name || sourceIdBaseName(values.project),
+    required: true,
+  });
+  values.ref = await prompts.input({ message: "索引 ref（branch/tag/commit）", default: current?.ref || "main", required: true });
   values.marketplacePath = await prompts.input({
     message: "Marketplace 文件路径",
     default: current?.marketplacePath || ".flower-marketplace/marketplace.json",
     required: true,
   });
   values.applicationId = await prompts.input({
-    message: "GitLab OAuth Application ID",
+    message: "OAuth 应用 ID（Application ID）",
     default: current?.oauth?.applicationId,
     required: true,
   });
@@ -132,25 +318,33 @@ async function promptGitLabSource(prompts, current) {
  *
  * @param {object} prompts prompt adapter
  * @param {object|null} current 当前 source
+ * @param {Set<string>} existingIds 已存在来源 ID
  * @returns {Promise<object>} source 表单值
  */
-async function promptGitHubSource(prompts, current) {
+async function promptGitHubSource(prompts, current, existingIds) {
   const values = { type: "github" };
-  if (!current) values.id = await prompts.input({ message: "Source ID", required: true });
-  values.name = await prompts.input({
-    message: "显示名称",
-    default: current?.name || values.id,
-    required: true,
-  });
   values.repository = await prompts.input({
-    message: "GitHub 公共仓库",
+    message: "GitHub 仓库（URL 或 owner/repo）",
     default: current?.repository,
     required: true,
   });
-  values.ref = await prompts.input({ message: "分支或 ref（留空使用默认分支）", default: current?.ref || "" });
+  if (!current) {
+    values.id = uniqueSourceId(githubSourceIdBase(values.repository), existingIds);
+    values.name = defaultSourceName(values.id);
+    values.ref = "";
+    values.subdir = "";
+    values.format = "auto";
+    return values;
+  }
+  values.ref = await prompts.input({ message: "分支 / tag / commit（留空使用默认分支）", default: current?.ref || "" });
   values.subdir = await prompts.input({
     message: "仓库子目录（可留空）",
     default: current?.subdir || "",
+  });
+  values.name = await prompts.input({
+    message: "显示名称",
+    default: current?.name || githubSourceIdBase(values.repository),
+    required: true,
   });
   values.format = current?.format || "auto";
   values.entryPath = current?.entryPath;
@@ -163,13 +357,15 @@ async function promptGitHubSource(prompts, current) {
  *
  * @param {object} prompts prompt adapter
  * @param {object|null} current 当前 source
+ * @param {UserSourceStore} sourceStore 来源存储
  * @param {"gitlab"|"github"} [sourceType] 新增来源类型
  * @returns {Promise<object>} source 表单值
  */
-async function promptSource(prompts, current, sourceType) {
+async function promptSource(prompts, current, sourceStore, sourceType) {
   const type = current?.type || sourceType;
-  if (type === "github") return promptGitHubSource(prompts, current);
-  return { type: "gitlab", ...await promptGitLabSource(prompts, current) };
+  const usedIds = existingSourceIds(sourceStore, current?.id);
+  if (type === "github") return promptGitHubSource(prompts, current, usedIds);
+  return { type: "gitlab", ...await promptGitLabSource(prompts, current, usedIds, sourceStore) };
 }
 
 /**
@@ -255,6 +451,9 @@ async function inspectGitHubWithSelection(context, source) {
       loop: false,
     });
     const selected = detections[selectedIndex];
+    context.output.log(
+      `\n正在按已选择入口继续检测:${selected.displayName || selected.entryPath}`,
+    );
     return context.inspectGitHubSource({
       ...source,
       format: selected.format,
@@ -835,11 +1034,11 @@ async function manageSource(context, sourceId) {
   } else if (action === "toggle") {
     await runChecked(context, ["source", source.enabled ? "disable" : "enable", sourceId], `${source.name} 状态更新失败`);
   } else if (action === "edit") {
-    const values = await promptSource(context.prompts, source);
+    const values = await promptSource(context.prompts, source, context.sourceStore);
     if (source.type === "github") {
       values.format = "auto";
       delete values.entryPath;
-      const inspection = await inspectGitHubWithSelection(context, {
+      const inspection = await inspectGitHubSourceForUi(context, {
         schemaVersion: 2,
         id: sourceId,
         type: "github",
@@ -849,13 +1048,15 @@ async function manageSource(context, sourceId) {
         ref: values.ref,
         ...(values.subdir ? { subdir: values.subdir } : {}),
         format: "auto",
-      });
+      }, source.name);
+      if (!inspection) return;
       printGitHubInspection(context.output, inspection);
       const confirmed = await context.prompts.confirm({ message: "保存这个 GitHub 来源?", default: true });
       if (!confirmed) return;
       values.format = inspection.detection.format;
       values.entryPath = inspection.detection.entryPath;
     }
+    context.output.log(`\n正在保存 ${source.type === "github" ? "GitHub" : "GitLab"} 来源:${sourceId}`);
     await runChecked(context, sourceCommand("update", sourceId, values), `${source.name} 更新失败`);
   } else if (action === "restore" || action === "remove") {
     const label = action === "restore" ? "恢复内置默认配置" : "删除来源";
@@ -864,6 +1065,85 @@ async function manageSource(context, sourceId) {
     else context.output.log(`  · 已取消${label}`);
   }
   context.state.discovery = null;
+}
+
+/**
+ * 选择新增来源类型，并保留明确返回与退出入口。
+ *
+ * @param {object} context 交互上下文
+ * @returns {Promise<"github"|"gitlab"|"back"|"exit">} 用户选择
+ */
+async function promptNewSourceType(context) {
+  const choices = [
+    {
+      name: "GitHub 公共仓库",
+      value: "github",
+      description: "输入 GitHub URL 或 owner/repo，自动识别 Flower、Codex、Claude Code 或 Skill。",
+      section: "来源类型",
+      icon: "◆",
+      tone: "primary",
+    },
+    {
+      name: "GitLab Marketplace",
+      value: "gitlab",
+      description: "连接团队 GitLab 项目；需要只读 OAuth 应用 ID，后续可用授权码登录。",
+      section: "来源类型",
+      icon: "◆",
+    },
+    {
+      name: "返回来源",
+      value: "back",
+      description: "回到来源列表，不新增来源。",
+      section: "导航",
+      icon: "←",
+    },
+    {
+      name: "退出管理",
+      value: "exit",
+      description: "关闭 Flower Plugin 管理器。",
+      section: "导航",
+      icon: "×",
+      tone: "danger",
+    },
+  ];
+  const actionPrompt = context.prompts.action || (async (config) => context.prompts.select({
+    message: config.title,
+    choices: config.choices,
+    loop: false,
+  }));
+  return actionPrompt({
+    projectRoot: context.ctx.target,
+    eyebrow: "来源",
+    title: "新增来源",
+    subtitle: "选择要连接的来源类型",
+    facts: [{
+      label: "保存",
+      value: "确认前不写入配置",
+      tone: "muted",
+    }],
+    choices,
+  }, { clearPromptOnDone: true });
+}
+
+/**
+ * 检测 GitHub 来源，并把失败留在交互管理器的问题页。
+ *
+ * @param {object} context 交互上下文
+ * @param {object} source GitHub 来源草稿
+ * @param {string} title 来源标题
+ * @returns {Promise<object|null>} 探测结果；失败时返回 null
+ */
+async function inspectGitHubSourceForUi(context, source, title) {
+  context.output.log(`\n正在检测 GitHub 来源:${source.repository}`);
+  try {
+    return await inspectGitHubWithSelection(context, source);
+  } catch (error) {
+    recordIssue(context.state, `${title} GitHub 来源检测失败`, error);
+    context.state.activeTab = "issues";
+    context.state.discovery = null;
+    context.output.log(chalk.yellow("  ! GitHub 来源检测失败，已记录到问题页。"));
+    return null;
+  }
 }
 
 /**
@@ -884,17 +1164,15 @@ async function handleAction(context, actionKey, actions) {
     return;
   }
   if (actionKey === "source:add") {
-    const sourceType = await context.prompts.select({
-      message: "选择来源类型",
-      choices: [
-        { name: "GitHub 公共仓库", value: "github", description: "无需登录，自动识别 Flower、Codex、Claude Code 或 Skill。" },
-        { name: "GitLab Marketplace", value: "gitlab", description: "使用 GitLab OAuth 访问团队 Marketplace。" },
-      ],
-      loop: false,
-    });
-    const values = await promptSource(context.prompts, null, sourceType);
+    const sourceType = await promptNewSourceType(context);
+    if (sourceType === "back") return;
+    if (sourceType === "exit") {
+      context.state.exitRequested = true;
+      return;
+    }
+    const values = await promptSource(context.prompts, null, context.sourceStore, sourceType);
     if (sourceType === "github") {
-      const inspection = await inspectGitHubWithSelection(context, {
+      const inspection = await inspectGitHubSourceForUi(context, {
         schemaVersion: 2,
         id: values.id,
         type: "github",
@@ -904,13 +1182,15 @@ async function handleAction(context, actionKey, actions) {
         ref: values.ref,
         ...(values.subdir ? { subdir: values.subdir } : {}),
         format: "auto",
-      });
+      }, values.name);
+      if (!inspection) return;
       printGitHubInspection(context.output, inspection);
       const confirmed = await context.prompts.confirm({ message: "添加这个 GitHub 来源?", default: true });
       if (!confirmed) return;
       values.format = inspection.detection.format;
       values.entryPath = inspection.detection.entryPath;
     }
+    context.output.log(`\n正在保存 ${sourceType === "github" ? "GitHub" : "GitLab"} 来源:${values.id}`);
     await runChecked(context, sourceCommand("add", values.id, values), `${values.name} 来源新增失败`);
     context.state.discovery = null;
     return;
@@ -1015,6 +1295,7 @@ export async function runPluginInteractive(ctx, options) {
     selectedByTab: Object.fromEntries(TAB_IDS.map((id) => [id, null])),
     discovery: null,
     issues: [],
+    exitRequested: false,
   };
   const context = {
     ctx,
@@ -1045,6 +1326,10 @@ export async function runPluginInteractive(ctx, options) {
         return 0;
       }
       await handleAction(context, result.action, model.actions);
+      if (state.exitRequested) {
+        output.log("  · 已退出 Plugin 管理");
+        return 0;
+      }
     }
   } catch (error) {
     if (error?.name === "ExitPromptError" || error?.name === "AbortPromptError") return 130;

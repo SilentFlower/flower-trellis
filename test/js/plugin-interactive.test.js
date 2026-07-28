@@ -354,14 +354,16 @@ test("来源页可新增 GitLab Marketplace", async (t) => {
   const fixture = interactiveFixture(t);
   const script = scriptedPrompts([
     { type: "manager", value: managerResult("sources", "source:add") },
-    { type: "select", value: "gitlab" },
-    { type: "input", value: "team-guide" },
-    { type: "input", value: "团队指南" },
-    { type: "input", value: "http://gitlab.example.test" },
-    { type: "input", value: "team/guide" },
-    { type: "input", value: "main" },
-    { type: "input", value: ".flower-marketplace/marketplace.json" },
-    { type: "input", value: "team-public-client" },
+    {
+      type: "action",
+      value: "gitlab",
+      check: (question) => {
+        assert.equal(question.title, "新增来源");
+        assert.ok(question.choices.some(({ value }) => value === "back"));
+        assert.ok(question.choices.some(({ value }) => value === "exit"));
+      },
+    },
+    { type: "input", value: "http://gitlab.example.test/team/guide" },
     { type: "manager", value: managerResult("sources", "exit") },
   ]);
   const commands = [];
@@ -375,28 +377,65 @@ test("来源页可新增 GitLab Marketplace", async (t) => {
     runCommand: async (args) => { commands.push(args); return 0; },
   });
   assert.deepEqual(commands, [[
-    "source", "add", "team-guide",
+    "source", "add", "guide",
     "--type", "gitlab",
-    "--name", "团队指南",
+    "--name", "Guide",
     "--url", "http://gitlab.example.test",
     "--project", "team/guide",
     "--ref", "main",
     "--marketplace-path", ".flower-marketplace/marketplace.json",
-    "--application-id", "team-public-client",
+    "--application-id", "public-client",
   ]]);
+  assert.match(fixture.output.join("\n"), /正在保存 GitLab 来源:guide/);
   script.assertDone();
+});
+
+test("新增来源类型页可直接返回或退出", async (t) => {
+  const backFixture = interactiveFixture(t);
+  const backScript = scriptedPrompts([
+    { type: "manager", value: managerResult("sources", "source:add") },
+    { type: "action", value: "back" },
+    { type: "manager", value: managerResult("sources", "exit") },
+  ]);
+  const backCommands = [];
+  await runPluginInteractive({ target: backFixture.project }, {
+    prompts: backScript.prompts,
+    output: backFixture.outputAdapter,
+    store: backFixture.store,
+    sourceStore: backFixture.sourceStore,
+    credentialBundle: backFixture.credentialBundle,
+    authStatus: async () => ({ authorized: false, persistent: false }),
+    runCommand: async (args) => { backCommands.push(args); return 0; },
+  });
+  assert.deepEqual(backCommands, []);
+  backScript.assertDone();
+
+  const exitFixture = interactiveFixture(t);
+  const exitScript = scriptedPrompts([
+    { type: "manager", value: managerResult("sources", "source:add") },
+    { type: "action", value: "exit" },
+  ]);
+  const exitCommands = [];
+  await runPluginInteractive({ target: exitFixture.project }, {
+    prompts: exitScript.prompts,
+    output: exitFixture.outputAdapter,
+    store: exitFixture.store,
+    sourceStore: exitFixture.sourceStore,
+    credentialBundle: exitFixture.credentialBundle,
+    authStatus: async () => ({ authorized: false, persistent: false }),
+    runCommand: async (args) => { exitCommands.push(args); return 0; },
+  });
+  assert.deepEqual(exitCommands, []);
+  assert.match(exitFixture.output.join("\n"), /已退出 Plugin 管理/);
+  exitScript.assertDone();
 });
 
 test("来源页新增 GitHub 公共仓库时先预览兼容性再确认保存", async (t) => {
   const fixture = interactiveFixture(t);
   const script = scriptedPrompts([
     { type: "manager", value: managerResult("sources", "source:add") },
-    { type: "select", value: "github" },
-    { type: "input", value: "public-guides" },
-    { type: "input", value: "Public Guides" },
+    { type: "action", value: "github" },
     { type: "input", value: "example/public-guides" },
-    { type: "input", value: "main" },
-    { type: "input", value: "" },
     { type: "confirm", value: true },
     { type: "manager", value: managerResult("sources", "exit") },
   ]);
@@ -430,12 +469,50 @@ test("来源页新增 GitHub 公共仓库时先预览兼容性再确认保存", 
     "--type", "github",
     "--name", "Public Guides",
     "--repo", "example/public-guides",
-    "--ref", "main",
     "--format", "claude-code",
     "--entry-path", ".claude-plugin/plugin.json",
   ]]);
   assert.match(fixture.output.join("\n"), /可导入 1 项 · 忽略 1 项/);
   assert.match(fixture.output.join("\n"), /不会安装 hooks/);
+  assert.match(fixture.output.join("\n"), /正在检测 GitHub 来源:example\/public-guides/);
+  assert.match(fixture.output.join("\n"), /正在保存 GitHub 来源:public-guides/);
+  script.assertDone();
+});
+
+test("来源页新增 GitHub 探测失败时留在管理器问题页", async (t) => {
+  const fixture = interactiveFixture(t);
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("sources", "source:add") },
+    { type: "action", value: "github" },
+    { type: "input", value: "example/broken" },
+    {
+      type: "manager",
+      value: managerResult("issues", "exit"),
+      check: (view) => {
+        assert.equal(view.activeTab, "issues");
+        assert.equal(view.tabs.find(({ id }) => id === "issues").count, 1);
+        assert.match(view.itemsByTab.issues[0].title, /GitHub 来源检测失败/);
+      },
+    },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    store: fixture.store,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    authStatus: async () => ({ authorized: false, persistent: false }),
+    inspectGitHubSource: async () => {
+      throw Object.assign(new Error("GitHub Plugin archive 包含不安全条目:repo/AGENTS.md"), {
+        code: "PLUGIN_REMOTE_ARCHIVE_INVALID",
+      });
+    },
+    runCommand: async (args) => { commands.push(args); return 0; },
+  });
+  assert.deepEqual(commands, []);
+  assert.match(fixture.output.join("\n"), /正在检测 GitHub 来源:example\/broken/);
+  assert.match(fixture.output.join("\n"), /已记录到问题页/);
   script.assertDone();
 });
 
@@ -443,12 +520,8 @@ test("来源页遇到多个 GitHub 格式入口时展示候选并按选择继续
   const fixture = interactiveFixture(t);
   const script = scriptedPrompts([
     { type: "manager", value: managerResult("sources", "source:add") },
-    { type: "select", value: "github" },
-    { type: "input", value: "public-guides" },
-    { type: "input", value: "Public Guides" },
+    { type: "action", value: "github" },
     { type: "input", value: "example/public-guides" },
-    { type: "input", value: "" },
-    { type: "input", value: "" },
     {
       type: "select",
       value: 1,
@@ -504,6 +577,8 @@ test("来源页遇到多个 GitHub 格式入口时展示候选并按选择继续
     "--format", "claude-code",
     "--entry-path", ".claude-plugin/plugin.json",
   ]]);
+  assert.match(fixture.output.join("\n"), /正在按已选择入口继续检测:Claude/);
+  assert.match(fixture.output.join("\n"), /正在保存 GitHub 来源:public-guides/);
   script.assertDone();
 });
 
