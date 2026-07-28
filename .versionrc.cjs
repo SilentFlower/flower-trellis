@@ -78,26 +78,10 @@ const detailedReleaseSubjects = new Map([
       details: [
         "对全部 0.6 Patch 目标执行上游 baseline、Patch 与最终产物三方冲突检查。",
         "运行时、`npm test`、`check-snapshot` 与维护者脚本复用同一套 compatibility/conflict evaluator。",
-      ],
-      sections: [
-        {
-          title: "🐛 修复 Bug Fixes",
-          items: [
-            "**workflow:** 清理 route、Check-All、Update-Spec 与 Trellis Push 的互斥协议和重复流程。",
-            "**config:** 结构化配置只修改受管字段，损坏 JSON/YAML/TOML 时失败且不覆盖用户配置。",
-            "**install:** required Patch 或冲突检查失败时，Patch、资产、stale 清理和 manifest 保持零写入。",
-            "**diagnostics:** 将未安装目标记为 info，并将 optional skip 与阻断错误分开报告。",
-          ],
-        },
-        {
-          title: "🔒 兼容与安全",
-          items: [
-            "Trellis `0.6.5` 已登记并通过完整验证。",
-            "未登记的同线 `0.6.x` 在完整 Patch 与冲突检查通过后 warning 放行。",
-            "`0.7+`、`1.x` 或无效版本会阻断强化，并提示使用匹配版本或 `--no-enhance`。",
-            "`0.5` / `old` 继续使用原有 legacy 注入路径。",
-          ],
-        },
+        "清理 route、Check-All、Update-Spec 与 Trellis Push 的互斥协议和重复流程，并区分 info、warning 与阻断错误。",
+        "结构化配置只修改受管字段，损坏 JSON/YAML/TOML、required Patch 漂移或冲突检查失败时保持零写入。",
+        "Trellis `0.6.5` 已完成完整验证；未登记的同线 `0.6.x` 通过全量检查后 warning 放行，`0.7+`、`1.x` 或无效版本会阻断强化。",
+        "`0.5` / `old` 继续使用原有 legacy 注入路径，避免稳定版升级破坏旧项目。",
       ],
     },
   ],
