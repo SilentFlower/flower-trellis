@@ -188,6 +188,11 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
     "For non-destructive `direct_edit`",
     "无任务非平凡 inspect/direct_edit",
   );
+  assert.match(requestTriage, /follow `load_strategy`/);
+  assert.match(requestTriage, /`sections` reads the listed ranges/);
+  assert.doesNotMatch(noTask, /load_strategy/);
+  assert.doesNotMatch(planning, /load_strategy/);
+  assert.doesNotMatch(inProgress, /load_strategy/);
 
   for (const [name, value, downstream] of [
     ["planning", planning, "Before `task.py start`"],

@@ -950,6 +950,8 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("`fix item 1`, `change that`, `修一下`, `改一下`", workflow)
         self.assertIn("Only an explicit current-request workflow instruction", workflow)
         self.assertIn("python3 ./.trellis/scripts/spec_router.py", workflow)
+        self.assertIn("follow `load_strategy`", workflow)
+        self.assertIn("`sections` reads the listed ranges", workflow)
         self.assertIn(
             "apply the Active Task Scope Guard before artifact ownership",
             workflow,
@@ -979,6 +981,7 @@ class PatchConsumerTest(unittest.TestCase):
             before_dev,
         )
         self.assertNotIn("spec_router.py", before_dev)
+        self.assertNotIn("load_strategy", before_dev)
         brainstorm = next(
             item["next"]
             for item in plan["files"]

@@ -1093,8 +1093,9 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
   只支持 `key: value` 与 `key:` 后接 `- item`;不要引入 YAML 依赖。该能力只作
   向后兼容,不要推广为主路由机制,也不要要求项目为每份 spec 维护 `triggers`。
 - 主路由机制是非侵入式文档结构:路径/文件名、H1-H3 标题、`.trellis/spec/**/index.md`
-  中指向具体文档的链接文本与同一行描述、正文前缀样本。没有 frontmatter 的文件
-  必须仍可参与检索。
+  中指向具体文档的链接文本与同一行描述、正文样本。已有 path / 标题 / index / trigger
+  锚点的文件候选继续使用正文前缀样本；没有文件锚点时，只能使用单个最佳章节的直接正文
+  样本形成候选，不得跨章节拼接零散弱证据。没有 frontmatter 的文件必须仍可参与检索。
 - 路径匹配只使用 `.trellis/spec/` 内的相对路径,不要让公共前缀
   `.trellis/spec` 参与打分;否则查询里的 `spec` 会命中所有文档。
 - 查询、路径、标题、index 描述、正文样本都必须 token 化后用 token set 匹配;
@@ -1108,13 +1109,24 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
   `context`、`read`、`matched`、`spec`、`workflow`、`to`、`flow`、`commit`、
   `changes`、`documentation`、`readme`、`typo`;它们可以出现在 reason 中,
   但不能凑成强匹配。
-- 标题匹配应扫描完整 Markdown 标题;正文匹配仍只扫描前缀样本,避免大文档全文检索拖慢或放大误报。
-- 默认输出只给候选路径、kind、score、confidence、reason 和 action;不输出完整
-  spec 内容,避免上下文膨胀。`confidence: high` 使用
-  `action: read before acting`;`confidence: medium` 使用
-  `action: read if clearly relevant`。
-- workflow 读取策略默认读取 high-confidence 匹配;medium-confidence 只有在 path /
-  heading / index description / reason 明确相关时才读取,避免 helper 候选列表放大上下文。
+- 标题匹配应扫描完整 Markdown 标题；章节解析只识别 fence 外的 H1-H3 ATX 标题，并保留
+  原文件 1-based 行号。章节范围从当前标题延伸到下一个同级或更高级标题前；章节正文样本从
+  当前标题下一行开始，到下一个任意标题前，不能把标题 token 再计为正文证据，也不能让父章节
+  吸收子章节的零散正文证据。
+- `Tests Required`、validation matrix、Good/Base/Bad cases、Wrong vs Correct 等测试、验证和
+  示例章节的正文不得参与文件或章节路由，避免规范中的负例关键词反向召回整份文档；其标题
+  仍可参与明确查询。带编号标题应先去除编号再判断。已有文件锚点继续使用前缀证据时，必须在
+  原 `MAX_BODY_CHARS` 字符窗口内遮蔽这些章节正文，不得通过删除正文把更靠后的内容拉入前缀。
+- 默认输出保留候选路径、kind、score、confidence、load、priority、reason 和 action 的现有字段，
+  新增 `load_strategy: full | sections | outline` 与 `sections`；不输出完整 spec 或章节正文。
+  `sections` 条目包含 heading、start_line、end_line、score、confidence、estimated_bytes。
+- 文件 UTF-8 字节数不超过 12 KiB 时使用 `full`。长文档存在可靠章节时使用 `sections`，最多
+  选择 2 个互不重叠章节且估算总量不超过 12 KiB；没有可靠章节、单个相关章节超预算或全部
+  章节无法装入预算时使用 `outline`。H1 文档标题只负责文件召回，存在 H2/H3 时不能让所有
+  子章节自动相关。
+- workflow 对 high-confidence 匹配按 `load_strategy` 消费：`full` 读取全文，`sections` 只读取
+  列出的行号范围，`outline` 先检查标题再读取相关范围；只有选中上下文不足时才逐步扩展。
+  medium-confidence 仅在 path / heading / index description / reason 明确相关时采用同一计划。
 - 无 `.trellis/`、无 `.trellis/spec/`、读取失败或无匹配都不阻断流程;输出
   “No relevant project SOP/spec matched. Continue with the normal workflow.”
 - `trellis-before-dev` 只能提示返回 `Request Triage` owner 并消费匹配结果，不得维护更窄的触发矩阵。
@@ -1126,6 +1138,14 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 |------|------|
 | 查询命中 frontmatter `triggers` | 作为向后兼容信号参与加权并列出 matched triggers,但不要求新文档维护 triggers |
 | 查询命中文件路径 / 标题 / index 描述 / 正文 | 按确定性分数和 confidence 排序,默认最多返回 3 条 |
+| 相关文件不超过 12 KiB | 输出 `load_strategy: full`，不额外列出章节 |
+| 长文档后半部分存在可靠的小章节 | 输出 `load_strategy: sections` 和原文件行号范围，总量不超过 12 KiB |
+| 长文档只有文件锚点、相关章节超预算或无法可靠定位 | 输出 `load_strategy: outline`，先检查标题再按范围读取，不默认全文加载 |
+| 父子章节同时命中 | 选择证据更强、更具体且范围更小的非重叠章节，最多 2 个 |
+| 查询词分散在多个无关章节 | 不得聚合成正文候选或章节计划 |
+| 查询词只出现在测试矩阵或 Good/Bad 负例正文 | 不得反向召回整份规范 |
+| 文件已有单个路径锚点，额外查询词只出现在 `Tests Required` 正文 | 保留合法路径锚点的 medium 结果；负例正文不得进入 reason 或把候选提升为 high |
+| 同一 token 同时出现在章节标题与查询中 | 只计为标题证据，不得再计入正文命中阈值 |
 | 仅命中正文普通词或弱词且未达到强匹配阈值 | 视为无匹配,避免无关查询误报 |
 | 查询只命中 `.trellis/spec` 公共路径前缀 | 不算路径命中 |
 | 查询命中 `to` / `flow` / `commit` / `changes` 等泛词 | 不得仅凭这些词返回候选 |
@@ -1140,8 +1160,11 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 ### 5. Good/Base/Bad Cases
 
 - Good: 用户准备发版,AI 查询 `beta release publish tag changelog`,返回
-  `.trellis/spec/.../release-and-publishing.md`,且 `confidence: high` /
-  `action: read before acting`,然后先读 SOP 再执行命令。
+  `.trellis/spec/.../release-and-publishing.md`,且 `confidence: high`；长文档只列出相关章节
+  行号并使用 `action: read matched sections before acting; expand only if needed`，然后先读局部
+  SOP 再执行命令。
+- Good: 小于 12 KiB 的相关文档输出 `load_strategy: full`，保留全文读取的简单路径。
+- Good: 长文档仅通过路径召回、没有可靠章节时输出 `outline`，AI 先检查标题而不是读取全文。
 - Good: 用户要求非平凡 inspect/direct edit，Request Triage 在选择做法前运行 discovery；随后
   before-dev 只复用已读规范，不重复执行更窄版本。
 - Good: 用户提到跨层/复用经验,AI 查询 `cross layer reuse thinking guide`,返回
@@ -1160,6 +1183,15 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 - `python3 -m py_compile vendor/skill-garden/.trellis/0.6/scripts/spec_router.py`
 - `python3 -m py_compile enhancements/0.6/scripts/spec_router.py`
 - `python3 -m py_compile .trellis/scripts/spec_router.py`
+- `python3 -m unittest discover -s test/python -p 'test_spec_router.py'`
+- 章节测试覆盖 frontmatter 原始行号、fenced code 伪标题、H1 文档标题隔离、父子范围去重、
+  最多 2 个章节和 12 KiB 总预算。
+- 加载策略测试覆盖小文件 `full`、后半段相关章节 `sections`、只有文件锚点或章节超预算时
+  `outline`，并断言输出不包含正文。
+- 路由回归测试覆盖单章节后半段正文可召回、跨章节弱证据不得聚合、测试/验证/示例章节正文
+  不得反向召回；已有路径锚点时也不得由负例正文提升置信度。
+- 章节评分测试必须断言标题 token 不会再次计入正文命中，并覆盖单标题命中加单正文命中仍为
+  medium 的边界。
 - 查询发版意图,断言返回 release SOP。
 - 查询 guides 意图,断言返回 `.trellis/spec/guides/` 下文档。
 - 查询无关意图,断言返回无匹配提示,至少覆盖:
@@ -1167,8 +1199,8 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
   - `edit README documentation typo small change`
   - `draw architecture diagram visualize flow`
   - `commit push changes to beta branch`
-- 查询输出必须包含 `confidence`;high-confidence 为 `read before acting`,
-  medium-confidence 为 `read if clearly relevant`。
+- 查询输出必须保留旧 JSON 字段，并包含 `load_strategy` 和 `sections`；action 必须同时反映
+  confidence 与加载策略。
 - `npm run sync` 后用 `cmp -s` 确认源、`enhancements/0.6`、dogfood 副本一致。
 - 用临时目标跑 `--skills workflow-enhancement`,确认同时铺设 workflow 覆写和
   `.trellis/scripts/spec_router.py`。
@@ -1191,14 +1223,14 @@ itself.
 #### Correct
 
 ```markdown
-Workflow only says when to run discovery; `.trellis/scripts/spec_router.py`
-returns candidate SOP/spec paths from natural document structure
-(path/title/index/body) with confidence; project-specific SOP content stays in
-`.trellis/spec/`.
+Workflow says when to run discovery and how to consume `load_strategy`;
+`.trellis/scripts/spec_router.py` returns candidate SOP/spec paths plus bounded
+section ranges from natural document structure (path/title/index/body), while
+project-specific SOP content stays in `.trellis/spec/`.
 ```
 
-原因:高频提示保持短小,发现逻辑可测试,项目私有内容不进入 skill-garden,且 spec
-文档不需要额外维护一套 triggers。
+原因:高频提示保持短小,发现和局部加载逻辑可测试,项目私有内容不进入 skill-garden,
+spec 文档不需要额外维护一套 triggers,长文档也不再默认整份进入上下文。
 
 ## Scenario: Auto Loop Unattended Runner
 
