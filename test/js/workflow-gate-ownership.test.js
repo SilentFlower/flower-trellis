@@ -94,6 +94,9 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   );
   const route = readSource(".agents/skills/trellis-route/SKILL.md");
   const checkAll = readSource(".agents/skills/trellis-check-all/SKILL.md");
+  const checkAllReporting = readSource(
+    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
+  );
   const push = readSource(".agents/skills/trellis-push/SKILL.md");
   const autoLoop = readSource(".agents/skills/trellis-auto-loop/SKILL.md");
   const finish = readSource(
@@ -118,11 +121,12 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(route, /合法 route 决策必须能追溯到/);
   assert.match(route, /回到 Phase 2\.1 completion contract 解析 Pre-Check/);
   assert.ok(
-    checkAll.indexOf("## Auto-Loop Return Gate")
-      < checkAll.indexOf("## Interactive Post-Check Stop Gate"),
+    checkAllReporting.indexOf("## Auto-Loop Return Gate")
+      < checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),
   );
-  assert.equal((checkAll.match(/## Interactive Post-Check Stop Gate/g) || []).length, 1);
-  assert.match(checkAll, /不新增 direct Git 专用摘要/);
+  assert.equal((checkAllReporting.match(/## Interactive Post-Check Stop Gate/g) || []).length, 1);
+  assert.match(checkAll, /本 skill 是 \*\*薄入口\*\*/);
+  assert.match(checkAllReporting, /不新增 direct Git 专用摘要/);
   assert.match(activeState, /follow the `Interactive Post-Check Stop Gate`/);
   assert.doesNotMatch(activeState, /no-op.*written|partial verification|material residual risk/);
   assert.match(push, /Phase 3\.4 唯一的代码提交入口/);

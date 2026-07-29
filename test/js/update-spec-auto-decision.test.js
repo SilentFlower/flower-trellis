@@ -62,25 +62,29 @@ test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Upd
     sourceRoot,
     ".agents/skills/trellis-check-all/SKILL.md",
   );
+  const checkAllReporting = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
+  );
   const push = read(sourceRoot, ".agents/skills/trellis-push/SKILL.md");
   const updateSpec = read(
     sourceRoot,
     "overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md",
   );
 
-  const postCheck = checkAll.slice(
-    checkAll.indexOf("## Interactive Post-Check Stop Gate"),
-    checkAll.indexOf("## 反模式"),
+  const postCheck = checkAllReporting.slice(
+    checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),
+    checkAllReporting.length,
   );
-  const autoLoopReturn = checkAll.slice(
-    checkAll.indexOf("## Auto-Loop Return Gate"),
-    checkAll.indexOf("## Interactive Post-Check Stop Gate"),
+  const autoLoopReturn = checkAllReporting.slice(
+    checkAllReporting.indexOf("## Auto-Loop Return Gate"),
+    checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),
   );
   assert.match(autoLoopReturn, /不提示用户回复“继续”/);
-  assert.match(autoLoopReturn, /`record \+ next` 就是唯一后续动作/);
+  assert.match(autoLoopReturn, /记录后立即 `next`/);
   assert.doesNotMatch(autoLoopReturn, /提示用户回复 `继续`/);
   assert.match(postCheck, /最新用户消息识别 direct Git intent/);
-  assert.match(postCheck, /整体结论通过、问题数为 0、无阻塞、无部分验证/);
+  assert.match(postCheck, /整体结论通过、剩余 `CHK-\*` 为 0、无阻塞、无部分验证/);
   assert.match(postCheck, /标准报告输出后，同一轮进入 Phase 3\.3 `trellis-update-spec`/);
   assert.match(postCheck, /普通 interactive 检查保持原行为：报告后立即停止并等待用户选择/);
   assert.match(postCheck, /### 交互式下一步引导/);
@@ -94,8 +98,8 @@ test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Upd
   assert.match(inlineState, /next\/continue.*runs `trellis-update-spec`/);
   assert.doesNotMatch(state, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.doesNotMatch(inlineState, /spec_update_result|changed_files|\.trellis\/spec/);
-  assert.match(checkAll, /## Interactive Post-Check Stop Gate/);
-  assert.match(checkAll, /普通 interactive 检查保持原行为/);
+  assert.match(checkAllReporting, /## Interactive Post-Check Stop Gate/);
+  assert.match(checkAllReporting, /普通 interactive 检查保持原行为/);
   assert.match(state, /later interactive next\/continue runs `trellis-update-spec`/);
   assert.match(state, /follow the `Interactive Post-Check Stop Gate`/);
   assert.match(state, /matching direct Git strict pass may continue to `trellis-update-spec`/);

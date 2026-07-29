@@ -16,40 +16,51 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   const relativePath = ".agents/skills/trellis-check-all/SKILL.md";
   const agents = read(sourceRoot, relativePath);
   const claude = read(sourceRoot, ".claude/skills/trellis-check-all/SKILL.md");
+  const depthRouting = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/depth-routing.md",
+  );
+  const reporting = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
+  );
 
   assert.equal(agents, claude);
-  assert.match(agents, /requested_depth: auto \| light \| full/);
-  assert.match(agents, /effective_depth: light \| full/);
-  assert.match(agents, /hard-full 信号/);
-  assert.match(agents, /简单检查.*轻量检查.*light check.*表示 light/);
-  assert.match(agents, /全面检查.*最终检查.*提交前检查.*full check.*表示 full/);
-  assert.match(agents, /以最后一次明确表达为准/);
-  assert.match(agents, /light 通过正式满足 Phase 2\.2 检查门禁/);
+  assert.match(agents, /本 skill 是 \*\*薄入口\*\*/);
+  assert.match(agents, /不要提前读取未命中的 profile/);
+  assert.match(agents, /低风险文档漂移进入 `DOC-\*` 通道/);
+  assert.match(depthRouting, /requested_depth: auto \| light \| full/);
+  assert.match(depthRouting, /effective_depth: light \| full/);
+  assert.match(depthRouting, /hard-full 信号/);
+  assert.match(depthRouting, /简单检查.*轻量检查.*light check.*表示 light/);
+  assert.match(depthRouting, /全面检查.*最终检查.*提交前检查.*full check.*表示 full/);
+  assert.match(depthRouting, /以最后一次明确表达为准/);
+  assert.match(reporting, /light 通过正式满足 Phase 2\.2 检查门禁/);
   assert.ok(
-    agents.indexOf("## Auto-Loop Return Gate")
-      < agents.indexOf("## Interactive Post-Check Stop Gate"),
+    reporting.indexOf("## Auto-Loop Return Gate")
+      < reporting.indexOf("## Interactive Post-Check Stop Gate"),
   );
-  const autoLoopGate = agents.slice(
-    agents.indexOf("## Auto-Loop Return Gate"),
-    agents.indexOf("## Interactive Post-Check Stop Gate"),
+  const autoLoopGate = reporting.slice(
+    reporting.indexOf("## Auto-Loop Return Gate"),
+    reporting.indexOf("## Interactive Post-Check Stop Gate"),
   );
-  const interactiveGate = agents.slice(
-    agents.indexOf("## Interactive Post-Check Stop Gate"),
-    agents.indexOf("## 反模式"),
+  const interactiveGate = reporting.slice(
+    reporting.indexOf("## Interactive Post-Check Stop Gate"),
+    reporting.length,
   );
   assert.match(autoLoopGate, /validated auto-loop 不渲染交互式下一步段/);
-  assert.match(autoLoopGate, /匹配 action 的 `record \+ next` 就是唯一后续动作/);
+  assert.match(autoLoopGate, /记录后立即 `next`/);
   assert.doesNotMatch(autoLoopGate, /提示用户回复 `继续`/);
-  assert.match(interactiveGate, /本节只适用于非 validated auto-loop/);
+  assert.match(interactiveGate, /非 validated auto-loop 先输出完整标准报告/);
   assert.match(interactiveGate, /提示用户回复 `继续`/);
-  assert.match(agents, /最新用户消息识别 direct Git intent/);
-  assert.match(agents, /findings、blocked、部分验证或实质剩余风险/);
-  assert.match(agents, /普通 interactive 检查保持原行为/);
-  assert.match(agents, /所有 interactive 标准报告都必须在末尾输出 `### 下一步`/);
-  assert.match(agents, /有 blocked、部分验证或实质剩余风险：指出解除阻塞所需的精确决策、授权或验证/);
-  assert.match(agents, /无 direct Git intent 且严格通过：提示用户回复 `继续`/);
-  assert.match(agents, /停止边界只控制是否自动推进，不能让报告在没有下一步提示的情况下结束/);
-  assert.match(agents, /不新增 direct Git 专用摘要/);
+  assert.match(reporting, /最新用户消息识别 direct Git intent/);
+  assert.match(reporting, /findings、blocked、部分验证或实质剩余风险/);
+  assert.match(reporting, /普通 interactive 检查保持原行为/);
+  assert.match(reporting, /所有 interactive 标准报告都必须在末尾输出 `### 下一步`/);
+  assert.match(reporting, /有 blocked、部分验证或实质剩余风险：指出解除阻塞所需的精确决策、授权或验证/);
+  assert.match(reporting, /无 direct Git intent 且严格通过：提示用户回复 `继续`/);
+  assert.match(reporting, /停止边界只控制是否自动推进，不能让报告在没有下一步提示的情况下结束/);
+  assert.match(reporting, /不新增 direct Git 专用摘要/);
 });
 
 test("route 只决定 Check-All 执行位置", () => {
@@ -95,6 +106,16 @@ test("0.6 发布快照与智能检查源保持一致", () => {
   const paths = [
     ".agents/skills/trellis-check-all/SKILL.md",
     ".claude/skills/trellis-check-all/SKILL.md",
+    ".agents/skills/trellis-check-all/references/depth-routing.md",
+    ".agents/skills/trellis-check-all/references/document-drift-auto-remediation.md",
+    ".agents/skills/trellis-check-all/references/full-profile.md",
+    ".agents/skills/trellis-check-all/references/light-profile.md",
+    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
+    ".claude/skills/trellis-check-all/references/depth-routing.md",
+    ".claude/skills/trellis-check-all/references/document-drift-auto-remediation.md",
+    ".claude/skills/trellis-check-all/references/full-profile.md",
+    ".claude/skills/trellis-check-all/references/light-profile.md",
+    ".claude/skills/trellis-check-all/references/reporting-and-disposition.md",
     ".agents/skills/trellis-route/SKILL.md",
     ".agents/skills/trellis-route/scripts/route_state.py",
     ".claude/skills/trellis-route/SKILL.md",

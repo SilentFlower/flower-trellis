@@ -49,7 +49,7 @@
         ]
       },
       "owner": "trellis-check-all",
-      "reason": "Check-All 必须 audit-only collect-all，修复只能在统一报告后获得授权。"
+      "reason": "Check-All 对普通 CHK-* 必须 audit-only collect-all；只有低风险 DOC-* 任务文档漂移可由 Check-All 自修并在报告中展示。"
     },
     {
       "id": "workflow-no-local-only-commit",

@@ -131,7 +131,7 @@ Patch 生成的静态最终入口读取 Skill-Garden canonical compiled full tar
 
 - hub：只保存 auto-loop 优先、interactive stop、Update-Spec → Push 去向等跨阶段边界。
 - in_progress state：保存一跳动作，不复制 check depth、Update-Spec 三态或 report 模板。
-- Check-All skill：保存 requested/effective depth、hard-full/light eligibility 和 disposition 全文。
+- Check-All skill：入口只保存范围确认、requested/effective depth 路由、profile 引用和最终分流；light/full 详细检查清单、文档漂移自修和报告模板放在 `references/`，按实际 `effective_depth` 与输出阶段再加载，避免 `auto` 被默认 full 提示词带偏。
 - Update-Spec 最终入口：保存 `no-op | written | needs-review`、证据顺序、最小写入和自检全文。
 - auto-loop runner/skill：保存确定性 state/record 字段和命令签名。
 - Auto-Loop 最终入口独立计量，不加入 `control-context-total`；manifest schema、Git 解析和错误矩阵下沉 runner/helper，skill 只保留语义边界和 action 调度。
