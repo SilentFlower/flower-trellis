@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import figlet from "figlet";
 import * as pty from "node-pty";
+import { disableWindowsTerminalWin32InputMode } from "./terminal-state.js";
 
 /**
  * 定位捆绑的 @mindfoldhq/trellis 可执行 bin 的绝对路径。
@@ -106,22 +107,27 @@ export function runTrellis(args, cwd, opts = {}) {
  *
  * @param {string[]} args
  * @param {string} cwd
- * @param {object} [opts] { stripBanner }
+ * @param {object} [opts] { stripBanner, ptySpawn, stdin, stdout, platform }
  * @returns {Promise<number>} 退出码(信号终止返回 128)
  */
 export function runTrellisPty(args, cwd, opts = {}) {
   const bin = resolveTrellisBin();
+  const stdin = opts.stdin || process.stdin;
+  const stdout = opts.stdout || process.stdout;
+  const platform = opts.platform ?? process.platform;
+  const ptySpawn = opts.ptySpawn || pty.spawn;
   return new Promise((resolve, reject) => {
     let child;
     try {
-      child = pty.spawn(process.execPath, [bin, ...args], {
+      child = ptySpawn(process.execPath, [bin, ...args], {
         name: "xterm-256color",
-        cols: process.stdout.columns || 80,
-        rows: process.stdout.rows || 30,
+        cols: stdout.columns || 80,
+        rows: stdout.rows || 30,
         cwd,
         env: { ...process.env, FORCE_COLOR: "1" },
       });
     } catch (e) {
+      disableWindowsTerminalWin32InputMode({ platform, output: stdout });
       reject(e);
       return;
     }
@@ -130,15 +136,15 @@ export function runTrellisPty(args, cwd, opts = {}) {
     let filtering = !!opts.stripBanner;
     let buf = "";
 
-    child.onData((data) => {
+    const dataSubscription = child.onData((data) => {
       if (!filtering) {
-        process.stdout.write(data);
+        stdout.write(data);
         return;
       }
       // inquirer 开始渲染(隐藏光标)→ 立即停止过滤,整体透传,保住交互菜单
       if (data.includes("\x1b[?25l")) {
         filtering = false;
-        process.stdout.write(buf + data);
+        stdout.write(buf + data);
         buf = "";
         return;
       }
@@ -149,21 +155,21 @@ export function runTrellisPty(args, cwd, opts = {}) {
         const kind = classifyHeaderLine(line, bannerSet);
         if (kind === "skip") continue;
         if (kind === "keep") {
-          process.stdout.write(line + "\r\n");
+          stdout.write(line + "\r\n");
           continue;
         }
         filtering = false; // 正文开始
-        process.stdout.write(line + "\r\n");
+        stdout.write(line + "\r\n");
       }
       if (!filtering && buf) {
-        process.stdout.write(buf);
+        stdout.write(buf);
         buf = "";
       }
     });
 
     // 把真终端的输入转发进 pty(让用户能操作 trellis 的交互菜单)
-    const stdin = process.stdin;
     const wasRaw = !!stdin.isRaw;
+    const wasFlowing = stdin.readableFlowing;
     if (stdin.isTTY) stdin.setRawMode(true);
     stdin.resume();
     const onStdin = (d) => child.write(d.toString("utf8"));
@@ -171,18 +177,22 @@ export function runTrellisPty(args, cwd, opts = {}) {
 
     const onResize = () => {
       try {
-        child.resize(process.stdout.columns || 80, process.stdout.rows || 30);
+        child.resize(stdout.columns || 80, stdout.rows || 30);
       } catch {
         // 忽略 resize 失败
       }
     };
-    process.stdout.on("resize", onResize);
+    stdout.on("resize", onResize);
 
     child.onExit(({ exitCode, signal }) => {
+      // 先停止接收子进程输出，再恢复宿主终端；否则迟到的 9001h 会重新污染父终端。
+      dataSubscription.dispose();
       stdin.off("data", onStdin);
       if (stdin.isTTY) stdin.setRawMode(wasRaw);
-      stdin.pause();
-      process.stdout.off("resize", onResize);
+      if (wasFlowing === true) stdin.resume();
+      else stdin.pause();
+      stdout.off("resize", onResize);
+      disableWindowsTerminalWin32InputMode({ platform, output: stdout });
       if (signal) resolve(128);
       else resolve(exitCode ?? 0);
     });

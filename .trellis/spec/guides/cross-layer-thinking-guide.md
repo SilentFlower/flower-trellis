@@ -129,6 +129,30 @@ could return empty Phase 2.1 detail.
 
 ---
 
+## Nested Terminal State Consistency
+
+CLI 通过 PTY 透传另一个交互式 CLI 时,子进程输出中的终端控制序列会直接改变宿主终端状态。
+这不是普通文本边界:输入模式、raw mode、光标、resize 监听都必须作为一组生命周期资源管理。
+具体实现契约见 [CLI Output](../flower-trellis/cli/cli-output.md) 的
+`Scenario: Windows ConPTY 输入模式隔离`。
+
+### Checklist: After Adding Or Changing A PTY Runner
+
+- [ ] 列出子进程可能开启的宿主终端模式,并定义对应的退出恢复序列
+- [ ] 正常退出、信号退出和 spawn 异常都执行幂等清理
+- [ ] 清理前先停止子进程输出订阅,避免迟到控制序列重新污染宿主
+- [ ] 恢复 stdin 原有 raw/flowing 状态并移除 resize / input 监听
+- [ ] CLI 新进程能自愈旧版本或崩溃进程遗留的终端状态
+- [ ] 在非目标平台和非 TTY 输出中不泄漏控制序列
+- [ ] 回归测试覆盖“PTY 交互结束后立即进入父 CLI prompt”的完整链路
+
+**Real-world example**: Windows Terminal 的 ConPTY 子进程开启 Win32 Input Mode
+(`CSI ? 9001 h`)后未在 Flower 的 PTY 边界关闭,导致后续更新确认框显示数字按键记录,
+完成页的回车也无法识别。单测 prompt 配置无法发现该问题;必须模拟子进程模式开启、退出清理
+和父 prompt 接管输入的连续状态变化。
+
+---
+
 ## Mode-Detection Probe Checklist
 
 When a CLI auto-detects a mode by probing a remote resource (e.g., checking if `index.json` exists to decide marketplace vs direct download):

@@ -7,6 +7,7 @@ import { readManifest } from "./lib/manifest.js";
 import { ProjectStore } from "./plugin/state/project-store.js";
 import { runTrellis } from "./lib/trellis-runner.js";
 import { parseCliArgs } from "./lib/cli-args.js";
+import { installWindowsTerminalInputRecovery } from "./lib/terminal-state.js";
 
 /**
  * flower-trellis CLI 主入口。
@@ -105,6 +106,9 @@ init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联�
 }
 
 async function main() {
+  // 新进程先修复旧版或异常退出遗留的 ConPTY 输入模式，退出时再兜底恢复一次。
+  installWindowsTerminalInputRecovery();
+
   // Ctrl+C:父进程也立即退出,绝不在子进程被取消后继续叠加
   process.on("SIGINT", () => process.exit(130));
 

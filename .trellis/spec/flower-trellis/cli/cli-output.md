@@ -102,6 +102,79 @@
   隐藏光标)立即停止过滤、整体透传,避免破坏交互。该检测针对 trellis 子进程输出,与 flower
   自己用哪个 prompt 库无关。
 
+### Scenario: Windows ConPTY 输入模式隔离
+
+#### 1. Scope / Trigger
+
+- 触发:Flower 通过 `node-pty` 透传 Windows 子进程交互,或父 CLI 在同一 Windows Terminal
+  标签页内继续运行 Inquirer / keypress 交互。
+- 原因:子进程可能通过 `CSI ? 9001 h` 开启 Win32 Input Mode,让按键变成
+  `CSI Vk;Sc;Uc;Kd;Cs;Rc _` 记录;该状态属于宿主终端,不会随 JS 函数返回自动隔离。
+
+#### 2. Signatures
+
+- `disableWindowsTerminalWin32InputMode(options?) -> boolean`
+- `installWindowsTerminalInputRecovery(options?) -> () => void`
+- `runTrellisPty(args, cwd, { stripBanner?, ptySpawn?, stdin?, stdout?, platform? }) -> Promise<number>`
+
+#### 3. Contracts
+
+- `disableWindowsTerminalWin32InputMode` 只在 `platform === "win32"` 且 `output.isTTY` 时向
+  `output` 写 `CSI ? 9001 l`;非 Windows、非 TTY 或输出流关闭时返回 `false` 且不改变命令结果。
+- `installWindowsTerminalInputRecovery` 在 CLI 启动时立即恢复一次,并注册一次 `exit` 恢复,
+  用于自愈旧版、Ctrl+C 或异常退出遗留的终端状态。
+- `runTrellisPty` 退出时必须先停止子进程输出订阅,再移除 input/resize 监听、恢复 stdin
+  原有 raw/flowing 状态,最后关闭 Win32 Input Mode;信号退出仍返回 `128`。
+- PTY spawn 同步失败也要执行终端恢复;恢复失败属于退出期 best-effort,不能覆盖原异常。
+
+#### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+|------|------|
+| Windows + TTY | 写 `CSI ? 9001 l`,返回 `true` |
+| 非 Windows 或非 TTY | 零输出,返回 `false` |
+| 输出流 `write` 抛错 | 吞掉恢复异常,返回 `false` |
+| PTY 正常退出 | 清理监听与输入状态,恢复终端,返回子进程退出码 |
+| PTY 信号退出 | 完成同样清理,返回 `128` |
+| PTY spawn 抛错 | 恢复终端后 reject 原异常 |
+
+#### 5. Good / Base / Bad Cases
+
+- Good:子进程输出过 `CSI ? 9001 h`,退出后父级 `select` 仍能识别回车与方向键。
+- Base:Linux、macOS、CI 管道和重定向输出不出现额外控制序列。
+- Bad:只恢复 `stdin.setRawMode(false)` 或只在完成菜单前补一次 reset;前者没有关闭宿主模式,
+  后者遗漏更新确认、Plugin、Skill 交互和异常退出路径。
+
+#### 6. Tests Required
+
+- 单元测试断言 Windows TTY 精确写出 `\x1b[?9001l`,非目标平台/非 TTY 零输出。
+- PTY 回归测试模拟 `9001h` 后退出,断言 data/input/resize 监听已移除、raw/flowing 状态恢复、
+  最后输出为 `9001l`,并立即调用父级完成菜单验证接管顺序。
+- 分别覆盖正常退出、信号退出、spawn 异常和输出流关闭。
+
+#### 7. Wrong vs Correct
+
+**Wrong**:只恢复 Node stdin,把 ConPTY 子进程改过的宿主终端模式留给后续 prompt。
+
+```js
+child.onExit(() => {
+  stdin.setRawMode(false);
+  resolve(0);
+});
+```
+
+**Correct**:先断开迟到输出,完整恢复父进程资源,最后幂等关闭宿主 Win32 Input Mode。
+
+```js
+child.onExit(() => {
+  dataSubscription.dispose();
+  stdin.off("data", onStdin);
+  stdout.off("resize", onResize);
+  disableWindowsTerminalWin32InputMode({ platform, output: stdout });
+  resolve(0);
+});
+```
+
 ---
 
 ## Common Mistakes
