@@ -145,11 +145,17 @@ CLI 通过 PTY 透传另一个交互式 CLI 时,子进程输出中的终端控�
 - [ ] CLI 新进程能自愈旧版本或崩溃进程遗留的终端状态
 - [ ] 在非目标平台和非 TTY 输出中不泄漏控制序列
 - [ ] 回归测试覆盖“PTY 交互结束后立即进入父 CLI prompt”的完整链路
+- [ ] Windows 完成页选择退出后验证父 CLI 进程真的结束，而不只断言 prompt Promise 已返回
 
 **Real-world example**: Windows Terminal 的 ConPTY 子进程开启 Win32 Input Mode
 (`CSI ? 9001 h`)后未在 Flower 的 PTY 边界关闭,导致后续更新确认框显示数字按键记录,
 完成页的回车也无法识别。单测 prompt 配置无法发现该问题;必须模拟子进程模式开启、退出清理
 和父 prompt 接管输入的连续状态变化。
+
+**Real-world example**:修复输入模式后，完成页已经能显示“退出”并接收回车，但 Windows 上
+`node-pty` 自然退出仍残留 ConPTY worker 的 `MessagePort` / `Socket`，导致 CLI Promise 返回却
+不结束进程。完成态验收必须同时检查“交互选择成功”和“宿主进程在时限内退出”；用户明确选择
+退出时应在恢复终端后显式结束 CLI，不能依赖第三方 PTY 的内部句柄生命周期。
 
 ---
 

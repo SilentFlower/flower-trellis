@@ -1,4 +1,5 @@
 const WIN32_INPUT_MODE_DISABLE = "\x1b[?9001l";
+const CURSOR_SHOW = "\x1b[?25h";
 
 /**
  * 关闭 Windows Terminal 的 Win32 输入模式，恢复宿主 CLI 的普通键盘输入。
@@ -37,4 +38,41 @@ export function installWindowsTerminalInputRecovery(options = {}) {
   restore();
   processEvents.once("exit", restore);
   return () => processEvents.off("exit", restore);
+}
+
+/**
+ * 在 Windows 交互完成页选择“退出”后恢复终端，并显式结束 CLI 进程。
+ *
+ * node-pty 的 Windows ConPTY worker 在子进程自然退出后仍可能持有 MessagePort / Socket，
+ * 因此不能只依赖 Node 事件循环自然清空。这里仅在用户已经选择退出时执行，并把实际退出
+ * 延后到下一轮事件循环，让 Inquirer 完成当前输出清理。
+ *
+ * @param {{platform?:string,input?:{isTTY?:boolean,isRaw?:boolean,setRawMode?:(value:boolean)=>unknown,pause?:()=>unknown},output?:{isTTY?:boolean,write:(value:string)=>unknown},schedule?:(callback:()=>void)=>unknown,exitProcess?:(code:number)=>unknown}} [options] 终端、调度器与退出函数测试注入
+ * @returns {boolean} 是否安排了 Windows CLI 显式退出
+ */
+export function scheduleWindowsTerminalExit(options = {}) {
+  const platform = options.platform ?? process.platform;
+  if (platform !== "win32") return false;
+
+  const input = options.input ?? process.stdin;
+  const output = options.output ?? process.stdout;
+  try {
+    if (input?.isTTY && input.isRaw && typeof input.setRawMode === "function") {
+      input.setRawMode(false);
+    }
+    if (typeof input?.pause === "function") input.pause();
+  } catch {
+    // 退出前终端恢复是 best-effort，不能把成功命令改成失败。
+  }
+  try {
+    if (output?.isTTY && typeof output.write === "function") output.write(CURSOR_SHOW);
+  } catch {
+    // 输出流关闭时继续执行 Win32 输入模式恢复与退出。
+  }
+  disableWindowsTerminalWin32InputMode({ platform, output });
+
+  const schedule = options.schedule ?? ((callback) => setTimeout(callback, 0));
+  const exitProcess = options.exitProcess ?? ((code) => process.exit(code));
+  schedule(() => exitProcess(0));
+  return true;
 }

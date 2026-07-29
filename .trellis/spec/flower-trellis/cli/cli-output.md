@@ -84,7 +84,9 @@
   必须把该值显式透传给 `trellis init --user`；新目录即使尚无 `.git`，也不能再次询问同一个名字。
 - **完成态有明确出口**:`init` / `update` 在交互 TTY 成功后先打印“安装成功 / 更新成功”，
   再显示单项 `退出` 选择；`update --dry-run` 必须打印“预览完成”，不能宣称已更新；`-y` 与
-  非 TTY 只打印对应完成行并直接返回，不能阻塞脚本。
+  非 TTY 只打印对应完成行并直接返回，不能阻塞脚本。Windows 下选择 `退出` 后必须先恢复
+  stdin、光标和 Win32 Input Mode，再显式以退出码 0 结束 CLI；不能假设 ConPTY worker 的
+  MessagePort / Socket 会随子进程自然退出而自动释放。
 - **内嵌 Plugin 输出默认精简**:`init` / `update` 重放 Skill Garden 时只展示 Plugin、版本与变化总数，
   不逐行打印 `write` / `patch` / `remove` 路径；独立 `plugin` 命令与调试环境保留完整清单。
 - **联网探测同样判 `-y` / 非 TTY**:版本检测(`update-check.js`)发现新版时,交互 TTY 才
@@ -115,6 +117,7 @@
 
 - `disableWindowsTerminalWin32InputMode(options?) -> boolean`
 - `installWindowsTerminalInputRecovery(options?) -> () => void`
+- `scheduleWindowsTerminalExit(options?) -> boolean`
 - `runTrellisPty(args, cwd, { stripBanner?, ptySpawn?, stdin?, stdout?, platform? }) -> Promise<number>`
 
 #### 3. Contracts
@@ -126,6 +129,9 @@
 - `runTrellisPty` 退出时必须先停止子进程输出订阅,再移除 input/resize 监听、恢复 stdin
   原有 raw/flowing 状态,最后关闭 Win32 Input Mode;信号退出仍返回 `128`。
 - PTY spawn 同步失败也要执行终端恢复;恢复失败属于退出期 best-effort,不能覆盖原异常。
+- `scheduleWindowsTerminalExit` 仅在 Windows 完成页已经选择 `退出` 后生效；它必须恢复
+  raw/input、显示光标、关闭 Win32 Input Mode，并延后一轮显式退出 0，避免 node-pty
+  自然退出后残留的 worker / socket 让命令永久挂起。
 
 #### 4. Validation & Error Matrix
 
@@ -137,10 +143,12 @@
 | PTY 正常退出 | 清理监听与输入状态,恢复终端,返回子进程退出码 |
 | PTY 信号退出 | 完成同样清理,返回 `128` |
 | PTY spawn 抛错 | 恢复终端后 reject 原异常 |
+| Windows 完成页选择 `退出` | 恢复终端后显式退出 0，不等待残留 PTY 句柄自然释放 |
 
 #### 5. Good / Base / Bad Cases
 
 - Good:子进程输出过 `CSI ? 9001 h`,退出后父级 `select` 仍能识别回车与方向键。
+- Good:父级 `select` 显示已选择 `退出` 后，Windows CLI 在有残留 PTY worker / socket 时仍结束。
 - Base:Linux、macOS、CI 管道和重定向输出不出现额外控制序列。
 - Bad:只恢复 `stdin.setRawMode(false)` 或只在完成菜单前补一次 reset;前者没有关闭宿主模式,
   后者遗漏更新确认、Plugin、Skill 交互和异常退出路径。
@@ -151,6 +159,8 @@
 - PTY 回归测试模拟 `9001h` 后退出,断言 data/input/resize 监听已移除、raw/flowing 状态恢复、
   最后输出为 `9001l`,并立即调用父级完成菜单验证接管顺序。
 - 分别覆盖正常退出、信号退出、spawn 异常和输出流关闭。
+- 完成页测试注入 Windows 终端和退出函数，断言选择 `退出` 后按 raw mode、光标、Win32
+  Input Mode、退出码 0 的顺序完成收尾；发版前在真实 Windows ConPTY 中断言进程按时结束。
 
 #### 7. Wrong vs Correct
 

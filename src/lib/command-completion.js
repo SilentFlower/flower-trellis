@@ -1,4 +1,5 @@
 import { select } from "@inquirer/prompts";
+import { scheduleWindowsTerminalExit } from "./terminal-state.js";
 
 const SUCCESS_LABELS = {
   init: "安装成功",
@@ -16,7 +17,7 @@ const OUTCOME_LABELS = {
  *
  * @param {"init"|"update"} command 命令名
  * @param {string} target 目标项目根目录
- * @param {{passthrough?:string[],interactive?:boolean,outcome?:"success"|"preview",selectPrompt?:Function,output?:{log:(message:string)=>void}}} [options] 交互、结果类型与测试注入
+ * @param {{passthrough?:string[],interactive?:boolean,outcome?:"success"|"preview",selectPrompt?:Function,output?:{log:(message:string)=>void},terminalExit?:object}} [options] 交互、结果类型与测试注入
  * @returns {Promise<void>} 成功状态输出及可选退出确认完成后返回
  */
 export async function showCommandCompletion(command, target, options = {}) {
@@ -35,9 +36,10 @@ export async function showCommandCompletion(command, target, options = {}) {
   if (!interactive) return;
 
   const selectPrompt = options.selectPrompt || select;
-  await selectPrompt({
+  const action = await selectPrompt({
     message: "操作已完成",
     choices: [{ name: "退出", value: "exit" }],
     loop: false,
   });
+  if (action === "exit") scheduleWindowsTerminalExit(options.terminalExit);
 }

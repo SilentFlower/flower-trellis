@@ -168,6 +168,7 @@ test("PTY 退出后停止迟到输出并恢复 Windows 宿主终端", async () =
   await showCommandCompletion("init", "C:/demo", {
     interactive: true,
     output: { log() {} },
+    terminalExit: { platform: "linux" },
     selectPrompt: async () => {
       assert.equal(output.chunks.at(-1), "\x1b[?9001l");
       return "exit";
