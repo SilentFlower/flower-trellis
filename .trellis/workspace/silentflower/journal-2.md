@@ -299,3 +299,39 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 65: 修复 auto-loop 重试预算与跟踪文件
+
+**Date**: 2026-07-29
+**Task**: 修复 auto-loop 重试预算与跟踪文件
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+修复 auto-loop fix/recheck 预算 off-by-one，调整 trellis-auto-loop 入口措辞，写入 auto-loop task progress，并将 manifest revision 历史迁移到旁路 JSONL；补充回归测试、规范和任务记录，已完成推送。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `450bc0a` | (see git log) |
+| `19d7a1a` | (see git log) |
+| `8b69cc2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

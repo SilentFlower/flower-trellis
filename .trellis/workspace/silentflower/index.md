@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 64
+- **Total Sessions**: 65
 - **Last Active**: 2026-07-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~301 | Active |
+| `journal-2.md` | ~337 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 65 | 2026-07-29 | 修复 auto-loop 重试预算与跟踪文件 | `450bc0a`, `19d7a1a`, `8b69cc2` | `beta` |
 | 64 | 2026-07-29 | 归档 Flower Plugin 体系任务树 | `3c664c3`, `0d7c5b1`, `3688744`, `32ec993`, `2e9fd18`, `4e34b87`, `3db8320`, `8701039`, `4699a22`, `e37dbe4`, `25e8efc` | `beta` |
 | 63 | 2026-07-29 | Flower Plugin 外部格式适配完成 | `8701039`, `4699a22` | `beta` |
 | 62 | 2026-07-27 | 归档 Auto-Loop 无人值守执行 | `d847439`,  `fa488f8`,  `3841c8b` | `beta` |
