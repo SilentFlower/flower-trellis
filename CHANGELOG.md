@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.3](https://github.com/SilentFlower/flower-trellis/compare/v0.5.2...v0.5.3) (2026-07-29)
+
+
+### 🐛 修复 Bug Fixes
+
+* **plugin:** 修复 Craft RPA 运行时软链重放 ([3a68641](https://github.com/SilentFlower/flower-trellis/commit/3a686414c0941ca365b9443328064ab6143cd6f8))
+
 ## [0.5.2](https://github.com/SilentFlower/flower-trellis/compare/v0.5.1...v0.5.2) (2026-07-29)
 
 
