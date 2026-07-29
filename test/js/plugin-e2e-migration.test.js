@@ -29,6 +29,28 @@ test("真实完整 init 创建 Trellis 并默认锁定 skill-garden", (t) => {
   assert.doesNotMatch(sessionContext, /\["trellis", "--version"\]/);
 });
 
+test("真实完整 init 将 Flower 识别的 Git 身份透传给 Trellis", (t) => {
+  const workspace = createPluginTestRoot(t, "flower-e2e-developer-");
+  const project = path.join(workspace, "project");
+  fs.mkdirSync(project);
+  const result = runFlower(project, [
+    "init", "-y", "--codex", "--no-update-check",
+  ], {
+    timeout: 60_000,
+    env: {
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "user.name",
+      GIT_CONFIG_VALUE_0: "huajiwuyan",
+    },
+  });
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.match(fs.readFileSync(path.join(project, ".trellis/.developer"), "utf8"), /^name=huajiwuyan$/m);
+  assert.match(result.stdout, /Plugin add 完成，目标变化 \d+ 项/);
+  assert.doesNotMatch(result.stdout, /^\s+(?:write|patch|remove) /m);
+  assert.match(result.stdout, /flower-trellis init 安装成功/);
+});
+
 test("真实完整 init 支持 Windows 风格 Python 命令渲染", (t) => {
   for (const [slug, command] of [["python", "python"], ["py-launcher", "py -3"]]) {
     const workspace = createPluginTestRoot(t, `flower-e2e-${slug}-`);

@@ -237,10 +237,11 @@ test("update 编排只在配置恢复 finally 之后调用清理", () => {
   const finallyIndex = source.indexOf("} finally {");
   const restoreIndex = source.indexOf("restoreConfigPreserveSnapshot", finallyIndex);
   const pruneIndex = source.lastIndexOf("pruneUpdateBackups(");
-  const completeIndex = source.indexOf("flower-trellis update 完成");
+  const completeIndex = source.indexOf("showCommandCompletion(");
 
   assert.ok(finallyIndex >= 0);
   assert.ok(restoreIndex > finallyIndex);
   assert.ok(pruneIndex > restoreIndex);
   assert.ok(completeIndex > pruneIndex);
+  assert.match(source, /outcome: dryRun \? "preview" : "success"/);
 });
