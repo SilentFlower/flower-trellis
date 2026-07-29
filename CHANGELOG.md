@@ -4,6 +4,21 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.2-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.5.2-beta.0...v0.5.2-beta.1) (2026-07-29)
+
+
+### ✨ 新功能 Features
+
+* **0.6:** 同步 Push 门禁与意图识别 ([8abf3b1](https://github.com/SilentFlower/flower-trellis/commit/8abf3b1439d7a5dd2af0d698c4094aa6c7207fb3))
+* **brief:** 同步 Brief 显式预授权流程 ([7c179af](https://github.com/SilentFlower/flower-trellis/commit/7c179affd7389cac053d28104e0d624773159c72))
+* **spec-router:** 同步章节感知加载能力 ([0d51a24](https://github.com/SilentFlower/flower-trellis/commit/0d51a24e6136bb9b167cd5716eeb9958b5d8412e))
+* **trellis:** 补全 Meta 架构并修复 Auto-Loop 自恢复 ([943179f](https://github.com/SilentFlower/flower-trellis/commit/943179f42e3e3d068bf98f8ff60b2aa324acc4dd))
+
+
+### 🐛 修复 Bug Fixes
+
+* **trellis:** 移除旧更新检查 marker ([a33f376](https://github.com/SilentFlower/flower-trellis/commit/a33f376d7efe15441cba8fbe0b0a67c6f1a15f6c))
+
 ## [0.5.2-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.5.1-beta.1...v0.5.2-beta.0) (2026-07-29)
 
 
