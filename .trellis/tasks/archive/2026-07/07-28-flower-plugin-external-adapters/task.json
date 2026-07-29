@@ -1,0 +1,162 @@
+{
+  "id": "flower-plugin-external-adapters",
+  "name": "flower-plugin-external-adapters",
+  "title": "Flower Plugin 外部格式适配与 GitHub 来源",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-28",
+  "completedAt": "2026-07-29",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "07-28-flower-plugin-integration",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-28T11:33:37Z",
+      "contextKey": "codex_019fa64c-8712-7722-b2fa-5e391f0c319c",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "3db83208a6da12c3bbcad1730e144271ff02a96a",
+        "status": [
+          {
+            "status": " M",
+            "path": ".trellis/tasks/07-28-flower-plugin-integration/brief.md"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/07-28-flower-plugin-integration/check.jsonl"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/07-28-flower-plugin-integration/design.md"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/07-28-flower-plugin-integration/implement.jsonl"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/07-28-flower-plugin-integration/implement.md"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/07-28-flower-plugin-integration/prd.md"
+          },
+          {
+            "status": " M",
+            "path": "README.md"
+          },
+          {
+            "status": " M",
+            "path": "package-lock.json"
+          },
+          {
+            "status": " M",
+            "path": "package.json"
+          },
+          {
+            "status": " M",
+            "path": "src/cli.js"
+          },
+          {
+            "status": " M",
+            "path": "src/commands/plugin-remote.js"
+          },
+          {
+            "status": " M",
+            "path": "src/commands/plugin.js"
+          },
+          {
+            "status": " M",
+            "path": "src/plugin/sources/user-source-store.js"
+          },
+          {
+            "status": " M",
+            "path": "test/fixtures/plugin/evidence-matrix.json"
+          },
+          {
+            "status": " M",
+            "path": "test/js/plugin-e2e-evidence.test.js"
+          },
+          {
+            "status": " M",
+            "path": "test/js/plugin-source-store.test.js"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-28-flower-plugin-system/brief.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-28-flower-plugin-system/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-28-flower-plugin-system/design.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-28-flower-plugin-system/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-28-flower-plugin-system/implement.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-28-flower-plugin-system/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-28-flower-plugin-system/research/current-architecture.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-28-flower-plugin-system/task.json"
+          },
+          {
+            "status": "??",
+            "path": "src/commands/plugin-interactive.js"
+          },
+          {
+            "status": "??",
+            "path": "src/commands/plugin-manager-prompt.js"
+          },
+          {
+            "status": "??",
+            "path": "test/js/plugin-e2e-interactive.test.js"
+          },
+          {
+            "status": "??",
+            "path": "test/js/plugin-interactive.test.js"
+          }
+        ]
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-28T17:15:00.227119Z",
+    "completedSteps": [
+      "实现",
+      "Check-All",
+      "Update-Spec",
+      "业务提交与推送"
+    ],
+    "partialStep": null,
+    "nextStep": "等待用户显式运行 finish-work",
+    "notes": "外部来源交互、archive 安全检测和相关 spec 已提交并推送。"
+  }
+}

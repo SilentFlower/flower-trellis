@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { preserveFirstBackup } from "./backup.js";
 import { shouldInstallName } from "./skill-filter.js";
+import { materializeTrellisPythonText } from "./trellis-python-command.js";
 
 const PATCH_SCHEMA_VERSION = 2;
 const BUNDLE_SCHEMA_VERSION = 1;
@@ -691,9 +692,45 @@ function resolveCatalogPolicy(catalog, catalogFiles) {
   return policy;
 }
 
+function resolveCatalogPythonCommand(catalog) {
+  if (catalog.textMaterialization === undefined) return null;
+  assertPlainObject(catalog.textMaterialization, `catalog ${catalog.id} textMaterialization`);
+  const keys = Object.keys(catalog.textMaterialization);
+  if (keys.length !== 1 || keys[0] !== "trellisPythonCommand") {
+    throw new Error(`catalog ${catalog.id} textMaterialization 只支持 trellisPythonCommand`);
+  }
+  const command = catalog.textMaterialization.trellisPythonCommand;
+  if (typeof command !== "string" || !command.trim()) {
+    throw new Error(`catalog ${catalog.id} textMaterialization.trellisPythonCommand 必须是非空字符串`);
+  }
+  return command;
+}
+
+function materializeOperationPythonCommand(operation, command) {
+  if (!command) return operation;
+  const selectorText = typeof operation.selectorText === "string"
+    ? materializeTrellisPythonText(operation.selectorText, command)
+    : operation.selectorText;
+  return {
+    ...operation,
+    selector: {
+      ...operation.selector,
+      ...(typeof operation.selector.text === "string" ? { text: selectorText } : {}),
+    },
+    selectorText,
+    content: typeof operation.content === "string"
+      ? materializeTrellisPythonText(operation.content, command)
+      : operation.content,
+    baselines: operation.baselines.map((baseline) =>
+      materializeTrellisPythonText(baseline, command)
+    ),
+  };
+}
+
 function loadCatalog(catalog, skills, allowedSelectors) {
   assertPlainObject(catalog, "Patch catalog");
   assertId(catalog.id, "Patch catalog.id");
+  const pythonCommand = resolveCatalogPythonCommand(catalog);
   const patchesDir = path.resolve(catalog.patchesDir);
   const bundlesDir = path.resolve(catalog.bundlesDir);
   const catalogRoot = path.dirname(patchesDir);
@@ -742,9 +779,10 @@ function loadCatalog(catalog, skills, allowedSelectors) {
       qualifiedId: qualifyId(catalog.id, raw.id),
       markerIdentity,
     };
-    patch.operations = raw.operations.map((operation) =>
-      normalizeOperation(operation, leafDir, patch, seenOperationIds, allowedSelectors)
-    );
+    patch.operations = raw.operations.map((operation) => materializeOperationPythonCommand(
+      normalizeOperation(operation, leafDir, patch, seenOperationIds, allowedSelectors),
+      pythonCommand,
+    ));
     patchByRef.set(ref, patch);
     catalogFiles.push(file, ...listRecursive(leafDir, (candidate) => candidate !== file));
   }

@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/07-28-flower-plugin-system/research/current-architecture.md", "reason": "读取 GitLab 18.10.1、OAuth scopes、keyring 选型与真实端点验证证据。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "校验 optional native dependency、npm pack 和发布边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "读取 CLI 包级规范和命令集成约束。"}
+{"file": ".trellis/tasks/07-28-flower-plugin-contract-state/research/contracts-handoff.md", "reason": "复用 P1 Marketplace、GitLab source descriptor、commit、digest 和 token 隔离契约。"}

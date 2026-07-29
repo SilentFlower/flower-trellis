@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "检查新旧状态、凭据隔离、缓存和迁移兼容"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查现有 init/update/uninstall 与 skill-garden 行为回归"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "检查 Patch capability、零写入、qualified identity 和 provenance"}
+{"file": ".trellis/tasks/07-28-flower-plugin-system/research/current-architecture.md", "reason": "检查设计是否符合真实代码边界与外部协议"}

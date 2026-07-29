@@ -15,6 +15,35 @@ ROOT = Path(__file__).resolve().parents[2]
 RUNNER = ROOT / "vendor/skill-garden/scripts/apply-trellis-patches.py"
 OVERRIDES = ROOT / "vendor/skill-garden/.trellis/0.6/overrides"
 SHARED_CORE_FIXTURE = ROOT / "test/fixtures/patch-engine/core"
+META_PATCHES = {
+    "trellis-meta-managed-mode-precedence",
+    "trellis-meta-managed-architecture-and-ownership",
+    "trellis-meta-managed-customization-routing",
+    "trellis-meta-managed-workflow-owners",
+}
+META_OPERATIONS = {
+    "trellis-meta-trigger-description",
+    "trellis-meta-managed-scope",
+    "trellis-meta-managed-usage",
+    "trellis-meta-managed-current-rules",
+    "trellis-meta-managed-system-model",
+    "trellis-meta-managed-customization-principles",
+    "trellis-meta-managed-template-hashes",
+    "trellis-meta-managed-file-boundaries",
+    "trellis-meta-managed-skill-taxonomy",
+    "trellis-meta-managed-bundled-overrides",
+    "trellis-meta-managed-customization-entry",
+    "trellis-meta-managed-customization-order",
+    "trellis-meta-managed-workflow-entry",
+    "trellis-meta-managed-workflow-edit-route",
+    "trellis-meta-managed-skill-classification",
+    "trellis-meta-managed-skill-edit-route",
+    "trellis-meta-managed-platform-edit-route",
+    "trellis-meta-managed-workflow-source",
+    "trellis-meta-managed-owner-routing",
+    "trellis-meta-managed-state-boundary",
+    "trellis-meta-managed-workflow-change-map",
+}
 
 
 def _load_runner():
@@ -175,6 +204,132 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("Patch 预检失败", result.stderr)
         self.assertEqual((self.target / "valid.md").read_text(encoding="utf-8"), "VALID\n")
+
+    def test_target_python_command_materializes_selector_content_and_baseline(self) -> None:
+        """验证 Python runner 对 Windows 命令执行严格且等价的文本物化。"""
+        runner = _load_runner()
+        for slug, command in (("python", "python"), ("py-launcher", "py -3")):
+            with self.subTest(command=command):
+                target = self.root / slug / "target"
+                overrides = self.root / slug / "overrides"
+                _write(
+                    target,
+                    ".trellis/workflow.md",
+                    f"Run {command} ./.trellis/scripts/task.py current\n",
+                )
+                _write(
+                    target,
+                    "whole.md",
+                    f"Check {command} ./.trellis/scripts/task.py list\n",
+                )
+                leaf = overrides / "patches/python/materialization"
+                _write(
+                    leaf,
+                    "patch.json",
+                    json.dumps({
+                        "schemaVersion": 2,
+                        "id": "python-materialization",
+                        "purpose": "test",
+                        "operations": [
+                            {
+                                "id": "python-literal",
+                                "operation": "replace",
+                                "targets": [{
+                                    "kind": "workflow",
+                                    "path": ".trellis/workflow.md",
+                                    "missing": "error",
+                                }],
+                                "selector": {
+                                    "type": "literal",
+                                    "source": "literal-selector.md",
+                                },
+                                "content": {"source": "literal-content.md"},
+                            },
+                            {
+                                "id": "python-baseline",
+                                "operation": "replace",
+                                "targets": [{
+                                    "kind": "file",
+                                    "path": "whole.md",
+                                    "missing": "error",
+                                    "markerStyle": "none",
+                                }],
+                                "selector": {"type": "whole-file"},
+                                "baselines": ["whole-baseline.md"],
+                                "content": {"source": "whole-content.md"},
+                            },
+                        ],
+                    }, indent=2) + "\n",
+                )
+                _write(
+                    leaf,
+                    "literal-selector.md",
+                    "Run python3 ./.trellis/scripts/task.py current\n",
+                )
+                _write(
+                    leaf,
+                    "literal-content.md",
+                    "Run python3 ./.trellis/scripts/task.py start\n",
+                )
+                _write(
+                    leaf,
+                    "whole-baseline.md",
+                    "Check python3 ./.trellis/scripts/task.py list\n",
+                )
+                _write(
+                    leaf,
+                    "whole-content.md",
+                    "Check python3 ./.trellis/scripts/task.py current\n",
+                )
+                _write(
+                    overrides / "bundles",
+                    "python-materialization.json",
+                    json.dumps({
+                        "schemaVersion": 1,
+                        "id": "python-materialization",
+                        "patches": ["python/materialization"],
+                    }, indent=2) + "\n",
+                )
+                _write(
+                    overrides,
+                    "compatibility.json",
+                    (OVERRIDES / "compatibility.json").read_text(encoding="utf-8"),
+                )
+                _write(
+                    overrides,
+                    "conflicts.json",
+                    json.dumps({
+                        "schemaVersion": 1,
+                        "rules": [{
+                            "id": "python-command-required",
+                            "severity": "error",
+                            "target": ".trellis/workflow.md",
+                            "whenOperations": ["python-literal"],
+                            "assertion": {
+                                "type": "required-literal",
+                                "values": [
+                                    "Run python3 ./.trellis/scripts/task.py start"
+                                ],
+                            },
+                            "owner": "test",
+                            "reason": "test",
+                        }],
+                    }, indent=2) + "\n",
+                )
+
+                plan = runner.prepare_patches(overrides, target)
+                policy = runner.load_patch_policy(overrides, command)
+                report = runner.build_patch_conflict_report("0.6.5", plan, policy)
+                self.assertEqual(report["summary"]["errors"], 0)
+                runner.apply_prepared(target, plan)
+                self.assertIn(
+                    f"Run {command} ./.trellis/scripts/task.py start",
+                    (target / ".trellis/workflow.md").read_text(encoding="utf-8"),
+                )
+                self.assertEqual(
+                    (target / "whole.md").read_text(encoding="utf-8"),
+                    f"Check {command} ./.trellis/scripts/task.py current\n",
+                )
 
     def test_operation_order_qualified_provenance_and_bundle_membership(self) -> None:
         """验证 Python consumer 的稳定排序、qualified identity 与多 Bundle provenance。"""
@@ -846,11 +1001,11 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 32)
+        self.assertEqual(len(plan["patches"]), 37)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
-            27,
+            69,
         )
         operation_ids = {item["id"] for item in plan["results"]}
         self.assertIn("task-start-session-write-gate", operation_ids)
@@ -860,8 +1015,11 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("codex-session-start-pre-check-hold", operation_ids)
         self.assertIn("claude-session-start-pre-check-hold", operation_ids)
         self.assertIn("runtime-state-integrity", set(plan["patches"]))
+        self.assertIn("session-context-update-boundary", set(plan["patches"]))
+        self.assertIn("session-context-update-output", operation_ids)
         self.assertIn("before-dev-project-knowledge-discovery", operation_ids)
         self.assertIn("trellis-continue-task-progress-recovery", operation_ids)
+        self.assertTrue(META_OPERATIONS.issubset(operation_ids))
 
     def test_real_conflicts_cover_new_control_plane_operations(self) -> None:
         """新增控制面 operation 必须进入最终产物冲突断言。"""
@@ -880,7 +1038,45 @@ class PatchConsumerTest(unittest.TestCase):
             "task-set-base-branch-write",
             "task-set-scope-write",
             "paths-clear-current-result",
+            "session-context-update-imports",
+            "session-context-update-constants",
+            "session-context-update-helpers",
+            "session-context-update-output",
         }.issubset(covered))
+        self.assertTrue(META_OPERATIONS.issubset(covered))
+
+    def test_real_catalog_trellis_meta_aliases_select_only_meta_patches(self) -> None:
+        """验证 meta 与 create-command 入口只选择依赖的四个 Patch。"""
+        runner = _load_runner()
+
+        for alias in (
+            "trellis-meta",
+            "meta-architecture",
+            "trellis-create-command",
+            "create-command",
+        ):
+            with self.subTest(alias=alias):
+                plan = runner.prepare_patches(OVERRIDES, ROOT, [alias])
+                self.assertEqual(set(plan["patches"]), META_PATCHES)
+                operation_ids = {item["id"] for item in plan["results"]}
+                self.assertEqual(operation_ids, META_OPERATIONS)
+                self.assertEqual(plan["bundles"], ["trellis-meta"])
+                skill = next(
+                    item["next"]
+                    for item in plan["files"]
+                    if item["target"] == ".agents/skills/trellis-meta/SKILL.md"
+                )
+                workflow = next(
+                    item["next"]
+                    for item in plan["files"]
+                    if item["target"].endswith(
+                        "trellis-meta/references/local-architecture/workflow.md"
+                    )
+                    and item["target"].startswith(".agents/")
+                )
+                self.assertIn("Flower/Skill-Garden managed Plugin overlays", skill)
+                self.assertIn("Do not choose implementation or checking behavior", workflow)
+                self.assertNotIn("dispatch `trellis-implement` by default", workflow)
 
     def test_real_catalog_task_intent_selects_complete_stale_recovery(self) -> None:
         """验证 Python consumer 的精细安装包含完整 stale recovery Patch。"""
@@ -928,19 +1124,41 @@ class PatchConsumerTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            "`direct_edit` requires known, bounded, local, low-risk, reversible scope",
+            "Asking for an opinion, expressing discomfort, rejecting a proposal",
+            workflow,
+        )
+        self.assertIn(
+            "Asking to inspect, explain, verify, or locate a cause is `inspect`",
+            workflow,
+        )
+        self.assertIn(
+            "`direct_edit` requires known, bounded, low-risk, reversible scope",
+            workflow,
+        )
+        self.assertIn(
+            "risk signals, not automatic `task_plan` outcomes",
+            workflow,
+        )
+        self.assertIn(
+            "exact rollback or mechanically synchronized known change",
             workflow,
         )
         self.assertIn("`fix item 1`, `change that`, `修一下`, `改一下`", workflow)
         self.assertIn("Only an explicit current-request workflow instruction", workflow)
         self.assertIn("python3 ./.trellis/scripts/spec_router.py", workflow)
+        self.assertIn("follow `load_strategy`", workflow)
+        self.assertIn("`sections` reads the listed ranges", workflow)
         self.assertIn(
             "apply the Active Task Scope Guard before artifact ownership",
             workflow,
         )
         self.assertIn("skill-garden patch workflow-phase-1-activate", workflow)
         self.assertIn(
-            "display the full brief in chat, then stop the current turn",
+            "Unless `trellis-task-brief` validates an explicit preauthorization",
+            workflow,
+        )
+        self.assertIn(
+            "After a later confirmation, or in the same turn",
             workflow,
         )
         self.assertIn("### Skill-Garden Workflow Owner Index", workflow)
@@ -963,6 +1181,7 @@ class PatchConsumerTest(unittest.TestCase):
             before_dev,
         )
         self.assertNotIn("spec_router.py", before_dev)
+        self.assertNotIn("load_strategy", before_dev)
         brainstorm = next(
             item["next"]
             for item in plan["files"]

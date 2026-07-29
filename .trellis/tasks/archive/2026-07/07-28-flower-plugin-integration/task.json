@@ -1,0 +1,28 @@
+{
+  "id": "flower-plugin-integration",
+  "name": "flower-plugin-integration",
+  "title": "Flower Plugin 跨模块集成、打包与端到端验收",
+  "description": "统一 CLI、打包、端到端矩阵和父任务最终集成验收。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P1",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-28",
+  "completedAt": "2026-07-29",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-28-flower-plugin-external-adapters"
+  ],
+  "parent": "07-28-flower-plugin-system",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

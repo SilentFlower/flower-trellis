@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "id": "session-context-update-boundary",
+  "purpose": "control_plane_integrity",
+  "operations": [
+    {
+      "id": "session-context-update-imports",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/session_context.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "imports-selector.py" },
+      "content": { "source": "imports-content.py" }
+    },
+    {
+      "id": "session-context-update-constants",
+      "operation": "remove",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/session_context.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "constants-selector.py" }
+    },
+    {
+      "id": "session-context-update-helpers",
+      "operation": "remove",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/session_context.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "helpers-selector.py" }
+    },
+    {
+      "id": "session-context-update-output",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/session_context.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "output-selector.py" },
+      "content": { "source": "output-content.py" }
+    }
+  ]
+}

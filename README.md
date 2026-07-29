@@ -64,9 +64,6 @@ flower-trellis self-update --target . --yes
 # 管理启动更新检查策略
 flower-trellis update-check get --target .
 
-# 交互管理通用技能,并查看工作流强化包
-flower-trellis skill
-
 # 卸载:移除 Trellis 本体并清理强化包残留
 flower-trellis uninstall
 
@@ -85,7 +82,7 @@ flower-trellis -v
 | `self-check` | 输出启动更新检查 JSON,供 Codex / Claude Code hook 和 AI 自动化读取 |
 | `self-update` | 受控升级 flower-trellis 并对目标项目执行完整 `flower-trellis update` 重叠加 |
 | `update-check` | 管理 `.trellis/.flower-manifest.json` 内的启动更新检查策略 |
-| `skill` | 打开交互菜单:启用或停用通用技能,只读查看工作流强化包 |
+| `plugin` | 管理 Flower Plugin、Marketplace 来源、GitLab 授权和作者校验 |
 | `uninstall` | 移除 Trellis 本体并清理强化包残留(支持 `-y` / `--dry-run`) |
 | `<其它命令>` | 原样透传给 Trellis,覆盖其现有及未来子命令 |
 | `-v` / `-h` | 打印版本 / 帮助 |
@@ -103,6 +100,64 @@ flower-trellis -v
 | `--backup-retention <n>` | `update` 成功后保留最近 n 份 `.trellis/.backup-<timestamp>` 快照(默认 3，`0` 表示本次不清理) |
 
 未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` / `--devin` / `--zcode` / `--trae` 等指定,或用 `-y` 跳过菜单。`--windsurf` 仍作为 Devin 的旧别名透传给 Trellis。其余未识别的 flag(如 `-u`、`-f`、`--template`、`--with-statusline`)一律透传给 Trellis。
+
+## Flower Plugin
+
+Flower Plugin 是 flower-trellis 的标准运行时格式。GitHub 公共仓库可自动识别 Flower、Codex、Claude Code 与 Skill-only 包，并先规范化为标准 Flower package，再进入同一套来源解析、依赖锁定、能力校验、内容投影、事务写入和卸载所有权。外部 `skills/` 与 Claude legacy `commands/*.md` 可导入；hooks、agents、MCP、LSP、monitor、bin、settings、themes、output styles 和 apps 只展示兼容性诊断，不会执行。
+
+完整 `flower-trellis init` 会安装 Trellis,并默认声明和应用内置 `flower/skill-garden`。普通用户只需打开 Plugin 管理器:
+
+```bash
+flower-trellis plugin
+```
+
+交互管理器采用 `发现 / 已安装 / 来源 / 问题` 四个页签。Trellis 项目的 `发现` 页会展示 `flower/skill-garden` 内置入口，按 Enter 直接管理工作流强化与可选通用技能；原 `flower-trellis skill` 命令继续保留为高级兼容入口。`发现` 同时合并全部已启用来源的 Plugin，并保留来源标签和即时搜索；未登录 GitLab 来源会直接进入 Device Flow，GitHub 公共来源无需登录。`来源` 页的“新增来源”可选择 GitHub 公共仓库或 GitLab Marketplace；GitHub 会先在临时缓存中下载固定快照、检测格式、展示可导入与忽略组件，确认后才保存。ref 留空时使用仓库默认分支；出现多个格式入口时会要求选择，公开 GitHub 跨仓 Marketplace 条目和 `plugins/*` 多 Plugin 仓库也可识别。
+
+安装、更新和卸载都会先展示 dry-run、依赖、capability 和目标文件变化，确认后才写入项目。Plugin 作者使用的 `plugin init`、`plugin validate` 继续保留在高级命令中，不占用普通用户的管理器首页。
+
+独立的 `plugin add` 只建立最小 Plugin Runtime,安装目标 Plugin 及其显式依赖,不会隐式安装 `skill-garden`,因此交互管理器也可以在没有 `.trellis/` 的普通项目中使用。
+
+项目状态分为可提交期望与本机应用结果:
+
+| 路径 | 边界 |
+|------|------|
+| `.flower/plugins.json` | 可提交;只记录用户直接声明的 Plugin |
+| `.flower/plugin-lock.json` | 可提交;记录固定版本、完整依赖图、来源与完整性摘要 |
+| `.flower/state.json` | 本机;记录实际平台、生成路径、ownership 与 Patch provenance |
+| `.flower/cache/`、`.flower/transactions/` | 本机;可清理缓存与事务恢复证据 |
+
+`rd-guide` 是随包预注册、默认启用但惰性访问的 GitLab Marketplace。打开管理器后，`发现` 页会在已有凭据时读取远程目录；未登录时只展示授权入口，不会尝试读取仓库内容。普通交互默认使用 Device Flow，PKCE 浏览器登录保留为来源详情中的高级选项。OAuth 只申请 `read_api read_repository`，Application Secret 和 token 都不会写入项目文件。
+
+GitHub 首版只支持 `github.com` 公共仓库和匿名 REST，不保存 PAT 或其它凭据。来源会固定确认后的格式入口；安装 lock 固定完整 commit 与 canonical digest，通过 Marketplace 发现时还会固定索引仓库和索引 commit。匿名 API 可能受每小时 60 次/IP 的主要限额影响，限流会显示为 GitHub 诊断，不会转成登录提示。
+
+能力分为 `standard`、`integration`、`system`:外部 Plugin 不能获得 `system`;`integration` 的首次 Patch 需要项目确认,批准摘要随锁文件冻结,版本、内容或权限变化后必须重新确认。所有 Patch 在统一 preflight 后进入事务 writer,任一 required operation 失败都应保持零写入。
+
+### 高级与自动化接口
+
+显式子命令主要供 CI、高级调试和不可交互环境使用。完整参数以 `flower-trellis plugin --help` 为准:
+
+```bash
+flower-trellis plugin list --json
+flower-trellis plugin add local/example --source plugins/example --platform codex
+flower-trellis plugin verify local/example --json
+flower-trellis plugin update local/example --dry-run --json
+flower-trellis plugin remove local/example --dry-run --json
+flower-trellis plugin source list --json
+flower-trellis plugin source add public-guides --type github --repo owner/repository --ref main --format auto --json
+flower-trellis plugin auth login rd-guide
+flower-trellis plugin search --source rd-guide --json
+flower-trellis plugin add rd-guide/example --platform codex --dry-run --json
+```
+
+维护 Plugin 或 Marketplace 时使用高级作者命令；这些命令复用 Runtime 的 manifest、完整性、依赖和 capability 真源:
+
+```bash
+flower-trellis plugin init --id rd-guide/example --name "示例规范" --profile standard --non-interactive
+flower-trellis plugin validate .flower-plugin --subject plugin --json
+flower-trellis plugin add flower/flower-plugin-author --platform codex --json
+```
+
+旧 `.trellis/.flower-manifest.json` 只作为迁移证据读取。下一次完整 init/update 会把期望、锁定和本机状态迁移到 `.flower/`,保留旧文件供核对;普通 `flower-trellis update` 重放已锁定版本,只有显式 `plugin update` 才解析外部 Plugin 新版本。
 
 ### 升级备份保留
 

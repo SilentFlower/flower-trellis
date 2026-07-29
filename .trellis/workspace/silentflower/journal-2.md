@@ -220,3 +220,295 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 63: Flower Plugin 外部格式适配完成
+
+**Date**: 2026-07-29
+**Task**: Flower Plugin 外部格式适配完成
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 GitHub 公共来源、Claude/Codex/skill-only 兼容识别、交互来源流程和 archive 安全误判修复；Check-All、Update-Spec、业务提交与推送已完成。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8701039` | (see git log) |
+| `4699a22` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 64: 归档 Flower Plugin 体系任务树
+
+**Date**: 2026-07-29
+**Task**: 归档 Flower Plugin 体系任务树
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+接受 Flower Plugin 任务树剩余 4 条 decision；补充 GitLab Marketplace 与父任务 release 核对；归档 6 个叶子任务、integration 任务和 system 父任务，active task 清零。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3c664c3` | (see git log) |
+| `0d7c5b1` | (see git log) |
+| `3688744` | (see git log) |
+| `32ec993` | (see git log) |
+| `2e9fd18` | (see git log) |
+| `4e34b87` | (see git log) |
+| `3db8320` | (see git log) |
+| `8701039` | (see git log) |
+| `4699a22` | (see git log) |
+| `e37dbe4` | (see git log) |
+| `25e8efc` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 65: 修复 auto-loop 重试预算与跟踪文件
+
+**Date**: 2026-07-29
+**Task**: 修复 auto-loop 重试预算与跟踪文件
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+修复 auto-loop fix/recheck 预算 off-by-one，调整 trellis-auto-loop 入口措辞，写入 auto-loop task progress，并将 manifest revision 历史迁移到旁路 JSONL；补充回归测试、规范和任务记录，已完成推送。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `450bc0a` | (see git log) |
+| `19d7a1a` | (see git log) |
+| `8b69cc2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 66: 优化 trellis-push 门禁与意图识别
+
+**Date**: 2026-07-29
+**Task**: 优化 trellis-push 门禁与意图识别
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+将显式 Push 的 Check-All/Update-Spec 状态改为同一计划内的审计证据，修正设计反馈、检查请求、精确回退与任务规划之间的意图分类边界，并完成全量验证、规范更新和双仓推送。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8d60511` | (see git log) |
+| `8abf3b1` | (see git log) |
+| `9ad6a95` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 67: 完成 spec_router 章节感知加载
+
+**Date**: 2026-07-29
+**Task**: 完成 spec_router 章节感知加载
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+实现 full、sections、outline 加载策略，完成 Skill-Garden、快照与 dogfood 同步，通过完整检查并推送；随后归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6432565` | (see git log) |
+| `0d51a24` | (see git log) |
+| `e6e4519` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 68: 支持 Brief 显式预授权免除重复确认
+
+**Date**: 2026-07-29
+**Task**: 支持 Brief 显式预授权免除重复确认
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+为 Phase 1.4 增加当前对话内的显式 Brief 预授权窄例外，保留默认确认、高风险失效边界及完整 Brief 展示，并同步 Skill-Garden、发布快照、dogfood、规范与测试。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7c179af` | (see git log) |
+| `01c9dae` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 69: 补全 Trellis Meta 架构与 Auto-Loop 自恢复
+
+**Date**: 2026-07-29
+**Task**: 补全 Trellis Meta 架构与 Auto-Loop 自恢复
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+通过 Skill-Garden Patch 补全 Trellis Meta 的增强架构，修复 Auto-Loop Check artifact drift 的 action 内自恢复，并新增 Meta 联动复核合同；双仓测试、同步与推送已完成。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `943179f` | (see git log) |
+| `1812258` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 70: 修复 Windows Python Patch 命令漂移
+
+**Date**: 2026-07-29
+**Task**: 修复 Windows Python Patch 命令漂移
+**Package**: skill-garden
+**Branch**: `beta`
+
+### Summary
+
+修复 Trellis 0.6.5 在 Windows python 与 py -3 渲染下的 Patch 预检漂移，补齐可信 Runtime 文本物化、JS/Python parity 与 Session Context full-only Patch；完整检查通过并已推送两个仓库。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9c35c52` | (see git log) |
+| `5892e7f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

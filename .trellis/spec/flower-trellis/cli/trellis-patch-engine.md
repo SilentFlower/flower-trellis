@@ -232,15 +232,15 @@ Phase 正向断言必须包含 managed marker、heading 和 section 首句形成
 
 ## Unified Apply Pipeline
 
-Trellis 0.6 的 `applyEnhancements()` 顺序固定：
+Trellis 0.6 的 builtin skill-garden Runtime 顺序固定：
 
 1. 解析 variant 和精细安装选择。
 2. 读取共享 policy 并先执行版本兼容检查；invalid 或未支持的新 minor/major 直接返回包含 `--no-enhance` 的 error，不能被旧 catalog 的 selector/baseline 漂移掩盖。
 3. 同时加载 Skill-Garden catalog 与 Flower platform catalog，对所有 required Patch 全量 preflight，在内存得到最终文件。
 4. 校验 conflict rule 的 operation/target 引用并执行最终产物断言；同一兼容线未登记版本到此时才输出 warning，任一 error 时零写入。
-5. 统一 apply，再复制 skill、script、Flower asset 和已启用 common skill。
-6. 全装时按旧 manifest 精确清理 stale path。
-7. 所有步骤成功后写包含 Patch provenance 的 manifest。
+5. 把 PatchMutation 与内容 mutation 合并为一个 InstallPlan；同 owner 重叠必须最终 hash 相同。
+6. Transaction Writer 一次写目标、声明、lock 和 state；Patch provenance 写 state `patches[]`。
+7. 旧 manifest 只读迁移并保留，不进入成功写链。
 
 0.6 禁止再调用 `injectWorkflow()`、skill/hook override injector 或 Codex/Claude tweak。`injectWorkflow()` 与旧 tweak 只服务 0.5/old。
 
@@ -257,7 +257,8 @@ Skill-Garden 独立安装器顺序同样固定：版本/目标解析 → 共享 
 
 ## Provenance
 
-全装成功 manifest 必须写：
+全装成功 state 的 `flower/skill-garden.patches[]` 必须写 qualified operation、target 与 resultHash；
+旧 manifest 的下列 provenance 结构只用于迁移兼容，不再新写：
 
 ```json
 {
@@ -316,6 +317,90 @@ provenance 必须在首次应用与重复应用之间稳定；不得把本轮 `c
 | 已有目标、新建目标父目录或备份目录通过软链逃逸 | preflight/apply 失败，项目外零写入 |
 | preflight 后目标变化 | apply 前整体停止 |
 | 重复全装 | Patch 修改数为 0，目标文件树与 manifest 不变 |
+
+## Scenario: Target Python Command Materialization
+
+### 1. Scope / Trigger
+
+- Trigger：Trellis 0.6 目标项目可能把 canonical `python3` 渲染成 `python` 或 `py -3`，并因此影响 Patch selector、baseline、content、conflict assertion、平台 Hook 与随包文本资产。
+- Scope：只对 Flower 可信 builtin 的 0.6 Patch catalog、policy、结构化 Hook adapter 和明确标记的 Skill-Garden 文本投影生效；不得扩展 Patch/Bundle schema，不得改写外部 Plugin catalog，也不得把文本命令当作 Python subprocess 的单个 executable argv。
+
+### 2. Signatures
+
+```js
+resolveTrellisPythonCommand(target, options = {}) -> { command, source }
+materializeTrellisPythonText(value, command) -> string
+preparePatchPlan(target, catalogs, options = {}) -> PatchPlan
+projectSkillGardenContent(options) -> ContentProjection
+flowerPatchAdapters(pythonCommand = "python3") -> AdapterRegistry
+```
+
+可信 builtin catalog 通过 Runtime descriptor 传递命令：
+
+```js
+textMaterialization: { trellisPythonCommand: command }
+```
+
+Python 独立 consumer 使用等价入口：
+
+```python
+_resolve_trellis_python_command(target_root: Path) -> str
+_materialize_trellis_python_text(value: str, command: str) -> str
+prepare_patches(overrides_dir, target_root, skills=None, python_command=None) -> dict
+```
+
+### 3. Contracts
+
+- 命令证据优先级固定为 `.codex/hooks.json` → `.claude/settings.json` → `.trellis/workflow.md` → `TRELLIS_PYTHON_CMD` → 平台回退；目标文件证据只识别 `python3`、`python`、`py -3` 对 Trellis/Hook 脚本的真实调用。
+- `TRELLIS_PYTHON_CMD` 允许调用方显式传入非空命令，但必须去除首尾空白并拒绝换行、回车和 NUL；无证据时 Windows 回退为 `python`，其它平台回退为 `python3`。
+- 同一次 builtin 规划必须把同一个解析结果传给 Skill-Garden 与 Flower catalog descriptor、`flowerPatchAdapters()` 和 Skill-Garden 内容投影，禁止各 consumer 独立猜测平台命令。
+- 文本物化按行处理，只替换非 shebang 行中的 canonical `python3`；命令为 `python3` 时必须保持原字节不变。
+- Patch selector、content、全部 baseline 与 conflict policy assertion 必须在精确匹配和冲突检查前物化；结构化 Hook adapter 与发布文本资产必须使用同一命令。
+- `catalogHash` 继续绑定 canonical 原始 catalog/policy 文件，不能因目标命令不同而变化；目标 `beforeHash` / `afterHash` 必须按目标项目的实际字节计算。
+- `textMaterialization` 是 Flower 可信 system catalog 的 Runtime descriptor，不是外部 Plugin manifest/catalog 能力；外部 catalog 经过安全规范化后不得携带该字段或获得 system adapter。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 错误 / 结果 |
+|---|---|
+| 目标证据为 `python3` | 物化 no-op，canonical 字节与 hash 保持稳定 |
+| 目标证据为 `python` 或 `py -3` | selector、baseline、content、assertion、Hook 和文本投影统一物化 |
+| 多个证据或环境变量并存 | 按固定证据文件顺序取首个命中，目标证据优先于环境变量 |
+| `TRELLIS_PYTHON_CMD` 为空、含换行/回车或 NUL | 规划前失败，目标、内容、lock/state 零写入 |
+| 目标文件含未知命令或无 Trellis 脚本调用 | 不作为证据，继续环境变量或平台回退 |
+| 外部 Plugin 尝试自报 descriptor 或 adapter | 规范化/能力边界拒绝或丢弃，不能进入可信 Runtime 路径 |
+| 只物化 Patch 载荷但目标仍有其它 canonical 文本 | hash/冲突/内容一致性检查失败，事务不得部分写入 |
+
+### 5. Good / Base / Bad Cases
+
+#### Good
+
+- Windows 目标的 `.codex/hooks.json` 已使用 `py -3`；Provider 解析一次并让两个 builtin catalog、Hook adapter、Skill 内容投影和 Python consumer 都产出 `py -3`，完整 preflight 后原子提交。
+
+#### Base
+
+- Linux/macOS 目标没有覆盖且使用 canonical `python3`；物化函数返回原文，既有 catalog hash、selector 和 compiled target 保持稳定。
+
+#### Bad
+
+- 为 Windows 复制一套 selector/content/baseline 文件，或只放宽 selector 来绕过 fingerprint 漂移。
+- 把 `py -3` 作为单个 subprocess executable 传入 argv，混淆“文本命令渲染”和“进程启动参数”两个边界。
+- 允许外部 Plugin 通过 catalog JSON 自报 `textMaterialization`，从而改写 selector、policy 或 system Hook adapter。
+
+### 6. Tests Required
+
+- JS helper：覆盖三种命令、证据优先级、环境变量和平台回退、shebang 保留、非法命令拒绝。
+- JS Patch Engine / conflict policy：覆盖 literal selector、content、whole-file baseline、conflict assertion 的 `python` / `py -3` 物化，以及 strict drift 和零写入。
+- builtin Plugin Runtime：断言两个可信 catalog、system adapter 和内容投影共享同一命令；断言外部 catalog 不能注入 descriptor。
+- 真实 CLI：至少分别用 `python`、`py -3` 跑 `init --enhance-only`，验证 workflow、Hook、Skill 文本、重复执行与事务状态。
+- Python runner：覆盖同样的解析与物化矩阵，并与 JS consumer 对同一 fixture 的 plan/target 结果保持 parity。
+- 发布门禁：继续运行 snapshot sync、compiled target check、Patch conflict check 与 `npm test`，确保 canonical `python3` 产物无漂移。
+
+### 7. Wrong vs Correct
+
+Wrong：直接修改 canonical Patch 资产为 Windows 命令，或仅替换目标正文而让 selector、baseline、conflict assertion、Hook adapter 继续使用 `python3`。
+
+Correct：保留单份 canonical `python3` 资产，由可信 builtin Provider 从目标证据解析一次命令，通过 Runtime descriptor 和共享参数在 preflight 前一致物化所有声明式匹配材料、结构化 adapter 与明确文本投影，同时保持原始 catalog hash 和 JS/Python consumer parity。
 
 ## Scenario: Compiled Target Output Commit Boundary
 

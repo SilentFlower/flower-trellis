@@ -62,25 +62,31 @@ test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Upd
     sourceRoot,
     ".agents/skills/trellis-check-all/SKILL.md",
   );
+  const checkAllReporting = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
+  );
   const push = read(sourceRoot, ".agents/skills/trellis-push/SKILL.md");
   const updateSpec = read(
     sourceRoot,
     "overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md",
   );
 
-  const postCheck = checkAll.slice(
-    checkAll.indexOf("## Interactive Post-Check Stop Gate"),
-    checkAll.indexOf("## 反模式"),
+  const postCheck = checkAllReporting.slice(
+    checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),
+    checkAllReporting.length,
   );
-  const autoLoopReturn = checkAll.slice(
-    checkAll.indexOf("## Auto-Loop Return Gate"),
-    checkAll.indexOf("## Interactive Post-Check Stop Gate"),
+  const autoLoopReturn = checkAllReporting.slice(
+    checkAllReporting.indexOf("## Auto-Loop Return Gate"),
+    checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),
   );
   assert.match(autoLoopReturn, /不提示用户回复“继续”/);
-  assert.match(autoLoopReturn, /`record \+ next` 就是唯一后续动作/);
+  assert.match(autoLoopReturn, /record 成功后立即 `next`/);
+  assert.match(autoLoopReturn, /status=retryable reason=artifact-drift/);
+  assert.match(autoLoopReturn, /不得 `next`/);
   assert.doesNotMatch(autoLoopReturn, /提示用户回复 `继续`/);
   assert.match(postCheck, /最新用户消息识别 direct Git intent/);
-  assert.match(postCheck, /整体结论通过、问题数为 0、无阻塞、无部分验证/);
+  assert.match(postCheck, /整体结论通过、剩余 `CHK-\*` 为 0、无阻塞、无部分验证/);
   assert.match(postCheck, /标准报告输出后，同一轮进入 Phase 3\.3 `trellis-update-spec`/);
   assert.match(postCheck, /普通 interactive 检查保持原行为：报告后立即停止并等待用户选择/);
   assert.match(postCheck, /### 交互式下一步引导/);
@@ -94,23 +100,22 @@ test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Upd
   assert.match(inlineState, /next\/continue.*runs `trellis-update-spec`/);
   assert.doesNotMatch(state, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.doesNotMatch(inlineState, /spec_update_result|changed_files|\.trellis\/spec/);
-  assert.match(checkAll, /## Interactive Post-Check Stop Gate/);
-  assert.match(checkAll, /普通 interactive 检查保持原行为/);
+  assert.match(checkAllReporting, /## Interactive Post-Check Stop Gate/);
+  assert.match(checkAllReporting, /普通 interactive 检查保持原行为/);
   assert.match(state, /later interactive next\/continue runs `trellis-update-spec`/);
   assert.match(state, /follow the `Interactive Post-Check Stop Gate`/);
   assert.match(state, /matching direct Git strict pass may continue to `trellis-update-spec`/);
   assert.doesNotMatch(state, /no-op.*written|partial verification|material residual risk/);
   assert.match(updateSpec, /Interactive direct Git/);
-  assert.match(push, /任何普通 push 或用户 `commit-only`/);
-  assert.match(push, /当前有效的 `spec_update_result`/);
-  assert.match(push, /先加载 `trellis-update-spec`/);
-  assert.match(push, /缺少有效 Check-All/);
-  assert.match(push, /此分支不得运行 Update-Spec，也不得读取 Git 计划/);
-  assert.match(push, /`spec_update_result\.status=written` 的 `changed_files`/);
-  assert.match(push, /全部位于 `\.trellis\/spec\/\*\*`/);
-  assert.match(push, /不触发额外 Check-All/);
-  assert.ok(push.indexOf("缺少有效 Check-All") < push.indexOf("当前有效的 `spec_update_result`"));
+  assert.match(push, /普通 push 或用户 `commit-only` 已经构成明确 Git 意图/);
+  assert.match(push, /根据当前 `spec_update_result` 与实际 diff 标记/);
+  assert.match(push, /本步骤不得返回 Phase 2\.2/);
+  assert.match(push, /不得加载 `trellis-check-all` 或 `trellis-update-spec`/);
+  assert.match(push, /不会阻止读取 Git 状态或生成提交计划/);
+  assert.match(push, /### 完成链证据/);
+  assert.match(push, /`未运行`、`已失效`、findings、blocked、部分验证或 `needs-review` 同时计入风险区/);
   assert.match(push, /auto-loop 内部 `commit-only` 已由 runner/);
+  assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);
 });
 
 test("auto-loop 对 Update-Spec 三态使用确定性 record 映射", () => {
@@ -134,6 +139,8 @@ test("0.6 发布快照包含相同 Update-Spec 自主决策协议", () => {
     "overrides/patches/workflow/states-in-progress/inline-content.md",
     ".agents/skills/trellis-auto-loop/SKILL.md",
     ".claude/skills/trellis-auto-loop/SKILL.md",
+    ".agents/skills/trellis-push/SKILL.md",
+    ".claude/skills/trellis-push/SKILL.md",
     "scripts/auto_loop.py",
   ];
 

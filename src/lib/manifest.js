@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
+import { ProjectStore } from "../plugin/state/project-store.js";
 
 /**
  * flower-trellis 自己的安装清单。
@@ -11,7 +13,9 @@ import path from "node:path";
  * 放在 .trellis/ 下,随项目的 Trellis 生命周期存在(uninstall 删 .trellis 时一并消失)。
  */
 const MANIFEST_REL = path.join(".trellis", ".flower-manifest.json");
-const UPDATE_CHECK_CACHE_REL = path.join(".trellis", ".flower-update-check.tmp");
+const LEGACY_UPDATE_CHECK_CACHE_REL = path.join(".trellis", ".flower-update-check.tmp");
+const SETTINGS_REL = path.join(".flower", "settings.json");
+const UPDATE_CHECK_CACHE_REL = path.join(".flower", "update-check.tmp");
 const UPDATE_POLICIES = new Set(["off", "notify", "ask", "auto"]);
 const UPDATE_CHECK_POLICY_KEYS = new Set(["enabled", "policy", "intervalHours"]);
 const UPDATE_CHECK_CACHE_KEYS = new Set([
@@ -164,14 +168,108 @@ function normalizeUpdateCheckCache(value) {
   };
 }
 
-/** 读取 tmp 内的 updateCheck 运行缓存;不存在或损坏时返回 null。 */
-function readUpdateCheckCacheFile(target) {
+/**
+ * 读取 JSON 状态，并保留损坏证据供写入路径拒绝覆盖。
+ *
+ * @param {string} target 文件路径
+ * @returns {{status:"missing"|"valid"|"corrupt",value:object|null,error?:Error}} JSON 状态
+ */
+function readJsonFileStatus(target) {
   try {
-    return normalizeUpdateCheckCache(
-      JSON.parse(fs.readFileSync(updateCheckCachePath(target), "utf8")),
-    );
-  } catch {
-    return null;
+    const stat = fs.lstatSync(target);
+    if (stat.isSymbolicLink() || !stat.isFile()) {
+      return {
+        status: "corrupt",
+        value: null,
+        error: new Error("JSON 状态必须是普通文件"),
+      };
+    }
+    return { status: "valid", value: JSON.parse(fs.readFileSync(target, "utf8")) };
+  } catch (error) {
+    if (error?.code === "ENOENT") return { status: "missing", value: null };
+    return { status: "corrupt", value: null, error };
+  }
+}
+
+/** 读取 JSON；文件不存在或损坏时返回 null。 */
+function readJsonFile(target) {
+  const result = readJsonFileStatus(target);
+  return result.status === "valid" ? result.value : null;
+}
+
+/** 读取并校验 update-check settings 外层结构。 */
+function readSettingsStatus(target) {
+  const result = readJsonFileStatus(settingsPath(target));
+  if (result.status !== "valid") return result;
+  if (
+    !isPlainObject(result.value) ||
+    result.value.schemaVersion !== 1 ||
+    !isPlainObject(result.value.updateCheck)
+  ) {
+    return {
+      status: "corrupt",
+      value: null,
+      error: new Error("update-check settings 结构无效"),
+    };
+  }
+  return result;
+}
+
+/** 读取新位置或旧位置的 updateCheck 运行缓存。 */
+function readUpdateCheckCacheFile(target) {
+  const current = readJsonFile(updateCheckCachePath(target));
+  if (current) return normalizeUpdateCheckCache(current);
+  const legacy = readJsonFile(path.join(target, LEGACY_UPDATE_CHECK_CACHE_REL));
+  return legacy ? normalizeUpdateCheckCache(legacy) : null;
+}
+
+/**
+ * 在 `.flower/` 内 changed-only 原子写 JSON。
+ *
+ * @param {string} target 项目根
+ * @param {string} filePath 文件绝对路径
+ * @param {object} value JSON 值
+ * @returns {object} 写入值
+ */
+function writeFlowerJson(target, filePath, value) {
+  new ProjectStore(target).ensureLayout();
+  const content = JSON.stringify(value, null, 2) + "\n";
+  try {
+    const stat = fs.lstatSync(filePath);
+    if (stat.isSymbolicLink() || !stat.isFile()) {
+      throw new Error(`update-check 状态必须是普通文件:${filePath}`);
+    }
+    if (fs.readFileSync(filePath, "utf8") === content) return value;
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  const temporary = path.join(
+    path.dirname(filePath),
+    `.${path.basename(filePath)}.${process.pid}.${crypto.randomBytes(6).toString("hex")}.tmp`,
+  );
+  let descriptor = null;
+  try {
+    descriptor = fs.openSync(temporary, "wx", 0o600);
+    fs.writeFileSync(descriptor, content, "utf8");
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = null;
+    fs.renameSync(temporary, filePath);
+    return value;
+  } catch (error) {
+    if (descriptor !== null) {
+      try {
+        fs.closeSync(descriptor);
+      } catch {
+        // 保留原始写入错误。
+      }
+    }
+    try {
+      fs.unlinkSync(temporary);
+    } catch (cleanupError) {
+      if (cleanupError?.code !== "ENOENT") throw cleanupError;
+    }
+    throw error;
   }
 }
 
@@ -188,10 +286,7 @@ function hasLegacyUpdateCheckCache(updateCheck) {
 function migrateLegacyUpdateCheckCache(target, updateCheck) {
   if (!hasLegacyUpdateCheckCache(updateCheck)) return;
   if (fs.existsSync(updateCheckCachePath(target))) return;
-  fs.writeFileSync(
-    updateCheckCachePath(target),
-    JSON.stringify(normalizeUpdateCheckCache(updateCheck), null, 2) + "\n",
-  );
+  writeFlowerJson(target, updateCheckCachePath(target), normalizeUpdateCheckCache(updateCheck));
 }
 
 /** 写入 tmp 内的 updateCheck 运行缓存。 */
@@ -202,7 +297,7 @@ function writeUpdateCheckCache(target, patch, legacyUpdateCheck) {
     ...current,
     ...patch,
   });
-  fs.writeFileSync(updateCheckCachePath(target), JSON.stringify(cache, null, 2) + "\n");
+  writeFlowerJson(target, updateCheckCachePath(target), cache);
   return cache;
 }
 
@@ -227,6 +322,16 @@ export function updateCheckCachePath(target) {
 }
 
 /**
+ * updateCheck 用户策略文件的绝对路径。
+ *
+ * @param {string} target 目标项目根
+ * @returns {string} settings 文件绝对路径
+ */
+export function settingsPath(target) {
+  return path.join(target, SETTINGS_REL);
+}
+
+/**
  * 读取 manifest;不存在或损坏时返回 null。
  *
  * @param {string} target 目标项目根
@@ -237,6 +342,27 @@ export function readManifest(target) {
     return JSON.parse(fs.readFileSync(manifestPath(target), "utf8"));
   } catch {
     return null;
+  }
+}
+
+/**
+ * 读取旧 manifest 的迁移状态，并区分缺失与损坏。
+ *
+ * @param {string} target 目标项目根
+ * @returns {{status:"missing"|"valid"|"corrupt",manifest:object|null,error?:Error}} 迁移证据
+ */
+export function readLegacyManifestStatus(target) {
+  const filePath = manifestPath(target);
+  try {
+    const text = fs.readFileSync(filePath, "utf8");
+    const manifest = JSON.parse(text);
+    if (!isPlainObject(manifest)) {
+      return { status: "corrupt", manifest: null, error: new Error("旧 manifest 必须是对象") };
+    }
+    return { status: "valid", manifest };
+  } catch (error) {
+    if (error?.code === "ENOENT") return { status: "missing", manifest: null };
+    return { status: "corrupt", manifest: null, error };
   }
 }
 
@@ -265,8 +391,10 @@ export function normalizeUpdateCheck(value) {
  */
 export function readUpdateCheck(target) {
   const manifestUpdateCheck = readManifest(target)?.updateCheck;
+  const settings = readSettingsStatus(target);
+  const settingsUpdateCheck = settings.status === "valid" ? settings.value.updateCheck : null;
   return {
-    ...normalizeUpdateCheckPolicy(manifestUpdateCheck),
+    ...normalizeUpdateCheckPolicy(settingsUpdateCheck || manifestUpdateCheck),
     ...(
       readUpdateCheckCacheFile(target) ||
       // 兼容旧版本:首次写入前仍可复用 manifest 里的运行缓存。
@@ -278,38 +406,41 @@ export function readUpdateCheck(target) {
 /**
  * 写入启动更新检查配置。
  *
- * 策略字段写入 `.flower-manifest.json`;运行缓存字段写入 `.flower-update-check.tmp`。
- * 若旧 manifest 仍包含缓存字段,本函数会在写入时顺带清理,避免运行态继续进入 git。
+ * 策略字段写入 `.flower/settings.json`;运行缓存字段写入
+ * `.flower/update-check.tmp`。旧 manifest 与旧 tmp 只读兼容，不再改写。
  *
  * @param {string} target 目标项目根
  * @param {object} patch 要合并进 updateCheck 的字段
- * @returns {object|null} 写入后的 manifest;没有 manifest 且仅写缓存时返回 null
+ * @returns {object} 写入后的 updateCheck 合并视图
  */
 export function writeUpdateCheck(target, patch) {
-  const current = readManifest(target);
+  const legacy = readManifest(target)?.updateCheck;
+  const settings = readSettingsStatus(target);
+  const currentSettings = settings.status === "valid" ? settings.value : null;
   const policyPatch = pickOwn(patch, UPDATE_CHECK_POLICY_KEYS);
   const cachePatch = pickOwn(patch, UPDATE_CHECK_CACHE_KEYS);
   const hasPolicyPatch = Object.keys(policyPatch).length > 0;
   const hasCachePatch = Object.keys(cachePatch).length > 0;
-  const hasLegacyCache = hasLegacyUpdateCheckCache(current?.updateCheck);
 
-  if (hasCachePatch && current) {
-    writeUpdateCheckCache(target, cachePatch, current.updateCheck);
-  } else if (hasLegacyCache) {
-    migrateLegacyUpdateCheckCache(target, current.updateCheck);
+  if (hasPolicyPatch && settings.status === "corrupt") {
+    throw new Error(`update-check settings 损坏，拒绝覆盖:${settingsPath(target)}`);
   }
+  if (hasCachePatch) writeUpdateCheckCache(target, cachePatch, legacy);
+  else if (hasLegacyUpdateCheckCache(legacy)) migrateLegacyUpdateCheckCache(target, legacy);
 
-  if (!hasPolicyPatch && !hasLegacyCache) return current;
-
-  const next = {
-    ...(current || {}),
-    updateCheck: normalizeUpdateCheckPolicy({
-      ...normalizeUpdateCheckPolicy(current?.updateCheck),
-      ...policyPatch,
-    }),
-  };
-  fs.writeFileSync(manifestPath(target), JSON.stringify(next, null, 2) + "\n");
-  return next;
+  if (hasPolicyPatch) {
+    writeFlowerJson(target, settingsPath(target), {
+      schemaVersion: 1,
+      updateCheck: normalizeUpdateCheckPolicy({
+        ...normalizeUpdateCheckPolicy(currentSettings?.updateCheck || legacy),
+        ...policyPatch,
+      }),
+    });
+  }
+  if (!hasPolicyPatch && !hasCachePatch && hasLegacyUpdateCheckCache(legacy)) {
+    migrateLegacyUpdateCheckCache(target, legacy);
+  }
+  return readUpdateCheck(target);
 }
 
 /**

@@ -1,0 +1,1 @@
+description: "Understand and customize local Trellis architecture, including Flower/Skill-Garden managed Plugin overlays, Patch ownership, platform hooks, settings, agents, skills, commands, prompts, workflows, channel runtime, bundled runtime agents, workflow templates, spec refresh, cross-session memory, and bundled-skill distribution."

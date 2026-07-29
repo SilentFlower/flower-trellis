@@ -94,6 +94,9 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   );
   const route = readSource(".agents/skills/trellis-route/SKILL.md");
   const checkAll = readSource(".agents/skills/trellis-check-all/SKILL.md");
+  const checkAllReporting = readSource(
+    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
+  );
   const push = readSource(".agents/skills/trellis-push/SKILL.md");
   const autoLoop = readSource(".agents/skills/trellis-auto-loop/SKILL.md");
   const finish = readSource(
@@ -101,14 +104,19 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   );
   const progress = readSource("scripts/task_progress.py");
 
-  assert.match(requestTriage, /`direct_edit` requires known, bounded, local, low-risk, reversible scope/);
+  assert.match(requestTriage, /Asking for an opinion, expressing discomfort, rejecting a proposal/);
+  assert.match(requestTriage, /Asking to inspect, explain, verify, or locate a cause is `inspect`/);
+  assert.match(requestTriage, /`direct_edit` requires known, bounded, low-risk, reversible scope/);
+  assert.match(requestTriage, /risk signals, not automatic `task_plan` outcomes/);
+  assert.match(requestTriage, /exact rollback or mechanically synchronized known change/);
   assert.match(requestTriage, /task_intent\.py discard --task <current-task>/);
   assert.match(requestTriage, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(requestTriage, /apply the Active Task Scope Guard before artifact ownership, task routing, or file edits/);
   assert.match(brainstorm, /Wait for the user's planning review confirmation/);
   assert.match(brainstormQualityBar, /contains testable acceptance criteria/);
   assert.match(brainstormQualityBar, /Repository-answerable questions have already been answered/);
-  assert.match(taskBrief, /等待用户确认 planning artifacts 和 brief/);
+  assert.match(taskBrief, /默认等待用户确认后再运行 `task\.py start`/);
+  assert.match(taskBrief, /免除第二次确认/);
   assert.match(beforeDev, /Follow the workflow `Request Triage` Project Knowledge Discovery contract/);
   assert.doesNotMatch(beforeDev, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(updateHook, /priority: blocking_confirmation_required/);
@@ -118,23 +126,27 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(route, /合法 route 决策必须能追溯到/);
   assert.match(route, /回到 Phase 2\.1 completion contract 解析 Pre-Check/);
   assert.ok(
-    checkAll.indexOf("## Auto-Loop Return Gate")
-      < checkAll.indexOf("## Interactive Post-Check Stop Gate"),
+    checkAllReporting.indexOf("## Auto-Loop Return Gate")
+      < checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),
   );
-  assert.equal((checkAll.match(/## Interactive Post-Check Stop Gate/g) || []).length, 1);
-  assert.match(checkAll, /不新增 direct Git 专用摘要/);
+  assert.equal((checkAllReporting.match(/## Interactive Post-Check Stop Gate/g) || []).length, 1);
+  assert.match(checkAll, /本 skill 是 \*\*薄入口\*\*/);
+  assert.match(checkAllReporting, /不新增 direct Git 专用摘要/);
   assert.match(activeState, /follow the `Interactive Post-Check Stop Gate`/);
   assert.doesNotMatch(activeState, /no-op.*written|partial verification|material residual risk/);
   assert.match(push, /Phase 3\.4 唯一的代码提交入口/);
-  assert.match(push, /## Step 0：交互式完成链门禁/);
-  assert.match(push, /当前有效的 `spec_update_result`/);
+  assert.match(push, /## Step 0：记录完成链证据/);
+  assert.match(push, /根据当前 `spec_update_result` 与实际 diff 标记/);
+  assert.match(push, /本步骤不得返回 Phase 2\.2/);
+  assert.match(push, /不得加载 `trellis-check-all` 或 `trellis-update-spec`/);
   assert.match(push, /auto-loop 内部 `commit-only`/);
   assert.match(push, /git commit --only/);
   assert.match(autoLoop, /## Commit-Only/);
   assert.match(autoLoop, /`review_planning_readiness`/);
   assert.match(autoLoop, /`resolve_open_questions`/);
   assert.match(autoLoop, /不逐任务执行 `confirm_brief`/);
-	assert.match(autoLoop, /其它变化按 `artifact-drift` 阻塞/);
+  assert.match(autoLoop, /Check record 中其它变化进入有限自纠/);
+  assert.match(autoLoop, /其它 action 仍按 `artifact-drift` 阻塞/);
   assert.match(finish, /This skill owns only the current task's release audit, archive bookkeeping/);
   assert.match(finish, /### 1\. Decision Audit/);
   assert.match(finish, /decision_log\.py status --task <task-name> --json/);
@@ -178,6 +190,11 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
     "For non-destructive `direct_edit`",
     "无任务非平凡 inspect/direct_edit",
   );
+  assert.match(requestTriage, /follow `load_strategy`/);
+  assert.match(requestTriage, /`sections` reads the listed ranges/);
+  assert.doesNotMatch(noTask, /load_strategy/);
+  assert.doesNotMatch(planning, /load_strategy/);
+  assert.doesNotMatch(inProgress, /load_strategy/);
 
   for (const [name, value, downstream] of [
     ["planning", planning, "Before `task.py start`"],
@@ -220,19 +237,21 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.match(route, /focused validation 完成后都必须返回 workflow Phase 2\.1/);
   assertOrdered(
     push,
-    "## Step 0：交互式完成链门禁",
+    "## Step 0：记录完成链证据",
     "## Step 1：发现仓库与任务",
-    "direct push 先经过 Update-Spec 门禁",
+    "direct push 先记录完成链证据",
   );
-  assert.match(push, /缺少有效 Check-All/);
-  assert.match(push, /Check-All 有效后检查当前有效的 `spec_update_result`/);
-  assert.match(push, /`spec_update_result\.status=written` 的 `changed_files`/);
-  assert.match(push, /该 Update-Spec 自校验结果不触发额外 Check-All/);
+  assert.match(push, /普通 push 或用户 `commit-only` 已经构成明确 Git 意图/);
+  assert.match(push, /不会阻止读取 Git 状态或生成提交计划/);
+  assert.match(push, /### 完成链证据/);
+  assert.match(push, /Check-All：<通过 \/ 未运行 \/ 已失效 \/ 存在 findings \/ blocked \/ 部分验证>/);
+  assert.match(push, /Update-Spec：<no-op \/ written \/ needs-review \/ 未运行 \/ 已失效>/);
+  assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);
   assertOrdered(
     push,
-    "缺少有效 Check-All",
-    "Check-All 有效后检查当前有效的 `spec_update_result`",
-    "direct Git 前置结果分层复用",
+    "普通 push 或用户 `commit-only` 已经构成明确 Git 意图",
+    "不会阻止读取 Git 状态或生成提交计划",
+    "direct Git 证据只读不阻断",
   );
   assert.match(autoLoop, /`refresh_brief`/);
   assert.match(autoLoop, /无需再次让用户确认/);

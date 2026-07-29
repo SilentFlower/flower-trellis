@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 2,
+  "id": "trellis-meta-managed-workflow-owners",
+  "purpose": "managed_workflow_owners",
+  "operations": [
+    {
+      "id": "trellis-meta-managed-workflow-source",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".agents/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".claude/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".devin/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".factory/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".github/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".pi/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".trae/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" }
+      ],
+      "selector": { "type": "literal", "source": "workflow-source-selector.md", "expectedMatches": 1 },
+      "content": { "source": "workflow-source-content.md" }
+    },
+    {
+      "id": "trellis-meta-managed-owner-routing",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".agents/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".claude/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".devin/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".factory/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".github/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".pi/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".trae/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" }
+      ],
+      "selector": { "type": "markdown-section", "heading": "## Skill Routing" },
+      "baselines": ["owner-routing-baseline.md"],
+      "content": { "source": "owner-routing-content.md" }
+    },
+    {
+      "id": "trellis-meta-managed-state-boundary",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".agents/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".claude/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".devin/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".factory/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".github/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".pi/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".trae/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" }
+      ],
+      "selector": { "type": "markdown-section", "heading": "## Workflow-State Prompt Blocks" },
+      "baselines": ["state-boundary-baseline.md"],
+      "content": { "source": "state-boundary-content.md" }
+    },
+    {
+      "id": "trellis-meta-managed-workflow-change-map",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".agents/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".claude/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".devin/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".factory/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".github/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".pi/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" },
+        { "kind": "skill", "path": ".trae/skills/trellis-meta/references/local-architecture/workflow.md", "missing": "skip" }
+      ],
+      "selector": { "type": "markdown-section", "heading": "## Local Modification Patterns" },
+      "baselines": ["workflow-change-map-baseline.md"],
+      "content": { "source": "workflow-change-map-content.md" }
+    }
+  ]
+}

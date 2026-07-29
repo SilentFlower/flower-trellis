@@ -4,6 +4,7 @@ import chalk from "chalk";
 import { readManifest, readUpdateCheck, writeUpdateCheck } from "./manifest.js";
 import { isRunningViaNpx } from "./runtime-env.js";
 import { flowerVersion } from "./versions.js";
+import { ProjectStore } from "../plugin/state/project-store.js";
 
 /**
  * 版本自动检测 —— 在 init / update 启动时尽力而为地比对 npm 上 flower-trellis 自身的
@@ -414,7 +415,7 @@ export function getUpdateRecommendation(current, tags) {
 /** 尽力而为刷新目标项目的远端探测缓存。 */
 function rememberRemoteTags(target, tags, status, releaseNotes = null) {
   try {
-    if (!readManifest(target)) return;
+    if (!readManifest(target) && !new ProjectStore(target).readLock()) return;
     const patch = {
       lastCheckedAt: new Date().toISOString(),
       lastRemote: tags,

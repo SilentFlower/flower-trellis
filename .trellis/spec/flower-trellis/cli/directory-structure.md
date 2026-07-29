@@ -25,18 +25,20 @@ flower-trellis/
 │   │   ├── init.js
 │   │   ├── update.js
 │   │   └── uninstall.js
-│   └── lib/                   # 单一职责工具/逻辑模块
+│   ├── builtin-plugins/skill-garden/ # 内置 manifest、Provider、payload adapter 与卸载规划
+│   ├── plugin/                # Plugin schema/source/resolver/install/capability/state Runtime
+│   └── lib/                   # 单一职责工具/逻辑模块与旧兼容 facade
 │       ├── cli-args.js        # argv 解析、Flower 自有参数与 Trellis 透传隔离
 │       ├── paths.js           # 包内路径定位(import.meta.url)
 │       ├── fs-utils.js        # ensureDir / rmrf / copyPath / listDirs / listFiles
 │       ├── versions.js        # 读自身与捆绑 trellis 版本
 │       ├── variant.js         # 按 .trellis/.version 选强化包变体
-│       ├── manifest.js        # 读写 .flower-manifest.json 安装清单
+│       ├── manifest.js        # update-check 新状态与旧 manifest/tmp 只读兼容
 │       ├── trellis-runner.js  # spawn / node-pty 跑 trellis,过滤重复 banner
 │       ├── banner.js          # figlet + chalk 品牌头部
 │       ├── pick-platforms.js  # inquirer 平台多选菜单
 │       ├── copy-skills.js     # 跟随平台铺设强化 skill / command
-│       ├── apply-enhancements.js # 叠加流水线总编排
+│       ├── apply-enhancements.js # 内置 skill-garden Runtime 兼容 facade
 │       ├── patch-engine.js    # 0.6 Patch catalog/preflight/apply/provenance
 │       ├── patch-conflicts.js # 0.6 版本兼容与最终产物冲突 evaluator
 │       ├── patch-fixture.js   # pinned Trellis full Patch 维护夹具

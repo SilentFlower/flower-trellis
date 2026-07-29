@@ -32,6 +32,12 @@ const localizedSubjects = new Map([
   ["update flower manifest to 0.5.0-beta.1", "同步项目 Flower 版本状态"],
   ["d8a3dcd", "首次实现默认检查，连续调整可暂缓后续 Check-All"],
   ["74d5d12", "防止 Python 写入失败导致任务与 session 状态漂移"],
+  ["32ec993", "新增插件能力授权策略"],
+  ["3688744", "新增 GitLab 市场外部来源"],
+  ["0d7c5b1", "新增插件运行时生命周期"],
+  ["2e9fd18", "迁移 skill-garden 到插件运行时"],
+  ["f79ce33", "执行 Flower 自更新同步"],
+  ["ef1a8c4", "拆分 Check-All 检查档位并同步快照"],
 ]);
 
 const detailedReleaseSubjects = new Map([

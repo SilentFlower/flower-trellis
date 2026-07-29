@@ -78,7 +78,7 @@ const SKILL_DESCRIPTION_OVERRIDES = {
  * @param {string} content Markdown 文件内容
  * @returns {{name?: string, description?: string}} 解析出的元数据
  */
-function parseSkillFrontmatter(content) {
+export function parseSkillFrontmatter(content) {
   const lines = content.split(/\r?\n/);
   if (lines[0] !== "---") return {};
 
@@ -107,6 +107,20 @@ function parseSkillFrontmatter(content) {
   }
 
   return meta;
+}
+
+/**
+ * 去掉 Markdown 顶部的简单 YAML frontmatter。
+ *
+ * @param {string} content Markdown 文件内容
+ * @returns {string} 正文内容
+ */
+export function stripSkillFrontmatter(content) {
+  const lines = content.split(/\r?\n/);
+  if (lines[0] !== "---") return content;
+  const end = lines.findIndex((line, index) => index > 0 && line === "---");
+  if (end < 0) return content;
+  return lines.slice(end + 1).join("\n").replace(/^\n+/, "");
 }
 
 /**
@@ -219,6 +233,37 @@ function listRemovedCommonSkillNames() {
   } catch {
     return [];
   }
+}
+
+/**
+ * 描述当前项目中已启用 common skill 的无写入同步输入。
+ *
+ * @param {string} target 目标项目根目录
+ * @returns {{refreshes:Array<{source:string,target:string,name:string}>,removedTargets:string[]}} 快照来源与 tombstone 目标
+ */
+export function describeInstalledCommonSkillSync(target) {
+  const refreshes = [];
+  const currentNames = new Set(listCommonSnapshotNames());
+  for (const name of currentNames) {
+    for (const dir of allCommonSkillDirs()) {
+      const targetPath = `${dir.target}/${name}`;
+      if (!fs.existsSync(path.join(target, ...targetPath.split("/")))) continue;
+      const source = path.join(ENHANCEMENTS_ROOT, "common", dir.source, name);
+      if (!fs.existsSync(source)) continue;
+      refreshes.push({ source, target: targetPath, name });
+    }
+  }
+  const removedTargets = [];
+  for (const name of listRemovedCommonSkillNames()) {
+    if (currentNames.has(name)) continue;
+    for (const dir of allCommonSkillDirs()) {
+      const targetPath = `${dir.target}/${name}`;
+      if (fs.existsSync(path.join(target, ...targetPath.split("/")))) {
+        removedTargets.push(targetPath);
+      }
+    }
+  }
+  return { refreshes, removedTargets };
 }
 
 /**

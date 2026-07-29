@@ -10,6 +10,8 @@ import {
 } from "./update-check.js";
 import { isRunningViaNpx } from "./runtime-env.js";
 import { flowerVersion, trellisVersion } from "./versions.js";
+import { ProjectStore } from "../plugin/state/project-store.js";
+import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
 
 /** 上游 trellis update 支持的批量冲突处理参数。 */
 const CONFLICT_FLAGS = new Set(["-f", "--force", "-s", "--skip-all", "-n", "--create-new"]);
@@ -143,17 +145,17 @@ async function safeFetchPackageUpdateMetadata(fetchMetadata) {
  * 成功时也只写回 lastReleaseNotes,保持 lastRemote 仍只记录 dist-tags。
  *
  * @param {string} target 目标项目根
- * @param {object|null} manifest 目标项目 manifest
+ * @param {object|null} projectEvidence 目标项目 Plugin lock 或旧 manifest 证据
  * @param {boolean} writeCache 是否允许写缓存
  * @param {object|null} range release notes 范围
  * @param {() => Promise<object|null>} fetchMetadata npm metadata 拉取函数
  * @returns {Promise<object|null>} release notes 摘要;范围有效但不可用时返回 unavailable 摘要
  */
-async function fetchMissingReleaseNotes(target, manifest, writeCache, range, fetchMetadata) {
+async function fetchMissingReleaseNotes(target, projectEvidence, writeCache, range, fetchMetadata) {
   if (!range) return null;
   const metadata = await safeFetchPackageUpdateMetadata(fetchMetadata);
   const releaseNotes = releaseNotesFromMetadata(metadata, range);
-  if (releaseNotes && !releaseNotes.unavailable && writeCache && manifest) {
+  if (releaseNotes && !releaseNotes.unavailable && writeCache && projectEvidence) {
     writeUpdateCheck(target, { lastReleaseNotes: releaseNotes });
   }
   return releaseNotes;
@@ -365,11 +367,18 @@ export async function buildSelfCheck(target, options = {}) {
   const absoluteTarget = path.resolve(target);
   const trellisDir = path.join(absoluteTarget, ".trellis");
   const manifest = readManifest(absoluteTarget);
+  const store = new ProjectStore(absoluteTarget);
+  const pluginLock = store.readLock();
+  const pluginState = store.readState();
+  const projectEvidence = manifest || pluginLock;
   const updateCheck = readUpdateCheck(absoluteTarget);
   const currentFlower = flowerVersion();
   const currentTrellis = trellisVersion();
   const projectTrellis = readProjectTrellisVersion(absoluteTarget);
-  const projectFlower = typeof manifest?.flowerVersion === "string" ? manifest.flowerVersion : null;
+  const skillGardenLock = pluginLock?.plugins.find(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
+  const projectFlower = skillGardenLock?.version || (
+    typeof manifest?.flowerVersion === "string" ? manifest.flowerVersion : null
+  );
   const projectOutOfSyncReasons = [];
   if (projectFlower && projectFlower !== currentFlower) {
     projectOutOfSyncReasons.push("flower_version_mismatch");
@@ -393,6 +402,14 @@ export async function buildSelfCheck(target, options = {}) {
       flowerVersion: projectFlower,
       trellisVersion: projectTrellis,
       manifestPresent: Boolean(manifest),
+      pluginStatePresent: Boolean(pluginLock && pluginState),
+      plugins: (pluginLock?.plugins || []).map(({ id, version, source }) => ({
+        id,
+        version,
+        source: source.type,
+        applied: Boolean(pluginState?.plugins.some((entry) => entry.id === id)),
+      })),
+      migration: pluginState?.migration || null,
       outOfSync: projectOutOfSync,
       outOfSyncReasons: projectOutOfSyncReasons,
     },
@@ -411,7 +428,7 @@ export async function buildSelfCheck(target, options = {}) {
   };
 
   const persistRemoteCache = (patch) => {
-    if (!writeCache || !manifest) return base;
+    if (!writeCache || (!manifest && !pluginLock)) return base;
     writeUpdateCheck(absoluteTarget, patch);
     return { ...base, updateCheck: readUpdateCheck(absoluteTarget) };
   };
@@ -456,7 +473,7 @@ export async function buildSelfCheck(target, options = {}) {
       const releaseNotes = cachedReleaseNotes(updateCheck, releaseNotesRange) ||
         await fetchMissingReleaseNotes(
           absoluteTarget,
-          manifest,
+          projectEvidence,
           writeCache,
           releaseNotesRange,
           fetchMetadata,

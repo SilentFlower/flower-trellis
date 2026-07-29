@@ -6,9 +6,9 @@
 
 ## Overview
 
-flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文件随包发布为离线
-快照,安装/升级时按目标的 Trellis 版本选择变体,跟随用户实际平台铺设到对应目录,
-并以 manifest 驱动精确的升级清理。整条链路**处处幂等**,可重复执行而结果一致。
+flower-trellis 在 Trellis 之上通过内置 `flower/skill-garden` system Plugin 叠加强化包：
+强化文件仍随包发布为离线快照，安装/升级时按目标 Trellis 版本选择变体，最终由
+Plugin Runtime 的统一计划、事务、lock 和 state 管理。整条链路**处处幂等**。
 
 ---
 
@@ -42,7 +42,7 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 - workflow hub/state、Update-Spec、Finish-Work 和 shared hook 都必须通过 Patch leaf 表达。
   需要共享正文时使用有序 `content.sources`，不得恢复独立 additive override 目录。
 - Flower 自有 Codex/Claude 配置 Patch 位于 `src/patches/`，不进入 Skill-Garden 源；两类 catalog
-  由 `applyEnhancements()` 在同一个 preflight/apply 计划中执行。
+  由 builtin Provider 交给 Plugin Patch Planner，在同一个 preflight/事务中执行。
 - 随包发布靠 `package.json` 的 `files: ["bin","src","enhancements","README.md"]`。
 - `vendor/skill-garden/compiled-targets/` 是 Skill-Garden 子仓内的 Claude + Codex canonical 维护审阅产物，不属于 `.trellis/` 离线安装快照；`npm run sync` 只读取 variant 源，不读取或复制该目录。vendor 子仓不进入 npm tarball，维护期 `patch-fixture.js` 也继续显式排除。
 - **同步源 = git submodule `vendor/skill-garden`**(不在 `files` 白名单,不进 npm tarball)。
@@ -65,52 +65,30 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 ---
 
-## Apply Pipeline (`src/lib/apply-enhancements.js`)
+## Apply Pipeline (`flower/skill-garden`)
 
-`applyEnhancements(target, opts)` 是 init / update 共享的总编排,顺序固定:
+`applyEnhancements(target, opts)` 只保留兼容参数、日志和返回结构，实际顺序固定：
 
-1. **校验**:目标存在 `.trellis/`,否则抛错(不是 Trellis 项目)。
-2. **选变体并保留真实版本**:`--variant` 只覆盖变体；`.trellis/.version` 始终读取。
-3. **兼容线早期门禁**(`patch-conflicts.js`):读取共享 policy；invalid 或未支持的新 minor/major 在旧 catalog preflight 前返回包含 `--no-enhance` 的 error，避免 selector 漂移掩盖真实处理方式。
-4. **统一 Patch preflight 与冲突检查**(`patch-engine.js` + `patch-conflicts.js`):同时加载 Skill-Garden 与 Flower platform catalog，在内存得到最终文件；校验 rule operation/target 引用后断言最终产物。同一兼容线未登记版本到此时才在写入前展示 rule/target/reason/evidence warning；任一 error 零写入，通过后才 apply Patch。
-5. **铺 skill**(`copy-skills.js`):**跟随平台原生 Skill root** —— `src/constants.js` 的
-   `ENHANCEMENT_SKILL_TARGETS` 集中维护 Claude、共享 `.agents` 与其余平台原生 root；copy、
-   installed detection、stale managed-root 清理和 uninstall 必须复用同一映射。只向目标中已存在的
-   root 复制；完全没有识别到平台 root 时才兜底创建 `.claude/skills`。Claude 使用 `.claude`
-   canonical source，其余平台使用 `.agents` canonical source；不得只铺 `.agents/.claude` 而让
-   Cursor、Kiro、Qoder、Gemini 等平台的真实原生入口保持旧行为。
-6. **铺脚本资产**(`copy-scripts.js`):只复制变体 `scripts/` 下的直接文件到目标
-   `.trellis/scripts/`。脚本资产跟随 `--skills` 过滤;例如 `auto_loop.py` 可由
-   `auto_loop` / `auto-loop` / `auto-loop-runner` / `trellis-auto-loop` 命中,确保只安装
-   `trellis-auto-loop` 时也会带上 runner 脚本;`task_progress.py` 可由 `task-progress` /
-   `trellis-continue` / `continue` / `progress-recovery` / `progress` / `trellis-push` / `push` 及
-   legacy `push-snapshot` / `snapshot` 命中,确保 progress recovery 与写入入口都带上同一 helper。
-   旧 `push_snapshot.py` 从新快照移除后,全装升级只能按 flower manifest 记录的精确旧路径清理,
-   不得删除用户自有文件。
-7. **铺 flower 自有资产**(`flower-assets.js`):仅全装时把 flower-trellis 自身能力复制到
-   目标 `.trellis/scripts/`,例如 `src/assets/flower_update_hook.py` → `.trellis/scripts/flower_update_hook.py`。
-   这类资产不属于 skill-garden 快照,不要放进 `enhancements/<variant>/scripts/`。
-8. **同步已启用 common skill**(**仅全装、无 `--skills` 时**):当前快照只覆盖目标
-   `.codex/skills/<name>` / `.claude/skills/<name>` / 历史 `.agents/skills/<name>` 中
-   已经存在的精确同名目录,不创建未启用项;历史 `removedSkills` 只删除这些固定根目录下
-   的精确 tombstone 名称。legacy `.agents` 使用 Codex 快照原地刷新,不迁移到 canonical
-   路径。若旧 manifest 仍把后来迁入 common 的路径记在 `paths`,本轮已刷新的路径必须
-   临时加入 stale-path 保留集合,避免刷新后又被删除;写入新 manifest 时 common 路径仍不
-   进入 `.flower-manifest.json.paths`。
-9. **升级清理**(**仅全装、无 `--skills` 时**):对比上次 manifest 的 `paths`,删除本次
-   变体不含的过期项。带 `--skills` 是精细操作,不动 manifest、不清理。
-10. **legacy 后处理**:**仅 0.5/old** 执行 `workflow-inject.js` 和平台 tweak：
-   - `codex-tweaks.js`:仅当目标存在 `.codex/` 时,兼容清理旧 `config.toml` 的
-     `multi_agent_v2` 段,保留上游 hooks 并合并 Trellis / flower 的 `SessionStart`,同时强制
-     `.trellis/config.yaml` 的 `codex.dispatch_mode: sub-agent`。Codex Trellis 主上下文 hook
-     必须归位到 `matcher: "startup|resume|clear|compact"`、`timeout: 30`;flower 更新检查
-     hook 必须归位到 `matcher: "startup"`、`timeout: 30`。
-   - `claude-tweaks.js`:仅当目标存在 `.claude/` 时,只向 `.claude/settings.json` 的
-     `SessionStart` `startup` matcher 合并 flower update hook,timeout 为 30,并清除
-     `clear` / `compact` matcher 中的 flower update hook。
-   0.6 不调用这些旧入口；对应修改已经在第 3-4 步完成。
-11. **成功 manifest**(**仅全装**):全部 required Patch、policy、资产复制、清理和 legacy 后处理完成后写
-    `.trellis/.flower-manifest.json`，并记录稳定 Patch provenance。中途失败保留旧 manifest。
+1. 校验 `.trellis/`，选择 `old|0.5|0.6` 并保留真实 Trellis 版本。
+2. 构造目标绑定的 `SkillGardenBuiltinProvider`；digest 绑定 Flower 版本、variant、去除
+   `syncedAt` 的快照 manifest，以及当前 variant、common、Flower assets/lib/patches 和 builtin
+   Plugin 的 canonical 内容；忽略 `__pycache__` / `.pyc`。
+3. 通过 `PluginApplicationService.add/update()` 声明或重放 `flower/skill-garden`。
+4. builtin 内容 adapter 按 `ENHANCEMENT_SKILL_TARGETS` 投影 skill/command，按原 alias 过滤
+   变体脚本，并在全装时投影 Flower update hook。
+5. 0.6 同时加载 Skill-Garden 与 Flower catalog，先做兼容线门禁，再做一次统一 Patch
+   preflight；同 owner 内容/Patch 重叠只有最终 hash 相同时才合并。
+6. old/0.5 在临时镜像中调用 workflow/Codex/Claude legacy 函数，收集最终文件与首次备份，
+   目标项目本身不发生预事务写入。
+7. 全装只刷新目标中已经启用的 common skill，并将其记录为 `shared` ownership；不会安装
+   用户未启用的新 common skill，卸载不删除 shared 路径。
+8. Plugin Transaction Writer 一次性写目标 mutation、`plugins.json`、lock 和最后的 state。
+   旧 manifest 只读迁移并原字节保留，不再作为成功写链。
+
+`init` 默认显式声明 builtin Plugin；`--enhance-only` 使用同一 Runtime。普通 `update` 只允许
+skill-garden 以当前 Flower 精确版本刷新直接声明并重新选 variant，其它 Plugin lock-first 重放；
+`--no-enhance` 冻结 skill-garden 的完整 lock 约束、capability grant 和 state，但仍重放外部 Plugin。
+独立 `plugin add` 不隐式声明 skill-garden。
 
 ---
 
@@ -118,9 +96,9 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
 
 叠加链路的每一步都要可重复执行:
 
-- `fs-utils.copyPath`:先删软链/旧目标再拷贝,无条件覆盖,不残留上游已删文件。
-- 升级清理只在**全装**时维护 manifest 与删除过期项,避免 `--skills` 精细操作误删。
-- Patch 先 preflight 后 apply;required selector/marker 漂移时目标与 manifest 都不写,
+- builtin adapter 对每个受管目录生成逐文件 write/remove mutation，不残留快照已删除文件。
+- 精细 `--skills` 会合并既有 skill-garden state，未选择路径与 Patch provenance 原样保留。
+- Patch 先 preflight 后进入事务；required selector/marker 漂移时目标与 `.flower/` 都不写，
   optional skip 必须进入结构化结果。完整规则见
   [Trellis Patch Engine](./trellis-patch-engine.md)。
 - 0.6 changed 目标由 Patch Engine 调用 `preserveFirstBackup()`，备份到
@@ -130,14 +108,10 @@ flower-trellis 在 Trellis 之上**叠加** skill-garden 强化包:把强化文�
   内容一致则不写,避免覆盖 Trellis 上游 hook 参数。SessionStart 合并必须先从所有
   group 移除目标命令旧位置,再归位到目标 matcher group,避免旧版无 matcher group 与新版
   matcher group 同时触发;其它用户自定义 hooks 必须保留。
-- `flower-assets`:只由全装复制,并把 `.trellis/scripts/flower_update_hook.py` 写入 manifest
-  `paths`,让升级清理和 uninstall 只按 manifest 精确管理自己铺过的脚本。
-- `syncInstalledCommonSkills`:只由全装执行。当前快照名称必须先检查目标精确目录是否存在,
-  存在才调用 `copyPath` 覆盖;新名称不得自动安装。`removedSkills` 读取失败按空列表降级,
-  删除前必须校验名称是单一路径段,并只在固定 common 根目录下拼接精确路径。重新进入
-  当前快照的名称即使仍残留在旧 tombstone 中也不得删除。
+- `flower-assets` 只由全装投影，`.trellis/scripts/flower_update_hook.py` 进入 state ownership。
+- common skill 只在目标精确目录已经存在时刷新；state 标为 `shared`，卸载与不可达清理跳过。
 - shared hook Patch 只修改已存在平台目标，平台前置目录缺失时 `missing-target`；不得创建未启用
-  平台。上游 hook 路径不进入 manifest `paths`，由 Patch provenance 单独记录。
+  平台。上游 hook 路径由 Plugin Patch provenance 记录。
 - `claude-tweaks`:只追加缺失的 startup flower hook,重复运行不得重复;若历史版本把 flower
   hook 放到了 `clear` / `compact`,更新时必须移除这些非 startup 位置;若旧 hook 仍是
   8 秒 timeout,更新时必须迁移到 30 秒。
@@ -255,14 +229,124 @@ Hub owner index -> owning Phase/Skill policy -> optional deterministic helper
 
 ---
 
+## Scenario: Trellis Meta Synchronization Gate
+
+### 1. Scope / Trigger
+
+- Trigger:修改 Skill-Garden 管理的 workflow、skill、hook、helper、Patch、Bundle、Plugin ownership、
+  capability discovery、平台入口或定制路径，并准备完成任务、Check-All 或发布快照时。
+- Scope:对 `trellis-meta` 做一次影响复核，判断稳定架构合同是否仍准确；不新增 runtime helper、
+  meta manifest、长期状态或要求每次 owner 内部 SOP 变化都重写 meta。
+
+### 2. Signatures
+
+影响结论固定为:
+
+```text
+meta-impact: no-op | patch-required
+```
+
+判定关注的稳定合同固定为:
+
+```text
+owner identity/boundary
+capability discovery path
+authoring source and managed ownership
+Plugin/Patch lifecycle and customization route
+Bundle selection and platform distribution surface
+```
+
+`patch-required` 的作者源与验证链固定为:
+
+```text
+vendor/skill-garden/.trellis/0.6/overrides/patches/skills/trellis-meta/
+  -> npm run sync
+  -> compiled targets
+  -> Flower dogfood
+  -> final-output tests
+```
+
+### 3. Contracts
+
+- 每项触发范围内的变更在完成前都必须执行影响复核，但复核不等于强制修改 meta。结论应写入当前
+  task planning/check evidence，不新增第二套 catalog 或运行时状态。
+- `no-op` 只在现有 meta 的 owner 指针、稳定职责边界、发现路径、作者源、管理模型、选择安装和平台
+  分发描述仍准确时成立。复核必须读取最终 meta 与 owning capability，不能只根据文件名判断。
+- owner 内部 SOP、交互模板、命令字段、重试预算或错误矩阵变化通常为 `no-op`；这些细节继续由
+  owning skill/helper 持有，meta 不得复制第二份完整合同。
+- owner 身份或边界迁移、能力发现入口变化、managed/project-local 分类变化、作者源变化、Plugin/Patch
+  生命周期变化、Bundle 选择变化或受支持平台分发面变化必须判定为 `patch-required`。
+- `patch-required` 必须修改 canonical Skill-Garden meta Patch 源；随后同步 snapshot、刷新 compiled
+  targets、重放当前 dogfood，并验证各已启用平台最终语义。只改 `.agents`、`.claude`、
+  `enhancements/0.6` 或 compiled target 都不构成完成。
+- 若 meta 已用稳定 owner 类别和发现路径覆盖新行为，不得为了记录单个 feature 把其完整 SOP、状态结构
+  或错误矩阵写入 meta。若新能力没有任何可发现 owner 路径，则不能用 `no-op` 掩盖架构缺口。
+- Planning Brief 的显式预授权属于 `trellis-task-brief` 与 task-start brief guard 的内部交互合同；
+  Planning handoff owner、边界和发现路径未变时，本次 meta 影响结论必须是 `no-op`。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结论 / 行为 |
+|------|-------------|
+| owner 内部 SOP 变化，现有 owner 指针与边界仍准确 | `no-op`，更新 owning capability/spec/tests，不复制到 meta |
+| owner 身份、阶段归属或 guard 边界变化 | `patch-required`，更新 meta owner route 与最终断言 |
+| 新增或移动 capability discovery 入口 | `patch-required`，更新发现路径并验证可达性 |
+| authoring source、Plugin/Patch ownership 或 customization route 变化 | `patch-required` |
+| Bundle alias、精细安装依赖或平台 target 集变化 | `patch-required`，验证选择范围和跨平台一致性 |
+| 仅修改生成清单、lock hash 或 compiled plan，稳定合同未变 | 读取真实源确认后可为 `no-op`，不得仅凭生成文件判定 |
+| 声称 `no-op`，但最终 meta 无法把行为路由到 owner | 复核失败，禁止完成 |
+| 声称 `patch-required`，但只修改 dogfood/deployed meta | 作者源错误，禁止完成 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:Task Brief 增加当前最终 Brief 的显式预授权；meta 已把 Planning handoff 指向
+  `trellis-task-brief` 和 task-start brief guard，因此记录 `no-op`，详细预授权合同只留在 owner。
+- Good:把 implement/check 执行 owner 从静态平台分支迁移到 `trellis-route`；更新 canonical meta Patch、
+  sync、compiled targets、dogfood 和最终断言，记录 `patch-required`。
+- Base:owner skill 只调整错误文案或内部 CLI 参数，稳定架构合同不变；复核最终 meta 后记录 `no-op`。
+- Bad:每次 skill 文案变化都往 meta 追加一段摘要；meta 会变成第二份易漂移 SOP 集合。
+- Bad:新增平台 target 或改变 Bundle alias 后仍记录 `no-op`，导致 meta 的分发与定制路径失真。
+
+### 6. Tests Required
+
+- code-spec 测试必须固定 `meta-impact: no-op | patch-required` 双态术语、五类稳定合同和 canonical
+  Patch 作者源，防止规则退化成“所有变化都改 meta”或“从不改 meta”。
+- meta 最终产物测试必须验证 Planning handoff 仍路由到 `trellis-task-brief` 与 task-start brief guard，
+  同时不得包含 Brief 显式预授权的交互细节。
+- owner/发现/所有权/Bundle/platform 变化的任务必须扩展对应 Patch final-output、选择安装、跨平台和
+  compiled target 测试；`no-op` 场景至少要读取最终 meta 与 owner 证明路由仍准确。
+- `patch-required` 继续执行 Patch conflict、源/快照一致性、compiled targets、dogfood 幂等、strict
+  context budget 和完整测试；不得用单一文档字面量测试替代最终产物验证。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+owner 内部 SOP 有变化 -> 无条件复制到 trellis-meta
+```
+
+#### Correct
+
+```text
+review stable meta contracts
+  -> unchanged: meta-impact no-op; keep detail in owner
+  -> changed: meta-impact patch-required; update canonical meta Patch and distribution evidence
+```
+
+原因:所有相关变更都经过复核，但只有稳定架构合同变化才修改 meta，既不会漏掉所有权/分发漂移，
+也不会把 meta 扩张成 owner SOP 的重复副本。
+
+---
+
 ## Scenario: Complex Repair Intent Routing
 
 ### 1. Scope / Trigger
 
-- Trigger:修改 0.6 Request Intent Routing、`workflow-state:no_task`，或修复“先检查 BUG、
-  用户确认修复后被误判为无任务 `direct_edit`”的行为。
+- Trigger:修改 0.6 Request Intent Routing、`workflow-state:no_task`，或修复“设计反馈被当成修改
+  授权”“已知精确回退仅因影响面被强制建任务”等误判。
 - Scope:这里只定义 AI-facing 意图契约及其 Patch/测试归属，不新增关键词分类器，也不让
-  `task_intent.py` 推断自然语言意图。
+  `task_intent.py` 推断自然语言意图；分类必须基于完整当前请求、授权、确定性和副作用。
 
 ### 2. Signatures
 
@@ -292,13 +376,19 @@ node scripts/check-ai-context-budget.mjs --strict
 
 ### 3. Contracts
 
+- 询问看法、表达不适、否定方案或询问“应该怎样改”时使用 `discuss`；除非当前请求同时明确
+  授权一个具体修改，否则不得把评价或方案讨论扩张成编辑授权。
+- 仅要求查看、解释、验证或定位问题时使用 `inspect`，获得修复授权前不得编辑业务文件；只读
+  结论本身也不能扩张授权。已经授权修复但范围未知时仍先 `inspect`，再根据实际 scope、risk
+  和 side effects 重新分类。
 - “允许修改”与“允许跳过任务规划”是两个独立判断。用户确认修复对象，只表示可以继续推进
   修复流程，不自动得到 `direct_edit` 结论。
-- 仅要求查看、分析或定位问题时使用 `inspect`，获得修复授权前不得编辑业务文件。已经授权
-  修复但范围未知时仍先 `inspect`，再根据实际 scope、risk 和 side effects 重新分类。
-- `direct_edit` 只适用于范围已知、局部、低风险、可逆且验收简单的改动。权限/认证/数据范围/
-  安全、共享契约、跨包或跨层、多入口一致性、数据库/迁移/配置/发布/外部系统、历史回归、
-  系统性验证或范围仍未知，均是 `task_plan` 信号。
+- `direct_edit` 只适用于范围已知、有界、低风险、可逆、没有未决设计选择且验收简单的改动。
+  权限/认证/数据范围/安全、数据库/迁移/发布/外部系统或范围未知仍是强 `task_plan` 边界。
+- 共享契约、跨包或跨层、多入口一致性、配置、历史回归和系统性验证会提高证据、验证与回滚
+  要求，但只是风险信号，不得仅凭这些影响面自动判定 `task_plan`。
+- 精确回退或机械同步的已知修改，在行为、范围、副作用和验证方式均已确定时，仍可进入
+  `direct_edit` 或匹配的 `workflow_action`；存在未决范围、方案或副作用时才升级为 `task_plan`。
 - `fix item 1`、`change that`、`修一下`、`改一下` 等修复选择不是 no-task switch。只有当前请求
   明确表达 `直接做`、`不要任务` 等工作流指令时，才可覆盖自动 `task_plan`；新且无关的请求
   恢复自动推断。
@@ -313,10 +403,13 @@ node scripts/check-ai-context-budget.mjs --strict
 
 | 条件 | 行为 |
 |------|------|
+| 用户只表达方案不适、否定或询问怎样改 | `discuss`，不编辑 |
 | 用户只要求查明问题 | `inspect`，不编辑 |
 | 用户授权修复但影响范围未知 | 先 `inspect`，得到证据后重新分类 |
-| 已知局部、低风险、可逆且验证简单 | 可进入 `direct_edit` |
-| 权限/数据范围、共享契约、跨层、多入口或系统性回归 | 进入 `task_plan` |
+| 已知有界、低风险、可逆、无未决设计且验证简单 | 可进入 `direct_edit` |
+| 权限/数据范围、安全、数据库/迁移/发布/外部系统或范围未知 | 进入 `task_plan` |
+| 共享契约、跨层、多入口、配置或历史回归 | 提高证据与验证要求；结合确定性判断，不自动进入 `task_plan` |
+| 精确回退或机械同步且行为、范围、副作用、验证均确定 | 可进入 `direct_edit` 或匹配的 `workflow_action` |
 | inspect 结论后用户说“修第 1 个”或“改一下” | 视为修复选择，不视为 no-task switch |
 | 当前请求明确说“直接做”或“不要任务” | 可覆盖自动 `task_plan`，但不覆盖独立安全确认 |
 | 命中 `task_plan` 后尚未完成 planning gate | 只能创建/完善任务，不得实现 |
@@ -325,20 +418,25 @@ node scripts/check-ai-context-budget.mjs --strict
 
 ### 5. Good/Base/Bad Cases
 
-- Good:用户要求“查并修复权限 BUG”；Agent 先只读定位，确认涉及共享权限服务和多入口后创建
+- Good:用户说“这个方案不舒服，你觉得怎样改”；Agent 进入 `discuss`，给出判断但不修改文件。
+- Good:用户要求“查并修复权限 BUG”；Agent 先只读定位，确认涉及权限边界和多入口后创建
   planning task，完成 brief/start/route 再实施。
+- Base:用户要求精确回退一个已知提交中的指定 Patch；范围、副作用和验证方式均已确定，即使
+  涉及 workflow skill 与生成快照，也可使用 `direct_edit` / `workflow_action` 并执行相应验证。
 - Base:用户要求修复已定位的单文件文案错误；范围明确、低风险且验证简单，可使用
   `direct_edit`，不机械创建任务。
 - Base:复杂修复已命中 `task_plan`，但用户在当前请求明确说“不要任务，直接做”；按显式流程
   覆盖继续，同时仍遵守生产、凭据、破坏性操作等独立安全边界。
-- Bad:Agent 在 inspect 后看到用户回复“第 1 个改一下”，只按消息短或措辞简单判为
-  `direct_edit`，随后修改共享服务、DAO、配置和回归测试。
+- Bad:Agent 看到用户说“这个方案不太理想”，直接把设计反馈当成修复授权并编辑 workflow。
+- Bad:Agent 只看到 `workflow`、`hook` 或“跨入口”关键词就自动创建任务，没有判断修改是否为
+  范围与验证均确定的精确回退。
 - Bad:为防止误判，把所有包含“修复”的请求机械升级为 `task_plan`，导致已知局部小改也必须建任务。
 
 ### 6. Tests Required
 
-- JS apply 测试必须对应用后的最终 workflow 断言两维授权、未知范围重分类、`direct_edit` 边界、
-  复杂信号、普通修复选择和显式覆盖语义；不得只搜索 Patch 源文件。
+- JS apply 测试必须对应用后的最终 workflow 断言 `discuss` / `inspect` 授权边界、未知范围重分类、
+  `direct_edit` 条件、强 task 边界、风险信号非自动升级、精确回退和显式覆盖语义；不得只搜索
+  Patch 源文件。
 - `task-intent` 与 `intent-routing` 两个精细安装 alias 都必须选择完整 Bundle，并在第二次应用后
   保持文件树不变。
 - Python consumer 的真实 catalog preflight 必须从 `plan.files[].next` 断言相同最终 workflow
@@ -353,20 +451,23 @@ node scripts/check-ai-context-budget.mjs --strict
 #### Wrong
 
 ```text
-用户说“改一下” -> direct_edit -> 立即编辑
+用户说“这个方案不舒服” -> 推断为修改授权 -> 立即编辑
 ```
 
-问题:把修复授权当成跳过任务规划授权，没有使用已经查明的影响范围重新分类。
+问题:把评价与方案讨论当成具体修改授权，没有先判断当前请求是否真的要求编辑。
 
 #### Correct
 
 ```text
-用户授权修复 -> 范围未知则 inspect -> 按实际影响重新分类
-                              -> 局部低风险: direct_edit
-                              -> 复杂实现信号: task_plan
+评价/询问方案 -> discuss
+查看/定位原因 -> inspect
+明确修改授权 -> 判断范围、设计、副作用与验证
+             -> 已知有界且无未决设计: direct_edit / workflow_action
+             -> 强安全边界或仍有未决问题: task_plan
 ```
 
-原因:保留小修复的效率，同时让权限、共享契约、跨层和系统性回归等复杂修复经过任务门禁。
+原因:授权语义优先于领域关键词；影响面决定证据和验证强度，但只有真实未决范围、方案、副作用
+或强安全边界才决定是否需要任务规划。
 
 ---
 
@@ -377,6 +478,7 @@ node scripts/check-ai-context-budget.mjs --strict
 - Trigger:修改 Phase 1.4、`trellis-brainstorm` planning handoff、`trellis-task-brief`、
   auto-loop planning start gate，或 `.trellis/scripts/task.py start` 的 `planning -> in_progress` 行为。
 - Scope:交互式 planning 的 semantic readiness 与 brief review 由 workflow/Skill 负责；
+  默认在完整展示 brief 后等待确认；当前对话中明确绑定最终 Brief 的预授权可作为窄例外。
   `task.py` 只校验可确定的文件状态。schema 2 auto-loop 使用绑定 planning/handoff hash 的 run manifest
   授权，不逐任务确认 brief；schema 1 outstanding action 继续按旧确认协议恢复。
 
@@ -406,10 +508,13 @@ prd.md | design.md | implement.md
 
 ### 3. Contracts
 
-- Phase 1.4 必须加载 `trellis-task-brief`，从最终 planning artifacts 刷新 `brief.md`，在对话
-  完整展示后结束当前回合。只有用户在后续消息确认已展示的 brief，才可运行 `task.py start`。
+- Phase 1.4 必须加载 `trellis-task-brief`，从最终 planning artifacts 刷新 `brief.md` 并在对话中
+  完整展示。默认结束当前回合等待确认；只有用户明确把当前任务或最终 Brief 与“展示后直接开始、
+  不用再次确认、视为已确认”绑定，且最终范围未变化时，才可同回合运行 `task.py start`。
 - `trellis-brainstorm` 的 Quality Bar 只表示 planning artifacts 可进入最终 brief handoff；
-  用户在最终产物和完整 brief 展示前表达的实现意向不能复用为 planning review。
+  普通实现意图或任务创建授权不能复用为 planning review，也不能解释为 Brief 预授权。
+- 预授权只取当前对话中仍明确适用于本任务的表达，不写 session runtime，也不扩展为跨会话、
+  跨任务或永久偏好。范围扩大、存在未解决 Open Questions、新增高风险边界或用户撤回时失效。
 - schema 2 auto-loop 在 `start_task` 前必须返回 `review_planning_readiness`，复核验收标准可测试、
   范围/非目标明确、关键决策收敛和仓库证据充分。结果绑定当前实际存在的 `prd.md` / `design.md` /
   `implement.md` 路径与内容 SHA-256；`repairable` 进入最多 3 轮 planning repair，`blocking` 只阻塞当前项。
@@ -435,6 +540,9 @@ prd.md | design.md | implement.md
 | planning task 缺少 `brief.md` | start 退出非零，状态/pointer/hook 不变，提示运行 `trellis-task-brief` |
 | `prd.md`、`design.md` 或 `implement.md` 晚于 brief | start 退出非零并列出过期来源 |
 | task/artifact 文件访问或解析失败 | 默认失败关闭，输出可恢复错误，不抛 traceback |
+| 普通实现意图或任务创建授权 | 完整展示 brief 后等待后续确认 |
+| 当前最终 Brief 有明确预授权且范围未变化 | 完整展示后允许同回合启动 |
+| 范围扩大、Open Questions、高风险边界或用户撤回 | 预授权失效，回到默认确认路径 |
 | brief 存在且不早于所有实际存在的权威 artifact | 允许现有 start 流程进入 `in_progress` |
 | 历史任务已经是 `in_progress` 且没有 brief | 允许重新绑定，不批量强制迁移 |
 | 无 session identity | 仍先执行 brief guard；通过后才进入既有 degraded mode |
@@ -452,6 +560,8 @@ prd.md | design.md | implement.md
   状态或 hook 副作用前阻断，AI 返回最终 brief handoff。
 - Good:用户 review brief 后又修改 `design.md`；start 列出 `design.md` 为更新来源，要求刷新并
   重新 review。
+- Good:用户明确说“最终 Brief 展示后直接开始，不用再问”；最终范围未变化且无未解决问题，
+  Skill 完整展示 brief 后由主 workflow 同回合启动。
 - Good:schema 2 auto-loop 对全队列完成内容绑定的 readiness review 和 brief 刷新，manifest 固化
   planning/handoff hash 后直接返回 `start_task`，运行阶段不再逐任务停顿。
 - Base:轻量任务只有 `prd.md` 和更新后的 brief；校验通过，不机械要求不存在的 design/implement。
@@ -460,6 +570,7 @@ prd.md | design.md | implement.md
   create -> plan -> start 仍可绕过。
 - Bad:schema 2 auto-loop 看到三件套/brief 文件存在就直接 start，或不生成 manifest 就把启动指令
   当成对任意后续内容的授权；这会绕过语义质量线和内容漂移保护。
+- Bad:把“开始做吧”“可以创建任务”等普通意图视为 Brief 预授权，或把一次预授权保存为长期偏好。
 
 ### 6. Tests Required
 
@@ -472,6 +583,8 @@ prd.md | design.md | implement.md
   覆盖 create 已建立的 planning pointer。
 - JS/Python Patch consumer 都断言 Phase 1.4、Brainstorm readiness/handoff、task.py validator/guard
   的最终 marker 与语义；`.agents`、`.claude` 目标至少各覆盖一次。
+- 文案契约测试必须覆盖默认等待、显式预授权同回合启动、普通意图不构成预授权，以及范围扩大、
+  Open Questions 和高风险边界使预授权失效；同时断言没有新增 session helper 或 `task.py` 授权状态。
 - Patch conflict policy 同时要求 handoff/readiness 两个 operation，并检查最终 workflow、skill、
   script 的唯一签名；selector/baseline 漂移继续保持全量预检零写入。
 - 运行 `npm run sync`、enhance-only 二次幂等、`npm test`、Patch conflict、默认及 strict context
@@ -492,8 +605,10 @@ task.py create -> 写 prd/design/implement -> task.py start -> 开始实现
 ```text
 task.py create -> 完善最终 planning artifacts
                -> semantic readiness review(content-bound)
-               -> trellis-task-brief -> 展示完整 brief -> 停止等待
-用户后续确认(content-bound) -> task.py start -> brief freshness guard -> in_progress
+               -> trellis-task-brief -> 展示完整 brief
+                  -> 默认:停止等待 -> 用户后续确认(content-bound)
+                  -> 窄例外:当前最终 Brief 的显式预授权仍有效
+               -> task.py start -> brief freshness guard -> in_progress
 ```
 
 原因:workflow/skill 保留真实用户确认边界，脚本只验证缺失、过期和 I/O 失败这类确定事实；
@@ -1102,8 +1217,9 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
   只支持 `key: value` 与 `key:` 后接 `- item`;不要引入 YAML 依赖。该能力只作
   向后兼容,不要推广为主路由机制,也不要要求项目为每份 spec 维护 `triggers`。
 - 主路由机制是非侵入式文档结构:路径/文件名、H1-H3 标题、`.trellis/spec/**/index.md`
-  中指向具体文档的链接文本与同一行描述、正文前缀样本。没有 frontmatter 的文件
-  必须仍可参与检索。
+  中指向具体文档的链接文本与同一行描述、正文样本。已有 path / 标题 / index / trigger
+  锚点的文件候选继续使用正文前缀样本；没有文件锚点时，只能使用单个最佳章节的直接正文
+  样本形成候选，不得跨章节拼接零散弱证据。没有 frontmatter 的文件必须仍可参与检索。
 - 路径匹配只使用 `.trellis/spec/` 内的相对路径,不要让公共前缀
   `.trellis/spec` 参与打分;否则查询里的 `spec` 会命中所有文档。
 - 查询、路径、标题、index 描述、正文样本都必须 token 化后用 token set 匹配;
@@ -1117,13 +1233,24 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
   `context`、`read`、`matched`、`spec`、`workflow`、`to`、`flow`、`commit`、
   `changes`、`documentation`、`readme`、`typo`;它们可以出现在 reason 中,
   但不能凑成强匹配。
-- 标题匹配应扫描完整 Markdown 标题;正文匹配仍只扫描前缀样本,避免大文档全文检索拖慢或放大误报。
-- 默认输出只给候选路径、kind、score、confidence、reason 和 action;不输出完整
-  spec 内容,避免上下文膨胀。`confidence: high` 使用
-  `action: read before acting`;`confidence: medium` 使用
-  `action: read if clearly relevant`。
-- workflow 读取策略默认读取 high-confidence 匹配;medium-confidence 只有在 path /
-  heading / index description / reason 明确相关时才读取,避免 helper 候选列表放大上下文。
+- 标题匹配应扫描完整 Markdown 标题；章节解析只识别 fence 外的 H1-H3 ATX 标题，并保留
+  原文件 1-based 行号。章节范围从当前标题延伸到下一个同级或更高级标题前；章节正文样本从
+  当前标题下一行开始，到下一个任意标题前，不能把标题 token 再计为正文证据，也不能让父章节
+  吸收子章节的零散正文证据。
+- `Tests Required`、validation matrix、Good/Base/Bad cases、Wrong vs Correct 等测试、验证和
+  示例章节的正文不得参与文件或章节路由，避免规范中的负例关键词反向召回整份文档；其标题
+  仍可参与明确查询。带编号标题应先去除编号再判断。已有文件锚点继续使用前缀证据时，必须在
+  原 `MAX_BODY_CHARS` 字符窗口内遮蔽这些章节正文，不得通过删除正文把更靠后的内容拉入前缀。
+- 默认输出保留候选路径、kind、score、confidence、load、priority、reason 和 action 的现有字段，
+  新增 `load_strategy: full | sections | outline` 与 `sections`；不输出完整 spec 或章节正文。
+  `sections` 条目包含 heading、start_line、end_line、score、confidence、estimated_bytes。
+- 文件 UTF-8 字节数不超过 12 KiB 时使用 `full`。长文档存在可靠章节时使用 `sections`，最多
+  选择 2 个互不重叠章节且估算总量不超过 12 KiB；没有可靠章节、单个相关章节超预算或全部
+  章节无法装入预算时使用 `outline`。H1 文档标题只负责文件召回，存在 H2/H3 时不能让所有
+  子章节自动相关。
+- workflow 对 high-confidence 匹配按 `load_strategy` 消费：`full` 读取全文，`sections` 只读取
+  列出的行号范围，`outline` 先检查标题再读取相关范围；只有选中上下文不足时才逐步扩展。
+  medium-confidence 仅在 path / heading / index description / reason 明确相关时采用同一计划。
 - 无 `.trellis/`、无 `.trellis/spec/`、读取失败或无匹配都不阻断流程;输出
   “No relevant project SOP/spec matched. Continue with the normal workflow.”
 - `trellis-before-dev` 只能提示返回 `Request Triage` owner 并消费匹配结果，不得维护更窄的触发矩阵。
@@ -1135,6 +1262,14 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 |------|------|
 | 查询命中 frontmatter `triggers` | 作为向后兼容信号参与加权并列出 matched triggers,但不要求新文档维护 triggers |
 | 查询命中文件路径 / 标题 / index 描述 / 正文 | 按确定性分数和 confidence 排序,默认最多返回 3 条 |
+| 相关文件不超过 12 KiB | 输出 `load_strategy: full`，不额外列出章节 |
+| 长文档后半部分存在可靠的小章节 | 输出 `load_strategy: sections` 和原文件行号范围，总量不超过 12 KiB |
+| 长文档只有文件锚点、相关章节超预算或无法可靠定位 | 输出 `load_strategy: outline`，先检查标题再按范围读取，不默认全文加载 |
+| 父子章节同时命中 | 选择证据更强、更具体且范围更小的非重叠章节，最多 2 个 |
+| 查询词分散在多个无关章节 | 不得聚合成正文候选或章节计划 |
+| 查询词只出现在测试矩阵或 Good/Bad 负例正文 | 不得反向召回整份规范 |
+| 文件已有单个路径锚点，额外查询词只出现在 `Tests Required` 正文 | 保留合法路径锚点的 medium 结果；负例正文不得进入 reason 或把候选提升为 high |
+| 同一 token 同时出现在章节标题与查询中 | 只计为标题证据，不得再计入正文命中阈值 |
 | 仅命中正文普通词或弱词且未达到强匹配阈值 | 视为无匹配,避免无关查询误报 |
 | 查询只命中 `.trellis/spec` 公共路径前缀 | 不算路径命中 |
 | 查询命中 `to` / `flow` / `commit` / `changes` 等泛词 | 不得仅凭这些词返回候选 |
@@ -1149,8 +1284,11 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 ### 5. Good/Base/Bad Cases
 
 - Good: 用户准备发版,AI 查询 `beta release publish tag changelog`,返回
-  `.trellis/spec/.../release-and-publishing.md`,且 `confidence: high` /
-  `action: read before acting`,然后先读 SOP 再执行命令。
+  `.trellis/spec/.../release-and-publishing.md`,且 `confidence: high`；长文档只列出相关章节
+  行号并使用 `action: read matched sections before acting; expand only if needed`，然后先读局部
+  SOP 再执行命令。
+- Good: 小于 12 KiB 的相关文档输出 `load_strategy: full`，保留全文读取的简单路径。
+- Good: 长文档仅通过路径召回、没有可靠章节时输出 `outline`，AI 先检查标题而不是读取全文。
 - Good: 用户要求非平凡 inspect/direct edit，Request Triage 在选择做法前运行 discovery；随后
   before-dev 只复用已读规范，不重复执行更窄版本。
 - Good: 用户提到跨层/复用经验,AI 查询 `cross layer reuse thinking guide`,返回
@@ -1169,6 +1307,15 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
 - `python3 -m py_compile vendor/skill-garden/.trellis/0.6/scripts/spec_router.py`
 - `python3 -m py_compile enhancements/0.6/scripts/spec_router.py`
 - `python3 -m py_compile .trellis/scripts/spec_router.py`
+- `python3 -m unittest discover -s test/python -p 'test_spec_router.py'`
+- 章节测试覆盖 frontmatter 原始行号、fenced code 伪标题、H1 文档标题隔离、父子范围去重、
+  最多 2 个章节和 12 KiB 总预算。
+- 加载策略测试覆盖小文件 `full`、后半段相关章节 `sections`、只有文件锚点或章节超预算时
+  `outline`，并断言输出不包含正文。
+- 路由回归测试覆盖单章节后半段正文可召回、跨章节弱证据不得聚合、测试/验证/示例章节正文
+  不得反向召回；已有路径锚点时也不得由负例正文提升置信度。
+- 章节评分测试必须断言标题 token 不会再次计入正文命中，并覆盖单标题命中加单正文命中仍为
+  medium 的边界。
 - 查询发版意图,断言返回 release SOP。
 - 查询 guides 意图,断言返回 `.trellis/spec/guides/` 下文档。
 - 查询无关意图,断言返回无匹配提示,至少覆盖:
@@ -1176,8 +1323,8 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
   - `edit README documentation typo small change`
   - `draw architecture diagram visualize flow`
   - `commit push changes to beta branch`
-- 查询输出必须包含 `confidence`;high-confidence 为 `read before acting`,
-  medium-confidence 为 `read if clearly relevant`。
+- 查询输出必须保留旧 JSON 字段，并包含 `load_strategy` 和 `sections`；action 必须同时反映
+  confidence 与加载策略。
 - `npm run sync` 后用 `cmp -s` 确认源、`enhancements/0.6`、dogfood 副本一致。
 - 用临时目标跑 `--skills workflow-enhancement`,确认同时铺设 workflow 覆写和
   `.trellis/scripts/spec_router.py`。
@@ -1200,14 +1347,14 @@ itself.
 #### Correct
 
 ```markdown
-Workflow only says when to run discovery; `.trellis/scripts/spec_router.py`
-returns candidate SOP/spec paths from natural document structure
-(path/title/index/body) with confidence; project-specific SOP content stays in
-`.trellis/spec/`.
+Workflow says when to run discovery and how to consume `load_strategy`;
+`.trellis/scripts/spec_router.py` returns candidate SOP/spec paths plus bounded
+section ranges from natural document structure (path/title/index/body), while
+project-specific SOP content stays in `.trellis/spec/`.
 ```
 
-原因:高频提示保持短小,发现逻辑可测试,项目私有内容不进入 skill-garden,且 spec
-文档不需要额外维护一套 triggers。
+原因:高频提示保持短小,发现和局部加载逻辑可测试,项目私有内容不进入 skill-garden,
+spec 文档不需要额外维护一套 triggers,长文档也不再默认整份进入上下文。
 
 ## Scenario: Auto Loop Unattended Runner
 
@@ -1234,6 +1381,7 @@ python3 ./.trellis/scripts/auto_loop.py record \
   [--task <task>] --action <action> --result <ok|failed|blocked> \
   [--owned-dirty <task>=<repository>::<path>] \
   [--protected-retained <repository>::<path>] \
+  [--doc-remediation-file <repository>::<path>] \
   [--files <repository>::<path> ...] [...]
 python3 ./.trellis/scripts/auto_loop.py decide \
   --task <task> --topic <topic> --option <option> [--option <option> ...] \
@@ -1265,14 +1413,21 @@ python3 ./.trellis/scripts/decision_log.py review \
 - 依赖只来自 `--depends-on` 或 planning artifacts 的明确契约，不从任务顺序、parent/child 或代码引用猜测。prepare 拒绝缺失、自依赖和循环；稳定拓扑排序只移动满足依赖所需的任务，并把原始/执行顺序写入 manifest。
 - AI 只可通过 `decide` 记录任务目标内、低/中风险、可逆且可测试的自主选择。Open Questions、高风险、生产/费用/权限/隐私、破坏性公开契约、push/merge/release/deploy/archive 必须 blocked。
 - `decisions.jsonl` 使用 append-only decision/review 事件；decision ID 单调递增，review 绑定当前全部 decision digest。新增 decision 会使旧 review 失效，损坏 JSONL 默认失败关闭。
-- decision 修改 planning/handoff 时，`--file` 必须列出全部 `<repository>::<path>`。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则以 `artifact-drift` 阻塞。
-- `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。检查 action 还必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
-- 任务级 failure、planning repair 预算耗尽、protected 冲突、artifact drift、spec needs-review 或 commit-only 归属失败只阻塞当前项，并传播到显式依赖项；独立任务继续。队列结束后不自动执行第二遍恢复扫描。
+- decision 修改 planning/handoff 时，`--file` 必须列出全部 `<repository>::<path>`。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则进入匹配 action 的 artifact drift 处理。
+- `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。`run_check_all` / `run_recheck` 的 outstanding action 还要保存 `prd.md`、`design.md`、`implement.md`、`brief.md` 的逐文件 baseline；检查结果必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
+- Check-All 自动修复当前任务 `implement.md` 或 `brief.md` 时，每个实际变化文件必须通过重复的 `--doc-remediation-file` 精确声明。声明集合必须与 action baseline 后的真实变化完全一致；`prd.md`、`design.md`、其它任务和其它文件拒绝重绑。合法 DOC 修复重算 planning/handoff hash，追加 `change_source=check-doc-remediation` 和 files 的 manifest revision 与 item audit event。
+- 未声明或未完全授权的 Check record artifact drift 返回 `status=retryable`，保持 item running 和原 outstanding action，不得调用 `next`。agent 只能撤回本 action 误改、补充合法 DOC 声明后重录，或用 `--result blocked --failure-type artifact-drift` 明确结束。其它 action、protected drift 和 `next` 发出 action 前的跨 action 漂移继续 terminal blocked。
+- 任务级 failure、planning repair 预算耗尽、terminal artifact drift、protected 冲突、spec needs-review 或 commit-only 归属失败只阻塞当前项，并传播到显式依赖项；独立任务继续。队列结束后不自动执行第二遍恢复扫描。
+- `fix_recheck` 预算计数表示已记录的 failed recheck 次数；`MAX_FIX_RECHECK=3` 必须实际允许 3 个 `run_fix` action。只有计数大于预算时才以 `retry-budget-exhausted` 阻塞；用户显式 `retry-blocked` 恢复该原因时必须把 `attempts.fix_recheck` 重置为 `0`，避免刚恢复就再次阻断。
+- `artifact_reconcile` 只属于同一个 Check outstanding action；`MAX_ARTIFACT_RECONCILE=3` 允许前 3 次 retryable 重录，第 4 次转为 terminal `artifact-drift`。成功 Check record 把计数重置为 `0`；用户显式 `retry-blocked` 恢复 terminal artifact drift 时也重置该预算。
 - `retry-blocked` 只重置稳定 recoverable reason，复用同一 run；不得用 `start --force` 替代正常恢复。schema 2 队列含 blocked 项时终态为 `completed_with_blocked`。
 - `commit_only` 必须复用 `trellis-push` 内部 exact commit 执行器，排除 runtime、route prefs、protected paths 和其它任务目录；不得使用 `git add .`、`git add -A`、push 或时间差归属推断。
 - item `completed` 只表示本地提交完成，不修改 `task.json.status`。任务继续保持 `in_progress`，直到用户以后显式执行 finish/archive。
+- auto-loop 在 item `completed` 或 `blocked` 后可写 `task.json.progress` 作为恢复提示，但只能使用 `updatedAt`、`completedSteps`、`partialStep`、`nextStep`、`notes` 五字段 schema。completed progress 记录本地 commit 短 hash 并把 `nextStep` 指向显式 finish/archive 或人工流程；blocked progress 记录 `partialStep="auto-loop blocked: <reason>"` 并把 `nextStep` 指向精确 `retry-blocked --run-id <run-id> --task <task>` 命令。该写入不得修改 `task.json.status`、不得触发 push/archive/finish-work、不得保存 push mode、分支或 Git 编排计划。
 - `trellis-finish-work` 在归档前运行 Decision Audit；`task.py archive` 在任何状态写入、session 清理或目录移动前再次调用 deterministic review guard。无 decision 放行，当前 digest 未 accepted、changes-requested 或日志损坏时零副作用失败。
+- `<run-id>.json` 是 runner 热状态文件，只保留调度和恢复必需字段：当前 queue/item 状态、attempts、blocked reason、commit、outstanding action、manifest revision/hash 和 audit 文件引用。完整 manifest revision 历史必须写入旁路 `<run-id>.manifest.jsonl`，每行是 `type=manifest_revision`、`revision`、`sha256`、`created_at`、完整 `payload` 的审计事件；旧 runtime 中的 `manifest_revisions` 数组在下一次 `_write_state()` 时幂等迁移到 JSONL，并从主 JSON 删除。
 - 默认 stdout 只返回 run/action/计数/简短 blocked 与决策摘要；manifest、dirty、依赖链、protected drift、完整 decision data 和 resume capsule 只在 `--verbose` 输出。runtime 继续使用同目录临时文件、flush/fsync 和 `os.replace` 原子写入。
+- 默认 `status` / `resume` 不得加载或展示完整 audit JSONL；`--verbose` 最多展示 `manifest_audit_path` 和有限 `manifest_tail`。完整 audit 只在明确 debug artifact-drift 或审计时按路径读取，避免 AI 恢复上下文无脑加载大型内部历史。
 - canonical 源位于 `vendor/skill-garden/.trellis/0.6`，经 `npm run sync` 生成快照，再由 enhance-only 更新 dogfood。第二次应用必须为零修改；Auto-Loop Skill 只保留语义边界和 action 调度，确定性 schema/校验/错误矩阵留在 runner/helper。
 
 ### 4. Validation & Error Matrix
@@ -1290,17 +1445,29 @@ python3 ./.trellis/scripts/decision_log.py review \
 | brief 刷新后仍过期 | 返回 `brief-still-stale`，保持 prepare action |
 | 依赖缺失、自依赖或循环 | start 返回 `invalid-task-dependencies`，不进入 running |
 | 前置任务 blocked | 依赖项以 `blocked-dependency` 结束，独立项继续 |
-| manifest 后 artifact 无 decision 变化 | 当前项以 `artifact-drift` 阻塞 |
+| 非 Check action 的 manifest 后 artifact 无 decision 变化 | 当前项以 `artifact-drift` 阻塞 |
 | decision 列明全部变化 artifact | record 重算 planning/handoff hash，追加绑定 decision ID 的 manifest revision |
-| decision 文件范围未覆盖实际变化 | 当前项以 `artifact-drift` 阻塞，不更新 manifest |
+| Check action 修改当前任务 implement/brief 且声明集合完全匹配 | record 重算 hash，追加 `check-doc-remediation` manifest revision 后继续消费检查结果 |
+| DOC 声明包含 PRD/design/其它任务或声明与实际变化不一致 | 返回 `doc-remediation-file-not-allowed` / `doc-remediation-files-mismatch`，outstanding action 保留 |
+| Check record 存在未声明或 decision 未覆盖的 artifact 变化 | 前 3 次返回 `status=retryable reason=artifact-drift`，保留 outstanding action；不得 `next` |
+| 同一 Check action 第 4 次仍无法消解 artifact drift | 当前项以 terminal `artifact-drift` blocked |
+| Check record 显式 `blocked + artifact-drift` | 立即 terminal blocked，不继续消耗自纠预算 |
 | action files 命中 protected key | 当前项以 `protected-path-conflict` 阻塞 |
 | protected 内容在 action 期间变化 | 记录 repository/path/前后 hash，以 `protected-baseline-drift` 阻塞当前项 |
 | requested/minimum full 却 record light | 返回 `check-depth-below-minimum`，outstanding action 保留 |
+| `fix_recheck` 计数等于 `MAX_FIX_RECHECK` | 下一步仍返回第 3 个 `run_fix`，不得提前阻断 |
+| 第 3 次 recheck 仍 failed，计数大于预算 | 当前 item 以 `retry-budget-exhausted` blocked |
+| `retry-blocked` 恢复 `retry-budget-exhausted` | item 回到 pending，`attempts.fix_recheck=0` |
+| `retry-blocked` 恢复 terminal `artifact-drift` | item 回到 pending，`attempts.artifact_reconcile=0` |
 | schema 2 存在任务级 blocked，独立任务已处理完 | run 进入 `completed_with_blocked` |
 | runtime 损坏或仓库不可读 | 返回结构化全局错误或 `globally_blocked`，不得另建状态掩盖原 run |
 | decision log 无决策 | finish/archive 不增加 review 阻断 |
 | 当前 decision digest 未 accepted 或日志损坏 | archive 在任何副作用前退出非零 |
 | commit_only 成功 | exact 本地 commit 并回写 hash/files/message；任务状态仍为 `in_progress` |
+| commit_only 成功后写 task progress | 只更新五字段 `task.json.progress`，`task.json.status` 保持 `in_progress` |
+| item blocked 后写 task progress | `partialStep` 记录 blocked reason，`nextStep` 指向显式 `retry-blocked` 恢复命令 |
+| 旧 runtime 主 JSON 含 `manifest_revisions` | 下一次写入迁移到 `<run-id>.manifest.jsonl`，主 JSON 删除全量数组并保留 audit 引用 |
+| `status` / `resume` 默认输出 | 不内联完整 manifest audit 历史；只在 verbose 展示有限 tail 和路径 |
 
 ### 5. Good/Base/Bad Cases
 
@@ -1312,12 +1479,26 @@ python3 ./.trellis/scripts/decision_log.py review \
   record 追加 manifest revision，并把 decision ID 写入任务 manifest 条目。
 - Good:主仓和子仓都有 `notes.txt`，protected 分类和 action files 始终使用不同的
   `repository::path`，不会因同名路径互相阻塞。
+- Good:热状态 JSON 只保存当前 manifest hash、queue 状态和 audit 路径；完整 revision payload 在
+  `<run-id>.manifest.jsonl` 中逐行追加，artifact-drift 调试时才按路径读取。
+- Good:Check-All 机械勾选当前任务 `implement.md` 后，record 精确传入该文件的
+  `--doc-remediation-file`；runner 审核实际变化集合、追加 manifest revision，再推进到 spec update。
+- Good:第一次 Check record 漏掉 DOC 声明时返回 retryable；agent 不调用 `next`，补齐声明后用原
+  `run_check_all` 重录成功。
 - Base:任务没有 AI decision；后续 finish/archive 直接沿用既有流程，不增加确认。
 - Base:schema 1 runtime 恢复到 outstanding `confirm_brief`；继续旧 action，不写 schema 2 字段。
+- Base:auto-loop 本地提交完成后只写 `task.json.progress.nextStep` 提示 finish/archive，任务仍保持
+  `in_progress`。
 - Bad:prepare 只检查第一个任务就进入 running；后续任务的 Open Questions 会重新制造人工卡点。
 - Bad:AI 直接编辑 planning artifacts，再补 decision；旧 manifest 已经失去内容绑定，必须按
   `artifact-drift` 处理。
+- Bad:任何 `record` 漂移都立即清空 `last_action` 并进入 `completed_with_blocked`；这会让本 action
+  可证明的 Check-All DOC 修复无法补充声明，也迫使用户手工恢复内部协议错误。
+- Bad:把 retryable 扩大到 implement、spec update、commit-only 或 protected drift；这些变化没有
+  Check-All DOC 白名单证据，必须继续失败关闭。
 - Bad:把队列项 `completed` 同步写入 `task.json.status=completed`；这会绕过 finish/archive 生命周期。
+- Bad:把全量 `manifest_revisions` 继续塞进 `<run-id>.json` 或默认 `status/resume` 输出，导致 AI 恢复时加载大型审计历史。
+- Bad:progress 保存 push mode、分支、完整提交计划或业务 Git 编排状态，导致 `trellis-continue` 误恢复 Git 行为。
 - Bad:只给 Auto-Loop 或 Finish-Work 安装 `decision_log.py`，却没有 task-store archive guard；直接
   调用 `task.py archive` 仍可绕过 review。
 - Bad:为缩短 Skill 删除安全边界但没有 runner/helper 或其它 owner 承接；上下文预算不是减少契约的理由。
@@ -1326,6 +1507,8 @@ python3 ./.trellis/scripts/decision_log.py review \
 
 - runner 测试覆盖 schema 1 恢复和 schema 2 全状态链：全队列 prepare、Open Questions、readiness/
   repair 预算、brief、manifest、依赖排序/传播、部分失败继续和三种终态。
+- auto-loop 回归测试必须覆盖 3 个 `run_fix` action、`retry-budget-exhausted` 显式恢复重置预算、
+  terminal/blocked progress 五字段可读、旧 `manifest_revisions` 迁移到 JSONL、主 JSON 不再保留全量历史。
 - Git baseline 测试覆盖 staged/conflict 全局阻断、跨仓同名路径、分类全覆盖、protected path 冲突、
   action 期间 hash 漂移和 exact commit files。
 - decision 测试覆盖 append、递增 ID、risk/choice 校验、digest、accepted、changes-requested、新 decision
@@ -1333,7 +1516,8 @@ python3 ./.trellis/scripts/decision_log.py review \
 - archive 测试断言无 decision 放行，未审查/changes-requested/损坏日志在状态写入、session 清理和
   目录移动前零副作用失败；accepted 后保持既有归档行为。
 - Check-All 测试覆盖 requested/minimum/effective depth、legacy full fallback、failed -> fix -> full
-  recheck，以及 validated auto-loop 完成后立即 `record + next`。
+  recheck、DOC manifest 重绑、非法路径、声明/实际不一致、retryable 后成功、3 次预算后阻塞、
+  显式 blocked 和 validated auto-loop 成功 record 后立即 `next`。
 - selective install 对 `trellis-auto-loop`、`auto-loop`、`trellis-finish-work`、`finish-work` 分别断言
   runner/helper、decision log 和 archive guard 自包含。
 - 运行 `npm test`、Patch conflict、compiled targets、strict AI context budget、Python `py_compile`、
@@ -1350,7 +1534,19 @@ python3 ./.trellis/scripts/decision_log.py review \
 文件由哪条 decision 授权。
 
 **Correct**:`decide` 先保存 decision 与逐文件 baseline，下一次 record 只允许 `--file` 列明的变化，
-成功后追加绑定 decision ID 的 manifest revision；其它变化稳定阻塞。
+成功后追加绑定 decision ID 的 manifest revision；未授权 Check record 先在同一 outstanding action
+内有限自纠，其它 action 稳定阻塞。
+
+**Wrong**:Check-All 自动更新 `implement.md` 后，record 只传 `--result ok`；runner 立即清空
+outstanding action 并要求用户显式 `retry-blocked`。
+
+**Correct**:Check action 保存逐文件 baseline；合法 DOC 修复通过 `--doc-remediation-file` 精确重绑。
+漏声明时返回 retryable 并保留原 action，agent 补齐声明后重录，只有无法归因或预算耗尽才 terminal blocked。
+
+**Wrong**:`status --verbose` 直接内联所有 `manifest_revisions`，并把 task progress 当作后续 push/commit 计划恢复。
+
+**Correct**:`status --verbose` 只展示 `manifest_audit_path` 和有限 `manifest_tail`；完整 revision 写在
+`<run-id>.manifest.jsonl`，task progress 只展示 auto-loop 的下一步恢复提示，不携带 Git 编排状态。
 
 ---
 
@@ -1358,9 +1554,10 @@ python3 ./.trellis/scripts/decision_log.py review \
 
 ### 1. Scope / Trigger
 
-- Trigger:普通 interactive Check-All 通过后保留用户继续卡点;但用户在检查前已明确请求普通
-  push 或用户主动 `commit-only` 时,严格通过后不应再次要求“继续”。两条路径进入 Update-Spec
-  后都不再询问是否更新 spec,也不应在 Update-Spec 与 Trellis Push 之间再停一次。
+- Trigger:普通 interactive Check-All 通过后保留用户继续卡点;已经进入当前 Check-All 完成链且
+  最新消息明确请求普通 push 或用户主动 `commit-only` 时,严格通过后不应再次要求“继续”。
+  两条路径进入 Update-Spec 后都不再询问是否更新 spec,也不应在 Update-Spec 与 Trellis Push
+  之间再停一次。显式进入 `trellis-push` 后的行为由 Push owner 负责，不由本场景反向补门禁。
 - Scope:`overrides/patches/skills/trellis-update-spec/autonomous-evaluation/` 保存自主三态、证据、最小写入和自校验;
   workflow hub/state 只保存停止点与 resume-chain;auto-loop skill/runner 保存确定性 record 映射;
   Patch Engine 和独立 Python consumer 负责替换已有上游入口。
@@ -1387,7 +1584,7 @@ Check-All passed -> report + stop -> user next/continue
      needs-review  -> one focused question, no Push plan
 ```
 
-direct Git 条件续行:
+当前 Check-All 完成链内的 direct Git 条件续行:
 
 ```text
 latest user intent = ordinary push | user commit-only
@@ -1407,11 +1604,14 @@ run_check_all -> run_spec_update -> commit_only
 
 ### 3. Contracts
 
-- Check-All 的 interactive stop 保持默认行为。仅当触发本轮完成链的最新用户消息明确请求普通
+- Check-All 的 interactive stop 保持默认行为。仅当已经进入当前 Check-All 完成链，且触发本轮
+  完成链的最新用户消息明确请求普通
   push 或用户主动 `commit-only`,且 Check-All 整体通过、0 问题、无阻塞、无部分验证、无待用户
   接受的实质剩余风险时,先展示现有标准报告,再同轮运行 Update-Spec。不得从历史、摘要、dirty
   状态或 auto-loop 内部 action 推断该意图,也不得新增 direct Git 专用摘要。
-- 通过后用户表达 next/continue,或 direct Git 严格通过时,若没有当前有效结果,同一轮必须先调用
+- 该窄例外只控制已经启动的 Check-All completion chain，不授权 Check-All 或 Update-Spec 拦截
+  已经进入 `trellis-push` 的请求；Push owner 只读取完成链证据并决定 Git 计划。
+- 通过后用户表达 next/continue,或当前 Check-All 完成链内的 direct Git 严格通过时,若没有当前有效结果,同一轮必须先调用
   `trellis-update-spec`;不得询问“是否更新 spec”或先生成提交计划。
 - `no-op` 用于无可复用契约、现有 spec 已覆盖、一次性实现、纯文案/格式变化或用户当前明确
   skip;不得为了避免 no-op 写原则性总结。
@@ -1440,13 +1640,14 @@ run_check_all -> run_spec_update -> commit_only
 | 条件 | 行为 |
 |------|------|
 | 普通 Check-All passed,用户尚未继续 | 报告并停止,不运行 Update-Spec |
-| direct Git + strict pass | 展示现有标准报告,同轮运行 Update-Spec |
-| direct Git + findings/blocked/partial/material risk | 标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
+| 当前 Check-All 完成链内 direct Git + strict pass | 展示现有标准报告,同轮运行 Update-Spec |
+| 当前 Check-All 完成链内 direct Git + findings/blocked/partial/material risk | 标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
 | 用户 next/continue,无新契约 | 返回 no-op,同轮进入 Trellis Push |
 | 新契约有代码/测试证据且目标唯一 | 最小 written + 自校验,同轮进入 Trellis Push |
 | 现有 spec 已完整覆盖 | no-op,不得重复写同义内容 |
 | 目标 spec 或业务语义不唯一 | needs-review,只问一个问题,不生成 Push 计划 |
-| 用户在已有有效 Check-All 后直接要求 push/commit-only,无当前结果 | 先补跑 Update-Spec,不得绕过 Phase 3.3 |
+| 用户在已有有效 Check-All 的完成链内要求 push/commit-only,无当前结果 | 先补跑 Update-Spec,不得绕过 Phase 3.3 |
+| 请求已经进入 `trellis-push` | 本场景不反向补跑 Check-All/Update-Spec；由 Push owner 记录证据并生成计划 |
 | Update-Spec 新增非 `.trellis/spec/**` 修改 | needs-review/boundary-violation,停止并返回检查流程,不得进入 Push |
 | written 自校验失败且修复不唯一 | needs-review,不得伪报 written |
 | validated auto-loop 得到 no-op/written | `record ok -> next` |
@@ -1457,13 +1658,15 @@ run_check_all -> run_spec_update -> commit_only
 
 - Good:普通 Check-All 通过后先停止;用户说“下一步”,Update-Spec 判断现有规范已覆盖并返回 no-op,
   同一轮展示 Trellis Push 计划。
-- Good:用户先要求 push,Check-All 严格通过后展示原标准报告,同轮运行 Update-Spec 并展示唯一
-  Trellis Push 计划,最终 Git 动作仍等待确认。
+- Good:当前请求已经进入 Check-All 完成链，且用户先要求 push；严格通过后展示原标准报告，
+  同轮运行 Update-Spec 并展示唯一 Trellis Push 计划，最终 Git 动作仍等待确认。
 - Good:实现新增确定性 CLI 契约;Update-Spec 只更新现有权威场景的一个章节,定向验证通过后
   返回 written 并进入 Push。
 - Base:用户明确“不更新 spec,直接走”;结果为 no-op/user-explicit-skip,随后仍由 Trellis Push
   展示最终确认。
-- Bad:普通 Check-All 报告刚输出就自动写 spec,或 direct Git 有部分验证/实质风险仍继续。
+- Bad:普通 Check-All 报告刚输出就自动写 spec,或当前 Check-All 完成链内的 direct Git 有部分
+  验证/实质风险仍自动续行 Update-Spec。
+- Bad:`trellis-push` 已经开始后，本场景又把请求拉回 Phase 2.2 或 Phase 3.3。
 - Bad:为了让每次任务都有 spec diff,重写整份规范或顺带格式化无关章节。
 - Bad:Update-Spec 返回 needs-review 后仍生成提交计划,或 auto-loop 把它记录成 ok。
 
@@ -1471,9 +1674,9 @@ run_check_all -> run_spec_update -> commit_only
 
 - 静态断言 override 包含三态、证据顺序、`.trellis/spec/**`、最小修改、self-validation、
   interactive/auto-loop disposition。
-- 静态断言 Check-All 仍只有一个 Interactive Post-Check Stop Gate;普通检查报告后停止,direct Git
-  strict pass 使用原标准报告并同轮进入 Update-Spec,其它结果停止;整个链位于 Code Commit
-  Confirmation Gate 之前。
+- 静态断言 Check-All 仍只有一个 Interactive Post-Check Stop Gate;普通检查报告后停止,当前
+  Check-All 完成链内的 direct Git strict pass 使用原标准报告并同轮进入 Update-Spec,其它结果
+  停止；同时断言已经进入 `trellis-push` 后不会反向加载 Check-All/Update-Spec。
 - JS consumer 覆盖全装、三个精细别名、全部平台原生 skill/command/workflow/prompt/TOML 目标、
   缺目标和二次运行幂等。
 - Python 独立安装器覆盖相同别名、目标和 skip 行为。
@@ -1498,13 +1701,16 @@ Check-All passed -> report + stop -> user next
   -> autonomous Update-Spec(no-op/written/needs-review)
   -> no-op/written loads Trellis Push in the same turn
 
-direct Git -> Check-All strict pass -> same standard report
+direct Git already in Check-All completion chain -> strict pass -> same standard report
   -> autonomous Update-Spec(no-op/written/needs-review)
   -> no-op/written loads Trellis Push in the same turn
+
+explicit Trellis Push entry -> Push owner records available completion evidence
+  -> Git preflight and one confirmation plan
 ```
 
-原因:普通检查保留用户继续边界;direct Git 已提供条件续行意图,严格通过后省去重复口令。两者都
-保留最终 Git 确认,并把中间可由仓库证据决定的步骤自动化。
+原因:普通检查保留用户继续边界；已经启动的 Check-All 完成链可消费 direct Git 条件续行；
+一旦进入 Push owner，上游结果只作为审计证据，不再反向增加阶段或确认卡点。
 
 ---
 
@@ -1513,11 +1719,13 @@ direct Git -> Check-All strict pass -> same standard report
 ### 1. Scope / Trigger
 
 - Trigger:普通 `trellis-check` / `trellis-check-all` 完成后,主 agent 可能绕过 Phase 3.4
-  `trellis-push`,自行草拟 `Proposed commits`、commit message 和 commit-only 确认;大型或多仓
-  计划也可能把普通文件全部铺开,造成高噪声输出。
+  `trellis-push`,自行草拟 `Proposed commits`、commit message 和 commit-only 确认；显式 Push
+  也可能因缺少 Check-All/Update-Spec 被拉回上游阶段或增加“运行/跳过检查”确认；大型或多仓
+  计划还可能把普通文件全部铺开,造成高噪声输出。
 - Scope:Phase 2.2 / in-progress state 负责 post-check 一跳边界，Phase 3.4 进入 `trellis-push`；
-  Hub 只登记 owner 和跨阶段顺序。`trellis-check-all` 负责纯检查汇总；`trellis-push` 只负责 exact plan、一次确认、业务 Git
-  动作和普通 push 后的 task progress trigger;`task_progress.py` 只负责窄 schema 读写;
+  Hub 只登记 owner 和跨阶段顺序。`trellis-check-all` 负责纯检查汇总；`trellis-push` 负责只读完成链
+  证据、exact plan、一次确认、业务 Git 动作和普通 push 后的 task progress trigger；
+  `task_progress.py` 只负责窄 schema 读写;
   `trellis-auto-loop` 仍只使用本地 commit-only 预授权。
 
 ### 2. Signatures
@@ -1533,6 +1741,15 @@ trellis-check-all
   -> user confirmation
   -> exact git add / git commit --only / push
   -> exact current-task record / progress commit / push
+```
+
+显式 Push 入口:
+
+```text
+explicit trellis-push | push confirmation
+  -> record Check-All evidence: passed | not-run | stale | findings | blocked | partial
+  -> record Update-Spec evidence: no-op | written | needs-review | not-run | stale
+  -> Git preflight + one plan; non-passing completion evidence is disclosed as risk
 ```
 
 普通多仓计划可以在仓库间展示一个本地生成命令；命令成功且生成后的 dirty paths 未超出预计 exact files 时沿用同一次确认。
@@ -1563,12 +1780,20 @@ risk_items          ->始终逐项展示,不折叠
 - 普通 Check-All 通过后仍停止;用户继续后 Phase 3.3 自主返回三态。用户在检查前已明确请求
   普通 push/用户 `commit-only` 时,strict pass 展示标准报告后同轮进入 Phase 3.3。两条路径均由
   no-op/written 同轮加载 `trellis-push`,needs-review 停止。
-- 除 auto-loop 内部 commit-only 外，用户直接要求普通 push/commit-only 时，`trellis-push` 必须先
-  分层验证前置结果:缺少/过期 Check-All 时返回 Phase 2.2,不得运行 Update-Spec或读取 Git 计划;
-  Check-All 有效但 `spec_update_result` 缺失/过期时只进入 Update-Spec;两者均有效才读取 Git 计划。
-- 当前有效 `spec_update_result.status=written` 的 `changed_files` 若全部位于 `.trellis/spec/**`,属于
-  Update-Spec 已完成自校验的受控 post-check diff,不得使原 Check-All 失效或触发额外重检。任何
-  未列入该结果、越出 spec 边界或伴随其它实际 diff 的变化仍使旧 Check-All 失效。
+- 除 auto-loop 内部 commit-only 外，普通 push 或用户 `commit-only` 已经构成明确 Git 意图。
+  `trellis-push` 在读取 Git 计划前只记录当前可验证的 Check-All / Update-Spec 证据，不补跑、
+  不切换阶段、不要求用户改写成“跳过检查后 push”，也不增加运行/跳过检查的二选一确认。
+- Check-All 证据状态固定为 `通过`、`未运行`、`已失效`、`存在 findings`、`blocked` 或
+  `部分验证`；Update-Spec 证据状态固定为 `no-op`、`written`、`needs-review`、`未运行` 或
+  `已失效`。没有当前可验证证据时使用 `未运行`，不得从历史、摘要或 dirty 状态猜测通过。
+- 完成链状态不阻止读取 Git 状态或生成提交计划。`未运行`、`已失效`、findings、blocked、
+  部分验证或 `needs-review` 必须同时进入计划风险区，但不得派生第二次确认。
+- 当前 `spec_update_result.status=written` 只有在结果仍适用于实际 diff 时才展示为 `written`；
+  结果外出现其它变化时标记为 `已失效` 并披露风险，不得因此把请求拉回 Phase 2.2。
+- 只有 Git 层面的确定性安全条件可以阻断计划，包括冲突或未完成集成状态、exact files 无法
+  归属、分支/upstream 不满足安全执行条件，以及普通 push 会携带无法归属的历史 ahead commits。
+- Push 计划必须在仓库计划前展示“完成链证据”，包含 Check-All 与 Update-Spec 当前状态；
+  exact files、commit message、保留 dirty、风险和最终一次确认继续使用原有计划契约。
 - Phase 3.4 必须加载 `trellis-push`;在该 skill 外草拟提交计划不能作为等价替代。
 - workflow hub 只声明 Phase 3.4 门禁和格式所有权:详细计划/结果格式完全由 `trellis-push`
   管理。hub 不复制模板、字段顺序、仓库显示名、retained 用户标签或 8/12 文件阈值。
@@ -1635,11 +1860,11 @@ risk_items          ->始终逐项展示,不折叠
 | 条件 | 行为 |
 |------|------|
 | 普通 check 汇总准备输出 commit message / planned files | 停止;只输出检查报告与下一步 |
-| direct Git 缺少/过期 Check-All | 返回 Phase 2.2;严格通过才条件续行,不得运行 Update-Spec或读取 Git 计划 |
-| direct Git 的 Check-All 有效但 spec result 缺少/过期 | 只运行 Update-Spec,不重复 Check-All |
-| Update-Spec written 只产生结果列出的 `.trellis/spec/**` 写入 | 保留 Check-All 有效性,继续 Git 预检与计划 |
-| written 结果外还有其它 diff | 旧 Check-All 失效,返回 Phase 2.2 |
-| direct Git 的 Check-All/spec result 均有效 | 直接进入 Git 预检与计划 |
+| 显式 Push 缺少 Check-All | 记录 `未运行` 并进入风险区，继续 Git 预检与计划 |
+| Check-All 报告过期、存在 findings、blocked 或部分验证 | 记录对应状态并进入风险区，继续 Git 预检与计划 |
+| Update-Spec 缺少/过期或为 needs-review | 记录对应状态并进入风险区，继续 Git 预检与计划 |
+| Check-All / Update-Spec 均有效 | 展示实际状态，继续 Git 预检与计划 |
+| 计划存在冲突、无法归属 exact files 或其它 Git 安全阻塞 | 停止并报告确定性 Git 问题 |
 | Phase 3.4 未加载 `trellis-push` 却准备 commit | 阻断;进入本 skill 重新生成计划 |
 | 旧 Phase 3.4 `Proposed commits` / `Never push` 正文仍存在 | conflict assertion 失败，禁止依赖 Hub 优先级继续 |
 | 普通 `trellis-push` 未收到 commit-only 意图 | mode 必须是 commit + push |
@@ -1671,8 +1896,10 @@ risk_items          ->始终逐项展示,不折叠
 
 - Good:普通 check-all 通过后只报告三维检查、验证命令、Redis 未实机验证风险和下一步,等待用户;
   用户继续后自动完成 Phase 3.3,no-op/written 同轮进入 `trellis-push`。
-- Good:用户先要求 push,check-all 0 问题且无部分验证/实质风险;原标准报告后同轮进入 Phase 3.3,
-  再展示一次 `trellis-push` 最终确认计划。
+- Good:Flower 更新结果或用户显式进入 `trellis-push`，当前没有 Check-All/Update-Spec；计划显示
+  两项 `未运行` 并列入风险，同时展示 exact files 和 commit message，只等待原有一次最终确认。
+- Good:当前 Check-All 存在 findings、Update-Spec 为 `needs-review`；两项状态进入同一计划风险区，
+  不再追加“是否跳过”确认，Git 安全预检通过后仍可由用户一次确认执行。
 - Good:单仓 20 个普通 planned files 按目录压成 6 行,2 个未识别 dirty 文件仍逐项展示;
   用户回复“展开文件”后看到原 20 个 exact paths。
 - Good:两个业务仓库各自拥有 commit message 和 branch/upstream,顶部显示执行顺序和一行任务
@@ -1687,6 +1914,8 @@ risk_items          ->始终逐项展示,不折叠
   文件进入 unrecognized 并排除。
 - Bad:check-all 汇总后直接输出 `Proposed commits` 并说“不会推送”;这同时绕过 post-check、
   Phase 3.3 和 `trellis-push` 默认 push 语义。
+- Bad:`trellis-push` 因 Check-All 缺失返回 Phase 2.2，或弹出“运行 Check-All / 跳过并继续”二选一。
+- Bad:`trellis-push` 因 Update-Spec 缺失/过期自动加载 Phase 3.3，而不是在计划中披露状态。
 - Bad:为了缩短输出把 staged/conflict 文件折叠成“其他 12 个文件”;风险范围不可审计。
 - Bad:普通计划沿用 auto-loop 的 commit-only 文案;auto-loop 预授权不能泄漏到普通流程。
 - Bad:为减少一次确认增加独立中间步骤流程、验证协议或新状态;现有计划和提交前预检已经足够。
@@ -1700,12 +1929,13 @@ risk_items          ->始终逐项展示,不折叠
   和 workflow override 语义一致。
 - 静态扫描 post-check 文案,确认只允许检查结果/验证/风险/结论/下一步,且禁止
   `Proposed commits`、commit message、planned files 和提交确认。
-- 静态扫描普通用户继续和 direct Git strict-pass 两条 resume-chain,确认都沿用标准报告、
-  Update-Spec no-op/written 同轮加载 `trellis-push`,且缺少当前结果时不能直接进入 Phase 3.4。
-- 静态与行为测试确认 direct push 先检查 Check-All/Update-Spec，auto-loop internal commit-only
-  继续复用既有 `run_spec_update -> commit_only` 预授权而不重复进入交互门禁。
-- 静态断言 Push 只豁免当前有效 written 结果列出的 `.trellis/spec/**` 写入,其它 post-check diff
-  仍使 Check-All 失效;同时断言 in-progress state 只保留 Stop Gate 一跳指针,不复制条件矩阵。
+- 静态扫描普通用户继续和当前 Check-All completion chain 内的 direct Git strict-pass 两条
+  resume-chain，确认正常 workflow 仍沿用标准报告并经 Update-Spec 进入 `trellis-push`。
+- 静态与行为测试覆盖显式 Push 在 Check-All/Update-Spec 未运行、已失效、findings、blocked、
+  部分验证或 `needs-review` 时仍生成计划，并把状态写入“完成链证据”与风险区。
+- 静态断言 `trellis-push` 不返回 Phase 2.2、不加载 `trellis-check-all` / `trellis-update-spec`、
+  不包含运行/跳过检查二选一；auto-loop internal commit-only 继续复用既有
+  `run_spec_update -> commit_only` 预授权而不重复记录交互证据。
 - 静态扫描 Phase 3.4 文案,确认必须加载 `trellis-push`,普通默认 push,commit-only 仅来自
   明确用户意图或合法 auto-loop 预授权。
 - 静态扫描最终 Phase 3.4，确认旧 `Proposed commits`、local-only、no-push walkthrough 已被
@@ -1743,6 +1973,14 @@ Proposed commits:
 
 问题:check 阶段越权生成 Phase 3.4 内容,且普通流程擅自选择 commit-only。
 
+```markdown
+缺少有效 Check-All。请选择：
+- 运行 Check-All
+- 跳过检查并继续 push
+```
+
+问题:Push owner 把审计状态升级成新的交互门禁，导致显式 Push 多一次确认。
+
 #### Correct
 
 ```markdown
@@ -1758,6 +1996,10 @@ Check-all 已通过。
 [PUSH] 1 个仓库 · 1 个 commit · 2 个文件 · 保留未提交 1 · 风险 0
 顺序：flower-trellis -> task progress
 
+### 完成链证据
+- Check-All：通过
+- Update-Spec：written
+
 ### 1. flower-trellis
 `fix(api): 修复会话一致性`
 分支：`beta` -> `origin/beta`
@@ -1772,8 +2014,8 @@ Push：执行
 确认执行请回复 `确认`。
 ```
 
-原因:check 报告与 Git 计划职责分离,Phase 3.3 只在用户继续后自主求值,Phase 3.4 的默认 push、
-文件范围和确认都由唯一入口负责。
+原因:check 报告与 Git 计划职责分离，正常完成链仍在用户继续后进入 Phase 3.3；显式 Push
+进入 Phase 3.4 后只披露上游证据，不反向补门禁。默认 push、文件范围和一次确认都由唯一入口负责。
 
 ---
 

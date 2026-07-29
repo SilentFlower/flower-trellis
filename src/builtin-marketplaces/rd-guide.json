@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "rd-guide",
+  "type": "gitlab",
+  "name": "研发指南",
+  "enabled": true,
+  "baseUrl": "http://gitlab.xhgjdev.com",
+  "project": "digital-rd-governance/rd-guide",
+  "ref": "main",
+  "marketplacePath": ".flower-marketplace/marketplace.json",
+  "oauth": {
+    "applicationId": "0f73e53d745450b6ab9596960b10a2ac1654d67c0941bae381f6dbbf6839ec04",
+    "scopes": [
+      "read_api",
+      "read_repository"
+    ]
+  }
+}

@@ -25,9 +25,9 @@ function findHookCommand(config, event, needle) {
   return null;
 }
 
-function resolveCommand(name, config) {
+function resolveCommand(name, config, pythonCommand) {
   const codexBase = findHookCommand(config, "UserPromptSubmit", CODEX_WORKFLOW_HOOK) ||
-    `python3 -X utf8 ${CODEX_WORKFLOW_HOOK}`;
+    `${pythonCommand} -X utf8 ${CODEX_WORKFLOW_HOOK}`;
   if (name === "codex-session-start") {
     return codexBase.replace(CODEX_WORKFLOW_HOOK, CODEX_SESSION_START);
   }
@@ -35,14 +35,14 @@ function resolveCommand(name, config) {
     return codexBase.replace(CODEX_WORKFLOW_HOOK, FLOWER_UPDATE_HOOK_REL);
   }
   const claudeBase = findHookCommand(config, "UserPromptSubmit", CLAUDE_WORKFLOW_HOOK) ||
-    `python3 ${CLAUDE_WORKFLOW_HOOK}`;
+    `${pythonCommand} ${CLAUDE_WORKFLOW_HOOK}`;
   if (name === "claude-flower-update") {
     return claudeBase.replace(CLAUDE_WORKFLOW_HOOK, FLOWER_UPDATE_HOOK_REL);
   }
   throw new Error(`未知 Hook commandResolver:${name}`);
 }
 
-function applyJsonHookCommand({ value, operation }) {
+function applyJsonHookCommand({ value, operation, pythonCommand = "python3" }) {
   let config;
   try {
     config = value.trim() ? JSON.parse(value) : {};
@@ -86,7 +86,7 @@ function applyJsonHookCommand({ value, operation }) {
     }
     let command;
     try {
-      command = resolveCommand(content.commandResolver, config);
+      command = resolveCommand(content.commandResolver, config, pythonCommand);
     } catch (error) {
       return { error: error.message };
     }
@@ -304,11 +304,12 @@ function applyTomlSection({ value, operation }) {
 /**
  * Flower 自有 Patch Adapter 注册表。
  *
+ * @param {string} [pythonCommand] 目标 Trellis 项目实际使用的 Python 命令
  * @returns {Record<string, Function>} selector type 到受控 Adapter 的映射
  */
-export function flowerPatchAdapters() {
+export function flowerPatchAdapters(pythonCommand = "python3") {
   return {
-    "json-hook-command": applyJsonHookCommand,
+    "json-hook-command": (context) => applyJsonHookCommand({ ...context, pythonCommand }),
     "yaml-key": applyYamlKey,
     "toml-section": applyTomlSection,
   };

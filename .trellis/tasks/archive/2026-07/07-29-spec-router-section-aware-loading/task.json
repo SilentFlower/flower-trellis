@@ -1,0 +1,62 @@
+{
+  "id": "spec-router-section-aware-loading",
+  "name": "spec-router-section-aware-loading",
+  "title": "Optimize spec_router section-aware loading",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-29",
+  "completedAt": "2026-07-29",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-29T05:33:26Z",
+      "contextKey": "codex_019fac55-0130-7901-bc2c-2226d9b2eb73",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "a33f376d7efe15441cba8fbe0b0a67c6f1a15f6c",
+        "status": [
+          {
+            "status": "??",
+            "path": ".flower/.gitignore"
+          },
+          {
+            "status": "??",
+            "path": ".flower/plugin-lock.json"
+          },
+          {
+            "status": "??",
+            "path": ".flower/plugins.json"
+          }
+        ]
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "实现章节感知加载计划",
+      "同步 Skill-Garden、快照与 dogfood",
+      "通过 Full Check-All 并更新项目规范",
+      "提交并推送业务变更"
+    ],
+    "partialStep": null,
+    "nextStep": "归档当前任务",
+    "notes": "spec_router 已支持 full、sections、outline 加载策略；Check-All 与 Update-Spec 已通过。",
+    "updatedAt": "2026-07-29T06:22:58Z"
+  }
+}

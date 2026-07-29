@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "复用内置 Skill 的离线分发、多平台投影和发布快照约束。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "验证内置作者 Plugin、模板和 Skill 进入 npm 包及发布检查。"}
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "读取 CLI 命令、公共 JSDoc 和测试规范入口。"}
+{"file": ".trellis/tasks/07-28-flower-plugin-system/research/current-architecture.md", "reason": "掌握 builtin skill、Provider、作者工具与 rd-guide 契约边界。"}

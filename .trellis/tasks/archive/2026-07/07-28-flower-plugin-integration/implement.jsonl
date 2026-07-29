@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "执行 npm pack、snapshot、依赖和发布前完整性检查。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "覆盖 init/update/uninstall、平台矩阵、幂等和 snapshot 回归。"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "覆盖 Patch conflict、compiled targets、零写入和 parity 门禁。"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "确保新增 Plugin/作者 Skill 不造成高频 AI 上下文重复。"}
+{"file": ".trellis/tasks/07-28-flower-plugin-system/research/current-architecture.md", "reason": "读取父任务现状证据和跨模块集成风险。"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "实现 TTY prompt、非 TTY 回退、中文输出和退出码时遵循现有 CLI 契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "交互层使用 @inquirer/prompts、ESM 命名导出和可测试命令编排，不引入全屏前端栈。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md", "reason": "交互安装、更新和卸载必须复用单 Plugin Application Service 事务边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md", "reason": "交互搜索、source 与 auth 流程复用 GitLab Provider、OAuth、Keyring 和零网络边界。"}

@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "实现 Phase 1.4 与 trellis-task-brief 的文案级预授权窄例外和 Skill-Garden 同步合同。"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "修改 workflow、managed Skill 和 conflict assertion 时遵循 Patch schema 与作者源同步规则。"}
+{"file": ".trellis/tasks/07-29-brief-start-preauthorization/research/historical-case.md", "reason": "复现用户明确预授权仍被重复询问的真实回归场景。"}

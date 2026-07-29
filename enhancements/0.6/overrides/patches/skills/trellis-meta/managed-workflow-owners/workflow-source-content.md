@@ -1,0 +1,1 @@
+`.trellis/workflow.md` is the runtime semantic contract for the current project. It is sufficient to understand what should happen now, but not always sufficient to locate the durable edit point: Skill-Garden-managed sections must be traced to their Patch and workflow owner before modification.

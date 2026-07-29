@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "flower-plugin-author",
+  "name": "Flower Plugin 作者工具",
+  "version": "1.0.0",
+  "compatibility": {
+    "flower": ">=0.5.0 <1.0.0"
+  },
+  "dependencies": {},
+  "capabilities": {
+    "profile": "standard",
+    "required": [
+      "content.skills"
+    ]
+  },
+  "content": {
+    "skills": [
+      "skills/flower-plugin-author"
+    ]
+  }
+}

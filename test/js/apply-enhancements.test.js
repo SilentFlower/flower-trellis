@@ -11,6 +11,9 @@ const PATCHES = path.join(V06_DIR, "overrides", "patches");
 const UPSTREAM_SCRIPTS = path.resolve(
   "node_modules/@mindfoldhq/trellis/dist/templates/trellis/scripts",
 );
+const UPSTREAM_META = path.resolve(
+  "node_modules/@mindfoldhq/trellis/dist/templates/common/bundled-skills/trellis-meta",
+);
 const SHARED_HOOK_TARGETS = [
   ".codex/hooks/inject-workflow-state.py",
   ".claude/hooks/inject-workflow-state.py",
@@ -30,17 +33,29 @@ function write(root, relativePath, value) {
   return file;
 }
 
+function writeMetaTargets(target) {
+  for (const root of [".agents/skills", ".claude/skills"]) {
+    const destination = path.join(target, ...root.split("/"), "trellis-meta");
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.cpSync(UPSTREAM_META, destination, { recursive: true });
+  }
+}
+
 function patchSource(ref, name) {
   return fs.readFileSync(path.join(PATCHES, ...ref.split("/"), name), "utf8").trimEnd();
 }
 
 function assertIntentRoutingSemantics(value) {
+  assert.match(value, /Asking for an opinion, expressing discomfort, rejecting a proposal/);
+  assert.match(value, /Asking to inspect, explain, verify, or locate a cause is `inspect`/);
   assert.match(value, /Repair authorization and permission to skip task planning are separate/);
   assert.match(value, /repair scope is unknown, use `inspect` first and reclassify from evidence/);
-  assert.match(value, /`direct_edit` requires known, bounded, local, low-risk, reversible scope/);
+  assert.match(value, /`direct_edit` requires known, bounded, low-risk, reversible scope/);
+  assert.match(value, /no unresolved design choice, and simple validation/);
   assert.match(value, /Permission\/authentication\/data-scope\/security/);
   assert.match(value, /cross-package\/layer or multi-entry behavior/);
-  assert.match(value, /validation, or unknown scope are `task_plan` signals/);
+  assert.match(value, /risk signals, not automatic `task_plan` outcomes/);
+  assert.match(value, /exact rollback or mechanically synchronized known change/);
   assert.match(value, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(value, /Project Knowledge Discovery applies once per user intent/);
   assert.match(value, /apply the Active Task Scope Guard before artifact ownership/);
@@ -326,6 +341,11 @@ function writeControlPlaneTargets(target) {
   );
   write(
     target,
+    ".trellis/scripts/common/session_context.py",
+    fs.readFileSync(path.join(UPSTREAM_SCRIPTS, "common/session_context.py"), "utf8"),
+  );
+  write(
+    target,
     ".trellis/scripts/common/task_store.py",
     fs.readFileSync(path.join(UPSTREAM_SCRIPTS, "common/task_store.py"), "utf8"),
   );
@@ -407,6 +427,28 @@ function snapshotTree(root) {
   return [...files.entries()].map(([name, value]) => [name, value.toString("base64")]);
 }
 
+function renderSeededPythonCommand(root, command) {
+  function walk(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(file);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const content = fs.readFileSync(file);
+      if (content.includes(0)) continue;
+      const rendered = content
+        .toString("utf8")
+        .split("\n")
+        .map((line) => line.startsWith("#!") ? line : line.replaceAll("python3", command))
+        .join("\n");
+      fs.writeFileSync(file, rendered);
+    }
+  }
+  walk(root);
+}
+
 function quietApply(target, options = { variant: "0.6" }) {
   const original = console.log;
   console.log = () => {};
@@ -451,6 +493,7 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   write(target, ".trellis/.version", "0.6.5\n");
   const workflow = write(target, ".trellis/workflow.md", minimalWorkflow());
   writeIntentTargets(target);
+  writeMetaTargets(target);
   const continueTargets = writeContinueTargets(target);
   const updateSpecTargets = writeUpdateSpecTargets(target);
   const finishTargets = writeFinishTargets(target);
@@ -485,7 +528,8 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /Load `trellis-push`/);
   assert.match(workflowText, /task_intent\.py create --title/);
   assert.match(workflowText, /skill-garden patch workflow-phase-1-activate/);
-  assert.match(workflowText, /display the full brief in chat, then stop the current turn/);
+  assert.match(workflowText, /Unless `trellis-task-brief` validates an explicit preauthorization/);
+  assert.match(workflowText, /After a later confirmation, or in the same turn/);
   assert.ok(
     workflowText.indexOf("| Task Brief Handoff |") <
       workflowText.indexOf("| Project Knowledge Discovery |"),
@@ -498,6 +542,15 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     assert.match(beforeDevText, /skill-garden patch before-dev-project-knowledge-discovery/);
     assert.match(beforeDevText, /Follow the workflow `Request Triage` Project Knowledge Discovery contract/);
     assert.doesNotMatch(beforeDevText, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
+  }
+  for (const relativePath of [
+    ".agents/skills/trellis-meta/SKILL.md",
+    ".claude/skills/trellis-meta/SKILL.md",
+  ]) {
+    const metaText = fs.readFileSync(path.join(target, relativePath), "utf8");
+    assert.match(metaText, /including Flower\/Skill-Garden managed Plugin overlays/);
+    assert.match(metaText, /skill-garden patch trellis-meta-managed-scope/);
+    assert.match(metaText, /vendor\/skill-garden\/\.trellis\/0\.6/);
   }
   for (const continueTarget of continueTargets) {
     const continueText = fs.readFileSync(continueTarget, "utf8");
@@ -601,35 +654,74 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     assert.match(value, /### 1\. Decision Audit/);
     assert.match(value, /### 2\. Current Task Release Audit/);
   }
-  const manifest = JSON.parse(
-    fs.readFileSync(path.join(target, ".trellis/.flower-manifest.json"), "utf8"),
+  const plugins = JSON.parse(
+    fs.readFileSync(path.join(target, ".flower/plugins.json"), "utf8"),
   );
-  assert.equal(manifest.variant, "0.6");
-  assert.ok(manifest.paths.includes(".trellis/scripts/task_intent.py"));
-  assert.ok(manifest.paths.includes(".trellis/scripts/pre_check_state.py"));
-  assert.equal(manifest.patches.schemaVersion, 2);
-  assert.match(manifest.patches.catalogHash, /^sha256:/);
-  assert.ok(manifest.patches.applied.every((item) => item.qualifiedId.includes("/")));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-in-progress"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-state-missing-task"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "workflow-phase-1-activate"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "brainstorm-planning-handoff"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "task-start-brief-guard"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "task-start-session-write-gate"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "task-finish-clear-result"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "task-create-parent-link"));
-  assert.ok(
-    manifest.patches.applied.some((item) => item.id === "active-task-clear-session-fallback"),
+  const state = JSON.parse(
+    fs.readFileSync(path.join(target, ".flower/state.json"), "utf8"),
   );
-  assert.ok(manifest.patches.applied.some((item) => item.id === "codex-session-start-missing-task"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "claude-session-start-missing-task"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "codex-session-start-pre-check-hold"));
-  assert.ok(manifest.patches.applied.some((item) => item.id === "claude-session-start-pre-check-hold"));
+  const skillGarden = state.plugins.find(({ id }) => id === "flower/skill-garden");
+  assert.ok(plugins.plugins.some(({ id }) => id === "flower/skill-garden"));
+  assert.ok(skillGarden.paths.some(({ path: value }) => value === ".trellis/scripts/task_intent.py"));
+  assert.ok(skillGarden.paths.some(({ path: value }) => value === ".trellis/scripts/pre_check_state.py"));
+  assert.ok(skillGarden.patches.every((item) => item.operation.includes("/")));
+  for (const operation of [
+    "workflow-state-in-progress",
+    "workflow-state-missing-task",
+    "workflow-phase-1-activate",
+    "brainstorm-planning-handoff",
+    "task-start-brief-guard",
+    "task-start-session-write-gate",
+    "task-finish-clear-result",
+    "task-create-parent-link",
+    "active-task-clear-session-fallback",
+    "codex-session-start-missing-task",
+    "claude-session-start-missing-task",
+    "codex-session-start-pre-check-hold",
+    "claude-session-start-pre-check-hold",
+  ]) {
+    assert.ok(skillGarden.patches.some((item) => item.operation.endsWith(`/${operation}`)));
+  }
+  assert.equal(fs.existsSync(path.join(target, ".trellis/.flower-manifest.json")), false);
   assert.equal(fs.existsSync(path.join(target, ".codex/hooks.json")), true);
   assert.equal(fs.existsSync(path.join(target, ".claude/settings.json")), true);
 
   quietApply(target);
   assert.deepEqual(snapshotTree(target), first);
+});
+
+test("Windows Python 命令渲染后的 0.6.5 目标可完整强化且重复运行幂等", () => {
+  for (const command of ["python", "py -3"]) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-apply-python-command-"));
+    write(target, ".trellis/.version", "0.6.5\n");
+    write(target, ".trellis/workflow.md", minimalWorkflow());
+    writeIntentTargets(target);
+    writeMetaTargets(target);
+    writeContinueTargets(target);
+    writeUpdateSpecTargets(target);
+    writeFinishTargets(target);
+    renderSeededPythonCommand(target, command);
+
+    const applied = quietApply(target);
+    assert.equal(applied.patchReport.summary.errors, 0);
+    const first = snapshotTree(target);
+    const workflow = fs.readFileSync(path.join(target, ".trellis/workflow.md"), "utf8");
+    assert.ok(workflow.includes(`${command} ./.trellis/scripts/spec_router.py`));
+    assert.match(workflow, /skill-garden patch workflow-phase-1-activate/);
+    for (const relative of [
+      ".agents/skills/trellis-brainstorm/SKILL.md",
+      ".agents/skills/trellis-finish-work/SKILL.md",
+      ".claude/commands/trellis/finish-work.md",
+    ]) {
+      const value = fs.readFileSync(path.join(target, ...relative.split("/")), "utf8");
+      assert.doesNotMatch(value, /python3 (?:-X utf8 )?\.\/\.trellis\/scripts\//);
+      assert.ok(value.includes(`${command} ./.trellis/scripts/`));
+    }
+
+    quietApply(target);
+    assert.deepEqual(snapshotTree(target), first);
+    fs.rmSync(target, { recursive: true, force: true });
+  }
 });
 
 test("0.6 未登记 patch 版本 warning 放行，跨兼容线 error 且零写入", () => {
@@ -731,7 +823,8 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
     assert.match(value, /skill-garden patch workflow-state-missing-task/);
     assert.match(value, /skill-garden patch workflow-runtime-contract-reference/);
     assert.match(value, /skill-garden patch workflow-phase-1-activate/);
-    assert.match(value, /display the full brief in chat, then stop the current turn/);
+    assert.match(value, /Unless `trellis-task-brief` validates an explicit preauthorization/);
+    assert.match(value, /After a later confirmation, or in the same turn/);
     assert.match(value, /follow `\[workflow-state:no_task\]` \/ Request Intent Routing/);
     assert.match(
       fs.readFileSync(

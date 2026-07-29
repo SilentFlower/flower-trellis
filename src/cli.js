@@ -4,6 +4,7 @@ import chalk from "chalk";
 import { flowerVersion, trellisVersion } from "./lib/versions.js";
 import { selectVariant } from "./lib/variant.js";
 import { readManifest } from "./lib/manifest.js";
+import { ProjectStore } from "./plugin/state/project-store.js";
 import { runTrellis } from "./lib/trellis-runner.js";
 import { parseCliArgs } from "./lib/cli-args.js";
 
@@ -40,10 +41,12 @@ function printVersion(cwd) {
       const { version } = selectVariant(cwd);
       if (version) projectRows.push([".trellis", version]);
     }
-    // 项目里 flower 上次铺包时戳入的自身版本(来自 .trellis/.flower-manifest.json);
-    // 与首行「当前工具版本」对比即可看出该项目是否需要重新 update。
+    // 新项目优先读取 Plugin lock；旧 manifest 只作为兼容证据。
+    const lockedSkillGarden = new ProjectStore(cwd).readLock()?.plugins
+      .find(({ id }) => id === "flower/skill-garden");
     const mf = readManifest(cwd);
-    if (mf && mf.flowerVersion) projectRows.unshift(["flower", mf.flowerVersion]);
+    const projectFlower = lockedSkillGarden?.version || mf?.flowerVersion;
+    if (projectFlower) projectRows.unshift(["flower", projectFlower]);
   } catch {
     // 忽略:版本读取失败不应影响 -v 输出
   }
@@ -70,7 +73,7 @@ function printHelp() {
   flower-trellis self-check --json [--target <dir>]      输出启动更新检查 JSON
   flower-trellis self-update --target <dir> --yes        自更新 + 项目重叠加
   flower-trellis update-check <get|set|disable|enable>   管理启动更新策略
-  flower-trellis skill [flower flags]                    交互管理通用技能
+  flower-trellis plugin                                 交互管理 Plugin、来源与 GitLab 授权
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
   flower-trellis -v                                      打印版本
@@ -92,7 +95,8 @@ flower 自有 flag:
 
 命令别名:flower-trellis 可简写为 ftl 或 ft(三者完全等价)。
 init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联网、带超时,失败静默)。
-skill 可启用或停用通用技能，并只读展示工作流强化包。
+通用技能管理已整合到 Plugin 管理器的 Flower 内置 Skill Garden 入口；
+原 flower-trellis skill 命令继续保留为高级兼容入口。
 
 平台选择:未指定平台时,交互模式会弹出多选菜单(默认勾 Claude Code + Codex);
 也可直接传 --claude / --codex / --cursor / --devin / --zcode / --trae 等指定,
@@ -144,6 +148,10 @@ async function main() {
     } else if (cmd === "skill") {
       const { skill } = await import("./commands/skill.js");
       await skill(ctx);
+    } else if (cmd === "plugin") {
+      const { plugin } = await import("./commands/plugin.js");
+      const code = await plugin(ctx);
+      if (code !== 0) process.exitCode = code;
     } else if (cmd === "uninstall") {
       const { uninstall } = await import("./commands/uninstall.js");
       await uninstall(ctx);

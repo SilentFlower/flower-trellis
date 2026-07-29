@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 2,
+  "id": "trellis-meta-managed-mode-precedence",
+  "purpose": "managed_meta_precedence",
+  "operations": [
+    {
+      "id": "trellis-meta-trigger-description",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".agents/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".claude/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".devin/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".factory/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".github/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".pi/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "skill", "path": ".trae/skills/trellis-meta/SKILL.md", "missing": "skip", "markerStyle": "hash" }
+      ],
+      "selector": { "type": "literal", "source": "description-selector.md", "expectedMatches": 1 },
+      "content": { "source": "description-content.md" }
+    },
+    {
+      "id": "trellis-meta-managed-scope",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".agents/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".claude/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".devin/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".factory/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".github/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".pi/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".trae/skills/trellis-meta/SKILL.md", "missing": "skip" }
+      ],
+      "selector": { "type": "literal", "source": "scope-selector.md", "expectedMatches": 1 },
+      "content": { "source": "scope-content.md" }
+    },
+    {
+      "id": "trellis-meta-managed-usage",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".agents/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".claude/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".devin/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".factory/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".github/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".pi/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".trae/skills/trellis-meta/SKILL.md", "missing": "skip" }
+      ],
+      "selector": { "type": "markdown-section", "heading": "## How To Use" },
+      "baselines": ["how-to-use-baseline.md"],
+      "content": { "source": "how-to-use-content.md" }
+    },
+    {
+      "id": "trellis-meta-managed-current-rules",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".agents/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".claude/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".devin/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".factory/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".github/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".pi/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-meta/SKILL.md", "missing": "skip" },
+        { "kind": "skill", "path": ".trae/skills/trellis-meta/SKILL.md", "missing": "skip" }
+      ],
+      "selector": { "type": "markdown-section", "heading": "## Current Rules" },
+      "baselines": ["current-rules-baseline.md"],
+      "content": { "source": "current-rules-content.md" }
+    }
+  ]
+}

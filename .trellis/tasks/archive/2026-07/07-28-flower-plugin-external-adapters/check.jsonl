@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-contracts.md", "reason": "检查新增 GitHub union、版本、commit/integrity 和旧 lock 兼容性是否使用共享 validator。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md", "reason": "检查外部 Adapter 未复制 Resolver/Writer，dry-run、verify、update 和回滚语义一致。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md", "reason": "检查共享 archive 重构没有破坏 GitLab 安全、缓存、零网络与认证行为。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-authoring.md", "reason": "检查作者指南覆盖 GitHub/外部格式且仍保持 Flower-only scaffold 与受限 Patch 门禁。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-capabilities.md", "reason": "检查外部 hooks/脚本/MCP 不会执行，GitHub 来源不能取得 integration/system。"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "检查来源 UI、错误诊断、非 TTY 和 JSON stdout 没有回归。"}
+{"file": ".trellis/spec/flower-trellis/cli/release-and-publishing.md", "reason": "检查 npm pack、snapshot、sync 与发布资产包含新增 Adapter 和作者 Skill references。"}
+{"file": ".trellis/tasks/07-28-flower-plugin-external-adapters/research/external-plugin-formats.md", "reason": "反向核对实现支持的组件、Marketplace source 子集和 GitHub 匿名限制没有夸大兼容性。"}

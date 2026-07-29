@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查 Patch schema、Bundle 选择、conflict coverage、compiled targets 和双 consumer 一致性。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查真实源与快照同步、dogfood 最终产物及幂等应用链。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"检查 system Plugin ownership、事务零写入、freeze/replay/remove 和多平台计划。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查最终上下文增量、职责去重和预算阈值未被掩盖。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"执行完整测试、语法、幂等、不误伤和 dogfood 质量门禁。"}

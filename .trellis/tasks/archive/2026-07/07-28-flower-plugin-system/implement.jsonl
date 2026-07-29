@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "Plugin Project Store、旧 manifest 和 update-check 迁移契约"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "现有 enhancements、skill-garden、多平台分发和升级清理边界"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "多 catalog、qualified identity、preflight、provenance 和事务边界"}
+{"file": ".trellis/tasks/07-28-flower-plugin-system/research/current-architecture.md", "reason": "当前 CLI、增强链、Patch Engine、状态和 GitLab 技术事实"}

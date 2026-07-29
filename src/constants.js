@@ -48,21 +48,26 @@ export const PLATFORM_FLAGS = [
  * 其 workflow 入口继续由 Patch Engine 单独维护。
  */
 export const ENHANCEMENT_SKILL_TARGETS = [
-  { platform: "claude", root: ".claude/skills", source: "claude" },
-  { platform: "codex-gemini-zcode", root: ".agents/skills", source: "agents" },
-  { platform: "cursor", root: ".cursor/skills", source: "agents" },
-  { platform: "opencode", root: ".opencode/skills", source: "agents" },
-  { platform: "kilo", root: ".kilocode/skills", source: "agents" },
-  { platform: "kiro", root: ".kiro/skills", source: "agents" },
-  { platform: "antigravity", root: ".agent/skills", source: "agents" },
-  { platform: "devin", root: ".devin/skills", source: "agents" },
-  { platform: "qoder", root: ".qoder/skills", source: "agents" },
-  { platform: "codebuddy", root: ".codebuddy/skills", source: "agents" },
-  { platform: "copilot", root: ".github/skills", source: "agents" },
-  { platform: "droid", root: ".factory/skills", source: "agents" },
-  { platform: "pi", root: ".pi/skills", source: "agents" },
-  { platform: "trae", root: ".trae/skills", source: "agents" },
-  { platform: "reasonix", root: ".reasonix/skills", source: "agents" },
+  { platform: "claude", platforms: ["claude"], root: ".claude/skills", source: "claude" },
+  {
+    platform: "codex-gemini-zcode",
+    platforms: ["codex", "gemini", "zcode"],
+    root: ".agents/skills",
+    source: "agents",
+  },
+  { platform: "cursor", platforms: ["cursor"], root: ".cursor/skills", source: "agents" },
+  { platform: "opencode", platforms: ["opencode"], root: ".opencode/skills", source: "agents" },
+  { platform: "kilo", platforms: ["kilo"], root: ".kilocode/skills", source: "agents" },
+  { platform: "kiro", platforms: ["kiro"], root: ".kiro/skills", source: "agents" },
+  { platform: "antigravity", platforms: ["antigravity"], root: ".agent/skills", source: "agents" },
+  { platform: "devin", platforms: ["devin", "windsurf"], root: ".devin/skills", source: "agents" },
+  { platform: "qoder", platforms: ["qoder"], root: ".qoder/skills", source: "agents" },
+  { platform: "codebuddy", platforms: ["codebuddy"], root: ".codebuddy/skills", source: "agents" },
+  { platform: "copilot", platforms: ["copilot"], root: ".github/skills", source: "agents" },
+  { platform: "droid", platforms: ["droid"], root: ".factory/skills", source: "agents" },
+  { platform: "pi", platforms: ["pi"], root: ".pi/skills", source: "agents" },
+  { platform: "trae", platforms: ["trae"], root: ".trae/skills", source: "agents" },
+  { platform: "reasonix", platforms: ["reasonix"], root: ".reasonix/skills", source: "agents" },
 ];
 
 /**
