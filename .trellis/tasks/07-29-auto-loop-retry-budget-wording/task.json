@@ -1,0 +1,46 @@
+{
+  "id": "auto-loop-retry-budget-wording",
+  "name": "auto-loop-retry-budget-wording",
+  "title": "修复 auto-loop 重试预算与入口措辞",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-29T00:30:02Z",
+      "contextKey": "codex_019fa9f6-e76c-7e33-8b8d-8e1426b7d94b",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "f79ce33bcc409129a054f1b59a016cdbe1ea991b",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-29T01:44:42Z",
+    "completedSteps": [
+      "auto-loop 重试预算、入口措辞、task progress 和 tracking JSON 瘦身已实现并通过检查"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 finish-work/archive 完成任务收尾",
+    "notes": "business_commit=19d7a1a; skill_garden_commit=450bc0a; check_all=passed; spec_update=written"
+  }
+}
