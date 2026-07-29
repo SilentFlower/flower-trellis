@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"遵循 CLI 包级开发入口、同步链和测试约定。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"保持 spec_router 的文件级召回、置信度、Patch owner 与分发契约。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"设计章节级加载预算并避免把规则复制到高频上下文。"}
+{"file":".trellis/tasks/archive/2026-07/07-02-spec-router-knowledge-discovery-optimization/design.md","reason":"继承现有 token、index 描述、置信度和零依赖设计决策。"}

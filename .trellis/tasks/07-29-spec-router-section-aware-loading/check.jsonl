@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查章节扩展是否保持旧输出、同步、Patch 与知识发现契约。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查 workflow 和 router 输出没有扩大高频上下文。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"执行 unittest、完整测试、同步、compiled targets 和差异门禁。"}
+{"file":".trellis/tasks/archive/2026-07/07-02-spec-router-knowledge-discovery-optimization/prd.md","reason":"回归历史正负例、兼容边界与非目标。"}
