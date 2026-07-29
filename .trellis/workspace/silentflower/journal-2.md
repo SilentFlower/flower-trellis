@@ -442,3 +442,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 69: 补全 Trellis Meta 架构与 Auto-Loop 自恢复
+
+**Date**: 2026-07-29
+**Task**: 补全 Trellis Meta 架构与 Auto-Loop 自恢复
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+通过 Skill-Garden Patch 补全 Trellis Meta 的增强架构，修复 Auto-Loop Check artifact drift 的 action 内自恢复，并新增 Meta 联动复核合同；双仓测试、同步与推送已完成。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `943179f` | (see git log) |
+| `1812258` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
