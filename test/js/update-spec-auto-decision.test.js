@@ -81,7 +81,9 @@ test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Upd
     checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),
   );
   assert.match(autoLoopReturn, /不提示用户回复“继续”/);
-  assert.match(autoLoopReturn, /记录后立即 `next`/);
+  assert.match(autoLoopReturn, /record 成功后立即 `next`/);
+  assert.match(autoLoopReturn, /status=retryable reason=artifact-drift/);
+  assert.match(autoLoopReturn, /不得 `next`/);
   assert.doesNotMatch(autoLoopReturn, /提示用户回复 `继续`/);
   assert.match(postCheck, /最新用户消息识别 direct Git intent/);
   assert.match(postCheck, /整体结论通过、剩余 `CHK-\*` 为 0、无阻塞、无部分验证/);

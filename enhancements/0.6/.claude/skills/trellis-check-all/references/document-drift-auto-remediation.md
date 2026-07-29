@@ -65,6 +65,13 @@
 
 subagent 模式只返回 `DOC-*` 候选；主会话按同一规则决定是否写入。validated auto-loop 模式由主会话完成允许的 `DOC-*` 修复后再 `record`。
 
+### Validated Auto-Loop 绑定
+
+- 只有当前任务的 `implement.md` 与 `brief.md` 参与 runner DOC 重绑；每个实际修改文件使用一次 `--doc-remediation-file <repository>::<path>`。
+- 声明集合必须与 Check action 发出后的真实变化完全一致。`prd.md`、`design.md`、其它任务或其它文件一律不允许借此重绑。
+- `check.jsonl` 可按本通道记录，但它不属于 planning/handoff hash，不传 `--doc-remediation-file`。
+- record 返回 `status=retryable reason=artifact-drift` 时不运行 `next`；先撤回误改、补齐合法 DOC 声明后重录，或在无法安全归因时显式回写 `blocked + artifact-drift`。
+
 ---
 
 ## 失败处理

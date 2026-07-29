@@ -573,6 +573,534 @@
       },
       "owner": "workflow-state",
       "reason": "该 Hub 职责句已从两个 in-progress state 删除，任一回流都需要重新评审。"
+    },
+    {
+      "id": "trellis-meta-required-managed-entry-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/SKILL.md",
+      "whenOperations": [
+        "trellis-meta-trigger-description",
+        "trellis-meta-managed-scope",
+        "trellis-meta-managed-usage",
+        "trellis-meta-managed-current-rules"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "including Flower/Skill-Garden managed Plugin overlays",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-scope v0.6 -->",
+          "`vendor/skill-garden/.trellis/0.6/`",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-usage v0.6 -->\n## How To Use",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-current-rules v0.6 -->\n## Current Rules"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Codex/shared meta 入口必须先识别 Flower/Skill-Garden ownership 和作者源。"
+    },
+    {
+      "id": "trellis-meta-required-managed-entry-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/SKILL.md",
+      "whenOperations": [
+        "trellis-meta-trigger-description",
+        "trellis-meta-managed-scope",
+        "trellis-meta-managed-usage",
+        "trellis-meta-managed-current-rules"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "including Flower/Skill-Garden managed Plugin overlays",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-scope v0.6 -->",
+          "`vendor/skill-garden/.trellis/0.6/`",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-usage v0.6 -->\n## How To Use",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-current-rules v0.6 -->\n## Current Rules"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude meta 入口必须与 shared 入口保持相同 managed-mode 优先级。"
+    },
+    {
+      "id": "trellis-meta-required-architecture-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/local-architecture/overview.md",
+      "whenOperations": [
+        "trellis-meta-managed-system-model",
+        "trellis-meta-managed-customization-principles"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-system-model v0.6 -->\n## Local System Model",
+          "**Plugin management layer**",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-customization-principles v0.6 -->\n## AI Customization Principles",
+          "run `npm run sync` to refresh `enhancements/0.6/`"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared 架构参考必须表达 Plugin 管理层和 source-to-snapshot 生命周期。"
+    },
+    {
+      "id": "trellis-meta-required-architecture-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/local-architecture/overview.md",
+      "whenOperations": [
+        "trellis-meta-managed-system-model",
+        "trellis-meta-managed-customization-principles"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-system-model v0.6 -->\n## Local System Model",
+          "**Plugin management layer**",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-customization-principles v0.6 -->\n## AI Customization Principles",
+          "run `npm run sync` to refresh `enhancements/0.6/`"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude 架构参考必须与 shared 入口保持相同 Plugin/Patch 模型。"
+    },
+    {
+      "id": "trellis-meta-required-generated-ownership-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/local-architecture/generated-files.md",
+      "whenOperations": [
+        "trellis-meta-managed-template-hashes",
+        "trellis-meta-managed-file-boundaries"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-template-hashes v0.6 -->\n## Meaning Of Template Hashes",
+          "Plugin ownership, Patch provenance, transaction checks",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-file-boundaries v0.6 -->\n## Local Customization Boundaries",
+          "| Skill-Garden managed |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared generated-files 参考必须把 template hash 与 Plugin ownership 分开。"
+    },
+    {
+      "id": "trellis-meta-required-generated-ownership-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/local-architecture/generated-files.md",
+      "whenOperations": [
+        "trellis-meta-managed-template-hashes",
+        "trellis-meta-managed-file-boundaries"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-template-hashes v0.6 -->\n## Meaning Of Template Hashes",
+          "Plugin ownership, Patch provenance, transaction checks",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-file-boundaries v0.6 -->\n## Local Customization Boundaries",
+          "| Skill-Garden managed |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude generated-files 参考必须与 shared 所有权边界一致。"
+    },
+    {
+      "id": "trellis-meta-required-skill-taxonomy-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/local-architecture/bundled-skills.md",
+      "whenOperations": [
+        "trellis-meta-managed-skill-taxonomy",
+        "trellis-meta-managed-bundled-overrides"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-taxonomy v0.6 -->\n## What Counts As Bundled (vs. Adjacent Concepts)",
+          "| Skill-Garden managed |",
+          "selectors and full baselines fail closed on upstream drift",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-bundled-overrides v0.6 -->\n## Overriding a Bundled Skill Locally"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared bundled-skill 参考必须使用五类 ownership，并解释 Patch 生命周期。"
+    },
+    {
+      "id": "trellis-meta-required-skill-taxonomy-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/local-architecture/bundled-skills.md",
+      "whenOperations": [
+        "trellis-meta-managed-skill-taxonomy",
+        "trellis-meta-managed-bundled-overrides"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-taxonomy v0.6 -->\n## What Counts As Bundled (vs. Adjacent Concepts)",
+          "| Skill-Garden managed |",
+          "selectors and full baselines fail closed on upstream drift",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-bundled-overrides v0.6 -->\n## Overriding a Bundled Skill Locally"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude bundled-skill 参考必须与 shared ownership/Patch 模型一致。"
+    },
+    {
+      "id": "trellis-meta-required-customization-route-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/customize-local/overview.md",
+      "whenOperations": [
+        "trellis-meta-managed-customization-entry",
+        "trellis-meta-managed-customization-order"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-customization-entry v0.6 -->",
+          "determine ownership before editing",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-customization-order v0.6 -->\n## General Operation Order",
+          "For Skill-Garden 0.6 authoring"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared customization 入口必须先判定 ownership，再选择本地或 managed source。"
+    },
+    {
+      "id": "trellis-meta-required-customization-route-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/customize-local/overview.md",
+      "whenOperations": [
+        "trellis-meta-managed-customization-entry",
+        "trellis-meta-managed-customization-order"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-customization-entry v0.6 -->",
+          "determine ownership before editing",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-customization-order v0.6 -->\n## General Operation Order",
+          "For Skill-Garden 0.6 authoring"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude customization 入口必须与 shared managed routing 保持一致。"
+    },
+    {
+      "id": "trellis-meta-required-workflow-edit-route-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/customize-local/change-workflow.md",
+      "whenOperations": [
+        "trellis-meta-managed-workflow-entry",
+        "trellis-meta-managed-workflow-edit-route"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-entry v0.6 -->",
+          "determine whether the relevant section is project-local, an upstream template, or a Skill-Garden managed Patch output",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-edit-route v0.6 -->\n## Modification Steps",
+          "Do not add a parallel workflow injector"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared workflow customization 必须路由到 owner/Patch，而不是只改运行时文件。"
+    },
+    {
+      "id": "trellis-meta-required-workflow-edit-route-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/customize-local/change-workflow.md",
+      "whenOperations": [
+        "trellis-meta-managed-workflow-entry",
+        "trellis-meta-managed-workflow-edit-route"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-entry v0.6 -->",
+          "determine whether the relevant section is project-local, an upstream template, or a Skill-Garden managed Patch output",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-edit-route v0.6 -->\n## Modification Steps",
+          "Do not add a parallel workflow injector"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude workflow customization 必须与 shared owner/Patch 路由一致。"
+    },
+    {
+      "id": "trellis-meta-required-skill-edit-route-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/customize-local/change-skills-or-commands.md",
+      "whenOperations": [
+        "trellis-meta-managed-skill-classification",
+        "trellis-meta-managed-skill-edit-route"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-classification v0.6 -->",
+          "Do not classify every non-bundled name as project-local.",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-edit-route v0.6 -->\n### Bundled vs. Project-Local",
+          "| Skill-Garden | `flower/skill-garden` lock/state entry or managed marker |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared skill customization 必须识别 upstream、Skill-Garden、Flower、shared 和 project-local。"
+    },
+    {
+      "id": "trellis-meta-required-skill-edit-route-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/customize-local/change-skills-or-commands.md",
+      "whenOperations": [
+        "trellis-meta-managed-skill-classification",
+        "trellis-meta-managed-skill-edit-route"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-classification v0.6 -->",
+          "Do not classify every non-bundled name as project-local.",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-edit-route v0.6 -->\n### Bundled vs. Project-Local",
+          "| Skill-Garden | `flower/skill-garden` lock/state entry or managed marker |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude skill customization 必须与 shared ownership 分类一致。"
+    },
+    {
+      "id": "trellis-meta-required-platform-edit-route-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/platform-files/overview.md",
+      "whenOperations": ["trellis-meta-managed-platform-edit-route"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-platform-edit-route v0.6 -->\n## Local Modification Order",
+          "For managed files, modify the owning Plugin/Patch source",
+          "Never claim cross-platform support after changing only one deployed copy."
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared platform reference 必须先判定 ownership，并保持 all-existing targets 一致。"
+    },
+    {
+      "id": "trellis-meta-required-platform-edit-route-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/platform-files/overview.md",
+      "whenOperations": ["trellis-meta-managed-platform-edit-route"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-platform-edit-route v0.6 -->\n## Local Modification Order",
+          "For managed files, modify the owning Plugin/Patch source",
+          "Never claim cross-platform support after changing only one deployed copy."
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude platform reference 必须与 shared managed-target 路由一致。"
+    },
+    {
+      "id": "trellis-meta-required-workflow-owners-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/local-architecture/workflow.md",
+      "whenOperations": [
+        "trellis-meta-managed-workflow-source",
+        "trellis-meta-managed-owner-routing",
+        "trellis-meta-managed-state-boundary",
+        "trellis-meta-managed-workflow-change-map"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-source v0.6 -->",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-owner-routing v0.6 -->\n## Skill Routing",
+          "Do not choose implementation or checking behavior from a static platform-capability split.",
+          "| Automatic task loop and return gate | `trellis-auto-loop`",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-state-boundary v0.6 -->\n## Workflow-State Prompt Blocks",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-change-map v0.6 -->\n## Local Modification Patterns"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared workflow reference 必须只维护 owner map，并把执行模式交给 trellis-route。"
+    },
+    {
+      "id": "trellis-meta-required-workflow-owners-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/local-architecture/workflow.md",
+      "whenOperations": [
+        "trellis-meta-managed-workflow-source",
+        "trellis-meta-managed-owner-routing",
+        "trellis-meta-managed-state-boundary",
+        "trellis-meta-managed-workflow-change-map"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-source v0.6 -->",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-owner-routing v0.6 -->\n## Skill Routing",
+          "Do not choose implementation or checking behavior from a static platform-capability split.",
+          "| Automatic task loop and return gate | `trellis-auto-loop`",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-state-boundary v0.6 -->\n## Workflow-State Prompt Blocks",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-change-map v0.6 -->\n## Local Modification Patterns"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude workflow reference 必须与 shared owner map 和 route 边界一致。"
+    },
+    {
+      "id": "trellis-meta-no-native-only-scope-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/SKILL.md",
+      "whenOperations": ["trellis-meta-managed-scope"],
+      "assertion": {
+        "type": "absent-literal",
+        "values": ["The default operating scope is local files in the user project:"]
+      },
+      "owner": "trellis-meta",
+      "reason": "managed mode 下不能继续把所有部署文件无条件视为本地编辑目标。"
+    },
+    {
+      "id": "trellis-meta-no-native-only-scope-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/SKILL.md",
+      "whenOperations": ["trellis-meta-managed-scope"],
+      "assertion": {
+        "type": "absent-literal",
+        "values": ["The default operating scope is local files in the user project:"]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude managed mode 不能保留无 ownership 条件的本地编辑范围。"
+    },
+    {
+      "id": "trellis-meta-no-binary-skill-ownership-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/local-architecture/bundled-skills.md",
+      "whenOperations": [
+        "trellis-meta-managed-skill-taxonomy",
+        "trellis-meta-managed-bundled-overrides"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "Not managed by Trellis at all",
+          "The Trellis CLI never touches anything that is not produced by one of its own template loaders.",
+          "1. Edit the local file directly. Example: `.claude/skills/trellis-meta/SKILL.md`."
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared bundled skill 参考不得忽略 Flower/Skill-Garden 与 shared ownership。"
+    },
+    {
+      "id": "trellis-meta-no-binary-skill-ownership-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/local-architecture/bundled-skills.md",
+      "whenOperations": [
+        "trellis-meta-managed-skill-taxonomy",
+        "trellis-meta-managed-bundled-overrides"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "Not managed by Trellis at all",
+          "The Trellis CLI never touches anything that is not produced by one of its own template loaders.",
+          "1. Edit the local file directly. Example: `.claude/skills/trellis-meta/SKILL.md`."
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude bundled skill 参考不得保留二分类 ownership 或直接编辑建议。"
+    },
+    {
+      "id": "trellis-meta-no-local-only-skill-route-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/customize-local/change-skills-or-commands.md",
+      "whenOperations": [
+        "trellis-meta-managed-skill-classification",
+        "trellis-meta-managed-skill-edit-route"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "Owned by the user; not refreshed by `trellis update`.",
+          "Created by the user (or another skill) and never moved",
+          "| The right way to customize | Add a *new* project-local skill with a *different* name that supplements (or supersedes) the bundled one | Edit the file directly |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared skill customization 不得把所有非 bundled 内容直接归为 project-local。"
+    },
+    {
+      "id": "trellis-meta-no-local-only-skill-route-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/customize-local/change-skills-or-commands.md",
+      "whenOperations": [
+        "trellis-meta-managed-skill-classification",
+        "trellis-meta-managed-skill-edit-route"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "Owned by the user; not refreshed by `trellis update`.",
+          "Created by the user (or another skill) and never moved",
+          "| The right way to customize | Add a *new* project-local skill with a *different* name that supplements (or supersedes) the bundled one | Edit the file directly |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude skill customization 不得保留无 Plugin ownership 的二分类路由。"
+    },
+    {
+      "id": "trellis-meta-no-nearest-file-only-route-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/platform-files/overview.md",
+      "whenOperations": ["trellis-meta-managed-platform-edit-route"],
+      "assertion": {
+        "type": "absent-literal",
+        "values": ["4. Modify the local file closest to the user's need."]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared platform 路由必须先查 ownership，不能仅按最近部署文件选择。"
+    },
+    {
+      "id": "trellis-meta-no-nearest-file-only-route-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/platform-files/overview.md",
+      "whenOperations": ["trellis-meta-managed-platform-edit-route"],
+      "assertion": {
+        "type": "absent-literal",
+        "values": ["4. Modify the local file closest to the user's need."]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude platform 路由必须先查 ownership，不能只改最近部署文件。"
+    },
+    {
+      "id": "trellis-meta-no-platform-direct-dispatch-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/local-architecture/workflow.md",
+      "whenOperations": [
+        "trellis-meta-managed-owner-routing",
+        "trellis-meta-managed-state-boundary"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "Platforms with sub-agent support: dispatch `trellis-implement` by default for implementation and `trellis-check` for checking.",
+          "Platforms without sub-agent support: the main session reads skills such as `trellis-before-dev`, then executes directly.",
+          "edit these state blocks and the routing table above them."
+        ]
+      },
+      "owner": "trellis-route",
+      "reason": "shared workflow meta 必须把 implement/check 模式交给 trellis-route。"
+    },
+    {
+      "id": "trellis-meta-no-platform-direct-dispatch-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/local-architecture/workflow.md",
+      "whenOperations": [
+        "trellis-meta-managed-owner-routing",
+        "trellis-meta-managed-state-boundary"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "Platforms with sub-agent support: dispatch `trellis-implement` by default for implementation and `trellis-check` for checking.",
+          "Platforms without sub-agent support: the main session reads skills such as `trellis-before-dev`, then executes directly.",
+          "edit these state blocks and the routing table above them."
+        ]
+      },
+      "owner": "trellis-route",
+      "reason": "Claude workflow meta 必须与 shared route owner 模型一致。"
     }
   ]
 }

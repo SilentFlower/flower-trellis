@@ -1,0 +1,1 @@
+When the user wants to change Trellis phases, next actions, task gates, routing, checking, or wrap-up, read `.trellis/workflow.md` first because it is the current runtime contract. Before editing it, determine whether the relevant section is project-local, an upstream template, or a Skill-Garden managed Patch output.

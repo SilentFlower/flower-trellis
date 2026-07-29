@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "trellis-meta",
+  "aliases": ["meta-architecture", "trellis-create-command", "create-command"],
+  "installMode": "full-or-selected",
+  "patches": [
+    "skills/trellis-meta/managed-mode-precedence",
+    "skills/trellis-meta/managed-architecture-and-ownership",
+    "skills/trellis-meta/managed-customization-routing",
+    "skills/trellis-meta/managed-workflow-owners"
+  ]
+}

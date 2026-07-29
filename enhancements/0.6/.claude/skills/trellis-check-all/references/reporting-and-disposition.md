@@ -131,11 +131,11 @@ interactive 模式完成所有可继续检查和允许的 `DOC-*` 自动修复�
 
 validated auto-loop 复用相同的画像、profile、`DOC-*` 通道和问题模型，但不展示普通模式的修复选择：
 
-- 有 `DOC-*` 且可自动修复：主会话先应用并验证，再决定最终 `ok|failed|blocked`。
+- 有 `DOC-*` 且可自动修复：主会话先应用并验证；当前任务 `implement.md` / `brief.md` 的每个实际变化都追加精确 `--doc-remediation-file`，再决定最终 `ok|failed|blocked`。
 - 有剩余 `CHK-*`：向 runner `record --result failed --effective-check-depth <light|full> --check-depth-reason <summary>`，摘要包含最高严重度、问题 ID、根因、受影响文件和已自动修复的 `DOC-*`。
 - 真正需要用户产品决策、越权、生产副作用或破坏性安全决策：使用同样深度字段 `record --result blocked`，随后按 runner 状态停止。
 - 无剩余问题：`record --result ok --effective-check-depth <light|full> --check-depth-reason <summary>`，摘要包含自动修复数量。
-- 记录后立即 `next`；validated auto-loop 不渲染交互式下一步段、不提示用户回复“继续”、不等待普通修复范围选择。
+- record 成功后立即 `next`；若返回 `status=retryable reason=artifact-drift`，不得 `next`，先按 runner 指令在同一 outstanding action 内自纠并重录。validated auto-loop 不渲染交互式下一步段、不提示用户回复“继续”、不等待普通修复范围选择。
 - 不修改 runner 的 fix/recheck 预算、commit-only 授权或队列行为。
 
 subagent 只返回结构化报告、`DOC-*` 候选和 `check_profile`；主会话收到后必须完成允许的 `DOC-*` 处理，再完成匹配 action 的 `record + next`。

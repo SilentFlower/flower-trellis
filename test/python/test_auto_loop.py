@@ -437,6 +437,180 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         state = json.loads(self.state_path().read_text(encoding="utf-8"))
         self.assertEqual(state["queue"][0]["blocked"]["reason"], "artifact-drift")
 
+    def test_check_doc_remediation_rebinds_manifest(self) -> None:
+        """Check-All 声明的 implement 文档修复会生成可审计 manifest revision。"""
+        self.advance_to_check()
+        task_ref = ".trellis/tasks/task-one"
+        implement = self.root / task_ref / "implement.md"
+        implement.write_text("# Implement\n\n- [x] 已完成\n", encoding="utf-8")
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+            "--check-depth-reason",
+            "仅修复机械实施状态",
+            "--doc-remediation-file",
+            f".::{task_ref}/implement.md",
+        )
+
+        self.assertEqual(recorded["current_step"], "spec_update")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        item = state["queue"][0]
+        self.assertEqual(state["manifest_revision"], 2)
+        self.assertEqual(item["attempts"]["artifact_reconcile"], 0)
+        self.assertIn(
+            "check_doc_artifacts_rebound",
+            [event["type"] for event in item["decision_log"]],
+        )
+        event = self.manifest_events()[-1]["payload"]
+        self.assertEqual(event["change_source"], "check-doc-remediation")
+        self.assertEqual(event["files"], [f".::{task_ref}/implement.md"])
+
+    def test_check_doc_remediation_rejects_illegal_or_mismatched_files(self) -> None:
+        """DOC 重绑只接受当前任务 implement/brief 且声明必须等于实际变化。"""
+        self.advance_to_check()
+        task_ref = ".trellis/tasks/task-one"
+        implement = self.root / task_ref / "implement.md"
+        implement.write_text("# Implement\n\n- [x] 已完成\n", encoding="utf-8")
+
+        illegal = self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+            "--doc-remediation-file",
+            f".::{task_ref}/prd.md",
+        )
+        self.assertEqual(illegal["reason"], "doc-remediation-file-not-allowed")
+
+        mismatched = self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+            "--doc-remediation-file",
+            f".::{task_ref}/brief.md",
+        )
+        self.assertEqual(mismatched["reason"], "doc-remediation-files-mismatch")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["queue"][0]["last_action"]["action"], "run_check_all")
+        self.assertEqual(state["manifest_revision"], 1)
+
+    def test_check_artifact_drift_is_retryable_then_accepts_doc_declaration(self) -> None:
+        """漏报 Check DOC 修复时保留 outstanding action，补充声明后可重录成功。"""
+        self.advance_to_check()
+        task_ref = ".trellis/tasks/task-one"
+        implement = self.root / task_ref / "implement.md"
+        implement.write_text("# Implement\n\n- [x] 已完成\n", encoding="utf-8")
+
+        retryable = self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+        )
+        self.assertEqual(retryable["status"], "retryable")
+        self.assertEqual(retryable["attempt"], 1)
+        self.assertEqual(retryable["outstanding_action"], "run_check_all")
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+            "--check-depth-reason",
+            "补充 DOC 声明后重录",
+            "--doc-remediation-file",
+            f".::{task_ref}/implement.md",
+        )
+        self.assertEqual(recorded["current_step"], "spec_update")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["queue"][0]["attempts"]["artifact_reconcile"], 0)
+
+    def test_check_artifact_drift_blocks_after_retry_budget(self) -> None:
+        """同一 Check action 连续 4 次无法消解漂移时才进入 blocked。"""
+        self.advance_to_check()
+        implement = self.root / ".trellis/tasks/task-one/implement.md"
+        implement.write_text("# Implement\n\n- [x] 已完成\n", encoding="utf-8")
+
+        for attempt in (1, 2, 3):
+            retryable = self.runner(
+                "record",
+                "--action",
+                "run_check_all",
+                "--result",
+                "ok",
+                "--effective-check-depth",
+                "light",
+            )
+            self.assertEqual(retryable["status"], "retryable")
+            self.assertEqual(retryable["attempt"], attempt)
+
+        blocked = self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+        )
+        self.assertEqual(blocked["status"], "recorded")
+        self.assertEqual(blocked["item_status"], "blocked")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["queue"][0]["attempts"]["artifact_reconcile"], 4)
+        self.assertEqual(state["queue"][0]["blocked"]["reason"], "artifact-drift")
+
+    def test_check_artifact_drift_can_be_explicitly_blocked(self) -> None:
+        """agent 确认漂移无法安全归因时可立即结束同一 Check action。"""
+        self.advance_to_check()
+        implement = self.root / ".trellis/tasks/task-one/implement.md"
+        implement.write_text("# Implement\n\n外部修改\n", encoding="utf-8")
+        self.assertEqual(
+            self.runner(
+                "record",
+                "--action",
+                "run_check_all",
+                "--result",
+                "ok",
+                "--effective-check-depth",
+                "light",
+            )["status"],
+            "retryable",
+        )
+
+        blocked = self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "blocked",
+            "--failure-type",
+            "artifact-drift",
+            "--summary",
+            "无法确认外部修改归属",
+            "--effective-check-depth",
+            "light",
+        )
+        self.assertEqual(blocked["item_status"], "blocked")
+
     def test_planning_repair_rechecks_with_independent_budget(self) -> None:
         """repairable planning 会进入修复 action 并重新执行 readiness。"""
         self.write_planning_task("")
@@ -948,6 +1122,24 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         fix = self.runner("next")
         self.assertEqual(fix["action"], "run_fix")
         self.assertEqual(fix["attempt"], 0)
+
+    def test_retry_blocked_resets_artifact_reconcile_budget(self) -> None:
+        """terminal artifact drift 经用户显式恢复后获得新的 Check 自纠预算。"""
+        self.start()
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        item = state["queue"][0]
+        item["status"] = "blocked"
+        item["current_step"] = "check"
+        item["attempts"] = {"fix_recheck": 0, "artifact_reconcile": 4}
+        item["blocked"] = {"reason": "artifact-drift", "summary": "自纠预算耗尽"}
+        state["status"] = "completed_with_blocked"
+        self.state_path().write_text(json.dumps(state), encoding="utf-8")
+
+        retried = self.runner("retry-blocked", "--run-id", "auto-test")
+
+        self.assertEqual(retried["status"], "retry-ready")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["queue"][0]["attempts"]["artifact_reconcile"], 0)
 
     def test_manifest_revisions_are_moved_to_audit_jsonl(self) -> None:
         """主 runtime 只保留热状态，完整 manifest 进入 audit JSONL。"""

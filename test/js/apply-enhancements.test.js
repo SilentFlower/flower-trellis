@@ -11,6 +11,9 @@ const PATCHES = path.join(V06_DIR, "overrides", "patches");
 const UPSTREAM_SCRIPTS = path.resolve(
   "node_modules/@mindfoldhq/trellis/dist/templates/trellis/scripts",
 );
+const UPSTREAM_META = path.resolve(
+  "node_modules/@mindfoldhq/trellis/dist/templates/common/bundled-skills/trellis-meta",
+);
 const SHARED_HOOK_TARGETS = [
   ".codex/hooks/inject-workflow-state.py",
   ".claude/hooks/inject-workflow-state.py",
@@ -28,6 +31,14 @@ function write(root, relativePath, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, value);
   return file;
+}
+
+function writeMetaTargets(target) {
+  for (const root of [".agents/skills", ".claude/skills"]) {
+    const destination = path.join(target, ...root.split("/"), "trellis-meta");
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.cpSync(UPSTREAM_META, destination, { recursive: true });
+  }
 }
 
 function patchSource(ref, name) {
@@ -455,6 +466,7 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   write(target, ".trellis/.version", "0.6.5\n");
   const workflow = write(target, ".trellis/workflow.md", minimalWorkflow());
   writeIntentTargets(target);
+  writeMetaTargets(target);
   const continueTargets = writeContinueTargets(target);
   const updateSpecTargets = writeUpdateSpecTargets(target);
   const finishTargets = writeFinishTargets(target);
@@ -503,6 +515,15 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     assert.match(beforeDevText, /skill-garden patch before-dev-project-knowledge-discovery/);
     assert.match(beforeDevText, /Follow the workflow `Request Triage` Project Knowledge Discovery contract/);
     assert.doesNotMatch(beforeDevText, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
+  }
+  for (const relativePath of [
+    ".agents/skills/trellis-meta/SKILL.md",
+    ".claude/skills/trellis-meta/SKILL.md",
+  ]) {
+    const metaText = fs.readFileSync(path.join(target, relativePath), "utf8");
+    assert.match(metaText, /including Flower\/Skill-Garden managed Plugin overlays/);
+    assert.match(metaText, /skill-garden patch trellis-meta-managed-scope/);
+    assert.match(metaText, /vendor\/skill-garden\/\.trellis\/0\.6/);
   }
   for (const continueTarget of continueTargets) {
     const continueText = fs.readFileSync(continueTarget, "utf8");

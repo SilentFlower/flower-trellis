@@ -229,6 +229,116 @@ Hub owner index -> owning Phase/Skill policy -> optional deterministic helper
 
 ---
 
+## Scenario: Trellis Meta Synchronization Gate
+
+### 1. Scope / Trigger
+
+- Trigger:修改 Skill-Garden 管理的 workflow、skill、hook、helper、Patch、Bundle、Plugin ownership、
+  capability discovery、平台入口或定制路径，并准备完成任务、Check-All 或发布快照时。
+- Scope:对 `trellis-meta` 做一次影响复核，判断稳定架构合同是否仍准确；不新增 runtime helper、
+  meta manifest、长期状态或要求每次 owner 内部 SOP 变化都重写 meta。
+
+### 2. Signatures
+
+影响结论固定为:
+
+```text
+meta-impact: no-op | patch-required
+```
+
+判定关注的稳定合同固定为:
+
+```text
+owner identity/boundary
+capability discovery path
+authoring source and managed ownership
+Plugin/Patch lifecycle and customization route
+Bundle selection and platform distribution surface
+```
+
+`patch-required` 的作者源与验证链固定为:
+
+```text
+vendor/skill-garden/.trellis/0.6/overrides/patches/skills/trellis-meta/
+  -> npm run sync
+  -> compiled targets
+  -> Flower dogfood
+  -> final-output tests
+```
+
+### 3. Contracts
+
+- 每项触发范围内的变更在完成前都必须执行影响复核，但复核不等于强制修改 meta。结论应写入当前
+  task planning/check evidence，不新增第二套 catalog 或运行时状态。
+- `no-op` 只在现有 meta 的 owner 指针、稳定职责边界、发现路径、作者源、管理模型、选择安装和平台
+  分发描述仍准确时成立。复核必须读取最终 meta 与 owning capability，不能只根据文件名判断。
+- owner 内部 SOP、交互模板、命令字段、重试预算或错误矩阵变化通常为 `no-op`；这些细节继续由
+  owning skill/helper 持有，meta 不得复制第二份完整合同。
+- owner 身份或边界迁移、能力发现入口变化、managed/project-local 分类变化、作者源变化、Plugin/Patch
+  生命周期变化、Bundle 选择变化或受支持平台分发面变化必须判定为 `patch-required`。
+- `patch-required` 必须修改 canonical Skill-Garden meta Patch 源；随后同步 snapshot、刷新 compiled
+  targets、重放当前 dogfood，并验证各已启用平台最终语义。只改 `.agents`、`.claude`、
+  `enhancements/0.6` 或 compiled target 都不构成完成。
+- 若 meta 已用稳定 owner 类别和发现路径覆盖新行为，不得为了记录单个 feature 把其完整 SOP、状态结构
+  或错误矩阵写入 meta。若新能力没有任何可发现 owner 路径，则不能用 `no-op` 掩盖架构缺口。
+- Planning Brief 的显式预授权属于 `trellis-task-brief` 与 task-start brief guard 的内部交互合同；
+  Planning handoff owner、边界和发现路径未变时，本次 meta 影响结论必须是 `no-op`。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结论 / 行为 |
+|------|-------------|
+| owner 内部 SOP 变化，现有 owner 指针与边界仍准确 | `no-op`，更新 owning capability/spec/tests，不复制到 meta |
+| owner 身份、阶段归属或 guard 边界变化 | `patch-required`，更新 meta owner route 与最终断言 |
+| 新增或移动 capability discovery 入口 | `patch-required`，更新发现路径并验证可达性 |
+| authoring source、Plugin/Patch ownership 或 customization route 变化 | `patch-required` |
+| Bundle alias、精细安装依赖或平台 target 集变化 | `patch-required`，验证选择范围和跨平台一致性 |
+| 仅修改生成清单、lock hash 或 compiled plan，稳定合同未变 | 读取真实源确认后可为 `no-op`，不得仅凭生成文件判定 |
+| 声称 `no-op`，但最终 meta 无法把行为路由到 owner | 复核失败，禁止完成 |
+| 声称 `patch-required`，但只修改 dogfood/deployed meta | 作者源错误，禁止完成 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:Task Brief 增加当前最终 Brief 的显式预授权；meta 已把 Planning handoff 指向
+  `trellis-task-brief` 和 task-start brief guard，因此记录 `no-op`，详细预授权合同只留在 owner。
+- Good:把 implement/check 执行 owner 从静态平台分支迁移到 `trellis-route`；更新 canonical meta Patch、
+  sync、compiled targets、dogfood 和最终断言，记录 `patch-required`。
+- Base:owner skill 只调整错误文案或内部 CLI 参数，稳定架构合同不变；复核最终 meta 后记录 `no-op`。
+- Bad:每次 skill 文案变化都往 meta 追加一段摘要；meta 会变成第二份易漂移 SOP 集合。
+- Bad:新增平台 target 或改变 Bundle alias 后仍记录 `no-op`，导致 meta 的分发与定制路径失真。
+
+### 6. Tests Required
+
+- code-spec 测试必须固定 `meta-impact: no-op | patch-required` 双态术语、五类稳定合同和 canonical
+  Patch 作者源，防止规则退化成“所有变化都改 meta”或“从不改 meta”。
+- meta 最终产物测试必须验证 Planning handoff 仍路由到 `trellis-task-brief` 与 task-start brief guard，
+  同时不得包含 Brief 显式预授权的交互细节。
+- owner/发现/所有权/Bundle/platform 变化的任务必须扩展对应 Patch final-output、选择安装、跨平台和
+  compiled target 测试；`no-op` 场景至少要读取最终 meta 与 owner 证明路由仍准确。
+- `patch-required` 继续执行 Patch conflict、源/快照一致性、compiled targets、dogfood 幂等、strict
+  context budget 和完整测试；不得用单一文档字面量测试替代最终产物验证。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+owner 内部 SOP 有变化 -> 无条件复制到 trellis-meta
+```
+
+#### Correct
+
+```text
+review stable meta contracts
+  -> unchanged: meta-impact no-op; keep detail in owner
+  -> changed: meta-impact patch-required; update canonical meta Patch and distribution evidence
+```
+
+原因:所有相关变更都经过复核，但只有稳定架构合同变化才修改 meta，既不会漏掉所有权/分发漂移，
+也不会把 meta 扩张成 owner SOP 的重复副本。
+
+---
+
 ## Scenario: Complex Repair Intent Routing
 
 ### 1. Scope / Trigger
@@ -1271,6 +1381,7 @@ python3 ./.trellis/scripts/auto_loop.py record \
   [--task <task>] --action <action> --result <ok|failed|blocked> \
   [--owned-dirty <task>=<repository>::<path>] \
   [--protected-retained <repository>::<path>] \
+  [--doc-remediation-file <repository>::<path>] \
   [--files <repository>::<path> ...] [...]
 python3 ./.trellis/scripts/auto_loop.py decide \
   --task <task> --topic <topic> --option <option> [--option <option> ...] \
@@ -1302,10 +1413,13 @@ python3 ./.trellis/scripts/decision_log.py review \
 - 依赖只来自 `--depends-on` 或 planning artifacts 的明确契约，不从任务顺序、parent/child 或代码引用猜测。prepare 拒绝缺失、自依赖和循环；稳定拓扑排序只移动满足依赖所需的任务，并把原始/执行顺序写入 manifest。
 - AI 只可通过 `decide` 记录任务目标内、低/中风险、可逆且可测试的自主选择。Open Questions、高风险、生产/费用/权限/隐私、破坏性公开契约、push/merge/release/deploy/archive 必须 blocked。
 - `decisions.jsonl` 使用 append-only decision/review 事件；decision ID 单调递增，review 绑定当前全部 decision digest。新增 decision 会使旧 review 失效，损坏 JSONL 默认失败关闭。
-- decision 修改 planning/handoff 时，`--file` 必须列出全部 `<repository>::<path>`。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则以 `artifact-drift` 阻塞。
-- `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。检查 action 还必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
-- 任务级 failure、planning repair 预算耗尽、protected 冲突、artifact drift、spec needs-review 或 commit-only 归属失败只阻塞当前项，并传播到显式依赖项；独立任务继续。队列结束后不自动执行第二遍恢复扫描。
+- decision 修改 planning/handoff 时，`--file` 必须列出全部 `<repository>::<path>`。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则进入匹配 action 的 artifact drift 处理。
+- `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。`run_check_all` / `run_recheck` 的 outstanding action 还要保存 `prd.md`、`design.md`、`implement.md`、`brief.md` 的逐文件 baseline；检查结果必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
+- Check-All 自动修复当前任务 `implement.md` 或 `brief.md` 时，每个实际变化文件必须通过重复的 `--doc-remediation-file` 精确声明。声明集合必须与 action baseline 后的真实变化完全一致；`prd.md`、`design.md`、其它任务和其它文件拒绝重绑。合法 DOC 修复重算 planning/handoff hash，追加 `change_source=check-doc-remediation` 和 files 的 manifest revision 与 item audit event。
+- 未声明或未完全授权的 Check record artifact drift 返回 `status=retryable`，保持 item running 和原 outstanding action，不得调用 `next`。agent 只能撤回本 action 误改、补充合法 DOC 声明后重录，或用 `--result blocked --failure-type artifact-drift` 明确结束。其它 action、protected drift 和 `next` 发出 action 前的跨 action 漂移继续 terminal blocked。
+- 任务级 failure、planning repair 预算耗尽、terminal artifact drift、protected 冲突、spec needs-review 或 commit-only 归属失败只阻塞当前项，并传播到显式依赖项；独立任务继续。队列结束后不自动执行第二遍恢复扫描。
 - `fix_recheck` 预算计数表示已记录的 failed recheck 次数；`MAX_FIX_RECHECK=3` 必须实际允许 3 个 `run_fix` action。只有计数大于预算时才以 `retry-budget-exhausted` 阻塞；用户显式 `retry-blocked` 恢复该原因时必须把 `attempts.fix_recheck` 重置为 `0`，避免刚恢复就再次阻断。
+- `artifact_reconcile` 只属于同一个 Check outstanding action；`MAX_ARTIFACT_RECONCILE=3` 允许前 3 次 retryable 重录，第 4 次转为 terminal `artifact-drift`。成功 Check record 把计数重置为 `0`；用户显式 `retry-blocked` 恢复 terminal artifact drift 时也重置该预算。
 - `retry-blocked` 只重置稳定 recoverable reason，复用同一 run；不得用 `start --force` 替代正常恢复。schema 2 队列含 blocked 项时终态为 `completed_with_blocked`。
 - `commit_only` 必须复用 `trellis-push` 内部 exact commit 执行器，排除 runtime、route prefs、protected paths 和其它任务目录；不得使用 `git add .`、`git add -A`、push 或时间差归属推断。
 - item `completed` 只表示本地提交完成，不修改 `task.json.status`。任务继续保持 `in_progress`，直到用户以后显式执行 finish/archive。
@@ -1331,15 +1445,20 @@ python3 ./.trellis/scripts/decision_log.py review \
 | brief 刷新后仍过期 | 返回 `brief-still-stale`，保持 prepare action |
 | 依赖缺失、自依赖或循环 | start 返回 `invalid-task-dependencies`，不进入 running |
 | 前置任务 blocked | 依赖项以 `blocked-dependency` 结束，独立项继续 |
-| manifest 后 artifact 无 decision 变化 | 当前项以 `artifact-drift` 阻塞 |
+| 非 Check action 的 manifest 后 artifact 无 decision 变化 | 当前项以 `artifact-drift` 阻塞 |
 | decision 列明全部变化 artifact | record 重算 planning/handoff hash，追加绑定 decision ID 的 manifest revision |
-| decision 文件范围未覆盖实际变化 | 当前项以 `artifact-drift` 阻塞，不更新 manifest |
+| Check action 修改当前任务 implement/brief 且声明集合完全匹配 | record 重算 hash，追加 `check-doc-remediation` manifest revision 后继续消费检查结果 |
+| DOC 声明包含 PRD/design/其它任务或声明与实际变化不一致 | 返回 `doc-remediation-file-not-allowed` / `doc-remediation-files-mismatch`，outstanding action 保留 |
+| Check record 存在未声明或 decision 未覆盖的 artifact 变化 | 前 3 次返回 `status=retryable reason=artifact-drift`，保留 outstanding action；不得 `next` |
+| 同一 Check action 第 4 次仍无法消解 artifact drift | 当前项以 terminal `artifact-drift` blocked |
+| Check record 显式 `blocked + artifact-drift` | 立即 terminal blocked，不继续消耗自纠预算 |
 | action files 命中 protected key | 当前项以 `protected-path-conflict` 阻塞 |
 | protected 内容在 action 期间变化 | 记录 repository/path/前后 hash，以 `protected-baseline-drift` 阻塞当前项 |
 | requested/minimum full 却 record light | 返回 `check-depth-below-minimum`，outstanding action 保留 |
 | `fix_recheck` 计数等于 `MAX_FIX_RECHECK` | 下一步仍返回第 3 个 `run_fix`，不得提前阻断 |
 | 第 3 次 recheck 仍 failed，计数大于预算 | 当前 item 以 `retry-budget-exhausted` blocked |
 | `retry-blocked` 恢复 `retry-budget-exhausted` | item 回到 pending，`attempts.fix_recheck=0` |
+| `retry-blocked` 恢复 terminal `artifact-drift` | item 回到 pending，`attempts.artifact_reconcile=0` |
 | schema 2 存在任务级 blocked，独立任务已处理完 | run 进入 `completed_with_blocked` |
 | runtime 损坏或仓库不可读 | 返回结构化全局错误或 `globally_blocked`，不得另建状态掩盖原 run |
 | decision log 无决策 | finish/archive 不增加 review 阻断 |
@@ -1362,6 +1481,10 @@ python3 ./.trellis/scripts/decision_log.py review \
   `repository::path`，不会因同名路径互相阻塞。
 - Good:热状态 JSON 只保存当前 manifest hash、queue 状态和 audit 路径；完整 revision payload 在
   `<run-id>.manifest.jsonl` 中逐行追加，artifact-drift 调试时才按路径读取。
+- Good:Check-All 机械勾选当前任务 `implement.md` 后，record 精确传入该文件的
+  `--doc-remediation-file`；runner 审核实际变化集合、追加 manifest revision，再推进到 spec update。
+- Good:第一次 Check record 漏掉 DOC 声明时返回 retryable；agent 不调用 `next`，补齐声明后用原
+  `run_check_all` 重录成功。
 - Base:任务没有 AI decision；后续 finish/archive 直接沿用既有流程，不增加确认。
 - Base:schema 1 runtime 恢复到 outstanding `confirm_brief`；继续旧 action，不写 schema 2 字段。
 - Base:auto-loop 本地提交完成后只写 `task.json.progress.nextStep` 提示 finish/archive，任务仍保持
@@ -1369,6 +1492,10 @@ python3 ./.trellis/scripts/decision_log.py review \
 - Bad:prepare 只检查第一个任务就进入 running；后续任务的 Open Questions 会重新制造人工卡点。
 - Bad:AI 直接编辑 planning artifacts，再补 decision；旧 manifest 已经失去内容绑定，必须按
   `artifact-drift` 处理。
+- Bad:任何 `record` 漂移都立即清空 `last_action` 并进入 `completed_with_blocked`；这会让本 action
+  可证明的 Check-All DOC 修复无法补充声明，也迫使用户手工恢复内部协议错误。
+- Bad:把 retryable 扩大到 implement、spec update、commit-only 或 protected drift；这些变化没有
+  Check-All DOC 白名单证据，必须继续失败关闭。
 - Bad:把队列项 `completed` 同步写入 `task.json.status=completed`；这会绕过 finish/archive 生命周期。
 - Bad:把全量 `manifest_revisions` 继续塞进 `<run-id>.json` 或默认 `status/resume` 输出，导致 AI 恢复时加载大型审计历史。
 - Bad:progress 保存 push mode、分支、完整提交计划或业务 Git 编排状态，导致 `trellis-continue` 误恢复 Git 行为。
@@ -1389,7 +1516,8 @@ python3 ./.trellis/scripts/decision_log.py review \
 - archive 测试断言无 decision 放行，未审查/changes-requested/损坏日志在状态写入、session 清理和
   目录移动前零副作用失败；accepted 后保持既有归档行为。
 - Check-All 测试覆盖 requested/minimum/effective depth、legacy full fallback、failed -> fix -> full
-  recheck，以及 validated auto-loop 完成后立即 `record + next`。
+  recheck、DOC manifest 重绑、非法路径、声明/实际不一致、retryable 后成功、3 次预算后阻塞、
+  显式 blocked 和 validated auto-loop 成功 record 后立即 `next`。
 - selective install 对 `trellis-auto-loop`、`auto-loop`、`trellis-finish-work`、`finish-work` 分别断言
   runner/helper、decision log 和 archive guard 自包含。
 - 运行 `npm test`、Patch conflict、compiled targets、strict AI context budget、Python `py_compile`、
@@ -1406,7 +1534,14 @@ python3 ./.trellis/scripts/decision_log.py review \
 文件由哪条 decision 授权。
 
 **Correct**:`decide` 先保存 decision 与逐文件 baseline，下一次 record 只允许 `--file` 列明的变化，
-成功后追加绑定 decision ID 的 manifest revision；其它变化稳定阻塞。
+成功后追加绑定 decision ID 的 manifest revision；未授权 Check record 先在同一 outstanding action
+内有限自纠，其它 action 稳定阻塞。
+
+**Wrong**:Check-All 自动更新 `implement.md` 后，record 只传 `--result ok`；runner 立即清空
+outstanding action 并要求用户显式 `retry-blocked`。
+
+**Correct**:Check action 保存逐文件 baseline；合法 DOC 修复通过 `--doc-remediation-file` 精确重绑。
+漏声明时返回 retryable 并保留原 action，agent 补齐声明后重录，只有无法归因或预算耗尽才 terminal blocked。
 
 **Wrong**:`status --verbose` 直接内联所有 `manifest_revisions`，并把 task progress 当作后续 push/commit 计划恢复。
 

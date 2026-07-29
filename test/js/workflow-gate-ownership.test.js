@@ -145,7 +145,8 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(autoLoop, /`review_planning_readiness`/);
   assert.match(autoLoop, /`resolve_open_questions`/);
   assert.match(autoLoop, /不逐任务执行 `confirm_brief`/);
-	assert.match(autoLoop, /其它变化按 `artifact-drift` 阻塞/);
+  assert.match(autoLoop, /Check record 中其它变化进入有限自纠/);
+  assert.match(autoLoop, /其它 action 仍按 `artifact-drift` 阻塞/);
   assert.match(finish, /This skill owns only the current task's release audit, archive bookkeeping/);
   assert.match(finish, /### 1\. Decision Audit/);
   assert.match(finish, /decision_log\.py status --task <task-name> --json/);

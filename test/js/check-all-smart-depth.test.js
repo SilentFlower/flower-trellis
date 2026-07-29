@@ -49,7 +49,7 @@ test("Check-All 双平台副本统一智能深度契约", () => {
     reporting.length,
   );
   assert.match(autoLoopGate, /validated auto-loop 不渲染交互式下一步段/);
-  assert.match(autoLoopGate, /记录后立即 `next`/);
+  assert.match(autoLoopGate, /record 成功后立即 `next`/);
   assert.doesNotMatch(autoLoopGate, /提示用户回复 `继续`/);
   assert.match(interactiveGate, /非 validated auto-loop 先输出完整标准报告/);
   assert.match(interactiveGate, /提示用户回复 `继续`/);
@@ -90,6 +90,14 @@ test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {
   );
   const inlineState = state;
   const autoLoop = read(sourceRoot, ".agents/skills/trellis-auto-loop/SKILL.md");
+  const docRemediation = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/document-drift-auto-remediation.md",
+  );
+  const reporting = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
+  );
   const runner = read(sourceRoot, "scripts/auto_loop.py");
 
   assert.match(
@@ -99,7 +107,15 @@ test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {
   assert.match(state, /validated auto-loop immediately records and advances/);
   assert.match(inlineState, /validated auto-loop immediately records and advances/);
   assert.match(autoLoop, /--check-depth auto\|light\|full/);
+  assert.match(autoLoop, /--doc-remediation-file/);
+  assert.match(autoLoop, /status=retryable reason=artifact-drift/);
+  assert.match(autoLoop, /不得运行 `next`/);
+  assert.match(docRemediation, /只有当前任务的 `implement\.md` 与 `brief\.md`/);
+  assert.match(reporting, /record 成功后立即 `next`/);
+  assert.match(reporting, /若返回 `status=retryable reason=artifact-drift`，不得 `next`/);
   assert.match(runner, /legacy-default-full/);
+  assert.match(runner, /MAX_ARTIFACT_RECONCILE = 3/);
+  assert.match(runner, /doc-remediation-file/);
 });
 
 test("0.6 发布快照与智能检查源保持一致", () => {

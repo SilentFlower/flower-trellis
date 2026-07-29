@@ -15,6 +15,35 @@ ROOT = Path(__file__).resolve().parents[2]
 RUNNER = ROOT / "vendor/skill-garden/scripts/apply-trellis-patches.py"
 OVERRIDES = ROOT / "vendor/skill-garden/.trellis/0.6/overrides"
 SHARED_CORE_FIXTURE = ROOT / "test/fixtures/patch-engine/core"
+META_PATCHES = {
+    "trellis-meta-managed-mode-precedence",
+    "trellis-meta-managed-architecture-and-ownership",
+    "trellis-meta-managed-customization-routing",
+    "trellis-meta-managed-workflow-owners",
+}
+META_OPERATIONS = {
+    "trellis-meta-trigger-description",
+    "trellis-meta-managed-scope",
+    "trellis-meta-managed-usage",
+    "trellis-meta-managed-current-rules",
+    "trellis-meta-managed-system-model",
+    "trellis-meta-managed-customization-principles",
+    "trellis-meta-managed-template-hashes",
+    "trellis-meta-managed-file-boundaries",
+    "trellis-meta-managed-skill-taxonomy",
+    "trellis-meta-managed-bundled-overrides",
+    "trellis-meta-managed-customization-entry",
+    "trellis-meta-managed-customization-order",
+    "trellis-meta-managed-workflow-entry",
+    "trellis-meta-managed-workflow-edit-route",
+    "trellis-meta-managed-skill-classification",
+    "trellis-meta-managed-skill-edit-route",
+    "trellis-meta-managed-platform-edit-route",
+    "trellis-meta-managed-workflow-source",
+    "trellis-meta-managed-owner-routing",
+    "trellis-meta-managed-state-boundary",
+    "trellis-meta-managed-workflow-change-map",
+}
 
 
 def _load_runner():
@@ -846,11 +875,11 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 32)
+        self.assertEqual(len(plan["patches"]), 36)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
-            27,
+            69,
         )
         operation_ids = {item["id"] for item in plan["results"]}
         self.assertIn("task-start-session-write-gate", operation_ids)
@@ -862,6 +891,7 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("runtime-state-integrity", set(plan["patches"]))
         self.assertIn("before-dev-project-knowledge-discovery", operation_ids)
         self.assertIn("trellis-continue-task-progress-recovery", operation_ids)
+        self.assertTrue(META_OPERATIONS.issubset(operation_ids))
 
     def test_real_conflicts_cover_new_control_plane_operations(self) -> None:
         """新增控制面 operation 必须进入最终产物冲突断言。"""
@@ -881,6 +911,40 @@ class PatchConsumerTest(unittest.TestCase):
             "task-set-scope-write",
             "paths-clear-current-result",
         }.issubset(covered))
+        self.assertTrue(META_OPERATIONS.issubset(covered))
+
+    def test_real_catalog_trellis_meta_aliases_select_only_meta_patches(self) -> None:
+        """验证 meta 与 create-command 入口只选择依赖的四个 Patch。"""
+        runner = _load_runner()
+
+        for alias in (
+            "trellis-meta",
+            "meta-architecture",
+            "trellis-create-command",
+            "create-command",
+        ):
+            with self.subTest(alias=alias):
+                plan = runner.prepare_patches(OVERRIDES, ROOT, [alias])
+                self.assertEqual(set(plan["patches"]), META_PATCHES)
+                operation_ids = {item["id"] for item in plan["results"]}
+                self.assertEqual(operation_ids, META_OPERATIONS)
+                self.assertEqual(plan["bundles"], ["trellis-meta"])
+                skill = next(
+                    item["next"]
+                    for item in plan["files"]
+                    if item["target"] == ".agents/skills/trellis-meta/SKILL.md"
+                )
+                workflow = next(
+                    item["next"]
+                    for item in plan["files"]
+                    if item["target"].endswith(
+                        "trellis-meta/references/local-architecture/workflow.md"
+                    )
+                    and item["target"].startswith(".agents/")
+                )
+                self.assertIn("Flower/Skill-Garden managed Plugin overlays", skill)
+                self.assertIn("Do not choose implementation or checking behavior", workflow)
+                self.assertNotIn("dispatch `trellis-implement` by default", workflow)
 
     def test_real_catalog_task_intent_selects_complete_stale_recovery(self) -> None:
         """验证 Python consumer 的精细安装包含完整 stale recovery Patch。"""
