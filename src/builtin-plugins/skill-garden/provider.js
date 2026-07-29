@@ -9,6 +9,7 @@ import { validatePluginManifest } from "../../plugin/schemas/plugin-manifest.js"
 import { markRuntimeBuiltinProvider } from "../../plugin/runtime-extensions.js";
 import { BuiltinSourceProvider } from "../../plugin/sources/builtin-provider.js";
 import { flowerPatchAdapters } from "../../lib/platform-patch-adapters.js";
+import { resolveTrellisPythonCommand } from "../../lib/trellis-python-command.js";
 import { projectSkillGardenContent } from "./content-adapter.js";
 
 /** 内置 skill-garden canonical Plugin ID。 */
@@ -97,6 +98,7 @@ function runtimeManifest(variant) {
  */
 function ensureSkillGardenReady(provider) {
   if (provider.snapshot) return;
+  provider.pythonCommand = resolveTrellisPythonCommand(provider.projectRoot);
   provider.snapshot = resolveEnhancementSnapshot(provider.projectRoot, provider.variantOverride);
   provider.manifest = runtimeManifest(provider.snapshot.variant);
   provider.integrity = stablePayloadDigest([
@@ -145,6 +147,7 @@ export class SkillGardenBuiltinProvider {
     this.manifest = null;
     this.integrity = null;
     this.resolutionManifest = null;
+    this.pythonCommand = null;
     if (fs.existsSync(path.join(this.projectRoot, ".trellis", ".version"))) ensureSkillGardenReady(this);
     markRuntimeBuiltinProvider(this);
   }
@@ -208,11 +211,13 @@ export class SkillGardenBuiltinProvider {
           compatibilityFile: path.join(this.snapshot.variantDir, "overrides", "compatibility.json"),
           conflictsFile: path.join(this.snapshot.variantDir, "overrides", "conflicts.json"),
         },
+        textMaterialization: { trellisPythonCommand: this.pythonCommand.command },
       },
       {
         id: "flower",
         patchesDir: path.join(PKG_ROOT, "src", "patches", "platforms"),
         bundlesDir: path.join(PKG_ROOT, "src", "patches", "bundles"),
+        textMaterialization: { trellisPythonCommand: this.pythonCommand.command },
       },
     ] : [];
     return {
@@ -220,10 +225,16 @@ export class SkillGardenBuiltinProvider {
       manifest: this.resolutionManifest,
       integrity: acceptedIntegrity,
       catalogs,
-      systemAdapters: this.snapshot.variant === "0.6" ? flowerPatchAdapters() : {},
+      systemAdapters: this.snapshot.variant === "0.6"
+        ? flowerPatchAdapters(this.pythonCommand.command)
+        : {},
       patchOptions: { skills: this.skills },
       allowContentPatchOverlap: true,
-      skillGarden: { ...this.snapshot, skills: this.skills },
+      skillGarden: {
+        ...this.snapshot,
+        skills: this.skills,
+        pythonCommand: this.pythonCommand.command,
+      },
     };
   }
 

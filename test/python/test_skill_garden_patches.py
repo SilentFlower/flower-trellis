@@ -205,6 +205,132 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("Patch 预检失败", result.stderr)
         self.assertEqual((self.target / "valid.md").read_text(encoding="utf-8"), "VALID\n")
 
+    def test_target_python_command_materializes_selector_content_and_baseline(self) -> None:
+        """验证 Python runner 对 Windows 命令执行严格且等价的文本物化。"""
+        runner = _load_runner()
+        for slug, command in (("python", "python"), ("py-launcher", "py -3")):
+            with self.subTest(command=command):
+                target = self.root / slug / "target"
+                overrides = self.root / slug / "overrides"
+                _write(
+                    target,
+                    ".trellis/workflow.md",
+                    f"Run {command} ./.trellis/scripts/task.py current\n",
+                )
+                _write(
+                    target,
+                    "whole.md",
+                    f"Check {command} ./.trellis/scripts/task.py list\n",
+                )
+                leaf = overrides / "patches/python/materialization"
+                _write(
+                    leaf,
+                    "patch.json",
+                    json.dumps({
+                        "schemaVersion": 2,
+                        "id": "python-materialization",
+                        "purpose": "test",
+                        "operations": [
+                            {
+                                "id": "python-literal",
+                                "operation": "replace",
+                                "targets": [{
+                                    "kind": "workflow",
+                                    "path": ".trellis/workflow.md",
+                                    "missing": "error",
+                                }],
+                                "selector": {
+                                    "type": "literal",
+                                    "source": "literal-selector.md",
+                                },
+                                "content": {"source": "literal-content.md"},
+                            },
+                            {
+                                "id": "python-baseline",
+                                "operation": "replace",
+                                "targets": [{
+                                    "kind": "file",
+                                    "path": "whole.md",
+                                    "missing": "error",
+                                    "markerStyle": "none",
+                                }],
+                                "selector": {"type": "whole-file"},
+                                "baselines": ["whole-baseline.md"],
+                                "content": {"source": "whole-content.md"},
+                            },
+                        ],
+                    }, indent=2) + "\n",
+                )
+                _write(
+                    leaf,
+                    "literal-selector.md",
+                    "Run python3 ./.trellis/scripts/task.py current\n",
+                )
+                _write(
+                    leaf,
+                    "literal-content.md",
+                    "Run python3 ./.trellis/scripts/task.py start\n",
+                )
+                _write(
+                    leaf,
+                    "whole-baseline.md",
+                    "Check python3 ./.trellis/scripts/task.py list\n",
+                )
+                _write(
+                    leaf,
+                    "whole-content.md",
+                    "Check python3 ./.trellis/scripts/task.py current\n",
+                )
+                _write(
+                    overrides / "bundles",
+                    "python-materialization.json",
+                    json.dumps({
+                        "schemaVersion": 1,
+                        "id": "python-materialization",
+                        "patches": ["python/materialization"],
+                    }, indent=2) + "\n",
+                )
+                _write(
+                    overrides,
+                    "compatibility.json",
+                    (OVERRIDES / "compatibility.json").read_text(encoding="utf-8"),
+                )
+                _write(
+                    overrides,
+                    "conflicts.json",
+                    json.dumps({
+                        "schemaVersion": 1,
+                        "rules": [{
+                            "id": "python-command-required",
+                            "severity": "error",
+                            "target": ".trellis/workflow.md",
+                            "whenOperations": ["python-literal"],
+                            "assertion": {
+                                "type": "required-literal",
+                                "values": [
+                                    "Run python3 ./.trellis/scripts/task.py start"
+                                ],
+                            },
+                            "owner": "test",
+                            "reason": "test",
+                        }],
+                    }, indent=2) + "\n",
+                )
+
+                plan = runner.prepare_patches(overrides, target)
+                policy = runner.load_patch_policy(overrides, command)
+                report = runner.build_patch_conflict_report("0.6.5", plan, policy)
+                self.assertEqual(report["summary"]["errors"], 0)
+                runner.apply_prepared(target, plan)
+                self.assertIn(
+                    f"Run {command} ./.trellis/scripts/task.py start",
+                    (target / ".trellis/workflow.md").read_text(encoding="utf-8"),
+                )
+                self.assertEqual(
+                    (target / "whole.md").read_text(encoding="utf-8"),
+                    f"Check {command} ./.trellis/scripts/task.py current\n",
+                )
+
     def test_operation_order_qualified_provenance_and_bundle_membership(self) -> None:
         """验证 Python consumer 的稳定排序、qualified identity 与多 Bundle provenance。"""
         _write(self.target, "sample.md", "AUTH\nAUTO\n")
@@ -875,7 +1001,7 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 36)
+        self.assertEqual(len(plan["patches"]), 37)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
@@ -889,6 +1015,8 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("codex-session-start-pre-check-hold", operation_ids)
         self.assertIn("claude-session-start-pre-check-hold", operation_ids)
         self.assertIn("runtime-state-integrity", set(plan["patches"]))
+        self.assertIn("session-context-update-boundary", set(plan["patches"]))
+        self.assertIn("session-context-update-output", operation_ids)
         self.assertIn("before-dev-project-knowledge-discovery", operation_ids)
         self.assertIn("trellis-continue-task-progress-recovery", operation_ids)
         self.assertTrue(META_OPERATIONS.issubset(operation_ids))
@@ -910,6 +1038,10 @@ class PatchConsumerTest(unittest.TestCase):
             "task-set-base-branch-write",
             "task-set-scope-write",
             "paths-clear-current-result",
+            "session-context-update-imports",
+            "session-context-update-constants",
+            "session-context-update-helpers",
+            "session-context-update-output",
         }.issubset(covered))
         self.assertTrue(META_OPERATIONS.issubset(covered))
 

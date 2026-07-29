@@ -1101,6 +1101,28 @@
       },
       "owner": "trellis-route",
       "reason": "Claude workflow meta 必须与 shared route owner 模型一致。"
+    },
+    {
+      "id": "session-context-no-legacy-update-check",
+      "severity": "error",
+      "target": ".trellis/scripts/common/session_context.py",
+      "whenOperations": [
+        "session-context-update-imports",
+        "session-context-update-constants",
+        "session-context-update-helpers",
+        "session-context-update-output"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "def _get_update_hint(",
+          "def _mark_update_check_attempted(",
+          "def _update_marker_path(",
+          "[\"trellis\", \"--version\"]"
+        ]
+      },
+      "owner": "flower-update-hook",
+      "reason": "默认 Session Context 只负责项目上下文；更新检查必须统一由 Flower SessionStart Hook 进入。"
     }
   ]
 }

@@ -20,6 +20,7 @@ import { PKG_ROOT } from "../../lib/paths.js";
 import { injectWorkflow } from "../../lib/workflow-inject.js";
 import { applyCodexTweaks } from "../../lib/codex-tweaks.js";
 import { applyClaudeTweaks } from "../../lib/claude-tweaks.js";
+import { materializeTrellisPythonText } from "../../lib/trellis-python-command.js";
 import { describeInstalledCommonSkillSync } from "../../lib/skill-catalog.js";
 import {
   PLUGIN_RUNTIME_ERROR_CODES,
@@ -46,6 +47,7 @@ const SCRIPT_ALIASES = Object.freeze({
     "intent-routing", "auto-loop", "auto-loop-runner", "trellis-auto-loop",
   ],
 });
+const TRELLIS_TEXT_EXTENSIONS = new Set([".json", ".md", ".toml", ".txt", ".yaml", ".yml"]);
 
 /**
  * 列出目标目录中的普通文件。
@@ -66,7 +68,7 @@ function listExistingFiles(directory) {
  */
 export function projectSkillGardenContent(options) {
   const { projectRoot, resolved, pluginPackage } = options;
-  const { variantDir, skills } = pluginPackage.skillGarden;
+  const { variantDir, skills, pythonCommand } = pluginPackage.skillGarden;
   const payloads = new Map();
   const mutations = [];
   const directoryRemovals = [];
@@ -86,20 +88,24 @@ export function projectSkillGardenContent(options) {
    * @param {Buffer} content 最终字节
    * @param {string} source 来源说明
    * @param {"exclusive"|"shared"} ownership 所有权
+   * @param {boolean} materializePython 是否按目标项目命令物化明确文本载荷
    */
-  function addFile(target, content, source, ownership = "exclusive") {
+  function addFile(target, content, source, ownership = "exclusive", materializePython = false) {
     assertSafePosixRelativePath(target, "skill-garden 投影目标");
     const absoluteTarget = path.join(projectRoot, ...target.split("/"));
+    const payload = materializePython && TRELLIS_TEXT_EXTENSIONS.has(path.extname(target))
+      ? Buffer.from(materializeTrellisPythonText(content.toString("utf8"), pythonCommand))
+      : content;
     const mutation = {
       owner: resolved.id,
       target,
       operation: "write",
       beforeHash: hashFileIfExists(absoluteTarget),
-      afterHash: hashContent(content),
+      afterHash: hashContent(payload),
       source,
       allowUnownedWrite: true,
     };
-    payloads.set(contentMutationKey(mutation), content);
+    payloads.set(contentMutationKey(mutation), payload);
     mutations.push(mutation);
     paths.set(target, {
       path: target,
@@ -116,13 +122,26 @@ export function projectSkillGardenContent(options) {
    * @param {string} targetRoot 目标目录
    * @param {string} sourceLabel 来源标签
    * @param {"exclusive"|"shared"} ownership 所有权
+   * @param {boolean} materializePython 是否按目标项目命令物化明确文本载荷
    */
-  function addTree(sourceRoot, targetRoot, sourceLabel, ownership = "exclusive") {
+  function addTree(
+    sourceRoot,
+    targetRoot,
+    sourceLabel,
+    ownership = "exclusive",
+    materializePython = false,
+  ) {
     const desired = new Set();
     for (const file of listCanonicalTreeFiles(sourceRoot)) {
       const target = `${targetRoot}/${file.path}`;
       desired.add(file.path);
-      addFile(target, fs.readFileSync(file.absolutePath), `${sourceLabel}:${file.path}`, ownership);
+      addFile(
+        target,
+        fs.readFileSync(file.absolutePath),
+        `${sourceLabel}:${file.path}`,
+        ownership,
+        materializePython,
+      );
     }
     for (const file of listExistingFiles(path.join(projectRoot, ...targetRoot.split("/")))) {
       if (desired.has(file.path)) continue;
@@ -192,6 +211,8 @@ export function projectSkillGardenContent(options) {
         path.join(sourceRoot, entry.name),
         `${target.root}/${entry.name}`,
         `skill-garden:${pluginPackage.skillGarden.variant}:${target.source}:${entry.name}`,
+        "exclusive",
+        pluginPackage.skillGarden.variant === "0.6",
       );
       installed.add(entry.name);
     }
@@ -208,6 +229,8 @@ export function projectSkillGardenContent(options) {
         `.claude/commands/trellis/${file.name}`,
         fs.readFileSync(path.join(commandRoot, file.name)),
         `skill-garden:${pluginPackage.skillGarden.variant}:command:${file.name}`,
+        "exclusive",
+        pluginPackage.skillGarden.variant === "0.6",
       );
       installed.add(name);
     }

@@ -1,5 +1,5 @@
 {
-  "syncedAt": "2026-07-29T10:02:05.260Z",
+  "syncedAt": "2026-07-29T10:56:59.432Z",
   "syncedFrom": "vendor/skill-garden",
   "sourceCommit": "1812258cdd48d99b97e8dbab41f5203134e411df",
   "common": {
@@ -161,6 +161,13 @@
         "scripts/runtime-state-integrity/active-task-set-content.py",
         "scripts/runtime-state-integrity/active-task-set-selector.py",
         "scripts/runtime-state-integrity/patch.json",
+        "scripts/session-context-update-boundary/constants-selector.py",
+        "scripts/session-context-update-boundary/helpers-selector.py",
+        "scripts/session-context-update-boundary/imports-content.py",
+        "scripts/session-context-update-boundary/imports-selector.py",
+        "scripts/session-context-update-boundary/output-content.py",
+        "scripts/session-context-update-boundary/output-selector.py",
+        "scripts/session-context-update-boundary/patch.json",
         "scripts/task-start-brief-gate/degraded-content.py",
         "scripts/task-start-brief-gate/degraded-selector.py",
         "scripts/task-start-brief-gate/guard-content.py",

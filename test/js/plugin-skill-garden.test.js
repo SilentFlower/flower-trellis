@@ -39,6 +39,10 @@ function quietApply(target, options) {
 
 test("builtin provider 使用进程内信任且 digest 稳定绑定 variant", (t) => {
   const target = createTarget(t, "0.6.5");
+  fs.writeFileSync(
+    path.join(target, ".trellis/workflow.md"),
+    "Run `py -3 ./.trellis/scripts/task.py current`.\n",
+  );
   const first = new SkillGardenBuiltinProvider({ projectRoot: target });
   const second = new SkillGardenBuiltinProvider({ projectRoot: target });
   assert.equal(isBuiltinProviderTrusted(first), true);
@@ -46,6 +50,11 @@ test("builtin provider 使用进程内信任且 digest 稳定绑定 variant", (t
   assert.match(first.integrity, /^sha256:/);
   assert.equal(first.listCandidates(SKILL_GARDEN_PLUGIN_ID)[0].source.reference, "package:skill-garden:0.6");
   assert.equal(first.manifest.version, flowerVersion());
+  const pluginPackage = first.readPackage(first.listCandidates(SKILL_GARDEN_PLUGIN_ID)[0]);
+  assert.equal(pluginPackage.skillGarden.pythonCommand, "py -3");
+  assert.ok(pluginPackage.catalogs.every((catalog) => (
+    catalog.textMaterialization.trellisPythonCommand === "py -3"
+  )));
 });
 
 test("builtin update 可刷新旧精确声明到当前 Flower 版本", (t) => {

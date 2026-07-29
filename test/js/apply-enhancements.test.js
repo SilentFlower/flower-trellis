@@ -341,6 +341,11 @@ function writeControlPlaneTargets(target) {
   );
   write(
     target,
+    ".trellis/scripts/common/session_context.py",
+    fs.readFileSync(path.join(UPSTREAM_SCRIPTS, "common/session_context.py"), "utf8"),
+  );
+  write(
+    target,
     ".trellis/scripts/common/task_store.py",
     fs.readFileSync(path.join(UPSTREAM_SCRIPTS, "common/task_store.py"), "utf8"),
   );
@@ -420,6 +425,28 @@ function snapshotTree(root) {
   }
   walk(root);
   return [...files.entries()].map(([name, value]) => [name, value.toString("base64")]);
+}
+
+function renderSeededPythonCommand(root, command) {
+  function walk(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(file);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const content = fs.readFileSync(file);
+      if (content.includes(0)) continue;
+      const rendered = content
+        .toString("utf8")
+        .split("\n")
+        .map((line) => line.startsWith("#!") ? line : line.replaceAll("python3", command))
+        .join("\n");
+      fs.writeFileSync(file, rendered);
+    }
+  }
+  walk(root);
 }
 
 function quietApply(target, options = { variant: "0.6" }) {
@@ -661,6 +688,40 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
 
   quietApply(target);
   assert.deepEqual(snapshotTree(target), first);
+});
+
+test("Windows Python 命令渲染后的 0.6.5 目标可完整强化且重复运行幂等", () => {
+  for (const command of ["python", "py -3"]) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-apply-python-command-"));
+    write(target, ".trellis/.version", "0.6.5\n");
+    write(target, ".trellis/workflow.md", minimalWorkflow());
+    writeIntentTargets(target);
+    writeMetaTargets(target);
+    writeContinueTargets(target);
+    writeUpdateSpecTargets(target);
+    writeFinishTargets(target);
+    renderSeededPythonCommand(target, command);
+
+    const applied = quietApply(target);
+    assert.equal(applied.patchReport.summary.errors, 0);
+    const first = snapshotTree(target);
+    const workflow = fs.readFileSync(path.join(target, ".trellis/workflow.md"), "utf8");
+    assert.ok(workflow.includes(`${command} ./.trellis/scripts/spec_router.py`));
+    assert.match(workflow, /skill-garden patch workflow-phase-1-activate/);
+    for (const relative of [
+      ".agents/skills/trellis-brainstorm/SKILL.md",
+      ".agents/skills/trellis-finish-work/SKILL.md",
+      ".claude/commands/trellis/finish-work.md",
+    ]) {
+      const value = fs.readFileSync(path.join(target, ...relative.split("/")), "utf8");
+      assert.doesNotMatch(value, /python3 (?:-X utf8 )?\.\/\.trellis\/scripts\//);
+      assert.ok(value.includes(`${command} ./.trellis/scripts/`));
+    }
+
+    quietApply(target);
+    assert.deepEqual(snapshotTree(target), first);
+    fs.rmSync(target, { recursive: true, force: true });
+  }
 });
 
 test("0.6 未登记 patch 版本 warning 放行，跨兼容线 error 且零写入", () => {

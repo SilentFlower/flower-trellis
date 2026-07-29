@@ -195,6 +195,23 @@ test("可信 builtin system catalog 可使用完整 replace，外部预构造 de
   }), (error) => error.code === PLUGIN_CAPABILITY_ERROR_CODES.PATCH_POLICY_INVALID);
 });
 
+test("外部 Plugin 不能通过 patchOptions 启用目标命令物化", (t) => {
+  const entry = fixture(t, {
+    workflow: "# Workflow\n\nRun python ./.trellis/scripts/task.py current\n",
+  });
+  fs.writeFileSync(
+    path.join(entry.packageRoot, "patches/workflow/note/selector.md"),
+    "Run python3 ./.trellis/scripts/task.py current\n",
+  );
+
+  assert.throws(() => preparePluginPatchPlan(entry.projectRoot, [entry], {
+    approvals: [entry.plugin.id],
+    patchOptions: {
+      textMaterialization: { trellisPythonCommand: "python" },
+    },
+  }), (error) => error.code === PLUGIN_CAPABILITY_ERROR_CODES.PATCH_POLICY_INVALID);
+});
+
 test("Patch selector 漂移与普通内容冲突都在写盘前失败", (t) => {
   const entry = fixture(t, { workflow: "# Workflow\n\nNo anchor\n" });
   const original = fs.readFileSync(path.join(entry.projectRoot, ".trellis", "workflow.md"), "utf8");

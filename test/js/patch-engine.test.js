@@ -163,6 +163,74 @@ test("required 漂移在全部目标写入前失败", () => {
   assert.equal(fs.readFileSync(path.join(f.target, "valid.md"), "utf8"), "VALID\n");
 });
 
+test("受信 catalog 可按目标命令物化 selector、content 与 baseline", () => {
+  const catalogHashes = [];
+  for (const command of ["python", "py -3"]) {
+    const f = fixture();
+    write(f.target, "literal.md", `Run ${command} ./.trellis/scripts/task.py current\n`);
+    write(f.target, "whole.md", `Check ${command} ./.trellis/scripts/task.py list\n`);
+    addPatch(f, "python/materialization", {
+      schemaVersion: 2,
+      id: "python-materialization",
+      purpose: "test",
+      operations: [
+        {
+          id: "python-literal",
+          operation: "replace",
+          targets: [{ kind: "markdown", path: "literal.md", missing: "error" }],
+          selector: { type: "literal", source: "literal-selector.md" },
+          content: { source: "literal-content.md" },
+        },
+        {
+          id: "python-baseline",
+          operation: "replace",
+          targets: [{ kind: "file", path: "whole.md", missing: "error", markerStyle: "none" }],
+          selector: { type: "whole-file" },
+          baselines: ["whole-baseline.md"],
+          content: { source: "whole-content.md" },
+        },
+      ],
+    }, {
+      "literal-selector.md": "Run python3 ./.trellis/scripts/task.py current\n",
+      "literal-content.md": "Run python3 ./.trellis/scripts/task.py start\n",
+      "whole-baseline.md": "Check python3 ./.trellis/scripts/task.py list\n",
+      "whole-content.md": "Check python3 ./.trellis/scripts/task.py current\n",
+    });
+    addBundle(f, {
+      schemaVersion: 1,
+      id: "python-materialization",
+      patches: ["python/materialization"],
+    });
+    const catalog = {
+      ...f.catalogSpec,
+      textMaterialization: { trellisPythonCommand: command },
+    };
+
+    const plan = preparePatchPlan(f.target, [catalog]);
+    catalogHashes.push(plan.catalogHash);
+    applyPatchPlan(f.target, plan);
+    assert.match(fs.readFileSync(path.join(f.target, "literal.md"), "utf8"), new RegExp(
+      `Run ${command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\.\\/\\.trellis\\/scripts\\/task\\.py start`,
+    ));
+    assert.equal(
+      fs.readFileSync(path.join(f.target, "whole.md"), "utf8"),
+      `Check ${command} ./.trellis/scripts/task.py current\n`,
+    );
+  }
+  assert.equal(catalogHashes[0], catalogHashes[1]);
+});
+
+test("catalog 文本物化 descriptor 拒绝未知字段", () => {
+  const f = fixture();
+  assert.throws(() => preparePatchPlan(f.target, [{
+    ...f.catalogSpec,
+    textMaterialization: {
+      trellisPythonCommand: "python",
+      unexpected: true,
+    },
+  }]), /只支持 trellisPythonCommand/);
+});
+
 test("preflight 后目标并发变化时 apply 停止且不覆盖新内容", () => {
   const f = fixture();
   write(f.target, "sample.md", "OLD\n");

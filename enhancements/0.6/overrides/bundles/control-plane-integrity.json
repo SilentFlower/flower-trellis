@@ -5,6 +5,7 @@
   "installMode": "full-only",
   "patches": [
     "scripts/task-store-write-integrity",
-    "scripts/runtime-state-integrity"
+    "scripts/runtime-state-integrity",
+    "scripts/session-context-update-boundary"
   ]
 }

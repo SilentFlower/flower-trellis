@@ -18,6 +18,36 @@ test("真实完整 init 创建 Trellis 并默认锁定 skill-garden", (t) => {
   const lock = JSON.parse(fs.readFileSync(path.join(project, ".flower/plugin-lock.json"), "utf8"));
   assert.deepEqual(lock.roots, ["flower/skill-garden"]);
   assert.equal(lock.plugins[0].id, "flower/skill-garden");
+
+  const sessionContext = fs.readFileSync(
+    path.join(project, ".trellis/scripts/common/session_context.py"),
+    "utf8",
+  );
+  assert.doesNotMatch(sessionContext, /def _get_update_hint\(/);
+  assert.doesNotMatch(sessionContext, /def _mark_update_check_attempted\(/);
+  assert.doesNotMatch(sessionContext, /def _update_marker_path\(/);
+  assert.doesNotMatch(sessionContext, /\["trellis", "--version"\]/);
+});
+
+test("真实完整 init 支持 Windows 风格 Python 命令渲染", (t) => {
+  for (const [slug, command] of [["python", "python"], ["py-launcher", "py -3"]]) {
+    const workspace = createPluginTestRoot(t, `flower-e2e-${slug}-`);
+    const project = path.join(workspace, "project");
+    fs.mkdirSync(project);
+    const result = runFlower(project, [
+      "init", "-y", "--codex", "--no-update-check",
+    ], {
+      timeout: 60_000,
+      env: { TRELLIS_PYTHON_CMD: command },
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+
+    const workflow = fs.readFileSync(path.join(project, ".trellis/workflow.md"), "utf8");
+    const hooks = fs.readFileSync(path.join(project, ".codex/hooks.json"), "utf8");
+    assert.ok(workflow.includes(`${command} ./.trellis/scripts/`));
+    assert.ok(hooks.includes(`${command} -X utf8 .codex/hooks/`));
+    assert.doesNotMatch(workflow, /python3 \.\/\.trellis\/scripts\//);
+  }
 });
 
 test("enhance-only init 默认安装 skill-garden 并迁移旧 manifest", (t) => {

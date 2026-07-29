@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { resolvePatchCatalogPolicy } from "./patch-engine.js";
+import { materializeTrellisPythonText } from "./trellis-python-command.js";
 
 const SEVERITIES = new Set(["error", "warning", "info"]);
 const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -155,6 +156,27 @@ function validateConflicts(raw) {
   return raw;
 }
 
+function materializeConflictAssertions(conflicts, command) {
+  if (command === undefined) return conflicts;
+  return {
+    ...conflicts,
+    rules: conflicts.rules.map((rule) => ({
+      ...rule,
+      assertion: rule.assertion.type === "max-occurrences"
+        ? {
+          ...rule.assertion,
+          value: materializeTrellisPythonText(rule.assertion.value, command),
+        }
+        : {
+          ...rule.assertion,
+          values: rule.assertion.values.map((value) =>
+            materializeTrellisPythonText(value, command)
+          ),
+        },
+    })),
+  };
+}
+
 function parseVersion(value) {
   if (typeof value !== "string") return null;
   const match = value.match(SEMVER_RE);
@@ -253,7 +275,7 @@ export function loadPatchPolicy(overridesDir, catalogId = "skill-garden") {
 /**
  * 按 catalog descriptor 加载并校验其声明式 Patch policy。
  *
- * @param {Array<{id:string,policy?:{compatibilityFile?:string,conflictsFile?:string}}>} catalogs catalog 描述符
+ * @param {Array<{id:string,policy?:{compatibilityFile?:string,conflictsFile?:string},textMaterialization?:{trellisPythonCommand:string}}>} catalogs catalog 描述符
  * @returns {Array<{catalog:string,compatibility?:object,conflicts?:object}>} 已校验的 policy 列表
  */
 export function loadPatchPolicies(catalogs) {
@@ -271,10 +293,14 @@ export function loadPatchPolicies(catalogs) {
         ));
       }
       if (paths.conflictsFile) {
-        policy.conflicts = validateConflicts(readJson(
+        const conflicts = validateConflicts(readJson(
           paths.conflictsFile,
           `${catalogId} conflict policy`,
         ));
+        policy.conflicts = materializeConflictAssertions(
+          conflicts,
+          catalog.textMaterialization?.trellisPythonCommand,
+        );
       }
       if (!policy.compatibility && !policy.conflicts) {
         throw new Error(`catalog ${catalogId} policy 至少声明一个文件`);
