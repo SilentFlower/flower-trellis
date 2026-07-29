@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -68,9 +68,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.5.4",
+    "version": "0.5.5",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **cli:** 优化 init 与 update 交互体验 ([1248456](https://github.com/SilentFlower/flower-trellis/commit/12484563bb9f5b7f6842879c38adca02c9697584))\n* **craft-rpa:** 同步网络采集与页面控制升级 ([4827e20](https://github.com/SilentFlower/flower-trellis/commit/4827e2043a2123ba331ff82c0b59ce03cbb29f6c))\n\n\n### 🐛 修复 Bug Fixes\n\n* **workflow:** 防止发布请求误触 trellis-release ([e3e4add](https://github.com/SilentFlower/flower-trellis/commit/e3e4addd953059bdaa5135ac527432f4c0f8838a))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **cli:** 修复 Windows PTY 交互状态泄漏 ([e14ffc9](https://github.com/SilentFlower/flower-trellis/commit/e14ffc922e052120a0b0993420e0b2bb5c11a8f2))\n* **cli:** 修复 Windows 完成页退出挂起 ([ae2fd30](https://github.com/SilentFlower/flower-trellis/commit/ae2fd30ed9e0f378ec34a60ad1167766979539ce))",
     "truncated": false
   },
   "optionalDependencies": {

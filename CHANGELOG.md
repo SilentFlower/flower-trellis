@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.5](https://github.com/SilentFlower/flower-trellis/compare/v0.5.4...v0.5.5) (2026-07-29)
+
+
+### 🐛 修复 Bug Fixes
+
+* **cli:** 修复 Windows PTY 交互状态泄漏 ([e14ffc9](https://github.com/SilentFlower/flower-trellis/commit/e14ffc922e052120a0b0993420e0b2bb5c11a8f2))
+* **cli:** 修复 Windows 完成页退出挂起 ([ae2fd30](https://github.com/SilentFlower/flower-trellis/commit/ae2fd30ed9e0f378ec34a60ad1167766979539ce))
+
 ## [0.5.4](https://github.com/SilentFlower/flower-trellis/compare/v0.5.3...v0.5.4) (2026-07-29)
 
 
