@@ -1242,11 +1242,15 @@ python3 ./.trellis/scripts/decision_log.py review \
 - decision 修改 planning/handoff 时，`--file` 必须列出全部 `<repository>::<path>`。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则以 `artifact-drift` 阻塞。
 - `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。检查 action 还必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
 - 任务级 failure、planning repair 预算耗尽、protected 冲突、artifact drift、spec needs-review 或 commit-only 归属失败只阻塞当前项，并传播到显式依赖项；独立任务继续。队列结束后不自动执行第二遍恢复扫描。
+- `fix_recheck` 预算计数表示已记录的 failed recheck 次数；`MAX_FIX_RECHECK=3` 必须实际允许 3 个 `run_fix` action。只有计数大于预算时才以 `retry-budget-exhausted` 阻塞；用户显式 `retry-blocked` 恢复该原因时必须把 `attempts.fix_recheck` 重置为 `0`，避免刚恢复就再次阻断。
 - `retry-blocked` 只重置稳定 recoverable reason，复用同一 run；不得用 `start --force` 替代正常恢复。schema 2 队列含 blocked 项时终态为 `completed_with_blocked`。
 - `commit_only` 必须复用 `trellis-push` 内部 exact commit 执行器，排除 runtime、route prefs、protected paths 和其它任务目录；不得使用 `git add .`、`git add -A`、push 或时间差归属推断。
 - item `completed` 只表示本地提交完成，不修改 `task.json.status`。任务继续保持 `in_progress`，直到用户以后显式执行 finish/archive。
+- auto-loop 在 item `completed` 或 `blocked` 后可写 `task.json.progress` 作为恢复提示，但只能使用 `updatedAt`、`completedSteps`、`partialStep`、`nextStep`、`notes` 五字段 schema。completed progress 记录本地 commit 短 hash 并把 `nextStep` 指向显式 finish/archive 或人工流程；blocked progress 记录 `partialStep="auto-loop blocked: <reason>"` 并把 `nextStep` 指向精确 `retry-blocked --run-id <run-id> --task <task>` 命令。该写入不得修改 `task.json.status`、不得触发 push/archive/finish-work、不得保存 push mode、分支或 Git 编排计划。
 - `trellis-finish-work` 在归档前运行 Decision Audit；`task.py archive` 在任何状态写入、session 清理或目录移动前再次调用 deterministic review guard。无 decision 放行，当前 digest 未 accepted、changes-requested 或日志损坏时零副作用失败。
+- `<run-id>.json` 是 runner 热状态文件，只保留调度和恢复必需字段：当前 queue/item 状态、attempts、blocked reason、commit、outstanding action、manifest revision/hash 和 audit 文件引用。完整 manifest revision 历史必须写入旁路 `<run-id>.manifest.jsonl`，每行是 `type=manifest_revision`、`revision`、`sha256`、`created_at`、完整 `payload` 的审计事件；旧 runtime 中的 `manifest_revisions` 数组在下一次 `_write_state()` 时幂等迁移到 JSONL，并从主 JSON 删除。
 - 默认 stdout 只返回 run/action/计数/简短 blocked 与决策摘要；manifest、dirty、依赖链、protected drift、完整 decision data 和 resume capsule 只在 `--verbose` 输出。runtime 继续使用同目录临时文件、flush/fsync 和 `os.replace` 原子写入。
+- 默认 `status` / `resume` 不得加载或展示完整 audit JSONL；`--verbose` 最多展示 `manifest_audit_path` 和有限 `manifest_tail`。完整 audit 只在明确 debug artifact-drift 或审计时按路径读取，避免 AI 恢复上下文无脑加载大型内部历史。
 - canonical 源位于 `vendor/skill-garden/.trellis/0.6`，经 `npm run sync` 生成快照，再由 enhance-only 更新 dogfood。第二次应用必须为零修改；Auto-Loop Skill 只保留语义边界和 action 调度，确定性 schema/校验/错误矩阵留在 runner/helper。
 
 ### 4. Validation & Error Matrix
@@ -1270,11 +1274,18 @@ python3 ./.trellis/scripts/decision_log.py review \
 | action files 命中 protected key | 当前项以 `protected-path-conflict` 阻塞 |
 | protected 内容在 action 期间变化 | 记录 repository/path/前后 hash，以 `protected-baseline-drift` 阻塞当前项 |
 | requested/minimum full 却 record light | 返回 `check-depth-below-minimum`，outstanding action 保留 |
+| `fix_recheck` 计数等于 `MAX_FIX_RECHECK` | 下一步仍返回第 3 个 `run_fix`，不得提前阻断 |
+| 第 3 次 recheck 仍 failed，计数大于预算 | 当前 item 以 `retry-budget-exhausted` blocked |
+| `retry-blocked` 恢复 `retry-budget-exhausted` | item 回到 pending，`attempts.fix_recheck=0` |
 | schema 2 存在任务级 blocked，独立任务已处理完 | run 进入 `completed_with_blocked` |
 | runtime 损坏或仓库不可读 | 返回结构化全局错误或 `globally_blocked`，不得另建状态掩盖原 run |
 | decision log 无决策 | finish/archive 不增加 review 阻断 |
 | 当前 decision digest 未 accepted 或日志损坏 | archive 在任何副作用前退出非零 |
 | commit_only 成功 | exact 本地 commit 并回写 hash/files/message；任务状态仍为 `in_progress` |
+| commit_only 成功后写 task progress | 只更新五字段 `task.json.progress`，`task.json.status` 保持 `in_progress` |
+| item blocked 后写 task progress | `partialStep` 记录 blocked reason，`nextStep` 指向显式 `retry-blocked` 恢复命令 |
+| 旧 runtime 主 JSON 含 `manifest_revisions` | 下一次写入迁移到 `<run-id>.manifest.jsonl`，主 JSON 删除全量数组并保留 audit 引用 |
+| `status` / `resume` 默认输出 | 不内联完整 manifest audit 历史；只在 verbose 展示有限 tail 和路径 |
 
 ### 5. Good/Base/Bad Cases
 
@@ -1286,12 +1297,18 @@ python3 ./.trellis/scripts/decision_log.py review \
   record 追加 manifest revision，并把 decision ID 写入任务 manifest 条目。
 - Good:主仓和子仓都有 `notes.txt`，protected 分类和 action files 始终使用不同的
   `repository::path`，不会因同名路径互相阻塞。
+- Good:热状态 JSON 只保存当前 manifest hash、queue 状态和 audit 路径；完整 revision payload 在
+  `<run-id>.manifest.jsonl` 中逐行追加，artifact-drift 调试时才按路径读取。
 - Base:任务没有 AI decision；后续 finish/archive 直接沿用既有流程，不增加确认。
 - Base:schema 1 runtime 恢复到 outstanding `confirm_brief`；继续旧 action，不写 schema 2 字段。
+- Base:auto-loop 本地提交完成后只写 `task.json.progress.nextStep` 提示 finish/archive，任务仍保持
+  `in_progress`。
 - Bad:prepare 只检查第一个任务就进入 running；后续任务的 Open Questions 会重新制造人工卡点。
 - Bad:AI 直接编辑 planning artifacts，再补 decision；旧 manifest 已经失去内容绑定，必须按
   `artifact-drift` 处理。
 - Bad:把队列项 `completed` 同步写入 `task.json.status=completed`；这会绕过 finish/archive 生命周期。
+- Bad:把全量 `manifest_revisions` 继续塞进 `<run-id>.json` 或默认 `status/resume` 输出，导致 AI 恢复时加载大型审计历史。
+- Bad:progress 保存 push mode、分支、完整提交计划或业务 Git 编排状态，导致 `trellis-continue` 误恢复 Git 行为。
 - Bad:只给 Auto-Loop 或 Finish-Work 安装 `decision_log.py`，却没有 task-store archive guard；直接
   调用 `task.py archive` 仍可绕过 review。
 - Bad:为缩短 Skill 删除安全边界但没有 runner/helper 或其它 owner 承接；上下文预算不是减少契约的理由。
@@ -1300,6 +1317,8 @@ python3 ./.trellis/scripts/decision_log.py review \
 
 - runner 测试覆盖 schema 1 恢复和 schema 2 全状态链：全队列 prepare、Open Questions、readiness/
   repair 预算、brief、manifest、依赖排序/传播、部分失败继续和三种终态。
+- auto-loop 回归测试必须覆盖 3 个 `run_fix` action、`retry-budget-exhausted` 显式恢复重置预算、
+  terminal/blocked progress 五字段可读、旧 `manifest_revisions` 迁移到 JSONL、主 JSON 不再保留全量历史。
 - Git baseline 测试覆盖 staged/conflict 全局阻断、跨仓同名路径、分类全覆盖、protected path 冲突、
   action 期间 hash 漂移和 exact commit files。
 - decision 测试覆盖 append、递增 ID、risk/choice 校验、digest、accepted、changes-requested、新 decision
@@ -1325,6 +1344,11 @@ python3 ./.trellis/scripts/decision_log.py review \
 
 **Correct**:`decide` 先保存 decision 与逐文件 baseline，下一次 record 只允许 `--file` 列明的变化，
 成功后追加绑定 decision ID 的 manifest revision；其它变化稳定阻塞。
+
+**Wrong**:`status --verbose` 直接内联所有 `manifest_revisions`，并把 task progress 当作后续 push/commit 计划恢复。
+
+**Correct**:`status --verbose` 只展示 `manifest_audit_path` 和有限 `manifest_tail`；完整 revision 写在
+`<run-id>.manifest.jsonl`，task progress 只展示 auto-loop 的下一步恢复提示，不携带 Git 编排状态。
 
 ---
 

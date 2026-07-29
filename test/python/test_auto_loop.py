@@ -32,6 +32,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         shutil.copy2(SOURCE_RUNNER, scripts / "auto_loop.py")
         shutil.copy2(SOURCE_DECISION_LOG, scripts / "decision_log.py")
         shutil.copy2(SOURCE_SCRIPTS / "task.py", scripts / "task.py")
+        shutil.copy2(SOURCE_SCRIPTS / "task_progress.py", scripts / "task_progress.py")
         shutil.copytree(SOURCE_SCRIPTS / "common", scripts / "common")
         (self.root / ".trellis/.developer").write_text("name=tester\n", encoding="utf-8")
         (self.root / ".trellis/config.yaml").write_text(
@@ -128,6 +129,54 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
             auto-test.json 路径。
         """
         return self.root / ".trellis/.runtime/auto-loop/auto-test.json"
+
+    def task_json(self, task: str = "task-one") -> dict:
+        """读取测试任务元数据。
+
+        Args:
+            task: 测试任务目录名。
+
+        Returns:
+            任务 `task.json` 内容。
+        """
+        path = self.root / ".trellis/tasks" / task / "task.json"
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def progress_status(self, task: str = ".trellis/tasks/task-one") -> dict:
+        """通过 task_progress.py 读取任务进度。
+
+        Args:
+            task: 任务目录引用。
+
+        Returns:
+            task_progress.py 输出的 JSON 对象。
+        """
+        result = subprocess.run(
+            [
+                "python3",
+                ".trellis/scripts/task_progress.py",
+                "status",
+                "--task",
+                task,
+                "--json",
+            ],
+            cwd=self.root,
+            env=self.env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
+    def manifest_events(self) -> list[dict]:
+        """读取测试 run 的 manifest audit 事件。"""
+        path = self.root / ".trellis/.runtime/auto-loop/auto-test.manifest.jsonl"
+        return [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
 
     def write_planning_task(self, open_questions: str) -> None:
         """创建带指定 Open Questions 的 planning 任务。"""
@@ -666,7 +715,8 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         state = json.loads(self.state_path().read_text(encoding="utf-8"))
         self.assertEqual(recorded["item_status"], "running")
         self.assertEqual(state["manifest_revision"], 2)
-        self.assertEqual(state["manifest_revisions"][-1]["decision_id"], "DEC-0001")
+        self.assertNotIn("manifest_revisions", state)
+        self.assertEqual(self.manifest_events()[-1]["payload"]["decision_id"], "DEC-0001")
         self.assertEqual(state["queue"][0]["decision_ids"], ["DEC-0001"])
         self.assertIsNone(state["queue"][0]["pending_artifact_decision"])
 
@@ -827,6 +877,139 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         )
         self.assertEqual(accepted["current_step"], "spec_update")
 
+    def test_fix_budget_allows_three_run_fix_actions(self) -> None:
+        """默认 3 轮预算必须实际发出 3 次 run_fix。"""
+        self.advance_to_check()
+        self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "failed",
+            "--failure-type",
+            "check-failed",
+            "--summary",
+            "首次检查失败",
+            "--effective-check-depth",
+            "full",
+            "--check-depth-reason",
+            "测试失败预算",
+        )
+
+        for attempt in (1, 2, 3):
+            with self.subTest(attempt=attempt):
+                fix = self.runner("next")
+                self.assertEqual(fix["action"], "run_fix")
+                self.assertEqual(fix["attempt"], attempt)
+                self.runner("record", "--action", "run_fix", "--result", "ok")
+                recheck = self.runner("next")
+                self.assertEqual(recheck["action"], "run_recheck")
+                recorded = self.runner(
+                    "record",
+                    "--action",
+                    "run_recheck",
+                    "--result",
+                    "failed",
+                    "--failure-type",
+                    "check-failed",
+                    "--summary",
+                    f"第 {attempt} 次重检失败",
+                    "--effective-check-depth",
+                    "full",
+                    "--check-depth-reason",
+                    "测试失败预算",
+                )
+                if attempt < 3:
+                    self.assertEqual(recorded["current_step"], "fix")
+                else:
+                    self.assertEqual(recorded["item_status"], "blocked")
+
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["queue"][0]["attempts"]["fix_recheck"], 4)
+        self.assertEqual(state["queue"][0]["blocked"]["reason"], "retry-budget-exhausted")
+
+    def test_retry_blocked_resets_exhausted_fix_budget(self) -> None:
+        """预算耗尽项显式恢复后必须获得新预算。"""
+        self.start()
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        item = state["queue"][0]
+        item["status"] = "blocked"
+        item["current_step"] = "fix"
+        item["attempts"] = {"fix_recheck": 4}
+        item["blocked"] = {"reason": "retry-budget-exhausted", "summary": "预算耗尽"}
+        state["status"] = "completed_with_blocked"
+        self.state_path().write_text(json.dumps(state), encoding="utf-8")
+
+        retried = self.runner("retry-blocked", "--run-id", "auto-test")
+
+        self.assertEqual(retried["status"], "retry-ready")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["queue"][0]["attempts"]["fix_recheck"], 0)
+        fix = self.runner("next")
+        self.assertEqual(fix["action"], "run_fix")
+        self.assertEqual(fix["attempt"], 0)
+
+    def test_manifest_revisions_are_moved_to_audit_jsonl(self) -> None:
+        """主 runtime 只保留热状态，完整 manifest 进入 audit JSONL。"""
+        self.start()
+
+        action = self.runner("next")
+
+        self.assertEqual(action["action"], "run_implement")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertNotIn("manifest_revisions", state)
+        self.assertEqual(state["manifest_revision"], 1)
+        self.assertEqual(
+            state["manifest_audit_path"],
+            ".trellis/.runtime/auto-loop/auto-test.manifest.jsonl",
+        )
+        events = self.manifest_events()
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["type"], "manifest_revision")
+        self.assertEqual(events[0]["revision"], 1)
+        self.assertEqual(events[0]["sha256"], state["manifest_sha256"])
+        self.assertEqual(events[0]["payload"]["revision"], 1)
+
+    def test_legacy_manifest_revisions_migrate_on_retry_write(self) -> None:
+        """旧 runtime 的 manifest_revisions 在下一次写入时迁移到 audit JSONL。"""
+        self.start()
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        item = state["queue"][0]
+        item["status"] = "blocked"
+        item["blocked"] = {"reason": "missing-check-context", "summary": "缺少检查上下文"}
+        state["status"] = "blocked"
+        state["manifest_revision"] = 2
+        state["manifest_sha256"] = "b" * 64
+        state["manifest_revisions"] = [
+            {
+                "revision": 1,
+                "created_at": "2026-07-23T00:00:00Z",
+                "sha256": "a" * 64,
+                "tasks": [{"task": ".trellis/tasks/task-one"}],
+            },
+            {
+                "revision": 2,
+                "created_at": "2026-07-23T00:01:00Z",
+                "sha256": "b" * 64,
+                "tasks": [{"task": ".trellis/tasks/task-one"}],
+            },
+        ]
+        self.state_path().write_text(json.dumps(state), encoding="utf-8")
+
+        retried = self.runner("retry-blocked", "--run-id", "auto-test")
+
+        self.assertEqual(retried["status"], "retry-ready")
+        migrated = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertNotIn("manifest_revisions", migrated)
+        self.assertEqual(migrated["manifest_revision"], 2)
+        self.assertIsNone(migrated["manifest_sha256"])
+        events = self.manifest_events()
+        self.assertEqual([event["revision"] for event in events], [1, 2])
+        self.assertEqual([event["sha256"] for event in events], ["a" * 64, "b" * 64])
+        status = self.runner("status", "--run-id", "auto-test", "--verbose")
+        self.assertEqual(status["run_status"], "preparing")
+        self.assertNotIn("manifest_revisions", status)
+
     def test_retry_blocked_can_update_run_check_depth(self) -> None:
         """retry-blocked 可在同一 run 更新深度策略。"""
         self.start("--check-depth", "auto")
@@ -913,6 +1096,79 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         next_task = self.runner("next")
         self.assertEqual(next_task["action"], "run_implement")
         self.assertEqual(next_task["task"], ".trellis/tasks/task-two")
+
+    def test_commit_only_success_writes_recoverable_task_progress(self) -> None:
+        """commit-only 成功后写入 progress，但不改变 task 生命周期状态。"""
+        self.advance_to_check()
+        self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+            "--check-depth-reason",
+            "定向检查通过",
+        )
+        self.runner("next")
+        self.runner("record", "--action", "run_spec_update", "--result", "ok")
+        self.runner("next")
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--commit",
+            "abc1234def",
+            "--summary",
+            "本地提交完成",
+        )
+
+        self.assertEqual(recorded["item_status"], "completed")
+        metadata = self.task_json()
+        self.assertEqual(metadata["status"], "in_progress")
+        progress = metadata["progress"]
+        self.assertIn("auto-loop: 本地提交完成 abc1234", progress["completedSteps"])
+        self.assertIsNone(progress["partialStep"])
+        self.assertIn("finish-work/archive", progress["nextStep"])
+        self.assertIn("run_id=auto-test", progress["notes"])
+        status = self.progress_status()
+        self.assertEqual(status["status"], "ok")
+        self.assertIn("finish-work/archive", status["summary"]["nextStep"])
+
+    def test_blocked_item_writes_recoverable_task_progress(self) -> None:
+        """blocked 终态必须写入可扫描的下一步。"""
+        self.advance_to_check()
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "blocked",
+            "--failure-type",
+            "product-decision",
+            "--summary",
+            "需要用户确认破坏性行为",
+            "--effective-check-depth",
+            "full",
+            "--check-depth-reason",
+            "命中破坏性安全边界",
+        )
+
+        self.assertEqual(recorded["item_status"], "blocked")
+        metadata = self.task_json()
+        self.assertEqual(metadata["status"], "in_progress")
+        progress = metadata["progress"]
+        self.assertEqual(progress["partialStep"], "auto-loop blocked: product-decision")
+        self.assertIn("retry-blocked --run-id auto-test", progress["nextStep"])
+        self.assertIn("--task .trellis/tasks/task-one", progress["nextStep"])
+        status = self.progress_status()
+        self.assertEqual(status["status"], "ok")
+        self.assertEqual(status["summary"]["partialStep"], "auto-loop blocked: product-decision")
 
     def test_healthy_create_active_start_and_record_chain(self) -> None:
         """健康 create、active、start_task、record/next 链路保持兼容。"""
