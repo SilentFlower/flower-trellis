@@ -1,0 +1,4 @@
+{"file":".trellis/tasks/07-29-upgrade-craft-rpa-network-capture/research/craft-rpa-upgrade-evidence.md","reason":"包含现有 craft-rpa 代码证据、桌面原型缺陷、Playwright 1.60 可用 API、推荐模块边界与测试策略。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"本任务跨越浏览器事件、HTTP API、JSONL、trace、Dashboard、双平台副本和 Flower 快照，需要逐层保持数据契约。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"logger 端口、控制逻辑、目标解析与 Claude/Codex 双副本容易重复漂移，需要单一配置和共享实现。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"规定 vendor/skill-garden 真实源、enhancements/common 快照、MANIFEST sourceCommit 与多仓同步顺序。"}

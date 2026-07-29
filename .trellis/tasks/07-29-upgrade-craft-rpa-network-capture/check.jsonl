@@ -1,0 +1,5 @@
+{"file":".trellis/tasks/07-29-upgrade-craft-rpa-network-capture/research/craft-rpa-upgrade-evidence.md","reason":"核对实现是否修复已识别的失败请求、正文、headers、自身流量、trace 与歧义点击问题。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查网络事件从采集、落盘、转换、展示到 AI 消费的字段和错误契约是否完整往返。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查端口、目标解析、controller 与跨平台副本是否存在重复实现或遗漏同步。"}
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"提供 Flower 根仓库同步脚本、测试、幂等性与源码注释规范。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查真实源、生成快照、submodule pin 和 MANIFEST sourceCommit 是否一致。"}
