@@ -278,6 +278,10 @@ src/assets/flower_update_hook.py
   `hookSpecificOutput.additionalContext` 注入 `<flower-update>`;不要额外输出
   `additional_context` 等其它顶层兼容字段。Codex 会严格校验 SessionStart JSON schema,
   多余顶层字段会导致 `hook returned invalid session start JSON output`。
+- `.trellis/scripts/common/session_context.py` / 默认 `get_context.py` 只负责项目上下文,
+  不得调用 `trellis --version`、输出独立 Trellis 更新提示或创建
+  `.trellis/.runtime/update-check-*.marker`;启动更新检查统一由
+  `flower_update_hook.py` 调用 `flower-trellis self-check` 完成,避免重复入口和无界会话文件。
 - 本地一致性读取先于远程判断,但不得在需要远程证据时提前短路:先读取 Plugin lock 的
   `flower/skill-garden` 版本(旧项目 fallback 到 manifest `flowerVersion`)、项目
   `.trellis/.version` 与当前 `flowerVersion()` / `trellisVersion()`,
@@ -352,6 +356,7 @@ src/assets/flower_update_hook.py
 | 条件 | 行为 |
 |------|------|
 | 目标无 `.trellis/` | `self-check` 返回 `skipped/not_trellis_project` |
+| 默认运行 `python3 ./.trellis/scripts/get_context.py` | 只输出项目上下文,不执行独立版本检查,不创建 `update-check-*.marker` |
 | `FLOWER_NO_UPDATE_CHECK`、`--no-update-check`、`enabled=false` 或 `policy=off` | 返回 `disabled`,不联网 |
 | npx / npm exec 临时运行 | 返回 `skipped/npx_runtime`,不建议全局更新 |
 | 本地 `flowerVersion` 或 `.trellis/.version` 不一致,且缓存过期 | 先查 dist-tags;远端有新版返回 `update_available` + 完整 `self-update`,远端无新版返回 `project_out_of_sync` + `--project-only` |
@@ -385,6 +390,8 @@ src/assets/flower_update_hook.py
 - Base: 用户配置 `policy=auto` 但 git dirty,`ai.mode` 降级为 `ask`,并给出
   `dirty_worktree` 原因。
 - Bad: 启动 hook 直接执行 `npm i -g` 或 `flower-trellis update`。启动阶段只能注入上下文。
+- Bad: `session_context.py` 再调用 `trellis --version` 并按 session ID 创建 marker;这会绕过
+  Flower 策略/缓存并让 `.trellis/.runtime` 和升级快照持续堆积文件。
 - Bad: 只覆盖 `.trellis/scripts/flower_update_hook.py` 或只改 manifest 就报告项目已更新。
   项目内容更新必须走完整 `flower-trellis update` 链路。
 - Bad: Plugin 重放覆盖 `.flower/settings.json` 中的 `policy=auto` 或 `intervalHours=6`。
@@ -395,6 +402,8 @@ src/assets/flower_update_hook.py
 - 静态检查:
   - `node --check src/cli.js && for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done`
   - `python3 -m py_compile src/assets/flower_update_hook.py`
+  - 运行默认 `get_context.py`,断言输出正常且 `.trellis/.runtime` 不产生
+    `update-check-*.marker`;同时断言旧 `_get_update_hint` / `_update_marker_path` helper 不存在。
   - 用假 `flower-trellis self-check --json` 驱动 `flower_update_hook.py`,断言 stdout
     是合法 JSON,且顶层字段不包含 `additional_context`。
   - `git diff --check`
@@ -453,6 +462,24 @@ flower-trellis self-update --target . --yes -- --skip-all
 
 原因:`self-check` 只产出结构化状态和 AI 指令;`self-update` 是可审计写入入口,
 项目阶段默认 `--force`,但允许用户用 `--` 明确覆盖冲突策略。
+
+#### Wrong: 重复的 Trellis 更新入口
+
+```python
+update_hint = _get_update_hint(repo_root)
+```
+
+问题:`get_context.py` 会绕过 Flower 的 policy、远端缓存和统一推荐命令,并为每个会话留下
+永久 marker。
+
+#### Correct: 上下文与更新检查分离
+
+```python
+print(get_context_text(repo_root))
+```
+
+原因:默认上下文保持纯读取;更新检查只由 SessionStart 的 `flower_update_hook.py` 进入
+`flower-trellis self-check`。
 
 ---
 
