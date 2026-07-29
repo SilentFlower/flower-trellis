@@ -35,12 +35,16 @@ function patchSource(ref, name) {
 }
 
 function assertIntentRoutingSemantics(value) {
+  assert.match(value, /Asking for an opinion, expressing discomfort, rejecting a proposal/);
+  assert.match(value, /Asking to inspect, explain, verify, or locate a cause is `inspect`/);
   assert.match(value, /Repair authorization and permission to skip task planning are separate/);
   assert.match(value, /repair scope is unknown, use `inspect` first and reclassify from evidence/);
-  assert.match(value, /`direct_edit` requires known, bounded, local, low-risk, reversible scope/);
+  assert.match(value, /`direct_edit` requires known, bounded, low-risk, reversible scope/);
+  assert.match(value, /no unresolved design choice, and simple validation/);
   assert.match(value, /Permission\/authentication\/data-scope\/security/);
   assert.match(value, /cross-package\/layer or multi-entry behavior/);
-  assert.match(value, /validation, or unknown scope are `task_plan` signals/);
+  assert.match(value, /risk signals, not automatic `task_plan` outcomes/);
+  assert.match(value, /exact rollback or mechanically synchronized known change/);
   assert.match(value, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(value, /Project Knowledge Discovery applies once per user intent/);
   assert.match(value, /apply the Active Task Scope Guard before artifact ownership/);

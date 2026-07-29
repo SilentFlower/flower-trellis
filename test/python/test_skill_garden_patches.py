@@ -928,7 +928,23 @@ class PatchConsumerTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            "`direct_edit` requires known, bounded, local, low-risk, reversible scope",
+            "Asking for an opinion, expressing discomfort, rejecting a proposal",
+            workflow,
+        )
+        self.assertIn(
+            "Asking to inspect, explain, verify, or locate a cause is `inspect`",
+            workflow,
+        )
+        self.assertIn(
+            "`direct_edit` requires known, bounded, low-risk, reversible scope",
+            workflow,
+        )
+        self.assertIn(
+            "risk signals, not automatic `task_plan` outcomes",
+            workflow,
+        )
+        self.assertIn(
+            "exact rollback or mechanically synchronized known change",
             workflow,
         )
         self.assertIn("`fix item 1`, `change that`, `修一下`, `改一下`", workflow)

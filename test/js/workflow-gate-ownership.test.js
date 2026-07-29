@@ -104,7 +104,11 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   );
   const progress = readSource("scripts/task_progress.py");
 
-  assert.match(requestTriage, /`direct_edit` requires known, bounded, local, low-risk, reversible scope/);
+  assert.match(requestTriage, /Asking for an opinion, expressing discomfort, rejecting a proposal/);
+  assert.match(requestTriage, /Asking to inspect, explain, verify, or locate a cause is `inspect`/);
+  assert.match(requestTriage, /`direct_edit` requires known, bounded, low-risk, reversible scope/);
+  assert.match(requestTriage, /risk signals, not automatic `task_plan` outcomes/);
+  assert.match(requestTriage, /exact rollback or mechanically synchronized known change/);
   assert.match(requestTriage, /task_intent\.py discard --task <current-task>/);
   assert.match(requestTriage, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(requestTriage, /apply the Active Task Scope Guard before artifact ownership, task routing, or file edits/);
@@ -130,8 +134,10 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(activeState, /follow the `Interactive Post-Check Stop Gate`/);
   assert.doesNotMatch(activeState, /no-op.*written|partial verification|material residual risk/);
   assert.match(push, /Phase 3\.4 唯一的代码提交入口/);
-  assert.match(push, /## Step 0：交互式完成链门禁/);
-  assert.match(push, /当前有效的 `spec_update_result`/);
+  assert.match(push, /## Step 0：记录完成链证据/);
+  assert.match(push, /根据当前 `spec_update_result` 与实际 diff 标记/);
+  assert.match(push, /本步骤不得返回 Phase 2\.2/);
+  assert.match(push, /不得加载 `trellis-check-all` 或 `trellis-update-spec`/);
   assert.match(push, /auto-loop 内部 `commit-only`/);
   assert.match(push, /git commit --only/);
   assert.match(autoLoop, /## Commit-Only/);
@@ -224,27 +230,21 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.match(route, /focused validation 完成后都必须返回 workflow Phase 2\.1/);
   assertOrdered(
     push,
-    "## Step 0：交互式完成链门禁",
+    "## Step 0：记录完成链证据",
     "## Step 1：发现仓库与任务",
-    "direct push 先经过 Update-Spec 门禁",
+    "direct push 先记录完成链证据",
   );
-  assert.match(push, /缺少有效 Check-All/);
-  assert.match(push, /运行 check-all`（推荐）或 `跳过检查并继续 push/);
-  assert.match(push, /用户已接受跳过 Check-All 风险/);
-  assert.match(push, /Check-All 有效后检查当前有效的 `spec_update_result`/);
-  assert.match(push, /`spec_update_result\.status=written` 的 `changed_files`/);
-  assert.match(push, /该 Update-Spec 自校验结果不触发额外 Check-All/);
+  assert.match(push, /普通 push 或用户 `commit-only` 已经构成明确 Git 意图/);
+  assert.match(push, /不会阻止读取 Git 状态或生成提交计划/);
+  assert.match(push, /### 完成链证据/);
+  assert.match(push, /Check-All：<通过 \/ 未运行 \/ 已失效 \/ 存在 findings \/ blocked \/ 部分验证>/);
+  assert.match(push, /Update-Spec：<no-op \/ written \/ needs-review \/ 未运行 \/ 已失效>/);
+  assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);
   assertOrdered(
     push,
-    "缺少有效 Check-All",
-    "跳过检查并继续 push",
-    "direct Git 缺少检查时先给出跳过选项",
-  );
-  assertOrdered(
-    push,
-    "缺少有效 Check-All",
-    "Check-All 有效后检查当前有效的 `spec_update_result`",
-    "direct Git 前置结果分层复用",
+    "普通 push 或用户 `commit-only` 已经构成明确 Git 意图",
+    "不会阻止读取 Git 状态或生成提交计划",
+    "direct Git 证据只读不阻断",
   );
   assert.match(autoLoop, /`refresh_brief`/);
   assert.match(autoLoop, /无需再次让用户确认/);

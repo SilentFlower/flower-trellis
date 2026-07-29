@@ -233,10 +233,10 @@ Hub owner index -> owning Phase/Skill policy -> optional deterministic helper
 
 ### 1. Scope / Trigger
 
-- Trigger:修改 0.6 Request Intent Routing、`workflow-state:no_task`，或修复“先检查 BUG、
-  用户确认修复后被误判为无任务 `direct_edit`”的行为。
+- Trigger:修改 0.6 Request Intent Routing、`workflow-state:no_task`，或修复“设计反馈被当成修改
+  授权”“已知精确回退仅因影响面被强制建任务”等误判。
 - Scope:这里只定义 AI-facing 意图契约及其 Patch/测试归属，不新增关键词分类器，也不让
-  `task_intent.py` 推断自然语言意图。
+  `task_intent.py` 推断自然语言意图；分类必须基于完整当前请求、授权、确定性和副作用。
 
 ### 2. Signatures
 
@@ -266,13 +266,19 @@ node scripts/check-ai-context-budget.mjs --strict
 
 ### 3. Contracts
 
+- 询问看法、表达不适、否定方案或询问“应该怎样改”时使用 `discuss`；除非当前请求同时明确
+  授权一个具体修改，否则不得把评价或方案讨论扩张成编辑授权。
+- 仅要求查看、解释、验证或定位问题时使用 `inspect`，获得修复授权前不得编辑业务文件；只读
+  结论本身也不能扩张授权。已经授权修复但范围未知时仍先 `inspect`，再根据实际 scope、risk
+  和 side effects 重新分类。
 - “允许修改”与“允许跳过任务规划”是两个独立判断。用户确认修复对象，只表示可以继续推进
   修复流程，不自动得到 `direct_edit` 结论。
-- 仅要求查看、分析或定位问题时使用 `inspect`，获得修复授权前不得编辑业务文件。已经授权
-  修复但范围未知时仍先 `inspect`，再根据实际 scope、risk 和 side effects 重新分类。
-- `direct_edit` 只适用于范围已知、局部、低风险、可逆且验收简单的改动。权限/认证/数据范围/
-  安全、共享契约、跨包或跨层、多入口一致性、数据库/迁移/配置/发布/外部系统、历史回归、
-  系统性验证或范围仍未知，均是 `task_plan` 信号。
+- `direct_edit` 只适用于范围已知、有界、低风险、可逆、没有未决设计选择且验收简单的改动。
+  权限/认证/数据范围/安全、数据库/迁移/发布/外部系统或范围未知仍是强 `task_plan` 边界。
+- 共享契约、跨包或跨层、多入口一致性、配置、历史回归和系统性验证会提高证据、验证与回滚
+  要求，但只是风险信号，不得仅凭这些影响面自动判定 `task_plan`。
+- 精确回退或机械同步的已知修改，在行为、范围、副作用和验证方式均已确定时，仍可进入
+  `direct_edit` 或匹配的 `workflow_action`；存在未决范围、方案或副作用时才升级为 `task_plan`。
 - `fix item 1`、`change that`、`修一下`、`改一下` 等修复选择不是 no-task switch。只有当前请求
   明确表达 `直接做`、`不要任务` 等工作流指令时，才可覆盖自动 `task_plan`；新且无关的请求
   恢复自动推断。
@@ -287,10 +293,13 @@ node scripts/check-ai-context-budget.mjs --strict
 
 | 条件 | 行为 |
 |------|------|
+| 用户只表达方案不适、否定或询问怎样改 | `discuss`，不编辑 |
 | 用户只要求查明问题 | `inspect`，不编辑 |
 | 用户授权修复但影响范围未知 | 先 `inspect`，得到证据后重新分类 |
-| 已知局部、低风险、可逆且验证简单 | 可进入 `direct_edit` |
-| 权限/数据范围、共享契约、跨层、多入口或系统性回归 | 进入 `task_plan` |
+| 已知有界、低风险、可逆、无未决设计且验证简单 | 可进入 `direct_edit` |
+| 权限/数据范围、安全、数据库/迁移/发布/外部系统或范围未知 | 进入 `task_plan` |
+| 共享契约、跨层、多入口、配置或历史回归 | 提高证据与验证要求；结合确定性判断，不自动进入 `task_plan` |
+| 精确回退或机械同步且行为、范围、副作用、验证均确定 | 可进入 `direct_edit` 或匹配的 `workflow_action` |
 | inspect 结论后用户说“修第 1 个”或“改一下” | 视为修复选择，不视为 no-task switch |
 | 当前请求明确说“直接做”或“不要任务” | 可覆盖自动 `task_plan`，但不覆盖独立安全确认 |
 | 命中 `task_plan` 后尚未完成 planning gate | 只能创建/完善任务，不得实现 |
@@ -299,20 +308,25 @@ node scripts/check-ai-context-budget.mjs --strict
 
 ### 5. Good/Base/Bad Cases
 
-- Good:用户要求“查并修复权限 BUG”；Agent 先只读定位，确认涉及共享权限服务和多入口后创建
+- Good:用户说“这个方案不舒服，你觉得怎样改”；Agent 进入 `discuss`，给出判断但不修改文件。
+- Good:用户要求“查并修复权限 BUG”；Agent 先只读定位，确认涉及权限边界和多入口后创建
   planning task，完成 brief/start/route 再实施。
+- Base:用户要求精确回退一个已知提交中的指定 Patch；范围、副作用和验证方式均已确定，即使
+  涉及 workflow skill 与生成快照，也可使用 `direct_edit` / `workflow_action` 并执行相应验证。
 - Base:用户要求修复已定位的单文件文案错误；范围明确、低风险且验证简单，可使用
   `direct_edit`，不机械创建任务。
 - Base:复杂修复已命中 `task_plan`，但用户在当前请求明确说“不要任务，直接做”；按显式流程
   覆盖继续，同时仍遵守生产、凭据、破坏性操作等独立安全边界。
-- Bad:Agent 在 inspect 后看到用户回复“第 1 个改一下”，只按消息短或措辞简单判为
-  `direct_edit`，随后修改共享服务、DAO、配置和回归测试。
+- Bad:Agent 看到用户说“这个方案不太理想”，直接把设计反馈当成修复授权并编辑 workflow。
+- Bad:Agent 只看到 `workflow`、`hook` 或“跨入口”关键词就自动创建任务，没有判断修改是否为
+  范围与验证均确定的精确回退。
 - Bad:为防止误判，把所有包含“修复”的请求机械升级为 `task_plan`，导致已知局部小改也必须建任务。
 
 ### 6. Tests Required
 
-- JS apply 测试必须对应用后的最终 workflow 断言两维授权、未知范围重分类、`direct_edit` 边界、
-  复杂信号、普通修复选择和显式覆盖语义；不得只搜索 Patch 源文件。
+- JS apply 测试必须对应用后的最终 workflow 断言 `discuss` / `inspect` 授权边界、未知范围重分类、
+  `direct_edit` 条件、强 task 边界、风险信号非自动升级、精确回退和显式覆盖语义；不得只搜索
+  Patch 源文件。
 - `task-intent` 与 `intent-routing` 两个精细安装 alias 都必须选择完整 Bundle，并在第二次应用后
   保持文件树不变。
 - Python consumer 的真实 catalog preflight 必须从 `plan.files[].next` 断言相同最终 workflow
@@ -327,20 +341,23 @@ node scripts/check-ai-context-budget.mjs --strict
 #### Wrong
 
 ```text
-用户说“改一下” -> direct_edit -> 立即编辑
+用户说“这个方案不舒服” -> 推断为修改授权 -> 立即编辑
 ```
 
-问题:把修复授权当成跳过任务规划授权，没有使用已经查明的影响范围重新分类。
+问题:把评价与方案讨论当成具体修改授权，没有先判断当前请求是否真的要求编辑。
 
 #### Correct
 
 ```text
-用户授权修复 -> 范围未知则 inspect -> 按实际影响重新分类
-                              -> 局部低风险: direct_edit
-                              -> 复杂实现信号: task_plan
+评价/询问方案 -> discuss
+查看/定位原因 -> inspect
+明确修改授权 -> 判断范围、设计、副作用与验证
+             -> 已知有界且无未决设计: direct_edit / workflow_action
+             -> 强安全边界或仍有未决问题: task_plan
 ```
 
-原因:保留小修复的效率，同时让权限、共享契约、跨层和系统性回归等复杂修复经过任务门禁。
+原因:授权语义优先于领域关键词；影响面决定证据和验证强度，但只有真实未决范围、方案、副作用
+或强安全边界才决定是否需要任务规划。
 
 ---
 
@@ -1356,9 +1373,10 @@ python3 ./.trellis/scripts/decision_log.py review \
 
 ### 1. Scope / Trigger
 
-- Trigger:普通 interactive Check-All 通过后保留用户继续卡点;但用户在检查前已明确请求普通
-  push 或用户主动 `commit-only` 时,严格通过后不应再次要求“继续”。两条路径进入 Update-Spec
-  后都不再询问是否更新 spec,也不应在 Update-Spec 与 Trellis Push 之间再停一次。
+- Trigger:普通 interactive Check-All 通过后保留用户继续卡点;已经进入当前 Check-All 完成链且
+  最新消息明确请求普通 push 或用户主动 `commit-only` 时,严格通过后不应再次要求“继续”。
+  两条路径进入 Update-Spec 后都不再询问是否更新 spec,也不应在 Update-Spec 与 Trellis Push
+  之间再停一次。显式进入 `trellis-push` 后的行为由 Push owner 负责，不由本场景反向补门禁。
 - Scope:`overrides/patches/skills/trellis-update-spec/autonomous-evaluation/` 保存自主三态、证据、最小写入和自校验;
   workflow hub/state 只保存停止点与 resume-chain;auto-loop skill/runner 保存确定性 record 映射;
   Patch Engine 和独立 Python consumer 负责替换已有上游入口。
@@ -1385,7 +1403,7 @@ Check-All passed -> report + stop -> user next/continue
      needs-review  -> one focused question, no Push plan
 ```
 
-direct Git 条件续行:
+当前 Check-All 完成链内的 direct Git 条件续行:
 
 ```text
 latest user intent = ordinary push | user commit-only
@@ -1405,11 +1423,14 @@ run_check_all -> run_spec_update -> commit_only
 
 ### 3. Contracts
 
-- Check-All 的 interactive stop 保持默认行为。仅当触发本轮完成链的最新用户消息明确请求普通
+- Check-All 的 interactive stop 保持默认行为。仅当已经进入当前 Check-All 完成链，且触发本轮
+  完成链的最新用户消息明确请求普通
   push 或用户主动 `commit-only`,且 Check-All 整体通过、0 问题、无阻塞、无部分验证、无待用户
   接受的实质剩余风险时,先展示现有标准报告,再同轮运行 Update-Spec。不得从历史、摘要、dirty
   状态或 auto-loop 内部 action 推断该意图,也不得新增 direct Git 专用摘要。
-- 通过后用户表达 next/continue,或 direct Git 严格通过时,若没有当前有效结果,同一轮必须先调用
+- 该窄例外只控制已经启动的 Check-All completion chain，不授权 Check-All 或 Update-Spec 拦截
+  已经进入 `trellis-push` 的请求；Push owner 只读取完成链证据并决定 Git 计划。
+- 通过后用户表达 next/continue,或当前 Check-All 完成链内的 direct Git 严格通过时,若没有当前有效结果,同一轮必须先调用
   `trellis-update-spec`;不得询问“是否更新 spec”或先生成提交计划。
 - `no-op` 用于无可复用契约、现有 spec 已覆盖、一次性实现、纯文案/格式变化或用户当前明确
   skip;不得为了避免 no-op 写原则性总结。
@@ -1438,13 +1459,14 @@ run_check_all -> run_spec_update -> commit_only
 | 条件 | 行为 |
 |------|------|
 | 普通 Check-All passed,用户尚未继续 | 报告并停止,不运行 Update-Spec |
-| direct Git + strict pass | 展示现有标准报告,同轮运行 Update-Spec |
-| direct Git + findings/blocked/partial/material risk | 标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
+| 当前 Check-All 完成链内 direct Git + strict pass | 展示现有标准报告,同轮运行 Update-Spec |
+| 当前 Check-All 完成链内 direct Git + findings/blocked/partial/material risk | 标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
 | 用户 next/continue,无新契约 | 返回 no-op,同轮进入 Trellis Push |
 | 新契约有代码/测试证据且目标唯一 | 最小 written + 自校验,同轮进入 Trellis Push |
 | 现有 spec 已完整覆盖 | no-op,不得重复写同义内容 |
 | 目标 spec 或业务语义不唯一 | needs-review,只问一个问题,不生成 Push 计划 |
-| 用户在已有有效 Check-All 后直接要求 push/commit-only,无当前结果 | 先补跑 Update-Spec,不得绕过 Phase 3.3 |
+| 用户在已有有效 Check-All 的完成链内要求 push/commit-only,无当前结果 | 先补跑 Update-Spec,不得绕过 Phase 3.3 |
+| 请求已经进入 `trellis-push` | 本场景不反向补跑 Check-All/Update-Spec；由 Push owner 记录证据并生成计划 |
 | Update-Spec 新增非 `.trellis/spec/**` 修改 | needs-review/boundary-violation,停止并返回检查流程,不得进入 Push |
 | written 自校验失败且修复不唯一 | needs-review,不得伪报 written |
 | validated auto-loop 得到 no-op/written | `record ok -> next` |
@@ -1455,13 +1477,15 @@ run_check_all -> run_spec_update -> commit_only
 
 - Good:普通 Check-All 通过后先停止;用户说“下一步”,Update-Spec 判断现有规范已覆盖并返回 no-op,
   同一轮展示 Trellis Push 计划。
-- Good:用户先要求 push,Check-All 严格通过后展示原标准报告,同轮运行 Update-Spec 并展示唯一
-  Trellis Push 计划,最终 Git 动作仍等待确认。
+- Good:当前请求已经进入 Check-All 完成链，且用户先要求 push；严格通过后展示原标准报告，
+  同轮运行 Update-Spec 并展示唯一 Trellis Push 计划，最终 Git 动作仍等待确认。
 - Good:实现新增确定性 CLI 契约;Update-Spec 只更新现有权威场景的一个章节,定向验证通过后
   返回 written 并进入 Push。
 - Base:用户明确“不更新 spec,直接走”;结果为 no-op/user-explicit-skip,随后仍由 Trellis Push
   展示最终确认。
-- Bad:普通 Check-All 报告刚输出就自动写 spec,或 direct Git 有部分验证/实质风险仍继续。
+- Bad:普通 Check-All 报告刚输出就自动写 spec,或当前 Check-All 完成链内的 direct Git 有部分
+  验证/实质风险仍自动续行 Update-Spec。
+- Bad:`trellis-push` 已经开始后，本场景又把请求拉回 Phase 2.2 或 Phase 3.3。
 - Bad:为了让每次任务都有 spec diff,重写整份规范或顺带格式化无关章节。
 - Bad:Update-Spec 返回 needs-review 后仍生成提交计划,或 auto-loop 把它记录成 ok。
 
@@ -1469,9 +1493,9 @@ run_check_all -> run_spec_update -> commit_only
 
 - 静态断言 override 包含三态、证据顺序、`.trellis/spec/**`、最小修改、self-validation、
   interactive/auto-loop disposition。
-- 静态断言 Check-All 仍只有一个 Interactive Post-Check Stop Gate;普通检查报告后停止,direct Git
-  strict pass 使用原标准报告并同轮进入 Update-Spec,其它结果停止;整个链位于 Code Commit
-  Confirmation Gate 之前。
+- 静态断言 Check-All 仍只有一个 Interactive Post-Check Stop Gate;普通检查报告后停止,当前
+  Check-All 完成链内的 direct Git strict pass 使用原标准报告并同轮进入 Update-Spec,其它结果
+  停止；同时断言已经进入 `trellis-push` 后不会反向加载 Check-All/Update-Spec。
 - JS consumer 覆盖全装、三个精细别名、全部平台原生 skill/command/workflow/prompt/TOML 目标、
   缺目标和二次运行幂等。
 - Python 独立安装器覆盖相同别名、目标和 skip 行为。
@@ -1496,13 +1520,16 @@ Check-All passed -> report + stop -> user next
   -> autonomous Update-Spec(no-op/written/needs-review)
   -> no-op/written loads Trellis Push in the same turn
 
-direct Git -> Check-All strict pass -> same standard report
+direct Git already in Check-All completion chain -> strict pass -> same standard report
   -> autonomous Update-Spec(no-op/written/needs-review)
   -> no-op/written loads Trellis Push in the same turn
+
+explicit Trellis Push entry -> Push owner records available completion evidence
+  -> Git preflight and one confirmation plan
 ```
 
-原因:普通检查保留用户继续边界;direct Git 已提供条件续行意图,严格通过后省去重复口令。两者都
-保留最终 Git 确认,并把中间可由仓库证据决定的步骤自动化。
+原因:普通检查保留用户继续边界；已经启动的 Check-All 完成链可消费 direct Git 条件续行；
+一旦进入 Push owner，上游结果只作为审计证据，不再反向增加阶段或确认卡点。
 
 ---
 
@@ -1511,11 +1538,13 @@ direct Git -> Check-All strict pass -> same standard report
 ### 1. Scope / Trigger
 
 - Trigger:普通 `trellis-check` / `trellis-check-all` 完成后,主 agent 可能绕过 Phase 3.4
-  `trellis-push`,自行草拟 `Proposed commits`、commit message 和 commit-only 确认;大型或多仓
-  计划也可能把普通文件全部铺开,造成高噪声输出。
+  `trellis-push`,自行草拟 `Proposed commits`、commit message 和 commit-only 确认；显式 Push
+  也可能因缺少 Check-All/Update-Spec 被拉回上游阶段或增加“运行/跳过检查”确认；大型或多仓
+  计划还可能把普通文件全部铺开,造成高噪声输出。
 - Scope:Phase 2.2 / in-progress state 负责 post-check 一跳边界，Phase 3.4 进入 `trellis-push`；
-  Hub 只登记 owner 和跨阶段顺序。`trellis-check-all` 负责纯检查汇总；`trellis-push` 只负责 exact plan、一次确认、业务 Git
-  动作和普通 push 后的 task progress trigger;`task_progress.py` 只负责窄 schema 读写;
+  Hub 只登记 owner 和跨阶段顺序。`trellis-check-all` 负责纯检查汇总；`trellis-push` 负责只读完成链
+  证据、exact plan、一次确认、业务 Git 动作和普通 push 后的 task progress trigger；
+  `task_progress.py` 只负责窄 schema 读写;
   `trellis-auto-loop` 仍只使用本地 commit-only 预授权。
 
 ### 2. Signatures
@@ -1531,6 +1560,15 @@ trellis-check-all
   -> user confirmation
   -> exact git add / git commit --only / push
   -> exact current-task record / progress commit / push
+```
+
+显式 Push 入口:
+
+```text
+explicit trellis-push | push confirmation
+  -> record Check-All evidence: passed | not-run | stale | findings | blocked | partial
+  -> record Update-Spec evidence: no-op | written | needs-review | not-run | stale
+  -> Git preflight + one plan; non-passing completion evidence is disclosed as risk
 ```
 
 普通多仓计划可以在仓库间展示一个本地生成命令；命令成功且生成后的 dirty paths 未超出预计 exact files 时沿用同一次确认。
@@ -1561,12 +1599,20 @@ risk_items          ->始终逐项展示,不折叠
 - 普通 Check-All 通过后仍停止;用户继续后 Phase 3.3 自主返回三态。用户在检查前已明确请求
   普通 push/用户 `commit-only` 时,strict pass 展示标准报告后同轮进入 Phase 3.3。两条路径均由
   no-op/written 同轮加载 `trellis-push`,needs-review 停止。
-- 除 auto-loop 内部 commit-only 外，用户直接要求普通 push/commit-only 时，`trellis-push` 必须先
-  分层验证前置结果:缺少/过期 Check-All 时返回 Phase 2.2,不得运行 Update-Spec或读取 Git 计划;
-  Check-All 有效但 `spec_update_result` 缺失/过期时只进入 Update-Spec;两者均有效才读取 Git 计划。
-- 当前有效 `spec_update_result.status=written` 的 `changed_files` 若全部位于 `.trellis/spec/**`,属于
-  Update-Spec 已完成自校验的受控 post-check diff,不得使原 Check-All 失效或触发额外重检。任何
-  未列入该结果、越出 spec 边界或伴随其它实际 diff 的变化仍使旧 Check-All 失效。
+- 除 auto-loop 内部 commit-only 外，普通 push 或用户 `commit-only` 已经构成明确 Git 意图。
+  `trellis-push` 在读取 Git 计划前只记录当前可验证的 Check-All / Update-Spec 证据，不补跑、
+  不切换阶段、不要求用户改写成“跳过检查后 push”，也不增加运行/跳过检查的二选一确认。
+- Check-All 证据状态固定为 `通过`、`未运行`、`已失效`、`存在 findings`、`blocked` 或
+  `部分验证`；Update-Spec 证据状态固定为 `no-op`、`written`、`needs-review`、`未运行` 或
+  `已失效`。没有当前可验证证据时使用 `未运行`，不得从历史、摘要或 dirty 状态猜测通过。
+- 完成链状态不阻止读取 Git 状态或生成提交计划。`未运行`、`已失效`、findings、blocked、
+  部分验证或 `needs-review` 必须同时进入计划风险区，但不得派生第二次确认。
+- 当前 `spec_update_result.status=written` 只有在结果仍适用于实际 diff 时才展示为 `written`；
+  结果外出现其它变化时标记为 `已失效` 并披露风险，不得因此把请求拉回 Phase 2.2。
+- 只有 Git 层面的确定性安全条件可以阻断计划，包括冲突或未完成集成状态、exact files 无法
+  归属、分支/upstream 不满足安全执行条件，以及普通 push 会携带无法归属的历史 ahead commits。
+- Push 计划必须在仓库计划前展示“完成链证据”，包含 Check-All 与 Update-Spec 当前状态；
+  exact files、commit message、保留 dirty、风险和最终一次确认继续使用原有计划契约。
 - Phase 3.4 必须加载 `trellis-push`;在该 skill 外草拟提交计划不能作为等价替代。
 - workflow hub 只声明 Phase 3.4 门禁和格式所有权:详细计划/结果格式完全由 `trellis-push`
   管理。hub 不复制模板、字段顺序、仓库显示名、retained 用户标签或 8/12 文件阈值。
@@ -1633,11 +1679,11 @@ risk_items          ->始终逐项展示,不折叠
 | 条件 | 行为 |
 |------|------|
 | 普通 check 汇总准备输出 commit message / planned files | 停止;只输出检查报告与下一步 |
-| direct Git 缺少/过期 Check-All | 返回 Phase 2.2;严格通过才条件续行,不得运行 Update-Spec或读取 Git 计划 |
-| direct Git 的 Check-All 有效但 spec result 缺少/过期 | 只运行 Update-Spec,不重复 Check-All |
-| Update-Spec written 只产生结果列出的 `.trellis/spec/**` 写入 | 保留 Check-All 有效性,继续 Git 预检与计划 |
-| written 结果外还有其它 diff | 旧 Check-All 失效,返回 Phase 2.2 |
-| direct Git 的 Check-All/spec result 均有效 | 直接进入 Git 预检与计划 |
+| 显式 Push 缺少 Check-All | 记录 `未运行` 并进入风险区，继续 Git 预检与计划 |
+| Check-All 报告过期、存在 findings、blocked 或部分验证 | 记录对应状态并进入风险区，继续 Git 预检与计划 |
+| Update-Spec 缺少/过期或为 needs-review | 记录对应状态并进入风险区，继续 Git 预检与计划 |
+| Check-All / Update-Spec 均有效 | 展示实际状态，继续 Git 预检与计划 |
+| 计划存在冲突、无法归属 exact files 或其它 Git 安全阻塞 | 停止并报告确定性 Git 问题 |
 | Phase 3.4 未加载 `trellis-push` 却准备 commit | 阻断;进入本 skill 重新生成计划 |
 | 旧 Phase 3.4 `Proposed commits` / `Never push` 正文仍存在 | conflict assertion 失败，禁止依赖 Hub 优先级继续 |
 | 普通 `trellis-push` 未收到 commit-only 意图 | mode 必须是 commit + push |
@@ -1669,8 +1715,10 @@ risk_items          ->始终逐项展示,不折叠
 
 - Good:普通 check-all 通过后只报告三维检查、验证命令、Redis 未实机验证风险和下一步,等待用户;
   用户继续后自动完成 Phase 3.3,no-op/written 同轮进入 `trellis-push`。
-- Good:用户先要求 push,check-all 0 问题且无部分验证/实质风险;原标准报告后同轮进入 Phase 3.3,
-  再展示一次 `trellis-push` 最终确认计划。
+- Good:Flower 更新结果或用户显式进入 `trellis-push`，当前没有 Check-All/Update-Spec；计划显示
+  两项 `未运行` 并列入风险，同时展示 exact files 和 commit message，只等待原有一次最终确认。
+- Good:当前 Check-All 存在 findings、Update-Spec 为 `needs-review`；两项状态进入同一计划风险区，
+  不再追加“是否跳过”确认，Git 安全预检通过后仍可由用户一次确认执行。
 - Good:单仓 20 个普通 planned files 按目录压成 6 行,2 个未识别 dirty 文件仍逐项展示;
   用户回复“展开文件”后看到原 20 个 exact paths。
 - Good:两个业务仓库各自拥有 commit message 和 branch/upstream,顶部显示执行顺序和一行任务
@@ -1685,6 +1733,8 @@ risk_items          ->始终逐项展示,不折叠
   文件进入 unrecognized 并排除。
 - Bad:check-all 汇总后直接输出 `Proposed commits` 并说“不会推送”;这同时绕过 post-check、
   Phase 3.3 和 `trellis-push` 默认 push 语义。
+- Bad:`trellis-push` 因 Check-All 缺失返回 Phase 2.2，或弹出“运行 Check-All / 跳过并继续”二选一。
+- Bad:`trellis-push` 因 Update-Spec 缺失/过期自动加载 Phase 3.3，而不是在计划中披露状态。
 - Bad:为了缩短输出把 staged/conflict 文件折叠成“其他 12 个文件”;风险范围不可审计。
 - Bad:普通计划沿用 auto-loop 的 commit-only 文案;auto-loop 预授权不能泄漏到普通流程。
 - Bad:为减少一次确认增加独立中间步骤流程、验证协议或新状态;现有计划和提交前预检已经足够。
@@ -1698,12 +1748,13 @@ risk_items          ->始终逐项展示,不折叠
   和 workflow override 语义一致。
 - 静态扫描 post-check 文案,确认只允许检查结果/验证/风险/结论/下一步,且禁止
   `Proposed commits`、commit message、planned files 和提交确认。
-- 静态扫描普通用户继续和 direct Git strict-pass 两条 resume-chain,确认都沿用标准报告、
-  Update-Spec no-op/written 同轮加载 `trellis-push`,且缺少当前结果时不能直接进入 Phase 3.4。
-- 静态与行为测试确认 direct push 先检查 Check-All/Update-Spec，auto-loop internal commit-only
-  继续复用既有 `run_spec_update -> commit_only` 预授权而不重复进入交互门禁。
-- 静态断言 Push 只豁免当前有效 written 结果列出的 `.trellis/spec/**` 写入,其它 post-check diff
-  仍使 Check-All 失效;同时断言 in-progress state 只保留 Stop Gate 一跳指针,不复制条件矩阵。
+- 静态扫描普通用户继续和当前 Check-All completion chain 内的 direct Git strict-pass 两条
+  resume-chain，确认正常 workflow 仍沿用标准报告并经 Update-Spec 进入 `trellis-push`。
+- 静态与行为测试覆盖显式 Push 在 Check-All/Update-Spec 未运行、已失效、findings、blocked、
+  部分验证或 `needs-review` 时仍生成计划，并把状态写入“完成链证据”与风险区。
+- 静态断言 `trellis-push` 不返回 Phase 2.2、不加载 `trellis-check-all` / `trellis-update-spec`、
+  不包含运行/跳过检查二选一；auto-loop internal commit-only 继续复用既有
+  `run_spec_update -> commit_only` 预授权而不重复记录交互证据。
 - 静态扫描 Phase 3.4 文案,确认必须加载 `trellis-push`,普通默认 push,commit-only 仅来自
   明确用户意图或合法 auto-loop 预授权。
 - 静态扫描最终 Phase 3.4，确认旧 `Proposed commits`、local-only、no-push walkthrough 已被
@@ -1741,6 +1792,14 @@ Proposed commits:
 
 问题:check 阶段越权生成 Phase 3.4 内容,且普通流程擅自选择 commit-only。
 
+```markdown
+缺少有效 Check-All。请选择：
+- 运行 Check-All
+- 跳过检查并继续 push
+```
+
+问题:Push owner 把审计状态升级成新的交互门禁，导致显式 Push 多一次确认。
+
 #### Correct
 
 ```markdown
@@ -1756,6 +1815,10 @@ Check-all 已通过。
 [PUSH] 1 个仓库 · 1 个 commit · 2 个文件 · 保留未提交 1 · 风险 0
 顺序：flower-trellis -> task progress
 
+### 完成链证据
+- Check-All：通过
+- Update-Spec：written
+
 ### 1. flower-trellis
 `fix(api): 修复会话一致性`
 分支：`beta` -> `origin/beta`
@@ -1770,8 +1833,8 @@ Push：执行
 确认执行请回复 `确认`。
 ```
 
-原因:check 报告与 Git 计划职责分离,Phase 3.3 只在用户继续后自主求值,Phase 3.4 的默认 push、
-文件范围和确认都由唯一入口负责。
+原因:check 报告与 Git 计划职责分离，正常完成链仍在用户继续后进入 Phase 3.3；显式 Push
+进入 Phase 3.4 后只披露上游证据，不反向补门禁。默认 push、文件范围和一次确认都由唯一入口负责。
 
 ---
 

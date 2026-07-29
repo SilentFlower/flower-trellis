@@ -405,8 +405,11 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch workflow-request-triage v0.6 -->",
+          "Asking for an opinion, expressing discomfort, rejecting a proposal, or asking how something should change is `discuss` unless the current request also explicitly authorizes a concrete edit.",
           "Repair authorization and permission to skip task planning are separate.",
-          "`direct_edit` requires known, bounded, local, low-risk, reversible scope and simple validation.",
+          "`direct_edit` requires known, bounded, low-risk, reversible scope, no unresolved design choice, and simple validation.",
+          "they are risk signals, not automatic `task_plan` outcomes.",
+          "An exact rollback or mechanically synchronized known change may remain `direct_edit` or `workflow_action`",
           "python3 ./.trellis/scripts/spec_router.py \"<short query describing the intended action>\"",
           "Project Knowledge Discovery applies once per user intent, workflow phase, or decision boundary",
           "When an active task exists, apply the Active Task Scope Guard before artifact ownership, task routing, or file edits.",
