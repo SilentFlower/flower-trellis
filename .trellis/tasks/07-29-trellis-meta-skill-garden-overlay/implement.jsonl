@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"定义 0.6 Patch/Bundle、selector/baseline、target policy、兼容冲突、compiled targets 和 JS/Python parity 合同。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"定义 vendor Skill-Garden 源、enhancements 快照、Plugin 应用流水线和 dogfood 同步顺序。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"定义 flower/skill-garden system Plugin、InstallPlan、事务、lock/state ownership、freeze/replay/remove 生命周期。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"约束 meta 入口保持简短、避免把 owner 完整流程复制进高频控制面，并要求审阅最终产物。"}

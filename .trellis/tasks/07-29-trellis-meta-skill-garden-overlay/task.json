@@ -1,0 +1,49 @@
+{
+  "id": "trellis-meta-skill-garden-overlay",
+  "name": "trellis-meta-skill-garden-overlay",
+  "title": "补全 Trellis Meta 的 Skill-Garden 增强架构",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-29T06:44:58Z",
+      "contextKey": "codex_019fac98-4223-78c3-8a34-756d661d878a",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "5e45256a77bd9bbb427fc05f575de086ab06474b",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-29T09:04:31Z",
+    "completedSteps": [
+      "补全 Trellis Meta 的 Skill-Garden 增强架构",
+      "修复 Auto-Loop Check artifact drift 的 action 内自恢复",
+      "新增 Trellis Meta 联动复核 code-spec 与回归测试",
+      "通过 Full Check-All、同步、dogfood 与完整质量门禁"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档当前任务",
+    "notes": "Skill-Garden 源、Flower 快照、dogfood 与双仓提交已同步完成。"
+  }
+}
