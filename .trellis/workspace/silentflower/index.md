@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 67
+- **Total Sessions**: 68
 - **Last Active**: 2026-07-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~409 | Active |
+| `journal-2.md` | ~444 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 68 | 2026-07-29 | 支持 Brief 显式预授权免除重复确认 | `7c179af`, `01c9dae` | `beta` |
 | 67 | 2026-07-29 | 完成 spec_router 章节感知加载 | `6432565`, `0d51a24`, `e6e4519` | `beta` |
 | 66 | 2026-07-29 | 优化 trellis-push 门禁与意图识别 | `8d60511`, `8abf3b1`, `9ad6a95` | `beta` |
 | 65 | 2026-07-29 | 修复 auto-loop 重试预算与跟踪文件 | `450bc0a`, `19d7a1a`, `8b69cc2` | `beta` |

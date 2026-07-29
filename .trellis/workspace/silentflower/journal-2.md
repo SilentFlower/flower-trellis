@@ -407,3 +407,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 68: 支持 Brief 显式预授权免除重复确认
+
+**Date**: 2026-07-29
+**Task**: 支持 Brief 显式预授权免除重复确认
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+为 Phase 1.4 增加当前对话内的显式 Brief 预授权窄例外，保留默认确认、高风险失效边界及完整 Brief 展示，并同步 Skill-Garden、发布快照、dogfood、规范与测试。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7c179af` | (see git log) |
+| `01c9dae` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
