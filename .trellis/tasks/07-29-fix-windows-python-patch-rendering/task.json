@@ -1,0 +1,49 @@
+{
+  "id": "fix-windows-python-patch-rendering",
+  "name": "fix-windows-python-patch-rendering",
+  "title": "修复 Windows Python 命令导致的 Patch 漂移",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-29T10:23:21Z",
+      "contextKey": "codex_019fad5e-7fbb-7322-8a92-8c5cf46b0157",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "6ef90fcaa1b5482c91e37947a75efd803403fa86",
+        "status": []
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-07-29T11:11:47Z",
+    "completedSteps": [
+      "完成 Windows Trellis Python 命令物化与 Patch 预检修复",
+      "补齐 Session Context full-only Patch 与发布快照",
+      "通过 full Check-All 并更新 Patch Engine 规范",
+      "提交并推送 skill-garden 与 flower-trellis 业务变更"
+    ],
+    "partialStep": null,
+    "nextStep": "等待用户运行 trellis-finish-work 完成任务归档与会话记录",
+    "notes": ""
+  }
+}

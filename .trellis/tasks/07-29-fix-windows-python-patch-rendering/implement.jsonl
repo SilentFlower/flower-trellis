@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"实现必须保持 selector/baseline 严格匹配、catalog descriptor 边界、零写入与 JS/Python parity。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"确认 vendor 源、enhancements 快照、builtin Skill-Garden 内容投影和统一事务流水线。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"限制 materialization 只由可信 builtin system Provider 注入，并保持内容/Patch ownership 门禁。"}
+{"file":".trellis/tasks/archive/2026-07/07-19-patch-engine-overrides-restructure/design.md","reason":"复用 Patch Engine 原始设计中的受控 adapter、canonical catalog 与失败关闭原则。"}
+{"file":".trellis/tasks/archive/2026-06/06-28-assess-trellis-0-6-5-upgrade/research/trellis-0-6-5-upgrade.md","reason":"Trellis 0.6.5 平台命令渲染和 Windows 兼容背景。"}
