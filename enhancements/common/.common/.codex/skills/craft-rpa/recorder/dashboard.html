@@ -1347,7 +1347,7 @@ body::before {
         <span id="last-update"></span>
     </div>
     <div class="center" id="filter-info">显示 0 / 0</div>
-    <div class="right" id="endpoint-info">localhost:7777 · session.jsonl</div>
+    <div class="right" id="endpoint-info">本机 recorder · session.jsonl</div>
 </footer>
 
 <div class="toast" id="toast"></div>
@@ -1358,6 +1358,7 @@ body::before {
    初次进入：优先读取 localStorage；没有则跟随系统 prefers-color-scheme
 ============================================================ */
 const THEME_KEY = 'recorder-theme';
+document.getElementById('endpoint-info').textContent = `${location.host} · session.jsonl`;
 
 /**
  * 应用主题到 <html> 上
@@ -1394,7 +1395,7 @@ const state = {
     events: [],              // 全部已收事件，按 serverTime 顺序
     pages: [],               // 浏览器当前打开的 tab 列表
     activeTabIdx: 0,         // 当前活跃 tab（focus 后更新）
-    lastSeen: '',            // 增量拉取游标（最后一条 serverTime）
+    lastCursor: 0,           // 增量拉取游标（logger 生成的单调序号）
     filter: 'all',           // kind 过滤
     search: '',              // 关键词搜索
     paused: false,           // 是否暂停轮询
@@ -1506,7 +1507,7 @@ async function pollOnce() {
     if (state.paused) return;
     try {
         const [eventsResp, pagesResp] = await Promise.all([
-            fetch(state.lastSeen ? `/events?since=${encodeURIComponent(state.lastSeen)}` : '/events'),
+            fetch(state.lastCursor ? `/events?cursor=${encodeURIComponent(state.lastCursor)}` : '/events'),
             fetch('/control/pages').catch(() => null),
         ]);
 
@@ -1516,7 +1517,7 @@ async function pollOnce() {
         if (events.length > 0) {
             const startIdx = state.events.length;
             state.events.push(...events);
-            state.lastSeen = events[events.length - 1].serverTime || state.lastSeen;
+            state.lastCursor = events[events.length - 1]._cursor || state.lastCursor;
             // 标记本批为"新事件"用于入场动画
             for (let i = 0; i < events.length; i++) {
                 state.newEventIdxs.add(startIdx + i);
@@ -1846,10 +1847,15 @@ function selectEvent(idx) {
     if (e.kind === 'network') {
         const items = [];
         items.push(['METHOD', e.method || '?']);
-        items.push(['STATUS', String(e.status || 'ERR')]);
+        items.push(['STATUS', String(e.status ?? 'ERR')]);
         if (e.requestUrl) items.push(['URL', e.requestUrl]);
         if (e.durationMs) items.push(['DURATION', e.durationMs + ' ms']);
-        if (e.error) items.push(['ERROR', e.error]);
+        if (e.source) items.push(['SOURCE', e.source]);
+        if (e.requestContentType) items.push(['REQUEST TYPE', e.requestContentType]);
+        if (e.requestSize !== undefined) items.push(['REQUEST SIZE', e.requestSize + ' bytes']);
+        if (e.responseContentType) items.push(['RESPONSE TYPE', e.responseContentType]);
+        if (e.responseSize !== undefined) items.push(['RESPONSE SIZE', e.responseSize + ' bytes']);
+        if (e.failure?.errorText || e.error) items.push(['ERROR', e.failure?.errorText || e.error]);
         html += `
             <div class="detail-section">
                 <div class="section-label">请求信息</div>
@@ -1912,7 +1918,7 @@ async function doControl(path, body) {
         const resp = await fetch('/control/' + path, opts);
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            throw new Error(err.error || `HTTP ${resp.status}`);
+            throw new Error(err.error?.message || err.error || `HTTP ${resp.status}`);
         }
         return await resp.json();
     } catch (e) {
@@ -2010,17 +2016,14 @@ $('btn-export').onclick = () => {
         toast('暂无事件可导出');
         return;
     }
-    const jsonl = state.events.map(e => JSON.stringify(e)).join('\n');
-    const blob = new Blob([jsonl], { type: 'application/x-ndjson' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = '/session';
     a.download = `recorder-${new Date().toISOString().replace(/[:.]/g, '-')}.jsonl`;
     a.click();
-    URL.revokeObjectURL(a.href);
-    toast(`⬇  已导出 ${state.events.length} 条事件`, 'success');
+    toast(`已请求导出完整 JSONL（${state.events.length} 条摘要）`, 'success');
 };
 
-// 清空显示（仅前端，磁盘文件不变；保留 lastSeen 以免刷出旧事件）
+// 清空显示（仅前端，磁盘文件不变；保留 lastCursor 以免刷出旧事件）
 $('btn-clear').onclick = () => {
     if (!confirm('清空当前显示？\n\n磁盘文件不受影响，只有新事件会出现。')) return;
     state.events = [];

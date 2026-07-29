@@ -5,7 +5,8 @@
     "description": "本地浏览器交互记录工具：持久化 profile 的 Chrome + 自动注入监听 + 本地落盘",
     "scripts": {
         "logger": "node logger.js",
-        "launch": "node launch.js"
+        "launch": "node launch.js",
+        "test": "node --test test/*.test.js"
     },
     "dependencies": {
         "playwright": "^1.48.0"

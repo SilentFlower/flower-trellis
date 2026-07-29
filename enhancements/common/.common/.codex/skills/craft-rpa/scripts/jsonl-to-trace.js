@@ -21,14 +21,17 @@
  *       sed -n '<N>p' <session.jsonl> | jq .url
  *
  * 用法:
- *   node jsonl-to-trace.js [--max-url-len <N>] <input.jsonl> [output.md]
- *   cat session.jsonl | node jsonl-to-trace.js [--max-url-len <N>]
+ *   node jsonl-to-trace.js [--max-url-len <N>] [--max-body-bytes <N>] <input.jsonl> [output.md]
+ *   cat session.jsonl | node jsonl-to-trace.js [--max-url-len <N>] [--max-body-bytes <N>]
  */
 
 const fs = require('fs');
 const path = require('path');
+const { truncateUtf8 } = require('../recorder/network-capture');
 
 const DEFAULT_MAX_URL_LEN = 800;
+const DEFAULT_MAX_BODY_DISPLAY_BYTES = 16 * 1024;
+const DEFAULT_MAX_HEADERS_DISPLAY_BYTES = 64 * 1024;
 
 /**
  * 默认 noise hosts pattern（匹配 network 事件的 URL host 部分）。
@@ -89,6 +92,7 @@ const BIZ_NOISE_MIN_NEIGHBORS = 2;
     let inputPath = null;
     let outputPath = null;
     let maxUrlLen = DEFAULT_MAX_URL_LEN;
+    let maxBodyBytes = DEFAULT_MAX_BODY_DISPLAY_BYTES;
     const extraNoiseHosts = [];     // 用户通过 --noise-host 追加的 pattern
     let withContextHtml = false;     // --with-context-html: 全 interaction 渲染 contextHTML
 
@@ -101,6 +105,13 @@ const BIZ_NOISE_MIN_NEIGHBORS = 2;
                 process.exit(2);
             }
             maxUrlLen = v;
+        } else if (a === '--max-body-bytes') {
+            const v = parseInt(argv[++i], 10);
+            if (!Number.isFinite(v) || v < 1024) {
+                process.stderr.write('[err] --max-body-bytes 必须是 ≥ 1024 的整数\n');
+                process.exit(2);
+            }
+            maxBodyBytes = v;
         } else if (a === '--noise-host') {
             const p = argv[++i];
             if (!p) {
@@ -141,11 +152,11 @@ const BIZ_NOISE_MIN_NEIGHBORS = 2;
     }
 
     const events = parseJsonl(raw);
-    const md = generateTrace(events, { inputPath, maxUrlLen, noiseHosts, withContextHtml });
+    const md = generateTrace(events, { inputPath, maxUrlLen, maxBodyBytes, noiseHosts, withContextHtml });
 
     if (outputPath) {
         fs.writeFileSync(outputPath, md);
-        process.stderr.write(`[ok] wrote ${outputPath} (${events.length} events, maxUrlLen=${maxUrlLen}, noiseHosts=${noiseHosts.length}, withContextHtml=${withContextHtml})\n`);
+        process.stderr.write(`[ok] wrote ${outputPath} (${events.length} events, maxUrlLen=${maxUrlLen}, maxBodyBytes=${maxBodyBytes}, noiseHosts=${noiseHosts.length}, withContextHtml=${withContextHtml})\n`);
     } else {
         process.stdout.write(md);
     }
@@ -161,6 +172,7 @@ function printHelp() {
         '',
         'Options:',
         '  --max-url-len <N>      单个 URL 字段最大长度(默认 800),超过则截断 + 标注反查行号',
+        '  --max-body-bytes <N>   单个 request/response body 在 trace 中最大展示字节数(默认 16384)',
         '  --noise-host <p>       追加 noise host pattern(可多次):',
         '                           - "online-metrix.net" → 子串匹配',
         '                           - "/^foo\\..*$/i"      → 正则字面量',
@@ -292,6 +304,7 @@ function generateTrace(events, ctx) {
     lines.push(`- 时长: \`${formatDuration(duration)}\``);
     lines.push(`- 事件总数: **${events.length}**`);
     lines.push(`- 超长 URL 截断: ${truncatedCount} 处(阈值 maxUrlLen=${ctx.maxUrlLen};完整原文在原 jsonl,通过 jsonlLine 反查)`);
+    lines.push(`- 网络正文展示上限: 每个 body ${ctx.maxBodyBytes} bytes；session.jsonl 中的捕获上限与截断状态以事件字段为准`);
     lines.push(`- noise/business 分类: NOISE ${noiseEventCount} · BUSINESS-IN-NOISE ${businessInNoiseCount} (基于 ${ctx.noiseHosts.length} 个 noise host pattern;仅标注,不删事件)`);
     lines.push(`- contextHTML 渲染: ${contextHtmlRenderedCount} 处${ctx.withContextHtml ? ' (全 interaction;--with-context-html 启用)' : ' (仅 BUSINESS-IN-NOISE;session.jsonl 仍存全量,反查见下)'}`);
     lines.push(`- URL 覆盖(去 query+hash):`);
@@ -580,11 +593,33 @@ function renderEvent(ev, ctx, classification) {
 
     // network
     if (ev.kind === 'network') {
+        if (ev.source) out.push(`- source: \`${ev.source}\``);
+        if (ev.requestId) out.push(`- requestId: \`${ev.requestId}\``);
+        if (ev.redirectedFromRequestId) out.push(`- redirectedFromRequestId: \`${ev.redirectedFromRequestId}\``);
         if (ev.method) out.push(`- method: \`${ev.method}\``);
         const reqLine = urlField('requestUrl', ev.requestUrl, ctx, ev.__jsonlLine);
         if (reqLine) out.push(reqLine);
-        if (ev.status !== undefined) out.push(`- status: ${ev.status}`);
+        if (ev.completedTime) out.push(`- completedTime: \`${ev.completedTime}\``);
+        if (ev.status !== undefined && ev.status !== null) out.push(`- status: ${ev.status}`);
         if (ev.durationMs !== undefined) out.push(`- durationMs: ${ev.durationMs}`);
+        if (ev.requestContentType) out.push(`- requestContentType: \`${ev.requestContentType}\``);
+        if (ev.requestHeaders && Object.keys(ev.requestHeaders).length) {
+            out.push(...renderJsonField('requestHeaders', ev.requestHeaders, DEFAULT_MAX_HEADERS_DISPLAY_BYTES, ev.__jsonlLine));
+        }
+        out.push(...renderNetworkBody('request', ev, ctx));
+        if (ev.responseContentType) out.push(`- responseContentType: \`${ev.responseContentType}\``);
+        if (ev.responseHeaders && Object.keys(ev.responseHeaders).length) {
+            out.push(...renderJsonField('responseHeaders', ev.responseHeaders, DEFAULT_MAX_HEADERS_DISPLAY_BYTES, ev.__jsonlLine));
+        }
+        out.push(...renderNetworkBody('response', ev, ctx));
+        if (ev.requestMultipart) {
+            out.push(...renderJsonField('requestMultipart', ev.requestMultipart, ctx.maxBodyBytes, ev.__jsonlLine));
+        }
+        if (ev.context) out.push(...renderJsonField('context', ev.context, 16 * 1024, ev.__jsonlLine));
+        if (ev.failure) out.push(...renderJsonField('failure', ev.failure, 16 * 1024, ev.__jsonlLine));
+        for (const field of ['requestHeaderCaptureError', 'requestBodyCaptureError', 'responseHeaderCaptureError', 'responseBodyCaptureError']) {
+            if (ev[field]) out.push(`- ${field}: \`${truncate(ev[field], 500)}\``);
+        }
         if (ev.error) out.push(`- error: \`${ev.error}\``);
     }
 
@@ -613,6 +648,88 @@ function renderEvent(ev, ctx, classification) {
     }
 
     return out;
+}
+
+/**
+ * 渲染 JSON 字段并限制 trace 展示体积，完整值仍保留在 JSONL。
+ *
+ * @param {string} label 字段名。
+ * @param {Object|Array<Object>} value JSON 值。
+ * @param {number} maxBytes 展示上限。
+ * @param {number} jsonlLine JSONL 行号。
+ * @return {string[]} Markdown 行。
+ */
+function renderJsonField(label, value, maxBytes, jsonlLine) {
+    const raw = JSON.stringify(value, null, 2);
+    const limited = truncateUtf8(Buffer.from(raw, 'utf8'), maxBytes);
+    const fence = markdownFence(limited.text);
+    const lines = [`- ${label}:`, `  ${fence}json`];
+    for (const line of limited.text.split('\n')) lines.push(`  ${line}`);
+    lines.push(`  ${fence}`);
+    if (limited.truncated) {
+        lines.push(`  - trace 展示截断: ${limited.size} → ${maxBytes} bytes；完整值见 jsonl#${jsonlLine} 字段 \`.${label}\``);
+    }
+    return lines;
+}
+
+/**
+ * 渲染 request/response body 的大小、跳过原因和有界正文。
+ *
+ * @param {'request'|'response'} prefix 字段前缀。
+ * @param {Object} event 网络事件。
+ * @param {Object} ctx trace 配置。
+ * @return {string[]} Markdown 行。
+ */
+function renderNetworkBody(prefix, event, ctx) {
+    const fieldPrefix = prefix === 'request' ? 'request' : 'response';
+    const bodyField = `${fieldPrefix}Body`;
+    const sizeField = `${fieldPrefix}Size`;
+    const truncatedField = `${fieldPrefix}BodyTruncated`;
+    const skippedField = `${fieldPrefix}BodySkipped`;
+    const body = event[bodyField];
+    const lines = [];
+    if (event[sizeField] !== undefined) lines.push(`- ${sizeField}: ${event[sizeField]} bytes`);
+    if (event[truncatedField]) lines.push(`- ${truncatedField}: true（session.jsonl 捕获时已截断）`);
+    if (event[skippedField]) lines.push(`- ${skippedField}: \`${event[skippedField]}\``);
+    if (body === undefined || body === null) return lines;
+
+    let display = String(body);
+    let language = 'text';
+    const contentType = String(event[`${fieldPrefix}ContentType`] || '');
+    if (/json/i.test(contentType)) {
+        try {
+            display = JSON.stringify(JSON.parse(display), null, 2);
+            language = 'json';
+        } catch (error) {
+            language = 'text';
+        }
+    } else if (/xml|html|svg/i.test(contentType)) {
+        language = 'html';
+    } else if (/javascript|ecmascript/i.test(contentType)) {
+        language = 'javascript';
+    }
+    const limited = truncateUtf8(Buffer.from(display, 'utf8'), ctx.maxBodyBytes);
+    const fence = markdownFence(limited.text);
+    lines.push(`- ${bodyField}:`);
+    lines.push(`  ${fence}${language}`);
+    for (const line of limited.text.split('\n')) lines.push(`  ${line}`);
+    lines.push(`  ${fence}`);
+    if (limited.truncated) {
+        lines.push(`  - trace 展示截断: ${limited.size} → ${ctx.maxBodyBytes} bytes；完整捕获值见 jsonl#${event.__jsonlLine} 字段 \`.${bodyField}\``);
+    }
+    return lines;
+}
+
+/**
+ * 选择不会与正文反引号序列冲突的 Markdown 围栏。
+ *
+ * @param {string} value 围栏内正文。
+ * @return {string} 至少三个反引号组成的安全围栏。
+ */
+function markdownFence(value) {
+    const runs = String(value || '').match(/`+/g) || [];
+    const longest = runs.reduce((max, run) => Math.max(max, run.length), 0);
+    return '`'.repeat(Math.max(3, longest + 1));
 }
 
 // ========== URL 字段(超长截断 + 反查标注) ==========

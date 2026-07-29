@@ -1,12 +1,12 @@
 ---
 name: craft-rpa
-description: "录制真实浏览器流程为按会话保存的 JSONL,并转换成 RPA 改造参考用的 markdown trace。适用于录制浏览器流程、生成 RPA 流程参考、session.jsonl 转 trace、Dashboard 反向控浏览器、craft rpa、record browser flow；不用于 CI 测试、并行录制或反爬绕过。"
+description: "录制并实际操作真实浏览器流程，使用 Playwright 上下文采集 Fetch/XHR 完整 headers、文本 body、失败与 frame/Service Worker 上下文，按会话保存 JSONL 并转换成 RPA 改造用 markdown trace。适用于录制浏览器、AI 感知页面并连续 click/fill/type/press/select/check、分析接口与复现请求、session.jsonl 转 trace、Dashboard 控制浏览器、craft rpa、record browser flow；不用于 CI 测试、并行录制、远程多租户或反爬绕过。"
 ---
 
 # Craft RPA
 
-> 自包含的"录制 → 多会话留档 → 机械翻译成 markdown 流程参考"端到端工具,服务于**人工/半自动 RPA 改造**(不是自动 e2e 测试)。
-> skill 内自带 `recorder/`(launch.js / logger.js / inject.js / dashboard.html)、`scripts/run.sh`(生命周期管理)、`scripts/jsonl-to-trace.js`(转换输出)。
+> 自包含的"感知与操作真实页面 → 录制交互和网络 → 多会话留档 → 机械翻译成 markdown 流程参考"工具，服务于人工或 AI 辅助的 RPA 改造。
+> skill 内自带 recorder、Dashboard、统一 browser controller、生命周期脚本和 trace 转换器。
 
 ---
 
@@ -17,6 +17,8 @@ description: "录制真实浏览器流程为按会话保存的 JSONL,并转换�
 - 同一目标多次录制,每次会话独立留档,便于横向对照
 - 通过 Dashboard 在另一台机器上观察 + 控制 WSL/Linux 里的录制会话
 - 抓 SPA / 复杂前端应用的真实运行轨迹
+- 让 AI 在用户授权目标内循环感知页面、执行操作并验证结果
+- 保存请求与响应内容，供后续接口分析和复现
 
 ## 不适用场景
 
@@ -31,9 +33,9 @@ description: "录制真实浏览器流程为按会话保存的 JSONL,并转换�
 ## 前置条件
 
 - Node ≥ 18(LTS 推荐)
-- 系统装 Chrome(默认),或 `npx playwright install chromium` + 把 `recorder/launch.js` 里的 `USE_SYSTEM_CHROME` 改成 `false`
+- 系统装 Chrome（默认），或执行 `npx playwright install chromium` 并设置 `CRAFT_RPA_USE_SYSTEM_CHROME=false`
 - WSL2 必须有 WSLg(`echo $DISPLAY` 应非空)
-- 端口 `7777` 未被占用(否则改三处常量,见 Hard Constraints #2)
+- 默认端口 `7777` 未被占用；需要修改时设置 `CRAFT_RPA_PORT=<port>`
 
 ---
 
@@ -65,12 +67,14 @@ bash "$SKILL_DIR/scripts/run.sh" start [URL]      # 新会话目录 + 后台起;
 bash "$SKILL_DIR/scripts/run.sh" status           # 看是否在跑 + 当前会话 + 历史数 + Dashboard URL
 bash "$SKILL_DIR/scripts/run.sh" sessions         # 列所有历史会话(* 标当前)
 bash "$SKILL_DIR/scripts/run.sh" logs [N]         # tail 最近 N 行(默认 50)
+bash "$SKILL_DIR/scripts/run.sh" control <action> [JSON]
+                                                   # AI 感知和操作同一个录制浏览器
 bash "$SKILL_DIR/scripts/run.sh" stop             # SIGINT 优雅停止,3s 未退再 SIGTERM
 bash "$SKILL_DIR/scripts/run.sh" craft [--session <ts>] [OUT]
                                                    # 转 jsonl → trace.md;--session 默认 = 当前/最新;OUT 默认 ./trace.md
 ```
 
-运行时状态 / sessions / profile / 依赖全部在 `$(pwd)/.craft-rpa/`(可用 `CRAFT_RPA_HOME` env 覆盖到任意路径)。首次 `start` 自动安装依赖(跳浏览器下载,~10s),受管 skill 目录只保留静态代码资产。
+运行时状态 / sessions / profile / 依赖全部在 `$(pwd)/.craft-rpa/`(可用 `CRAFT_RPA_HOME` env 覆盖到任意路径)。首次 `start` 自动在 `.craft-rpa/runtime/recorder` 执行 `npm install`(跳浏览器下载,通常 30-60s)。
 
 **AI 行为约定**(看到下列触发就跑对应子命令,不要手敲底层 cd / nohup):
 
@@ -83,12 +87,15 @@ bash "$SKILL_DIR/scripts/run.sh" craft [--session <ts>] [OUT]
 | "看 log" / "看日志" | `run.sh logs` |
 | "在跑吗" / "status" / "看下当前" | `run.sh status` |
 | "列会话" / "看历史" | `run.sh sessions` |
+| "看看页面" / "感知页面" | `run.sh control observe '{"index":0,"screenshot":true}'` |
+| "点击/填写/选择/按键" | 先 observe，再调用对应 `control` action，最后再次 observe 验证 |
 
-**AI 不要做**:
+**AI 行为边界**:
 
-- 浏览器窗口里的鼠标 / 键盘操作 —— 这是 GUI 部分,只能由用户本人完成
-- 修改 `recorder/` 里的代码 —— 它是 skill 独立资产(仅 `REDACT_SENSITIVE` 常量允许调)
-- 跳过 `run.sh` 直接 `nohup node launch.js` —— 会绕过会话目录管理和 PID 管理
+- 用户授权一个浏览器目标后，按“observe → action → observe/页面断言”连续执行，无需逐次确认每个点击或填写。
+- 当目标页面、业务对象或预期结果无法从授权中合理确定，或动作即将超出当前目标时暂停询问。
+- 用户要求停止或关闭浏览器时，立即停止后续 action 并执行 `run.sh stop`。
+- 不绕过 `run.sh` 直接启动底层进程，避免绕过会话目录和 PID 管理。
 - 自己尝试合并语义步骤 / 命名 step / 删事件 —— 这是 AI 精修阶段的事(下一段),`craft` 输出已经包含全部原始信息
 
 ---
@@ -102,27 +109,31 @@ bash "$SKILL_DIR/scripts/run.sh" craft [--session <ts>] [OUT]
 ├── sessions/
 │   ├── 2026-05-18_10-30-00/   ← 每次 start 创建时间戳目录,不覆盖历史
 │   │   ├── session.jsonl
-│   │   └── trace.md           ← 可选,craft 输出可指定到此
+│   │   ├── artifacts/          ← observe 截图和可选 DOM/frame HTML
+│   │   └── trace.md            ← 可选,craft 输出可指定到此
 │   ├── 2026-05-18_14-22-15/
 │   └── legacy-2026-05-17_...   ← 老版本遗留 / 升级时自动归档
 ├── profile/                    ← Chrome 持久 profile(登录态,项目独立)
-├── runtime/recorder/           ← package manifest + node_modules,可重建
+├── runtime/recorder/           ← Playwright 运行时依赖,不写入受管 Skill 目录
+│   ├── package.json / package-lock.json
+│   └── node_modules/
 ├── .launch.pid / .launch.log   ← 进程管理 + 日志
 └── .current-session            ← 最近一次 start 的会话 ts
 
-.claude/skills/craft-rpa/recorder/   ← skill 内仅静态代码资产,不写 profile/session/node_modules
+.claude/skills/craft-rpa/recorder/   ← 仅包含 Plugin 管理的代码资产,不生成运行时软链或 node_modules
 ```
 
 **为什么这样**:
 - 录制 jsonl 是**项目业务数据**,跟着仓库走(每个仓库独立 session 池,不串)
 - skill 代码可装 `~/.claude/skills/craft-rpa/` 全局,所有仓库共用同一份代码
-- run.sh 通过显式环境变量把 session/profile/Playwright 模块路径传给 launch.js,避免运行时产物进入 Plugin 管理树
+- `run.sh` 通过显式环境变量把 profile、session 和 Playwright 依赖路径传给录制器,Plugin 更新不会扫描或覆盖运行时数据
 
 **关键性质**:
 
 - 每次 `run.sh start` 创建新时间戳目录,**不覆盖**历史
-- 新版不会在 `recorder/` 创建软链或 `node_modules`;依赖位于 `.craft-rpa/runtime/recorder/`
-- 老版本遗留的 `recorder/session.jsonl` / `recorder/profile` 软链只删除链接本身,真实目标数据保留;普通文件/目录仍自动归档
+- 新版不在 `recorder/` 内创建 `session.jsonl`、`profile` 或 `node_modules`
+- 老版本遗留的软链只删除链接本身,不会删除其目标；普通 `recorder/session.jsonl` 在第一次 start 时归档到 `sessions/legacy-<ts>/`,普通 `recorder/profile/` 归档到 `.craft-rpa/profile-legacy-<ts>/`
+- 老版本 `recorder/node_modules` 是可重建缓存,第一次 start 时删除并在 `.craft-rpa/runtime/recorder` 重新安装
 - `run.sh craft` 默认转最新;`--session <ts>` 可转任意历史
 - 删历史:手动 `rm -rf .craft-rpa/sessions/<ts>/`,run.sh 不管删
 
@@ -136,6 +147,39 @@ cd <your-repo> && bash $SKILL_DIR/scripts/run.sh start
 export CRAFT_RPA_HOME=~/rpa-recordings
 bash $SKILL_DIR/scripts/run.sh start
 ```
+
+---
+
+## AI 页面感知与连续操作
+
+先观察当前页面，再把 observe 返回的 page/frame/target 原样用于动作：
+
+```bash
+bash "$SKILL_DIR/scripts/run.sh" control pages
+bash "$SKILL_DIR/scripts/run.sh" control observe '{"index":0,"includeText":true,"includeAria":true,"includeElements":true,"screenshot":true,"dom":false}'
+bash "$SKILL_DIR/scripts/run.sh" control click '{"index":0,"frame":{"index":0},"target":{"role":"button","name":"提交","exact":true}}'
+bash "$SKILL_DIR/scripts/run.sh" control fill '{"index":0,"target":{"label":"邮箱","exact":true},"value":"user@example.com"}'
+bash "$SKILL_DIR/scripts/run.sh" control type '{"index":0,"target":{"selector":"#code"},"value":"123456","delayMs":80}'
+bash "$SKILL_DIR/scripts/run.sh" control press '{"index":0,"target":{"selector":"#code"},"key":"Tab"}'
+bash "$SKILL_DIR/scripts/run.sh" control select '{"index":0,"target":{"testId":"region"},"value":"sg"}'
+bash "$SKILL_DIR/scripts/run.sh" control check '{"index":0,"target":{"label":"同意条款","exact":true}}'
+```
+
+target 必须只使用一种主定位策略：`selector`、`role`、`text`、`label`、`placeholder` 或 `testId`。未指定 `nth` 且出现多个可见匹配时，接口返回 `AMBIGUOUS_TARGET` 和候选摘要，不会静默操作第一个元素。跨 frame 时优先回传 observe 给出的 `frame.index`；页面跳转后重新 observe，不沿用过期 index。
+
+observe 默认返回有界可见文本、ARIA snapshot 和最多 500 个交互元素，并受单次请求总超时约束；截图最大 20 MiB，显式请求的 DOM 每个 frame 最大 5 MiB，均保存到当前会话 `artifacts/`，响应只返回本地路径，不内联 base64。
+
+---
+
+## 网络采集与本地数据边界
+
+- Fetch/XHR 由 Playwright BrowserContext 的 `request/requestfinished/requestfailed` 采集，覆盖主页面、跨域 iframe 和 Playwright 可观察到的 Service Worker 请求。
+- 每个 HTTP request 只产生一条最终事件；redirect 每一跳独立记录并用 `redirectedFromRequestId` 关联。
+- 请求/响应使用完整 headers；文本 body 每个方向最多捕获 **20 MiB**，按 UTF-8 字节边界截断。
+- 二进制只保存 Content-Type、大小和跳过原因；multipart 只保存普通字段及文件名、MIME、大小等元数据，不保存文件正文。
+- Authorization、Cookie、Set-Cookie、token、密码和正文默认原样保存。`.craft-rpa/` 只在本地使用，不得未经人工检查上传、提交 Git 或发送给第三方。
+- trace 默认每个 body 只展示 16 KiB；完整捕获内容通过事件的 `jsonlLine` 回查 `session.jsonl`。
+- `/control/*` 不使用 token，本机 CLI 和 Dashboard 可直接调用。logger 继续监听 `0.0.0.0` 供 WSL/Windows 互访，但第三方网页 Origin 的控制请求会被拒绝；不要把端口转发到公网或不可信局域网。
 
 ---
 
@@ -264,9 +308,9 @@ bash "$SKILL_DIR/scripts/run.sh" start          # 起 about:blank
 - 浏览器窗口弹出(每个新页面 Console 会打 `[inject] boot at <url>`)
 - `<cwd>/.craft-rpa/sessions/<ts>/session.jsonl` 已创建(空文件,等事件)
 
-### Step 2: 用 Dashboard 实时验证
+### Step 2: 用 Dashboard 或 AI 实时感知和操作
 
-打开 `http://localhost:7777/dashboard`:
+打开 `http://localhost:${CRAFT_RPA_PORT:-7777}/dashboard`:
 
 - 顶部 4 计数器(int / net / nav / err)随你的操作上跳
 - 没数:`run.sh logs` 看 launch / logger 报错;最常见根因是 `7777` 端口被占
@@ -284,6 +328,8 @@ bash "$SKILL_DIR/scripts/run.sh" start          # 起 about:blank
 
 - Dashboard 顶部 URL 栏输地址回车 → 当前 tab 打开;勾"新标签"则 newTab
 - 底部 tabs 区域可点切换 / 关闭 / 刷新 / 前进后退
+- AI 使用 `run.sh control observe` 获取真实页面状态，再调用 click/fill/type/press/select/check/uncheck。
+- 每次会导致页面状态变化的操作后重新 observe 或检查返回的 `urlAfter`，不要只依据操作请求成功就假设业务完成。
 
 ### Step 3: 录完停止
 
@@ -313,6 +359,7 @@ bash "$SKILL_DIR/scripts/run.sh" craft
 - **不命名业务 step**(js 不知道业务语义,留给 AI 精修)
 - **不脱敏**(`recorder/inject.js` 已默认 `REDACT_SENSITIVE=false`,value 全是原值)
 - 超长 URL(>800 chars 默认)截断 + 标注 `jsonlLine: <N>` 反查;原文取法 `sed -n '<N>p' session.jsonl | jq .url`
+- 网络 headers、body、失败和 frame/Service Worker 上下文会进入详情；body 默认只展示 16 KiB，完整捕获值回查 JSONL。
 
 **AI 拿到 trace.md 后**:走"AI 精修阶段做什么"段的 7 步,输出 RPA 改造草案给用户。
 
@@ -324,12 +371,13 @@ bash "$SKILL_DIR/scripts/run.sh" craft
 
 ## Hard Constraints(违反破坏核心功能)
 
-1. **`bypassCSP: true` 不能关** —— 否则严 CSP 站点(如 oracle.com)的 fetch 全部被拦,inject.js 一条事件都送不出。位置:`recorder/launch.js` 的 `launchOptions`
-2. **端口 `7777` 改动必须三处同步**:`recorder/logger.js` 默认端口 / `recorder/inject.js` 的 `LOGGER` 常量 / `recorder/dashboard.html` 的所有 `/control/*` fetch
-3. **`recorder/inject.js` 保持单文件 / 无依赖 / 不抛错到业务页面** —— Playwright `addInitScript({ path })` 注入约束;一旦抛错会污染目标站
-4. **HTML 注入点必须 `escapeHtml`** —— Dashboard 渲染的事件 target 来自任意目标站,XSS 高危。位置:`recorder/dashboard.html`
-5. **CORS 必须回显 `Origin` 不能用 `*`** —— `sendBeacon` + cookie 场景要求。位置:`recorder/logger.js`
-6. **敏感字段默认 NOT 脱敏(`REDACT_SENSITIVE = false`)** —— RPA 流程参考需要原值;`target.sensitive` 标记仍保留供人工识别。**唯独**当 trace.md 产物要外传或归档时,自行评估是否手动脱敏对应 value 行。要重新启用源头脱敏,改 `recorder/inject.js` 的 `REDACT_SENSITIVE = true`(整次会话内对所有命中字段生效)
+1. **交互事件以 Playwright binding 为主路径**，不要重新把页面 fetch/XHR hook 或关闭浏览器安全特性作为正常传输方案。
+2. **端口只从 `CRAFT_RPA_PORT` / `recorder/config.js` 派生**，不要在 logger、inject、Dashboard 或 client 增加新的硬编码端口。
+3. **`recorder/inject.js` 保持单文件 / 无依赖 / 不抛错到业务页面**，启动器读取文件后通过 Playwright `addInitScript({ content })` 注入它。
+4. **HTML 注入点必须 `escapeHtml`**，Dashboard 渲染的数据来自任意目标站。
+5. **`/log` 与 `/control/*` 的 Origin 策略必须分离**：前者支持任意目标页回退写入，后者拒绝第三方网页 Origin。
+6. **敏感字段默认不脱敏**，仅限本地复现；外传或归档前由用户明确检查和处理。
+7. **网络正文捕获上限为每方向 20 MiB，trace 展示上限独立为 16 KiB**，不要把展示截断误写成原始捕获截断。
 
 ---
 
@@ -337,12 +385,14 @@ bash "$SKILL_DIR/scripts/run.sh" craft
 
 | 症状 | 根因 | 修复 |
 |------|------|------|
-| 浏览器拉不起 / 找不到 display | WSL2 无 WSLg / Linux 无图形 | 升 Win11 自带 WSLg / 装 X server / 或改 `headless: true`(无 GUI 重放) |
-| `Executable doesn't exist at .../chrome-linux/chrome` | `USE_SYSTEM_CHROME=false` 但没装 Chromium | `npx playwright install chromium` 或把常量改回 `true` |
-| `channel 'chrome' is not installed` | `USE_SYSTEM_CHROME=true` 但系统没装 Chrome | `apt install google-chrome-stable` 或下载 Chromium |
-| 端口 `7777` 被占 | 其他进程占用 | 改 `recorder/logger.js` 默认端口 + `recorder/inject.js` 的 `LOGGER`;或 `startLogger({ port: 8888 })` |
-| Dashboard 一直 0 事件 | inject.js 没注入 / fetch 被拦 | `run.sh logs` 看有没有 `[inject] boot at ...`;确认 `bypassCSP` 没关 |
-| 跨源 iframe 内事件丢失 | 浏览器同源策略 | 已知限制,无解;改用顶层窗口操作 |
+| 浏览器拉不起 / 找不到 display | WSL2 无 WSLg / Linux 无图形 | 升 Win11 自带 WSLg / 装 X server；只做无界面验证时设置 `CRAFT_RPA_HEADLESS=true` |
+| `Executable doesn't exist at .../chrome-linux/chrome` | `CRAFT_RPA_USE_SYSTEM_CHROME=false` 但没装 Chromium | `npx playwright install chromium` 或取消该环境变量 |
+| `channel 'chrome' is not installed` | 默认系统 Chrome 不存在 | 安装 Chrome，或下载 Chromium 后设置 `CRAFT_RPA_USE_SYSTEM_CHROME=false` |
+| 端口 `7777` 被占 | 其他进程占用 | `export CRAFT_RPA_PORT=8888` 后重新 `run.sh start` |
+| Dashboard 一直 0 事件 | inject.js/binding 未安装或 launch 启动失败 | `run.sh logs` 查 `[inject] boot`、`[launch] fatal` 和 binding 错误 |
+| action 返回 `AMBIGUOUS_TARGET` | 多个可见元素命中 | 读取候选摘要，改用更稳定 target；确实要选序号时显式传 `target.nth` |
+| action 返回 `FRAME_NOT_FOUND` | 页面跳转后 frame index 变化 | 重新 observe，使用最新 frame index/URL |
+| trace 没显示完整 body | trace 独立限制为 16 KiB | 按 `jsonlLine` 回查 `session.jsonl` 对应 requestBody/responseBody |
 | `run.sh start` 报"already running" 但你没跑 | `.launch.pid` 残留 | `rm .craft-rpa/.launch.pid` 后重试 |
 | `craft` 报"no session found" | sessions 目录空 / 没录过 | 先 `run.sh start` 录一段 |
 | trace.md 速览表表格错位 | 字段含 `|` 或换行未转义 | js 已转义,如仍有问题报具体 # 事件 |
@@ -365,7 +415,8 @@ bash "$SKILL_DIR/scripts/run.sh" craft
 - 在 `recorder/inject.js` 引入 npm 依赖 —— `addInitScript` 注入约束,只能用浏览器原生 API
 - 把端口 / Dashboard 暴露公网 —— logger 监听 `0.0.0.0:7777` 且无鉴权,仅本地开发
 - 并行起多个 `launch.js` 共用同一 `.craft-rpa/profile/` —— Chrome 单实例锁,会启动失败或损坏 profile
-- 改了 `inject.js` 的 `LOGGER` 端口但没改 `logger.js` / `dashboard.html` —— 三处必须同步(Hard Constraints #2)
+- 在任一入口重新硬编码 logger URL/port —— 统一通过 `CRAFT_RPA_PORT` 和启动注入配置派生
+- 让被录制页面直接调用 `/control/*` —— 页面脚本不是可信控制端，AI 使用 `run.sh control`
 - 录制时 `Ctrl+C` 强杀 launch.js —— 优先 `run.sh stop`,让 SIGINT 走完优雅关闭路径,profile 才能正确落盘
 - 把 `.craft-rpa/` 提交进 git —— 该目录全是业务数据 + 运行时,装 skill 到新仓库时在仓库根 `.gitignore` 加一行 `.craft-rpa/`
 

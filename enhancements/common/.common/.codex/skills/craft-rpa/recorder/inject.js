@@ -2,7 +2,7 @@
  * 浏览器端事件监听注入脚本 —— RPA 增强版
  *
  * 通过 Playwright 的 addInitScript 在每个页面加载前注入。
- * 监听用户的所有交互、网络请求、路由变化和异常，实时 POST 给本地 logger。
+ * 监听用户交互、路由变化和异常，优先通过 Playwright binding 写入本地 logger。
  *
  * RPA 友好的元素详情包括：
  *   - 多种选择器策略（id / data-testid / aria / role+name / text / css / xpath）
@@ -18,7 +18,7 @@
  *   1. 幂等：window.__loggerInjected 防重复绑定。
  *   2. 跳过 about:blank：浏览器内嵌的空白 iframe 没有有用事件，避免噪音。
  *   3. 批量+延迟发送：500ms 或攒满 10 条触发一次 flush。
- *   4. 页面卸载兜底：beforeunload / pagehide 时 sendBeacon 强制刷出。
+ *   4. 传输主路径：Playwright binding；不可用时才用 sendBeacon / 原生 fetch 回退。
  *   5. 敏感字段标记：命中 password / 含 password|secret|token|captcha 字段名的元素在 target.sensitive=true；
  *      value 默认透传原值（RPA 流程参考所需）；设 REDACT_SENSITIVE=true 才替换成 [REDACTED len=N]。
  */
@@ -34,7 +34,10 @@
 
     // ============ 常量 ============
 
-    const LOGGER = 'http://localhost:7777/log';
+    const CONFIG = globalThis.__CRAFT_RPA_CONFIG__ || {};
+    const LOGGER = CONFIG.loggerUrl || 'http://localhost:7777/log';
+    const MAX_FALLBACK_PAYLOAD_BYTES = CONFIG.maxFallbackPayloadBytes || 60 * 1024;
+    const NATIVE_FETCH = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
 
     /** 会话 ID：用于把同一个页面 / SPA 流程的事件串起来。整页跳转会产生新的 sessionId（属正常） */
     const SESSION_ID =
@@ -92,35 +95,98 @@
     }
 
     /**
-     * 把队列里的事件全部发送
-     * 优先 sendBeacon（卸载时也能发），失败时退回 fetch keepalive
+     * 通过 HTTP 回退发送事件，并按 keepalive/beacon 的实际限制拆批。
+     *
+     * @param {Object[]} events 待发送事件。
      */
-    function flush() {
+    function sendHttpFallback(events) {
+        const batches = [];
+        let current = [];
+        for (const event of events) {
+            const candidate = current.concat(event);
+            const candidateBody = JSON.stringify(candidate);
+            if (new TextEncoder().encode(candidateBody).length <= MAX_FALLBACK_PAYLOAD_BYTES) {
+                current = candidate;
+                continue;
+            }
+            if (current.length > 0) batches.push(current);
+            const singleBody = JSON.stringify([event]);
+            if (new TextEncoder().encode(singleBody).length <= MAX_FALLBACK_PAYLOAD_BYTES) {
+                current = [event];
+            } else {
+                console.warn('[inject] dropped oversized fallback event:', event.kind, event.type);
+                current = [{
+                    sessionId: SESSION_ID,
+                    clientTime: new Date().toISOString(),
+                    url: location.href,
+                    frame: getFrameContext(),
+                    kind: 'error',
+                    type: 'transport.drop',
+                    message: 'fallback event exceeded payload limit',
+                    droppedKind: event.kind,
+                    droppedType: event.type,
+                }];
+            }
+        }
+        if (current.length > 0) batches.push(current);
+
+        for (const batch of batches) {
+            const body = JSON.stringify(batch);
+            try {
+                const sent = navigator.sendBeacon
+                    ? navigator.sendBeacon(LOGGER, new Blob([body], { type: 'application/json' }))
+                    : false;
+                if (!sent && NATIVE_FETCH) {
+                    void NATIVE_FETCH(LOGGER, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body,
+                        keepalive: true,
+                    }).catch(error => {
+                        console.warn('[inject] fallback fetch failed:', error.message);
+                    });
+                } else if (!sent) {
+                    console.warn('[inject] fallback transport unavailable:', batch.length, 'events');
+                }
+            } catch (e) {
+                // 回退失败只能写浏览器控制台，不能把异常抛进业务页面。
+                console.warn('[inject] fallback transport failed:', e.message);
+            }
+        }
+    }
+
+    /**
+     * 把队列里的事件发送到 Playwright binding，失败或卸载时走 HTTP 回退。
+     *
+     * @param {{unloading?:boolean}} [options] 卸载阶段必须使用同步发起的回退通道。
+     */
+    function flush(options = {}) {
         if (queue.length === 0) return;
         const batch = queue.splice(0);
         if (flushTimer) {
             clearTimeout(flushTimer);
             flushTimer = null;
         }
-        const body = JSON.stringify(batch);
         try {
-            if (navigator.sendBeacon) {
-                navigator.sendBeacon(LOGGER, new Blob([body], { type: 'application/json' }));
-            } else {
-                fetch(LOGGER, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body,
-                    keepalive: true,
+            if (options.unloading) {
+                sendHttpFallback(batch);
+                return;
+            }
+            if (typeof window.__craftRpaAppendEvents === 'function') {
+                void Promise.resolve(window.__craftRpaAppendEvents(batch)).catch(error => {
+                    console.warn('[inject] binding transport failed:', error.message);
+                    sendHttpFallback(batch);
                 });
+            } else {
+                sendHttpFallback(batch);
             }
         } catch (e) {
-            // 发送失败不抛出，避免影响业务页面
+            sendHttpFallback(batch);
         }
     }
 
-    window.addEventListener('beforeunload', flush);
-    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', () => flush({ unloading: true }));
+    window.addEventListener('pagehide', () => flush({ unloading: true }));
 
     // ============ 上下文：iframe / 视口 ============
 
@@ -652,66 +718,6 @@
             target: getRichElementInfo(e.target),
         });
     }, true);
-
-    // ============ 网络请求拦截 ============
-
-    const origFetch = window.fetch;
-    window.fetch = async function (...args) {
-        const [input, init = {}] = args;
-        const url = typeof input === 'string' ? input : input.url;
-        const method = init.method || (typeof input !== 'string' && input.method) || 'GET';
-        const start = performance.now();
-        try {
-            const resp = await origFetch.apply(this, args);
-            send({
-                kind: 'network',
-                type: 'fetch',
-                method,
-                requestUrl: url,
-                status: resp.status,
-                durationMs: Math.round(performance.now() - start),
-            });
-            return resp;
-        } catch (err) {
-            send({
-                kind: 'network',
-                type: 'fetch',
-                method,
-                requestUrl: url,
-                error: err.message,
-                durationMs: Math.round(performance.now() - start),
-            });
-            throw err;
-        }
-    };
-
-    const OrigXHR = window.XMLHttpRequest;
-    window.XMLHttpRequest = function () {
-        const xhr = new OrigXHR();
-        let _method, _url, _start;
-        const origOpen = xhr.open;
-        xhr.open = function (method, url, ...rest) {
-            _method = method;
-            _url = url;
-            return origOpen.call(this, method, url, ...rest);
-        };
-        const origSend = xhr.send;
-        xhr.send = function (...args) {
-            _start = performance.now();
-            xhr.addEventListener('loadend', () => {
-                send({
-                    kind: 'network',
-                    type: 'xhr',
-                    method: _method,
-                    requestUrl: _url,
-                    status: xhr.status,
-                    durationMs: Math.round(performance.now() - _start),
-                });
-            });
-            return origSend.apply(this, args);
-        };
-        return xhr;
-    };
 
     // ============ SPA 路由 ============
 

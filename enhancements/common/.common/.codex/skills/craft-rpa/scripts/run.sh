@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# craft-rpa lifecycle —— start / stop / status / sessions / logs / craft
+# craft-rpa lifecycle —— start / stop / status / sessions / logs / control / craft
 #
 # 数据位置(per-project,与 skill 实现解耦):
 #   ${CRAFT_RPA_HOME:-<cwd>/.craft-rpa}/
 #     ├── sessions/<YYYY-MM-DD_HH-MM-SS>/session.jsonl   每次 start 新建,不覆盖
 #     ├── profile/                                       Chrome 持久 profile(登录态)
-#     ├── runtime/recorder/node_modules/                  可重建运行时依赖
+#     ├── runtime/recorder/node_modules/                 Playwright 运行时依赖
 #     ├── .launch.{pid,log}                              进程管理 + 日志
 #     └── .current-session                               最近一次 start 的 ts
 #
-# skill 内 recorder/ 只保留静态代码资产；运行时路径通过环境变量显式传给 launch.js。
+# Skill 目录只保存受管代码资产；profile、session 和依赖均通过显式路径落到数据根。
 #
 # 用法:
 #   bash run.sh start [URL]
@@ -17,7 +17,8 @@
 #   bash run.sh status
 #   bash run.sh sessions
 #   bash run.sh logs [N]
-#   bash run.sh craft [--session <ts>] [--format trace|playwright] [OUT]
+#   bash run.sh control <action> [JSON]
+#   bash run.sh craft [--session <ts>] [OUT]
 
 set -e
 
@@ -34,26 +35,39 @@ LOG_FILE="$CRAFT_RPA_HOME/.launch.log"
 CURRENT_FILE="$CRAFT_RPA_HOME/.current-session"
 RUNTIME_DIR="$CRAFT_RPA_HOME/runtime/recorder"
 RUNTIME_MODULES_DIR="$RUNTIME_DIR/node_modules"
+
+# 旧版本曾在受管 Skill 目录创建这些运行时条目，新版首次启动精确迁移或清理。
 LEGACY_SESSION_PATH="$RECORDER_DIR/session.jsonl"
 LEGACY_PROFILE_PATH="$RECORDER_DIR/profile"
 LEGACY_MODULES_DIR="$RECORDER_DIR/node_modules"
 
-DASHBOARD_URL="http://localhost:7777/dashboard"
+CRAFT_RPA_PORT="${CRAFT_RPA_PORT:-7777}"
+DASHBOARD_URL="http://localhost:$CRAFT_RPA_PORT/dashboard"
 
 prepare_runtime_dependencies() {
+    local needs_install=0
     mkdir -p "$RUNTIME_DIR"
-    RUNTIME_CHANGED=false
-    for MANIFEST in package.json package-lock.json; do
-        if [ ! -f "$RECORDER_DIR/$MANIFEST" ]; then
-            continue
+
+    if [ ! -d "$RUNTIME_MODULES_DIR/playwright" ]; then
+        needs_install=1
+    fi
+    if [ ! -f "$RUNTIME_DIR/package.json" ] || ! cmp -s "$RECORDER_DIR/package.json" "$RUNTIME_DIR/package.json"; then
+        cp "$RECORDER_DIR/package.json" "$RUNTIME_DIR/package.json"
+        needs_install=1
+    fi
+    if [ -f "$RECORDER_DIR/package-lock.json" ]; then
+        if [ ! -f "$RUNTIME_DIR/package-lock.json" ] || ! cmp -s "$RECORDER_DIR/package-lock.json" "$RUNTIME_DIR/package-lock.json"; then
+            cp "$RECORDER_DIR/package-lock.json" "$RUNTIME_DIR/package-lock.json"
+            needs_install=1
         fi
-        if [ ! -f "$RUNTIME_DIR/$MANIFEST" ] || ! cmp -s "$RECORDER_DIR/$MANIFEST" "$RUNTIME_DIR/$MANIFEST"; then
-            cp "$RECORDER_DIR/$MANIFEST" "$RUNTIME_DIR/$MANIFEST"
-            RUNTIME_CHANGED=true
-        fi
-    done
-    if [ "$RUNTIME_CHANGED" = true ] || [ ! -d "$RUNTIME_MODULES_DIR/playwright" ]; then
+    elif [ -f "$RUNTIME_DIR/package-lock.json" ]; then
+        rm -f "$RUNTIME_DIR/package-lock.json"
+        needs_install=1
+    fi
+
+    if [ "$needs_install" -eq 1 ]; then
         echo "[craft-rpa] installing deps under $RUNTIME_DIR (one-time, ~30-60s) ..."
+        rm -rf "$RUNTIME_MODULES_DIR"
         if [ -f "$RUNTIME_DIR/package-lock.json" ]; then
             (cd "$RUNTIME_DIR" && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --no-audit --no-fund)
         else
@@ -64,34 +78,35 @@ prepare_runtime_dependencies() {
 
 cleanup_legacy_recorder_runtime() {
     if [ -L "$LEGACY_SESSION_PATH" ]; then
-        # 只删除旧软链本身，真实 session 目标继续留在数据根。
         rm -f "$LEGACY_SESSION_PATH"
-        echo "[craft-rpa] removed legacy recorder/session.jsonl symlink"
+        echo "[craft-rpa] removed legacy recorder/session.jsonl link"
     elif [ -e "$LEGACY_SESSION_PATH" ]; then
         if [ -s "$LEGACY_SESSION_PATH" ]; then
-            LEGACY_TS=$(date +"%Y-%m-%d_%H-%M-%S")
-            LEGACY_DIR="$SESSIONS_DIR/legacy-$LEGACY_TS"
-            mkdir -p "$LEGACY_DIR"
-            mv "$LEGACY_SESSION_PATH" "$LEGACY_DIR/session.jsonl"
-            echo "[craft-rpa] migrated legacy recorder/session.jsonl → sessions/legacy-$LEGACY_TS/"
+            local legacy_ts
+            local legacy_dir
+            legacy_ts=$(date +"%Y-%m-%d_%H-%M-%S")
+            legacy_dir="$SESSIONS_DIR/legacy-$legacy_ts"
+            mkdir -p "$legacy_dir"
+            mv "$LEGACY_SESSION_PATH" "$legacy_dir/session.jsonl"
+            echo "[craft-rpa] migrated legacy recorder/session.jsonl -> sessions/legacy-$legacy_ts/"
         else
             rm -f "$LEGACY_SESSION_PATH"
         fi
     fi
 
     if [ -L "$LEGACY_PROFILE_PATH" ]; then
-        # 只删除旧软链本身，真实 profile 目标继续留在数据根。
         rm -f "$LEGACY_PROFILE_PATH"
-        echo "[craft-rpa] removed legacy recorder/profile symlink"
+        echo "[craft-rpa] removed legacy recorder/profile link"
     elif [ -e "$LEGACY_PROFILE_PATH" ]; then
-        LEGACY_TS=$(date +"%Y-%m-%d_%H-%M-%S")
-        mv "$LEGACY_PROFILE_PATH" "$CRAFT_RPA_HOME/profile-legacy-$LEGACY_TS"
-        echo "[craft-rpa] migrated legacy recorder/profile → .craft-rpa/profile-legacy-$LEGACY_TS"
+        local legacy_ts
+        legacy_ts=$(date +"%Y-%m-%d_%H-%M-%S")
+        mv "$LEGACY_PROFILE_PATH" "$CRAFT_RPA_HOME/profile-legacy-$legacy_ts"
+        echo "[craft-rpa] migrated legacy recorder/profile -> .craft-rpa/profile-legacy-$legacy_ts"
     fi
 
     if [ -L "$LEGACY_MODULES_DIR" ]; then
         rm -f "$LEGACY_MODULES_DIR"
-        echo "[craft-rpa] removed legacy recorder/node_modules symlink"
+        echo "[craft-rpa] removed legacy recorder/node_modules link"
     elif [ -e "$LEGACY_MODULES_DIR" ]; then
         # node_modules 只是可重建缓存，精确删除受管目录中的旧副本，避免 Plugin 重放再次扫描它。
         rm -rf "$LEGACY_MODULES_DIR"
@@ -130,9 +145,12 @@ case "$cmd" in
         echo "$TS" > "$CURRENT_FILE"
 
         cd "$RECORDER_DIR"
-        CRAFT_RPA_SESSION_FILE="$NEW_SESSION_DIR/session.jsonl" \
+        CRAFT_RPA_HOME="$CRAFT_RPA_HOME" \
+            CRAFT_RPA_SESSION_DIR="$NEW_SESSION_DIR" \
+            CRAFT_RPA_SESSION_FILE="$NEW_SESSION_DIR/session.jsonl" \
             CRAFT_RPA_PROFILE_DIR="$PROFILE_DIR" \
             CRAFT_RPA_PLAYWRIGHT_MODULE="$RUNTIME_MODULES_DIR/playwright" \
+            CRAFT_RPA_PORT="$CRAFT_RPA_PORT" \
             nohup node launch.js "$URL" > "$LOG_FILE" 2>&1 &
         PID=$!
         echo "$PID" > "$PID_FILE"
@@ -250,6 +268,17 @@ case "$cmd" in
         fi
         ;;
 
+    control)
+        ACTION="${2:-}"
+        PAYLOAD="${3:-}"
+        if [ -z "$ACTION" ]; then
+            echo "[craft-rpa] usage: run.sh control <action> [JSON]"
+            exit 2
+        fi
+        [ -z "$PAYLOAD" ] && PAYLOAD='{}'
+        CRAFT_RPA_PORT="$CRAFT_RPA_PORT" node "$SKILL_DIR/scripts/control-client.js" "$ACTION" "$PAYLOAD"
+        ;;
+
     craft)
         SESSION=""
         OUT=""
@@ -301,6 +330,8 @@ Usage: bash $(basename "$0") <cmd> [args]
   status                                   运行状态 + 当前会话 + 历史数 + 数据根
   sessions                                 列所有历史会话(* 标当前)
   logs [N]                                 tail launch 日志(默认 50)
+  control <action> [JSON]                  调用 pages/observe/click/fill/type/press/
+                                           select/check/uncheck/open/close/focus 等接口
   craft [--session <ts>] [OUT]             转 jsonl → trace.md
                                            --session 默认 = 当前 / 最新
                                            OUT       默认 = ./trace.md
