@@ -258,6 +258,25 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.doesNotMatch(autoLoop, /未确认时停止，不得 record/);
 });
 
+test("trellis-release 只匹配上线操作单而不抢占实际发版", () => {
+  for (const relativePath of [
+    ".agents/skills/trellis-release/SKILL.md",
+    ".claude/skills/trellis-release/SKILL.md",
+  ]) {
+    const skill = readSource(relativePath);
+
+    assert.match(
+      skill,
+      /只在用户明确要求‘生成上线单’‘汇总 release\.md’或点名 trellis-release 时使用/,
+    );
+    assert.match(
+      skill,
+      /实际软件包发版、部署和版本标签流程应先读取项目 SOP，不使用本 skill/,
+    );
+    assert.doesNotMatch(skill, /用于正式上线前整理/);
+  }
+});
+
 test("最终 dogfood 产物只有一个 Hub marker 且 owner Patch 已落盘", () => {
   const workflow = readRoot(".trellis/workflow.md");
   const beforeDevAgents = readRoot(".agents/skills/trellis-before-dev/SKILL.md");
