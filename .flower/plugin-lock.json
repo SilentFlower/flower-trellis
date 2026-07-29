@@ -1,0 +1,38 @@
+{
+  "plugins": [
+    {
+      "capabilities": {
+        "approvalDigest": null,
+        "denied": [],
+        "granted": [
+          "content.scripts",
+          "content.skills",
+          "patch.adapter",
+          "patch.hook",
+          "patch.insert",
+          "patch.migration",
+          "patch.remove",
+          "patch.replace"
+        ],
+        "profile": "system"
+      },
+      "commit": null,
+      "compatibility": {
+        "flower": "*"
+      },
+      "dependencies": {},
+      "id": "flower/skill-garden",
+      "integrity": "sha256:b92910d2e0178e5fa19cdc79d3c72bf312bf81c1c0409d9ac26c0de1306ca59e",
+      "source": {
+        "id": "flower",
+        "reference": "package:skill-garden:0.6",
+        "type": "builtin"
+      },
+      "version": "0.5.2-beta.0"
+    }
+  ],
+  "roots": [
+    "flower/skill-garden"
+  ],
+  "schemaVersion": 1
+}
