@@ -32,7 +32,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 除 auto-loop 内部 `commit-only` 外，任何普通 push 或用户 `commit-only` 在读取 Git 提交计划前，按以下顺序验证交互式完成链：
 
-1. 当前工作内容缺少有效 Check-All，或实际 diff、检查范围/结论已变化：先向用户给出两个选项：`运行 check-all`（推荐）或 `跳过检查并继续 push`。用户选择运行时返回 Phase 2.2；用户明确选择跳过检查时，记录“用户已接受跳过 Check-All 风险”，直接继续本 skill 的 Git 预检与计划。唯一例外是当前有效 `spec_update_result.status=written` 的 `changed_files`，且这些受控写入全部位于 `.trellis/spec/**`；该 Update-Spec 自校验结果不触发额外 Check-All。未选择跳过检查时，当前 direct Git 请求只作为“严格通过后继续”的条件意图；Check-All 有 findings、blocked、部分验证或实质剩余风险时停止。此分支不得运行 Update-Spec；除用户明确选择跳过检查外，不得读取 Git 计划。
+1. 当前工作内容缺少有效 Check-All，或实际 diff、检查范围/结论已变化：返回 Phase 2.2。唯一例外是当前有效 `spec_update_result.status=written` 的 `changed_files`，且这些受控写入全部位于 `.trellis/spec/**`；该 Update-Spec 自校验结果不触发额外 Check-All。当前 direct Git 请求只作为“严格通过后继续”的条件意图；Check-All 有 findings、blocked、部分验证或实质剩余风险时停止。此分支不得运行 Update-Spec，也不得读取 Git 计划。
 2. Check-All 有效后检查当前有效的 `spec_update_result`。结果缺失，或除上述受控 spec 写入外的实际 diff、Check-All 结论、用户 spec 意图已变化时，先加载 `trellis-update-spec`；只有新的 `no-op|written` 才能回到本 skill。
 3. `status=no-op|written`：继续本 skill 的 Git 预检与计划。
 4. `status=needs-review`：停止，不生成提交计划。
