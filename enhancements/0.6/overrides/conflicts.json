@@ -115,11 +115,13 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch workflow-phase-1-activate v0.6 -->\n#### 1.4 Activate task `[required · once]`\n\nBefore changing task status, load `trellis-task-brief`",
-          "display the full brief in chat, then stop the current turn and wait for planning review confirmation"
+          "Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief",
+          "Ordinary implementation or task-creation intent is not confirmation.",
+          "After a later confirmation, or in the same turn when that explicit preauthorization remains valid"
         ]
       },
       "owner": "trellis-task-brief",
-      "reason": "Phase 1.4 必须自包含 brief 展示、停止和后续确认门禁。"
+      "reason": "Phase 1.4 只保留 Brief 展示、默认等待和由 trellis-task-brief 验证的预授权分支。"
     },
     {
       "id": "brainstorm-required-planning-handoff",

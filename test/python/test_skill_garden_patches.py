@@ -958,7 +958,11 @@ class PatchConsumerTest(unittest.TestCase):
         )
         self.assertIn("skill-garden patch workflow-phase-1-activate", workflow)
         self.assertIn(
-            "display the full brief in chat, then stop the current turn",
+            "Unless `trellis-task-brief` validates an explicit preauthorization",
+            workflow,
+        )
+        self.assertIn(
+            "After a later confirmation, or in the same turn",
             workflow,
         )
         self.assertIn("### Skill-Garden Workflow Owner Index", workflow)

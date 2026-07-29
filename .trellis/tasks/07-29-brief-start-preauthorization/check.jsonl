@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查默认确认、显式预授权窄例外和 Brief 必须展示的语义无冲突。"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "检查 Patch/conflict/compiled targets 和 vendor-snapshot 一致性。"}
+{"file": ".trellis/tasks/07-29-brief-start-preauthorization/research/historical-case.md", "reason": "确认历史预授权场景被覆盖且模糊意图不会误判。"}

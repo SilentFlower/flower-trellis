@@ -368,6 +368,7 @@ node scripts/check-ai-context-budget.mjs --strict
 - Trigger:修改 Phase 1.4、`trellis-brainstorm` planning handoff、`trellis-task-brief`、
   auto-loop planning start gate，或 `.trellis/scripts/task.py start` 的 `planning -> in_progress` 行为。
 - Scope:交互式 planning 的 semantic readiness 与 brief review 由 workflow/Skill 负责；
+  默认在完整展示 brief 后等待确认；当前对话中明确绑定最终 Brief 的预授权可作为窄例外。
   `task.py` 只校验可确定的文件状态。schema 2 auto-loop 使用绑定 planning/handoff hash 的 run manifest
   授权，不逐任务确认 brief；schema 1 outstanding action 继续按旧确认协议恢复。
 
@@ -397,10 +398,13 @@ prd.md | design.md | implement.md
 
 ### 3. Contracts
 
-- Phase 1.4 必须加载 `trellis-task-brief`，从最终 planning artifacts 刷新 `brief.md`，在对话
-  完整展示后结束当前回合。只有用户在后续消息确认已展示的 brief，才可运行 `task.py start`。
+- Phase 1.4 必须加载 `trellis-task-brief`，从最终 planning artifacts 刷新 `brief.md` 并在对话中
+  完整展示。默认结束当前回合等待确认；只有用户明确把当前任务或最终 Brief 与“展示后直接开始、
+  不用再次确认、视为已确认”绑定，且最终范围未变化时，才可同回合运行 `task.py start`。
 - `trellis-brainstorm` 的 Quality Bar 只表示 planning artifacts 可进入最终 brief handoff；
-  用户在最终产物和完整 brief 展示前表达的实现意向不能复用为 planning review。
+  普通实现意图或任务创建授权不能复用为 planning review，也不能解释为 Brief 预授权。
+- 预授权只取当前对话中仍明确适用于本任务的表达，不写 session runtime，也不扩展为跨会话、
+  跨任务或永久偏好。范围扩大、存在未解决 Open Questions、新增高风险边界或用户撤回时失效。
 - schema 2 auto-loop 在 `start_task` 前必须返回 `review_planning_readiness`，复核验收标准可测试、
   范围/非目标明确、关键决策收敛和仓库证据充分。结果绑定当前实际存在的 `prd.md` / `design.md` /
   `implement.md` 路径与内容 SHA-256；`repairable` 进入最多 3 轮 planning repair，`blocking` 只阻塞当前项。
@@ -426,6 +430,9 @@ prd.md | design.md | implement.md
 | planning task 缺少 `brief.md` | start 退出非零，状态/pointer/hook 不变，提示运行 `trellis-task-brief` |
 | `prd.md`、`design.md` 或 `implement.md` 晚于 brief | start 退出非零并列出过期来源 |
 | task/artifact 文件访问或解析失败 | 默认失败关闭，输出可恢复错误，不抛 traceback |
+| 普通实现意图或任务创建授权 | 完整展示 brief 后等待后续确认 |
+| 当前最终 Brief 有明确预授权且范围未变化 | 完整展示后允许同回合启动 |
+| 范围扩大、Open Questions、高风险边界或用户撤回 | 预授权失效，回到默认确认路径 |
 | brief 存在且不早于所有实际存在的权威 artifact | 允许现有 start 流程进入 `in_progress` |
 | 历史任务已经是 `in_progress` 且没有 brief | 允许重新绑定，不批量强制迁移 |
 | 无 session identity | 仍先执行 brief guard；通过后才进入既有 degraded mode |
@@ -443,6 +450,8 @@ prd.md | design.md | implement.md
   状态或 hook 副作用前阻断，AI 返回最终 brief handoff。
 - Good:用户 review brief 后又修改 `design.md`；start 列出 `design.md` 为更新来源，要求刷新并
   重新 review。
+- Good:用户明确说“最终 Brief 展示后直接开始，不用再问”；最终范围未变化且无未解决问题，
+  Skill 完整展示 brief 后由主 workflow 同回合启动。
 - Good:schema 2 auto-loop 对全队列完成内容绑定的 readiness review 和 brief 刷新，manifest 固化
   planning/handoff hash 后直接返回 `start_task`，运行阶段不再逐任务停顿。
 - Base:轻量任务只有 `prd.md` 和更新后的 brief；校验通过，不机械要求不存在的 design/implement。
@@ -451,6 +460,7 @@ prd.md | design.md | implement.md
   create -> plan -> start 仍可绕过。
 - Bad:schema 2 auto-loop 看到三件套/brief 文件存在就直接 start，或不生成 manifest 就把启动指令
   当成对任意后续内容的授权；这会绕过语义质量线和内容漂移保护。
+- Bad:把“开始做吧”“可以创建任务”等普通意图视为 Brief 预授权，或把一次预授权保存为长期偏好。
 
 ### 6. Tests Required
 
@@ -463,6 +473,8 @@ prd.md | design.md | implement.md
   覆盖 create 已建立的 planning pointer。
 - JS/Python Patch consumer 都断言 Phase 1.4、Brainstorm readiness/handoff、task.py validator/guard
   的最终 marker 与语义；`.agents`、`.claude` 目标至少各覆盖一次。
+- 文案契约测试必须覆盖默认等待、显式预授权同回合启动、普通意图不构成预授权，以及范围扩大、
+  Open Questions 和高风险边界使预授权失效；同时断言没有新增 session helper 或 `task.py` 授权状态。
 - Patch conflict policy 同时要求 handoff/readiness 两个 operation，并检查最终 workflow、skill、
   script 的唯一签名；selector/baseline 漂移继续保持全量预检零写入。
 - 运行 `npm run sync`、enhance-only 二次幂等、`npm test`、Patch conflict、默认及 strict context
@@ -483,8 +495,10 @@ task.py create -> 写 prd/design/implement -> task.py start -> 开始实现
 ```text
 task.py create -> 完善最终 planning artifacts
                -> semantic readiness review(content-bound)
-               -> trellis-task-brief -> 展示完整 brief -> 停止等待
-用户后续确认(content-bound) -> task.py start -> brief freshness guard -> in_progress
+               -> trellis-task-brief -> 展示完整 brief
+                  -> 默认:停止等待 -> 用户后续确认(content-bound)
+                  -> 窄例外:当前最终 Brief 的显式预授权仍有效
+               -> task.py start -> brief freshness guard -> in_progress
 ```
 
 原因:workflow/skill 保留真实用户确认边界，脚本只验证缺失、过期和 I/O 失败这类确定事实；

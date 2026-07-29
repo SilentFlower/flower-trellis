@@ -489,7 +489,8 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /Load `trellis-push`/);
   assert.match(workflowText, /task_intent\.py create --title/);
   assert.match(workflowText, /skill-garden patch workflow-phase-1-activate/);
-  assert.match(workflowText, /display the full brief in chat, then stop the current turn/);
+  assert.match(workflowText, /Unless `trellis-task-brief` validates an explicit preauthorization/);
+  assert.match(workflowText, /After a later confirmation, or in the same turn/);
   assert.ok(
     workflowText.indexOf("| Task Brief Handoff |") <
       workflowText.indexOf("| Project Knowledge Discovery |"),
@@ -740,7 +741,8 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
     assert.match(value, /skill-garden patch workflow-state-missing-task/);
     assert.match(value, /skill-garden patch workflow-runtime-contract-reference/);
     assert.match(value, /skill-garden patch workflow-phase-1-activate/);
-    assert.match(value, /display the full brief in chat, then stop the current turn/);
+    assert.match(value, /Unless `trellis-task-brief` validates an explicit preauthorization/);
+    assert.match(value, /After a later confirmation, or in the same turn/);
     assert.match(value, /follow `\[workflow-state:no_task\]` \/ Request Intent Routing/);
     assert.match(
       fs.readFileSync(

@@ -115,7 +115,8 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(brainstorm, /Wait for the user's planning review confirmation/);
   assert.match(brainstormQualityBar, /contains testable acceptance criteria/);
   assert.match(brainstormQualityBar, /Repository-answerable questions have already been answered/);
-  assert.match(taskBrief, /等待用户确认 planning artifacts 和 brief/);
+  assert.match(taskBrief, /默认等待用户确认后再运行 `task\.py start`/);
+  assert.match(taskBrief, /免除第二次确认/);
   assert.match(beforeDev, /Follow the workflow `Request Triage` Project Knowledge Discovery contract/);
   assert.doesNotMatch(beforeDev, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(updateHook, /priority: blocking_confirmation_required/);

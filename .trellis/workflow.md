@@ -526,11 +526,11 @@ Skip this step. Context is loaded directly by the `trellis-before-dev` skill in 
 <!-- BEGIN skill-garden patch workflow-phase-1-activate v0.6 -->
 #### 1.4 Activate task `[required · once]`
 
-Before changing task status, load `trellis-task-brief`, refresh `<task>/brief.md`, display the full brief in chat, then stop the current turn and wait for planning review confirmation. Earlier implementation intent is not confirmation.
+Before changing task status, load `trellis-task-brief`, refresh `<task>/brief.md`, and display the full brief in chat. Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief, stop the current turn and wait for planning review confirmation. Ordinary implementation or task-creation intent is not confirmation.
 
 Lightweight tasks need `prd.md`; complex tasks also need `design.md` and `implement.md`. Sub-agent routes require real entries in both JSONL manifests.
 
-Only after the user confirms the displayed brief in a later message, run:
+After a later confirmation, or in the same turn when that explicit preauthorization remains valid, run:
 
 ```bash
 python3 ./.trellis/scripts/task.py start <task-dir>
