@@ -4,6 +4,45 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.2](https://github.com/SilentFlower/flower-trellis/compare/v0.5.1...v0.5.2) (2026-07-29)
+
+
+### ✨ 新功能 Features
+
+* **0.6:** 同步 Push 门禁与意图识别 ([8abf3b1](https://github.com/SilentFlower/flower-trellis/commit/8abf3b1439d7a5dd2af0d698c4094aa6c7207fb3))
+* **brief:** 同步 Brief 显式预授权流程 ([7c179af](https://github.com/SilentFlower/flower-trellis/commit/7c179affd7389cac053d28104e0d624773159c72))
+* **spec-router:** 同步章节感知加载能力 ([0d51a24](https://github.com/SilentFlower/flower-trellis/commit/0d51a24e6136bb9b167cd5716eeb9958b5d8412e))
+* **trellis:** 补全 Meta 架构并修复 Auto-Loop 自恢复 ([943179f](https://github.com/SilentFlower/flower-trellis/commit/943179f42e3e3d068bf98f8ff60b2aa324acc4dd))
+* **plugin:** 建立契约与项目状态存储 ([3c664c3](https://github.com/SilentFlower/flower-trellis/commit/3c664c337806849d7bf040f269eb0f1ebed115f0))
+* **plugin:** 支持 GitHub 外部格式与交互来源管理 ([8701039](https://github.com/SilentFlower/flower-trellis/commit/8701039ea8f8018e7e8d017c0ac5f545b9b2549b))
+* **plugin:** 新增 GitLab 市场外部来源 ([3688744](https://github.com/SilentFlower/flower-trellis/commit/3688744d7663952d437f4bc4e5c8187798c45453))
+* **plugin:** 新增插件能力授权策略 ([32ec993](https://github.com/SilentFlower/flower-trellis/commit/32ec993de77686fb411451c4165ca17367cf5e33))
+* **plugin:** 新增插件运行时生命周期 ([0d7c5b1](https://github.com/SilentFlower/flower-trellis/commit/0d7c5b1ae4821e8cbadcd857608399c2e725c560))
+* **plugin:** 添加作者工具与 CI 契约 ([4e34b87](https://github.com/SilentFlower/flower-trellis/commit/4e34b878f37fddb3732b2264b90f79b3610c82d0))
+* **plugin:** 迁移 skill-garden 到插件运行时 ([2e9fd18](https://github.com/SilentFlower/flower-trellis/commit/2e9fd18123e3164a68971725269619401b2625b4))
+* 增加 Check-All 下一步引导 ([fa488f8](https://github.com/SilentFlower/flower-trellis/commit/fa488f83c85983b8b8c545b85e4e42d20b290bdf))
+
+
+### 🐛 修复 Bug Fixes
+
+* **trellis:** 移除旧更新检查 marker ([a33f376](https://github.com/SilentFlower/flower-trellis/commit/a33f376d7efe15441cba8fbe0b0a67c6f1a15f6c))
+* **plugin:** 优化外部来源交互与 archive 安全检测 ([4699a22](https://github.com/SilentFlower/flower-trellis/commit/4699a2211cb280e5a085c852950fda52af28c456))
+* **plugin:** 修复远程更新并完成集成验收 ([3db8320](https://github.com/SilentFlower/flower-trellis/commit/3db83208a6da12c3bbcad1730e144271ff02a96a))
+* **trellis:** 优化 auto-loop 重试预算与跟踪状态 ([19d7a1a](https://github.com/SilentFlower/flower-trellis/commit/19d7a1ae5302af56085e1053706442ad7cb347b0))
+* **trellis:** 支持跳过 Check-All 并修复 update -y ([1bd0a12](https://github.com/SilentFlower/flower-trellis/commit/1bd0a126f91f6b915d2253f1a497bda40fc41edb))
+* 修复 Windows Trellis Patch 命令漂移 ([5892e7f](https://github.com/SilentFlower/flower-trellis/commit/5892e7f7629be0a7ee075a3758f594a220c7db1f))
+
+
+### ♻️ 重构 Refactor
+
+* **trellis:** 拆分 Check-All 检查档位并同步快照 ([ef1a8c4](https://github.com/SilentFlower/flower-trellis/commit/ef1a8c434244c06cf565c449173c6d6763a0a160))
+
+
+### 🧰 维护 Maintenance
+
+* **trellis:** 同步 Flower 0.5.1-beta.1 清单 ([d3dfc27](https://github.com/SilentFlower/flower-trellis/commit/d3dfc2759927b0759b10e2ae246b68438dc3d339))
+* **trellis:** 执行 Flower 自更新同步 ([f79ce33](https://github.com/SilentFlower/flower-trellis/commit/f79ce33bcc409129a054f1b59a016cdbe1ea991b))
+
 ## [0.5.2-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.5.2-beta.0...v0.5.2-beta.1) (2026-07-29)
 
 
