@@ -1,0 +1,38 @@
+{
+  "id": "refine-flower-update-push-gate",
+  "name": "refine-flower-update-push-gate",
+  "title": "优化 trellis-push 检查门禁与意图识别",
+  "description": "合并优化两个 AI workflow 体验问题：trellis-push 在缺少 Check-All 时多出一次确认卡点，以及无任务状态下把设计反馈误判为 direct_edit 的意图识别边界。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-07-29T12:20:56+08:00",
+    "completedSteps": [
+      "完成 trellis-push 非阻断完成链证据与单次确认改造",
+      "完成 Request Triage 授权与确定性分类改造",
+      "完成 full Check-All、Update-Spec 与回归验证",
+      "skill-garden 与 flower-trellis 业务提交已推送"
+    ],
+    "partialStep": null,
+    "nextStep": "等待用户明确请求 trellis-finish-work",
+    "notes": "业务变更已推送；.flower/ 本地状态保留未提交。"
+  }
+}

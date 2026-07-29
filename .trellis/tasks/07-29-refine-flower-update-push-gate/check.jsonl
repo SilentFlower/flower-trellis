@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查 0.6 源与发布快照同步、Gate owner 唯一性和 Request Intent routing 回归。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "检查 self-update 输出、update hook 只读边界和 post_action 收尾契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "检查 Patch catalog、conflict assertions、compiled targets 和源/最终产物一致性。"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "检查新增门禁文案没有复制到高频上下文造成预算或 owner 漂移。"}

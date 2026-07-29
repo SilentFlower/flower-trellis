@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "定义 0.6 skill-garden 源、enhancements 快照同步、workflow gate owner 和 Request Intent routing 契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "定义 self-check/self-update、Flower update hook、flower-update-result 和受控更新收尾边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "定义 0.6 workflow/skill/hook Patch Engine、owner 去重、conflict policy 和源/最终产物验证。"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "定义 workflow/state/skill 高频上下文预算与规则去重边界。"}
