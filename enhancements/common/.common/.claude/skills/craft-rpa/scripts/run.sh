@@ -5,13 +5,11 @@
 #   ${CRAFT_RPA_HOME:-<cwd>/.craft-rpa}/
 #     ├── sessions/<YYYY-MM-DD_HH-MM-SS>/session.jsonl   每次 start 新建,不覆盖
 #     ├── profile/                                       Chrome 持久 profile(登录态)
+#     ├── runtime/recorder/node_modules/                  可重建运行时依赖
 #     ├── .launch.{pid,log}                              进程管理 + 日志
 #     └── .current-session                               最近一次 start 的 ts
 #
-# skill 内 .claude/skills/craft-rpa/recorder/ 启动时建两个软链 → 数据根:
-#   ├── session.jsonl → $CRAFT_RPA_HOME/sessions/<ts>/session.jsonl
-#   └── profile        → $CRAFT_RPA_HOME/profile
-# launch.js 用 __dirname 解析 session.jsonl / profile,通过软链落到项目根 .craft-rpa/
+# skill 内 recorder/ 只保留静态代码资产；运行时路径通过环境变量显式传给 launch.js。
 #
 # 用法:
 #   bash run.sh start [URL]
@@ -34,12 +32,72 @@ PROFILE_DIR="$CRAFT_RPA_HOME/profile"
 PID_FILE="$CRAFT_RPA_HOME/.launch.pid"
 LOG_FILE="$CRAFT_RPA_HOME/.launch.log"
 CURRENT_FILE="$CRAFT_RPA_HOME/.current-session"
-
-# skill 内 launch.js 通过 __dirname 看到的入口(软链 → 数据根)
-SESSION_LINK="$RECORDER_DIR/session.jsonl"
-PROFILE_LINK="$RECORDER_DIR/profile"
+RUNTIME_DIR="$CRAFT_RPA_HOME/runtime/recorder"
+RUNTIME_MODULES_DIR="$RUNTIME_DIR/node_modules"
+LEGACY_SESSION_PATH="$RECORDER_DIR/session.jsonl"
+LEGACY_PROFILE_PATH="$RECORDER_DIR/profile"
+LEGACY_MODULES_DIR="$RECORDER_DIR/node_modules"
 
 DASHBOARD_URL="http://localhost:7777/dashboard"
+
+prepare_runtime_dependencies() {
+    mkdir -p "$RUNTIME_DIR"
+    RUNTIME_CHANGED=false
+    for MANIFEST in package.json package-lock.json; do
+        if [ ! -f "$RECORDER_DIR/$MANIFEST" ]; then
+            continue
+        fi
+        if [ ! -f "$RUNTIME_DIR/$MANIFEST" ] || ! cmp -s "$RECORDER_DIR/$MANIFEST" "$RUNTIME_DIR/$MANIFEST"; then
+            cp "$RECORDER_DIR/$MANIFEST" "$RUNTIME_DIR/$MANIFEST"
+            RUNTIME_CHANGED=true
+        fi
+    done
+    if [ "$RUNTIME_CHANGED" = true ] || [ ! -d "$RUNTIME_MODULES_DIR/playwright" ]; then
+        echo "[craft-rpa] installing deps under $RUNTIME_DIR (one-time, ~30-60s) ..."
+        if [ -f "$RUNTIME_DIR/package-lock.json" ]; then
+            (cd "$RUNTIME_DIR" && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --no-audit --no-fund)
+        else
+            (cd "$RUNTIME_DIR" && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --no-audit --no-fund)
+        fi
+    fi
+}
+
+cleanup_legacy_recorder_runtime() {
+    if [ -L "$LEGACY_SESSION_PATH" ]; then
+        # 只删除旧软链本身，真实 session 目标继续留在数据根。
+        rm -f "$LEGACY_SESSION_PATH"
+        echo "[craft-rpa] removed legacy recorder/session.jsonl symlink"
+    elif [ -e "$LEGACY_SESSION_PATH" ]; then
+        if [ -s "$LEGACY_SESSION_PATH" ]; then
+            LEGACY_TS=$(date +"%Y-%m-%d_%H-%M-%S")
+            LEGACY_DIR="$SESSIONS_DIR/legacy-$LEGACY_TS"
+            mkdir -p "$LEGACY_DIR"
+            mv "$LEGACY_SESSION_PATH" "$LEGACY_DIR/session.jsonl"
+            echo "[craft-rpa] migrated legacy recorder/session.jsonl → sessions/legacy-$LEGACY_TS/"
+        else
+            rm -f "$LEGACY_SESSION_PATH"
+        fi
+    fi
+
+    if [ -L "$LEGACY_PROFILE_PATH" ]; then
+        # 只删除旧软链本身，真实 profile 目标继续留在数据根。
+        rm -f "$LEGACY_PROFILE_PATH"
+        echo "[craft-rpa] removed legacy recorder/profile symlink"
+    elif [ -e "$LEGACY_PROFILE_PATH" ]; then
+        LEGACY_TS=$(date +"%Y-%m-%d_%H-%M-%S")
+        mv "$LEGACY_PROFILE_PATH" "$CRAFT_RPA_HOME/profile-legacy-$LEGACY_TS"
+        echo "[craft-rpa] migrated legacy recorder/profile → .craft-rpa/profile-legacy-$LEGACY_TS"
+    fi
+
+    if [ -L "$LEGACY_MODULES_DIR" ]; then
+        rm -f "$LEGACY_MODULES_DIR"
+        echo "[craft-rpa] removed legacy recorder/node_modules symlink"
+    elif [ -e "$LEGACY_MODULES_DIR" ]; then
+        # node_modules 只是可重建缓存，精确删除受管目录中的旧副本，避免 Plugin 重放再次扫描它。
+        rm -rf "$LEGACY_MODULES_DIR"
+        echo "[craft-rpa] removed legacy recorder/node_modules cache"
+    fi
+}
 
 cmd="${1:-status}"
 
@@ -60,44 +118,22 @@ case "$cmd" in
             exit 0
         fi
 
-        if [ ! -d "$RECORDER_DIR/node_modules" ]; then
-            echo "[craft-rpa] installing deps (one-time, ~30-60s) ..."
-            (cd "$RECORDER_DIR" && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --no-audit --no-fund)
-        fi
-
         mkdir -p "$CRAFT_RPA_HOME" "$SESSIONS_DIR" "$PROFILE_DIR"
-
-        # 旧 session.jsonl 是普通文件(老版本遗留)→ 归档,避免 ln 覆盖丢数据
-        if [ -e "$SESSION_LINK" ] && [ ! -L "$SESSION_LINK" ]; then
-            if [ -s "$SESSION_LINK" ]; then
-                LEGACY_TS=$(date +"%Y-%m-%d_%H-%M-%S")
-                LEGACY_DIR="$SESSIONS_DIR/legacy-$LEGACY_TS"
-                mkdir -p "$LEGACY_DIR"
-                mv "$SESSION_LINK" "$LEGACY_DIR/session.jsonl"
-                echo "[craft-rpa] migrated legacy recorder/session.jsonl → sessions/legacy-$LEGACY_TS/"
-            else
-                rm -f "$SESSION_LINK"
-            fi
-        fi
-        # 旧 profile 是普通目录(老版本遗留)→ 归档到数据根
-        if [ -e "$PROFILE_LINK" ] && [ ! -L "$PROFILE_LINK" ]; then
-            LEGACY_TS=$(date +"%Y-%m-%d_%H-%M-%S")
-            mv "$PROFILE_LINK" "$CRAFT_RPA_HOME/profile-legacy-$LEGACY_TS"
-            echo "[craft-rpa] migrated legacy recorder/profile → .craft-rpa/profile-legacy-$LEGACY_TS"
-        fi
+        cleanup_legacy_recorder_runtime
+        prepare_runtime_dependencies
 
         TS=$(date +"%Y-%m-%d_%H-%M-%S")
         NEW_SESSION_DIR="$SESSIONS_DIR/$TS"
         mkdir -p "$NEW_SESSION_DIR"
         : > "$NEW_SESSION_DIR/session.jsonl"
 
-        # 建两个软链:launch.js / logger.js 通过 __dirname 读到的就是项目根的数据
-        ln -sfn "$NEW_SESSION_DIR/session.jsonl" "$SESSION_LINK"
-        ln -sfn "$PROFILE_DIR" "$PROFILE_LINK"
         echo "$TS" > "$CURRENT_FILE"
 
         cd "$RECORDER_DIR"
-        nohup node launch.js "$URL" > "$LOG_FILE" 2>&1 &
+        CRAFT_RPA_SESSION_FILE="$NEW_SESSION_DIR/session.jsonl" \
+            CRAFT_RPA_PROFILE_DIR="$PROFILE_DIR" \
+            CRAFT_RPA_PLAYWRIGHT_MODULE="$RUNTIME_MODULES_DIR/playwright" \
+            nohup node launch.js "$URL" > "$LOG_FILE" 2>&1 &
         PID=$!
         echo "$PID" > "$PID_FILE"
         sleep 1

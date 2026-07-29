@@ -16,7 +16,9 @@ const fs = require('fs');
 const path = require('path');
 
 const DEFAULT_PORT = 7777;
-const DEFAULT_LOG_FILE = path.join(__dirname, 'session.jsonl');
+const DEFAULT_LOG_FILE = path.resolve(
+    process.env.CRAFT_RPA_SESSION_FILE || path.join(__dirname, 'session.jsonl'),
+);
 
 /**
  * 启动本地日志收集服务

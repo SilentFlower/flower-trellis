@@ -5,6 +5,11 @@ import { ENHANCEMENT_SKILL_TARGETS } from "../../constants.js";
 import { readLegacyManifestStatus } from "../../lib/manifest.js";
 import { shouldInstallName } from "../../lib/skill-filter.js";
 import { listCanonicalTreeFiles } from "../../plugin/integrity/canonical-tree.js";
+import {
+  PluginIntegrityError,
+  PluginIoError,
+  PluginPathError,
+} from "../../plugin/errors.js";
 import { assertSafePosixRelativePath } from "../../plugin/schemas/shared.js";
 import { compareUtf8 } from "../../plugin/stable-order.js";
 import {
@@ -48,16 +53,97 @@ const SCRIPT_ALIASES = Object.freeze({
   ],
 });
 const TRELLIS_TEXT_EXTENSIONS = new Set([".json", ".md", ".toml", ".txt", ".yaml", ".yml"]);
+const COMMON_SKILL_RUNTIME_EXCLUDES = Object.freeze({
+  "craft-rpa": Object.freeze([
+    "recorder/node_modules",
+    "recorder/profile",
+    "recorder/session.jsonl",
+  ]),
+});
 
 /**
  * 列出目标目录中的普通文件。
  *
+ * 只有 builtin common skill 明确登记的旧运行时路径可以跳过；遍历在读取条目
+ * 类型前先匹配排除项，确保不会跟随旧软链。其它路径继续使用 canonical 规则。
+ *
  * @param {string} directory 目标目录
- * @returns {Array<{path:string,absolutePath:string}>} 稳定文件列表
+ * @param {string[]} [excludedPaths] 允许跳过的精确相对路径及其子树
+ * @returns {Array<{path:string,absolutePath:string,size:number}>} 稳定文件列表
  */
-function listExistingFiles(directory) {
+function listExistingFiles(directory, excludedPaths = []) {
   if (!fs.existsSync(directory)) return [];
-  return listCanonicalTreeFiles(directory);
+  if (excludedPaths.length === 0) return listCanonicalTreeFiles(directory);
+
+  const excluded = new Set(excludedPaths);
+  const absoluteRoot = path.resolve(directory);
+  let rootStat;
+  try {
+    rootStat = fs.lstatSync(absoluteRoot);
+  } catch (error) {
+    throw new PluginIoError(`无法读取 Plugin 根目录:${absoluteRoot}`, { path: absoluteRoot, cause: error });
+  }
+  if (rootStat.isSymbolicLink()) {
+    throw new PluginPathError(`Plugin 根目录不能是软链:${absoluteRoot}`, { path: absoluteRoot });
+  }
+  if (!rootStat.isDirectory()) {
+    throw new PluginIntegrityError(`Plugin 根目录必须是目录:${absoluteRoot}`, { path: absoluteRoot });
+  }
+
+  const files = [];
+
+  /**
+   * 判断路径是否属于已登记运行时边界。
+   *
+   * @param {string} relativePath POSIX 相对路径
+   * @returns {boolean} 是否跳过该路径
+   */
+  function isExcluded(relativePath) {
+    for (const candidate of excluded) {
+      if (relativePath === candidate || relativePath.startsWith(`${candidate}/`)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * 遍历已安装目标树，但不读取已登记运行时条目的类型或目标。
+   *
+   * @param {string} current 当前绝对目录
+   * @param {string} relativeDirectory 当前 POSIX 相对目录
+   * @returns {void}
+   */
+  function visit(current, relativeDirectory) {
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch (error) {
+      throw new PluginIoError(`无法读取 Plugin 目录:${current}`, { path: current, cause: error });
+    }
+    for (const entry of entries) {
+      const relativePath = relativeDirectory
+        ? `${relativeDirectory}/${entry.name}`
+        : entry.name;
+      assertSafePosixRelativePath(relativePath, "Plugin tree 路径");
+      if (isExcluded(relativePath)) continue;
+
+      const absolutePath = path.join(current, entry.name);
+      let stat;
+      try {
+        stat = fs.lstatSync(absolutePath);
+      } catch (error) {
+        throw new PluginIoError(`无法读取 Plugin 条目:${relativePath}`, { path: relativePath, cause: error });
+      }
+      if (stat.isSymbolicLink()) {
+        throw new PluginPathError(`Plugin tree 不允许软链:${relativePath}`, { path: relativePath });
+      }
+      if (stat.isDirectory()) visit(absolutePath, relativePath);
+      else if (stat.isFile()) files.push({ path: relativePath, absolutePath, size: stat.size });
+      else throw new PluginIntegrityError(`Plugin tree 不允许特殊文件:${relativePath}`, { path: relativePath });
+    }
+  }
+
+  visit(absoluteRoot, "");
+  return files.sort((left, right) => compareUtf8(left.path, right.path));
 }
 
 /**
@@ -123,6 +209,7 @@ export function projectSkillGardenContent(options) {
    * @param {string} sourceLabel 来源标签
    * @param {"exclusive"|"shared"} ownership 所有权
    * @param {boolean} materializePython 是否按目标项目命令物化明确文本载荷
+   * @param {string[]} runtimeExcludes 已登记的目标运行时路径
    */
   function addTree(
     sourceRoot,
@@ -130,6 +217,7 @@ export function projectSkillGardenContent(options) {
     sourceLabel,
     ownership = "exclusive",
     materializePython = false,
+    runtimeExcludes = [],
   ) {
     const desired = new Set();
     for (const file of listCanonicalTreeFiles(sourceRoot)) {
@@ -143,7 +231,10 @@ export function projectSkillGardenContent(options) {
         materializePython,
       );
     }
-    for (const file of listExistingFiles(path.join(projectRoot, ...targetRoot.split("/")))) {
+    for (const file of listExistingFiles(
+      path.join(projectRoot, ...targetRoot.split("/")),
+      runtimeExcludes,
+    )) {
       if (desired.has(file.path)) continue;
       const target = `${targetRoot}/${file.path}`;
       mutations.push({
@@ -266,6 +357,8 @@ export function projectSkillGardenContent(options) {
         common.target,
         `skill-garden:common:${common.name}`,
         "shared",
+        false,
+        COMMON_SKILL_RUNTIME_EXCLUDES[common.name] || [],
       );
     }
     for (const removedTarget of commonSync.removedTargets) {

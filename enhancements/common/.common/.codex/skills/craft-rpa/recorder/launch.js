@@ -18,19 +18,21 @@
  *      没有系统 Chrome 时改成 false，并执行 npx playwright install chromium
  *
  * 数据存放：
- *   - profile/        : 用户数据目录（cookie / localStorage / 登录态等），下次启动自动复用
- *   - session.jsonl   : 事件日志（由内置 logger 写入）
+ *   - CRAFT_RPA_PROFILE_DIR  : 用户数据目录（cookie / localStorage / 登录态等）
+ *   - CRAFT_RPA_SESSION_FILE : 事件日志（由内置 logger 写入）
  */
-const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
+const PLAYWRIGHT_MODULE = process.env.CRAFT_RPA_PLAYWRIGHT_MODULE || 'playwright';
+const { chromium } = require(PLAYWRIGHT_MODULE);
 const { startLogger } = require('./logger');
 
 // 启动参数：第一个 CLI 参数作为起始 URL，没传就开空白页
 const START_URL = process.argv[2] || 'about:blank';
 
-// profile 目录放在脚本同级 ./profile/，与日常 Chrome 完全隔离
-const PROFILE_DIR = path.join(__dirname, 'profile');
+// run.sh 显式传入运行时目录；直接执行时保留原有默认值。
+const PROFILE_DIR = path.resolve(process.env.CRAFT_RPA_PROFILE_DIR || path.join(__dirname, 'profile'));
+const SESSION_LOG = path.resolve(process.env.CRAFT_RPA_SESSION_FILE || path.join(__dirname, 'session.jsonl'));
 
 // 注入脚本路径
 const INJECT_SCRIPT = path.join(__dirname, 'inject.js');
@@ -164,7 +166,7 @@ if (!fs.existsSync(INJECT_SCRIPT)) {
 
     // 先启动日志 + 控制服务，再启动浏览器
     // 浏览器一打开页面，注入脚本立刻就能 POST 成功，不会丢首批事件
-    const loggerServer = startLogger({ browserController });
+    const loggerServer = startLogger({ browserController, logFile: SESSION_LOG });
 
     console.log(`[launch] profile dir : ${PROFILE_DIR}`);
     console.log(`[launch] start url   : ${START_URL}`);

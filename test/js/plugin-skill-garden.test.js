@@ -264,3 +264,36 @@ test("已启用 common skill 以 shared ownership 刷新且卸载保留", (t) =>
   applySkillGardenUninstall(target, cleanupPlan);
   assert.equal(fs.existsSync(commonSkill), true);
 });
+
+test("common craft-rpa 旧运行时软链与依赖缓存不阻断 Plugin 重放", (t) => {
+  const target = createTarget(t);
+  const skillRoot = path.join(target, ".claude/skills/craft-rpa");
+  const recorderRoot = path.join(skillRoot, "recorder");
+  fs.mkdirSync(skillRoot, { recursive: true });
+  fs.writeFileSync(path.join(skillRoot, "SKILL.md"), "stale\n");
+  quietApply(target, { variant: "0.5" });
+
+  const profileTarget = path.join(target, ".craft-rpa/profile");
+  const sessionTarget = path.join(target, ".craft-rpa/sessions/legacy/session.jsonl");
+  fs.mkdirSync(profileTarget, { recursive: true });
+  fs.mkdirSync(path.dirname(sessionTarget), { recursive: true });
+  fs.writeFileSync(path.join(profileTarget, "preserved.txt"), "profile\n");
+  fs.writeFileSync(sessionTarget, "{\"kind\":\"legacy\"}\n");
+  fs.symlinkSync(profileTarget, path.join(recorderRoot, "profile"), "dir");
+  fs.symlinkSync(sessionTarget, path.join(recorderRoot, "session.jsonl"));
+  fs.mkdirSync(path.join(recorderRoot, "node_modules/playwright"), { recursive: true });
+  fs.writeFileSync(path.join(recorderRoot, "node_modules/playwright/package.json"), "{}\n");
+
+  assert.doesNotThrow(() => quietApply(target, { variant: "0.5" }));
+  assert.equal(fs.lstatSync(path.join(recorderRoot, "profile")).isSymbolicLink(), true);
+  assert.equal(fs.lstatSync(path.join(recorderRoot, "session.jsonl")).isSymbolicLink(), true);
+  assert.equal(fs.existsSync(path.join(recorderRoot, "node_modules/playwright/package.json")), true);
+  assert.equal(fs.readFileSync(path.join(profileTarget, "preserved.txt"), "utf8"), "profile\n");
+  assert.equal(fs.readFileSync(sessionTarget, "utf8"), "{\"kind\":\"legacy\"}\n");
+
+  fs.symlinkSync(profileTarget, path.join(recorderRoot, "unexpected-link"), "dir");
+  assert.throws(
+    () => quietApply(target, { variant: "0.5" }),
+    /Plugin tree 不允许软链:recorder\/unexpected-link/,
+  );
+});

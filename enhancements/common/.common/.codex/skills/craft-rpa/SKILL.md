@@ -70,7 +70,7 @@ bash "$SKILL_DIR/scripts/run.sh" craft [--session <ts>] [OUT]
                                                    # 转 jsonl → trace.md;--session 默认 = 当前/最新;OUT 默认 ./trace.md
 ```
 
-运行时状态 / sessions / profile 全部在 `$(pwd)/.craft-rpa/`(可用 `CRAFT_RPA_HOME` env 覆盖到任意路径)。首次 `start` 自动 `npm install`(跳浏览器下载,~10s)。
+运行时状态 / sessions / profile / 依赖全部在 `$(pwd)/.craft-rpa/`(可用 `CRAFT_RPA_HOME` env 覆盖到任意路径)。首次 `start` 自动安装依赖(跳浏览器下载,~10s),受管 skill 目录只保留静态代码资产。
 
 **AI 行为约定**(看到下列触发就跑对应子命令,不要手敲底层 cd / nohup):
 
@@ -106,24 +106,23 @@ bash "$SKILL_DIR/scripts/run.sh" craft [--session <ts>] [OUT]
 │   ├── 2026-05-18_14-22-15/
 │   └── legacy-2026-05-17_...   ← 老版本遗留 / 升级时自动归档
 ├── profile/                    ← Chrome 持久 profile(登录态,项目独立)
+├── runtime/recorder/           ← package manifest + node_modules,可重建
 ├── .launch.pid / .launch.log   ← 进程管理 + 日志
 └── .current-session            ← 最近一次 start 的会话 ts
 
-.claude/skills/craft-rpa/recorder/   ← skill 内仅代码资产;start 时建两个软链 → 数据根:
-├── session.jsonl → <repo>/.craft-rpa/sessions/<latest>/session.jsonl
-└── profile        → <repo>/.craft-rpa/profile
+.claude/skills/craft-rpa/recorder/   ← skill 内仅静态代码资产,不写 profile/session/node_modules
 ```
 
 **为什么这样**:
 - 录制 jsonl 是**项目业务数据**,跟着仓库走(每个仓库独立 session 池,不串)
 - skill 代码可装 `~/.claude/skills/craft-rpa/` 全局,所有仓库共用同一份代码
-- launch.js / logger.js 用 `__dirname` 解析 session.jsonl / profile,通过 recorder/ 内软链自动落到项目根 —— **录制器代码不用改**
+- run.sh 通过显式环境变量把 session/profile/Playwright 模块路径传给 launch.js,避免运行时产物进入 Plugin 管理树
 
 **关键性质**:
 
 - 每次 `run.sh start` 创建新时间戳目录,**不覆盖**历史
-- `recorder/session.jsonl` / `recorder/profile` 始终是软链,随当前会话切换目标
-- 老版本遗留的 `recorder/session.jsonl`(普通文件)在新版第一次 start 时自动归档到 `sessions/legacy-<ts>/`;`recorder/profile/`(普通目录)归档到 `.craft-rpa/profile-legacy-<ts>/`
+- 新版不会在 `recorder/` 创建软链或 `node_modules`;依赖位于 `.craft-rpa/runtime/recorder/`
+- 老版本遗留的 `recorder/session.jsonl` / `recorder/profile` 软链只删除链接本身,真实目标数据保留;普通文件/目录仍自动归档
 - `run.sh craft` 默认转最新;`--session <ts>` 可转任意历史
 - 删历史:手动 `rm -rf .craft-rpa/sessions/<ts>/`,run.sh 不管删
 

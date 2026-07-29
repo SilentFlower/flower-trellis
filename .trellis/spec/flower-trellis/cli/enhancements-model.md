@@ -118,6 +118,92 @@ skill-garden 以当前 Flower 精确版本刷新直接声明并重新选 variant
 
 ---
 
+## Scenario: Common Skill Managed Tree Runtime Boundary
+
+### 1. Scope / Trigger
+
+- Trigger:common skill 会在启动后生成依赖缓存、session、profile、日志或其它运行时产物，且该
+  skill 由 builtin `flower/skill-garden` 以 shared ownership 刷新。
+- Scope:受管 skill 目录只保存发布快照中的静态文件；运行时数据迁到项目数据根。历史版本已经
+  留在受管树内的精确已知路径可迁移兼容，但不放宽 Plugin canonical tree 的全局安全规则。
+
+### 2. Signatures
+
+目标树兼容扫描签名：
+
+```js
+listExistingFiles(directory, excludedPaths = [])
+```
+
+Craft RPA 运行时边界：
+
+```text
+CRAFT_RPA_SESSION_FILE=<CRAFT_RPA_HOME>/sessions/<ts>/session.jsonl
+CRAFT_RPA_PROFILE_DIR=<CRAFT_RPA_HOME>/profile
+CRAFT_RPA_PLAYWRIGHT_MODULE=<CRAFT_RPA_HOME>/runtime/recorder/node_modules/playwright
+```
+
+### 3. Contracts
+
+- canonical Plugin 源树和所有未登记目标继续调用 `listCanonicalTreeFiles()`，任何软链或特殊文件
+  都必须失败；兼容排除不能进入通用 canonical hash API。
+- builtin common `craft-rpa` 只允许在已安装目标树跳过
+  `recorder/node_modules`、`recorder/profile`、`recorder/session.jsonl`。匹配必须发生在 `lstat`
+  之前，既不读取也不跟随旧软链；其它路径仍按原错误语义阻断。
+- `run.sh start` 不得在受管 `recorder/` 内创建软链或安装依赖。package manifest 和
+  `node_modules` 放在 `<CRAFT_RPA_HOME>/runtime/recorder/`，session/profile/module 路径通过上述
+  环境变量显式传给 `launch.js` / `logger.js`。
+- 旧 session/profile 软链只删除链接本身，真实目标数据必须保留；旧普通文件/目录沿用归档语义。
+  `recorder/node_modules` 是可重建缓存，只允许按这个精确路径删除。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 目标存在三个已登记 Craft RPA 运行时路径 | Plugin 重放继续，路径不进入 write/remove mutation |
+| 已登记路径是指向项目数据根的软链 | 扫描不跟随软链，后续 `run.sh start` 只删除链接 |
+| `recorder/unexpected-link` 或其它未登记软链 | 抛 `Plugin tree 不允许软链:<path>`，事务零写入 |
+| common skill 根目录本身是软链或不是目录 | 保持 `PluginPathError` / `PluginIntegrityError` |
+| runtime package manifest 变化或 Playwright 缺失 | 在数据根执行 `npm ci` 或 `npm install` 重建依赖 |
+| 旧普通 session/profile 存在 | 归档到数据根，不静默覆盖或删除业务数据 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:已安装 Craft RPA 留有旧 profile/session 软链和 `node_modules`；`flower-trellis update` 可重放，
+  下一次 `run.sh start` 清理链接并在 `.craft-rpa/runtime/recorder` 重建依赖。
+- Base:全新安装没有历史运行时产物；目标树走相同投影，运行数据从第一次启动起只写数据根。
+- Bad:全局忽略所有 `node_modules` 或所有软链；这会掩盖未知 Plugin 漂移和路径逃逸风险。
+
+### 6. Tests Required
+
+- Plugin 集成测试创建三个历史运行时路径，断言重放成功、真实 profile/session 数据未变。
+- 同一测试增加未登记软链，断言仍抛原 `Plugin tree 不允许软链` 错误。
+- `run.sh` 测试使用 npm/node 替身，断言旧链接消失、真实目标保留、受管树无 `node_modules`，
+  且三个环境变量都指向 `<CRAFT_RPA_HOME>` 下的精确路径。
+- 发布前断言 Claude/Codex common skill、vendor 源和 `enhancements/common` 快照逐字节一致。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+<managed-skill>/recorder/profile -> <project>/.craft-rpa/profile
+<managed-skill>/recorder/node_modules/
+```
+
+#### Correct
+
+```text
+<managed-skill>/recorder/                 static release assets only
+<project>/.craft-rpa/profile/             runtime profile
+<project>/.craft-rpa/runtime/recorder/    runtime dependencies
+```
+
+原因:Plugin Runtime 可以继续严格校验 canonical tree，同时兼容清理历史版本留下的精确运行时路径，
+不会因重放扫描跟随软链或把依赖缓存误当成发布载荷。
+
+---
+
 ## Scenario: Native Workflow Gate Ownership
 
 ### 1. Scope / Trigger
