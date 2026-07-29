@@ -371,3 +371,39 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 67: 完成 spec_router 章节感知加载
+
+**Date**: 2026-07-29
+**Task**: 完成 spec_router 章节感知加载
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+实现 full、sections、outline 加载策略，完成 Skill-Garden、快照与 dogfood 同步，通过完整检查并推送；随后归档任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6432565` | (see git log) |
+| `0d51a24` | (see git log) |
+| `e6e4519` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

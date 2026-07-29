@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 66
+- **Total Sessions**: 67
 - **Last Active**: 2026-07-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~373 | Active |
+| `journal-2.md` | ~409 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 67 | 2026-07-29 | 完成 spec_router 章节感知加载 | `6432565`, `0d51a24`, `e6e4519` | `beta` |
 | 66 | 2026-07-29 | 优化 trellis-push 门禁与意图识别 | `8d60511`, `8abf3b1`, `9ad6a95` | `beta` |
 | 65 | 2026-07-29 | 修复 auto-loop 重试预算与跟踪文件 | `450bc0a`, `19d7a1a`, `8b69cc2` | `beta` |
 | 64 | 2026-07-29 | 归档 Flower Plugin 体系任务树 | `3c664c3`, `0d7c5b1`, `3688744`, `32ec993`, `2e9fd18`, `4e34b87`, `3db8320`, `8701039`, `4699a22`, `e37dbe4`, `25e8efc` | `beta` |
