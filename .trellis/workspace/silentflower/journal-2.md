@@ -335,3 +335,39 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 66: 优化 trellis-push 门禁与意图识别
+
+**Date**: 2026-07-29
+**Task**: 优化 trellis-push 门禁与意图识别
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+将显式 Push 的 Check-All/Update-Spec 状态改为同一计划内的审计证据，修正设计反馈、检查请求、精确回退与任务规划之间的意图分类边界，并完成全量验证、规范更新和双仓推送。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8d60511` | (see git log) |
+| `8abf3b1` | (see git log) |
+| `9ad6a95` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
