@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { parsePluginArgs } from "../../src/commands/plugin.js";
+import { parsePluginArgs, plugin } from "../../src/commands/plugin.js";
 import { PluginApplicationService } from "../../src/plugin/application-service.js";
 import { LocalSourceProvider } from "../../src/plugin/sources/local-provider.js";
 import { SourceRegistry } from "../../src/plugin/sources/source-registry.js";
@@ -56,6 +56,40 @@ test("Plugin parser 独立处理多级命令、重复平台与 dry-run", () => {
       help: false,
     },
   );
+});
+
+test("内嵌 Plugin compact 输出保留汇总并隐藏逐文件路径", async (t) => {
+  const project = createPluginTestRoot(t, "flower-cli-compact-");
+  writePluginPackage(project, "plugins/demo", pluginManifest(), {
+    "skills/demo/SKILL.md": "# Demo\n",
+  });
+  const logs = [];
+  const errors = [];
+
+  const code = await plugin({
+    target: project,
+    passthrough: [
+      "add",
+      "local/demo",
+      "--source",
+      "plugins/demo",
+      "--platform",
+      "codex",
+    ],
+  }, {
+    compact: true,
+    interactive: false,
+    cwd: project,
+    output: {
+      log: (message) => logs.push(message),
+      error: (message) => errors.push(message),
+    },
+  });
+
+  assert.equal(code, 0, errors.join("\n"));
+  assert.match(logs.join("\n"), /Plugin add 完成，目标变化 \d+ 项/);
+  assert.match(logs.join("\n"), /local\/demo@1\.0\.0/);
+  assert.doesNotMatch(logs.join("\n"), /^\s+(?:write|patch|remove) /m);
 });
 
 test("无平台 Plugin add 明确失败且不创建 Runtime", (t) => {

@@ -595,8 +595,9 @@ function localReferencesFromLock(lock) {
  * @param {object} result 命令结果
  * @param {boolean} json 是否 JSON 输出
  * @param {{log:(message:string)=>void}} output 输出适配器
+ * @param {{compact?:boolean}} [options] 人类可读输出选项
  */
-function printResult(result, json, output) {
+function printResult(result, json, output, options = {}) {
   if (json) {
     output.log(stringifyCanonicalJson({ changes: [], diagnostics: [], ...result }).trimEnd());
     return;
@@ -618,7 +619,9 @@ function printResult(result, json, output) {
     output.log(`${pluginEntry.id}@${pluginEntry.version} [${pluginEntry.source.type}:${pluginEntry.source.id}]`);
     if (dependencies.length > 0) output.log(`  依赖:${dependencies.join(", ")}`);
   }
-  for (const change of result.changes) output.log(`  ${change.operation} ${change.target}`);
+  if (!options.compact) {
+    for (const change of result.changes) output.log(`  ${change.operation} ${change.target}`);
+  }
   for (const diagnostic of result.diagnostics.filter(({ severity }) => severity === "warning")) {
     output.log(`  · ${diagnostic.message}`);
   }
@@ -646,7 +649,7 @@ function pluginExitCode(error) {
  * 执行 Plugin 生命周期命令。
  *
  * @param {object} ctx cli-args.js 的执行上下文
- * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},interactive?:boolean,prompts?:object,confirmApproval?:(requests:object[])=>Promise<boolean>|boolean}} [options] 测试、Provider 与交互确认注入
+ * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},interactive?:boolean,prompts?:object,confirmApproval?:(requests:object[])=>Promise<boolean>|boolean,compact?:boolean}} [options] 测试、Provider、输出与交互确认注入
  * @returns {Promise<number>} 进程退出码
  */
 export async function plugin(ctx, options = {}) {
@@ -816,7 +819,8 @@ export async function plugin(ctx, options = {}) {
     } else {
       result = { command: "verify", ...service.verify({ id: canonicalId }) };
     }
-    printResult(result, parsed.json, output);
+    const compact = options.compact === true && !process.env.DEBUG && !process.env.FLOWER_DEBUG;
+    printResult(result, parsed.json, output, { compact });
     return result.ok === false ? 3 : 0;
   } catch (error) {
     const json = parsed?.json || ctx.passthrough?.includes("--json");

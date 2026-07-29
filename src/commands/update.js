@@ -15,6 +15,7 @@ import {
 } from "../lib/update-backups.js";
 import { ProjectStore } from "../plugin/state/project-store.js";
 import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
+import { showCommandCompletion } from "../lib/command-completion.js";
 
 function printBackupRetentionResult(result) {
   if (result.status === "preview") {
@@ -94,6 +95,7 @@ export async function update(ctx) {
         ],
       }, {
         skillGarden: { variant: ctx.variant, skills: ctx.skills },
+        compact: true,
       });
       if (code !== 0) throw new Error(`Plugin Runtime 重放失败(退出码 ${code})`);
     } else {
@@ -106,6 +108,7 @@ export async function update(ctx) {
       }, {
         skillGarden: { preserve: preserveSkillGarden },
         preserveIds: preserveSkillGarden ? [SKILL_GARDEN_PLUGIN_ID] : [],
+        compact: true,
       });
       if (code !== 0) throw new Error(`外部 Plugin 重放失败(退出码 ${code})`);
     }
@@ -129,5 +132,8 @@ export async function update(ctx) {
     console.log("  · --backup-retention 0:保留全部升级备份");
   }
 
-  console.log(`\n🌸 flower-trellis update 完成 → ${target}`);
+  await showCommandCompletion("update", target, {
+    passthrough: ctx.passthrough,
+    outcome: dryRun ? "preview" : "success",
+  });
 }

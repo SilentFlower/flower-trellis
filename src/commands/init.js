@@ -7,6 +7,7 @@ import { checkForUpdate } from "../lib/update-check.js";
 import { PLATFORM_FLAGS } from "../constants.js";
 import { ProjectStore } from "../plugin/state/project-store.js";
 import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
+import { showCommandCompletion } from "../lib/command-completion.js";
 
 /**
  * flower-trellis init:驱动 `trellis init`,随后叠加强化包。
@@ -18,6 +19,7 @@ import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider
  * 同时由 flower 过滤掉它重复打印的启动 banner / Developer。
  *
  * @param {object} ctx 见 cli-args.js 的 parseCliArgs()
+ * @returns {Promise<void>} Trellis 初始化、强化叠加与完成交互结束后返回
  */
 export async function init(ctx) {
   const { target } = ctx;
@@ -29,10 +31,18 @@ export async function init(ctx) {
   const hasPlatform = passthrough.some((a) => PLATFORM_FLAGS.includes(a));
   const nonInteractive =
     passthrough.includes("-y") || passthrough.includes("--yes");
+  const developer = getDeveloper(passthrough, target);
+  const hasDeveloper = passthrough.some((arg) => (
+    arg === "-u" || arg === "--user" || arg.startsWith("--user=")
+  ));
+
+  // Flower 能从全局 Git 配置识别名字，而 Trellis 只在目标已有 .git 时自动读取；
+  // 显式透传可以复用横幅中的身份，避免新目录安装时再次询问同一个名字。
+  if (developer && !hasDeveloper) passthrough.push("--user", developer);
 
   // 交互模式打印一次 flower 品牌头部(非交互/脚本场景不打扰)
   if (!nonInteractive) {
-    printBanner(getDeveloper(passthrough, target));
+    printBanner(developer);
   }
 
   // 主操作前尽力而为地检测 flower-trellis 自身新版本(失败静默;用户确认升级成功会直接退出)
@@ -71,11 +81,12 @@ export async function init(ctx) {
       passthrough: [declared ? "update" : "add", SKILL_GARDEN_PLUGIN_ID],
     }, {
       skillGarden: { variant: ctx.variant, skills: ctx.skills },
+      compact: true,
     });
     if (code !== 0) throw new Error(`Plugin Runtime 安装失败(退出码 ${code})`);
   } else {
     console.log("· --no-enhance:跳过强化包叠加");
   }
 
-  console.log(`\n🌸 flower-trellis init 完成 → ${target}`);
+  await showCommandCompletion("init", target, { passthrough });
 }

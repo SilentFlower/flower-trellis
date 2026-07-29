@@ -31,7 +31,7 @@
 | `\n<标题>:` | 阶段标题(前置空行分隔) | `强化包变体:0.6(项目 Trellis 0.6.0-beta.8)` |
 | `  ✓ ` | 成功完成一步 | `  ✓ 铺设 9 个强化技能 → .claude/skills + .agents/skills` |
 | `  · ` | 跳过 / 提示性信息 | `  · workflow 注入跳过(目标无 .trellis/workflow.md)` |
-| `🌸 ` | 命令最终完成行 | `🌸 flower-trellis init 完成 → <target>` |
+| `🌸 ` | 命令最终完成行 | `🌸 flower-trellis init 安装成功 → <target>` |
 | `❌ ` | 错误(走 stderr) | `❌ --enhance-only 与 --no-enhance 互斥` |
 
 > 中文文案、表情前缀与缩进(两个空格)请沿用现有风格,保证多命令输出观感统一。
@@ -79,7 +79,14 @@
   的「交互式 Prompt」节。
 - **非 TTY 必须有回退**:`pick-platforms.js` 在 `!process.stdin.isTTY` 时直接返回默认
   `["--codex","--claude"]`,不阻塞等待输入(现代 prompt 在非 TTY 会抛错,回退须前置)。
-- `-y` / `--yes`:跳过菜单走默认平台,并打印一行说明(`init.js:36-38`)。
+- `-y` / `--yes`:跳过菜单走默认平台,并打印一行说明(`init.js`)。
+- **init 复用已识别身份**:Flower 横幅从 `-u/--user` 或目标目录可见的 Git 配置识别开发者后，
+  必须把该值显式透传给 `trellis init --user`；新目录即使尚无 `.git`，也不能再次询问同一个名字。
+- **完成态有明确出口**:`init` / `update` 在交互 TTY 成功后先打印“安装成功 / 更新成功”，
+  再显示单项 `退出` 选择；`update --dry-run` 必须打印“预览完成”，不能宣称已更新；`-y` 与
+  非 TTY 只打印对应完成行并直接返回，不能阻塞脚本。
+- **内嵌 Plugin 输出默认精简**:`init` / `update` 重放 Skill Garden 时只展示 Plugin、版本与变化总数，
+  不逐行打印 `write` / `patch` / `remove` 路径；独立 `plugin` 命令与调试环境保留完整清单。
 - **联网探测同样判 `-y` / 非 TTY**:版本检测(`update-check.js`)发现新版时,交互 TTY 才
   弹确认询问升级(`@inquirer/confirm`);`-y` / 非 TTY 仅打印一行升级提示,不弹确认、不阻塞(降级模式)。
 - **交互页必须有清晰出口**:二级选择页不能只列业务动作。Plugin 来源类型页这类中间页必须提供
