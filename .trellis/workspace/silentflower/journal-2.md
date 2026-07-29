@@ -477,3 +477,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 70: 修复 Windows Python Patch 命令漂移
+
+**Date**: 2026-07-29
+**Task**: 修复 Windows Python Patch 命令漂移
+**Package**: skill-garden
+**Branch**: `beta`
+
+### Summary
+
+修复 Trellis 0.6.5 在 Windows python 与 py -3 渲染下的 Patch 预检漂移，补齐可信 Runtime 文本物化、JS/Python parity 与 Session Context full-only Patch；完整检查通过并已推送两个仓库。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9c35c52` | (see git log) |
+| `5892e7f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
