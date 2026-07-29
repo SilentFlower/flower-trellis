@@ -4,6 +4,19 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.4](https://github.com/SilentFlower/flower-trellis/compare/v0.5.3...v0.5.4) (2026-07-29)
+
+
+### ✨ 新功能 Features
+
+* **cli:** 优化 init 与 update 交互体验 ([1248456](https://github.com/SilentFlower/flower-trellis/commit/12484563bb9f5b7f6842879c38adca02c9697584))
+* **craft-rpa:** 同步网络采集与页面控制升级 ([4827e20](https://github.com/SilentFlower/flower-trellis/commit/4827e2043a2123ba331ff82c0b59ce03cbb29f6c))
+
+
+### 🐛 修复 Bug Fixes
+
+* **workflow:** 防止发布请求误触 trellis-release ([e3e4add](https://github.com/SilentFlower/flower-trellis/commit/e3e4addd953059bdaa5135ac527432f4c0f8838a))
+
 ## [0.5.3](https://github.com/SilentFlower/flower-trellis/compare/v0.5.2...v0.5.3) (2026-07-29)
 
 
