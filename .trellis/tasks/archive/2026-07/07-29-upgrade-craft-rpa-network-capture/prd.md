@@ -30,7 +30,7 @@
 ### R3. 请求与响应内容
 
 - 文本类请求/响应保存 Content-Type、大小、body、是否截断和捕获错误。
-- body 限额按 UTF-8 字节数执行，而不是按 JavaScript 字符数近似；单个 request body 和 response body 的默认捕获上限各为 20 MiB。
+- body 限额按 UTF-8 字节数执行，而不是按 JavaScript 字符数近似；默认单方向最大值暂定为 1 MiB。
 - JSON、XML、纯文本、JavaScript、表单编码等文本内容可记录；图片、字体、音视频及其他二进制内容只记录类型、大小和跳过原因。
 - multipart/FormData 不保存文件二进制内容；普通字段与文件名、MIME、大小等元数据在可可靠解析时记录，无法可靠解析时明确标记限制，不伪造结果。
 - 请求与响应使用 Playwright 可提供的完整 headers 集合，不能把 `request.headers()` 描述为完整集合。
@@ -76,13 +76,6 @@
 - 验证不得依赖人工操作真实第三方站点；可使用本地 HTTP 服务和 Playwright 页面构造覆盖场景。
 - 新增公共函数或可复用模块需要符合项目 JSDoc 约束；维护性注释使用中文并解释非显然设计原因。
 
-### R9. Plugin 管理树与运行时数据隔离
-
-- `craft-rpa` 的 profile、当前 session 入口和依赖缓存不得写入 `.agents/.codex/.claude` 下的 Plugin 管理树；运行时数据和依赖统一落在项目级 `.craft-rpa/`。
-- Plugin 重放扫描只允许跳过已登记的 Craft RPA 运行时路径，且不得跟随软链；canonical source tree 的全局软链拒绝规则保持不变。
-- 旧安装中的 `recorder/profile`、`recorder/session.jsonl` 软链与 `recorder/node_modules` 缓存必须在新版首次启动时精确清理；软链目标、既有 `.craft-rpa/profile` 和历史 sessions 不得删除或改写。
-- 依赖迁移后仍需保证 `launch.js` 能稳定解析 Playwright，重复启动与 Plugin 重放保持幂等。
-
 ## Acceptance Criteria
 
 - [ ] 本地测试页面发起成功 Fetch、成功 XHR、HTTP 500 和连接失败请求时，JSONL 各产生一条结构正确且可区分的网络事件。
@@ -99,8 +92,6 @@
 - [ ] `.claude` 与 `.codex` 两份 skill 内容一致，Flower `enhancements/common` 快照由真实源同步生成。
 - [ ] `node --check`、新增针对性测试以及适用的 Flower 根仓库检查通过。
 - [ ] `SKILL.md` 的行为说明与测试证明的实际能力一致，不再声明未实现的 FormData、headers 或 body 行为。
-- [ ] 已运行旧版 Craft RPA 并生成软链/依赖缓存的项目可直接完成 Plugin 重放，且不会跟随或删除软链目标。
-- [ ] 新版 `run.sh start` 将依赖安装到 `.craft-rpa/runtime`，通过显式环境变量传递 profile 和 session 路径，并精确清理旧受管目录中的运行时残留。
 
 ## Out of Scope
 

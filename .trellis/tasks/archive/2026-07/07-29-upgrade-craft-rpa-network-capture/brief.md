@@ -8,7 +8,7 @@
 
 - 以 Playwright BrowserContext 的 request/requestfinished/requestfailed 为网络采集主路径，覆盖主页面、跨域 frame、微前端和可观察的 Service Worker 请求。
 - 保存成功、HTTP 错误、重定向和传输失败的 method、URL、duration、完整 headers、文本 request/response body、Content-Type、字节大小、截断状态、失败原因和页面/frame/Service Worker 上下文。
-- 按单方向 20 MiB UTF-8 字节上限准确截断文本；二进制不保存原始 body，multipart 仅保存可可靠解析的普通字段和文件元数据。
+- 按 1 MiB UTF-8 字节上限准确截断文本；二进制不保存原始 body，multipart 仅保存可可靠解析的普通字段和文件元数据。
 - 敏感 headers、Cookie、token、密码和正文默认原样保存在本地 `.craft-rpa/`，不做默认脱敏，并明确禁止未经检查外传或提交进 Git。
 - 通过 Playwright binding 直接传输交互、导航和异常事件；HTTP `/log` 仅作为 sendBeacon/fetch 兼容回退，正常路径不依赖关闭 Chrome 安全特性。
 - 新增统一 browser controller 与本地 `/control/*` API，支持 observe、click、fill、type、press、select、check/uncheck 及现有 tab/navigation 操作。
@@ -19,7 +19,6 @@
 - 新增零依赖 control client 和 `run.sh control <action> [JSON]`，让 AI 通过稳定 CLI 使用感知与控制能力。
 - 扩展 JSONL 与 `jsonl-to-trace.js`，新字段可读且大 body 不撑爆 trace，老版本 session 继续兼容。
 - 更新 Dashboard、`SKILL.md`、测试、`.common/.claude` 与 `.common/.codex` 双副本；skill-garden 提交后同步 Flower `enhancements/common` 与 MANIFEST sourceCommit。
-- 将 profile、session、依赖缓存等运行时产物完全移出 Plugin 管理树；旧安装中的已知软链和 `node_modules` 必须允许安全重放，并在新版首次启动时精确清理，不能跟随链接或删除真实数据。
 
 ## Non-Goals
 
@@ -49,9 +48,8 @@
 - 无匹配、多匹配、不可操作、超时和 frame 错误返回结构化结果，不发生静默误操作。
 - API 无令牌且可由 Dashboard/本机 AI 直接调用；第三方目标页面跨域脚本不能直接调用控制与感知接口。
 - recorder 单测、可用浏览器 smoke test、run.sh 基础流程、JS 语法检查、双副本哈希和 Flower 快照一致性检查通过。
-- 已运行过旧版 Craft RPA 的项目可直接完成 Flower Plugin 重放；重放后再次启动不会在 `.agents/.codex/.claude` 的 Skill 目录生成软链或 `node_modules`。
 - `SKILL.md` 与真实测试行为一致，准确说明敏感数据、body、headers、FormData、AI 连续操作和本地接口边界。
 
 ## Next Step
 
-- 实现、全部 CHK 修复和同深度 Check-All 重检已完成；下一步进入 Update-Spec，再按多仓顺序提交 skill-garden、更新 Flower submodule pin，并重跑 `npm run sync` 校正 MANIFEST sourceCommit。
+- 用户确认本 Brief 后运行 `task.py start`，再通过 `trellis-route(target=implement)` 进入实现；先完成 skill-garden 真实源和针对性测试，随后处理双副本、跨仓快照同步与 Check-All。

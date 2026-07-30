@@ -70,7 +70,7 @@ BrowserContext 创建后按以下顺序初始化：
 
 1. logger 已启动并提供 `appendEvents`。
 2. `context.exposeBinding('__craftRpaAppendEvents', callback)` 注册到所有页面与 frame。
-3. 读取 `inject.js`，在前面拼接当前 logger URL 与回退大小配置，再通过一次 `context.addInitScript({ content })` 安装交互监听，保证配置先于脚本生效。
+3. `context.addInitScript({ path: INJECT_SCRIPT })` 安装交互监听。
 4. 打开起始 URL。
 
 binding 回调只接受数组或对象，经过基础结构校验后调用 logger。事件仍由 `inject.js` 补充 sessionId、clientTime、url 和 frame 信息。
@@ -125,7 +125,7 @@ HTTP `/log` 只作为兼容回退。因此正常运行不依赖目标页面访�
 
 ### 字节限制
 
-- 默认 `MAX_NETWORK_BODY_BYTES = 20 * 1024 * 1024`，request body 与 response body 分别应用该上限。
+- 默认 `MAX_NETWORK_BODY_BYTES = 1 * 1024 * 1024`。
 - Buffer 先按字节截断，再删除末尾无效 UTF-8 continuation，保证输出合法 UTF-8 且不超过上限。
 - `size` 表示截断前字节数，`truncated` 表示原始值是否超过上限。
 
@@ -230,7 +230,7 @@ AI 在用户授权目标内循环调用 observe 和 action；Skill 不内置动�
 
 ## 10. Trace 展示
 
-JSONL 每个 request/response body 最多保存 20 MiB；trace 默认只内联较小摘要，避免 markdown 体积失控：
+JSONL 保存最大 1 MiB 的正文；trace 默认只内联较小摘要，避免 markdown 体积失控：
 
 - 默认每个 body 最多展示 16 KiB。
 - headers 完整展示，但设置单字段和整体输出保护。
@@ -244,13 +244,6 @@ JSONL 每个 request/response body 最多保存 20 MiB；trace 默认只内联�
 - Dashboard 保留现有页面/导航行为，并可增补 observe 与基础操作入口，但 UI 不是 AI API 的唯一入口。
 - `.common/.claude` 与 `.common/.codex` 必须包含相同文件和内容。
 - skill-garden 真实源提交后，Flower 根仓库更新 submodule pin 并运行 `npm run sync`，确保 `enhancements/MANIFEST.json` 的 `sourceCommit` 正确。
-
-### 11.1 运行时目录迁移
-
-- `run.sh` 把依赖安装到 `$CRAFT_RPA_HOME/runtime/recorder`，并通过 `CRAFT_RPA_PLAYWRIGHT_MODULE` 让受管目录中的 `launch.js` 精确加载该运行时依赖，避免跨平台 `NODE_PATH` 分隔符差异。
-- `CRAFT_RPA_PROFILE_DIR`、`CRAFT_RPA_SESSION_FILE`、`CRAFT_RPA_SESSION_DIR` 显式传给 `launch.js`，不再依赖 `recorder/profile` 与 `recorder/session.jsonl` 软链。
-- 新版首次启动只按精确名称处理旧 `recorder/profile`、`recorder/session.jsonl` 和 `recorder/node_modules`：软链只删除链接本身，普通旧文件/目录继续按既有归档规则保留数据。
-- Flower builtin content adapter 在扫描已安装 common `craft-rpa` 时跳过上述三个已登记运行时路径，且在判断前不对路径执行 `stat`，从而允许旧安装进入更新事务但不削弱 canonical source tree 校验。
 
 ## 12. 回滚
 
