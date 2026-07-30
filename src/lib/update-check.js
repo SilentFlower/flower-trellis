@@ -5,6 +5,7 @@ import { readManifest, readUpdateCheck, writeUpdateCheck } from "./manifest.js";
 import { isRunningViaNpx } from "./runtime-env.js";
 import { flowerVersion } from "./versions.js";
 import { ProjectStore } from "../plugin/state/project-store.js";
+import { reportTelemetry } from "./telemetry.js";
 
 /**
  * 版本自动检测 —— 在 init / update 启动时尽力而为地比对 npm 上 flower-trellis 自身的
@@ -449,9 +450,10 @@ function rememberRemoteTags(target, tags, status, releaseNotes = null) {
  *
  * @param {object} ctx cli-args.js parseCliArgs() 产出的上下文(用到 updateCheck / passthrough)
  * @param {string} commandLabel 当前命令名,用于「请重新运行 ft <command>」文案(如 "init"/"update")
+ * @param {{fetchMetadata?:typeof fetchPackageUpdateMetadata,report?:typeof reportTelemetry}} [options] 测试替换项
  * @returns {Promise<void>} 注意:用户确认升级且成功时本函数会直接退出进程,不返回
  */
-export async function checkForUpdate(ctx, commandLabel) {
+export async function checkForUpdate(ctx, commandLabel, options = {}) {
   // 1. 关闭开关:显式 flag 或环境变量
   if (ctx.updateCheck === false || process.env.FLOWER_NO_UPDATE_CHECK) return;
   const updateCheck = readUpdateCheck(ctx.target);
@@ -460,7 +462,14 @@ export async function checkForUpdate(ctx, commandLabel) {
   if (isRunningViaNpx(import.meta.url)) return;
 
   // 3. 尽力而为取 dist-tags;拿不到就静默退出
-  const metadata = await fetchPackageUpdateMetadata();
+  const fetchMetadata = options.fetchMetadata || fetchPackageUpdateMetadata;
+  const report = options.report || reportTelemetry;
+  const [metadata] = await Promise.all([
+    fetchMetadata(),
+    Promise.resolve()
+      .then(() => report(ctx.target, "version_check"))
+      .catch(() => null),
+  ]);
   if (!metadata) return;
   const tags = metadata.tags;
 

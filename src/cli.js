@@ -74,6 +74,7 @@ function printHelp() {
   flower-trellis self-check --json [--target <dir>]      输出启动更新检查 JSON
   flower-trellis self-update --target <dir> --yes        自更新 + 项目重叠加
   flower-trellis update-check <get|set|disable|enable>   管理启动更新策略
+  flower-trellis telemetry <status|enable|disable>       管理匿名安装遥测
   flower-trellis plugin                                 交互管理 Plugin、来源与 GitLab 授权
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
@@ -149,6 +150,9 @@ async function main() {
     } else if (cmd === "update-check") {
       const { updateCheck } = await import("./commands/update-check.js");
       await updateCheck(ctx);
+    } else if (cmd === "telemetry") {
+      const { telemetry } = await import("./commands/telemetry.js");
+      await telemetry(ctx);
     } else if (cmd === "skill") {
       const { skill } = await import("./commands/skill.js");
       await skill(ctx);

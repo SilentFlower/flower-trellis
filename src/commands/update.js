@@ -16,6 +16,7 @@ import {
 import { ProjectStore } from "../plugin/state/project-store.js";
 import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
 import { showCommandCompletion } from "../lib/command-completion.js";
+import { reportTelemetry } from "../lib/telemetry.js";
 
 function printBackupRetentionResult(result) {
   if (result.status === "preview") {
@@ -132,8 +133,12 @@ export async function update(ctx) {
     console.log("  · --backup-retention 0:保留全部升级备份");
   }
 
+  const telemetryPromise = dryRun
+    ? null
+    : reportTelemetry(target, "update_completed", { force: true });
   await showCommandCompletion("update", target, {
     passthrough: ctx.passthrough,
     outcome: dryRun ? "preview" : "success",
   });
+  await telemetryPromise;
 }

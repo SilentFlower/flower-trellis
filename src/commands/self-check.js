@@ -1,4 +1,5 @@
 import { buildSelfCheck } from "../lib/self-check.js";
+import { reportTelemetry } from "../lib/telemetry.js";
 
 /**
  * flower-trellis self-check:输出结构化启动更新检查结果。
@@ -14,6 +15,9 @@ export async function selfCheck(ctx) {
   if (ctx.updateCheck === false) {
     process.env.FLOWER_NO_UPDATE_CHECK = "1";
   }
-  const result = await buildSelfCheck(ctx.target, { forceRemote });
+  const result = await buildSelfCheck(ctx.target, {
+    forceRemote,
+    onRemoteCheck: () => reportTelemetry(ctx.target, "version_check"),
+  });
   console.log(JSON.stringify(result, null, 2));
 }

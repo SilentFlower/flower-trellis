@@ -64,6 +64,9 @@ flower-trellis self-update --target . --yes
 # 管理启动更新检查策略
 flower-trellis update-check get --target .
 
+# 查看或修改匿名安装遥测开关
+flower-trellis telemetry status
+
 # 卸载:移除 Trellis 本体并清理强化包残留
 flower-trellis uninstall
 
@@ -72,6 +75,8 @@ flower-trellis -v
 ```
 
 > 已全局安装时可直接写 `flower-trellis`、`ftl` 或 `ft`(三者等价);未安装则在命令前加 `npx`。
+
+为统计安装活跃度和版本分布，CLI 默认在远程版本检查及 `init` / `update` 成功后上报随机设备 ID、Flower/Trellis 版本、项目 `.trellis/.developer` 名称和运行平台；不采集 MAC、主机名、系统用户名、项目路径或仓库地址。可用 `flower-trellis telemetry disable` 持久停用，或用 `FLOWER_NO_TELEMETRY=1` 临时停用。
 
 ### 命令
 
@@ -82,6 +87,7 @@ flower-trellis -v
 | `self-check` | 输出启动更新检查 JSON,供 Codex / Claude Code hook 和 AI 自动化读取 |
 | `self-update` | 受控升级 flower-trellis 并对目标项目执行完整 `flower-trellis update` 重叠加 |
 | `update-check` | 管理 `.trellis/.flower-manifest.json` 内的启动更新检查策略 |
+| `telemetry` | 查询、启用或停用用户级匿名安装遥测 |
 | `plugin` | 管理 Flower Plugin、Marketplace 来源、GitLab 授权和作者校验 |
 | `uninstall` | 移除 Trellis 本体并清理强化包残留(支持 `-y` / `--dry-run`) |
 | `<其它命令>` | 原样透传给 Trellis,覆盖其现有及未来子命令 |
@@ -112,6 +118,8 @@ flower-trellis plugin
 ```
 
 交互管理器采用 `发现 / 已安装 / 来源 / 问题` 四个页签。Trellis 项目的 `发现` 页会展示 `flower/skill-garden` 内置入口，按 Enter 直接管理工作流强化与可选通用技能；原 `flower-trellis skill` 命令继续保留为高级兼容入口。`发现` 同时合并全部已启用来源的 Plugin，并保留来源标签和即时搜索；未登录 GitLab 来源会直接进入 Device Flow，GitHub 公共来源无需登录。`来源` 页的“新增来源”可选择 GitHub 公共仓库或 GitLab Marketplace；GitHub 会先在临时缓存中下载固定快照、检测格式、展示可导入与忽略组件，确认后才保存。ref 留空时使用仓库默认分支；出现多个格式入口时会要求选择，公开 GitHub 跨仓 Marketplace 条目和 `plugins/*` 多 Plugin 仓库也可识别。
+
+可选通用技能包含 `aliyun-sls-query`，可为 Codex / Claude 项目安装零第三方依赖的阿里云 SLS 查询脚本与排障知识；默认不安装，也不会复制用户私有 AK/SK 配置。
 
 安装、更新和卸载都会先展示 dry-run、依赖、capability 和目标文件变化，确认后才写入项目。Plugin 作者使用的 `plugin init`、`plugin validate` 继续保留在高级命令中，不占用普通用户的管理器首页。
 

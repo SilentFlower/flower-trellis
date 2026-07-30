@@ -1,0 +1,8 @@
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"检查遥测默认值、持久化、更新检查节流和网络失败降级"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查 Flower 主流程零阻断、幂等和完整测试"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 payload、数据库、API 和前端字段往返一致性"}
+{"file":"/root/project/ai-fund/.trellis/spec/backend/api-routes.md","reason":"检查 admin-only 路由、公开 ingest 和错误响应"}
+{"file":"/root/project/ai-fund/.trellis/spec/backend/database-guidelines.md","reason":"检查 D1 schema、时间阈值、索引和参数化查询"}
+{"file":"/root/project/ai-fund/.trellis/spec/backend/quality-guidelines.md","reason":"检查 Worker 代码风格、JSDoc、CORS 和分页格式"}
+{"file":"/root/project/ai-fund/.trellis/spec/frontend/component-guidelines.md","reason":"检查管理员 Tab、表格、模态框和响应式布局"}
+{"file":"/root/project/ai-fund/.trellis/spec/frontend/state-management.md","reason":"检查筛选、分页、加载态和错误态"}

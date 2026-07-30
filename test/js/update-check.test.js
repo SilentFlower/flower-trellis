@@ -12,6 +12,7 @@ import {
   writeUpdateCheck,
 } from "../../src/lib/manifest.js";
 import {
+  checkForUpdate,
   getUpdateRecommendation,
   installFlowerVersion,
 } from "../../src/lib/update-check.js";
@@ -155,6 +156,75 @@ test("强制远端检查返回离线写入后的缓存视图", async (t) => {
   assert.equal(result.updateCheck.lastStatus, "offline");
   assert.equal(result.updateCheck.lastErrorCode, "fetch_failed");
   assert.deepEqual(result.updateCheck, readUpdateCheck(target));
+});
+
+test("self-check 只在真实远程检查时触发遥测回调", async (t) => {
+  const target = createTarget(t);
+  writeUpdateCheck(target, {
+    lastCheckedAt: new Date().toISOString(),
+    lastRemote: { latest: flowerVersion(), beta: null },
+    lastStatus: "up_to_date",
+    lastErrorCode: null,
+  });
+  let callbacks = 0;
+  let fetches = 0;
+
+  await buildSelfCheck(target, {
+    fetchMetadata: async () => {
+      fetches += 1;
+      return null;
+    },
+    onRemoteCheck: async () => {
+      callbacks += 1;
+    },
+  });
+  assert.equal(fetches, 0);
+  assert.equal(callbacks, 0);
+
+  await buildSelfCheck(target, {
+    forceRemote: true,
+    fetchMetadata: async () => {
+      fetches += 1;
+      return {
+        tags: { latest: flowerVersion(), beta: null },
+        releaseNotesByVersion: {},
+      };
+    },
+    onRemoteCheck: async () => {
+      callbacks += 1;
+    },
+  });
+  assert.equal(fetches, 1);
+  assert.equal(callbacks, 1);
+});
+
+test("init/update 版本检查把遥测与 registry 请求并行触发", async (t) => {
+  const target = createTarget(t);
+  let reports = 0;
+  await checkForUpdate({ target, updateCheck: true, passthrough: ["--yes"] }, "update", {
+    fetchMetadata: async () => ({
+      tags: { latest: flowerVersion(), beta: null },
+      releaseNotesByVersion: {},
+    }),
+    report: async (reportedTarget, event) => {
+      assert.equal(reportedTarget, target);
+      assert.equal(event, "version_check");
+      reports += 1;
+    },
+  });
+  assert.equal(reports, 1);
+});
+
+test("关闭版本检查时不触发遥测回调", async (t) => {
+  const target = createTarget(t);
+  let reports = 0;
+  await checkForUpdate({ target, updateCheck: false, passthrough: [] }, "init", {
+    fetchMetadata: async () => assert.fail("关闭后不应请求 registry"),
+    report: async () => {
+      reports += 1;
+    },
+  });
+  assert.equal(reports, 0);
 });
 
 test("update-check 单向迁移到 .flower 并保留旧 manifest 证据", (t) => {

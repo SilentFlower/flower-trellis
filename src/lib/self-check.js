@@ -354,7 +354,7 @@ export function safetyState(target, status, command) {
  * 构建启动自更新检查结果。
  *
  * @param {string} target 目标项目根
- * @param {{writeCache?: boolean, forceRemote?: boolean, fetchMetadata?: () => Promise<object|null>}} options 检查选项
+ * @param {{writeCache?: boolean, forceRemote?: boolean, fetchMetadata?: () => Promise<object|null>,onRemoteCheck?:()=>Promise<unknown>}} options 检查选项
  * @returns {Promise<object>} 结构化检查结果
  */
 export async function buildSelfCheck(target, options = {}) {
@@ -363,6 +363,9 @@ export async function buildSelfCheck(target, options = {}) {
   const fetchMetadata = typeof options.fetchMetadata === "function"
     ? options.fetchMetadata
     : fetchPackageUpdateMetadata;
+  const onRemoteCheck = typeof options.onRemoteCheck === "function"
+    ? options.onRemoteCheck
+    : null;
   const now = new Date();
   const absoluteTarget = path.resolve(target);
   const trellisDir = path.join(absoluteTarget, ".trellis");
@@ -492,7 +495,10 @@ export async function buildSelfCheck(target, options = {}) {
     };
   }
 
-  const metadata = await safeFetchPackageUpdateMetadata(fetchMetadata);
+  const [metadata] = await Promise.all([
+    safeFetchPackageUpdateMetadata(fetchMetadata),
+    onRemoteCheck ? Promise.resolve().then(onRemoteCheck).catch(() => null) : null,
+  ]);
   if (!metadata) {
     const resultBase = persistRemoteCache({
       lastStatus: "offline",

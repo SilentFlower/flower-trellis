@@ -599,3 +599,76 @@ pruneUpdateBackups(target, { retention, beforeSnapshot, dryRun });
 - 联网探测(版本检测)漏写超时或 try/catch —— 离线时会挂起或把错误抛进主流程,见
   [Network Probe](#network-probe-尽力而为联网探测)。
 - 凭 manifest 之外的猜测去删除目标文件 —— 清理只认 manifest 里的精确 `paths`。
+
+---
+
+## 用户级匿名安装遥测契约
+
+### 1. Scope / Trigger
+
+修改 `src/lib/telemetry.js`、`telemetry` 子命令、远程版本检查或 init/update 完成路径时，必须遵守本契约。遥测默认开启但在普通运行中完全静默，任何失败都不能改变主命令输出或退出码。
+
+### 2. Signatures
+
+```text
+<flowerConfigDirectory>/telemetry.json
+flower-trellis telemetry status|enable|disable
+FLOWER_NO_TELEMETRY=1
+POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
+```
+
+状态字段固定为 `schemaVersion`、`deviceId`、`enabled`、`lastAttemptAt`、`lastSuccessAt`。事件固定为 `version_check`、`init_completed`、`update_completed`。
+
+### 3. Contracts
+
+- 状态缺失时视为启用，首次真实上报生成用户级随机 UUID；npm 重装和不同项目复用同一 ID。
+- 配置目录权限 0700、文件 0600，同目录临时文件 + `fsync` + rename 原子替换；软链接或非普通文件拒绝覆盖。
+- 损坏的普通 JSON 状态在后台上报中静默跳过并保留证据，只有显式 `telemetry enable|disable` 可重建；软链接或非普通文件始终拒绝覆盖。
+- payload 只含随机设备 ID、事件、Flower/Trellis 当前与项目版本、`.trellis/.developer` 的 `name=`、platform、arch、client_time。
+- 禁止采集 MAC、主机名、系统用户名、项目路径、仓库地址、Git 身份、IP 或 User-Agent。
+- 普通 `version_check` 复用 updateCheck `intervalHours` 节流；init/update 成功事件强制上报，update dry-run 不上报。
+- init/update 的 registry 请求与遥测并行；self-check 只有缓存未命中并真实请求 registry 时触发，stdout 始终只有原 JSON。
+- `FLOWER_NO_TELEMETRY` 只临时停用且零写入；持久开关独立于 updateCheck。
+- 网络上报使用短超时，HTTP/网络/状态写入错误全部静默降级。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 无状态文件 | 默认启用，首次上报创建 UUID 并发送 |
+| `enabled=false` | 不发送、不更新尝试时间 |
+| `FLOWER_NO_TELEMETRY` 非空 | 不发送且不创建状态文件 |
+| 状态 JSON 损坏 | 普通路径跳过；显式 enable/disable 生成新 UUID 并原子重建 |
+| 状态为软链接或非普通文件 | 普通路径跳过；显式命令也拒绝覆盖 |
+| version_check 尚在 interval 内 | 返回 throttled，不联网 |
+| init/update 成功 | 绕过 interval 发送完成事件 |
+| update `--dry-run` | 不发送完成事件 |
+| 网络失败、超时或非 2xx | 记录 lastAttemptAt，保留 lastSuccessAt，主命令继续 |
+
+### 5. Good / Base / Bad Cases
+
+- Good：同一用户在多个项目运行，服务端看到同一随机设备 ID 与不同开发者别名/项目版本，但看不到路径和仓库。
+- Base：离线环境上报超时后静默返回，init/update 完成页和 self-check JSON 不受影响。
+- Bad：使用 MAC/hostname 生成稳定指纹，或把遥测状态写进项目仓库。
+- Bad：状态损坏时后台自动覆盖，导致用户无法检查异常证据。
+
+### 6. Tests Required
+
+- 缺失状态默认开启、UUID 稳定、0700/0600、enable/disable 和环境变量零写入。
+- 损坏 JSON、软链接、网络失败、超时、节流和强制事件。
+- payload 精确白名单及明确不存在 MAC、hostname、username、path、repository。
+- self-check 缓存命中不触发、真实远程检查触发、stdout 可直接 `JSON.parse`。
+- init/update 完成事件位于成功路径，update dry-run 跳过。
+- 运行 `node --test test/js/telemetry.test.js test/js/update-check.test.js`、完整 `npm test`、全量 `node --check` 与 `git diff --check`。
+
+### 7. Wrong vs Correct
+
+```javascript
+// 错误：用机器硬件生成不可轮换指纹
+const deviceId = hash(macAddress + hostname)
+
+// 正确：首次上报生成用户级随机 UUID，并存入私有配置目录
+const state = { schemaVersion: 1, deviceId: crypto.randomUUID(), enabled: true }
+```
+
+原因：运营统计只需要稳定随机安装标识，不需要不可撤销的硬件身份。

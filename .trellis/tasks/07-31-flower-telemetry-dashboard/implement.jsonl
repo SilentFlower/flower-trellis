@@ -1,0 +1,8 @@
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"Flower 用户级状态、更新检查缓存、网络探测与降级契约"}
+{"file":".trellis/spec/flower-trellis/cli/module-guidelines.md","reason":"Flower ESM 分层、命名导出与中文 JSDoc 规范"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"Flower 幂等、非阻断降级和测试门禁"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"CLI、API、D1、Vue 跨层字段和失败边界"}
+{"file":"/root/project/ai-fund/.trellis/spec/backend/api-routes.md","reason":"ai-fund Worker 路由、认证和响应契约"}
+{"file":"/root/project/ai-fund/.trellis/spec/backend/database-guidelines.md","reason":"ai-fund D1 schema、Prepared Statement 和时间比较规范"}
+{"file":"/root/project/ai-fund/.trellis/spec/frontend/component-guidelines.md","reason":"ai-fund Vue 组件、样式和弹出层契约"}
+{"file":"/root/project/ai-fund/.trellis/spec/frontend/state-management.md","reason":"ai-fund 前端本地状态、筛选和分页管理模式"}

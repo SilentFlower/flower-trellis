@@ -8,6 +8,7 @@ import { PLATFORM_FLAGS } from "../constants.js";
 import { ProjectStore } from "../plugin/state/project-store.js";
 import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
 import { showCommandCompletion } from "../lib/command-completion.js";
+import { reportTelemetry } from "../lib/telemetry.js";
 
 /**
  * flower-trellis init:驱动 `trellis init`,随后叠加强化包。
@@ -88,5 +89,7 @@ export async function init(ctx) {
     console.log("· --no-enhance:跳过强化包叠加");
   }
 
+  const telemetryPromise = reportTelemetry(target, "init_completed", { force: true });
   await showCommandCompletion("init", target, { passthrough });
+  await telemetryPromise;
 }
