@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查多仓计划没有越过 Auto-Loop commit-only、安全和恢复契约"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查 Python/Node 测试、幂等、失败关闭和完整 npm test"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 runner、Skill 协议、生成副本和 Git 状态跨层闭环"}
+{"file":".trellis/tasks/archive/2026-06/06-29-auto-loop-commit-route-fixes/prd.md","reason":"反向验证不回归既有 commit-only、队列继续和完成态要求"}

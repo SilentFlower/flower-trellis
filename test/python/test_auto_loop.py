@@ -178,6 +178,101 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
             if line.strip()
         ]
 
+    def git(self, repo: Path, *args: str) -> str:
+        """在指定临时仓库执行 Git 命令。
+
+        Args:
+            repo: Git 仓库目录。
+            args: Git 子命令参数。
+
+        Returns:
+            去除首尾空白后的标准输出。
+        """
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            env=self.env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result.stdout.strip()
+
+    def initialize_git_repo(self, repo: Path) -> str:
+        """初始化临时 Git 仓库并创建基线提交。
+
+        Args:
+            repo: 需要初始化的目录。
+
+        Returns:
+            基线提交哈希。
+        """
+        repo.mkdir(parents=True, exist_ok=True)
+        self.git(repo, "init", "-q")
+        self.git(repo, "config", "user.name", "Auto Loop Test")
+        self.git(repo, "config", "user.email", "auto-loop@example.com")
+        marker = repo / "fixture.txt"
+        marker.write_text("baseline\n", encoding="utf-8")
+        self.git(repo, "add", "--", ".")
+        self.git(repo, "commit", "-q", "-m", "test: baseline")
+        return self.git(repo, "rev-parse", "HEAD")
+
+    def commit_fixture(self, repo: Path, content: str) -> str:
+        """在临时仓库创建一个新的精确提交。
+
+        Args:
+            repo: Git 仓库目录。
+            content: 写入 fixture 文件的内容。
+
+        Returns:
+            新提交哈希。
+        """
+        marker = repo / "fixture.txt"
+        marker.write_text(content, encoding="utf-8")
+        self.git(repo, "add", "--", "fixture.txt")
+        self.git(repo, "commit", "-q", "-m", "test: update fixture", "--", "fixture.txt")
+        return self.git(repo, "rev-parse", "HEAD")
+
+    def advance_to_commit_only(self) -> dict:
+        """推进到 commit_only action。
+
+        Returns:
+            commit_only action。
+        """
+        self.advance_to_check()
+        self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+            "--check-depth-reason",
+            "定向检查通过",
+        )
+        self.runner("next")
+        self.runner("record", "--action", "run_spec_update", "--result", "ok")
+        action = self.runner("next")
+        self.assertEqual(action["action"], "commit_only")
+        return action
+
+    def register_repository(self, relative_root: str) -> None:
+        """把临时子仓加入当前 run 的 repository baseline。
+
+        Args:
+            relative_root: 相对 Trellis 根目录的仓库路径。
+        """
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        state.setdefault("repositories", []).append({
+            "root": relative_root,
+            "dirty": [],
+            "owned_dirty": [],
+            "protected_retained": [],
+        })
+        self.state_path().write_text(json.dumps(state), encoding="utf-8")
+
     def write_planning_task(self, open_questions: str) -> None:
         """创建带指定 Open Questions 的 planning 任务。"""
         task_dir = self.root / ".trellis/tasks/task-planning"
@@ -1330,6 +1425,243 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         status = self.progress_status()
         self.assertEqual(status["status"], "ok")
         self.assertIn("finish-work/archive", status["summary"]["nextStep"])
+
+    def test_commit_only_records_multiple_repository_commits(self) -> None:
+        """多仓 commit-only 保存全部提交并以最后一仓作为兼容主提交。"""
+        self.initialize_git_repo(self.root)
+        self.advance_to_commit_only()
+        child = self.root / "child-repo"
+        self.initialize_git_repo(child)
+        self.register_repository("child-repo")
+        child_commit = self.commit_fixture(child, "child change\n")
+        root_commit = self.commit_fixture(self.root, "root change\n")
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--commit",
+            root_commit[:12],
+            "--repo-commit",
+            f"child-repo::{child_commit[:12]}",
+            "--repo-commit",
+            f"child-repo::{child_commit}",
+            "--repo-commit",
+            f".::{root_commit}",
+        )
+
+        self.assertEqual(recorded["commit"], root_commit)
+        self.assertEqual(recorded["commits"], [
+            {"repository": "child-repo", "commit": child_commit},
+            {"repository": ".", "commit": root_commit},
+        ])
+        status = self.runner("status", "--run-id", "auto-test")
+        self.assertEqual(
+            status["completed_tasks"][0]["commits"],
+            [f"child-repo:{child_commit[:7]}", f".:{root_commit[:7]}"],
+        )
+        resumed = self.runner("resume", "--run-id", "auto-test")
+        self.assertEqual(resumed["completed_tasks"][0]["commits"], status["completed_tasks"][0]["commits"])
+        verbose = self.runner("status", "--run-id", "auto-test", "--verbose")
+        self.assertEqual(verbose["completed_tasks"][0]["commits"], recorded["commits"])
+        progress = self.task_json()["progress"]
+        self.assertIn(f"child-repo:{child_commit[:7]}", progress["completedSteps"][0])
+        self.assertIn(f".:{root_commit[:7]}", progress["completedSteps"][0])
+
+    def test_repo_commit_validation_rejects_unknown_invalid_and_conflicting_values(self) -> None:
+        """repo-commit 只接受 run 内仓库的本地 commit object。"""
+        self.initialize_git_repo(self.root)
+        self.advance_to_commit_only()
+        first_commit = self.commit_fixture(self.root, "first change\n")
+        second_commit = self.commit_fixture(self.root, "second change\n")
+        blob = self.git(self.root, "hash-object", "-w", "fixture.txt")
+
+        unknown = self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--repo-commit",
+            f"missing::{first_commit}",
+        )
+        self.assertEqual(unknown["reason"], "repo-commit-repository-not-in-run")
+
+        invalid = self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--repo-commit",
+            ".::not-a-hash",
+        )
+        self.assertEqual(invalid["reason"], "invalid-repo-commit-hash")
+
+        non_commit = self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--repo-commit",
+            f".::{blob}",
+        )
+        self.assertEqual(non_commit["reason"], "repo-commit-not-a-commit")
+
+        conflict = self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--repo-commit",
+            f".::{first_commit}",
+            "--repo-commit",
+            f".::{second_commit}",
+        )
+        self.assertEqual(conflict["reason"], "repo-commit-conflict")
+
+    def test_repo_commit_validation_returns_structured_error_for_unreadable_repository(self) -> None:
+        """run 内仓库不可访问时返回结构化错误而不是抛出异常。"""
+        self.initialize_git_repo(self.root)
+        self.advance_to_commit_only()
+        self.register_repository("missing-repo")
+        root_commit = self.commit_fixture(self.root, "root change\n")
+
+        unreadable = self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--repo-commit",
+            f"missing-repo::{root_commit}",
+        )
+
+        self.assertEqual(unreadable["status"], "error")
+        self.assertEqual(unreadable["reason"], "repo-commit-repository-unreadable")
+        self.assertEqual(unreadable["repository"], "missing-repo")
+
+    def test_multi_repo_primary_commit_must_match_recorded_commits(self) -> None:
+        """多仓兼容主 commit 必须唯一匹配 commits[] 中的提交。"""
+        self.initialize_git_repo(self.root)
+        self.advance_to_commit_only()
+        recorded_commit = self.commit_fixture(self.root, "recorded change\n")
+        unrelated_commit = self.commit_fixture(self.root, "unrelated change\n")
+
+        mismatch = self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--commit",
+            unrelated_commit,
+            "--repo-commit",
+            f".::{recorded_commit}",
+        )
+
+        self.assertEqual(mismatch["status"], "error")
+        self.assertEqual(mismatch["reason"], "repo-commit-primary-mismatch")
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--commit",
+            recorded_commit[:12],
+            "--repo-commit",
+            f".::{recorded_commit}",
+        )
+
+        self.assertEqual(recorded["commit"], recorded_commit)
+        self.assertEqual(recorded["commits"], [{"repository": ".", "commit": recorded_commit}])
+
+    def test_commit_repair_reissues_three_times_then_blocks_and_can_retry(self) -> None:
+        """commit-only 保留部分提交，三次重试后才耗尽预算。"""
+        self.initialize_git_repo(self.root)
+        self.advance_to_commit_only()
+        child = self.root / "child-repo"
+        self.initialize_git_repo(child)
+        self.register_repository("child-repo")
+        child_commit = self.commit_fixture(child, "child committed\n")
+
+        for attempt in (1, 2, 3, 4):
+            args = [
+                "record",
+                "--action",
+                "commit_only",
+                "--result",
+                "failed",
+                "--failure-type",
+                "commit-repairable",
+                "--summary",
+                f"第 {attempt} 次生成未收敛",
+            ]
+            if attempt == 1:
+                args.extend(["--repo-commit", f"child-repo::{child_commit}"])
+            recorded = self.runner(*args)
+            if attempt <= 3:
+                self.assertEqual(recorded["item_status"], "running")
+                self.assertEqual(recorded["current_step"], "commit_only")
+                next_action = self.runner("next")
+                self.assertEqual(next_action["action"], "commit_only")
+            else:
+                self.assertEqual(recorded["item_status"], "blocked")
+
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        item = state["queue"][0]
+        self.assertEqual(item["attempts"]["commit_repair"], 4)
+        self.assertEqual(item["blocked"]["reason"], "commit-repair-budget-exhausted")
+        self.assertEqual(item["commits"], [{"repository": "child-repo", "commit": child_commit}])
+        self.runner("next")
+
+        retried = self.runner(
+            "retry-blocked",
+            "--run-id",
+            "auto-test",
+            "--task",
+            ".trellis/tasks/task-one",
+        )
+
+        self.assertEqual(retried["status"], "retry-ready")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        item = state["queue"][0]
+        self.assertEqual(item["attempts"]["commit_repair"], 0)
+        self.assertEqual(item["commits"], [{"repository": "child-repo", "commit": child_commit}])
+        self.assertEqual(self.runner("next")["action"], "commit_only")
+
+    def test_non_repairable_commit_failure_blocks_immediately(self) -> None:
+        """不安全的 commit-only 失败不消耗自动修复预算。"""
+        self.initialize_git_repo(self.root)
+        self.advance_to_commit_only()
+        root_commit = self.commit_fixture(self.root, "root committed\n")
+
+        recorded = self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "failed",
+            "--failure-type",
+            "branch-drift",
+            "--summary",
+            "分支在提交链执行期间变化",
+            "--repo-commit",
+            f".::{root_commit}",
+        )
+
+        self.assertEqual(recorded["item_status"], "blocked")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        item = state["queue"][0]
+        self.assertEqual(item["blocked"]["reason"], "branch-drift")
+        self.assertEqual(item["attempts"]["commit_repair"], 0)
+        self.assertEqual(item["commits"], [{"repository": ".", "commit": root_commit}])
 
     def test_blocked_item_writes_recoverable_task_progress(self) -> None:
         """blocked 终态必须写入可扫描的下一步。"""

@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"Auto-Loop schema、dirty baseline、commit-only 与 canonical 分发契约"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"Builtin Skill-Garden 子模块与内容同步所有权"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"canonical/compiled targets、同步与一致性检查边界"}
+{"file":".trellis/tasks/archive/2026-06/06-29-auto-loop-commit-route-fixes/design.md","reason":"既有 Auto-Loop commit-only 与 Trellis Push 所有权决策"}
+{"file":".trellis/tasks/archive/2026-06/06-28-auto-loop-task-runner/design.md","reason":"Auto-Loop 状态机、恢复和 commit-only 原始设计"}

@@ -1,0 +1,110 @@
+{
+  "id": "auto-loop-dependent-multi-repo-commit",
+  "name": "auto-loop-dependent-multi-repo-commit",
+  "title": "Auto-Loop 依赖型多仓提交支持",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-31",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-07-31T00:15:35Z",
+      "contextKey": "codex_019fb3f9-25e5-7200-a9fc-9fa12bf1de89",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "dbc6ab24289f502fd0a66bf0a71e3da0d1700213",
+        "status": [
+          {
+            "status": " M",
+            "path": ".trellis/tasks/07-31-flower-telemetry-dashboard/task.json"
+          },
+          {
+            "status": " M",
+            "path": "enhancements/MANIFEST.json"
+          },
+          {
+            "status": " M",
+            "path": "vendor/skill-garden"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-31-skill-garden-sls-query/brief.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-31-skill-garden-sls-query/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-31-skill-garden-sls-query/design.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-31-skill-garden-sls-query/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-31-skill-garden-sls-query/implement.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-31-skill-garden-sls-query/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-31-skill-garden-sls-query/research/source-audit.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/07-31-skill-garden-sls-query/task.json"
+          },
+          {
+            "status": "??",
+            "path": "enhancements/common/.common/.claude/skills/aliyun-sls-query/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": "enhancements/common/.common/.claude/skills/aliyun-sls-query/assets/env.example"
+          },
+          {
+            "status": "??",
+            "path": "enhancements/common/.common/.claude/skills/aliyun-sls-query/scripts/sls_get_logs.py"
+          },
+          {
+            "status": "??",
+            "path": "enhancements/common/.common/.codex/skills/aliyun-sls-query/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": "enhancements/common/.common/.codex/skills/aliyun-sls-query/assets/env.example"
+          },
+          {
+            "status": "??",
+            "path": "enhancements/common/.common/.codex/skills/aliyun-sls-query/scripts/sls_get_logs.py"
+          },
+          {
+            "status": "??",
+            "path": "test/js/common-skill-catalog.test.js"
+          }
+        ]
+      }
+    }
+  }
+}

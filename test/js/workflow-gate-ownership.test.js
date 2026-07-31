@@ -67,6 +67,36 @@ test("Workflow Hub 只保留 13 项 owner 索引和跨阶段顺序", () => {
   }
 });
 
+test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算", () => {
+  const autoLoop = readSource(".agents/skills/trellis-auto-loop/SKILL.md");
+  const autoLoopClaude = readSource(".claude/skills/trellis-auto-loop/SKILL.md");
+  const push = readSource(".agents/skills/trellis-push/SKILL.md");
+  const pushClaude = readSource(".claude/skills/trellis-push/SKILL.md");
+  const runner = readSource("scripts/auto_loop.py");
+
+  assert.equal(autoLoop, autoLoopClaude);
+  assert.equal(push, pushClaude);
+  assert.match(autoLoop, /commit -> generate -> commit/);
+  assert.match(autoLoop, /不得仅因多个仓库、submodule pin 或证据充分的本地生成命令返回 `multi-repo-commit-boundary`/);
+  assert.match(autoLoop, /--repo-commit <repository>::<hash>/);
+  assert.match(autoLoop, /--failure-type commit-repairable/);
+  assert.match(autoLoop, /第 4 次失败进入 `commit-repair-budget-exhausted`/);
+  assert.match(push, /动态执行链按以下证据优先级生成/);
+  assert.match(push, /任务 `design\.md` \/ `implement\.md`/);
+  assert.match(push, /受版本控制的 `package\.json`、Makefile 或仓库脚本入口/);
+  assert.match(push, /互相冲突时失败关闭/);
+  assert.match(push, /retained exact paths 的内容摘要不变/);
+  assert.match(push, /验证 repository、commit object、message 和文件集合/);
+  assert.match(push, /Auto-Loop runner 仍按自己的状态契约写入本地 `task\.json\.progress`/);
+  assert.match(push, /本 skill 跳过 Step 5/);
+  assert.match(push, /不得 reset、rebase、revert、amend 或撤销成功提交/);
+  assert.doesNotMatch(push, /本 skill 只执行该提交/);
+  assert.match(runner, /MAX_COMMIT_REPAIR = MAX_FIX_RECHECK/);
+  assert.match(runner, /record\.add_argument\("--repo-commit", action="append", default=\[\]\)/);
+  assert.match(runner, /"commit-repair-budget-exhausted"/);
+  assert.doesNotMatch(runner, /add_parser\("commit-(?:plan|step)"/);
+});
+
 test("13 个 Gate 的完整契约位于原生 owner", () => {
   const requestTriage = readSource(
     "overrides/patches/workflow/intent-routing/request-triage/content.md",

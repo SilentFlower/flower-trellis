@@ -1450,7 +1450,8 @@ spec 文档不需要额外维护一套 triggers,长文档也不再默认整份�
   再无人值守推进到本地 `commit-only` 终态。
 - Scope:`auto_loop.py` 负责 schema、manifest、依赖、dirty baseline、预算和 action 状态机；
   `trellis-auto-loop/SKILL.md` 负责语义边界与 action 调度；`decision_log.py` 保存可审计 AI 决策；
-  `trellis-route`、Check-All、`trellis-push` 和 `trellis-finish-work` 继续拥有各自完整流程。
+  `trellis-push` 独占动态多仓执行链、确定性生成和逐步 Git 安全预检；`trellis-route`、Check-All
+  和 `trellis-finish-work` 继续拥有各自完整流程，runner 不执行 Git 或生成命令。
 
 ### 2. Signatures
 
@@ -1468,7 +1469,11 @@ python3 ./.trellis/scripts/auto_loop.py record \
   [--owned-dirty <task>=<repository>::<path>] \
   [--protected-retained <repository>::<path>] \
   [--doc-remediation-file <repository>::<path>] \
-  [--files <repository>::<path> ...] [...]
+  [--files <repository>::<path> ...] \
+  [--retained-files <repository>::<path> ...] \
+  [--commit <primary-or-last>] \
+  [--repo-commit <repository>::<hash> ...] \
+  [--commit-message <message>] [...]
 python3 ./.trellis/scripts/auto_loop.py decide \
   --task <task> --topic <topic> --option <option> [--option <option> ...] \
   --choice <choice> --summary <summary> --risk low|medium \
@@ -1507,9 +1512,15 @@ python3 ./.trellis/scripts/decision_log.py review \
 - `fix_recheck` 预算计数表示已记录的 failed recheck 次数；`MAX_FIX_RECHECK=3` 必须实际允许 3 个 `run_fix` action。只有计数大于预算时才以 `retry-budget-exhausted` 阻塞；用户显式 `retry-blocked` 恢复该原因时必须把 `attempts.fix_recheck` 重置为 `0`，避免刚恢复就再次阻断。
 - `artifact_reconcile` 只属于同一个 Check outstanding action；`MAX_ARTIFACT_RECONCILE=3` 允许前 3 次 retryable 重录，第 4 次转为 terminal `artifact-drift`。成功 Check record 把计数重置为 `0`；用户显式 `retry-blocked` 恢复 terminal artifact drift 时也重置该预算。
 - `retry-blocked` 只重置稳定 recoverable reason，复用同一 run；不得用 `start --force` 替代正常恢复。schema 2 队列含 blocked 项时终态为 `completed_with_blocked`。
-- `commit_only` 必须复用 `trellis-push` 内部 exact commit 执行器，排除 runtime、route prefs、protected paths 和其它任务目录；不得使用 `git add .`、`git add -A`、push 或时间差归属推断。
+- `commit_only` 必须复用 `trellis-push` 内部执行路径。Push 根据当前任务 design/implement、项目 SOP/spec、受版本控制的脚本入口及明确输入输出、可验证的 Git/submodule 关系，动态组织任意数量的 `commit -> generate -> commit`；不得硬编码仓库、命令或步骤数，也不得仅因多个仓库、submodule pin 或证据充分的本地生成而 blocked。
+- 生成命令必须来自受版本控制的稳定入口，并能证明工作目录、依赖顺序和预期影响路径；只允许本地、确定性、可重复、无外部副作用的 argv。证据冲突、任意 shell、网络写入、push、发布、部署、归档、凭证或生产数据操作必须在执行前失败关闭。
+- Push 在每个 commit/generate 前后重新检查 branch、HEAD、未完成 Git 集成、staged、全部 dirty 和 retained 摘要；只使用 exact paths 和 `git commit --only`，排除 runtime、route prefs、protected paths 及其它任务目录。retained 只有在前后内容摘要不变且与 planned/generated paths 不冲突时才可保留；计划外 dirty、未知 staged、retained 漂移、归属歧义或 branch/HEAD 漂移必须在后续副作用前停止。
+- 已完成的前置提交不得自动 reset、rebase、revert、amend 或改写。重试时 Push 从真实 Git 状态重新规划，验证已记录 commit 的仓库、对象、message 和文件集合后跳过；确定性生成可以重跑，最终无变化的提交步骤可以跳过。
+- `record --repo-commit` 只接受 run 已登记仓库中的 7-64 位十六进制本地 commit object；仓库不可读返回 `repo-commit-repository-unreadable`，同仓同 hash 重复记录幂等，同仓不同 hash 返回 `repo-commit-conflict`。成功、failed 和 blocked 都保留可选 `commits[]`，不提升 schema version。
+- `commit` 继续作为主仓或最后提交的兼容字段。存在 `commits[]` 时，显式 `--commit` 必须唯一匹配其中一个已验证完整 hash 或其前缀，否则返回 `repo-commit-primary-mismatch`；未传时使用最后一个 repo commit。没有 `--repo-commit` 的旧单仓 `--commit` 调用保持原行为。
+- 只有 Push 已确认现场安全、失败来自确定性生成未收敛或可重新规划的本地预检时，才用 `--result failed --failure-type commit-repairable`。前三次失败保留 commits 并重新发出同一个 `commit_only`，第 4 次以 `commit-repair-budget-exhausted` blocked；`retry-blocked` 重置 `attempts.commit_repair`，但保留已完成 commits。该路径不得复用 Check 的 `status=retryable` 协议。
 - item `completed` 只表示本地提交完成，不修改 `task.json.status`。任务继续保持 `in_progress`，直到用户以后显式执行 finish/archive。
-- auto-loop 在 item `completed` 或 `blocked` 后可写 `task.json.progress` 作为恢复提示，但只能使用 `updatedAt`、`completedSteps`、`partialStep`、`nextStep`、`notes` 五字段 schema。completed progress 记录本地 commit 短 hash 并把 `nextStep` 指向显式 finish/archive 或人工流程；blocked progress 记录 `partialStep="auto-loop blocked: <reason>"` 并把 `nextStep` 指向精确 `retry-blocked --run-id <run-id> --task <task>` 命令。该写入不得修改 `task.json.status`、不得触发 push/archive/finish-work、不得保存 push mode、分支或 Git 编排计划。
+- Auto-Loop 内部调用 Push 时跳过 Push Step 5 的任务进度写入、进度提交和 progress push；runner 仍在 item `completed` 或 `blocked` 后写本地 `task.json.progress` 作为恢复提示，但只能使用 `updatedAt`、`completedSteps`、`partialStep`、`nextStep`、`notes` 五字段 schema。completed progress 有多仓提交时记录 `<repository>:<short-hash>` 列表，blocked progress 保留已完成 commits、失败原因并把 `nextStep` 指向精确 `retry-blocked --run-id <run-id> --task <task>` 命令。该写入不得修改 `task.json.status`、不得触发 push/archive/finish-work、不得保存 push mode、分支或 Git 编排计划。
 - `trellis-finish-work` 在归档前运行 Decision Audit；`task.py archive` 在任何状态写入、session 清理或目录移动前再次调用 deterministic review guard。无 decision 放行，当前 digest 未 accepted、changes-requested 或日志损坏时零副作用失败。
 - `<run-id>.json` 是 runner 热状态文件，只保留调度和恢复必需字段：当前 queue/item 状态、attempts、blocked reason、commit、outstanding action、manifest revision/hash 和 audit 文件引用。完整 manifest revision 历史必须写入旁路 `<run-id>.manifest.jsonl`，每行是 `type=manifest_revision`、`revision`、`sha256`、`created_at`、完整 `payload` 的审计事件；旧 runtime 中的 `manifest_revisions` 数组在下一次 `_write_state()` 时幂等迁移到 JSONL，并从主 JSON 删除。
 - 默认 stdout 只返回 run/action/计数/简短 blocked 与决策摘要；manifest、dirty、依赖链、protected drift、完整 decision data 和 resume capsule 只在 `--verbose` 输出。runtime 继续使用同目录临时文件、flush/fsync 和 `os.replace` 原子写入。
@@ -1550,6 +1561,13 @@ python3 ./.trellis/scripts/decision_log.py review \
 | decision log 无决策 | finish/archive 不增加 review 阻断 |
 | 当前 decision digest 未 accepted 或日志损坏 | archive 在任何副作用前退出非零 |
 | commit_only 成功 | exact 本地 commit 并回写 hash/files/message；任务状态仍为 `in_progress` |
+| `--repo-commit` 仓库未登记、hash 非法、对象非 commit 或仓库不可读 | 返回对应结构化错误；不消费 outstanding action，不崩溃 |
+| 同仓重复记录相同 commit / 不同 commit | 相同提交幂等合并；不同提交返回 `repo-commit-conflict` |
+| 多仓显式 `--commit` 不能唯一匹配 `commits[]` | 返回 `repo-commit-primary-mismatch`；唯一前缀规范化为完整 hash |
+| 安全的 commit-only 可恢复失败累计 1-3 次 | 保存部分 commits 和失败摘要，保持 `current_step=commit_only`，下一次 `next` 重新发出同一 action |
+| 第 4 次 `commit-repairable` 失败 | 当前 item 以 `commit-repair-budget-exhausted` blocked，保留 commits |
+| `retry-blocked` 恢复 commit repair 预算耗尽 | `attempts.commit_repair=0`，已完成 commits 保留，重新进入 `commit_only` |
+| branch/HEAD 漂移、retained 漂移、未知 staged、归属歧义或外部副作用风险 | 不标记 `commit-repairable`，立即 blocked 并停止后续副作用 |
 | commit_only 成功后写 task progress | 只更新五字段 `task.json.progress`，`task.json.status` 保持 `in_progress` |
 | item blocked 后写 task progress | `partialStep` 记录 blocked reason，`nextStep` 指向显式 `retry-blocked` 恢复命令 |
 | 旧 runtime 主 JSON 含 `manifest_revisions` | 下一次写入迁移到 `<run-id>.manifest.jsonl`，主 JSON 删除全量数组并保留 audit 引用 |
@@ -1571,8 +1589,13 @@ python3 ./.trellis/scripts/decision_log.py review \
   `--doc-remediation-file`；runner 审核实际变化集合、追加 manifest revision，再推进到 spec update。
 - Good:第一次 Check record 漏掉 DOC 声明时返回 retryable；agent 不调用 `next`，补齐声明后用原
   `run_check_all` 重录成功。
+- Good:前置仓 commit 成功、确定性生成第一次未收敛；agent 用 `failed + commit-repairable` 回写该仓
+  `--repo-commit`，runner 重新发出 `commit_only`，Push 验证并跳过前置提交后继续剩余链。
+- Good:后续仓存在不相交的 retained dirty；生成前后摘要一致，Push 只提交 exact planned/generated
+  paths，最终 record 全部 repo commits，并以主仓或最后提交填充兼容 `commit`。
 - Base:任务没有 AI decision；后续 finish/archive 直接沿用既有流程，不增加确认。
 - Base:schema 1 runtime 恢复到 outstanding `confirm_brief`；继续旧 action，不写 schema 2 字段。
+- Base:旧调用只传 `record --commit <hash>`；runner 不要求 `commits[]`，单仓结果和 progress 文案保持兼容。
 - Base:auto-loop 本地提交完成后只写 `task.json.progress.nextStep` 提示 finish/archive，任务仍保持
   `in_progress`。
 - Bad:prepare 只检查第一个任务就进入 running；后续任务的 Open Questions 会重新制造人工卡点。
@@ -1580,8 +1603,12 @@ python3 ./.trellis/scripts/decision_log.py review \
   `artifact-drift` 处理。
 - Bad:任何 `record` 漂移都立即清空 `last_action` 并进入 `completed_with_blocked`；这会让本 action
   可证明的 Check-All DOC 修复无法补充声明，也迫使用户手工恢复内部协议错误。
-- Bad:把 retryable 扩大到 implement、spec update、commit-only 或 protected drift；这些变化没有
-  Check-All DOC 白名单证据，必须继续失败关闭。
+- Bad:把 Check record 的 `status=retryable` 扩大到 implement、spec update、commit-only 或 protected
+  drift；commit-only 自修复必须使用普通 `failed + commit-repairable`，其它变化继续失败关闭。
+- Bad:把完整 commit plan/cursor 写进 runtime，新增 `commit-plan` / `commit-step`，或让 runner 执行 Git、
+  generator 和任意 shell；这些都重复 Push 所有权并扩大持久化攻击面。
+- Bad:接受未登记仓库、不可解析 commit、与 `commits[]` 不一致的主 commit，或因仓库目录消失直接抛异常；
+  恢复状态会失真且无法审计部分成功。
 - Bad:把队列项 `completed` 同步写入 `task.json.status=completed`；这会绕过 finish/archive 生命周期。
 - Bad:把全量 `manifest_revisions` 继续塞进 `<run-id>.json` 或默认 `status/resume` 输出，导致 AI 恢复时加载大型审计历史。
 - Bad:progress 保存 push mode、分支、完整提交计划或业务 Git 编排状态，导致 `trellis-continue` 误恢复 Git 行为。
@@ -1604,6 +1631,14 @@ python3 ./.trellis/scripts/decision_log.py review \
 - Check-All 测试覆盖 requested/minimum/effective depth、legacy full fallback、failed -> fix -> full
   recheck、DOC manifest 重绑、非法路径、声明/实际不一致、retryable 后成功、3 次预算后阻塞、
   显式 blocked 和 validated auto-loop 成功 record 后立即 `next`。
+- commit-only runner 测试覆盖旧单 `--commit` 兼容、多 `--repo-commit` 幂等保存、默认短 hash/verbose
+  完整列表、task progress 多仓摘要，以及未登记仓库、非法 hash、非 commit object、仓库不可读、
+  同仓冲突和主 commit 不匹配的结构化错误。
+- commit repair 测试必须断言前三次 `failed + commit-repairable` 都重新发出同一 `commit_only`，第 4 次
+  进入 `commit-repair-budget-exhausted`，`retry-blocked` 重置预算但保留 commits；非 repairable 安全
+  失败立即 blocked 且不消耗预算。
+- Skill 静态契约测试覆盖 Auto-Loop/Push 的多仓本地生成、受约束证据推断、retained 摘要校验、
+  Step 5 跳过边界、runner 本地 progress 所有权、三轮修复和 no-push 边界，并比较 `.agents` / `.claude`。
 - selective install 对 `trellis-auto-loop`、`auto-loop`、`trellis-finish-work`、`finish-work` 分别断言
   runner/helper、decision log 和 archive guard 自包含。
 - 运行 `npm test`、Patch conflict、compiled targets、strict AI context budget、Python `py_compile`、
@@ -1633,6 +1668,13 @@ outstanding action 并要求用户显式 `retry-blocked`。
 
 **Correct**:`status --verbose` 只展示 `manifest_audit_path` 和有限 `manifest_tail`；完整 revision 写在
 `<run-id>.manifest.jsonl`，task progress 只展示 auto-loop 的下一步恢复提示，不携带 Git 编排状态。
+
+**Wrong**:为多仓链新增持久化 `commit-plan` / `commit-step`，让 runner 执行 Git 或 generator；失败后
+只传一个不属于已完成提交集合的 `--commit`，丢失前置仓结果。
+
+**Correct**:Push 每次从任务证据和真实 Git 状态重建动态链；部分成功用重复
+`--repo-commit <repository>::<hash>` 回写，安全失败以 `failed + commit-repairable` 触发有限重试，最终
+成功时 `--commit` 唯一匹配已验证的 `commits[]`。
 
 ---
 
