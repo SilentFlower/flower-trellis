@@ -1,0 +1,8 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"Skill-Garden 0.6 真实源、Patch、Bundle、快照同步和幂等 dogfood 契约"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"workflow、skill、hook、agent 变更必须通过 Patch Engine，并保持 selector、baseline、Bundle 和零写入约束"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"builtin Skill-Garden 内容投影、统一事务、selective install 和 ownership 契约"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"原子写、幂等、精确清理、中文 Docstring/JSDoc 和完整测试要求"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"状态 helper、workflow、hook、skills、agents 与分发层的端到端数据流检查"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"复用 route pref、session runtime、Git baseline 和 task 事务，避免平行实现"}
+{"file":".trellis/tasks/07-31-stable-no-task-workflow/research/srm-no-task-session-analysis.md","reason":"原始 srm 会话时间线、误建 task 根因和 no-task 完成链缺口"}
+{"file":".trellis/tasks/07-31-stable-no-task-workflow/research/untracked-workflow-architecture.md","reason":"现有 owner、状态模型、多仓 baseline、route 偏好、sub-agent 与 adoption 设计依据"}

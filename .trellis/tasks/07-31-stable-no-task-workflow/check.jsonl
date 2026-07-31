@@ -1,0 +1,8 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查 vendor 真实源、enhancements 快照、compiled targets 和重复应用幂等一致性"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查 Patch owner、selector/baseline、Bundle 选择、冲突门禁和事务零写入"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"检查 full/selective install、helper 投影、upgrade 与 Plugin ownership 行为"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查原子写、容错降级、完整测试、dogfood 和不误伤用户 dirty diff"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"反向核对 direct_edit 到 Push 的状态、证据和平台注入链路"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查没有复制 task route、Git baseline、Check-All 或 Plugin 事务 owner"}
+{"file":".trellis/tasks/07-31-stable-no-task-workflow/research/srm-no-task-session-analysis.md","reason":"用原始失败会话回归下一步、走 Trellis 流程和误建 task 场景"}
+{"file":".trellis/tasks/07-31-stable-no-task-workflow/research/untracked-workflow-architecture.md","reason":"检查单活跃事项、多仓 fingerprint、偏好解析、subject hold 和接管补偿覆盖"}

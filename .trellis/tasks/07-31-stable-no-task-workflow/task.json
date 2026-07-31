@@ -1,0 +1,38 @@
+{
+  "id": "stable-no-task-workflow",
+  "name": "stable-no-task-workflow",
+  "title": "为 No-Task 增加稳定完成流程",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-31",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-07-31T08:11:19Z",
+    "completedSteps": [
+      "完成 No-Task 稳定完成链实现与多仓分发",
+      "通过严格 Check-All：JavaScript 336/336、Python 180/180",
+      "完成 CLI、运行态 schema、多仓 Git 与 Patch Engine 规范沉淀",
+      "完成两个业务仓库的精确提交与推送"
+    ],
+    "partialStep": null,
+    "nextStep": "Phase 3.5：等待显式执行 trellis-finish-work 完成归档与会话收尾",
+    "notes": ""
+  }
+}
