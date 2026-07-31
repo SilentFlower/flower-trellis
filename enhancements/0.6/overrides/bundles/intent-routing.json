@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "intent-routing",
-  "aliases": ["workflow-enhancement", "task-intent"],
+  "aliases": ["workflow-enhancement", "task-intent", "untracked-flow"],
   "installMode": "full-or-selected",
   "patches": [
     "workflow/hub",
@@ -9,6 +9,7 @@
     "workflow/task-brief-review",
     "workflow/state-no-task",
     "workflow/state-missing-task",
+    "workflow/state-untracked",
     "workflow/runtime-contract-reference",
     "workflow/states-planning",
     "workflow/states-in-progress",
@@ -25,6 +26,7 @@
     "hooks/claude-session-start/no-task-routing",
     "hooks/claude-session-start/missing-task-routing",
     "hooks/session-start/pre-check-hold",
+    "agents/untracked-context",
     "skills/trellis-start/no-task-routing",
     "skills/trellis-before-dev/project-knowledge-discovery",
     "skills/trellis-brainstorm/planning-authorization",

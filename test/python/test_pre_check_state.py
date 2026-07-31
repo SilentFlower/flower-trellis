@@ -83,6 +83,36 @@ class PreCheckStateTest(unittest.TestCase):
         )
         return path
 
+    def _activate_untracked(self, context_key: str, work_id: str = "work-123") -> Path:
+        """写入无任务事项 runtime。
+
+        Args:
+            context_key: session context key。
+            work_id: 无任务事项 ID。
+
+        Returns:
+            已写入的 runtime 文件路径。
+        """
+        path = self._session_path(context_key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "platform": "codex",
+                    "current_task": None,
+                    "untracked_flow": {
+                        "version": 1,
+                        "id": work_id,
+                        "summary": "修复一个小问题",
+                        "stage": "implement",
+                    },
+                    "route_decisions": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
     def test_hold_status_clear_preserve_other_runtime_fields(self) -> None:
         """写入和清理只影响 pre_check_preference 字段。"""
         path = self._activate("codex_hold")
@@ -113,9 +143,9 @@ class PreCheckStateTest(unittest.TestCase):
             held = self.helper.set_pre_check_hold(self.root, "user-explicit")
             cleared = self.helper.clear_pre_check_preference(self.root)
 
-        self.assertEqual(status["reason"], "no-current-task")
-        self.assertEqual(held["reason"], "no-current-task")
-        self.assertEqual(cleared["reason"], "no-current-task")
+        self.assertEqual(status["reason"], "no-current-work")
+        self.assertEqual(held["reason"], "no-current-work")
+        self.assertEqual(cleared["reason"], "no-current-work")
         self.assertFalse(path.exists())
 
     def test_follow_up_hold_does_not_cross_context_or_task(self) -> None:
@@ -136,9 +166,64 @@ class PreCheckStateTest(unittest.TestCase):
         with mock.patch.dict(os.environ, {"TRELLIS_CONTEXT_ID": "codex_first"}, clear=False):
             other_task = self.helper.read_pre_check_preference(self.root)
             clear_other_task = self.helper.clear_pre_check_preference(self.root)
-        self.assertEqual(other_task["reason"], "task-mismatch")
-        self.assertEqual(clear_other_task["reason"], "task-mismatch")
+        self.assertEqual(other_task["reason"], "subject-mismatch")
+        self.assertEqual(clear_other_task["reason"], "subject-mismatch")
         self.assertIn("pre_check_preference", json.loads(path.read_text(encoding="utf-8")))
+
+    def test_untracked_hold_status_clear_is_bound_to_work_id(self) -> None:
+        """无任务 hold 绑定 work id，并保留 session 其它字段。"""
+        path = self._activate_untracked("codex_untracked")
+        with mock.patch.dict(os.environ, {"TRELLIS_CONTEXT_ID": "codex_untracked"}, clear=False):
+            held = self.helper.set_pre_check_hold(self.root, "follow-up-edit")
+            status = self.helper.read_pre_check_preference(self.root)
+            cleared = self.helper.clear_pre_check_preference(self.root)
+
+        self.assertEqual(held["subject"], {"kind": "untracked", "id": "work-123"})
+        self.assertEqual(status["status"], "hit")
+        self.assertEqual(status["workId"], "work-123")
+        self.assertTrue(cleared["existed"])
+        runtime = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(runtime["untracked_flow"]["id"], "work-123")
+        self.assertNotIn("pre_check_preference", runtime)
+
+    def test_untracked_hold_does_not_cross_work_item(self) -> None:
+        """切换无任务事项后不得读取或清除旧 hold。"""
+        path = self._activate_untracked("codex_untracked_switch")
+        with mock.patch.dict(
+            os.environ,
+            {"TRELLIS_CONTEXT_ID": "codex_untracked_switch"},
+            clear=False,
+        ):
+            held = self.helper.set_pre_check_hold(self.root, "user-explicit")
+            self.assertEqual(held["status"], "held")
+            runtime = json.loads(path.read_text(encoding="utf-8"))
+            runtime["untracked_flow"]["id"] = "work-456"
+            path.write_text(json.dumps(runtime), encoding="utf-8")
+            status = self.helper.read_pre_check_preference(self.root)
+            cleared = self.helper.clear_pre_check_preference(self.root)
+
+        self.assertEqual(status["reason"], "subject-mismatch")
+        self.assertEqual(cleared["reason"], "subject-mismatch")
+        self.assertIn("pre_check_preference", json.loads(path.read_text(encoding="utf-8")))
+
+    def test_legacy_task_hold_remains_readable(self) -> None:
+        """旧版 task 字段 hold 升级后仍可读取。"""
+        path = self._activate("codex_legacy")
+        runtime = json.loads(path.read_text(encoding="utf-8"))
+        runtime["pre_check_preference"] = {
+            "version": 1,
+            "task": ".trellis/tasks/task-a",
+            "mode": "hold",
+            "source": "user-explicit",
+            "updated_at": "2026-07-31T00:00:00Z",
+        }
+        path.write_text(json.dumps(runtime), encoding="utf-8")
+
+        with mock.patch.dict(os.environ, {"TRELLIS_CONTEXT_ID": "codex_legacy"}, clear=False):
+            status = self.helper.read_pre_check_preference(self.root)
+
+        self.assertEqual(status["status"], "hit")
+        self.assertEqual(status["subject"], {"kind": "task", "id": ".trellis/tasks/task-a"})
 
     def test_corrupt_runtime_is_reported_and_never_overwritten(self) -> None:
         """损坏 runtime 返回结构化错误并保留原始证据。"""

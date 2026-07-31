@@ -557,6 +557,123 @@ node scripts/check-ai-context-budget.mjs --strict
 
 ---
 
+## Scenario: Stable Untracked Completion Chain
+
+### 1. Scope / Trigger
+
+- Trigger:无活动 task 的请求最终路由为 `direct_edit`，或修改 No-Task 的恢复、检查、规范更新、
+  Push、纳管和多仓 workspace 证据行为。
+- Scope:使用 session runtime 中的单一 untracked work item 衔接 Phase 2/3；不创建轻量 task，
+  不复制 Check-All、Update-Spec、Push 或 task route 的完整 owner 逻辑。
+
+### 2. Signatures
+
+```bash
+python3 ./.trellis/scripts/untracked_flow.py begin --summary "<summary>" --source <inferred|user-explicit>
+python3 ./.trellis/scripts/untracked_flow.py prepare-edit --paths <path> [<path> ...]
+python3 ./.trellis/scripts/untracked_flow.py record-validation --result <pass|fail|partial> --summary "<summary>"
+python3 ./.trellis/scripts/untracked_flow.py advance --stage <check|spec|push>
+python3 ./.trellis/scripts/untracked_flow.py record-check --result <pass|findings|partial|blocked> --summary "<summary>"
+python3 ./.trellis/scripts/untracked_flow.py record-spec --result <no-op|written|needs-review> --summary "<summary>"
+python3 ./.trellis/scripts/untracked_flow.py status [--verbose]
+python3 ./.trellis/scripts/untracked_flow.py clear --reason <completed|abandoned|adopted|baseline-restored|invalidated>
+python3 ./.trellis/scripts/task_intent.py adopt "<title>" --slug <slug>
+```
+
+session 字段固定为：
+
+```json
+{
+  "untracked_flow": {
+    "version": 1,
+    "id": "uw-<id>",
+    "mode": "direct_edit",
+    "source": "inferred | user-explicit",
+    "summary": "<summary>",
+    "stage": "inspect | implement | check | spec | push",
+    "baseline": {"version": 1, "repositories": [], "fingerprint": "<sha256>"},
+    "scope": [],
+    "preparedFingerprint": "<sha256> | null",
+    "workspaceFingerprint": "<sha256> | null",
+    "evidence": {}
+  }
+}
+```
+
+### 3. Contracts
+
+- `direct_edit` 判定后立即 `begin`；首次写入和每个后续写入批次前必须 `prepare-edit`。首次
+  baseline 只捕获一次，后续调用只能扩展 scope、回到 `implement` 并清除下游证据。
+- 每个 session 最多一个事项。相同 summary 的 `begin` 幂等命中；不同事项在旧 workspace 仍有
+  差异时返回 `active-work-conflict`。旧事项已回到原 baseline 时清理状态，不阻塞新事项。
+- 仓库集合必须完整覆盖项目根仓、已初始化递归 submodule 和配置为 `git: true` 的独立 package。
+  submodule 查询失败、package 不是独立仓库根或 Git 集成状态不可读时 fail closed，禁止用不完整
+  fingerprint 继续修改。
+- evidence 只在 `workspaceFingerprint` 匹配时有效。focused validation 后即使仍在 `implement`，
+  下一次 `prepare-edit` 也必须先校验 fingerprint；不得把外部漂移吸收到新一轮 baseline。
+- `status` 默认输出紧凑摘要；`status --verbose` 必须包含完整 `state`，供 Check-All、Update-Spec、
+  Push 和 sub-agent 构造上下文，不允许 owner 直接读取 raw session JSON。
+- untracked implement/check 每次只读取 `.trellis/.route-prefs.tmp`，不得读取或写入 task-scoped
+  `route_decisions`。缺少偏好时仍走 `trellis-route` 的仅本次/保存默认选择。
+- `adopt` 的 title 是位置参数。纳管必须保留 diff、原 baseline、阶段和 evidence，原子创建 planning
+  task，失败时补偿新 task/session/parent，并继续保留原 untracked 状态。
+- owner 路径固定为 Request Triage -> `workflow-state:untracked` / Phase 2/3 -> 对应 Skill/helper。
+  owner 身份与 Bundle/平台分发变化使用 `meta-impact: patch-required`，更新 canonical meta Patch。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+|---|---|
+| 当前 session 已绑定 task | `active-task-present`，不创建 untracked 状态 |
+| 已有不同事项且 workspace 未恢复 | `active-work-conflict`，保留原状态和 dirty diff |
+| 首次 `prepare-edit` 的任一 Git 仓库证据不可读 | 稳定 Git reason code，baseline 不写入 |
+| focused validation 后 workspace 被其它来源修改 | `workspace-drift`，原 evidence 保留 |
+| 已推进事项的 workspace 恢复原 baseline | `status=miss reason=baseline-restored` 并只清理当前字段 |
+| 未通过 focused validation 就进入 check | `focused-validation-required` |
+| Check-All/Update-Spec 前置证据缺失或 fingerprint 失效 | 阶段推进失败，不覆盖 runtime 其它字段 |
+| adoption 任一步失败 | 删除本次新 task、恢复 session/parent、保留原 untracked 状态 |
+| 重复 Plugin 应用 | helper、Patch、workflow、agent 和 meta 最终目标修改数为 0 |
+
+### 5. Good/Base/Bad Cases
+
+- Good:用户明确“不走 task”，实现并验证后说“下一步”；恢复同一 work id，进入 Check-All，
+  不重新执行 task intent classification。
+- Good:已验证修改后另一窗口改变独立 package；下一批 `prepare-edit` 返回 `workspace-drift`，不会
+  把变化静默归入当前事项。
+- Base:用户撤销事项的全部 workspace 变化后提出新修改；旧状态按 baseline 恢复规则清理，新请求
+  重新 triage。
+- Bad:只记录根仓 porcelain，忽略 submodule/package 查询失败后仍宣称 baseline 已捕获。
+- Bad:把“走 Trellis 流程”解释为补建 task，或让 untracked 使用历史 task route decision。
+
+### 6. Tests Required
+
+- `test_untracked_flow.py` 覆盖单活跃事项、verbose status、首次 baseline、验证后漂移、baseline 恢复、
+  阶段链、证据失效、跨 session、损坏 runtime 和原子写失败。
+- `test_git_evidence.py` 覆盖 submodule 查询失败、`git: true` package 解析到父仓和 Git 集成状态
+  不可读；断言稳定 reason code 且不返回不完整仓库集合。
+- `test_task_intent.py` 使用位置 title 调用 adoption，覆盖成功元数据、diff 保留和各失败点补偿。
+- 最终验证覆盖 fresh/upgrade/selective Bundle、全部平台 agent、SessionStart/per-turn hook、meta Patch、
+  vendor/snapshot/compiled targets 一致性，以及第二次 dogfood 零变化。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+direct edit 完成 -> 清除临时判断 -> “下一步”重新分类 -> 误建 task
+```
+
+#### Correct
+
+```text
+direct_edit -> begin(inspect) -> prepare-edit(immutable baseline) -> implement
+            -> focused validation -> check -> spec -> push -> clear
+```
+
+原因:后续请求绑定可验证的 session 状态和多仓 fingerprint，流程推进不再依赖关键词或聊天记忆。
+
+---
+
 ## Scenario: Planning Brief Review Gate
 
 ### 1. Scope / Trigger

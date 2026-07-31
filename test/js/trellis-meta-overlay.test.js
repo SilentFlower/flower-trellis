@@ -135,6 +135,8 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(workflow, /Do not choose implementation or checking behavior from a static platform-capability split/);
   assert.match(workflow, /trellis-route/);
   assert.match(workflow, /trellis-auto-loop/);
+  assert.match(workflow, /Untracked work completion \| `workflow-state:untracked`/);
+  assert.match(workflow, /Untracked task adoption \| Request Triage, `trellis-brainstorm`/);
   assert.match(workflow, /Planning handoff \| `trellis-task-brief` and the task-start brief guard/);
   assert.match(workflow, /Do not maintain a fixed Skill-Garden skill count/);
   assert.match(skillRoute, /Do not classify every non-bundled name as project-local/);

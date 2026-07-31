@@ -32,6 +32,15 @@
         { "kind": "markdown", "path": "sample.md", "missing": "error" }
       ],
       "selector": { "type": "literal", "source": "remove.selector.md" }
+    },
+    {
+      "id": "unmarked-json-rule",
+      "operation": "replace",
+      "targets": [
+        { "kind": "file", "path": "agent.json", "missing": "error", "markerStyle": "none" }
+      ],
+      "selector": { "type": "literal", "source": "unmarked.selector.txt" },
+      "content": { "source": "unmarked.content.txt" }
     }
   ]
 }

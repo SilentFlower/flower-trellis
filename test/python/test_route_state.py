@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
+from contextlib import redirect_stdout
 from importlib import util as importlib_util
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -188,6 +191,62 @@ class RouteStateCompatibilityTest(unittest.TestCase):
                 with self.assertRaises(OSError):
                     self.module._write_json(path, {"new": True})
             self.assertEqual(path.read_text(encoding="utf-8"), '{"old": true}\n')
+
+    def test_no_task_preference_read_write_does_not_use_session(self) -> None:
+        """无任务偏好读写不得依赖 current task 或 session runtime。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-pref-") as temp:
+            root = Path(temp)
+            (root / ".trellis").mkdir()
+            write_args = argparse.Namespace(
+                target="implement",
+                mode="subagent",
+                verbose=False,
+            )
+            read_args = argparse.Namespace(target="implement", verbose=False)
+
+            with mock.patch.object(self.module, "_repo_root", return_value=root):
+                write_output = io.StringIO()
+                with redirect_stdout(write_output):
+                    write_code = self.module.write_pref(write_args)
+                read_output = io.StringIO()
+                with redirect_stdout(read_output):
+                    read_code = self.module.read_pref(read_args)
+
+            self.assertEqual(write_code, 0)
+            self.assertEqual(read_code, 0)
+            self.assertEqual(json.loads(write_output.getvalue())["status"], "written")
+            self.assertEqual(json.loads(read_output.getvalue())["mode"], "subagent")
+            self.assertFalse((root / ".trellis/.runtime/sessions").exists())
+
+    def test_invalid_preference_mode_is_rejected(self) -> None:
+        """非法个人偏好不得写入配置文件。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-pref-invalid-") as temp:
+            root = Path(temp)
+            (root / ".trellis").mkdir()
+            args = argparse.Namespace(target="implement", mode="check-all-inline", verbose=False)
+
+            with mock.patch.object(self.module, "_repo_root", return_value=root):
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    code = self.module.write_pref(args)
+
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(output.getvalue())["reason"], "invalid-mode")
+            self.assertFalse((root / ".trellis/.route-prefs.tmp").exists())
+
+    def test_atomic_preference_write_preserves_old_file_on_replace_failure(self) -> None:
+        """偏好原子替换失败时必须保留旧文件。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-pref-atomic-") as temp:
+            root = Path(temp)
+            path = root / ".trellis/.route-prefs.tmp"
+            path.parent.mkdir()
+            path.write_text("implement=inline\n", encoding="utf-8")
+
+            with mock.patch.object(self.module.os, "replace", side_effect=OSError("failed")):
+                with self.assertRaises(OSError):
+                    self.module._write_prefs(root, {"implement": "subagent"})
+
+            self.assertEqual(path.read_text(encoding="utf-8"), "implement=inline\n")
 
 
 if __name__ == "__main__":

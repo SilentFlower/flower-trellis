@@ -132,6 +132,10 @@ target 字段：
 
 baseline 是允许被升级的完整旧内容指纹，不是模糊 fallback。结构 selector 应优先用 baseline；字面 selector 使用 `selector.source` 和 `expectedMatches`。selector 漂移时不得自动改成顶部追加。
 
+`markerStyle=none` 的 literal replace 只有在目标内容出现次数等于 `expectedMatches` 且 selector
+出现次数为 `0` 时，才允许返回 `desired-content` 并判定幂等。若 selector 与目标内容同时存在，
+必须继续执行 selector 替换；不得因为文件其它位置已有相同目标内容而静默跳过真实目标。
+
 ## Selector Contract
 
 Core selector：
@@ -312,6 +316,7 @@ provenance 必须在首次应用与重复应用之间稳定；不得把本轮 `c
 | 配置 target 使用 `missing=create` 且真实父目录位于项目内 | 创建目标文件 |
 | 非配置 target 使用 `missing=create` | schema 失败，零写入 |
 | marker 已存在且唯一 | 原位升级 managed content |
+| `markerStyle=none` 且 selector 与目标内容同时存在 | 执行 selector 替换，不返回 `desired-content` |
 | 只有声明的 legacy marker | 迁移为 Patch marker |
 | marker 重复、不配对或新旧并存 | preflight 失败 |
 | 已有目标、新建目标父目录或备份目录通过软链逃逸 | preflight/apply 失败，项目外零写入 |

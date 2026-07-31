@@ -12,6 +12,8 @@ Complete contracts live in the owning phase, workflow state, skill, hook, or hel
 | Project Knowledge Discovery | `Request Triage` | `spec_router.py` |
 | Flower Update Confirmation | SessionStart update context + Flower CLI | update hook / `self-update` arguments |
 | Active Task Scope Guard | `Request Triage` | `task_intent.py` scope safety |
+| Untracked Work Completion Chain | `workflow-state:untracked` + Phase 2/3 owners | `untracked_flow.py` |
+| Untracked Task Adoption | `Request Triage` + `trellis-brainstorm` | `task_intent.py adopt` |
 | Routing Gate | Phase 2 + `trellis-route` | `route_state.py` |
 | Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` | `auto_loop.py record/next` |
 | Interactive Post-Check Stop Gate | Phase 2.2 + `trellis-check-all` | current Check-All evidence |
@@ -23,7 +25,7 @@ Complete contracts live in the owning phase, workflow state, skill, hook, or hel
 Cross-stage ordering:
 
 1. A blocking `<flower-update>` confirmation is handled before ordinary request routing; a completed update returns through `trellis-push`.
-2. Request intent and active-task scope are resolved before task creation, task routing, or file edits.
+2. Request intent, active-task scope, and any current untracked work are resolved before task creation, task routing, or file edits.
 3. A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.
 4. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; `trellis-finish-work` runs only after Phase 3.4 and only when explicitly requested.
 

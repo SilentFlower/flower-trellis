@@ -18,7 +18,12 @@
       { "kind": "file", "path": ".trae/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" }
     ],
     "selector": { "type": "whole-file" },
-    "baselines": ["selector.py", "baseline-flower-beta2.py", "baseline-flower-stale-task.py"],
+    "baselines": [
+      "selector.py",
+      "baseline-flower-beta2.py",
+      "baseline-flower-stale-task.py",
+      "baseline-flower-pre-untracked.py"
+    ],
     "content": { "source": "content.py" }
   }]
 }

@@ -49,7 +49,8 @@ test("Pre-Check workflow 默认检查、软暂缓与 auto-loop 优先级完整",
   assert.match(check, /damaged runtime.*safely defaults to checking/);
   assert.doesNotMatch(state, /pre_check_state\.py|Pre-Check hold/);
   assert.match(state, /return to the Phase 2\.1 completion contract/);
-  assert.match(route, /回到 Phase 2\.1 completion contract 解析 Pre-Check/);
+  assert.match(route, /implement 路由只决定执行位置，不拥有实现后的停止策略/);
+  assert.match(route, /返回 workflow Phase 2\.1 的 completion contract/);
 });
 
 

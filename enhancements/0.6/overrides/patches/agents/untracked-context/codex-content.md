@@ -1,0 +1,2 @@
+
+If the dispatch prompt's first line is `Untracked work: <work-id>`, run `python3 ./.trellis/scripts/untracked_flow.py status --verbose`, require the same work id, use the complete summary/scope/baseline/fingerprint/evidence/spec context supplied by the main agent, and skip any task lookup or task-artifact loading below. Do not require or invent a task path or JSONL file. Otherwise continue with the agent's normal task context rules.

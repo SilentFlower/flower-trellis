@@ -509,8 +509,9 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /skill-garden patch workflow-state-contract-comment/);
   assert.match(workflowText, /skill-garden patch workflow-runtime-contract-reference/);
   assert.match(workflowText, /\[workflow-state:missing_task\]/);
+  assert.match(workflowText, /\[workflow-state:untracked\]/);
   assert.match(workflowText, /in the same turn treat the current user request as `no_task`/);
-  assert.match(workflowText, /This Flower variant uses fixed pseudo-status tag names `no_task` and `missing_task`/);
+  assert.match(workflowText, /This Flower variant uses fixed pseudo-status tag names `no_task`, `untracked`, and `missing_task`/);
   assert.doesNotMatch(workflowText, /stale_<source_type>/);
   assert.doesNotMatch(workflowText, /\.trellis\/spec\/cli\/backend\/workflow-state-contract\.md/);
   assert.doesNotMatch(workflowText, /\.trellis\/scripts\/inject-workflow-state\.py/);

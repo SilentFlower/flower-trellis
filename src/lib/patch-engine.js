@@ -189,6 +189,7 @@ function markerParts(namespace, id, content, markerStyle = "html") {
 }
 
 function activeManagedMarker(value, operation) {
+  if (operation.markerStyle === "none") return { active: null };
   const candidates = [
     {
       namespace: "patch",
@@ -233,6 +234,12 @@ function activeManagedMarker(value, operation) {
 }
 
 function managedBlock(operation) {
+  if (operation.markerStyle === "none") {
+    const block = operation.operation === "remove"
+      ? ""
+      : operation.content.replace(/\s+$/, "");
+    return { begin: "", end: "", block, re: null };
+  }
   return markerParts("patch", operation.markerId, operation.content, operation.markerStyle);
 }
 
@@ -297,6 +304,14 @@ function applyLiteral(value, operation) {
       value: value.replace(active.active.marker.re, managed.block),
       source: active.active.source,
     };
+  }
+  if (
+    operation.markerStyle === "none"
+    && operation.operation !== "remove"
+    && countOccurrences(value, managed.block) === operation.expectedMatches
+    && countOccurrences(value, operation.selectorText) === 0
+  ) {
+    return { value, source: "desired-content" };
   }
   const matches = countOccurrences(value, operation.selectorText);
   if (matches !== operation.expectedMatches) {

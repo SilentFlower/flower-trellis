@@ -61,6 +61,39 @@ export function copyScriptAssets(target, variantDir, skills = []) {
         "intent-routing",
         "workflow-enhancement",
       ];
+    } else if (name === "git_evidence") {
+      aliases = [
+        "git-evidence",
+        "workflow-enhancement",
+        "task-intent",
+        "intent-routing",
+        "auto-loop",
+        "auto-loop-runner",
+        "trellis-auto-loop",
+        "trellis-route",
+        "route",
+        "trellis-check-all",
+        "check-all",
+        "trellis-update-spec",
+        "update-spec",
+        "trellis-push",
+        "push",
+      ];
+    } else if (name === "untracked_flow") {
+      aliases = [
+        "untracked-flow",
+        "workflow-enhancement",
+        "task-intent",
+        "intent-routing",
+        "trellis-route",
+        "route",
+        "trellis-check-all",
+        "check-all",
+        "trellis-update-spec",
+        "update-spec",
+        "trellis-push",
+        "push",
+      ];
     } else if (name === "pre_check_state") {
       aliases = [
         "pre-check",
@@ -71,6 +104,8 @@ export function copyScriptAssets(target, variantDir, skills = []) {
         "auto-loop",
         "auto-loop-runner",
         "trellis-auto-loop",
+        "trellis-check-all",
+        "check-all",
       ];
     }
     if (!shouldInstallName(name, skills, aliases)) continue;

@@ -5,7 +5,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 # Trellis Push
 
-`trellis-push` 是 Phase 3.4 唯一的代码提交入口。它只负责生成最小计划、精确提交、普通推送，以及触发当前任务进度同步。
+`trellis-push` 是 Phase 3.4 唯一的代码提交入口。它只负责生成最小计划、精确提交、普通推送，以及在 task 上触发进度同步或在 untracked 上完成状态清理。
 
 ## 职责边界
 
@@ -17,6 +17,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 - 不发起、终止或解决分支合并；只允许普通模式完成已经开始、冲突已清零且索引完全可归属的 merge commit。
 - 不处理上线核对、任务归档、会话日志或自动任务队列状态。
 - 不使用 `git add .`、`git add -A`，不要求工作区整体干净，也不提交计划外文件。
+- untracked 上下文只接受 `stage=push` 且 Check-All / Update-Spec 证据与当前 workspace fingerprint 一致；不生成任务进度提交。
 
 ## 模式
 
@@ -39,6 +40,8 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 auto-loop 内部 `commit-only` 已由 runner 的 `run_check_all -> run_spec_update -> commit_only` 状态机和预授权保证顺序，因此不重复记录或判断本交互证据。
 
+没有活动 task 时运行 `python3 ./.trellis/scripts/untracked_flow.py status --verbose`。命中 untracked 后，以 helper 返回的 stage、scope、baseline、current fingerprint、Check-All 和 Update-Spec 证据填写上述完成链；必须为 `stage=push` 且证据仍有效。`miss` 才按既有“无活动任务”普通 Git 路径处理；`error` 或 workspace drift 停止，不从摘要猜测。
+
 ## Step 1：发现仓库与任务
 
 候选仓库包括：
@@ -51,7 +54,7 @@ auto-loop 内部 `commit-only` 已由 runner 的 `run_check_all -> run_spec_upda
 
 为每个候选仓库生成用户可见名称：优先使用 `.trellis/config.yaml` 中匹配的 package 名；没有配置时使用 Git top-level 目录名。`root`、`parent`、`main repo` 只允许作为输入别名，禁止直接显示在计划或结果中。
 
-活动任务是可选上下文：
+活动 task 或 untracked work 都是可选上下文：
 
 ```bash
 python3 ./.trellis/scripts/task.py current --source || true
@@ -64,7 +67,7 @@ python3 ./.trellis/scripts/task_progress.py status --json || true
 git status --short --untracked-files=all -- <task-dir>
 ```
 
-不得把默认 `git status --short` 可能返回的 `?? <task-dir>/` 折叠目录当成 exact file、展示条目或 pathspec。无活动任务时仍可提交相关代码，但不生成任务进度。存在活动任务时，结合 `brief.md`、`implement.md`、当前 diff 与本轮执行范围生成一行语义进度；同时识别当前任务目录中已存在且可归属的 dirty/untracked 产物，供 Step 5 生成任务记录 exact files。不得从旧进度推断 Git 动作。
+不得把默认 `git status --short` 可能返回的 `?? <task-dir>/` 折叠目录当成 exact file、展示条目或 pathspec。无活动 task 时仍可提交相关代码，但不生成任务进度。untracked 命中时，所有业务 `planned` 文件必须能由当前 state scope 与实际 diff 归属，计划同时显示 work id；scope 外文件只能保留或作为归属风险。存在活动 task 时，结合 `brief.md`、`implement.md`、当前 diff 与本轮执行范围生成一行语义进度；同时识别当前任务目录中已存在且可归属的 dirty/untracked 产物，供 Step 5 生成任务记录 exact files。不得从旧进度推断 Git 动作。
 
 ## Step 2：预检与文件归属
 
@@ -129,7 +132,7 @@ auto-loop 内部 `commit-only` 也允许 retained dirty 存在，但每个生成
 ## Trellis Push 计划
 
 [<PUSH / PUSH · MERGE / COMMIT-ONLY>] <N> 个仓库 · <N> 个 commit · <N> 个文件 · 保留未提交 <N> · 风险 <N>
-[无活动任务时追加：无活动任务]
+[无活动 task 时追加：无活动任务；untracked 命中时改为 `Untracked work: <work-id>`]
 顺序：<repo-a> [-> `<local generation command>`] -> <repo-b> [-> task progress]
 
 ### 完成链证据
@@ -174,7 +177,7 @@ Push：<执行 / 跳过（commit-only）>
 - 顶部仓库/commit/file 总数包含独立任务记录提交所在 Git root、该提交及其 exact files；任务记录文件使用相同的 8 文件展示阈值和展开规则。
 - 保留未提交的变更始终逐项标注 Git 状态；真正风险在独立“风险”区逐项展示。
 - 完成链证据始终显示当前状态，但不重复 Check-All 报告或 Spec review 正文；`未运行`、`已失效`、findings、blocked、部分验证或 `needs-review` 同时计入风险区。
-- 无活动任务或 `commit-only` 时省略进度动作。
+- 无活动 task、untracked 或 `commit-only` 时省略进度动作。
 - 不重复展示检查结果、规范复核、归档或其他阶段的详细信息。
 - 生成前无法确定的内容和增删行写“生成后计算”，不得填预测值。
 
@@ -242,7 +245,7 @@ auto-loop 内部链失败时向调用方返回全部已完成仓库提交和失�
 
 ## Step 5：同步任务进度
 
-仅普通模式且存在活动任务时由本 skill 执行。用户 `commit-only` 与 auto-loop 内部 `commit-only` 都跳过本 Step；Auto-Loop runner 在 action record/next 后按自身契约写入本地 `task.json.progress`，不属于这里的任务进度提交或推送。全部业务仓库成功后写完整进度；已有仓库成功而后续仓库失败时写 partial 进度，明确 completed、失败位置、next 和 notes。尚未发生成功 Git 动作就失败时，不记录虚假的 completed steps；只有父仓仍可安全提交并推送时才允许记录 failure notes。
+仅普通模式且存在活动 task 时由本 skill 执行。untracked、用户 `commit-only` 与 auto-loop 内部 `commit-only` 都跳过本 Step；Auto-Loop runner 在 action record/next 后按自身契约写入本地 `task.json.progress`，不属于这里的任务进度提交或推送。全部业务仓库成功后写完整进度；已有仓库成功而后续仓库失败时写 partial 进度，明确 completed、失败位置、next 和 notes。尚未发生成功 Git 动作就失败时，不记录虚假的 completed steps；只有父仓仍可安全提交并推送时才允许记录 failure notes。
 
 新进度固定为：
 
@@ -285,6 +288,8 @@ git push origin <current-branch>
 
 ## Step 6：结果
 
+untracked 的全部已确认 Git 动作成功后，最后运行 `python3 ./.trellis/scripts/untracked_flow.py clear --reason completed --work-id <work-id>`。清理成功才报告完成链已结束；任一仓库、push 或清理失败都保留状态并报告恢复位置，禁止因部分成功伪造完成。用户 `commit-only` 的已确认动作全部成功时同样可以完成并清理。
+
 结果复用计划的视觉顺序，先给总览，再逐仓报告实际 commit/push，最后报告任务进度与保留 dirty：
 
 ```markdown
@@ -312,6 +317,8 @@ git push origin <current-branch>
 - [unstaged] <path>
 - [staged] <path>
 ```
+
+untracked 结果用“无任务状态”替代“任务进度”，展示 work id 与 `<已清理/保留待恢复>`；不生成或暗示 task progress commit。
 
 部分完成时必须明确列出已成功仓库、失败仓库/步骤、当前分支和下一恢复动作。业务结果与 progress sync 状态不得合并成一个模糊结论。
 

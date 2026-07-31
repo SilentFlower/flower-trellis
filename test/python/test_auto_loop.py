@@ -31,6 +31,10 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         scripts.mkdir(parents=True)
         shutil.copy2(SOURCE_RUNNER, scripts / "auto_loop.py")
         shutil.copy2(SOURCE_DECISION_LOG, scripts / "decision_log.py")
+        shutil.copy2(
+            PROJECT_ROOT / "vendor/skill-garden/.trellis/0.6/scripts/git_evidence.py",
+            scripts / "git_evidence.py",
+        )
         shutil.copy2(SOURCE_SCRIPTS / "task.py", scripts / "task.py")
         shutil.copy2(SOURCE_SCRIPTS / "task_progress.py", scripts / "task_progress.py")
         shutil.copytree(SOURCE_SCRIPTS / "common", scripts / "common")
@@ -333,9 +337,12 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         return action
 
     def load_runner_module(self):
-        """加载 vendor runner 以测试底层 runtime helper。"""
+        """加载隔离目录中的 runner 以测试底层 runtime helper。"""
         name = f"auto_loop_test_{id(self)}"
-        spec = importlib_util.spec_from_file_location(name, SOURCE_RUNNER)
+        spec = importlib_util.spec_from_file_location(
+            name,
+            self.root / ".trellis/scripts/auto_loop.py",
+        )
         self.assertIsNotNone(spec)
         self.assertIsNotNone(spec.loader)
         module = importlib_util.module_from_spec(spec)

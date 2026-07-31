@@ -1,5 +1,5 @@
 {
-  "syncedAt": "2026-07-31T02:19:49.384Z",
+  "syncedAt": "2026-07-31T06:39:24.483Z",
   "syncedFrom": "vendor/skill-garden",
   "sourceCommit": "d254b26db4f84ab4da43e6bedd3b91a6e3d1e962",
   "common": {
@@ -132,6 +132,14 @@
       "commands": [],
       "overrides": [],
       "patchFiles": [
+        "agents/untracked-context/codex-content.md",
+        "agents/untracked-context/codex-selector.md",
+        "agents/untracked-context/kiro-content.txt",
+        "agents/untracked-context/kiro-selector.txt",
+        "agents/untracked-context/markdown-check-selector.md",
+        "agents/untracked-context/markdown-content.md",
+        "agents/untracked-context/markdown-implement-selector.md",
+        "agents/untracked-context/patch.json",
         "hooks/claude-session-start/missing-task-routing/content.py",
         "hooks/claude-session-start/missing-task-routing/patch.json",
         "hooks/claude-session-start/missing-task-routing/selector.py",
@@ -145,6 +153,7 @@
         "hooks/codex-session-start/no-task-routing/patch.json",
         "hooks/codex-session-start/no-task-routing/selector.py",
         "hooks/inject-workflow-state/shared-runtime/baseline-flower-beta2.py",
+        "hooks/inject-workflow-state/shared-runtime/baseline-flower-pre-untracked.py",
         "hooks/inject-workflow-state/shared-runtime/baseline-flower-stale-task.py",
         "hooks/inject-workflow-state/shared-runtime/content.py",
         "hooks/inject-workflow-state/shared-runtime/patch.json",
@@ -335,6 +344,9 @@
         "workflow/state-no-task/content.md",
         "workflow/state-no-task/patch.json",
         "workflow/state-no-task/selector.md",
+        "workflow/state-untracked/content.md",
+        "workflow/state-untracked/patch.json",
+        "workflow/state-untracked/selector.md",
         "workflow/states-in-progress/common-content.md",
         "workflow/states-in-progress/in-progress-baseline.md",
         "workflow/states-in-progress/in-progress-inline-baseline.md",
@@ -359,6 +371,7 @@
         "shared-hook-runtime.json",
         "task-progress-recovery.json",
         "trellis-meta.json",
+        "untracked-execution.json",
         "update-spec-flow.json"
       ],
       "policyFiles": [
@@ -368,10 +381,12 @@
       "scripts": [
         "auto_loop.py",
         "decision_log.py",
+        "git_evidence.py",
         "pre_check_state.py",
         "spec_router.py",
         "task_intent.py",
-        "task_progress.py"
+        "task_progress.py",
+        "untracked_flow.py"
       ]
     }
   }

@@ -331,6 +331,43 @@ class PatchConsumerTest(unittest.TestCase):
                     f"Check {command} ./.trellis/scripts/task.py current\n",
                 )
 
+    def test_unmarked_literal_with_selector_and_desired_content_still_replaces(self) -> None:
+        """目标同时含 selector 和目标内容时，Python consumer 仍执行替换。"""
+        _write(self.target, "agent.txt", "OLD\nNEW\n")
+        self.add_patch(
+            "agents/unmarked",
+            {
+                "schemaVersion": 2,
+                "id": "agents-unmarked",
+                "purpose": "test",
+                "operations": [
+                    {
+                        "id": "replace-unmarked-agent",
+                        "operation": "replace",
+                        "targets": [
+                            {
+                                "kind": "file",
+                                "path": "agent.txt",
+                                "missing": "error",
+                                "markerStyle": "none",
+                            }
+                        ],
+                        "selector": {"type": "literal", "source": "selector.txt"},
+                        "content": {"source": "content.txt"},
+                    }
+                ],
+            },
+            {"selector.txt": "OLD", "content.txt": "NEW"},
+        )
+        self.add_bundle(
+            {"schemaVersion": 1, "id": "agents", "patches": ["agents/unmarked"]}
+        )
+
+        result = self.run_runner()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.target / "agent.txt").read_text(encoding="utf-8"), "NEW\nNEW\n")
+
     def test_operation_order_qualified_provenance_and_bundle_membership(self) -> None:
         """验证 Python consumer 的稳定排序、qualified identity 与多 Bundle provenance。"""
         _write(self.target, "sample.md", "AUTH\nAUTO\n")
@@ -1001,7 +1038,7 @@ class PatchConsumerTest(unittest.TestCase):
     def test_real_catalog_preflight_matches_current_dogfood(self) -> None:
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, ROOT)
-        self.assertEqual(len(plan["patches"]), 37)
+        self.assertEqual(len(plan["patches"]), 39)
         self.assertGreaterEqual(len(plan["files"]), 10)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
@@ -1019,6 +1056,12 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("session-context-update-output", operation_ids)
         self.assertIn("before-dev-project-knowledge-discovery", operation_ids)
         self.assertIn("trellis-continue-task-progress-recovery", operation_ids)
+        self.assertIn("workflow-state-untracked", operation_ids)
+        self.assertIn("markdown-agents-untracked-context", operation_ids)
+        self.assertIn("markdown-implement-agents-untracked-context", operation_ids)
+        self.assertIn("markdown-check-agents-untracked-context", operation_ids)
+        self.assertIn("codex-agents-untracked-context", operation_ids)
+        self.assertIn("kiro-agents-untracked-context", operation_ids)
         self.assertTrue(META_OPERATIONS.issubset(operation_ids))
 
     def test_real_conflicts_cover_new_control_plane_operations(self) -> None:
@@ -1076,6 +1119,8 @@ class PatchConsumerTest(unittest.TestCase):
                 )
                 self.assertIn("Flower/Skill-Garden managed Plugin overlays", skill)
                 self.assertIn("Do not choose implementation or checking behavior", workflow)
+                self.assertIn("Untracked work completion", workflow)
+                self.assertIn("Untracked task adoption", workflow)
                 self.assertNotIn("dispatch `trellis-implement` by default", workflow)
 
     def test_real_catalog_task_intent_selects_complete_stale_recovery(self) -> None:

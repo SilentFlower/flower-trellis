@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "untracked-execution",
+  "aliases": [
+    "trellis-route",
+    "route",
+    "trellis-check-all",
+    "check-all",
+    "trellis-update-spec",
+    "update-spec",
+    "trellis-push",
+    "push"
+  ],
+  "installMode": "full-or-selected",
+  "patches": ["agents/untracked-context"]
+}

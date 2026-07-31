@@ -62,12 +62,15 @@ test("literal insert/replace/remove 支持旧 transform marker 迁移且重复�
   const f = sharedCoreFixture();
 
   const first = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
-  assert.equal(first.changed, 1);
+  assert.equal(first.changed, 2);
   const once = fs.readFileSync(path.join(f.target, "sample.md"), "utf8");
+  const unmarkedOnce = fs.readFileSync(path.join(f.target, "agent.json"), "utf8");
   assert.match(once, /skill-garden patch replace-rule/);
   assert.match(once, /ANCHOR\n<!-- BEGIN skill-garden patch insert-rule/);
   assert.match(once, /INSERT A\nINSERT B/);
   assert.doesNotMatch(once, /^REMOVE$/m);
+  assert.doesNotMatch(unmarkedOnce, /BEGIN skill-garden/);
+  assert.match(JSON.parse(unmarkedOnce).prompt, /Use untracked context/);
 
   const second = applyPatchPlan(
     f.target,
@@ -75,6 +78,7 @@ test("literal insert/replace/remove 支持旧 transform marker 迁移且重复�
   );
   assert.equal(second.changed, 0);
   assert.equal(fs.readFileSync(path.join(f.target, "sample.md"), "utf8"), once);
+  assert.equal(fs.readFileSync(path.join(f.target, "agent.json"), "utf8"), unmarkedOnce);
 
   const legacy = once.replaceAll("skill-garden patch replace-rule", "skill-garden transform replace-rule");
   fs.writeFileSync(path.join(f.target, "sample.md"), legacy);
@@ -83,6 +87,34 @@ test("literal insert/replace/remove 支持旧 transform marker 迁移且重复�
   const migratedText = fs.readFileSync(path.join(f.target, "sample.md"), "utf8");
   assert.match(migratedText, /skill-garden patch replace-rule/);
   assert.doesNotMatch(migratedText, /skill-garden transform replace-rule/);
+});
+
+test("无 marker 目标同时含 selector 和目标内容时仍执行真实替换", () => {
+  const f = fixture();
+  write(f.target, "agent.txt", "OLD\nNEW\n");
+  addPatch(f, "agents/unmarked", {
+    schemaVersion: 2,
+    id: "agents-unmarked",
+    purpose: "test",
+    operations: [{
+      id: "replace-unmarked-agent",
+      operation: "replace",
+      targets: [{
+        kind: "file",
+        path: "agent.txt",
+        missing: "error",
+        markerStyle: "none",
+      }],
+      selector: { type: "literal", source: "selector.txt" },
+      content: { source: "content.txt" },
+    }],
+  }, { "selector.txt": "OLD", "content.txt": "NEW" });
+  addBundle(f, { schemaVersion: 1, id: "agents", patches: ["agents/unmarked"] });
+
+  const result = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+
+  assert.equal(result.changed, 1);
+  assert.equal(fs.readFileSync(path.join(f.target, "agent.txt"), "utf8"), "NEW\nNEW\n");
 });
 
 test("JS/Python 对共享 Core fixture 返回相同结构化 plan 与 provenance", () => {

@@ -20,6 +20,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from decision_log import DecisionLogError, append_decision
+from git_evidence import GitEvidenceError, discover_git_repositories, parse_porcelain_z
 
 SCHEMA_VERSION = 2
 LEGACY_SCHEMA_VERSION = 1
@@ -969,55 +970,42 @@ def _integration_in_progress(repo: Path) -> list[str]:
 
 
 def _git_repositories(repo_root: Path) -> list[Path]:
-    """返回主仓和已初始化子模块仓库。"""
-    probe = _git_output(repo_root, "rev-parse", "--show-toplevel")
-    if probe.returncode != 0:
-        return []
-    root = Path(probe.stdout.decode("utf-8", errors="replace").strip()).resolve()
-    repositories = [root]
-    submodules = _git_output(
-        root,
-        "submodule",
-        "foreach",
-        "--recursive",
-        "--quiet",
-        "pwd",
-    )
-    if submodules.returncode == 0:
-        for raw in submodules.stdout.decode("utf-8", errors="replace").splitlines():
-            path = Path(raw.strip()).resolve()
-            if path.is_dir() and path not in repositories:
-                repositories.append(path)
-    return repositories
+    """返回主仓、递归子模块和配置独立 Git package。"""
+    try:
+        return discover_git_repositories(repo_root)
+    except GitEvidenceError as error:
+        # auto-loop 的纯状态机测试和只读恢复场景允许临时目录不是 Git 仓库；
+        # 真正开始任务时，后续 task/Git 门禁仍会给出明确阻断。
+        if error.reason == "git-root-unreadable":
+            return []
+        raise
 
 
 def _parse_porcelain_z(repo: Path, payload: bytes) -> list[dict[str, str]]:
     """解析 `git status --porcelain=v1 -z` 输出。"""
-    entries: list[dict[str, str]] = []
-    parts = payload.split(b"\0")
-    index = 0
-    while index < len(parts):
-        raw = parts[index]
-        index += 1
-        if not raw:
-            continue
-        text = raw.decode("utf-8", errors="surrogateescape")
-        if len(text) < 4:
-            continue
-        xy = text[:2]
-        path = text[3:]
-        original = ""
-        if xy[0] in {"R", "C"} and index < len(parts):
-            original = parts[index].decode("utf-8", errors="surrogateescape")
-            index += 1
-        entries.append({"xy": xy, "path": path, "original_path": original})
-    return entries
+    _ = repo
+    return [
+        {
+            "xy": entry["status"],
+            "path": entry["path"],
+            "original_path": entry.get("originalPath", ""),
+        }
+        for entry in parse_porcelain_z(payload)
+    ]
 
 
 def _capture_git_baseline(repo_root: Path) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """捕获 Git dirty baseline，并返回全局阻断信息。"""
     repositories: list[dict[str, Any]] = []
-    for repo in _git_repositories(repo_root):
+    try:
+        git_repositories = _git_repositories(repo_root)
+    except GitEvidenceError as error:
+        return [], {
+            "reason": error.reason,
+            "message": str(error),
+            **error.details,
+        }
+    for repo in git_repositories:
         status = _git_output(repo, "status", "--porcelain=v1", "-z", "--untracked-files=all")
         if status.returncode != 0:
             return [], {

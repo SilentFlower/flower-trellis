@@ -30,6 +30,8 @@ const GATES = [
   "Project Knowledge Discovery",
   "Flower Update Confirmation",
   "Active Task Scope Guard",
+  "Untracked Work Completion Chain",
+  "Untracked Task Adoption",
   "Routing Gate",
   "Auto-Loop Return Gate",
   "Interactive Post-Check Stop Gate",
@@ -39,7 +41,7 @@ const GATES = [
   "Task Progress Recovery",
 ];
 
-test("Workflow Hub 只保留 13 项 owner 索引和跨阶段顺序", () => {
+test("Workflow Hub 只保留 15 项 owner 索引和跨阶段顺序", () => {
   const hub = readSource("overrides/patches/workflow/hub/content.md");
 
   assert.match(hub, /### Skill-Garden Workflow Owner Index/);
@@ -48,13 +50,17 @@ test("Workflow Hub 只保留 13 项 owner 索引和跨阶段顺序", () => {
     assert.match(hub, new RegExp(`\\| ${gate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\|`));
     assert.doesNotMatch(hub, new RegExp(`#### ${gate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
   }
-  assert.ok(
-    hub.indexOf("blocking `<flower-update>`")
-      < hub.indexOf("Request intent and active-task scope"),
+  assertOrdered(
+    hub,
+    "A blocking `<flower-update>`",
+    "Request intent, active-task scope",
+    "更新确认先于请求路由",
   );
-  assert.ok(
-    hub.indexOf("matching `record` + `next`")
-      < hub.indexOf("Interactive completion proceeds Check-All"),
+  assertOrdered(
+    hub,
+    "matching `record` + `next`",
+    "Interactive completion proceeds Check-All",
+    "Auto-Loop 返回先于交互完成链",
   );
   for (const forbidden of [
     "`direct_edit` requires known",
@@ -97,7 +103,7 @@ test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算"
   assert.doesNotMatch(runner, /add_parser\("commit-(?:plan|step)"/);
 });
 
-test("13 个 Gate 的完整契约位于原生 owner", () => {
+test("15 个 Gate 的完整契约位于原生 owner", () => {
   const requestTriage = readSource(
     "overrides/patches/workflow/intent-routing/request-triage/content.md",
   );
@@ -154,7 +160,8 @@ test("13 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(planningState, /apply the `Request Triage` Active Task Scope Guard/);
   assert.match(activeState, /apply the `Request Triage` Active Task Scope Guard/);
   assert.match(route, /合法 route 决策必须能追溯到/);
-  assert.match(route, /回到 Phase 2\.1 completion contract 解析 Pre-Check/);
+  assert.match(route, /implement 路由只决定执行位置，不拥有实现后的停止策略/);
+  assert.match(route, /返回 workflow Phase 2\.1 的 completion contract/);
   assert.ok(
     checkAllReporting.indexOf("## Auto-Loop Return Gate")
       < checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),

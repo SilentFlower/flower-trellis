@@ -21,7 +21,8 @@ if str(SCRIPTS_DIR) not in sys.path:
 from common.active_task import resolve_context_key
 
 
-HINT = "Pre-check: deferred for current task; latest user intent may override."
+HINT = "Pre-check: deferred for current work; latest user intent may override."
+UNTRACKED_HINT = "Untracked work: work-123; stage=implement; summary=修复路由偏好."
 HOOKS = (
     ("codex", ROOT / ".codex/hooks/session-start.py"),
     ("claude", ROOT / ".claude/hooks/session-start.py"),
@@ -39,6 +40,14 @@ class PreCheckSessionStartTest(unittest.TestCase):
         scripts.mkdir(parents=True)
         shutil.copytree(ROOT / ".trellis/scripts/common", scripts / "common")
         shutil.copy2(ROOT / ".trellis/scripts/pre_check_state.py", scripts / "pre_check_state.py")
+        shutil.copy2(
+            ROOT / "vendor/skill-garden/.trellis/0.6/scripts/git_evidence.py",
+            scripts / "git_evidence.py",
+        )
+        shutil.copy2(
+            ROOT / "vendor/skill-garden/.trellis/0.6/scripts/untracked_flow.py",
+            scripts / "untracked_flow.py",
+        )
         task = self.root / ".trellis/tasks/task-a"
         task.mkdir(parents=True)
         (task / "task.json").write_text(
@@ -88,6 +97,39 @@ class PreCheckSessionStartTest(unittest.TestCase):
                 "mode": "hold",
                 "source": "follow-up-edit",
                 "updated_at": "2026-07-23T00:00:00Z",
+            }
+        path = self.root / ".trellis/.runtime/sessions" / f"{context_key}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(runtime), encoding="utf-8")
+
+    def _write_untracked_runtime(self, context_key: str, *, hold: bool) -> None:
+        """写入无任务事项及可选 hold。
+
+        Args:
+            context_key: session context key。
+            hold: 是否写入 pre-check 偏好。
+        """
+        runtime = {
+            "platform": context_key.split("_", 1)[0],
+            "current_task": None,
+            "untracked_flow": {
+                "version": 1,
+                "id": "work-123",
+                "mode": "direct_edit",
+                "source": "user-explicit",
+                "summary": "修复路由偏好",
+                "stage": "implement",
+                "scope": ["src/route.js"],
+                "evidence": {},
+            },
+        }
+        if hold:
+            runtime["pre_check_preference"] = {
+                "version": 2,
+                "subject": {"kind": "untracked", "id": "work-123"},
+                "mode": "hold",
+                "source": "follow-up-edit",
+                "updated_at": "2026-07-31T00:00:00Z",
             }
         path = self.root / ".trellis/.runtime/sessions" / f"{context_key}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -154,6 +196,17 @@ class PreCheckSessionStartTest(unittest.TestCase):
                 self._write_runtime(old_key, hold=True)
                 current = self._run_hook(hook, platform, f"{platform}-new")
                 self.assertNotIn(HINT, current)
+
+    def test_untracked_state_and_matching_hold_add_compact_hints(self) -> None:
+        """无任务事项与其 hold 在 SessionStart 中各注入一行。"""
+        for platform, hook in HOOKS:
+            with self.subTest(platform=platform):
+                context_key = self._context_key(platform, f"{platform}-untracked")
+                self._write_untracked_runtime(context_key, hold=True)
+                current = self._run_hook(hook, platform, f"{platform}-untracked")
+
+                self.assertEqual(current.count(UNTRACKED_HINT), 1)
+                self.assertEqual(current.count(HINT), 1)
 
 
 if __name__ == "__main__":

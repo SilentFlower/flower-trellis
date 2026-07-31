@@ -47,9 +47,21 @@ const SCRIPT_ALIASES = Object.freeze({
     "task-intent", "intent-routing",
   ],
   task_intent: ["task-intent", "intent-routing", "workflow-enhancement"],
+  git_evidence: [
+    "git-evidence", "workflow-enhancement", "task-intent", "intent-routing",
+    "auto-loop", "auto-loop-runner", "trellis-auto-loop", "trellis-route", "route",
+    "trellis-check-all", "check-all", "trellis-update-spec", "update-spec",
+    "trellis-push", "push",
+  ],
+  untracked_flow: [
+    "untracked-flow", "workflow-enhancement", "task-intent", "intent-routing",
+    "trellis-route", "route", "trellis-check-all", "check-all",
+    "trellis-update-spec", "update-spec", "trellis-push", "push",
+  ],
   pre_check_state: [
     "pre-check", "pre-check-state", "workflow-enhancement", "task-intent",
     "intent-routing", "auto-loop", "auto-loop-runner", "trellis-auto-loop",
+    "trellis-check-all", "check-all",
   ],
 });
 const TRELLIS_TEXT_EXTENSIONS = new Set([".json", ".md", ".toml", ".txt", ".yaml", ".yml"]);

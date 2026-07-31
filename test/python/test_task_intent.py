@@ -31,6 +31,14 @@ class TaskIntentTest(unittest.TestCase):
         scripts = self.root / ".trellis/scripts"
         scripts.mkdir(parents=True)
         shutil.copy2(SOURCE_HELPER, scripts / "task_intent.py")
+        shutil.copy2(
+            PROJECT_ROOT / "vendor/skill-garden/.trellis/0.6/scripts/git_evidence.py",
+            scripts / "git_evidence.py",
+        )
+        shutil.copy2(
+            PROJECT_ROOT / "vendor/skill-garden/.trellis/0.6/scripts/untracked_flow.py",
+            scripts / "untracked_flow.py",
+        )
         shutil.copy2(SOURCE_SCRIPTS / "task.py", scripts / "task.py")
         shutil.copy2(SOURCE_SCRIPTS / "decision_log.py", scripts / "decision_log.py")
         shutil.copytree(SOURCE_SCRIPTS / "common", scripts / "common")
@@ -152,6 +160,99 @@ class TaskIntentTest(unittest.TestCase):
         )
         self.assertNotIn(task_dir.relative_to(self.root).as_posix(), paths)
         self.assertEqual(data["status"], "planning")
+        self.assertEqual(intent["baseline"]["repositories"][0]["root"], ".")
+
+    def test_adopt_preserves_diff_and_records_untracked_context(self) -> None:
+        """adopt 保留现有 diff，写入接管元数据并清理 untracked 状态。"""
+        (self.root / ".trellis/.gitignore").write_text(".runtime/\n", encoding="utf-8")
+        self.run_command(
+            [
+                "python3",
+                ".trellis/scripts/untracked_flow.py",
+                "begin",
+                "--summary",
+                "Adopt work",
+                "--source",
+                "user-explicit",
+            ],
+            env=self.env,
+        )
+        self.run_command(
+            [
+                "python3",
+                ".trellis/scripts/untracked_flow.py",
+                "prepare-edit",
+                "--paths",
+                "tracked.txt",
+            ],
+            env=self.env,
+        )
+        (self.root / "tracked.txt").write_text("adopted\n", encoding="utf-8")
+        before = self.run_command(["git", "diff", "--", "tracked.txt"]).stdout
+
+        _, payload = self.helper(
+            "adopt",
+            "Adopted task",
+            "--slug",
+            "adopted-task",
+        )
+
+        task_dir = self.root / payload["task"]
+        data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+        intent = data["meta"]["intentRouting"]
+        self.assertEqual(payload["status"], "adopted")
+        self.assertTrue(intent["adoptedUntracked"])
+        self.assertTrue(intent["implementationStarted"])
+        self.assertEqual(intent["adoptedStage"], "implement")
+        self.assertEqual(self.run_command(["git", "diff", "--", "tracked.txt"]).stdout, before)
+        sessions = list((self.root / ".trellis/.runtime/sessions").glob("*.json"))
+        self.assertEqual(len(sessions), 1)
+        runtime = json.loads(sessions[0].read_text(encoding="utf-8"))
+        self.assertEqual(runtime["current_task"], payload["task"])
+        self.assertNotIn("untracked_flow", runtime)
+
+    def test_adopt_failure_rolls_back_task_and_restores_untracked_session(self) -> None:
+        """adoption 写入失败时删除新 task 并恢复原 session。"""
+        (self.root / ".trellis/.gitignore").write_text(".runtime/\n", encoding="utf-8")
+        self.run_command(
+            [
+                "python3",
+                ".trellis/scripts/untracked_flow.py",
+                "begin",
+                "--summary",
+                "Rollback adopt",
+                "--source",
+                "inferred",
+            ],
+            env=self.env,
+        )
+        session = next((self.root / ".trellis/.runtime/sessions").glob("*.json"))
+        before = json.loads(session.read_text(encoding="utf-8"))
+
+        with self.loaded_helper() as module:
+            original_write = module._write_json_atomic
+
+            def fail_task_meta(path: Path, data: dict) -> None:
+                if path.name == "task.json":
+                    raise OSError("boom")
+                original_write(path, data)
+
+            with mock.patch.object(module, "_write_json_atomic", side_effect=fail_task_meta):
+                with self.assertRaises(module.IntentTaskError) as raised:
+                    module.adopt_untracked_work(
+                        Namespace(
+                            title="Rollback task",
+                            slug="rollback-task",
+                            parent=None,
+                            package=None,
+                            priority="P2",
+                            description="",
+                        )
+                    )
+            self.assertEqual(raised.exception.reason, "adoption-write-failed")
+
+        self.assertFalse((self.root / ".trellis/tasks/rollback-task").exists())
+        self.assertEqual(json.loads(session.read_text(encoding="utf-8")), before)
 
     def test_create_is_not_auto_discard_eligible_when_active_binding_misses(self) -> None:
         """task 已创建但 active pointer 未绑定时不得承诺自动丢弃。"""

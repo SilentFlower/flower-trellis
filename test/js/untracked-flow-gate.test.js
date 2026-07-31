@@ -1,0 +1,182 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { copyScriptAssets } from "../../src/lib/copy-scripts.js";
+import { applyEnhancements } from "../../src/lib/apply-enhancements.js";
+
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const sourceRoot = path.join(projectRoot, "vendor/skill-garden/.trellis/0.6");
+const upstreamTemplates = path.join(
+  projectRoot,
+  "node_modules/@mindfoldhq/trellis/dist/templates",
+);
+
+
+function read(relativePath) {
+  return fs.readFileSync(path.join(sourceRoot, ...relativePath.split("/")), "utf8");
+}
+
+
+function quietApply(target) {
+  const original = console.log;
+  console.log = () => {};
+  try {
+    return applyEnhancements(target, { variant: "0.6", skills: ["trellis-route"] });
+  } finally {
+    console.log = original;
+  }
+}
+
+
+test("untracked workflow owner 串联稳定完成链且不伪造 task route", () => {
+  const state = read("overrides/patches/workflow/state-untracked/content.md");
+  const triage = read("overrides/patches/workflow/intent-routing/request-triage/content.md");
+  const route = read(".agents/skills/trellis-route/SKILL.md");
+  const check = read(".agents/skills/trellis-check-all/references/reporting-and-disposition.md");
+  const updateSpec = read("overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md");
+  const push = read(".agents/skills/trellis-push/SKILL.md");
+
+  assert.match(triage, /untracked_flow\.py begin/);
+  assert.match(triage, /prepare-edit --paths/);
+  assert.match(triage, /active-work-conflict/);
+  assert.match(state, /record-validation/);
+  assert.match(state, /record-check/);
+  assert.match(state, /record-spec/);
+  assert.match(state, /--reason completed/);
+  assert.match(route, /read-pref --target/);
+  assert.match(route, /untracked 的“仅本次”只用于当前调用，不写任何 runtime 或偏好/);
+  assert.match(route, /不得写 `Active task:`/);
+  assert.match(check, /untracked_flow\.py record-check/);
+  assert.match(updateSpec, /untracked_flow\.py record-spec/);
+  assert.match(push, /untracked_flow\.py clear --reason completed/);
+});
+
+
+test("untracked agent Patch 覆盖 Markdown、Codex 与 Kiro 合同", () => {
+  const declaration = JSON.parse(
+    read("overrides/patches/agents/untracked-context/patch.json"),
+  );
+  const operationIds = declaration.operations.map(({ id }) => id);
+  const markdown = read("overrides/patches/agents/untracked-context/markdown-content.md");
+  const codex = read("overrides/patches/agents/untracked-context/codex-content.md");
+  const kiro = read("overrides/patches/agents/untracked-context/kiro-content.txt");
+
+  assert.deepEqual(operationIds, [
+    "markdown-agents-untracked-context",
+    "markdown-implement-agents-untracked-context",
+    "markdown-check-agents-untracked-context",
+    "codex-agents-untracked-context",
+    "kiro-agents-untracked-context",
+  ]);
+  for (const content of [markdown, codex, kiro]) {
+    assert.match(content, /Untracked work:/);
+    assert.match(content, /untracked_flow\.py status --verbose/);
+  }
+  assert.match(markdown, /do not require or invent task artifacts/i);
+});
+
+
+test("untracked agent Patch 对完整平台真实模板重复应用幂等", () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-untracked-agents-"));
+  fs.mkdirSync(path.join(target, ".trellis"), { recursive: true });
+  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.5\n");
+  const targets = [];
+  for (const [sourcePlatform, sourceDirectory, targetDirectory, extension] of [
+    ["claude", "agents", ".claude/agents", "md"],
+    ["cursor", "agents", ".cursor/agents", "md"],
+    ["codebuddy", "agents", ".codebuddy/agents", "md"],
+    ["opencode", "agents", ".opencode/agents", "md"],
+    ["droid", "droids", ".factory/droids", "md"],
+    ["gemini", "agents", ".gemini/agents", "md"],
+    ["qoder", "agents", ".qoder/agents", "md"],
+    ["pi", "agents", ".pi/agents", "md"],
+    ["reasonix", "agents", ".reasonix/agents", "md"],
+    ["trae", "agents", ".trae/agents", "md"],
+    ["zcode", "agents", ".zcode/agents", "md"],
+    ["codex", "agents", ".codex/agents", "toml"],
+    ["kiro", "agents", ".kiro/agents", "json"],
+  ]) {
+    for (const role of ["trellis-implement", "trellis-check"]) {
+      const relativePath = `${targetDirectory}/${role}.${extension}`;
+      const destination = path.join(target, ...relativePath.split("/"));
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.copyFileSync(
+        path.join(upstreamTemplates, sourcePlatform, sourceDirectory, `${role}.${extension}`),
+        destination,
+      );
+      targets.push(relativePath);
+    }
+  }
+
+  const first = quietApply(target);
+  assert.equal(first.patchReport.summary.errors, 0);
+  const applied = new Map(targets.map((relativePath) => [
+    relativePath,
+    fs.readFileSync(path.join(target, ...relativePath.split("/")), "utf8"),
+  ]));
+  for (const [relativePath, value] of applied) {
+    assert.match(value, /Untracked work:/, relativePath);
+    if (relativePath.endsWith(".json")) {
+      assert.doesNotMatch(value, /BEGIN skill-garden/, relativePath);
+      JSON.parse(value);
+    }
+  }
+
+  const second = quietApply(target);
+  assert.equal(second.patchReport.summary.errors, 0);
+  for (const [relativePath, value] of applied) {
+    assert.equal(
+      fs.readFileSync(path.join(target, ...relativePath.split("/")), "utf8"),
+      value,
+      relativePath,
+    );
+  }
+});
+
+
+test("相关精细安装入口携带 untracked helper 与共享 Git 依赖", () => {
+  for (const skill of [
+    "task-intent",
+    "trellis-route",
+    "trellis-check-all",
+    "trellis-update-spec",
+    "trellis-push",
+  ]) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-untracked-copy-"));
+    const variant = path.join(target, "variant");
+    fs.mkdirSync(path.join(variant, "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(variant, "scripts/git_evidence.py"), "# evidence\n");
+    fs.writeFileSync(path.join(variant, "scripts/untracked_flow.py"), "# flow\n");
+
+    const result = copyScriptAssets(target, variant, [skill]);
+
+    assert.deepEqual(
+      result.installed.sort(),
+      ["script:git_evidence.py", "script:untracked_flow.py"],
+      skill,
+    );
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+
+test("intent 与 execution Bundle 分别提供 workflow 全链和 agent 合同", () => {
+  const intentBundle = JSON.parse(read("overrides/bundles/intent-routing.json"));
+  const executionBundle = JSON.parse(read("overrides/bundles/untracked-execution.json"));
+  for (const alias of [
+    "trellis-route",
+    "trellis-check-all",
+    "trellis-update-spec",
+    "trellis-push",
+  ]) {
+    assert.ok(executionBundle.aliases.includes(alias), alias);
+  }
+  assert.ok(intentBundle.aliases.includes("untracked-flow"));
+  assert.ok(intentBundle.patches.includes("workflow/state-untracked"));
+  assert.ok(intentBundle.patches.includes("hooks/inject-workflow-state/shared-runtime"));
+  assert.deepEqual(executionBundle.patches, ["agents/untracked-context"]);
+});

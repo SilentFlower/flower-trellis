@@ -2,7 +2,9 @@
 
 Run `trellis-route(target=check)`, then execute the unified `trellis-check-all` entry using the validated inline/subagent route.
 
-Before interactive Check-All begins, run `python3 ./.trellis/scripts/pre_check_state.py clear`. A missing, task-mismatched, or already-cleared preference is a no-op; a damaged runtime is reported diagnostically but safely defaults to checking.
+For untracked work, route reads only the personal pref helper and the dispatch prompt starts with `Untracked work: <work-id>` plus complete state/spec context. After Check-All, record its result through `untracked_flow.py record-check`; only a current valid pass may advance the work to `spec`.
+
+Before interactive Check-All begins, run `python3 ./.trellis/scripts/pre_check_state.py clear`. A missing, subject-mismatched, or already-cleared preference is a no-op; a damaged runtime is reported diagnostically but safely defaults to checking.
 
 Check-All selects light/full depth from intent, actual diff, risk, and runtime context. It is audit-only and collect-all by default for ordinary `CHK-*` findings: report all findings and stop before code changes until the user confirms the repair scope. The only write exception is low-risk `DOC-*` task-document drift auto-remediation owned by Check-All and shown in the final report, unless a validated auto-loop owns the continuation.
 

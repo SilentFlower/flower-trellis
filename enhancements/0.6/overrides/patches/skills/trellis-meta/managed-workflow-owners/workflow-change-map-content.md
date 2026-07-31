@@ -6,6 +6,7 @@ Start from the runtime section, then move to its owner:
 | --- | --- |
 | Add or reorder a phase | Workflow Patch/source plus every affected owner handoff |
 | Change task creation or scope policy | Request Triage, task-intent helper, and the managed workflow/state Patch |
+| Change untracked completion or adoption | `workflow-state:untracked`, Phase 2/3 owners, `untracked_flow.py`, and `task_intent.py adopt` |
 | Change planning activation | `trellis-task-brief` and the task-start guard |
 | Change implement/check execution | `trellis-route`; Check-All remains the unified check entry |
 | Change automatic continuation | `trellis-auto-loop` and its runner action contract |
