@@ -4,6 +4,16 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.6-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.5.5...v0.5.6-beta.0) (2026-07-31)
+
+
+### ✨ 新功能 Features
+
+* **auto-loop:** 支持依赖型多仓提交 ([618cfae](https://github.com/SilentFlower/flower-trellis/commit/618cfaef5fd8bff9f45122b424b4cec1b82a7874))
+* **skill:** 集成阿里云 SLS 查询 ([b8c611f](https://github.com/SilentFlower/flower-trellis/commit/b8c611fd5b8cc2369843401eb5fce8d7643a3769))
+* **telemetry:** 添加匿名安装遥测 ([dbc6ab2](https://github.com/SilentFlower/flower-trellis/commit/dbc6ab24289f502fd0a66bf0a71e3da0d1700213))
+* **workflow:** 集成稳定无任务完成流程 ([a4a02c0](https://github.com/SilentFlower/flower-trellis/commit/a4a02c068b95c2949de355fe2b7394e099b9a114))
+
 ## [0.5.5](https://github.com/SilentFlower/flower-trellis/compare/v0.5.4...v0.5.5) (2026-07-29)
 
 
