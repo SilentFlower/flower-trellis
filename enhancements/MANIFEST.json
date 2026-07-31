@@ -1,9 +1,10 @@
 {
-  "syncedAt": "2026-07-29T23:45:58.845Z",
+  "syncedAt": "2026-07-31T00:45:32.545Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "2aca31ca35fe6adb7d1e1932a0f201018f458188",
+  "sourceCommit": "321bcc1cc287575a3af21755e4ad33a7d7b28299",
   "common": {
     "codexSkills": [
+      "aliyun-sls-query",
       "craft-rpa",
       "craft-slides",
       "humanize-writing",
@@ -11,6 +12,7 @@
       "torrent-analyze"
     ],
     "claudeSkills": [
+      "aliyun-sls-query",
       "craft-rpa",
       "craft-slides",
       "humanize-writing",

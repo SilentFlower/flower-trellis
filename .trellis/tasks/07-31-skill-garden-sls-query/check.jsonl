@@ -1,0 +1,6 @@
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查幂等、最小变更、测试覆盖和不破坏主流程"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查 common skill 源与生成快照一致性及 tombstone 行为"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"检查平台投影、已安装刷新和 shared ownership 契约"}
+{"file":".trellis/spec/flower-trellis/cli/release-and-publishing.md","reason":"检查 submodule pin、sourceCommit、dirty 状态和 snapshot gate"}
+{"file":"vendor/skill-garden/README.md","reason":"检查独立安装器和双平台 common skill 目录约定"}
+{"file":".trellis/tasks/07-31-skill-garden-sls-query/research/source-audit.md","reason":"检查分发资产、权限、缓存排除和凭证纪律"}
