@@ -250,6 +250,24 @@ test("网络失败保持静默并记录尝试时间", async (t) => {
   assert.equal(state.lastSuccessAt, null);
 });
 
+test("默认遥测超时允许秒级公网响应", async (t) => {
+  const fixture = createFixture(t);
+  const result = await reportTelemetry(fixture.target, "version_check", {
+    env: fixture.env,
+    randomUUID: () => FIRST_DEVICE_ID,
+    fetch: async (_url, options) => new Promise((resolve, reject) => {
+      // 1 秒可稳定回归原 800ms 默认值，同时显著低于新的 10 秒上限。
+      const responseTimer = setTimeout(() => resolve({ ok: true }), 1000);
+      options.signal.addEventListener("abort", () => {
+        clearTimeout(responseTimer);
+        reject(new Error("aborted"));
+      }, { once: true });
+    }),
+  });
+
+  assert.equal(result.status, "reported");
+});
+
 test("网络超时静默降级且不阻断调用方", async (t) => {
   const fixture = createFixture(t);
   const result = await reportTelemetry(fixture.target, "version_check", {

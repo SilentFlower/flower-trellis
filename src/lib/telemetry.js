@@ -11,7 +11,8 @@ import { flowerVersion, trellisVersion } from "./versions.js";
 export const FLOWER_TELEMETRY_ENDPOINT = "https://ai-api.flower-cli.com/api/flower-trellis/telemetry";
 
 const TELEMETRY_SCHEMA_VERSION = 1;
-const DEFAULT_TIMEOUT_MS = 800;
+/** 遥测请求保留 10 秒公网预算，避免慢速 TLS 建连或服务端响应被过早中止。 */
+const DEFAULT_TIMEOUT_MS = 10000;
 const VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EVENTS = new Set(["version_check", "init_completed", "update_completed"]);

@@ -629,7 +629,7 @@ POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
 - 普通 `version_check` 复用 updateCheck `intervalHours` 节流；init/update 成功事件强制上报，update dry-run 不上报。
 - init/update 的 registry 请求与遥测并行；self-check 只有缓存未命中并真实请求 registry 时触发，stdout 始终只有原 JSON。
 - `FLOWER_NO_TELEMETRY` 只临时停用且零写入；持久开关独立于 updateCheck。
-- 网络上报使用短超时，HTTP/网络/状态写入错误全部静默降级。
+- 网络上报默认使用 10 秒超时；测试或受控调用可用 `timeoutMs` 显式覆盖。HTTP/网络/状态写入错误全部静默降级。
 
 ### 4. Validation & Error Matrix
 
@@ -643,7 +643,7 @@ POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
 | version_check 尚在 interval 内 | 返回 throttled，不联网 |
 | init/update 成功 | 绕过 interval 发送完成事件 |
 | update `--dry-run` | 不发送完成事件 |
-| 网络失败、超时或非 2xx | 记录 lastAttemptAt，保留 lastSuccessAt，主命令继续 |
+| 网络失败、超过 10 秒仍未完成或非 2xx | 记录 lastAttemptAt，保留 lastSuccessAt，主命令继续 |
 
 ### 5. Good / Base / Bad Cases
 
@@ -655,7 +655,7 @@ POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
 ### 6. Tests Required
 
 - 缺失状态默认开启、UUID 稳定、0700/0600、enable/disable 和环境变量零写入。
-- 损坏 JSON、软链接、网络失败、超时、节流和强制事件。
+- 损坏 JSON、软链接、网络失败、显式短超时、默认 10 秒预算内的秒级响应、节流和强制事件。
 - payload 精确白名单及明确不存在 MAC、hostname、username、path、repository。
 - self-check 缓存命中不触发、真实远程检查触发、stdout 可直接 `JSON.parse`。
 - init/update 完成事件位于成功路径，update dry-run 跳过。
@@ -672,3 +672,13 @@ const state = { schemaVersion: 1, deviceId: crypto.randomUUID(), enabled: true }
 ```
 
 原因：运营统计只需要稳定随机安装标识，不需要不可撤销的硬件身份。
+
+```javascript
+// 错误：亚秒级默认值会在常见公网 TLS 建连完成前中止
+const DEFAULT_TIMEOUT_MS = 800
+
+// 正确：保留有界的 10 秒公网预算，失败后仍静默降级
+const DEFAULT_TIMEOUT_MS = 10000
+```
+
+原因：遥测是尽力而为的非关键请求，但亚秒级预算会系统性误判正常公网连接；10 秒上限兼顾上报成功率和离线降级边界。
