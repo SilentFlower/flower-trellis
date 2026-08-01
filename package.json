@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.5.6-beta.0",
+  "version": "0.5.6-beta.1",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -68,9 +68,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.5.6-beta.0",
+    "version": "0.5.6-beta.1",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **auto-loop:** 支持依赖型多仓提交 ([618cfae](https://github.com/SilentFlower/flower-trellis/commit/618cfaef5fd8bff9f45122b424b4cec1b82a7874))\n* **skill:** 集成阿里云 SLS 查询 ([b8c611f](https://github.com/SilentFlower/flower-trellis/commit/b8c611fd5b8cc2369843401eb5fce8d7643a3769))\n* **telemetry:** 添加匿名安装遥测 ([dbc6ab2](https://github.com/SilentFlower/flower-trellis/commit/dbc6ab24289f502fd0a66bf0a71e3da0d1700213))\n* **workflow:** 集成稳定无任务完成流程 ([a4a02c0](https://github.com/SilentFlower/flower-trellis/commit/a4a02c068b95c2949de355fe2b7394e099b9a114))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **telemetry:** 将匿名遥测上报默认超时延长至 10 秒 ([5397204](https://github.com/SilentFlower/flower-trellis/commit/539720442676bca21b1d31662d28fbdf2aa9cb6d))",
     "truncated": false
   },
   "optionalDependencies": {

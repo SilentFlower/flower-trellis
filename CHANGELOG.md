@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.5.6-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.5.6-beta.0...v0.5.6-beta.1) (2026-08-01)
+
+
+### 🐛 修复 Bug Fixes
+
+* **telemetry:** 将匿名遥测上报默认超时延长至 10 秒 ([5397204](https://github.com/SilentFlower/flower-trellis/commit/539720442676bca21b1d31662d28fbdf2aa9cb6d))
+
 ## [0.5.6-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.5.5...v0.5.6-beta.0) (2026-07-31)
 
 
