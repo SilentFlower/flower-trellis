@@ -38,6 +38,7 @@ const localizedSubjects = new Map([
   ["2e9fd18", "迁移 skill-garden 到插件运行时"],
   ["f79ce33", "执行 Flower 自更新同步"],
   ["ef1a8c4", "拆分 Check-All 检查档位并同步快照"],
+  ["5397204", "将匿名遥测上报默认超时延长至 10 秒"],
 ]);
 
 const detailedReleaseSubjects = new Map([
