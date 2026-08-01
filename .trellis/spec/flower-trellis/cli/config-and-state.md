@@ -630,6 +630,8 @@ POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
 - init/update 的 registry 请求与遥测并行；self-check 只有缓存未命中并真实请求 registry 时触发，stdout 始终只有原 JSON。
 - `FLOWER_NO_TELEMETRY` 只临时停用且零写入；持久开关独立于 updateCheck。
 - 网络上报默认使用 10 秒超时；测试或受控调用可用 `timeoutMs` 显式覆盖。HTTP/网络/状态写入错误全部静默降级。
+- 运行真实 CLI 的 E2E helper 必须在隔离环境中默认注入 `FLOWER_NO_TELEMETRY=1`，避免测试创建用户级状态或向生产遥测地址发请求；调用方仍可在明确的遥测专项测试中显式覆盖该默认值。
+- 普通 CLI E2E 不得为了模拟真实用户而清除该隔离变量；测试必须断言真实 init 完成后隔离配置目录内不存在 `telemetry.json`。
 
 ### 4. Validation & Error Matrix
 
@@ -644,13 +646,17 @@ POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
 | init/update 成功 | 绕过 interval 发送完成事件 |
 | update `--dry-run` | 不发送完成事件 |
 | 网络失败、超过 10 秒仍未完成或非 2xx | 记录 lastAttemptAt，保留 lastSuccessAt，主命令继续 |
+| 普通真实 CLI E2E 使用隔离 helper | 默认禁用遥测，不创建 `telemetry.json`，不访问生产上报地址 |
+| 遥测专项测试显式覆盖 helper 默认值 | 仅在该测试隔离范围内按显式值执行 |
 
 ### 5. Good / Base / Bad Cases
 
 - Good：同一用户在多个项目运行，服务端看到同一随机设备 ID 与不同开发者别名/项目版本，但看不到路径和仓库。
+- Good：真实 init E2E 使用隔离 XDG/config 目录并默认设置 `FLOWER_NO_TELEMETRY=1`，命令行为照常完成且无遥测状态文件。
 - Base：离线环境上报超时后静默返回，init/update 完成页和 self-check JSON 不受影响。
 - Bad：使用 MAC/hostname 生成稳定指纹，或把遥测状态写进项目仓库。
 - Bad：状态损坏时后台自动覆盖，导致用户无法检查异常证据。
+- Bad：只隔离配置目录却未禁用遥测，使普通 E2E 生成大量设备 UUID 并尝试上报生产服务。
 
 ### 6. Tests Required
 
@@ -659,6 +665,8 @@ POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
 - payload 精确白名单及明确不存在 MAC、hostname、username、path、repository。
 - self-check 缓存命中不触发、真实远程检查触发、stdout 可直接 `JSON.parse`。
 - init/update 完成事件位于成功路径，update dry-run 跳过。
+- 真实 CLI E2E helper 默认包含 `FLOWER_NO_TELEMETRY=1`，同时允许专项测试通过显式 env 覆盖。
+- 至少一个真实 init 测试断言隔离配置目录中不存在 `telemetry.json`。
 - 运行 `node --test test/js/telemetry.test.js test/js/update-check.test.js`、完整 `npm test`、全量 `node --check` 与 `git diff --check`。
 
 ### 7. Wrong vs Correct
@@ -682,3 +690,13 @@ const DEFAULT_TIMEOUT_MS = 10000
 ```
 
 原因：遥测是尽力而为的非关键请求，但亚秒级预算会系统性误判正常公网连接；10 秒上限兼顾上报成功率和离线降级边界。
+
+```javascript
+// 错误：真实 CLI E2E 只隔离 HOME/XDG，仍会创建新设备并尝试上报
+const env = { ...process.env, XDG_CONFIG_HOME: isolatedConfig }
+
+// 正确：隔离 helper 默认关闭遥测，专项测试仍可显式覆盖
+const env = { ...process.env, FLOWER_NO_TELEMETRY: '1', ...overrides }
+```
+
+原因：普通 E2E 的目标是验证 CLI 主流程，不应污染生产安装统计；显式覆盖保留了遥测专项测试验证真实触发路径的能力。

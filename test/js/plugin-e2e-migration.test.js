@@ -15,6 +15,10 @@ test("真实完整 init 创建 Trellis 并默认锁定 skill-garden", (t) => {
   ], { timeout: 60_000 });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   assert.equal(fs.existsSync(path.join(project, ".trellis")), true);
+  assert.equal(fs.existsSync(path.join(
+    workspace,
+    ".flower-e2e-env/config/flower-trellis/telemetry.json",
+  )), false);
   const lock = JSON.parse(fs.readFileSync(path.join(project, ".flower/plugin-lock.json"), "utf8"));
   assert.deepEqual(lock.roots, ["flower/skill-garden"]);
   assert.equal(lock.plugins[0].id, "flower/skill-garden");

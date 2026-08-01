@@ -30,6 +30,7 @@ export function createIsolatedFlowerEnv(root, overrides = {}) {
     XDG_CONFIG_HOME: config,
     XDG_CACHE_HOME: cache,
     FLOWER_NO_UPDATE_CHECK: "1",
+    FLOWER_NO_TELEMETRY: "1",
     NO_COLOR: "1",
     ...overrides,
   };
