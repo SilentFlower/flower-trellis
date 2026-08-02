@@ -1,0 +1,35 @@
+{
+  "id": "skill-garden-sls-query",
+  "name": "skill-garden-sls-query",
+  "title": "集成阿里云 SLS 查询 Skill",
+  "description": "将现有 aliyun-sls-query 通用 Skill 纳入 skill-garden 分发，并支持通过 flower-trellis 交互入口选择安装。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-07-31",
+  "completedAt": "2026-08-02",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-07-31T00:49:15Z",
+    "completedSteps": [
+      "auto-loop: 本地提交完成 b8c611f"
+    ],
+    "partialStep": null,
+    "nextStep": "auto-loop 已本地提交；需要用户显式运行 finish-work/archive 或继续后续人工流程",
+    "notes": "run_id=auto-20260730175312; task=.trellis/tasks/07-31-skill-garden-sls-query; commit=b8c611fd5b8cc2369843401eb5fce8d7643a3769; status=completed"
+  }
+}
