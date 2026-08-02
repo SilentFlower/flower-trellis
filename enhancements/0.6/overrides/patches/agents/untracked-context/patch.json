@@ -97,13 +97,65 @@
     {
       "id": "kiro-agents-untracked-context",
       "operation": "replace",
-      "targetPolicy": "each-existing",
       "targets": [
-        { "kind": "file", "path": ".kiro/agents/trellis-implement.json", "missing": "skip", "markerStyle": "none" },
-        { "kind": "file", "path": ".kiro/agents/trellis-check.json", "missing": "skip", "markerStyle": "none" }
+        { "kind": "file", "path": ".kiro/agents/trellis-implement.json", "missing": "skip", "markerStyle": "none" }
       ],
       "selector": { "type": "literal", "source": "kiro-selector.txt" },
       "content": { "source": "kiro-content.txt" }
+    },
+    {
+      "id": "markdown-check-all-intent-guard",
+      "operation": "insert",
+      "position": "after",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "file", "path": ".claude/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".cursor/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".codebuddy/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".opencode/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".factory/droids/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".gemini/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".grok/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".kimi-code/skills/trellis-check/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".qoder/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".pi/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".reasonix/skills/trellis-check/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".snow/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".trae/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".zcode/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".omp/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" }
+      ],
+      "selector": { "type": "literal", "source": "markdown-content.md" },
+      "content": { "source": "check-all-guard.md" }
+    },
+    {
+      "id": "codex-check-all-intent-guard",
+      "operation": "insert",
+      "position": "after",
+      "targets": [
+        { "kind": "file", "path": ".codex/agents/trellis-check.toml", "missing": "skip", "markerStyle": "html" }
+      ],
+      "selector": { "type": "literal", "source": "codex-content.md", "expectedMatches": 1 },
+      "content": { "source": "check-all-guard.md" }
+    },
+    {
+      "id": "kiro-check-agent-boundaries",
+      "operation": "replace",
+      "targets": [
+        { "kind": "file", "path": ".kiro/agents/trellis-check.json", "missing": "skip", "markerStyle": "none" }
+      ],
+      "selector": { "type": "literal", "source": "kiro-selector.txt" },
+      "content": { "source": "kiro-check-content.txt" }
+    },
+    {
+      "id": "channel-check-all-intent-guard",
+      "operation": "insert",
+      "position": "after",
+      "targets": [
+        { "kind": "file", "path": ".trellis/agents/check.md", "missing": "skip", "markerStyle": "html" }
+      ],
+      "selector": { "type": "literal", "source": "channel-check-selector.md", "expectedMatches": 1 },
+      "content": { "source": "check-all-guard.md" }
     }
   ]
 }

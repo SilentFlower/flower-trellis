@@ -55,6 +55,9 @@ const META_OPERATIONS = [
   "trellis-meta-managed-owner-routing",
   "trellis-meta-managed-state-boundary",
   "trellis-meta-managed-workflow-change-map",
+  "trellis-meta-managed-continue-check-route",
+  "trellis-meta-managed-workflow-notes",
+  "trellis-meta-managed-check-all-agent-route",
 ];
 const META_ASSERTION_FILES = [
   "SKILL.md",
@@ -64,6 +67,7 @@ const META_ASSERTION_FILES = [
   "references/local-architecture/workflow.md",
   "references/customize-local/overview.md",
   "references/customize-local/change-workflow.md",
+  "references/customize-local/change-agents.md",
   "references/customize-local/change-skills-or-commands.md",
   "references/platform-files/overview.md",
 ];
@@ -126,6 +130,16 @@ function assertManagedMeta(target, skillRoot) {
     skillRoot,
     "references/customize-local/change-skills-or-commands.md",
   );
+  const workflowChange = readMeta(
+    target,
+    skillRoot,
+    "references/customize-local/change-workflow.md",
+  );
+  const agentChange = readMeta(
+    target,
+    skillRoot,
+    "references/customize-local/change-agents.md",
+  );
 
   assert.match(skill, /including Flower\/Skill-Garden managed Plugin overlays/);
   assert.match(skill, /vendor\/skill-garden\/\.trellis\/0\.6/);
@@ -152,6 +166,11 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(skillRoute, /\| Grok Build \| `\.grok\/skills\/`, `\.grok\/commands\/` \|/);
   assert.match(skillRoute, /\| Snow CLI \| `\.snow\/skills\/`, `\.snow\/commands\/` \|/);
   assert.match(skillRoute, /Codex, Gemini CLI, Pi Agent, Kimi Code/);
+  assert.match(workflowChange, /no unified Check-All run/);
+  assert.match(workflowChange, /trellis-route\(target=check\).*trellis-check-all/);
+  assert.match(workflowChange, /Direct edits are valid only for unowned local sections/);
+  assert.match(agentChange, /Unified Check-All commands must run during checking/);
+  assert.match(agentChange, /self-fixing reviewer-only commands remain in `trellis-check`/);
 
   assert.doesNotMatch(bundled, /Not managed by Trellis at all/);
   assert.doesNotMatch(bundled, /Edit the local file directly/);
@@ -159,6 +178,7 @@ function assertManagedMeta(target, skillRoot) {
   assert.doesNotMatch(workflow, /dispatch `trellis-implement` by default/);
   assert.doesNotMatch(workflow, /edit these state blocks and the routing table above them/);
   assert.doesNotMatch(workflow, /preauthori[sz]ation/i);
+  assert.doesNotMatch(workflowChange, /no `trellis-check` run/);
 }
 
 function snapshotMeta(target) {

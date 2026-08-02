@@ -288,8 +288,17 @@ test("replay 冻结 skill-garden 时保留原 lock/state 且不重算 variant", 
     registry: new SourceRegistry([provider]),
   });
 
-  const result = service.replay({ preserveIds: [SKILL_GARDEN_PLUGIN_ID] });
+  let preflightPlan = null;
+  const result = service.replay({
+    preserveIds: [SKILL_GARDEN_PLUGIN_ID],
+    onPreflight: ({ plan }) => {
+      preflightPlan = plan;
+    },
+  });
   assert.equal(result.transaction.status, "unchanged");
+  assert.ok(preflightPlan);
+  assert.deepEqual(preflightPlan.contentMutations, []);
+  assert.deepEqual(preflightPlan.patchMutations, []);
   assert.equal(fs.readFileSync(path.join(target, ".flower/plugin-lock.json"), "utf8"), beforeLock);
   assert.equal(fs.readFileSync(path.join(target, ".flower/state.json"), "utf8"), beforeState);
 });

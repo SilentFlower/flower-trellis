@@ -88,8 +88,9 @@ Plugin Runtime 的统一计划、事务、lock 和 state 管理。整条链路**
 `init` 默认显式声明 builtin Plugin；`--enhance-only` 使用同一 Runtime。普通 `update` 只允许
 skill-garden 以当前 Flower 精确版本刷新直接声明并重新选 variant，其它 Plugin lock-first 重放；
 `--no-enhance` 冻结 skill-garden 的完整 lock 约束、capability grant 和 state，但仍重放外部 Plugin。
-普通跨版本 `update --dry-run` 因上游不会写入新 Trellis 模板，只跳过 Skill-Garden Plugin 预演；
-同版本 dry-run 与 `--enhance-only --dry-run` 仍执行严格 Patch preflight，外部 Plugin replay 不受影响。
+普通跨版本 `update --dry-run` 在项目外沙箱真实升级到捆绑模板并执行 Plugin dry-run，来源项目
+零写入；同版本 dry-run 与 `--enhance-only --dry-run` 仍直接执行严格 Patch preflight，外部 Plugin
+replay 不受影响。真实 update 的 Trellis + Plugin 链失败时由项目外受管快照补偿恢复。
 独立 `plugin add` 不隐式声明 skill-garden。
 
 ---
@@ -112,6 +113,7 @@ ENHANCEMENT_SKILL_TARGETS: Array<{
   platforms: string[],
   root: string,
   source: "agents" | "claude",
+  detectPaths?: Record<string, string>,
 }>
 projectSkillGardenContent(options) -> ContentProjection
 ```
@@ -123,6 +125,9 @@ projectSkillGardenContent(options) -> ContentProjection
   `--claude`。
 - Codex、Gemini、Pi 与 Kimi 共享唯一 `.agents/skills` target，使用同一 `agents` canonical
   源并生成逐字节一致的 neutral 内容；不得按消费者重复生成同一路径。
+- 共享物理 root 不能作为全部逻辑消费者的启用证据。自动检测必须通过 `detectPaths` 分别检查
+  上游平台原生 `trellis-implement` 入口；Plugin 自己投影的 `trellis-check-all` 文件不能反向
+  证明平台已启用，也不能创建 `.gemini`、`.pi` 或 `.kimi-code` 等缺失平台目录。
 - Pi 不再写 `.pi/skills`。只有 state/hash 能证明是旧 Trellis/Flower 产物时才允许清理旧
   私有 root；用户修改内容必须保留并报告冲突。
 - Kimi 的 `.kimi-code/skills` 只承载 Trellis 命令入口与 agent prompt，不是 Flower 工作流
@@ -139,6 +144,7 @@ projectSkillGardenContent(options) -> ContentProjection
 |---|---|
 | 用户只传 `--grok` / `--kimi` / `--omp` / `--snow` | 识别为已选平台，不额外补 `--claude` |
 | Codex、Gemini、Pi、Kimi 同时启用 | `.agents/skills` 只有一份目标 mutation，内容一致 |
+| 只有 `.agents/skills` 与 Codex 原生入口 | 只选择 Codex；不创建 Gemini、Pi、Kimi 私有目录 |
 | 旧 `.pi/skills` hash 匹配受管状态 | 迁移到共享 root 后安全清理旧副本 |
 | 旧 `.pi/skills` 被用户修改 | 保留旧副本并报告冲突，不猜测删除 |
 | Grok/Kimi 启用 | 投影对应 Skill，不创建不存在的项目 hook |
@@ -157,6 +163,8 @@ projectSkillGardenContent(options) -> ContentProjection
 
 - 常量测试覆盖全部平台 flag，并验证四个新增 flag 不触发默认 `--claude`。
 - 平台投影测试断言 Codex/Gemini/Pi/Kimi 共用一个 target，OMP/Grok/Snow 使用各自原生 root。
+- 自动检测测试覆盖共享 root 只有部分消费者原生入口的场景，断言 state 只记录真实平台，且
+  Check-All 投影不会创建未启用平台目录。
 - stale cleanup 测试覆盖 Pi 旧副本 hash 匹配可删除、用户修改必须保留。
 - 全平台 fixture、Patch conflict 和 compiled target 测试覆盖 21 个平台、全部 profile root，
   并验证缺失平台不创建目录。
@@ -184,6 +192,109 @@ projectSkillGardenContent(options) -> ContentProjection
 ```
 
 共享消费者合并成一个 target；Kimi 私有目录和 Pi extension/agent 继续由上游平台模板管理。
+
+---
+
+## Scenario: Codex Capability Config And Route Ownership
+
+### 1. Scope / Trigger
+
+- Trigger:修改 Codex `dispatch_mode` 配置、workflow-state hook banner/breadcrumb、平台 Patch adapter
+  或 `trellis-route` 对 inline/subagent 的解释。
+- Scope:`dispatch_mode` 只控制上游原生上下文注入/readiness 能力；本轮实现/check 执行位置始终由
+  `trellis-route` runtime/prefs/当前选择决定。
+
+### 2. Signatures
+
+```yaml
+codex:
+  dispatch_mode: auto
+```
+
+```json
+{
+  "value": "auto",
+  "commentSection": {
+    "heading": "Codex (dispatch behavior)",
+    "lines": ["#-------------------------------------------------------------------------------", "..."],
+    "missing": "skip"
+  }
+}
+```
+
+```python
+_resolve_codex_dispatch_mode(config: dict) -> str
+_codex_mode_banner(config: dict) -> str
+resolve_breadcrumb_key(status: str, platform: str | None, config: dict) -> str
+```
+
+### 3. Contracts
+
+- Flower-managed config 规范化输出固定为 `codex.dispatch_mode: auto`，保留 `codex` 下其它 key 和
+  文件其它顶层内容。`yaml-key` structured content 可同时替换上游注释段；注释段缺失且
+  `missing=skip` 时只写 key，重复标题或分隔线损坏时 fail closed。
+- hook 仍兼容读取 `auto|inline|sub-agent`：`sub-agent` 是 `auto` 别名，非法显式值沿用上游
+  inline fallback。Flower 输出 auto 只保证 native SubagentStart context/JSONL readiness 可用，
+  不默认选择 subagent，也不禁止 route 选择 inline。
+- `<codex-mode>` 必须明确“trellis-route selects execution mode”；`workflow-state:*-inline` 只是
+  上游兼容 breadcrumb 变体，不能作为 route evidence 或选项过滤器。
+- `trellis-route` 不读取 banner 作为决策，只接受合法 runtime、个人 prefs、当前紧邻选择或已校验
+  auto-loop 授权。subagent 被选中后才按 platform dispatch catalog 启动对应角色。
+- Codex hook Patch 使用 `0.6.12` 上游完整函数块作为 exact selector；替换内容必须保留其它
+  Skill-Garden conflict policy 需要的函数签名/规范化说明，组合 preflight 通过后才写盘。
+- config 与 hook 的 route-capability 最终断言属于 Flower catalog，统一放在
+  `src/patches/conflicts.json`；config policy 要求真实 `codex` 配置块为 `dispatch_mode: auto`，不能由
+  注释示例误满足；可选注释段继续由 Patch 行为测试覆盖，route ownership 由必需的 hook policy
+  断言。Skill-Garden 单 catalog policy 不得引用 Flower operation。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|---|---|
+| config 缺少 codex block | 创建两级 key并写 auto |
+| codex 使用 inline map 且含其它 key | 转成 block map，更新 dispatch_mode，保留其它 key |
+| 上游注释段存在且唯一 | 原位替换为 capability/route ownership 文案 |
+| 注释段缺失且 `missing=skip` | key 正常写入，不伪造整段注释位置 |
+| hook selector 漂移或组合 conflict 缺少规范化契约 | preflight 失败，config/hook/state 零写入 |
+| banner=auto 且 route=inline | 按 inline 执行；banner 不能覆盖 route |
+| banner=inline 兼容态且 route=subagent | 按明确 route + catalog 执行，banner 不裁剪选项 |
+
+### 5. Good / Base / Bad Cases
+
+- Good:旧 config 为 `{ dispatch_mode: inline, other: true }`；更新后得到 auto + other，hook banner
+  只声明 capability，随后用户仍可通过 route prefs 选择 inline。
+- Base:注释段已被用户删除；`missing=skip` 只规范化 key，不在文件任意位置追加大段注释。
+- Bad:把 auto 解释为“implement/check 默认派 subagent”，绕过 `trellis-route`。
+- Bad:用字符串替换整份 config，丢失用户 `other`、channel 或 updateCheck 配置。
+
+### 6. Tests Required
+
+- `platform-patches.test.js` 覆盖 inline map、其它 key/注释保留、注释段缺失、重复应用零变化和
+  hook capability 文案；正反断言旧默认 subagent/禁止 dispatch 语义不存在。
+- 组合 fixture 必须同时加载 Skill-Garden 与 Flower catalog，证明 hook 最终内容满足双方 conflict
+  assertion，并通过破坏 config/hook route-capability 文案的反例证明 Flower policy 会阻断；dogfood
+  `update --enhance-only` 必须成功。
+- route 静态/行为测试确认 banner、workflow inline state 和历史裸数字都不能单独形成 route decision。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+dispatch_mode=auto -> default check-all-subagent
+dispatch_mode=inline -> remove subagent option
+```
+
+#### Correct
+
+```text
+dispatch_mode -> native context/readiness capability
+trellis-route -> current implement/check execution decision
+platform-dispatch.json -> route-selected subagent launch contract
+```
+
+原因:能力、决策和平台启动是三个独立边界；混在 banner/config 中会让 route prefs、当前选择和
+专用 agent 资格检查失效。
 
 ---
 
@@ -1305,8 +1416,9 @@ cleanly or reported findings; latest user intent and validated auto-loop overrid
   Check-All,由真实任务、diff、风险和运行上下文智能选择 light/full 深度,同时保持
   audit-only collect-all 和稳定 `CHK-*` 修复循环。
 - Scope: `trellis-check-all/SKILL.md` 定义深度策略、检查、报告、修复和 disposition;
-  `trellis-route/SKILL.md` 与 `route_state.py` 只决定 inline/subagent 执行位置;
-  `trellis-check` 只提供检查清单和验证方法,不能成为顶层轻量逃生口或带入自动修复语义。
+  `trellis-route/SKILL.md`、`references/platform-dispatch.json` 与 `route_state.py` 只决定
+  inline/subagent 执行位置和平台启动目标;`trellis-check` 是 workspace-write 自修角色，不能成为
+  顶层轻量逃生口、Check-All fallback 或统一检查意图的接收者。
 
 ### 2. Signatures
 
@@ -1315,6 +1427,27 @@ check route 只允许以下两个执行位置 mode:
 ```text
 route_decision.target = check
 route_decision.mode = check-all-inline | check-all-subagent
+```
+
+平台启动目录固定为：
+
+```json
+{
+  "schemaVersion": 1,
+  "platforms": [{
+    "id": "codex",
+    "implement": { "eligible": true, "target": ".codex/agents/trellis-implement.toml", "launch": "..." },
+    "checkAll": {
+      "eligible": true,
+      "target": ".codex/agents/trellis-check-all.toml",
+      "format": "codex-toml",
+      "launch": "...",
+      "skillPath": ".agents/skills/trellis-check-all/SKILL.md",
+      "verification": "read-only-sandbox"
+    },
+    "inlineOnlyReason": null
+  }]
+}
 ```
 
 每次 Check-All 必须产生可审计画像:
@@ -1384,9 +1517,20 @@ ID: CHK-001, CHK-002, ...
   问题清单和修复操作;有问题时只在末尾询问一次修复范围,不得附带 commit/push 计划。
 - 用户确认修复后,批量修复所选问题并复用当前任务合法 implement route;不存在时重新进入
   `trellis-route(target=implement)`。定向验证后复用当前 check route 执行 Check-All 重检。
-- `check-all-subagent` 必须使用角色说明明确 audit-only 的专用 agent,或用完整 dispatch 契约
-  约束通用 subagent。禁止 fallback 到会直接修改工作区的 `trellis-check` agent;没有兼容
-  subagent 时必须阻塞并让用户重选 inline,不得静默换路由。
+- `references/platform-dispatch.json` 是平台启动契约唯一事实源，必须覆盖上游 `0.6.12` 的 21 个
+  稳定平台 ID。route skill 不维护第二张 Markdown 平台表；内容投影和闭包测试必须读取同一目录。
+- `check-all-subagent` 只允许 catalog 当前平台条目声明的专用 audit-only `trellis-check-all` 角色。
+  目标文件存在不等于 host 已发现；运行时还要确认当前 host 暴露对应 launcher。目标缺失、host
+  未发现、`eligible=false` 或 verification 不成立时阻塞并让用户重选 inline，禁止通用 agent、
+  `trellis-check` 或静默 inline fallback。
+- 专用角色只能读取本地 `trellis-check-all`、运行无写入验证并返回 profile、`CHK-*`、`DOC-*`、
+  blocked checks 和 residual risk。其平台格式必须显式只读：Codex `sandbox_mode=read-only`、
+  Kiro/Reasonix/Snow/Kimi 等使用各自 allowlist/frontmatter；Markdown 平台正文仍保留相同硬边界。
+- 内容投影只为 Plugin Runtime 已选择或项目中已存在 root 的 eligible 平台写专用角色，并始终写
+  `.trellis/agents/check-all.md`。Reasonix/Kimi 的 skill-as-agent 可覆盖同一目标，但引用文件必须
+  一并投影；未启用平台不得因 catalog 全量存在而创建目录。
+- 所有既有 workspace-write `trellis-check` 副本和 channel `check` 必须带 Check-All Intent Guard：
+  收到 Check-All/full/unified/pre-commit unified 意图时停止、不写文件，并指向专用角色。
 - Check-All 开始时默认 interactive;只有 runner `status` / `next` 验证 running、task 和
   outstanding check action 后才使用 auto-loop context,不得相信摘要或 raw runtime。
 - interactive 默认在标准报告后停止。若触发本轮完成链的最新用户消息已明确请求普通 push
@@ -1412,6 +1556,9 @@ ID: CHK-001, CHK-002, ...
 | 验证可能修改生产数据或调用有副作用外部系统 | 不执行,标记阻塞或未覆盖风险 |
 | 用户选择部分 `CHK-*` | 只批量修复选中 ID,未选问题保留在重检结果 |
 | subagent 只有自修复型 `trellis-check` agent | 禁止 dispatch,让用户改选 `check-all-inline` |
+| catalog target 存在但 host 未发现 launcher | fail closed,让用户重选 inline,不得声称 subagent 已执行 |
+| 当前平台 `checkAll.eligible=false` | 展示 `inlineOnlyReason`,只允许用户显式选择 inline |
+| workspace-write `trellis-check` 收到统一检查意图 | Intent Guard 停止且零写入,指向专用 `trellis-check-all` |
 | 普通 interactive Check-All 无问题 | 报告画像、通过和剩余风险,指向 Phase 3.3/3.4,停止等待 |
 | direct Git + Check-All 严格通过 | 展示同一标准报告,同轮进入 Update-Spec;不生成专用摘要或 Git 计划 |
 | direct Git + findings/blocked/部分验证/实质风险 | 展示标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
@@ -1427,10 +1574,13 @@ ID: CHK-001, CHK-002, ...
 - Base: 旧 runtime 保存 `check-subagent`;helper 输出 canonical `check-all-subagent`,
   后续仍执行 audit-only Check-All。
 - Base: subagent 返回标准只读报告;主会话负责展示清单并询问一次修复范围,subagent 不修改文件。
+- Base: 项目只启用 Codex 和 Claude;投影只新增两个原生专用 agent 与 channel `check-all`,不创建
+  Gemini/Kiro 等未启用 root。
 - Bad: 第一个测试失败后立即问“要不要修”,导致后续 lint、规划和跨层问题未被发现。
 - Bad: 用户明确轻量检查后 route 直接 dispatch `trellis-check`,绕过 hard-full 升级和画像。
 - Bad: auto-loop 检查结束后套用 interactive stop gate,等待用户说“继续”。
 - Bad: `trellis-route` 找不到专用 check-all agent 时改用带自修复语义的 `trellis-check` agent。
+- Bad: route skill 和内容投影各维护一张平台表,新增平台后 target/launch/format 只更新一侧。
 - Bad: 报告问题后直接生成 commit message、暂存范围或 push 确认。
 
 ### 6. Tests Required
@@ -1440,6 +1590,14 @@ ID: CHK-001, CHK-002, ...
   先于 Interactive Post-Check Stop Gate。
 - 静态检查 `trellis-route` 不再把 `check-all-subagent` fallback 到
   `Agent({subagent_type: "trellis-check"})`,且 dispatch prompt 第一行包含当前任务路径。
+- catalog 测试必须断言 schema、21 个稳定平台 ID、eligible target 唯一性、inline-only reason、
+  runtime alias 和 17 个专用 Check-All target 的闭包；不得只断言静态数组长度。
+- 对所有 eligible 平台生成并解析对应 agent 格式，断言目标只读、正文一致、引用存在；再与
+  `0.6.12` full compiled target 的原生 platform roots 做闭包校验。
+- 投影测试覆盖显式 platform selection、已有 root 探测、无 root Claude fallback、Reasonix/Kimi
+  skill-as-agent 覆盖，以及未启用平台零创建。
+- conflict/最终产物测试至少断言 Codex、一个 Markdown 平台和 channel 的 workspace-write
+  `trellis-check` 都包含 Check-All Intent Guard。
 - 测试 `route_state.py` 把 `check-inline/check-subagent` 归一为 canonical mode,原 decision
   输入不被原地篡改,resolve 后 runtime 可升级为 canonical 值。
 - `npm run sync` 后用 `cmp -s` 确认 vendor 源、`enhancements/0.6` 快照和当前 dogfood
@@ -2181,20 +2339,31 @@ risk_items          ->始终逐项展示,不折叠
   区和文件归属,再把 exact files/message 交给内部执行器;`trellis-push` 不读写 runner runtime。
 - 当前任务进度 schema 固定为 `updatedAt`、`completedSteps`、`partialStep`、`nextStep`、`notes`;
   不保存 push mode、业务 commit hash、分支或完整计划。`task_progress.py write` 必须拒绝额外字段,
-  只更新 `task.json.progress`,并在成功写入时移除 legacy `last_push_snapshot`。
+  只接受 `status=in_progress`；普通最终分支携带 `--complete` 时在同一次原子替换中写 progress、
+  `status=completed` 和 UTC 日期 `completedAt`，并移除 legacy `last_push_snapshot`。
 - Task Progress Recovery 的读取 owner 是 `trellis-continue`：它在加载 Phase Index/选择恢复步骤前运行
-  `task_progress.py status --json`，只 relay `partialStep`、`nextStep`、必要 notes 或健康 candidates。
-  不得自动 rebind、由 progress 推断 Phase、恢复 push mode 或恢复 Git/commit 编排；`trellis-push`
-  继续只拥有业务 Git 成功后的 progress write。
+  `task_progress.py status --json`。`in_progress` 只 relay `partialStep`、`nextStep` 和必要 notes；
+  `completed` 当前任务或 candidate 只指向显式 finish-work/archive。不得自动 rebind、由 progress
+  推断 Phase、恢复 push mode 或恢复 Git/commit 编排。
+- `completed` 是 Phase 3.4 与 archive 之间的可观察活动态；最终 progress 写入不得清理当前 session
+  指针。`[workflow-state:completed]` 禁止自动恢复 implementation/Update-Spec/push，只允许显式
+  finish-work，或用户明确决定后运行 `task_progress.py reopen --task <task> --json`。reopen 只允许
+  `completed -> in_progress`，清空 `completedAt` 并保留 progress；范围变化仍刷新 Brief 并重新批准。
 - `task_progress.py write` 必须在完整 schema 校验后，将 JSON 写入目标目录内的临时文件，执行
   flush + `fsync` 后用 `os.replace` 原子替换 `task.json`。校验失败、临时写入失败或 replace 失败时，
   旧 `task.json` 字节保持不变，并清理本次临时文件。
-- 普通业务 push 全部成功时写完整 progress;已有成功仓库而后续失败时写 partial/next/failure notes。
-  尚无成功 Git 动作时不得伪造 completed steps。progress 使用固定 message 对首次确认的当前
-  任务 exact files 生成独立 commit 并立即 push,不增加第二次确认;该集合包含 helper 更新后的
-  `task.json` 和首次计划时已存在且可归属的当前任务产物。finish-work 负责后续 release audit、
-  archive 移动和 journal,不能作为普通 push 延后当前任务规划产物首次入库的理由。
-- progress 写入/commit/push 失败不回滚业务结果,最终报告必须分开显示 business 与 progress sync。
+- 普通业务 commit/push 全部成功时先不带 `--complete` 写完整 progress，并用固定 message 对首次确认的
+  当前任务 exact files 生成独立 commit 后立即 push，不增加第二次确认；该集合包含 helper 更新后的
+  `task.json` 和首次计划时已存在且可归属的当前任务产物。只有 progress commit/push 成功后，才用
+  同一份 final progress 携带 `--complete` 在本地原子写入 completed/completedAt；该预归档生命周期
+  变化不再创建第二个 progress commit，由显式 finish-work 的 archive bookkeeping commit 承接。
+- 已有成功仓库而后续失败时不带 `--complete` 写 partial/next/failure notes，任务保持 `in_progress`。
+  用户 commit-only、auto-loop 内部 commit-only 和尚无成功 Git 动作的失败都不得触发 completed。
+  finish-work 负责后续 release audit、archive 移动和 journal，不能作为普通 push 延后当前任务规划
+  产物首次入库的理由。
+- progress 写入/commit/push 失败不回滚业务结果，最终报告必须分开显示 business 与 progress sync；
+  权威任务状态保持 `in_progress`。若 progress push 已成功但本地 `--complete` 写入失败，只重试完成态
+  helper，不重做业务 push 或 progress push。
 
 ### 4. Validation & Error Matrix
 
@@ -2226,7 +2395,12 @@ risk_items          ->始终逐项展示,不折叠
 | 普通模式存在计划外 staged 文件 | `git commit --only` 提交 exact planned files,保留原 staged 列表 |
 | 无活动任务且 dirty 来源不明 | 全部放入 unrecognized,默认不提交 |
 | 多仓第二仓执行失败且第一仓已 push | 保留第一仓结果,写 partial progress 与下一恢复动作 |
-| 业务动作成功但 progress push 失败 | 不回滚业务提交;单独报告 progress sync failed |
+| 业务动作成功但 progress push 失败 | 不回滚业务提交;单独报告 progress sync failed，任务保持 in_progress |
+| 普通业务 commit/push 全部成功 | 先写/提交/推送 final progress，再 `write --complete` 激活本地完成态 |
+| progress push 成功但完成态写入失败 | 不重做已成功 push；任务保持 in_progress，只重试 `write --complete` |
+| partial、用户 commit-only 或 auto-loop commit-only | 不带 `--complete` 或跳过 Step 5，任务保持 in_progress |
+| completed 当前任务或 candidate 被 continue 发现 | 只指向显式 finish-work/archive，不进入 Phase 2/3.3/3.4 |
+| 用户明确要求重做 completed 任务 | `reopen` 清 completedAt、保留 progress；必要时重新批准 Brief |
 | progress JSON 带额外字段 | helper 拒绝写入,防止旧 Git 编排状态混入 |
 | progress schema 非法 | 写盘前失败，原 `task.json` 字节不变 |
 | 临时写入或 `os.replace` 失败 | 删除临时文件，原 `task.json` 字节不变 |
@@ -2244,7 +2418,8 @@ risk_items          ->始终逐项展示,不折叠
 - Good:单仓 20 个普通 planned files 按目录压成 6 行,2 个未识别 dirty 文件仍逐项展示;
   用户回复“展开文件”后看到原 20 个 exact paths。
 - Good:两个业务仓库各自拥有 commit message 和 branch/upstream,顶部显示执行顺序和一行任务
-  progress,用户只确认一次;业务 push 后自动生成独立 progress commit/push。
+  progress,用户只确认一次；业务 push 后先生成独立 progress commit/push，确认同步成功后才原子进入
+  completed，当前 session 继续指向该待归档任务。
 - Good:`skill-garden` push 后按计划运行 `npm run sync`;生成后没有计划外 dirty path,直接继续
   `flower-trellis` commit/push,不要求第二次确认。
 - Good:当前任务有 2 个业务 planned files 和 6 个 untracked 任务产物,另一个规划任务有
@@ -2262,6 +2437,7 @@ risk_items          ->始终逐项展示,不折叠
 - Bad:为减少一次确认增加独立中间步骤流程、验证协议或新状态;现有计划和提交前预检已经足够。
 - Bad:生成后出现预计列表外文件仍沿用旧确认,或仅因预计文件的 hash/统计变化重复询问用户。
 - Bad:progress 记录 business commit hash 或 push mode,再让 finish-work 根据它决定是否 push。
+- Bad:partial push、commit-only 或 auto-loop item completed 直接把 `task.json.status` 写成 completed。
 
 ### 6. Tests Required
 
@@ -2291,7 +2467,8 @@ risk_items          ->始终逐项展示,不折叠
 - 在临时 Git 仓库验证 `git commit --only -- <planned files>` 不消费计划外 staged 文件,
   并验证 retained-only 变化不会触发计划重确认。
 - `python3 -m py_compile` 验证 `task_progress.py`；临时任务覆盖新 progress 读写、额外字段拒绝、
-  legacy 读取与下一次 write 迁移，并模拟 schema 非法与 `os.replace` 失败，断言旧文件不变且无临时文件残留。
+  legacy 读取与下一次 write 迁移、`--complete`、session pointer 保留、completed candidate、reopen，
+  并模拟 schema 非法与 `os.replace` 失败，断言旧文件不变且无临时文件残留。
 - 临时多仓/裸远端覆盖普通成功、部分失败、progress sync 失败和显式 commit-only;验证 progress
   commit 只包含首次确认的当前任务产物与更新后的 `task.json`,其他任务保持原状;commit-only
   不 push 也不生成远端 progress。
@@ -2299,7 +2476,8 @@ risk_items          ->始终逐项展示,不折叠
   `run_check_all -> run_spec_update -> commit_only`;静态确认 runner `status/record` 只在
   `trellis-auto-loop` skill,不在 `trellis-push`。
 - `trellis-continue` 全装/精细安装同时铺设 recovery Patch 与 `task_progress.py`，并覆盖所有平台
-  原生 continue 入口；最终产物断言 progress status 位于 Phase Index 之前。
+  原生 continue 入口；最终产物断言 progress status 位于 Phase Index 之前，completed 分支只指向
+  finish-work/reopen，不恢复实现。
 
 ### 7. Wrong vs Correct
 
@@ -2370,8 +2548,24 @@ Push：执行
   模式、当前任务 archive 与本次 journal bookkeeping;不重复提交业务代码,不把工作区整体
   clean 或任务进度当作提交/自动 push 条件。
 
-### 2. Contracts
+### 2. Signatures
 
+```bash
+python3 ./.trellis/scripts/task_progress.py status --task <task> --json
+python3 ./.trellis/scripts/task.py archive <task> --no-commit
+```
+
+```text
+in_progress -> trellis-push final progress commit/push -> local write --complete -> completed
+completed -> trellis-finish-work -> archive
+completed -> explicit reopen -> in_progress
+```
+
+### 3. Contracts
+
+- finish-work 必须先读取权威 `task.json` 生命周期；只有 `status=completed` 且 `completedAt` 存在
+  才能进入 decision/release/archive。progress 文本不能替代状态。`in_progress` 返回 Phase 3.4，
+  损坏/未知状态 fail closed；finish-work 不制造 completed。
 - finish-work 在移动前记录 task source/name/children、branch、upstream、`HEAD` 与 upstream HEAD,
   以及 `@{u}..HEAD`;只有开始时 upstream 存在且两端 HEAD 完全相同才设置 `baseline_synced=true`。
 - 归档前自动调用 `trellis-release audit-current`。该模式只读取当前任务 artifacts、现有
@@ -2394,15 +2588,20 @@ Push：执行
 - finish-work 开始时已有 ahead、分支 behind/diverged、无 upstream,或执行期间出现并发 commit /
   branch/upstream 变化时,完成本地 bookkeeping commits 但不自动 push。不得读取 progress 或
   legacy task 字段决定 Git 行为。
+- `task.py archive` 重复 completion-state 与 decision guard，只接受 completed + completedAt；归档
+  只移动目录、清理指针和维护 parent/child 关系，不重写 status/completedAt。归档 completed 父任务
+  时只清活动子任务的 `parent`，不得改变子任务 status/progress。
 
-### 3. Validation & Error Matrix
+### 4. Validation & Error Matrix
 
 | 条件 | 行为 |
 |------|------|
 | 其他规划任务存在 untracked 文件 | 保留并报告;继续当前任务 archive/journal commit |
 | 旧 archive 下存在未跟踪任务 | 不纳入 exact destination;继续 |
 | index 中已有计划外 staged 文件 | `git commit --only` 隔离并验证 staged 列表保持不变 |
-| 当前任务仍有未提交业务文件 | 返回 Phase 3.4 `trellis-push` |
+| 当前任务 status=in_progress | archive 前停止并返回 Phase 3.4 `trellis-push` |
+| 当前任务 status=completed 且 completedAt 存在 | 保留活动指针进入 decision/release/archive |
+| completedAt 缺失、task.json 损坏或未知状态 | fail closed，不运行 release/archive/journal |
 | audit-current 高置信无上线事项 | status=no-op,不创建 release.md,继续 finish-work |
 | audit-current 高置信有上线事项 | 写/更新当前任务 release.md,由 archive 自然纳入 |
 | audit-current 证据不确定 | 写 Needs human review,继续并在最终结果保留风险 |
@@ -2411,7 +2610,15 @@ Push：执行
 | 无 upstream 或分支 behind/diverged | 完成本地 bookkeeping commits,不猜测远端目标 |
 | `session_auto_commit=false` | 只落盘,不 commit/push |
 
-### 4. Tests Required
+### 5. Good / Base / Bad Cases
+
+- Good:普通 push 已同步最终 progress，随后本地原子激活 active + completed；用户显式 finish-work 后
+  由 archive bookkeeping commit 承接完成态，archive 内保留原 completedAt，session 指针才被清理。
+- Base:completed 父任务有一个 in_progress 子任务；归档父任务只把子任务 parent 置空，子任务继续活动。
+- Bad:finish-work 看到 progress.nextStep=archive 就替 in_progress 任务写 completed 并移动目录。
+- Bad:archive 每次重写 completedAt，丢失真实业务完成日期。
+
+### 6. Tests Required
 
 - 临时仓库中同时创建当前任务、旧 archive、其他规划任务 untracked 文件和计划外 staged 文件;
   验证 archive/journal commits 的 `git show --name-only` 只包含 exact allowed paths。
@@ -2419,8 +2626,28 @@ Push：执行
 - 验证 `audit-current` 的 `no-op` / `written` / `needs-review` 三种结果,并回归普通批次模式仍需确认。
 - 验证工作区 dirty 但开始 `HEAD == upstream HEAD` 时允许 push;验证开始已有 ahead、无 upstream、
   behind/diverged 时只生成本地 bookkeeping commits。
+- 验证 archive 拒绝 in_progress/缺 completedAt，接受 completed 并保留 completedAt；覆盖 decision
+  失败零写入、completed parent/child 解除关系和归档后 session pointer 清理。
 - 静态扫描 finish-work override,确认不再出现“`git status --porcelain` clean 才 push”或暂存
   archive/workspace 根目录的指令,也不包含 release 证据推断正文或 progress/legacy Git 联动。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+finish-work -> task.py archive writes completed -> move task -> clear pointer
+```
+
+#### Correct
+
+```text
+trellis-push -> push final progress while in_progress -> local atomic completed + completedAt
+finish-work -> validate completed -> decision/release audit -> archive without lifecycle rewrite
+```
+
+原因:业务完成与会话收尾是两个可恢复边界；`completed` 必须在归档前可被 workflow-state、continue
+和 session 恢复观察，archive 只负责最终移动与 bookkeeping。
 
 ---
 

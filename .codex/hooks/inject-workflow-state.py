@@ -322,14 +322,14 @@ def prompt_has_skip_keyword(prompt: str, keyword: str) -> bool:
     return re.search(pattern, prompt, re.IGNORECASE) is not None
 
 
+# BEGIN skill-garden patch flower-codex-route-capability-hook v0.6
 def _resolve_codex_dispatch_mode(config: dict) -> str:
     """Normalize `codex.dispatch_mode` from .trellis/config.yaml to "auto" or "inline".
 
-    Defaults to `auto`. The legacy `sub-agent` value is an alias for `auto`.
-    Any other explicit value (including invalid ones) falls back to `inline`
-    without per-turn warnings. Shared by `_codex_mode_banner` (the per-turn
-    banner) and `resolve_breadcrumb_key` (the breadcrumb tag key) so the two
-    stay in lockstep.
+    ``auto`` keeps native subagent context injection and JSONL readiness
+    available. It is not a route decision. The legacy ``sub-agent`` value is
+    an alias for ``auto``; invalid explicit values retain the upstream inline
+    fallback until a Flower-managed update normalizes the project.
     """
     mode = "auto"
     if isinstance(config, dict):
@@ -346,31 +346,19 @@ def _resolve_codex_dispatch_mode(config: dict) -> str:
 
 
 def _codex_mode_banner(config: dict) -> str:
-    """Emit a `<codex-mode>` banner for the additionalContext payload.
-
-    Reads `codex.dispatch_mode` from .trellis/config.yaml; defaults to
-    `auto`, which dispatches Trellis sub-agents using native Codex context
-    injection with a child-side fallback. This does not rely on inherited
-    parent transcripts: `fork_turns` remains caller-controlled, and
-    fresh-history sub-agents still receive their explicit delegated task and
-    inherited session configuration. `inline` is an explicit opt-out; the
-    legacy `sub-agent` value is an alias for `auto`. Invalid explicit values
-    fall back to `inline` without per-turn warnings. The banner makes the
-    active mode explicit to Codex AI per turn, complementing the workflow-state
-    body which is per-status. Mode tells AI which dispatch protocol to follow;
-    workflow-state tells AI what step it's at.
-    """
+    """Emit Codex capability context without choosing an execution route."""
     mode = _resolve_codex_dispatch_mode(config)
     if mode == "auto":
         meaning = (
-            "auto: implement/check work defaults to Trellis sub-agents; native Codex "
-            "context injection is preferred and child-side loading is the fallback. "
-            "The main session still coordinates, clarifies, updates specs, commits, and finishes."
+            "auto: native Codex sub-agent context injection and task readiness are available. "
+            "Implement/check execution mode is selected by trellis-route; this banner is not "
+            "a route decision."
         )
     else:
         meaning = (
-            "inline: the main session implements/checks directly; "
-            "do not dispatch implement/check sub-agents."
+            "inline: upstream native sub-agent context readiness is disabled. Flower-managed "
+            "projects normalize this capability to auto; actual execution mode is still "
+            "selected by trellis-route."
         )
     return f"<codex-mode>{meaning}</codex-mode>"
 
@@ -378,21 +366,17 @@ def _codex_mode_banner(config: dict) -> str:
 def resolve_breadcrumb_key(
     status: str, platform: str | None, config: dict
 ) -> str:
-    """Pick the breadcrumb tag key based on Codex dispatch_mode.
+    """Pick the Codex context variant without treating it as route evidence.
 
-    Codex defaults to ``auto`` and therefore uses the ordinary ``<status>``
-    breadcrumb for native SubagentStart dispatch with child-side fallback;
-    it does not depend on an inherited parent transcript. ``inline`` selects
-    the parallel ``<status>-inline`` tag; ``sub-agent`` remains an alias for
-    ``auto``. Invalid explicit values fall back to inline without per-turn
-    warnings.
-
-    Non-codex platforms return the plain status unchanged.
+    The ordinary state carries native subagent readiness and the ``-inline``
+    state is the upstream compatibility variant. Neither variant authorizes
+    or filters a ``trellis-route`` inline/subagent decision.
     """
     if platform == "codex":
         mode = _resolve_codex_dispatch_mode(config)
         return f"{status}-inline" if mode == "inline" else status
     return status
+# END skill-garden patch flower-codex-route-capability-hook v0.6
 
 
 # BEGIN skill-garden patch workflow-state-breadcrumb-subject v0.6

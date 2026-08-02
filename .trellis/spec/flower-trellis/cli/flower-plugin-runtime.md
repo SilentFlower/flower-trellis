@@ -84,7 +84,12 @@ Source Provider 最小接口固定为：
 
 ### Platform And Install Plan
 
-- 平台名单只从 `ENHANCEMENT_SKILL_TARGETS` 派生。显式 `--platform` 必须全部合法；未显式选择时只检测项目中已存在的原生 root。
+- 平台名单只从 `ENHANCEMENT_SKILL_TARGETS` 派生。显式 `--platform` 必须全部合法；未显式选择时
+  按每个逻辑平台的原生检测路径判断。共享物理 Skill root 只用于 target 去重，不能把全部消费者
+  视为已启用，也不能让 Plugin 自己生成的平台文件成为下一次检测证据。
+- 生命周期平台优先级固定为“本轮显式选择 -> 既有 Plugin state 实际平台 -> 首次安装自动检测”。
+  update/replay/remove 不得依赖受管 Skill 目录反推平台；否则共享 root 收窄后会让已安装 Plugin
+  无法更新或删除。Skill-Garden wrapper 可以显式传入重新检测结果，用于纠正旧的错误 state。
 - 完全没有可用平台时返回 `PLUGIN_PLATFORM_SELECTION_REQUIRED`，不得沿用增强链的 Claude fallback，也不得创建 `.trellis/` 或安装 `skill-garden`。
 - 多个逻辑平台共享同一物理 root 时只生成一个 mutation，并在 provenance 中保留全部逻辑平台。
 - `createInstallPlan()` 在写盘前统一检查安全相对路径、父路径软链、同目标多 owner/内容、文件目录前缀、现有用户文件和 state ownership。

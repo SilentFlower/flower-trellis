@@ -8,6 +8,12 @@ developer_instructions = """
 <!-- BEGIN skill-garden patch codex-agents-untracked-context v0.6 -->
 
 If the dispatch prompt's first line is `Untracked work: <work-id>`, run `python3 ./.trellis/scripts/untracked_flow.py status --verbose`, require the same work id, use the complete summary/scope/baseline/fingerprint/evidence/spec context supplied by the main agent, and skip any task lookup or task-artifact loading below. Do not require or invent a task path or JSONL file. Otherwise continue with the agent's normal task context rules.
+<!-- BEGIN skill-garden patch codex-check-all-intent-guard v0.6 -->
+
+## Check-All Intent Guard
+
+If the dispatch request asks for Check-All, a full/unified check, or the pre-commit unified quality gate, stop without writing anything and report that this workspace-write `trellis-check` role is incompatible. The main session must route to the dedicated audit-only `trellis-check-all` role. Do not self-fix, edit files, or continue under this role.
+<!-- END skill-garden patch codex-check-all-intent-guard v0.6 -->
 <!-- END skill-garden patch codex-agents-untracked-context v0.6 -->
 You are running as the `trellis-check` sub-agent. The main session has dispatched you to review and self-fix.
 

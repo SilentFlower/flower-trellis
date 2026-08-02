@@ -8,11 +8,20 @@ python3 ./.trellis/scripts/task_progress.py status --json
 
 Treat the structured result as advisory recovery evidence only:
 
-- For `status=ok`, relay only `summary.partialStep`, `summary.nextStep`, and notes that are necessary to resume safely.
-- For `status=candidates`, relay the healthy candidates plus necessary `invalidCandidates` or `scanWarnings`, and suggest an explicit rebind when appropriate. Never rebind the session or task automatically.
+- For `status=ok` with `taskStatus=in_progress`, relay only `summary.partialStep`, `summary.nextStep`, and notes that are necessary to resume safely.
+- For `status=ok` with `taskStatus=completed`, do not resume Phase 2 or Phase 3.3/3.4. Point only to explicit `trellis-finish-work` archive, unless the user explicitly requests rework.
+- For `status=candidates`, relay each healthy candidate with its `taskStatus` plus necessary `invalidCandidates` or `scanWarnings`, and suggest an explicit rebind when appropriate. A completed candidate points to finish-work/archive, not implementation. Never rebind the session or task automatically.
 - For `status=no-progress` or `status=no-current-task`, continue without inventing saved progress. For `status=error`, report the structured blocker instead of guessing.
 
 Progress never overrides the task `status`, planning artifacts, or workflow ordering. Do not infer a Phase from progress, restore a previous push mode, or resume Git/commit orchestration from it.
+
+To rework a completed task, first obtain an explicit user decision, then run:
+
+```bash
+python3 ./.trellis/scripts/task_progress.py reopen --task <task-name> --json
+```
+
+Only `completed -> in_progress` is valid. Reopen clears `completedAt` but preserves the auditable progress record. If the rework changes requirements or planning boundaries, refresh the planning artifacts and Brief and obtain approval again before implementation.
 
 ### Planning Resume Gate
 

@@ -126,20 +126,19 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
     [workflow-state:planning-inline] → Codex inline variant of Phase 1
     [workflow-state:in_progress]  → Phase 2 + Phase 3.2-3.4
                                     (status stays 'in_progress' from
-                                    task.py start until task.py archive)
+                                    task.py start until successful ordinary
+                                    trellis-push progress completion)
     [workflow-state:in_progress-inline] → Codex inline variant of Phase 2/3
-    [workflow-state:completed]    → currently DEAD: cmd_archive flips
-                                    status and moves the dir in the same
-                                    call, so the resolver loses the
-                                    pointer (block kept for a future
-                                    explicit in_progress→completed
-                                    transition)
+    [workflow-state:completed]    → business push and final progress are
+                                    complete; task stays active until
+                                    explicit trellis-finish-work archive
 
   Editing checklist:
     - When you change a [workflow-state:STATUS] block, also check the
       matching phase's `[required · once]` walkthrough steps for sync
-    - Run `trellis update` after editing to push the new bodies to
-      downstream user projects (block-level managed replacement)
+    - In native fork mode, edit the source template and run `trellis update`;
+      in Skill-Garden managed mode, edit the owning Patch and run source sync,
+      compiled-target checks, and dogfood update
     - Runtime pseudo-status names are fixed. This Flower variant defines
       `no_task`, `untracked`, and `missing_task`; hook diagnostic source types must not be
       appended to workflow-state tag names.
@@ -348,17 +347,18 @@ Inline workflow-state is not an inline route decision. Do not default inline bec
 
 > Note: step 3.1 was folded into 2.2 (last-iteration full-scope check) and 3.4 (commit preamble). Numbering kept stable to avoid breaking external references.
 
+<!-- BEGIN skill-garden patch workflow-state-completed v0.6 -->
 <!-- Per-turn breadcrumb: shown while status='completed'.
-     Currently DEAD in normal flow: cmd_archive writes status='completed' in
-     the same call that moves the task dir to archive/, so the active-task
-     resolver loses the pointer and the hook never fires on archived tasks.
-     Block preserved for a future status-transition redesign (e.g. an
-     explicit in_progress→completed command). Edit through the same spec
-     channel as the live blocks. -->
+     Normal trellis-push has completed all business pushes, synchronized final
+     task progress, and then activated completed locally. The task remains active until an explicit
+     trellis-finish-work archive succeeds. -->
 
 [workflow-state:completed]
-Code committed. Run `/trellis:finish-work`; if dirty, return to Phase 3.4 first.
+Business push and task progress are complete. Do not resume implementation, Update-Spec, or trellis-push automatically.
+Run `/trellis:finish-work` only when explicitly requested; it verifies the completed record and archives the task without rewriting completion metadata.
+For rework, obtain an explicit user decision and run `task_progress.py reopen --task <task-name> --json` before returning to `in_progress`. Material scope changes still require refreshed planning artifacts and Brief approval.
 [/workflow-state:completed]
+<!-- END skill-garden patch workflow-state-completed v0.6 -->
 
 ### Rules
 
@@ -670,9 +670,10 @@ After the above, remind the user they can run `/finish-work` to wrap up (archive
 
 ---
 
+<!-- BEGIN skill-garden patch workflow-managed-customization-guidance v0.6 -->
 ## Customizing Trellis (for forks)
 
-This section is for developers who want to modify the Trellis workflow itself. All customization is done by editing this file; the scripts are parsers only.
+This section is for developers who want to modify the Trellis workflow itself. In a native Trellis fork, edit the source template and publish it through the native update path. In a Skill-Garden-managed project, `.trellis/workflow.md` is the runtime contract but managed sections must be changed through their owning Patch and workflow owner, then synchronized into compiled targets and dogfood output.
 
 ### Changing what a step means
 
@@ -692,11 +693,11 @@ All tag blocks live in the `## Phase Index` section above, immediately after eac
 | Codex inline Phase 1 | `[workflow-state:planning-inline]` |
 | Phase 2 + Phase 3.2–3.4 (implementation + check + wrap-up) | `[workflow-state:in_progress]` (after Phase 2 summary) |
 | Codex inline Phase 2 + Phase 3.2–3.4 | `[workflow-state:in_progress-inline]` |
-| After Phase 3.5 (archived) | `[workflow-state:completed]` (after Phase 3 summary; **currently DEAD**) |
+| After successful task-progress push, before explicit archive | `[workflow-state:completed]` (observable active lifecycle state) |
 
 ### Changing the per-turn prompt text
 
-Directly edit the body of the corresponding `[workflow-state:STATUS]` block. After editing, run `trellis update` (if you're a template maintainer) or restart your AI session (if you're customizing your own project) — no script changes required.
+For an unowned project-local block, a narrow direct edit followed by an AI-session restart is valid. For a Skill-Garden-owned block, edit the canonical Patch selector/baseline/content and owner contract, then run source sync, conflict checks, compiled-target generation/check, final-output review, and dogfood update. Do not run upstream `trellis update` expecting a direct edit to managed output to persist.
 
 ### Adding a custom status
 
@@ -737,3 +738,4 @@ For the workflow state machine's runtime contract, the authoritative runtime inp
 - Installed `<platform>/hooks/inject-workflow-state.py` copies — parse this workflow and emit the current breadcrumb for platforms with a per-turn hook.
 - `.trellis/spec/` project specs, when present — project-local runtime contract notes and invariants.
 <!-- END skill-garden patch workflow-runtime-contract-reference v0.6 -->
+<!-- END skill-garden patch workflow-managed-customization-guidance v0.6 -->

@@ -45,9 +45,35 @@ test("平台检测从已有原生 root 推断逻辑平台", (t) => {
   const project = createPluginTestRoot(t);
   fs.mkdirSync(path.join(project, ".claude/skills"), { recursive: true });
   fs.mkdirSync(path.join(project, ".agents/skills"), { recursive: true });
+  fs.mkdirSync(path.join(project, ".codex/agents"), { recursive: true });
+  fs.writeFileSync(path.join(project, ".codex/agents/trellis-implement.toml"), "name = \"trellis-implement\"\n");
   const selection = detectPluginPlatforms(project);
-  assert.deepEqual(selection.platforms, ["claude", "codex", "gemini", "kimi", "pi"]);
+  assert.deepEqual(selection.platforms, ["claude", "codex"]);
   assert.equal(selection.targets.length, 2);
+});
+
+test("共享 Skill root 不会把未启用消费者误判为逻辑平台", (t) => {
+  const project = createPluginTestRoot(t);
+  fs.mkdirSync(path.join(project, ".agents/skills"), { recursive: true });
+  for (const [platform, detectPath] of Object.entries({
+    codex: ".codex/agents/trellis-implement.toml",
+    gemini: ".gemini/agents/trellis-implement.md",
+    pi: ".pi/agents/trellis-implement.md",
+    kimi: ".kimi-code/skills/trellis-implement/SKILL.md",
+  })) {
+    const target = path.join(project, ...detectPath.split("/"));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, `${platform}\n`);
+  }
+
+  const selection = detectPluginPlatforms(project);
+
+  assert.deepEqual(selection.platforms, ["codex", "gemini", "kimi", "pi"]);
+  assert.deepEqual(selection.targets, [{
+    root: ".agents/skills",
+    source: "agents",
+    platforms: ["codex", "gemini", "kimi", "pi"],
+  }]);
 });
 
 test("内容投影把 canonical Skill 一次写入共享物理 root", (t) => {

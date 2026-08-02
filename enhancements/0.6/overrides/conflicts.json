@@ -284,8 +284,9 @@
           "Error: Task directory already exists:",
           "Failed to write initial task.json",
           "Relationship rollback incomplete",
-          "Failed to persist completed task status",
           "task.json not found or invalid:",
+          "only completed tasks with completedAt can be archived",
+          "complete the normal trellis-push progress sync before finish-work archive",
           "Failed to persist branch",
           "Failed to persist base branch",
           "Failed to persist scope",
@@ -553,7 +554,8 @@
       "severity": "error",
       "target": ".agents/skills/trellis-continue/SKILL.md",
       "whenOperations": [
-        "trellis-continue-task-progress-recovery"
+        "trellis-continue-task-progress-recovery",
+        "trellis-continue-completed-route"
       ],
       "assertion": {
         "type": "required-literal",
@@ -562,6 +564,9 @@
           "python3 ./.trellis/scripts/task_progress.py status --json",
           "Never rebind the session or task automatically.",
           "Progress never overrides the task `status`, planning artifacts, or workflow ordering.",
+          "taskStatus=completed",
+          "task_progress.py reopen --task <task-name> --json",
+          "`status=completed` (observable after successful final-progress sync)",
           "### Planning Resume Gate",
           "enter `trellis-brainstorm` before using artifact presence",
           "wait for a current explicit user confirmation before `task.py start`"
@@ -575,7 +580,8 @@
       "severity": "error",
       "target": ".claude/commands/trellis/continue.md",
       "whenOperations": [
-        "trellis-continue-task-progress-recovery"
+        "trellis-continue-task-progress-recovery",
+        "trellis-continue-completed-route"
       ],
       "assertion": {
         "type": "required-literal",
@@ -583,6 +589,9 @@
           "<!-- BEGIN skill-garden patch trellis-continue-task-progress-recovery v0.6 -->\n## Step 1.5: Recover Saved Task Progress",
           "python3 ./.trellis/scripts/task_progress.py status --json",
           "Do not infer a Phase from progress",
+          "taskStatus=completed",
+          "task_progress.py reopen --task <task-name> --json",
+          "`status=completed` (observable after successful final-progress sync)",
           "### Planning Resume Gate",
           "enter `trellis-brainstorm` before using artifact presence",
           "wait for a current explicit user confirmation before `task.py start`"
@@ -831,7 +840,9 @@
       "target": ".agents/skills/trellis-meta/references/customize-local/change-workflow.md",
       "whenOperations": [
         "trellis-meta-managed-workflow-entry",
-        "trellis-meta-managed-workflow-edit-route"
+        "trellis-meta-managed-workflow-edit-route",
+        "trellis-meta-managed-continue-check-route",
+        "trellis-meta-managed-workflow-notes"
       ],
       "assertion": {
         "type": "required-literal",
@@ -839,7 +850,9 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-entry v0.6 -->",
           "determine whether the relevant section is project-local, an upstream template, or a Skill-Garden managed Patch output",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-edit-route v0.6 -->\n## Modification Steps",
-          "Do not add a parallel workflow injector"
+          "Do not add a parallel workflow injector",
+          "no unified Check-All run",
+          "Direct edits are valid only for unowned local sections"
         ]
       },
       "owner": "trellis-meta",
@@ -851,7 +864,9 @@
       "target": ".claude/skills/trellis-meta/references/customize-local/change-workflow.md",
       "whenOperations": [
         "trellis-meta-managed-workflow-entry",
-        "trellis-meta-managed-workflow-edit-route"
+        "trellis-meta-managed-workflow-edit-route",
+        "trellis-meta-managed-continue-check-route",
+        "trellis-meta-managed-workflow-notes"
       ],
       "assertion": {
         "type": "required-literal",
@@ -859,11 +874,43 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-entry v0.6 -->",
           "determine whether the relevant section is project-local, an upstream template, or a Skill-Garden managed Patch output",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-edit-route v0.6 -->\n## Modification Steps",
-          "Do not add a parallel workflow injector"
+          "Do not add a parallel workflow injector",
+          "no unified Check-All run",
+          "Direct edits are valid only for unowned local sections"
         ]
       },
       "owner": "trellis-meta",
       "reason": "Claude workflow customization 必须与 shared owner/Patch 路由一致。"
+    },
+    {
+      "id": "trellis-meta-required-check-all-agent-route-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/customize-local/change-agents.md",
+      "whenOperations": ["trellis-meta-managed-check-all-agent-route"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "Unified Check-All commands must run during checking",
+          "self-fixing reviewer-only commands remain in `trellis-check`"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "统一检查命令必须归属 trellis-check-all，不能继续指向 workspace-write reviewer。"
+    },
+    {
+      "id": "trellis-meta-required-check-all-agent-route-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/customize-local/change-agents.md",
+      "whenOperations": ["trellis-meta-managed-check-all-agent-route"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "Unified Check-All commands must run during checking",
+          "self-fixing reviewer-only commands remain in `trellis-check`"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude 的统一检查命令归属必须与 shared owner 保持一致。"
     },
     {
       "id": "trellis-meta-required-skill-edit-route-agents",
@@ -1184,6 +1231,90 @@
       },
       "owner": "flower-update-hook",
       "reason": "默认 Session Context 只负责项目上下文；更新检查必须统一由 Flower SessionStart Hook 进入。"
+    },
+    {
+      "id": "codex-check-required-check-all-intent-guard",
+      "severity": "error",
+      "target": ".codex/agents/trellis-check.toml",
+      "whenOperations": ["codex-check-all-intent-guard"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# Check-All Intent Guard",
+          "this workspace-write `trellis-check` role is incompatible",
+          "dedicated audit-only `trellis-check-all` role",
+          "Do not self-fix, edit files, or continue under this role."
+        ]
+      },
+      "owner": "trellis-check-all",
+      "reason": "Codex workspace-write check 收到 Check-All 意图时必须拒绝并指向专用只读角色。"
+    },
+    {
+      "id": "channel-check-required-check-all-intent-guard",
+      "severity": "error",
+      "target": ".trellis/agents/check.md",
+      "whenOperations": ["channel-check-all-intent-guard"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "## Check-All Intent Guard",
+          "this workspace-write `trellis-check` role is incompatible",
+          "dedicated audit-only `trellis-check-all` role",
+          "Do not self-fix, edit files, or continue under this role."
+        ]
+      },
+      "owner": "trellis-check-all",
+      "reason": "channel workspace-write check 收到统一检查意图时必须拒绝，不能自修普通 CHK-*。"
+    },
+    {
+      "id": "workflow-required-completed-lifecycle",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": ["workflow-state-completed"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch workflow-state-completed v0.6 -->",
+          "Business push and task progress are complete.",
+          "Do not resume implementation, Update-Spec, or trellis-push automatically.",
+          "task_progress.py reopen --task <task-name> --json"
+        ]
+      },
+      "owner": "task-progress",
+      "reason": "completed 必须是可观察的待归档活动态，不能继续保留 DEAD 或自动恢复实施语义。"
+    },
+    {
+      "id": "workflow-required-managed-customization-guidance",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": ["workflow-managed-customization-guidance"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "Skill-Garden-managed project",
+          "After successful task-progress push, before explicit archive",
+          "Do not run upstream `trellis update` expecting a direct edit to managed output to persist."
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "workflow 自定义说明必须区分原生 fork 与 Skill-Garden 管理模式，并反映 completed 的真实生命周期。"
+    },
+    {
+      "id": "finish-work-required-completed-gate",
+      "severity": "error",
+      "target": ".agents/skills/trellis-finish-work/SKILL.md",
+      "whenOperations": ["trellis-finish-work-exact-bookkeeping"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "### 1. Completion State Gate",
+          "taskStatus=completed",
+          "finish-work must not manufacture completion",
+          "preserves the existing `completedAt` and performs no lifecycle status write"
+        ]
+      },
+      "owner": "trellis-finish-work",
+      "reason": "finish-work 只能归档已 completed 任务，不能替代 trellis-push 写完成状态。"
     }
   ]
 }

@@ -59,6 +59,13 @@ export const ENHANCEMENT_SKILL_TARGETS = [
     platforms: ["codex", "gemini", "pi", "kimi"],
     root: ".agents/skills",
     source: "agents",
+    // 共享 Skill root 只证明物理目标存在，不能证明四个逻辑平台都已启用。
+    detectPaths: {
+      codex: ".codex/agents/trellis-implement.toml",
+      gemini: ".gemini/agents/trellis-implement.md",
+      pi: ".pi/agents/trellis-implement.md",
+      kimi: ".kimi-code/skills/trellis-implement/SKILL.md",
+    },
   },
   { platform: "cursor", platforms: ["cursor"], root: ".cursor/skills", source: "agents" },
   { platform: "opencode", platforms: ["opencode"], root: ".opencode/skills", source: "agents" },

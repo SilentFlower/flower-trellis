@@ -1,5 +1,1 @@
-            data["status"] = "completed"
-            data["completedAt"] = today
-            if not write_json(task_json_path, data):
-                print(colored("Error: Failed to persist completed task status", Colors.RED), file=sys.stderr)
-                return 1
+            # completed 状态和 completedAt 已由普通 push 的原子 progress 写入完成；归档只移动任务。

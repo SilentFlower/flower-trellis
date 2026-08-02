@@ -8,13 +8,24 @@ import { OWN_FLAGS } from "../../src/constants.js";
 import { parseCliArgs, trellisUpdatePassthroughArgs } from "../../src/lib/cli-args.js";
 import { projectUpdateForwardArgs } from "../../src/lib/self-check.js";
 import { trellisVersion } from "../../src/lib/versions.js";
-import { shouldSkipSkillGardenPreview } from "../../src/commands/update.js";
+import {
+  createUpdateCompensationError,
+  shouldUseUpdateSandbox,
+} from "../../src/commands/update.js";
 import {
   normalizeUpdateBackupRetention,
   planUpdateBackupRetention,
   pruneUpdateBackups,
   snapshotUpdateBackups,
 } from "../../src/lib/update-backups.js";
+import {
+  createUpdateSandbox,
+  createUpdateSnapshot,
+  disposeUpdateSandbox,
+  disposeUpdateSnapshot,
+  extendUpdateSnapshot,
+  restoreUpdateSnapshot,
+} from "../../src/lib/update-transaction.js";
 
 const BACKUPS = [
   ".backup-2026-07-20T01-00-00",
@@ -96,28 +107,28 @@ test("升级备份保留数量只接受非负安全整数", () => {
   );
 });
 
-test("跨版本普通 dry-run 延后 Skill-Garden 重放", () => {
+test("只有跨版本普通 dry-run 进入项目外升级沙箱", () => {
   const targetVersion = trellisVersion();
 
-  assert.equal(shouldSkipSkillGardenPreview({
+  assert.equal(shouldUseUpdateSandbox({
     dryRun: true,
     enhanceOnly: false,
     currentVersion: "0.6.5",
     targetVersion,
   }), true);
-  assert.equal(shouldSkipSkillGardenPreview({
+  assert.equal(shouldUseUpdateSandbox({
     dryRun: true,
     enhanceOnly: false,
     currentVersion: targetVersion,
     targetVersion,
   }), false);
-  assert.equal(shouldSkipSkillGardenPreview({
+  assert.equal(shouldUseUpdateSandbox({
     dryRun: true,
     enhanceOnly: true,
     currentVersion: "0.6.5",
     targetVersion,
   }), false);
-  assert.equal(shouldSkipSkillGardenPreview({
+  assert.equal(shouldUseUpdateSandbox({
     dryRun: false,
     enhanceOnly: false,
     currentVersion: "0.6.5",
@@ -137,6 +148,7 @@ test("0.6.5 最小项目可零写入预览升级到捆绑版本", (t) => {
     path.resolve("bin/flower-trellis.js"),
     "update",
     "--dry-run",
+    "--no-enhance",
     "--no-update-check",
     "--target",
     target,
@@ -152,9 +164,182 @@ test("0.6.5 最小项目可零写入预览升级到捆绑版本", (t) => {
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /跨版本 dry-run:跳过 Skill-Garden 强化预演\(0\.6\.5 → 0\.6\.12\)/);
-  assert.doesNotMatch(result.stdout, /Plugin update 预览/);
+  assert.match(result.stdout, /跨版本 dry-run:在项目外沙箱预演 Trellis \+ Plugin \(0\.6\.5 → 0\.6\.12\)/);
+  assert.match(result.stdout, /--no-enhance:跳过 Skill-Garden/);
   assert.deepEqual(snapshotTree(target), before);
+});
+
+test("Update 补偿恢复旧内容、mode 和 Plugin-owned path，并保留用户数据与新备份", (t) => {
+  const target = createTarget(t, "flower-update-transaction-");
+  fs.mkdirSync(path.join(target, ".codex"));
+  fs.mkdirSync(path.join(target, ".flower"));
+  fs.mkdirSync(path.join(target, "custom"));
+  fs.mkdirSync(path.join(target, ".trellis", "tasks", "task-a"), { recursive: true });
+  fs.mkdirSync(path.join(target, ".trellis", "spec"), { recursive: true });
+  fs.writeFileSync(path.join(target, ".codex", "config.toml"), "old\n", { mode: 0o640 });
+  fs.writeFileSync(path.join(target, "AGENTS.md"), "old agents\n");
+  fs.writeFileSync(path.join(target, "custom", "owned.txt"), "old owned\n");
+  fs.writeFileSync(path.join(target, ".trellis", "tasks", "task-a", "task.json"), "old task\n");
+  fs.writeFileSync(path.join(target, ".trellis", "spec", "guide.md"), "old spec\n");
+  fs.writeFileSync(path.join(target, ".flower", "state.json"), `${JSON.stringify({
+    schemaVersion: 1,
+    transactionVersion: 1,
+    plugins: [{
+      id: "flower/sample",
+      version: "1.0.0",
+      platforms: ["codex"],
+      paths: [{
+        path: "custom/owned.txt",
+        kind: "file",
+        hash: `sha256:${"0".repeat(64)}`,
+        ownership: "exclusive",
+      }],
+      patches: [],
+    }],
+  }, null, 2)}\n`);
+
+  const snapshot = createUpdateSnapshot(target);
+  t.after(() => disposeUpdateSnapshot(snapshot));
+  fs.writeFileSync(path.join(target, ".codex", "config.toml"), "new\n");
+  fs.chmodSync(path.join(target, ".codex", "config.toml"), 0o600);
+  fs.writeFileSync(path.join(target, ".codex", "new.toml"), "new file\n");
+  fs.writeFileSync(path.join(target, "custom", "owned.txt"), "new owned\n");
+  fs.writeFileSync(path.join(target, ".trellis", "tasks", "task-a", "task.json"), "new task\n");
+  fs.writeFileSync(path.join(target, ".trellis", "spec", "guide.md"), "new spec\n");
+  fs.mkdirSync(path.join(target, ".trellis", ".backup-2026-08-02T01-02-03"));
+  fs.writeFileSync(
+    path.join(target, ".trellis", ".backup-2026-08-02T01-02-03", "evidence.txt"),
+    "keep\n",
+  );
+
+  const result = restoreUpdateSnapshot(snapshot);
+  assert.equal(result.ok, true, JSON.stringify(result.failedPaths));
+  assert.equal(fs.readFileSync(path.join(target, ".codex", "config.toml"), "utf8"), "old\n");
+  assert.equal(fs.statSync(path.join(target, ".codex", "config.toml")).mode & 0o777, 0o640);
+  assert.equal(fs.existsSync(path.join(target, ".codex", "new.toml")), false);
+  assert.equal(fs.readFileSync(path.join(target, "custom", "owned.txt"), "utf8"), "old owned\n");
+  assert.equal(fs.readFileSync(path.join(target, ".trellis", "tasks", "task-a", "task.json"), "utf8"), "new task\n");
+  assert.equal(fs.readFileSync(path.join(target, ".trellis", "spec", "guide.md"), "utf8"), "new spec\n");
+  assert.equal(
+    fs.existsSync(path.join(target, ".trellis", ".backup-2026-08-02T01-02-03", "evidence.txt")),
+    true,
+  );
+});
+
+test("Plugin 预检扩展快照后可恢复新增外部路径及其原内容", (t) => {
+  const target = createTarget(t, "flower-update-plugin-plan-");
+  fs.mkdirSync(path.join(target, "custom"));
+  fs.writeFileSync(path.join(target, "custom", "owned.txt"), "old owned\n", { mode: 0o640 });
+  const snapshot = createUpdateSnapshot(target);
+  t.after(() => disposeUpdateSnapshot(snapshot));
+
+  assert.deepEqual(extendUpdateSnapshot(snapshot, [
+    "custom/owned.txt",
+    "generated/nested/new-owned.txt",
+  ]), ["custom/owned.txt", "generated"]);
+  fs.writeFileSync(path.join(target, "custom", "owned.txt"), "new owned\n");
+  fs.mkdirSync(path.join(target, "generated", "nested"), { recursive: true });
+  fs.writeFileSync(path.join(target, "generated", "nested", "new-owned.txt"), "new file\n");
+
+  const result = restoreUpdateSnapshot(snapshot);
+  assert.equal(result.ok, true, JSON.stringify(result.failedPaths));
+  assert.equal(fs.readFileSync(path.join(target, "custom", "owned.txt"), "utf8"), "old owned\n");
+  assert.equal(fs.statSync(path.join(target, "custom", "owned.txt")).mode & 0o777, 0o640);
+  assert.equal(fs.existsSync(path.join(target, "generated")), false);
+});
+
+test("真实 CLI 在 Plugin replay 失败后补偿恢复受管状态并保留备份", (t) => {
+  const target = createTarget(t, "flower-update-cli-compensation-");
+  fs.mkdirSync(path.join(target, ".codex"));
+  fs.mkdirSync(path.join(target, ".flower"));
+  fs.mkdirSync(path.join(target, ".trellis/tasks/task-a"), { recursive: true });
+  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.5\n");
+  fs.writeFileSync(path.join(target, ".trellis/.developer"), "tester\n");
+  fs.writeFileSync(path.join(target, ".trellis/config.yaml"), "old config\n");
+  fs.writeFileSync(path.join(target, ".codex/config.toml"), "old codex\n", { mode: 0o640 });
+  fs.writeFileSync(path.join(target, ".flower/plugins.json"), "{broken\n");
+  fs.writeFileSync(path.join(target, ".trellis/tasks/task-a/task.json"), "user task\n");
+  const prefix = createFakeGlobalTrellis(t, trellisVersion());
+
+  const result = spawnSync(process.execPath, [
+    path.resolve("bin/flower-trellis.js"),
+    "update",
+    "--force",
+    "--no-update-check",
+    "--target",
+    target,
+  ], {
+    cwd: path.resolve("."),
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      FLOWER_NO_TELEMETRY: "1",
+      npm_config_prefix: prefix,
+    },
+    timeout: 20_000,
+  });
+
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.notEqual(result.status, 0, output);
+  assert.match(output, /Update 已补偿恢复/);
+  assert.equal(fs.readFileSync(path.join(target, ".trellis/.version"), "utf8"), "0.6.5\n");
+  assert.equal(fs.readFileSync(path.join(target, ".trellis/config.yaml"), "utf8"), "old config\n");
+  assert.equal(fs.readFileSync(path.join(target, ".codex/config.toml"), "utf8"), "old codex\n");
+  assert.equal(fs.statSync(path.join(target, ".codex/config.toml")).mode & 0o777, 0o640);
+  assert.equal(fs.existsSync(path.join(target, ".codex/new.toml")), false);
+  assert.equal(fs.readFileSync(path.join(target, ".flower/plugins.json"), "utf8"), "{broken\n");
+  assert.equal(fs.readFileSync(path.join(target, ".trellis/tasks/task-a/task.json"), "utf8"), "user task\n");
+  const backups = fs.readdirSync(path.join(target, ".trellis"))
+    .filter((name) => /^\.backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/.test(name));
+  assert.ok(backups.length > 0, "Trellis 本轮升级备份应作为补偿证据保留");
+});
+
+test("Update 补偿不完整时返回失败路径、manifest 和稳定错误码", {
+  skip: process.platform === "win32",
+}, (t) => {
+  const target = createTarget(t, "flower-update-compensation-incomplete-");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "flower-update-compensation-outside-"));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(target, ".codex"));
+  fs.writeFileSync(path.join(target, ".codex/config.toml"), "old codex\n");
+  const snapshot = createUpdateSnapshot(target);
+  t.after(() => disposeUpdateSnapshot(snapshot));
+  fs.rmSync(path.join(target, ".codex"), { recursive: true });
+  fs.symlinkSync(outside, path.join(target, ".codex"), "dir");
+
+  const recovery = restoreUpdateSnapshot(snapshot);
+  assert.equal(recovery.ok, false);
+  assert.ok(recovery.failedPaths.length > 0);
+  assert.equal(recovery.manifestPath, snapshot.manifestPath);
+  const error = createUpdateCompensationError(new Error("plugin failed"), recovery);
+  assert.equal(error.code, "UPDATE_COMPENSATION_INCOMPLETE");
+  assert.equal(error.details, recovery);
+  assert.match(error.message, /未恢复 \d+ 个路径/);
+  assert.match(error.message, new RegExp(snapshot.manifestPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.equal(fs.realpathSync(path.join(target, ".codex")), fs.realpathSync(outside));
+});
+
+test("Update 沙箱复制受管状态且不修改来源项目", (t) => {
+  const target = createTarget(t, "flower-update-sandbox-source-");
+  fs.mkdirSync(path.join(target, ".codex"));
+  fs.writeFileSync(path.join(target, ".trellis", ".version"), "0.6.5\n");
+  fs.writeFileSync(path.join(target, ".codex", "config.toml"), "source\n");
+  const before = snapshotTree(target);
+
+  const sandbox = createUpdateSandbox(target);
+  t.after(() => disposeUpdateSandbox(sandbox));
+  assert.notEqual(path.dirname(sandbox.root), target);
+  assert.equal(fs.readFileSync(path.join(sandbox.root, ".codex", "config.toml"), "utf8"), "source\n");
+  fs.writeFileSync(path.join(sandbox.root, ".codex", "config.toml"), "sandbox\n");
+  assert.deepEqual(snapshotTree(target), before);
+});
+
+test("Update 快照遇到受管软链时 fail closed", (t) => {
+  const target = createTarget(t, "flower-update-snapshot-symlink-");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "flower-update-outside-"));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.symlinkSync(outside, path.join(target, ".codex"), "dir");
+  assert.throws(() => createUpdateSnapshot(target), /包含软链/);
 });
 
 test("CLI 消费 backup-retention 并保留其它 Trellis 参数", () => {

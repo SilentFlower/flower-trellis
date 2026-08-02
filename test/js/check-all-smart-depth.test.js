@@ -70,6 +70,10 @@ test("route 只决定 Check-All 执行位置", () => {
     sourceRoot,
     ".agents/skills/trellis-route/scripts/route_state.py",
   );
+  const catalog = JSON.parse(read(
+    sourceRoot,
+    ".agents/skills/trellis-route/references/platform-dispatch.json",
+  ));
 
   assert.equal(agents, claude);
   assert.doesNotMatch(agents, /隐藏逃生口/);
@@ -83,11 +87,19 @@ test("route 只决定 Check-All 执行位置", () => {
   assert.match(agents, /Step 0\.25: 识别当前平台能力/);
   assert.match(agents, /不能仅凭 `.claude\/`、`.codex\/` 等目录存在就猜测当前 host/);
   assert.match(agents, /删除所有 Subagent 选项及对应编号/);
-  assert.match(agents, /trellis_subagent\(\{agent:"trellis-implement", mode:"single"/);
-  assert.match(agents, /spawn_subagent\(subagent_type="trellis-implement"/);
-  assert.match(agents, /内置 `coder`/);
-  assert.match(agents, /内置 `explore`/);
-  assert.match(agents, /不得使用 `trellis-check`/);
+  assert.equal(catalog.schemaVersion, 1);
+  assert.equal(catalog.platforms.length, 21);
+  assert.equal(new Set(catalog.platforms.map(({ id }) => id)).size, 21);
+  assert.match(catalog.platforms.find(({ id }) => id === "pi").implement.launch, /trellis_subagent/);
+  assert.match(catalog.platforms.find(({ id }) => id === "grok").implement.launch, /spawn_subagent/);
+  assert.match(catalog.platforms.find(({ id }) => id === "kimi").implement.launch, /coder/);
+  assert.match(catalog.platforms.find(({ id }) => id === "kimi").checkAll.launch, /explore/);
+  assert.equal(
+    catalog.platforms.filter(({ checkAll }) => checkAll.eligible).length,
+    17,
+  );
+  assert.doesNotMatch(agents, /\| Codex \|/);
+  assert.match(agents, /workspace-write `trellis-check`/);
 });
 
 test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {
@@ -142,6 +154,8 @@ test("0.6 发布快照与智能检查源保持一致", () => {
     ".claude/skills/trellis-check-all/references/reporting-and-disposition.md",
     ".agents/skills/trellis-route/SKILL.md",
     ".agents/skills/trellis-route/scripts/route_state.py",
+    ".agents/skills/trellis-route/references/platform-dispatch.json",
+    ".agents/skills/trellis-route/references/check-all-agent-body.md",
     ".claude/skills/trellis-route/SKILL.md",
     ".claude/skills/trellis-route/scripts/route_state.py",
     ".agents/skills/trellis-auto-loop/SKILL.md",

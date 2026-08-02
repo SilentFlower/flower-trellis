@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "codex-config-required-route-capability-semantics",
+      "severity": "error",
+      "target": ".trellis/config.yaml",
+      "whenOperations": ["flower-codex-dispatch-mode"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "codex:\n  dispatch_mode: auto"
+        ]
+      },
+      "owner": "trellis-route",
+      "reason": "Flower-managed Codex config 必须启用 auto 上下文/readiness 能力；实际 route 所有权由 Hook 最终断言校验。"
+    },
+    {
+      "id": "codex-hook-required-route-capability-semantics",
+      "severity": "error",
+      "target": ".codex/hooks/inject-workflow-state.py",
+      "whenOperations": ["flower-codex-route-capability-hook"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch flower-codex-route-capability-hook v0.6",
+          "It is not a route decision.",
+          "Implement/check execution mode is selected by trellis-route",
+          "Neither variant authorizes",
+          "or filters a ``trellis-route`` inline/subagent decision."
+        ]
+      },
+      "owner": "trellis-route",
+      "reason": "Codex workflow-state banner 只能声明 capability，不能授权、默认或过滤实际 route 决策。"
+    }
+  ]
+}

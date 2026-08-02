@@ -87,6 +87,11 @@ function writeContinueTargets(target) {
     "",
     "## Step 3: Decide Where You Are",
     "",
+    patchSource(
+      "skills/trellis-continue/task-progress-recovery",
+      "completed-route-selector.md",
+    ),
+    "",
   ].join("\n");
   return [
     write(
@@ -115,6 +120,11 @@ function writeAllContinueTargets(target) {
     selector,
     "",
     "## Step 2: Load the Phase Index",
+    "",
+    patchSource(
+      "skills/trellis-continue/task-progress-recovery",
+      "completed-route-selector.md",
+    ),
     "",
   ].join("\n");
 
@@ -168,6 +178,8 @@ function minimalWorkflow() {
     patchSource("workflow/states-in-progress", "in-progress-inline-baseline.md"),
     "[/workflow-state:in_progress-inline]",
     "",
+    patchSource("workflow/runtime-contract-reference", "completed-selector.md"),
+    "",
     patchSource("workflow/phase-ownership", "active-task-routing-baseline.md"),
     "",
     "## Phase 1: Plan",
@@ -198,14 +210,7 @@ function minimalWorkflow() {
     "",
     "#### 3.5 Wrap-up reminder",
     "",
-    "## Customizing Trellis (for forks)",
-    "",
-    "Critical invariants:",
-    patchSource("workflow/intent-routing/customization-intent-invariant", "selector.md"),
-    "",
-    "### Full contract",
-    "",
-    patchSource("workflow/runtime-contract-reference", "runtime-reference-selector.md"),
+    patchSource("workflow/runtime-contract-reference", "customizing-trellis-baseline.md"),
     "",
   ].join("\n");
 }
@@ -511,6 +516,7 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /skill-garden patch workflow-state-missing-task/);
   assert.match(workflowText, /skill-garden patch workflow-state-contract-comment/);
   assert.match(workflowText, /skill-garden patch workflow-runtime-contract-reference/);
+  assert.match(workflowText, /skill-garden patch workflow-state-completed/);
   assert.match(workflowText, /\[workflow-state:missing_task\]/);
   assert.match(workflowText, /\[workflow-state:untracked\]/);
   assert.match(workflowText, /in the same turn treat the current user request as `no_task`/);
@@ -530,6 +536,8 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /trellis-route\(target=implement\)/);
   assert.match(workflowText, /trellis-route\(target=check\)/);
   assert.match(workflowText, /Load `trellis-push`/);
+  assert.match(workflowText, /Business push and task progress are complete/);
+  assert.match(workflowText, /task_progress\.py reopen --task <task-name> --json/);
   assert.match(workflowText, /task_intent\.py create --title/);
   assert.match(workflowText, /skill-garden patch workflow-phase-1-activate/);
   assert.match(workflowText, /Unless `trellis-task-brief` validates an explicit preauthorization/);
@@ -655,8 +663,9 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     const value = fs.readFileSync(file, "utf8");
     assert.match(value, /BEGIN skill-garden patch trellis-finish-work-exact-bookkeeping/);
     assert.doesNotMatch(value, /## Step 1: Survey current state/);
-    assert.match(value, /### 1\. Decision Audit/);
-    assert.match(value, /### 2\. Current Task Release Audit/);
+    assert.match(value, /### 1\. Completion State Gate/);
+    assert.match(value, /### 2\. Decision Audit/);
+    assert.match(value, /### 3\. Current Task Release Audit/);
   }
   const plugins = JSON.parse(
     fs.readFileSync(path.join(target, ".flower/plugins.json"), "utf8"),
@@ -1045,8 +1054,9 @@ test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持�
       assert.match(value, /platform-native `trellis-finish-work` skill as the sole owner/, relativePath);
     } else {
       assert.match(value, /BEGIN skill-garden patch trellis-finish-work-(?:exact-bookkeeping|native-exact-bookkeeping)/, relativePath);
-      assert.match(value, /### 1\. Decision Audit/, relativePath);
-      assert.match(value, /### 2\. Current Task Release Audit/, relativePath);
+      assert.match(value, /### 1\. Completion State Gate/, relativePath);
+      assert.match(value, /### 2\. Decision Audit/, relativePath);
+      assert.match(value, /### 3\. Current Task Release Audit/, relativePath);
     }
   }
 

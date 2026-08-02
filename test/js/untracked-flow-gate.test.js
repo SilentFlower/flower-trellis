@@ -73,6 +73,10 @@ test("untracked agent Patch 覆盖 Markdown、OMP、Codex 与 Kiro 合同", () =
     "omp-check-agent-untracked-context",
     "codex-agents-untracked-context",
     "kiro-agents-untracked-context",
+    "markdown-check-all-intent-guard",
+    "codex-check-all-intent-guard",
+    "kiro-check-agent-boundaries",
+    "channel-check-all-intent-guard",
   ]);
   for (const content of [markdown, codex, kiro]) {
     assert.match(content, /Untracked work:/);

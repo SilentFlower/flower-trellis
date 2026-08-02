@@ -12,6 +12,18 @@
       "requires": [".codex"]
     }],
     "selector": { "type": "yaml-key", "path": "codex.dispatch_mode" },
-    "content": { "value": "auto" }
+    "content": { "source": "config-content.json.txt" }
+  }, {
+    "id": "flower-codex-route-capability-hook",
+    "operation": "replace",
+    "targets": [{
+      "kind": "file",
+      "path": ".codex/hooks/inject-workflow-state.py",
+      "missing": "skip",
+      "markerStyle": "hash",
+      "requires": [".codex"]
+    }],
+    "selector": { "type": "literal", "source": "hook-selector.py" },
+    "content": { "source": "hook-content.py" }
   }]
 }

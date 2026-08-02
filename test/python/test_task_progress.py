@@ -55,10 +55,25 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
                 "progress": {"nextStep": None},
             })
             self.write_task(root, "invalid-json", "{broken")
+            self.write_task(root, "completed", {
+                "status": "completed",
+                "completedAt": "2026-08-02",
+                "progress": {
+                    "updatedAt": "2026-08-02T00:00:00Z",
+                    "completedSteps": ["push"],
+                    "partialStep": None,
+                    "nextStep": "finish-work archive",
+                    "notes": "",
+                },
+            })
 
             candidates, invalid, warnings = self.module._progress_candidates(root)
 
-            self.assertEqual([item["task"] for item in candidates], [".trellis/tasks/healthy"])
+            self.assertEqual(
+                [item["task"] for item in candidates],
+                [".trellis/tasks/completed", ".trellis/tasks/healthy"],
+            )
+            self.assertEqual(candidates[0]["taskStatus"], "completed")
             self.assertEqual(invalid[0]["task"], ".trellis/tasks/invalid-progress")
             self.assertEqual(invalid[0]["reason"], "invalid-progress-schema")
             self.assertEqual(warnings[0]["task"], ".trellis/tasks/invalid-json")
@@ -129,6 +144,165 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
             self.assertEqual(result, 1)
             self.assertEqual(task_json.read_bytes(), before)
             self.assertEqual(list(task_dir.glob(".task.json.*.tmp")), [])
+
+    def test_complete_writes_progress_and_status_atomically(self) -> None:
+        """最终 push 只用一次原子写入完成进度与 completed 状态。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-complete-") as temp:
+            root = Path(temp)
+            self.write_task(root, "current", {
+                "status": "in_progress",
+                "completedAt": None,
+            })
+            task_dir = root / ".trellis/tasks/current"
+            progress = {
+                "updatedAt": "2026-08-02T00:00:00Z",
+                "completedSteps": ["business push", "progress sync"],
+                "partialStep": None,
+                "nextStep": "finish-work archive",
+                "notes": "",
+            }
+            args = Namespace(
+                task=".trellis/tasks/current",
+                progress_json=json.dumps(progress),
+                complete=True,
+                json=True,
+            )
+
+            with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
+                with redirect_stdout(StringIO()):
+                    result = self.module.cmd_write(args, root)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(result, 0)
+            self.assertEqual(data["status"], "completed")
+            self.assertRegex(data["completedAt"], r"^\d{4}-\d{2}-\d{2}$")
+            self.assertEqual(data["progress"], progress)
+
+    def test_complete_write_failure_keeps_status_and_progress_unchanged(self) -> None:
+        """最终原子写失败时不得留下 completed 或半份 progress。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-complete-fail-") as temp:
+            root = Path(temp)
+            self.write_task(root, "current", {
+                "status": "in_progress",
+                "completedAt": None,
+            })
+            task_dir = root / ".trellis/tasks/current"
+            task_json = task_dir / "task.json"
+            before = task_json.read_bytes()
+            progress = {
+                "updatedAt": "2026-08-02T00:00:00Z",
+                "completedSteps": ["business push"],
+                "partialStep": None,
+                "nextStep": "finish-work archive",
+                "notes": "",
+            }
+            args = Namespace(
+                task=".trellis/tasks/current",
+                progress_json=json.dumps(progress),
+                complete=True,
+                json=True,
+            )
+
+            with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
+                with mock.patch.object(self.module.os, "replace", side_effect=OSError("boom")):
+                    with redirect_stdout(StringIO()):
+                        result = self.module.cmd_write(args, root)
+
+            self.assertEqual(result, 1)
+            self.assertEqual(task_json.read_bytes(), before)
+            self.assertEqual(list(task_dir.glob(".task.json.*.tmp")), [])
+
+    def test_complete_preserves_active_session_pointer(self) -> None:
+        """completed 是待归档活动态，最终 progress 写入不能清理 session 指针。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-session-") as temp:
+            root = Path(temp)
+            self.write_task(root, "current", {"status": "in_progress", "completedAt": None})
+            task_dir = root / ".trellis/tasks/current"
+            session_file = root / ".trellis/.runtime/sessions/session-test.json"
+            session_file.parent.mkdir(parents=True)
+            session_file.write_text(
+                json.dumps({"task": ".trellis/tasks/current"}),
+                encoding="utf-8",
+            )
+            before = session_file.read_bytes()
+            progress = {
+                "updatedAt": "2026-08-02T00:00:00Z",
+                "completedSteps": ["business push"],
+                "partialStep": None,
+                "nextStep": "finish-work archive",
+                "notes": "",
+            }
+            args = Namespace(
+                task=".trellis/tasks/current",
+                progress_json=json.dumps(progress),
+                complete=True,
+                json=True,
+            )
+
+            with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
+                with redirect_stdout(StringIO()):
+                    result = self.module.cmd_write(args, root)
+
+            self.assertEqual(result, 0)
+            self.assertEqual(session_file.read_bytes(), before)
+
+    def test_partial_write_does_not_complete_task(self) -> None:
+        """未带 --complete 的 partial progress 保持 in_progress。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-partial-") as temp:
+            root = Path(temp)
+            self.write_task(root, "current", {"status": "in_progress", "completedAt": None})
+            task_dir = root / ".trellis/tasks/current"
+            progress = {
+                "updatedAt": "2026-08-02T00:00:00Z",
+                "completedSteps": ["repo-a"],
+                "partialStep": "repo-b push failed",
+                "nextStep": "retry repo-b",
+                "notes": "partial",
+            }
+            args = Namespace(
+                task=".trellis/tasks/current",
+                progress_json=json.dumps(progress),
+                complete=False,
+                json=True,
+            )
+
+            with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
+                with redirect_stdout(StringIO()):
+                    result = self.module.cmd_write(args, root)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(result, 0)
+            self.assertEqual(data["status"], "in_progress")
+            self.assertIsNone(data["completedAt"])
+
+    def test_reopen_preserves_progress_and_clears_completed_at(self) -> None:
+        """显式 reopen 只反转状态，不删除可审计进度。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-reopen-") as temp:
+            root = Path(temp)
+            progress = {
+                "updatedAt": "2026-08-02T00:00:00Z",
+                "completedSteps": ["push"],
+                "partialStep": None,
+                "nextStep": "finish-work archive",
+                "notes": "",
+            }
+            self.write_task(root, "current", {
+                "status": "completed",
+                "completedAt": "2026-08-02",
+                "progress": progress,
+            })
+            task_dir = root / ".trellis/tasks/current"
+            args = Namespace(task=".trellis/tasks/current", json=True)
+
+            with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
+                with redirect_stdout(StringIO()):
+                    result = self.module.cmd_reopen(args, root)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(result, 0)
+            self.assertEqual(data["status"], "in_progress")
+            self.assertIsNone(data["completedAt"])
+            self.assertEqual(data["progress"], progress)
 
 
 if __name__ == "__main__":

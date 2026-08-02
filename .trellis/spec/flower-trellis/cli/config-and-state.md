@@ -115,8 +115,9 @@ gitignored 的 `.flower/update-check.tmp` 运行缓存)。旧 `.trellis/.flower-
 - Trigger: 修改 `flower-trellis update` 的 argv 解析、非交互兼容 flag、`trellis update`
   透传参数、跨版本 dry-run 或提交前 dogfood 命令。
 - Scope: `update` 可以接受 `-y` / `--yes` 作为 Flower 非交互兼容 flag，但 Trellis
-  `update` 不支持该 flag；真正调用上游前必须过滤。跨版本普通 dry-run 只预览 Trellis
-  升级，不把新版 Skill-Garden Patch 提前应用到旧模板。`init` 的 `-y` / `--yes` 行为不变。
+  `update` 不支持该 flag；真正调用上游前必须过滤。跨版本普通 dry-run 在项目外沙箱真实生成
+  新模板并执行 Plugin dry-run，来源项目保持零写入。真实更新在 Trellis 或 Plugin replay 任一步
+  失败时补偿恢复升级前受管状态。`init` 的 `-y` / `--yes` 行为不变。
 
 ### 2. Signatures
 
@@ -128,7 +129,12 @@ flower-trellis init --target <dir> [-y|--yes] [trellis init flags]
 ```js
 parseCliArgs(argv, cwd)
 trellisUpdatePassthroughArgs(passthrough)
-shouldSkipSkillGardenPreview({ dryRun, enhanceOnly, currentVersion, targetVersion })
+shouldUseUpdateSandbox({ dryRun, enhanceOnly, currentVersion, targetVersion })
+createUpdateSandbox(projectRoot)
+createUpdateSnapshot(projectRoot)
+extendUpdateSnapshot(snapshot, targets)
+restoreUpdateSnapshot(snapshot)
+replayPlugins(target, options, compensationSnapshot)
 update(ctx)
 checkForUpdate(ctx, label)
 ```
@@ -145,13 +151,27 @@ checkForUpdate(ctx, label)
 - `init(ctx)` 继续把 `-y` / `--yes` 透传给 Trellis init，并用它们选择默认平台。
 - `self-update --yes` 仍由 self-update 命令自身消费；`--` 之后的项目 update 参数按
   `projectUpdateForwardArgs()` 规则转给新的 Flower update 进程。
-- 普通 `update --dry-run` 在目标 `.trellis/.version` 与当前 Flower 捆绑 Trellis 版本不同
-  时，`shouldSkipSkillGardenPreview()` 必须返回 `true`：上游 dry-run 不写入新模板，因此本轮
-  只打印“跳过 Skill-Garden 强化预演”，不调用 Skill-Garden Plugin add/update。
+- 普通 `update --dry-run` 在目标 `.trellis/.version` 与当前 Flower 捆绑 Trellis 版本不同时，
+  `shouldUseUpdateSandbox()` 必须返回 `true`。来源项目只读复制到项目外临时目录；沙箱内移除
+  `--dry-run` 并运行真实 `trellis update`，缺少批量冲突选项时只对沙箱追加 `--force`，随后对
+  升级后模板执行 Plugin dry-run。无论成功失败都删除沙箱，来源项目逐字节不变。
 - 同版本普通 dry-run 继续执行 Plugin 预演；`--enhance-only --dry-run` 也必须严格预检当前
-  模板，不能借跨版本保护绕过 compatibility、required selector 或 conflict error。
-- `--no-enhance --dry-run` 仍按既有规则预演外部 Plugin replay；跨版本保护只跳过
-  `flower/skill-garden`，不得吞掉其它 Plugin 的升级计划。
+  模板，不能借跨版本沙箱绕过 compatibility、required selector 或 conflict error。
+- `--no-enhance --dry-run` 在跨版本时仍进入同一升级沙箱，只冻结 Skill-Garden 并预演其它已声明
+  Plugin；不得吞掉外部 Plugin 的升级计划。
+- 真实、非 `--enhance-only` 更新在调用上游前必须创建项目外补偿快照。范围复用上游
+  `ALL_MANAGED_DIRS` 与 `shouldExcludeFromBackup()`，并额外包含 `AGENTS.md`、`.flower` 和当前
+  Plugin state 登记的 owned paths；文件内容、目录/文件类型和 mode 都要记录。
+- Plugin replay 必须把 `onPreflight` 透传到统一 Runtime，并在 Transaction Writer 写盘前读取
+  `plan.contentMutations` 与 `plan.patchMutations` 的全部目标，通过 `extendUpdateSnapshot()` 扩展
+  同一补偿快照。目标已存在时只记录该精确路径；目标不存在时记录最靠外的缺失祖先，使恢复可以
+  删除本轮新建的完整目录树，同时不得扩大到已经存在的用户目录。
+- 补偿扫描与恢复只接受项目内普通文件/目录；软链、特殊文件、路径逃逸或非法相对路径在上游写入前
+  fail closed。恢复会移除本轮新增受管路径、还原旧内容和 mode，并保留上游新建的
+  `.trellis/.backup-*`。恢复不完整时抛 `UPDATE_COMPENSATION_INCOMPLETE`，保留项目外 manifest
+  并报告 `failedPaths`，不得输出更新成功。
+- `config.yaml` 本地保留项只在整条 Trellis + Plugin 链成功后恢复；失败补偿必须以升级前快照为准，
+  不能再把更新中间态的 config 覆盖回项目。
 
 ### 4. Validation & Error Matrix
 
@@ -161,37 +181,57 @@ checkForUpdate(ctx, label)
 | `flower-trellis update --yes --force` | Flower 识别非交互；Trellis 仅收到 `update --force` |
 | `flower-trellis init -y` | `-y` 继续透传给 Trellis init，并默认 codex + claude |
 | `flower-trellis update --backup-retention 5 --dry-run` | backup-retention 被消费；Trellis 收到 `--dry-run` |
-| 目标 `0.6.5`、捆绑 `0.6.12`、普通 `update --dry-run` | Trellis 预览成功；跳过 Skill-Garden Plugin 预演；目标树零写入 |
+| 目标 `0.6.5`、捆绑 `0.6.12`、普通 `update --dry-run` | 项目外沙箱真实升级到 `0.6.12` 并执行 Skill-Garden dry-run；来源树零写入 |
 | 目标版本等于捆绑版本、普通 `update --dry-run` | Trellis 与 Skill-Garden Plugin 均执行预演 |
 | 跨版本 `--enhance-only --dry-run` | 不跳过；对当前模板执行严格 Skill-Garden preflight |
-| 跨版本 `--no-enhance --dry-run` | Skill-Garden 保持冻结；外部 Plugin replay 继续预演 |
+| 跨版本 `--no-enhance --dry-run` | 沙箱升级模板；Skill-Garden 保持冻结，外部 Plugin replay 继续预演 |
+| 真实 Trellis update 成功、Plugin replay 失败 | 自动还原升级前受管内容/mode，移除新增受管文件，保留 `.backup-*`，退出失败 |
+| Plugin preflight 计划修改既有外部文件 | 写盘前把精确文件加入补偿快照；失败时恢复旧内容和 mode |
+| Plugin preflight 计划写入尚不存在的外部目录树 | 记录最靠外缺失祖先；失败时删除本轮创建的整棵目录树，不删除既有父目录 |
+| 补偿恢复任一路径失败 | 抛 `UPDATE_COMPENSATION_INCOMPLETE`，输出 manifest 与失败路径，不删除恢复证据 |
+| 受管范围含软链、特殊文件或路径逃逸 | 创建快照时失败；Trellis 与 Plugin 均未开始写入 |
 | 未知 Trellis update flag | 保留在 `ctx.passthrough` 并透传，除非已被 Flower 明确定义为命令级兼容 flag |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: 提交前 dogfood 使用 `flower-trellis update --target ./test-target -y --dry-run`，
   Flower 不弹自身更新确认，上游 Trellis 不收到不支持的 `-y`。
-- Good: 旧 `0.6.5` 项目用新版 Flower 执行普通 dry-run，只预览到 `0.6.12` 的 Trellis
-  变化并明确延后 Skill-Garden 重放，目标目录前后逐字节一致。
+- Good: 旧 `0.6.5` 项目用新版 Flower 执行普通 dry-run，在项目外沙箱看到 `0.6.12` Trellis
+  与新版 Skill-Garden 的组合结果，目标目录前后逐字节一致。
+- Good: 真实 update 的 Plugin conflict 失败后，旧 workflow/skill/hook、Plugin-owned path 和 mode
+  全部恢复，新增上游 `.backup-*` 仍保留用于人工审计。
+- Good: Plugin preflight 才声明 `generated/tool/config.json`，且 `generated/` 原本不存在；后续写入
+  失败时恢复删除整个 `generated/`，不会遗漏中间目录，也不会删除其上层既有用户目录。
 - Base: `flower-trellis update --target ./test-target --dry-run` 与过去行为一致。
 - Base: 已是捆绑版本的项目继续显示 `Plugin update 预览`，证明同版本预演没有被关闭。
 - Base: `flower-trellis init --target ./test-target -y` 仍由 Trellis init 非交互创建默认平台。
 - Bad: 把 `-y` 加入全局 `OWN_FLAGS`，导致 init 不再把非交互意图传给 Trellis。
 - Bad: `update(ctx)` 直接使用 `ctx.passthrough` 调用上游，导致 Trellis update 报
   `unknown option '-y'`。
-- Bad: 跨版本普通 dry-run 在 Trellis 没有写入新模板时直接运行新版 Skill-Garden
-  preflight，最终把正常升级预览误报为 selector/baseline 冲突。
+- Bad: 跨版本普通 dry-run 在来源旧模板上直接运行新版 Skill-Garden preflight，或只预览 Trellis
+  而看不到升级后 Plugin 组合冲突。
 - Bad: 为让普通 dry-run 通过而同时跳过 `--enhance-only`，使用户无法预演当前模板上的真实
   compatibility 或 Patch 冲突。
+- Bad: 只备份 `.trellis`，遗漏 `AGENTS.md`、平台 root、`.flower` 或 Plugin-owned path，导致
+  replay 失败后留下混合版本项目。
+- Bad: 只根据旧 Plugin state 创建一次快照，不消费本轮 preflight plan；新增外部目标会在 replay
+  失败后残留。也不能一律快照项目根目录，否则恢复可能误删用户数据。
 
 ### 6. Tests Required
 
 - `parseCliArgs()` 必须覆盖 `update -y --yes --dry-run` 保留原始 `ctx.passthrough`，
   同时 `trellisUpdatePassthroughArgs()` 返回只含真实上游参数的集合。
-- `shouldSkipSkillGardenPreview()` 必须覆盖跨版本普通 dry-run、同版本 dry-run、
+- `shouldUseUpdateSandbox()` 必须覆盖跨版本普通 dry-run、同版本 dry-run、
   `--enhance-only` 和真实写入四种分支。
 - 真实 CLI 回归必须用最小 `0.6.5` 项目运行到捆绑 `0.6.12` 的普通 dry-run，断言退出码为
-  `0`、出现延后提示、不出现 Plugin update 预览，并比较完整目标树保持零写入。
+  `0`、出现项目外沙箱提示和 Plugin update 预览，并比较完整来源树保持零写入。
+- 故障注入必须覆盖 Plugin replay 失败后的旧内容/mode/Plugin-owned path 恢复、新增受管路径移除、
+  `.trellis/tasks` / `.trellis/spec` / `.backup-*` 保留，以及补偿不完整的结构化错误和 manifest。
+- Plugin replay 单测必须断言 `onPreflight` 在任何 writer mutation 前收到 plan；Update 补偿测试
+  必须覆盖 preflight 新增的既有外部文件和不存在目录树，分别断言内容/mode 还原、最靠外缺失
+  祖先删除，以及既有父目录保留。
+- 快照单测必须覆盖软链/特殊文件/路径逃逸 fail closed，并与上游 `ALL_MANAGED_DIRS`、
+  `shouldExcludeFromBackup()` 的排除语义保持一致。
 - Dogfood 必须覆盖隔离目标上的
   `flower-trellis init --target <tmp> -y`、
   `flower-trellis update --target <tmp> -y --dry-run`、
@@ -222,16 +262,34 @@ const code = await runTrellisPty(
 原因:命令级 helper 保留 `init` 的全局兼容性，同时只在 `update` 上游调用边界过滤不支持的
 Flower 兼容 flag。
 
+Plugin 外部写入的错误边界：
+
+```js
+await replayPlugins(target, options);
+```
+
+问题：初始快照只知道旧 state，无法覆盖本轮 preflight 才计算出的外部 mutation。
+
+正确边界：
+
+```js
+await replayPlugins(target, options, compensationSnapshot);
+// replay 的 onPreflight 在 writer 写盘前用 plan mutations 扩展同一快照。
+```
+
+原因：计划结果是新增写入范围的第一个完整事实源；必须在同一事务首次写盘前纳入补偿闭包。
+
 跨版本 dry-run 的正确边界：
 
 ```js
-if (shouldSkipSkillGardenPreview({
+if (shouldUseUpdateSandbox({
   dryRun,
   enhanceOnly: ctx.enhanceOnly,
   currentVersion: selectVariant(target).version,
   targetVersion: trellisVersion(),
 })) {
-  // 只延后 Skill-Garden；真实 update 完成后仍按正常顺序重放。
+  const sandbox = createUpdateSandbox(target);
+  // 只在 sandbox.root 内真实升级，再执行 Plugin dry-run。
 }
 ```
 

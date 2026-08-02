@@ -1,4 +1,4 @@
-import { runTrellisPty } from "../lib/trellis-runner.js";
+import { runTrellis, runTrellisPty } from "../lib/trellis-runner.js";
 import { trellisUpdatePassthroughArgs } from "../lib/cli-args.js";
 import { plugin } from "./plugin.js";
 import { printBanner, getDeveloper } from "../lib/banner.js";
@@ -19,23 +19,120 @@ import { showCommandCompletion } from "../lib/command-completion.js";
 import { reportTelemetry } from "../lib/telemetry.js";
 import { selectVariant } from "../lib/variant.js";
 import { trellisVersion } from "../lib/versions.js";
+import {
+  createUpdateSandbox,
+  createUpdateSnapshot,
+  disposeUpdateSandbox,
+  disposeUpdateSnapshot,
+  extendUpdateSnapshot,
+  restoreUpdateSnapshot,
+} from "../lib/update-transaction.js";
 
 /**
- * 判断普通跨版本 dry-run 是否应跳过 Skill-Garden 预演。
+ * 判断普通跨版本 dry-run 是否需要进入项目外升级沙箱。
  *
- * Trellis 的 dry-run 不会把目标项目写成捆绑版本，因此新版本 Patch 不能提前在旧模板上
- * 重放。`--enhance-only` 仍必须对当前模板严格预检，不能借此绕过真实冲突。
+ * Trellis 的 dry-run 不会把目标项目写成捆绑版本，因此跨版本场景需要先在项目外沙箱
+ * 真实升级，再对升级后的树执行 Plugin dry-run。`--enhance-only` 仍直接预检当前模板。
  *
  * @param {{dryRun:boolean,enhanceOnly:boolean,currentVersion:string,targetVersion:string}} options 判定输入
- * @returns {boolean} 是否只预览 Trellis 更新并延后 Skill-Garden 重放
+ * @returns {boolean} 是否使用项目外升级沙箱
  */
-export function shouldSkipSkillGardenPreview(options) {
+export function shouldUseUpdateSandbox(options) {
   const { dryRun, enhanceOnly, currentVersion, targetVersion } = options;
   return dryRun
     && !enhanceOnly
     && Boolean(currentVersion)
     && Boolean(targetVersion)
     && currentVersion !== targetVersion;
+}
+
+function sandboxTrellisUpdateArgs(passthrough) {
+  const args = trellisUpdatePassthroughArgs(passthrough)
+    .filter((arg) => arg !== "--dry-run");
+  if (!args.some((arg) => ["--force", "--skip-all", "--create-new"].includes(arg))) {
+    // 沙箱没有人工确认价值，默认覆盖只影响临时副本，并能得到完整的升级后模板供 Plugin 预检。
+    args.push("--force");
+  }
+  return args;
+}
+
+async function replayPlugins(ctx, target, dryRun, compensationSnapshot = null) {
+  const onPreflight = compensationSnapshot
+    ? ({ plan }) => extendUpdateSnapshot(compensationSnapshot, [
+      ...plan.contentMutations.map(({ target: mutationTarget }) => mutationTarget),
+      ...plan.patchMutations.map(({ target: mutationTarget }) => mutationTarget),
+    ])
+    : undefined;
+  if (ctx.enhance) {
+    const declared = new ProjectStore(target).readPlugins().plugins
+      .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
+    const code = await plugin({
+      ...ctx,
+      target,
+      passthrough: [
+        declared ? "update" : "add",
+        SKILL_GARDEN_PLUGIN_ID,
+        ...(dryRun ? ["--dry-run"] : []),
+      ],
+    }, {
+      skillGarden: { variant: ctx.variant, skills: ctx.skills },
+      compact: true,
+      onPreflight,
+    });
+    if (code !== 0) throw new Error(`Plugin Runtime 重放失败(退出码 ${code})`);
+    return;
+  }
+
+  console.log("· --no-enhance:跳过 Skill-Garden，仅重放其它已声明 Plugin");
+  const preserveSkillGarden = new ProjectStore(target).readLock()?.plugins
+    .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID) === true;
+  const code = await plugin({
+    ...ctx,
+    target,
+    passthrough: ["replay", ...(dryRun ? ["--dry-run"] : [])],
+  }, {
+    skillGarden: { preserve: preserveSkillGarden },
+    preserveIds: preserveSkillGarden ? [SKILL_GARDEN_PLUGIN_ID] : [],
+    compact: true,
+    onPreflight,
+  });
+  if (code !== 0) throw new Error(`外部 Plugin 重放失败(退出码 ${code})`);
+}
+
+async function previewCrossVersionUpdate(ctx, currentVersion, targetVersion) {
+  const sandbox = createUpdateSandbox(ctx.target);
+  console.log(
+    `· 跨版本 dry-run:在项目外沙箱预演 Trellis + Plugin (${currentVersion} → ${targetVersion})`,
+  );
+  try {
+    const code = await runTrellis(
+      ["update", ...sandboxTrellisUpdateArgs(ctx.passthrough)],
+      sandbox.root,
+      { stripBanner: true },
+    );
+    if (code !== 0) throw new Error(`沙箱 trellis update 失败(退出码 ${code})`);
+    await replayPlugins(ctx, sandbox.root, true);
+  } finally {
+    disposeUpdateSandbox(sandbox);
+  }
+}
+
+/**
+ * 构造 Flower update 补偿不完整的结构化错误。
+ *
+ * @param {Error} updateError 原始更新错误
+ * @param {{failedPaths:Array<{path:string,error:string}>,manifestPath:string}} recovery 恢复证据
+ * @returns {Error & {code:string,details:object}} 带稳定错误码和恢复详情的错误
+ */
+export function createUpdateCompensationError(updateError, recovery) {
+  const error = new Error(
+    `Update 失败且补偿恢复不完整:${updateError.message};` +
+    `未恢复 ${recovery.failedPaths.length} 个路径;快照:${recovery.manifestPath}`,
+    { cause: updateError },
+  );
+  error.code = "UPDATE_COMPENSATION_INCOMPLETE";
+  error.details = recovery;
+  return error;
 }
 
 function printBackupRetentionResult(result) {
@@ -64,8 +161,8 @@ function printBackupRetentionResult(result) {
  *
  * 打印 flower 品牌头部;trellis update 在伪终端(pty)里运行,保留其冲突处理等交互,
  * 同时过滤掉它重复打印的启动 banner / Developer。
- * `--dry-run` 在同版本时继续预演强化包；跨版本时只预览 Trellis 更新，并把强化包重放
- * 延后到真实更新完成后，避免新 Patch 错误套用到旧模板。
+ * `--dry-run` 在同版本时直接预演；跨版本时在项目外沙箱真实升级后再预演 Plugin。
+ * 真实更新在整条 Trellis + Plugin 链失败时恢复升级前受管状态。
  *
  * @param {object} ctx 见 cli-args.js 的 parseCliArgs()
  * @returns {Promise<void>} 升级、强化叠加与备份保留处理完成后返回
@@ -76,7 +173,7 @@ export async function update(ctx) {
   const dryRun = ctx.passthrough.includes("--dry-run");
   const currentTrellisVersion = selectVariant(target).version;
   const targetTrellisVersion = trellisVersion();
-  const skipSkillGardenPreview = ctx.enhance && shouldSkipSkillGardenPreview({
+  const useUpdateSandbox = shouldUseUpdateSandbox({
     dryRun,
     enhanceOnly: ctx.enhanceOnly,
     currentVersion: currentTrellisVersion,
@@ -87,7 +184,9 @@ export async function update(ctx) {
     ? snapshotUpdateBackups(target)
     : null;
   const configSnapshot = captureConfigPreserveSnapshot(target);
-  let shouldRestoreConfig = false;
+  let compensationSnapshot = null;
+  let compensationRecovered = false;
+  let updateSucceeded = false;
 
   printBanner(getDeveloper(ctx.passthrough, target));
 
@@ -98,7 +197,13 @@ export async function update(ctx) {
   syncGlobalTrellis();
 
   try {
-    if (!ctx.enhanceOnly) {
+    compensationSnapshot = !dryRun && !ctx.enhanceOnly
+      ? createUpdateSnapshot(target)
+      : null;
+    if (useUpdateSandbox) {
+      await previewCrossVersionUpdate(ctx, currentTrellisVersion, targetTrellisVersion);
+      updateSucceeded = true;
+    } else if (!ctx.enhanceOnly) {
       const code = await runTrellisPty(
         ["update", ...trellisUpdatePassthroughArgs(ctx.passthrough)],
         target,
@@ -107,51 +212,39 @@ export async function update(ctx) {
       if (code !== 0) {
         throw new Error(`trellis update 失败(退出码 ${code}),已中止,未重新叠加`);
       }
-      shouldRestoreConfig = true;
+      await replayPlugins(ctx, target, dryRun, compensationSnapshot);
+      updateSucceeded = true;
     } else {
-      shouldRestoreConfig = true;
       console.log("· --enhance-only:跳过 trellis update,仅重新叠加强化包");
+      await replayPlugins(ctx, target, dryRun);
+      updateSucceeded = true;
     }
-
-    if (skipSkillGardenPreview) {
-      console.log(
-        `· 跨版本 dry-run:跳过 Skill-Garden 强化预演(${currentTrellisVersion} → ${targetTrellisVersion});真实更新会在 Trellis 升级完成后重放`,
+  } catch (error) {
+    if (compensationSnapshot) {
+      const recovery = restoreUpdateSnapshot(compensationSnapshot);
+      if (!recovery.ok) {
+        console.error(`  ✗ Update 补偿恢复不完整;快照保留:${recovery.manifestPath}`);
+        for (const failure of recovery.failedPaths) {
+          console.error(`    · ${failure.path}:${failure.error}`);
+        }
+        throw createUpdateCompensationError(error, recovery);
+      }
+      console.error(
+        `  ✓ Update 已补偿恢复:${recovery.restored.length} 项;移除新增 ${recovery.removed.length} 项;` +
+        `Trellis .backup-* 已保留`,
       );
-    } else if (ctx.enhance) {
-      const declared = new ProjectStore(target).readPlugins().plugins
-        .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
-      const code = await plugin({
-        ...ctx,
-        passthrough: [
-          declared ? "update" : "add",
-          SKILL_GARDEN_PLUGIN_ID,
-          ...(dryRun ? ["--dry-run"] : []),
-        ],
-      }, {
-        skillGarden: { variant: ctx.variant, skills: ctx.skills },
-        compact: true,
-      });
-      if (code !== 0) throw new Error(`Plugin Runtime 重放失败(退出码 ${code})`);
-    } else {
-      console.log("· --no-enhance:跳过强化包叠加");
-      const preserveSkillGarden = new ProjectStore(target).readLock()?.plugins
-        .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID) === true;
-      const code = await plugin({
-        ...ctx,
-        passthrough: ["replay", ...(dryRun ? ["--dry-run"] : [])],
-      }, {
-        skillGarden: { preserve: preserveSkillGarden },
-        preserveIds: preserveSkillGarden ? [SKILL_GARDEN_PLUGIN_ID] : [],
-        compact: true,
-      });
-      if (code !== 0) throw new Error(`外部 Plugin 重放失败(退出码 ${code})`);
+      compensationRecovered = true;
     }
+    throw error;
   } finally {
-    if (shouldRestoreConfig) {
+    if (updateSucceeded && !dryRun && !ctx.enhanceOnly) {
       const restored = restoreConfigPreserveSnapshot(target, configSnapshot);
       if (restored.restored) {
         console.log(`  ✓ config.yaml 已保留本地配置: ${restored.keys.join(", ")}`);
       }
+    }
+    if (compensationSnapshot && (updateSucceeded || compensationRecovered)) {
+      disposeUpdateSnapshot(compensationSnapshot);
     }
   }
 

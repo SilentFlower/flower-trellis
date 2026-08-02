@@ -158,6 +158,69 @@ function parseInlineMapEntries(value) {
   return entries;
 }
 
+function parseYamlKeyContent(content) {
+  if (typeof content !== "string" || !content) {
+    return { error: "yaml-key content.value 必须是非空字符串" };
+  }
+  if (!content.trimStart().startsWith("{")) return { desiredValue: content };
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return { error: "yaml-key structured content 必须是合法 JSON" };
+  }
+  if (!isPlainObject(parsed) || typeof parsed.value !== "string" || !parsed.value) {
+    return { error: "yaml-key structured content.value 必须是非空字符串" };
+  }
+  const commentSection = parsed.commentSection;
+  if (commentSection !== undefined) {
+    if (
+      !isPlainObject(commentSection) ||
+      typeof commentSection.heading !== "string" ||
+      !commentSection.heading ||
+      !Array.isArray(commentSection.lines) ||
+      !commentSection.lines.every((line) => typeof line === "string") ||
+      !["skip", "error"].includes(commentSection.missing || "error")
+    ) {
+      return { error: "yaml-key commentSection 配置无效" };
+    }
+  }
+  return { desiredValue: parsed.value, commentSection };
+}
+
+function replaceYamlCommentSection(lines, section) {
+  if (!section) return { lines };
+  const heading = `# ${section.heading}`;
+  const headings = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.trim() === heading);
+  if (headings.length === 0) {
+    if ((section.missing || "error") === "skip") return { lines };
+    return { error: `YAML 注释段不存在:${section.heading}` };
+  }
+  if (headings.length > 1) return { error: `YAML 注释段重复:${section.heading}` };
+
+  const headingIndex = headings[0].index;
+  // 上游注释段用“分隔线 + 标题 + 分隔线 + 正文 + 分隔线”包裹，替换时必须保留下一段的起始分隔线。
+  let start = headingIndex - 1;
+  while (start >= 0 && !/^#-+$/.test(lines[start].trim())) start -= 1;
+  if (start < 0) return { error: `YAML 注释段缺少起始分隔线:${section.heading}` };
+
+  let dividerCount = 0;
+  let end = -1;
+  for (let index = headingIndex + 1; index < lines.length; index += 1) {
+    if (!/^#-+$/.test(lines[index].trim())) continue;
+    dividerCount += 1;
+    if (dividerCount === 2) {
+      end = index;
+      break;
+    }
+  }
+  if (end < 0) return { error: `YAML 注释段缺少结束分隔线:${section.heading}` };
+  lines.splice(start, end - start, ...section.lines);
+  return { lines };
+}
+
 function applyYamlKey({ value, operation }) {
   if (operation.operation === "remove") return { error: "yaml-key 暂不支持 remove" };
   const dottedPath = operation.selector.path;
@@ -165,13 +228,14 @@ function applyYamlKey({ value, operation }) {
   if (parts.length !== 2 || parts.some((item) => !item)) {
     return { error: "yaml-key path 目前只支持两级 key" };
   }
-  const desiredValue = operation.content;
-  if (typeof desiredValue !== "string" || !desiredValue) {
-    return { error: "yaml-key content.value 必须是非空字符串" };
-  }
+  const parsedContent = parseYamlKeyContent(operation.content);
+  if (parsedContent.error) return { error: parsedContent.error };
+  const { desiredValue, commentSection } = parsedContent;
   const normalized = value.replace(/\r\n/g, "\n");
   const hadFinalNewline = normalized.endsWith("\n");
   const lines = normalized ? normalized.replace(/\n$/, "").split("\n") : [];
+  const commentResult = replaceYamlCommentSection(lines, commentSection);
+  if (commentResult.error) return { error: commentResult.error };
   const [topKey, childKey] = parts;
   const topKeyRe = new RegExp(`^${escapeRe(topKey)}\\s*:`);
   const topMatches = lines

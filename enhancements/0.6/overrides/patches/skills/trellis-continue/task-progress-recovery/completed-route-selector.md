@@ -1,0 +1,1 @@
+- `status=completed` (rare; usually archived immediately) → archive flow

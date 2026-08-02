@@ -139,8 +139,8 @@ class TaskStoreIntegrityTest(unittest.TestCase):
 
         self.assertEqual(result, 1)
 
-    def test_archive_status_write_failure_stops_before_move(self) -> None:
-        """archive 状态写失败时不得清 session 或移动目录。"""
+    def test_archive_in_progress_task_stops_before_move(self) -> None:
+        """archive 只接受已由普通 push 完成的任务。"""
         task_dir = self.root / ".trellis/tasks/task"
         task_dir.mkdir()
         task_json = task_dir / "task.json"
@@ -150,12 +150,13 @@ class TaskStoreIntegrityTest(unittest.TestCase):
         )
 
         with self.loaded_store() as module:
-            with mock.patch.object(module, "write_json", return_value=False):
+            with mock.patch.object(module, "write_json") as write_json:
                 with mock.patch.object(module, "archive_task_complete") as archive:
                     result = module.cmd_archive(Namespace(name="task", no_commit=True))
 
         self.assertEqual(result, 1)
         archive.assert_not_called()
+        write_json.assert_not_called()
         self.assertTrue(task_dir.is_dir())
         self.assertEqual(json.loads(task_json.read_text(encoding="utf-8"))["status"], "in_progress")
 
@@ -165,7 +166,7 @@ class TaskStoreIntegrityTest(unittest.TestCase):
         task_dir.mkdir()
         task_json = task_dir / "task.json"
         task_json.write_text(
-            json.dumps({"status": "in_progress", "children": []}),
+            json.dumps({"status": "completed", "completedAt": "2026-08-02", "children": []}),
             encoding="utf-8",
         )
 
@@ -192,14 +193,14 @@ class TaskStoreIntegrityTest(unittest.TestCase):
         write_json.assert_not_called()
         archive.assert_not_called()
         self.assertTrue(task_dir.is_dir())
-        self.assertEqual(json.loads(task_json.read_text(encoding="utf-8"))["status"], "in_progress")
+        self.assertEqual(json.loads(task_json.read_text(encoding="utf-8"))["status"], "completed")
 
     def test_archive_accepted_decisions_permits_existing_archive_flow(self) -> None:
         """当前决策摘要已接受时允许既有归档流程继续。"""
         task_dir = self.root / ".trellis/tasks/task"
         task_dir.mkdir()
         (task_dir / "task.json").write_text(
-            json.dumps({"status": "in_progress", "children": []}),
+            json.dumps({"status": "completed", "completedAt": "2026-08-02", "children": []}),
             encoding="utf-8",
         )
 
@@ -227,6 +228,42 @@ class TaskStoreIntegrityTest(unittest.TestCase):
         self.assertEqual(len(archived), 1)
         archived_data = json.loads((archived[0] / "task.json").read_text(encoding="utf-8"))
         self.assertEqual(archived_data["status"], "completed")
+        self.assertEqual(archived_data["completedAt"], "2026-08-02")
+
+    def test_archive_completed_parent_clears_child_parent_only(self) -> None:
+        """归档 completed 父任务时保留子任务状态，只解除活动子任务的 parent。"""
+        parent = self.root / ".trellis/tasks/parent"
+        child = self.root / ".trellis/tasks/child"
+        parent.mkdir()
+        child.mkdir()
+        (parent / "task.json").write_text(
+            json.dumps({
+                "status": "completed",
+                "completedAt": "2026-08-02",
+                "children": ["child"],
+            }),
+            encoding="utf-8",
+        )
+        (child / "task.json").write_text(
+            json.dumps({
+                "status": "in_progress",
+                "completedAt": None,
+                "children": [],
+                "parent": "parent",
+            }),
+            encoding="utf-8",
+        )
+
+        with self.loaded_store() as module:
+            result = module.cmd_archive(Namespace(name="parent", no_commit=True))
+
+        child_data = json.loads((child / "task.json").read_text(encoding="utf-8"))
+        archived = list((self.root / ".trellis/tasks/archive").glob("*/parent"))
+        self.assertEqual(result, 0)
+        self.assertEqual(len(archived), 1)
+        self.assertEqual(child_data["status"], "in_progress")
+        self.assertIsNone(child_data["completedAt"])
+        self.assertIsNone(child_data["parent"])
 
     def test_archive_corrupt_decision_log_fails_closed(self) -> None:
         """损坏的 decisions.jsonl 必须在任何归档写入前失败。"""
@@ -234,7 +271,7 @@ class TaskStoreIntegrityTest(unittest.TestCase):
         task_dir.mkdir()
         task_json = task_dir / "task.json"
         task_json.write_text(
-            json.dumps({"status": "in_progress", "children": []}),
+            json.dumps({"status": "completed", "completedAt": "2026-08-02", "children": []}),
             encoding="utf-8",
         )
         (task_dir / "decisions.jsonl").write_text("{broken\n", encoding="utf-8")
@@ -248,7 +285,7 @@ class TaskStoreIntegrityTest(unittest.TestCase):
         write_json.assert_not_called()
         archive.assert_not_called()
         self.assertTrue(task_dir.is_dir())
-        self.assertEqual(json.loads(task_json.read_text(encoding="utf-8"))["status"], "in_progress")
+        self.assertEqual(json.loads(task_json.read_text(encoding="utf-8"))["status"], "completed")
 
 
 if __name__ == "__main__":

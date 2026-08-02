@@ -38,6 +38,17 @@ function reachableLockIds(lock) {
 }
 
 /**
+ * 汇总既有 Plugin state 的实际投影平台，供无显式选择的生命周期继续复用。
+ *
+ * @param {import("./contracts.js").PluginState|null} state 既有 Plugin state
+ * @returns {string[]} 稳定去重的平台 ID
+ */
+function statePlatforms(state) {
+  return [...new Set((state?.plugins || []).flatMap(({ platforms }) => platforms))]
+    .sort(compareUtf8);
+}
+
+/**
  * 创建不产生写入的生命周期结果。
  *
  * @param {"update"} command 生命周期命令
@@ -196,7 +207,7 @@ export class PluginApplicationService {
   /**
    * 按现有 lock-first 身份重放完整 Plugin 图，并可冻结指定节点的 mutation/state。
    *
-   * @param {{platforms?:string[],dryRun?:boolean,preserveIds?:string[],nonInteractive?:boolean}} [options] 重放选项
+   * @param {{platforms?:string[],dryRun?:boolean,preserveIds?:string[],nonInteractive?:boolean,onPreflight?:(result:object)=>void}} [options] 重放选项
    * @returns {object} 生命周期结果
    */
   replay(options = {}) {
@@ -211,6 +222,7 @@ export class PluginApplicationService {
       approvedDigests: null,
       nonInteractive: options.nonInteractive ?? true,
       preserveIds: options.preserveIds || [],
+      onPreflight: options.onPreflight,
     });
   }
 
@@ -438,7 +450,10 @@ export class PluginApplicationService {
     };
     let platformSelection = { platforms: [], targets: [] };
     if (resolution.graph.plugins.length > 0) {
-      platformSelection = this.platformDetector(this.projectRoot, input.platforms);
+      const platforms = input.platforms.length > 0
+        ? input.platforms
+        : statePlatforms(previousState);
+      platformSelection = this.platformDetector(this.projectRoot, platforms);
       projection = projectPluginContent({
         projectRoot: this.projectRoot,
         graph: resolution.graph,

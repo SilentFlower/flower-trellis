@@ -1,0 +1,1 @@
+`.trellis/workflow.md` is the current runtime contract. Before editing, determine whether the target is project-local or Skill-Garden-owned. Direct edits are valid only for unowned local sections; managed sections must be changed through their canonical Patch and owner, synchronized across affected platform entries, and verified in compiled and dogfood outputs.

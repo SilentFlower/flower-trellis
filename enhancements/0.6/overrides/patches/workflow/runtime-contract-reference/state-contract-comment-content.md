@@ -27,20 +27,19 @@
     [workflow-state:planning-inline] → Codex inline variant of Phase 1
     [workflow-state:in_progress]  → Phase 2 + Phase 3.2-3.4
                                     (status stays 'in_progress' from
-                                    task.py start until task.py archive)
+                                    task.py start until successful ordinary
+                                    trellis-push progress completion)
     [workflow-state:in_progress-inline] → Codex inline variant of Phase 2/3
-    [workflow-state:completed]    → currently DEAD: cmd_archive flips
-                                    status and moves the dir in the same
-                                    call, so the resolver loses the
-                                    pointer (block kept for a future
-                                    explicit in_progress→completed
-                                    transition)
+    [workflow-state:completed]    → business push and final progress are
+                                    complete; task stays active until
+                                    explicit trellis-finish-work archive
 
   Editing checklist:
     - When you change a [workflow-state:STATUS] block, also check the
       matching phase's `[required · once]` walkthrough steps for sync
-    - Run `trellis update` after editing to push the new bodies to
-      downstream user projects (block-level managed replacement)
+    - In native fork mode, edit the source template and run `trellis update`;
+      in Skill-Garden managed mode, edit the owning Patch and run source sync,
+      compiled-target checks, and dogfood update
     - Runtime pseudo-status names are fixed. This Flower variant defines
       `no_task`, `untracked`, and `missing_task`; hook diagnostic source types must not be
       appended to workflow-state tag names.

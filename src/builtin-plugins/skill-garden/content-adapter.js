@@ -74,6 +74,126 @@ const COMMON_SKILL_RUNTIME_EXCLUDES = Object.freeze({
 });
 const LEGACY_PI_SKILL_PREFIX = ".pi/skills/";
 const SHARED_AGENT_SKILL_PREFIX = ".agents/skills/";
+const DISPATCH_CATALOG_REL = ".agents/skills/trellis-route/references/platform-dispatch.json";
+const CHECK_ALL_AGENT_BODY_REL = ".agents/skills/trellis-route/references/check-all-agent-body.md";
+const CHECK_ALL_AGENT_FORMATS = new Set([
+  "codex-toml",
+  "kiro-json",
+  "markdown-claude",
+  "markdown-kimi",
+  "markdown-lower",
+  "markdown-opencode",
+  "markdown-plain",
+  "markdown-reasonix",
+  "markdown-snow",
+]);
+const CHECK_ALL_VERIFICATIONS = new Set([
+  "built-in-read-only-agent",
+  "inline-only",
+  "native-agent-discovery",
+  "read-only-sandbox",
+  "read-only-tool-list",
+]);
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isSafeCatalogPath(value) {
+  if (!isNonEmptyString(value)) return false;
+  try {
+    assertSafePosixRelativePath(value, "dispatch catalog 路径");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 校验 route dispatch catalog 的完整 schema 与唯一性约束。
+ *
+ * @param {object} catalog 待校验的 catalog
+ * @param {string} [catalogPath] 诊断使用的来源路径
+ * @returns {object} 已通过校验的原 catalog
+ */
+export function validateDispatchCatalog(catalog, catalogPath = DISPATCH_CATALOG_REL) {
+  if (catalog?.schemaVersion !== 1 || !Array.isArray(catalog.platforms) || catalog.platforms.length === 0) {
+    throw new PluginIntegrityError("dispatch catalog schema 无效", { path: catalogPath });
+  }
+
+  const ids = new Set();
+  const runtimePlatforms = new Set();
+  const implementTargets = new Set();
+  const checkAllTargets = new Set();
+  for (const entry of catalog.platforms) {
+    const invalid = (reason) => {
+      throw new PluginIntegrityError(`dispatch catalog schema 无效:${entry?.id || "<unknown>"}:${reason}`, {
+        path: catalogPath,
+      });
+    };
+    if (!isNonEmptyString(entry?.id) || ids.has(entry.id)) invalid("平台 ID 缺失或重复");
+    ids.add(entry.id);
+    if (!isSafeCatalogPath(entry.detectPath)) invalid("detectPath 不合法");
+
+    const aliases = entry.runtimePlatforms === undefined ? [entry.id] : entry.runtimePlatforms;
+    if (
+      !Array.isArray(aliases) ||
+      aliases.length === 0 ||
+      aliases.some((platform) => !isNonEmptyString(platform)) ||
+      new Set(aliases).size !== aliases.length
+    ) {
+      invalid("runtimePlatforms 不合法");
+    }
+    for (const platform of aliases) {
+      if (runtimePlatforms.has(platform)) invalid(`runtime platform 重复:${platform}`);
+      runtimePlatforms.add(platform);
+    }
+
+    const implement = entry.implement;
+    if (typeof implement?.eligible !== "boolean") invalid("implement.eligible 不合法");
+    if (implement.eligible) {
+      if (!isNonEmptyString(implement.launch)) invalid("implement.launch 缺失");
+      if (implement.target !== null) {
+        if (!isSafeCatalogPath(implement.target)) invalid("implement.target 不合法");
+        if (implementTargets.has(implement.target)) invalid(`implement.target 重复:${implement.target}`);
+        implementTargets.add(implement.target);
+      }
+    } else if (implement.target !== null || implement.launch !== null) {
+      invalid("inline-only implement 必须使用 null target/launch");
+    }
+
+    const checkAll = entry.checkAll;
+    if (
+      typeof checkAll?.eligible !== "boolean" ||
+      !isSafeCatalogPath(checkAll?.skillPath) ||
+      !CHECK_ALL_VERIFICATIONS.has(checkAll?.verification)
+    ) {
+      invalid("checkAll 基础字段不合法");
+    }
+    if (checkAll.eligible) {
+      if (
+        !isSafeCatalogPath(checkAll.target) ||
+        !CHECK_ALL_AGENT_FORMATS.has(checkAll.format) ||
+        !isNonEmptyString(checkAll.launch) ||
+        checkAll.verification === "inline-only" ||
+        entry.inlineOnlyReason !== null
+      ) {
+        invalid("eligible checkAll 字段不合法");
+      }
+      if (checkAllTargets.has(checkAll.target)) invalid(`checkAll.target 重复:${checkAll.target}`);
+      checkAllTargets.add(checkAll.target);
+    } else if (
+      checkAll.target !== null ||
+      checkAll.format !== null ||
+      checkAll.launch !== null ||
+      checkAll.verification !== "inline-only" ||
+      !isNonEmptyString(entry.inlineOnlyReason)
+    ) {
+      invalid("inline-only checkAll 必须声明 reason 并清空 target/format/launch");
+    }
+  }
+  return catalog;
+}
 
 /**
  * 列出目标目录中的普通文件。
@@ -205,6 +325,16 @@ export function projectSkillGardenContent(options) {
       source,
       allowUnownedWrite: true,
     };
+    const previousMutationIndex = mutations.findIndex((entry) => (
+      entry.owner === mutation.owner &&
+      entry.target === mutation.target &&
+      entry.operation === "write"
+    ));
+    if (previousMutationIndex >= 0) {
+      // Agent-as-skill 平台先复制完整引用树，再用只读 frontmatter 覆盖同一个 SKILL.md。
+      payloads.delete(contentMutationKey(mutations[previousMutationIndex]));
+      mutations.splice(previousMutationIndex, 1);
+    }
     payloads.set(contentMutationKey(mutation), payload);
     mutations.push(mutation);
     paths.set(target, {
@@ -298,6 +428,118 @@ export function projectSkillGardenContent(options) {
     }
   }
 
+  function readDispatchCatalog() {
+    const catalogPath = path.join(variantDir, DISPATCH_CATALOG_REL);
+    let catalog;
+    try {
+      catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+    } catch (error) {
+      throw new PluginIntegrityError(`无法读取 dispatch catalog:${catalogPath}`, {
+        path: catalogPath,
+        cause: error,
+      });
+    }
+    return validateDispatchCatalog(catalog, catalogPath);
+  }
+
+  function renderMarkdownAgent(body, format) {
+    const headers = {
+      "markdown-claude": [
+        "---",
+        "name: trellis-check-all",
+        "description: Audit-only Trellis Check-All agent. Collects findings without workspace writes.",
+        "tools: Read, Bash, Glob, Grep",
+        "---",
+      ],
+      "markdown-plain": [
+        "---",
+        "name: trellis-check-all",
+        "description: Audit-only Trellis Check-All agent. Collects findings without workspace writes.",
+        "---",
+      ],
+      "markdown-lower": [
+        "---",
+        "name: trellis-check-all",
+        "description: Audit-only Trellis Check-All agent. Collects findings without workspace writes.",
+        "tools: read, bash, find, grep",
+        "---",
+      ],
+      "markdown-opencode": [
+        "---",
+        "description: Audit-only Trellis Check-All agent. Collects findings without workspace writes.",
+        "mode: subagent",
+        "permission:",
+        "  read: allow",
+        "  write: deny",
+        "  edit: deny",
+        "  bash: allow",
+        "  glob: allow",
+        "  grep: allow",
+        "---",
+      ],
+      "markdown-snow": [
+        "---",
+        "name: trellis-check-all",
+        "id: trellis-check-all",
+        "description: Audit-only Trellis Check-All agent. Collects findings without workspace writes.",
+        "tools:",
+        "  - filesystem-read",
+        "  - terminal-execute",
+        "  - ace-search",
+        "  - codebase-search",
+        "  - ide-get_diagnostics",
+        "---",
+      ],
+    };
+    const header = headers[format];
+    if (!header) throw new PluginIntegrityError(`未知 Check-All agent 格式:${format}`);
+    return `${header.join("\n")}\n\n${body}`;
+  }
+
+  function renderCheckAllAgent(entry, body, checkAllSkillRoot) {
+    const renderedBody = body
+      .replaceAll("{{PLATFORM_ID}}", entry.id)
+      .replaceAll("{{SKILL_PATH}}", entry.checkAll.skillPath);
+    if (entry.checkAll.format.startsWith("markdown-") && ![
+      "markdown-reasonix",
+      "markdown-kimi",
+    ].includes(entry.checkAll.format)) {
+      return Buffer.from(renderMarkdownAgent(renderedBody, entry.checkAll.format));
+    }
+    if (entry.checkAll.format === "codex-toml") {
+      return Buffer.from([
+        'name = "trellis-check-all"',
+        'description = "Read-only Trellis Check-All auditor that collects CHK-* and DOC-* findings."',
+        'sandbox_mode = "read-only"',
+        "",
+        'developer_instructions = """',
+        renderedBody.trimEnd(),
+        '"""',
+        "",
+      ].join("\n"));
+    }
+    if (entry.checkAll.format === "kiro-json") {
+      return Buffer.from(`${JSON.stringify({
+        name: "trellis-check-all",
+        description: "Read-only Trellis Check-All auditor that collects findings without workspace writes.",
+        prompt: renderedBody,
+        tools: ["read", "shell", "glob", "grep"],
+        allowedTools: ["read", "shell", "glob", "grep"],
+        hooks: {
+          agentSpawn: [{ command: "{{PYTHON_CMD}} .kiro/hooks/inject-subagent-context.py" }],
+        },
+      }, null, 2)}\n`);
+    }
+    if (["markdown-reasonix", "markdown-kimi"].includes(entry.checkAll.format)) {
+      const skill = fs.readFileSync(path.join(checkAllSkillRoot, "SKILL.md"), "utf8");
+      const additions = entry.checkAll.format === "markdown-reasonix"
+        ? "runAs: subagent\nallowed-tools: read_file,search_content,search_files,glob,run_command,list_directory,directory_tree\n"
+        : "agent: explore\nreadonly: true\n";
+      return Buffer.from(skill.replace(/^---\n/, `---\n${additions}`));
+    }
+    throw new PluginIntegrityError(`未知 Check-All agent 格式:${entry.checkAll.format}`);
+  }
+
   let targets = ENHANCEMENT_SKILL_TARGETS.filter(({ root }) => (
     fs.existsSync(path.join(projectRoot, ...root.split("/")))
   ));
@@ -312,8 +554,11 @@ export function projectSkillGardenContent(options) {
       .filter((item) => item.isDirectory())
       .sort((left, right) => compareUtf8(left.name, right.name))) {
       if (!shouldInstallName(entry.name, skills)) continue;
+      const entrySourceRoot = entry.name === "trellis-route"
+        ? path.join(fallback, entry.name)
+        : path.join(sourceRoot, entry.name);
       addTree(
-        path.join(sourceRoot, entry.name),
+        entrySourceRoot,
         `${target.root}/${entry.name}`,
         `skill-garden:${pluginPackage.skillGarden.variant}:${target.source}:${entry.name}`,
         "exclusive",
@@ -338,6 +583,59 @@ export function projectSkillGardenContent(options) {
         paths.delete(entry.path);
       }
     }
+  }
+
+  if (
+    pluginPackage.skillGarden.variant === "0.6" &&
+    shouldInstallName("trellis-check-all", skills)
+  ) {
+    const catalog = readDispatchCatalog();
+    const selectedPlatforms = new Set(options.platformSelection?.platforms || []);
+    const body = fs.readFileSync(path.join(variantDir, CHECK_ALL_AGENT_BODY_REL), "utf8");
+    const checkAllSkillRoot = path.join(variantDir, ".agents", "skills", "trellis-check-all");
+    for (const entry of catalog.platforms.filter(({ checkAll }) => checkAll.eligible)) {
+      const runtimePlatforms = entry.runtimePlatforms || [entry.id];
+      const enabled = selectedPlatforms.size > 0
+        ? runtimePlatforms.some((platform) => selectedPlatforms.has(platform))
+        : fs.existsSync(path.join(projectRoot, ...entry.detectPath.split("/")));
+      if (!enabled) continue;
+      if (entry.checkAll.format === "markdown-kimi") {
+        addTree(
+          checkAllSkillRoot,
+          path.posix.dirname(entry.checkAll.target),
+          `skill-garden:${pluginPackage.skillGarden.variant}:check-all-agent:${entry.id}:references`,
+          "exclusive",
+          pluginPackage.skillGarden.variant === "0.6",
+        );
+      }
+      addFile(
+        entry.checkAll.target,
+        renderCheckAllAgent(entry, body, checkAllSkillRoot),
+        `skill-garden:${pluginPackage.skillGarden.variant}:check-all-agent:${entry.id}`,
+        "exclusive",
+        pluginPackage.skillGarden.variant === "0.6",
+      );
+      installed.add(`agent:trellis-check-all:${entry.id}`);
+    }
+    addFile(
+      ".trellis/agents/check-all.md",
+      Buffer.from([
+        "---",
+        "name: check-all",
+        "description: Audit-only Trellis Check-All role for the channel runtime.",
+        "provider: claude",
+        "labels: [trellis, check-all, audit-only]",
+        "---",
+        "",
+        body
+          .replaceAll("{{PLATFORM_ID}}", "trellis-channel")
+          .replaceAll("{{SKILL_PATH}}", ".agents/skills/trellis-check-all/SKILL.md")
+          .trimEnd(),
+        "",
+      ].join("\n")),
+      `skill-garden:${pluginPackage.skillGarden.variant}:check-all-agent:channel`,
+    );
+    installed.add("agent:check-all");
   }
 
   const commandRoot = path.join(variantDir, ".claude", "commands", "trellis");

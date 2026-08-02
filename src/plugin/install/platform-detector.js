@@ -18,6 +18,19 @@ export function listPluginPlatforms() {
 }
 
 /**
+ * 判断物理 Skill target 中的单个逻辑平台是否已经启用。
+ *
+ * @param {string} projectRoot 项目根
+ * @param {{root:string,detectPaths?:Record<string,string>}} descriptor Skill target 描述
+ * @param {string} platform 逻辑平台 ID
+ * @returns {boolean} 是否存在平台原生检测证据
+ */
+function isPlatformDetected(projectRoot, descriptor, platform) {
+  const detectPath = descriptor.detectPaths?.[platform] || descriptor.root;
+  return fs.existsSync(path.join(projectRoot, ...detectPath.split("/")));
+}
+
+/**
  * 检测或校验 Plugin 投影平台，并按物理 Skill root 去重。
  *
  * @param {string} projectRoot 项目根
@@ -43,8 +56,9 @@ export function detectPluginPlatforms(projectRoot, explicitPlatforms = []) {
   const selected = requested.length > 0
     ? requested
     : descriptors
-      .filter(({ root }) => fs.existsSync(path.join(projectRoot, ...root.split("/"))))
-      .flatMap(({ platforms }) => platforms)
+      .flatMap((descriptor) => descriptor.platforms.filter((platform) => (
+        isPlatformDetected(projectRoot, descriptor, platform)
+      )))
       .sort(compareUtf8);
   if (selected.length === 0) {
     throw new PluginRuntimeError("未检测到受支持平台，请使用 --platform 显式选择", {

@@ -25,6 +25,12 @@ Resolve exactly one dispatch subject from the first prompt line:
 - `Untracked work: <work-id>`: run `python3 ./.trellis/scripts/untracked_flow.py status --verbose`, require the same work id, and use the complete summary/scope/baseline/fingerprint/evidence/spec context supplied by the main session. Do not require or invent task artifacts or JSONL files.
 
 If hook-injected context is present, it may satisfy the task branch. The untracked branch remains prompt-driven and must still validate the helper state. If neither first-line contract is present or the resolved subject mismatches, stop and report the missing context; do not guess or switch subjects.
+<!-- BEGIN skill-garden patch markdown-check-all-intent-guard v0.6 -->
+
+## Check-All Intent Guard
+
+If the dispatch request asks for Check-All, a full/unified check, or the pre-commit unified quality gate, stop without writing anything and report that this workspace-write `trellis-check` role is incompatible. The main session must route to the dedicated audit-only `trellis-check-all` role. Do not self-fix, edit files, or continue under this role.
+<!-- END skill-garden patch markdown-check-all-intent-guard v0.6 -->
 <!-- END skill-garden patch markdown-agents-untracked-context v0.6 -->
 ## Context
 

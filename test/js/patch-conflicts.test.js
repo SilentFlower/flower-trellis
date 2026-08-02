@@ -13,6 +13,10 @@ import {
   loadPatchPolicies,
   loadPatchPolicy,
 } from "../../src/lib/patch-conflicts.js";
+import {
+  disposePinnedPatchFixture,
+  preparePinnedPatchFixture,
+} from "../../src/lib/patch-fixture.js";
 
 const compatibility = {
   schemaVersion: 1,
@@ -361,6 +365,53 @@ test("Phase 正向断言不能被其它段落中的裸 Skill 指针误满足", (
     result.diagnostics.map((item) => item.id),
     ["workflow-required-route-pointer", "workflow-required-finish-pointers"],
   );
+});
+
+test("Flower 冲突策略会阻断 Codex 配置与 Hook 的路由语义回归", () => {
+  const fixture = preparePinnedPatchFixture();
+  try {
+    const replacements = new Map([
+      [
+        ".trellis/config.yaml",
+        [
+          "codex:\n  dispatch_mode: auto",
+          "codex:\n  dispatch_mode: sub-agent",
+        ],
+      ],
+      [
+        ".codex/hooks/inject-workflow-state.py",
+        ["It is not a route decision.", "It is the route decision."],
+      ],
+    ]);
+    const changedTargets = new Set();
+    const plan = {
+      ...fixture.plan,
+      files: fixture.plan.files.map((file) => {
+        const replacement = replacements.get(file.target);
+        if (!replacement) return file;
+        const [expected, drifted] = replacement;
+        assert.match(file.next, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+        changedTargets.add(file.target);
+        return { ...file, next: file.next.replace(expected, drifted) };
+      }),
+    };
+    assert.deepEqual([...changedTargets].sort(), [...replacements.keys()].sort());
+
+    const report = buildPatchConflictReport({
+      version: fixture.version,
+      plan,
+      policies: fixture.policies,
+    });
+    const errors = report.diagnostics
+      .filter((item) => item.severity === "error")
+      .map((item) => item.qualifiedId);
+    assert.deepEqual(errors, [
+      "flower/codex-config-required-route-capability-semantics",
+      "flower/codex-hook-required-route-capability-semantics",
+    ]);
+  } finally {
+    disposePinnedPatchFixture(fixture.target);
+  }
 });
 
 test("diagnostic formatter 输出规则、目标、原因和证据", () => {

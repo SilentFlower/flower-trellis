@@ -138,6 +138,9 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   const finish = readSource(
     "overrides/patches/skills/trellis-finish-work/exact-bookkeeping/content.md",
   );
+  const completedState = readSource(
+    "overrides/patches/workflow/runtime-contract-reference/completed-content.md",
+  );
   const progress = readSource("scripts/task_progress.py");
 
   assert.match(requestTriage, /Asking for an opinion, expressing discomfort, rejecting a proposal/);
@@ -178,6 +181,11 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(push, /不得加载 `trellis-check-all` 或 `trellis-update-spec`/);
   assert.match(push, /auto-loop 内部 `commit-only`/);
   assert.match(push, /git commit --only/);
+  assert.match(push, /--complete/);
+  assert.match(push, /先通过 helper 写入最终 progress，但不得携带 `--complete`/);
+  assert.match(push, /只有进度 commit 和 push 都成功后.*`status=completed`/);
+  assert.match(push, /进度同步失败；任务必须保持 `in_progress`/);
+  assert.match(push, /archive bookkeeping commit 承接/);
   assert.match(autoLoop, /## Commit-Only/);
   assert.match(autoLoop, /`review_planning_readiness`/);
   assert.match(autoLoop, /`resolve_open_questions`/);
@@ -185,13 +193,22 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(autoLoop, /Check record 中其它变化进入有限自纠/);
   assert.match(autoLoop, /其它 action 仍按 `artifact-drift` 阻塞/);
   assert.match(finish, /This skill owns only the current task's release audit, archive bookkeeping/);
-  assert.match(finish, /### 1\. Decision Audit/);
+  assert.match(finish, /### 1\. Completion State Gate/);
+  assert.match(finish, /taskStatus=completed/);
+  assert.match(finish, /finish-work must not manufacture completion/);
+  assert.match(finish, /### 2\. Decision Audit/);
   assert.match(finish, /decision_log\.py status --task <task-name> --json/);
-  assert.match(finish, /`task\.py archive` repeats this guard before any status write/);
+  assert.match(finish, /preserves the existing `completedAt` and performs no lifecycle status write/);
   assert.match(continueRecovery, /task_progress\.py status --json/);
   assert.match(continueRecovery, /Never rebind the session or task automatically/);
+  assert.match(continueRecovery, /taskStatus=completed/);
+  assert.match(continueRecovery, /task_progress\.py reopen --task <task-name> --json/);
+  assert.match(completedState, /Business push and task progress are complete/);
+  assert.match(completedState, /Do not resume implementation, Update-Spec, or trellis-push automatically/);
   assert.match(progress, /def _validate_progress/);
   assert.match(progress, /os\.replace\(temp_path, path\)/);
+  assert.match(progress, /def cmd_reopen/);
+  assert.match(progress, /--complete/);
 });
 
 test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
@@ -258,6 +275,7 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.match(continueRecovery, /status=candidates/);
   assert.match(continueRecovery, /suggest an explicit rebind/);
   assert.match(continueRecovery, /Never rebind the session or task automatically/);
+  assert.match(continueRecovery, /A completed candidate points to finish-work\/archive/);
   assert.match(continueRecovery, /Do not infer a Phase from progress/);
   assert.match(continueRecovery, /or resume Git\/commit orchestration from it/);
   assert.match(continueRecovery, /### Planning Resume Gate/);

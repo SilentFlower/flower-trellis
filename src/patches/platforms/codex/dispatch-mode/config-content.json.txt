@@ -1,0 +1,30 @@
+{
+  "value": "auto",
+  "commentSection": {
+    "heading": "Codex (dispatch behavior)",
+    "missing": "skip",
+    "lines": [
+      "#-------------------------------------------------------------------------------",
+      "# Codex (dispatch behavior)",
+      "#-------------------------------------------------------------------------------",
+      "# Codex-only capability switch; other platforms ignore it. Default (\"auto\")",
+      "# keeps native SubagentStart context injection and task JSONL readiness available.",
+      "# It does not choose inline or subagent execution for a task: trellis-route owns",
+      "# that decision. Flower-managed projects normalize this value to \"auto\" so a",
+      "# route-selected subagent never starts without prepared context. Use the private",
+      "# trellis-route preference when work should always run inline.",
+      "#",
+      "# The upstream \"inline\" value and legacy \"sub-agent\" alias remain readable for",
+      "# compatibility, but Flower does not emit them. Invalid explicit values use the",
+      "# upstream inline fallback until Flower normalizes the managed project.",
+      "#",
+      "# Dispatched sub-agents inherit the main session's model unless an agent definition",
+      "# pins model / model_reasoning_effort. Edit generated .codex/agents/trellis-*.toml",
+      "# when a different model is required; config.yaml has no model-selection knob.",
+      "#",
+      "# codex:",
+      "#   dispatch_mode: auto",
+      ""
+    ]
+  }
+}

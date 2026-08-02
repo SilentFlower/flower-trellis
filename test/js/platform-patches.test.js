@@ -72,10 +72,23 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
     "keep = true",
     "",
   ].join("\n"));
-  write(target, ".trellis/config.yaml", "project: demo\ncodex: { dispatch_mode: inline, other: true }\n");
+  const upstreamConfig = fs.readFileSync(
+    path.join(ROOT, "node_modules/@mindfoldhq/trellis/dist/templates/trellis/config.yaml"),
+    "utf8",
+  );
+  const configuredCodex = `${upstreamConfig}\ncodex: { dispatch_mode: inline, other: true }\n`;
+  write(target, ".trellis/config.yaml", configuredCodex);
+  write(
+    target,
+    ".codex/hooks/inject-workflow-state.py",
+    fs.readFileSync(
+      path.join(ROOT, "node_modules/@mindfoldhq/trellis/dist/templates/shared-hooks/inject-workflow-state.py"),
+      "utf8",
+    ),
+  );
 
   const first = applyPatchPlan(target, prepare(target));
-  assert.equal(first.changed, 4);
+  assert.equal(first.changed, 5);
   const codex = JSON.parse(fs.readFileSync(path.join(target, ".codex/hooks.json"), "utf8"));
   assert.equal(codex.custom, true);
   const codexSession = codex.hooks.SessionStart;
@@ -95,9 +108,41 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   const yaml = fs.readFileSync(path.join(target, ".trellis/config.yaml"), "utf8");
   assert.match(yaml, /codex:\n  dispatch_mode: auto\n  other: true/);
   assert.doesNotMatch(yaml, /dispatch_mode: (?:inline|sub-agent)/);
+  assert.match(yaml, /It does not choose inline or subagent execution for a task: trellis-route owns/);
+  const workflowHook = fs.readFileSync(
+    path.join(target, ".codex/hooks/inject-workflow-state.py"),
+    "utf8",
+  );
+  assert.match(workflowHook, /this banner is not/);
+  assert.match(workflowHook, /a route decision/);
+  assert.match(
+    workflowHook,
+    /Normalize `codex\.dispatch_mode` from \.trellis\/config\.yaml to "auto" or "inline"\./,
+  );
+  assert.doesNotMatch(workflowHook, /defaults to Trellis sub-agents/);
+  assert.doesNotMatch(workflowHook, /do not dispatch implement\/check sub-agents/);
 
   const second = applyPatchPlan(target, prepare(target));
   assert.equal(second.changed, 0);
+});
+
+test("Codex dispatch 配置缺少上游注释时仍只规范化能力值", () => {
+  const target = fixture();
+  fs.mkdirSync(path.join(target, ".codex"));
+  write(target, ".trellis/config.yaml", "project: demo\ncodex: { dispatch_mode: inline, other: true }\n");
+  write(
+    target,
+    ".codex/hooks/inject-workflow-state.py",
+    fs.readFileSync(
+      path.join(ROOT, "node_modules/@mindfoldhq/trellis/dist/templates/shared-hooks/inject-workflow-state.py"),
+      "utf8",
+    ),
+  );
+
+  applyPatchPlan(target, prepare(target));
+  const yaml = fs.readFileSync(path.join(target, ".trellis/config.yaml"), "utf8");
+  assert.match(yaml, /codex:\n  dispatch_mode: auto\n  other: true/);
+  assert.doesNotMatch(yaml, /Codex \(dispatch behavior\)/);
 });
 
 test("缺失平台目录安全跳过，损坏 JSON/YAML/TOML 失败且不覆盖", () => {

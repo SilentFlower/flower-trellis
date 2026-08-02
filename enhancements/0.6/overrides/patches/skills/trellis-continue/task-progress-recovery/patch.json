@@ -32,5 +32,34 @@
     ],
     "selector": { "type": "literal", "source": "selector.md", "expectedMatches": 1 },
     "content": { "source": "content.md" }
+  }, {
+    "id": "trellis-continue-completed-route",
+    "operation": "replace",
+    "targetPolicy": "each-existing",
+    "targets": [
+      { "kind": "command", "path": ".agent/workflows/continue.md", "missing": "skip" },
+      { "kind": "skill", "path": ".agents/skills/trellis-continue/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".claude/commands/trellis/continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".codebuddy/commands/trellis/continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".cursor/commands/trellis-continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".devin/workflows/trellis-continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".factory/commands/trellis/continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".gemini/commands/trellis/continue.toml", "missing": "skip" },
+      { "kind": "command", "path": ".github/prompts/continue.prompt.md", "missing": "skip" },
+      { "kind": "command", "path": ".grok/commands/trellis-continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".kilocode/workflows/continue.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kimi-code/skills/trellis-continue/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kiro/skills/trellis-continue/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".omp/commands/trellis-continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".opencode/commands/trellis/continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".pi/prompts/trellis-continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".qoder/commands/trellis-continue.md", "missing": "skip" },
+      { "kind": "skill", "path": ".reasonix/skills/trellis-continue/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".snow/skills/trellis-continue/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".trae/commands/trellis-continue.md", "missing": "skip" },
+      { "kind": "command", "path": ".zcode/commands/trellis/continue.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "completed-route-selector.md", "expectedMatches": 1 },
+    "content": { "source": "completed-route-content.md" }
   }]
 }

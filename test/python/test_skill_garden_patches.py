@@ -47,6 +47,9 @@ META_OPERATIONS = {
     "trellis-meta-managed-owner-routing",
     "trellis-meta-managed-state-boundary",
     "trellis-meta-managed-workflow-change-map",
+    "trellis-meta-managed-continue-check-route",
+    "trellis-meta-managed-workflow-notes",
+    "trellis-meta-managed-check-all-agent-route",
 }
 
 

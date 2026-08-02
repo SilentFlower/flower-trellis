@@ -40,6 +40,7 @@ Flower 自有的平台配置修改位于：
 
 ```text
 src/patches/
+├── conflicts.json
 ├── platforms/<platform>/<feature>/patch.json
 └── bundles/*.json
 ```
@@ -152,7 +153,11 @@ Core selector：
 Flower 扩展 adapter 仅用于结构化平台配置，目前允许：
 
 - `json-hook-command`
-- `yaml-key`
+- `yaml-key`：`content.value` 可继续是 legacy scalar；需要同步受管注释时使用 JSON 文本
+  `{"value":"auto","commentSection":{"heading":"...","lines":[...],"missing":"skip|error"}}`。
+  comment section 只匹配唯一精确标题和“分隔线 + 标题 + 分隔线 + 正文 + 分隔线”结构，替换时
+  必须保留下一个 section 的起始分隔线。缺失、重复或结构损坏按 `missing`/error 处理，不能在文件
+  顶部盲加注释。两级 key 更新仍须保留同 block 其它 key、其它顶层内容和原行尾语义。
 - `toml-section`
 
 adapter 必须通过 `flowerPatchAdapters()` 显式注册，并遵守相同的 preflight、required、目标路径、零写入和 changed-only 契约。不得把通用 Patch 逻辑复制进 adapter。
@@ -185,6 +190,7 @@ adapter 必须通过 `flowerPatchAdapters()` 显式注册，并遵守相同的 p
 - `0.7+`、`1.x` 或不可解析版本返回 `error`，Patch、资产、stale 清理和 manifest 全部零写入；用户只能改用匹配 Flower 版本或 `--no-enhance`。
 - `conflicts.json` 首版只允许 `absent-literal`、`required-literal`、`max-occurrences`；规则只审计 `whenOperations` 全部实际选中的计划。
 - 多 catalog policy 共同聚合 compatibility/conflict；任一 error 阻断。`whenOperations` 裸 ID 按 policy owner catalog 解析，qualified ID 可引用其它 catalog；rule diagnostic 身份固定为 `<catalog-id>/<rule-id>`。
+- Flower 平台 operation 的最终产物断言由 `src/patches/conflicts.json` 所有，并通过 Flower catalog descriptor 加载。独立 Skill-Garden policy 不得引用 Flower operation，否则 canonical compiled-target 单 catalog consumer 会因未知 operation fail closed。
 - evaluator 读取 `plan.files[].next`，不定位或修改文本。变换仍只由 Patch Engine 所有。
 - `preparePatchPlan()` / `prepare_patches()` 必须返回未受精细安装过滤的 `catalogOperations[{id,targets}]`。evaluator 在执行规则前验证每个 `whenOperations` 存在，且规则 target 确由对应 operation 修改；拼写错误不得静默跳过。
 - diagnostic 固定为 `error | warning | info`：互斥协议/未支持版本阻断，评审型重复与同线未测版本告警，正常 `missing-target` 只计 info。

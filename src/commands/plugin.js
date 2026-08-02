@@ -649,7 +649,7 @@ function pluginExitCode(error) {
  * 执行 Plugin 生命周期命令。
  *
  * @param {object} ctx cli-args.js 的执行上下文
- * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},interactive?:boolean,prompts?:object,confirmApproval?:(requests:object[])=>Promise<boolean>|boolean,compact?:boolean}} [options] 测试、Provider、输出与交互确认注入
+ * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},interactive?:boolean,prompts?:object,confirmApproval?:(requests:object[])=>Promise<boolean>|boolean,compact?:boolean,onPreflight?:(result:object)=>void}} [options] 测试、Provider、输出与交互确认注入
  * @returns {Promise<number>} 进程退出码
  */
 export async function plugin(ctx, options = {}) {
@@ -782,6 +782,7 @@ export async function plugin(ctx, options = {}) {
         ),
         platforms: parsed.platforms,
         dryRun: parsed.dryRun,
+        onPreflight: options.onPreflight,
       };
       result = parsed.dryRun ? service.add(addOptions) : await executeWithCapabilityApproval(
         (approvals) => service.add({ ...addOptions, approvals }),
@@ -797,6 +798,7 @@ export async function plugin(ctx, options = {}) {
           : {}),
         platforms: parsed.platforms,
         dryRun: parsed.dryRun,
+        onPreflight: options.onPreflight,
       };
       result = parsed.dryRun ? service.update(updateOptions) : await executeWithCapabilityApproval(
         (approvals) => service.update({ ...updateOptions, approvals }),
@@ -815,6 +817,7 @@ export async function plugin(ctx, options = {}) {
         platforms: parsed.platforms,
         dryRun: parsed.dryRun,
         preserveIds: options.preserveIds || [],
+        onPreflight: options.onPreflight,
       });
     } else {
       result = { command: "verify", ...service.verify({ id: canonicalId }) };

@@ -1,8 +1,7 @@
-import fs from "node:fs";
-import path from "node:path";
 import "../../plugin/install/patch-planner.js";
-import { ENHANCEMENT_SKILL_TARGETS } from "../../constants.js";
 import { PluginApplicationService } from "../../plugin/application-service.js";
+import { detectPluginPlatforms } from "../../plugin/install/platform-detector.js";
+import { PLUGIN_RUNTIME_ERROR_CODES } from "../../plugin/runtime-errors.js";
 import { ProjectStore } from "../../plugin/state/project-store.js";
 import { SourceRegistry } from "../../plugin/sources/source-registry.js";
 import {
@@ -17,10 +16,14 @@ import {
  * @returns {string[]} 显式平台；可自动检测时返回空数组
  */
 function compatibilityPlatforms(projectRoot) {
-  const detected = ENHANCEMENT_SKILL_TARGETS.some(({ root }) => (
-    fs.existsSync(path.join(projectRoot, ...root.split("/")))
-  ));
-  return detected ? [] : ["claude"];
+  try {
+    return detectPluginPlatforms(projectRoot).platforms;
+  } catch (error) {
+    if (error?.code === PLUGIN_RUNTIME_ERROR_CODES.PLATFORM_SELECTION_REQUIRED) {
+      return ["claude"];
+    }
+    throw error;
+  }
 }
 
 /**

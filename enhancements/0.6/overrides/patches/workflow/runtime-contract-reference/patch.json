@@ -11,11 +11,26 @@
       "content": { "source": "state-contract-comment-content.md" }
     },
     {
+      "id": "workflow-managed-customization-guidance",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "markdown-section", "heading": "## Customizing Trellis (for forks)" },
+      "baselines": ["customizing-trellis-baseline.md", "customizing-trellis-managed-baseline.md"],
+      "content": { "source": "customizing-trellis-content.md" }
+    },
+    {
       "id": "workflow-runtime-contract-reference",
       "operation": "replace",
       "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
       "selector": { "type": "literal", "source": "runtime-reference-selector.md" },
       "content": { "source": "runtime-reference-content.md" }
+    },
+    {
+      "id": "workflow-state-completed",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "literal", "source": "completed-selector.md", "expectedMatches": 1 },
+      "content": { "source": "completed-content.md" }
     }
   ]
 }

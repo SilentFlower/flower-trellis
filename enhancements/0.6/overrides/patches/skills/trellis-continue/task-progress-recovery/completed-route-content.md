@@ -1,0 +1,1 @@
+- `status=completed` (observable after successful final-progress sync) → explicit `trellis-finish-work` archive flow; do not resume Phase 2 or Phase 3.3/3.4

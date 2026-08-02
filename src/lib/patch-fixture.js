@@ -138,6 +138,9 @@ export function getPinnedPatchCatalogs() {
       id: "flower",
       patchesDir: path.join(PKG_ROOT, "src", "patches", "platforms"),
       bundlesDir: path.join(PKG_ROOT, "src", "patches", "bundles"),
+      policy: {
+        conflictsFile: path.join(PKG_ROOT, "src", "patches", "conflicts.json"),
+      },
     },
   ];
 }
