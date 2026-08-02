@@ -24,7 +24,8 @@ gitignored 的 `.flower/update-check.tmp` 运行缓存)。旧 `.trellis/.flower-
   来源为 Trellis `cli/index.ts` 的 init 注册,上游新增平台时此名单可滞后(最坏只是误补
   `--claude`,不致命)。
   - Trellis 0.6.5 起 `--devin` 是 Windsurf 更名后的主 flag,`--windsurf` 仍作为旧别名保留;
-    `--zcode`、`--trae` 是平台 flag,也要纳入 `PLATFORM_FLAGS`。
+    `--zcode`、`--trae`、`--omp`、`--grok`、`--kimi`、`--snow` 是平台 flag,也要纳入
+    `PLATFORM_FLAGS`。
   - `--with-statusline` 是 Claude Code 功能开关,不是平台选择,不要纳入 `PLATFORM_FLAGS`。
 - `OWN_FLAGS` —— flower 自有、**不能透传给 trellis** 的 flag;值 `false`=布尔 flag,
   `true`=带取值 flag(剔除时要连带跳过其后一个 token)。
@@ -112,9 +113,10 @@ gitignored 的 `.flower/update-check.tmp` 运行缓存)。旧 `.trellis/.flower-
 ### 1. Scope / Trigger
 
 - Trigger: 修改 `flower-trellis update` 的 argv 解析、非交互兼容 flag、`trellis update`
-  透传参数或提交前 dogfood 命令。
+  透传参数、跨版本 dry-run 或提交前 dogfood 命令。
 - Scope: `update` 可以接受 `-y` / `--yes` 作为 Flower 非交互兼容 flag，但 Trellis
-  `update` 不支持该 flag；真正调用上游前必须过滤。`init` 的 `-y` / `--yes` 行为不变。
+  `update` 不支持该 flag；真正调用上游前必须过滤。跨版本普通 dry-run 只预览 Trellis
+  升级，不把新版 Skill-Garden Patch 提前应用到旧模板。`init` 的 `-y` / `--yes` 行为不变。
 
 ### 2. Signatures
 
@@ -126,6 +128,7 @@ flower-trellis init --target <dir> [-y|--yes] [trellis init flags]
 ```js
 parseCliArgs(argv, cwd)
 trellisUpdatePassthroughArgs(passthrough)
+shouldSkipSkillGardenPreview({ dryRun, enhanceOnly, currentVersion, targetVersion })
 update(ctx)
 checkForUpdate(ctx, label)
 ```
@@ -142,6 +145,13 @@ checkForUpdate(ctx, label)
 - `init(ctx)` 继续把 `-y` / `--yes` 透传给 Trellis init，并用它们选择默认平台。
 - `self-update --yes` 仍由 self-update 命令自身消费；`--` 之后的项目 update 参数按
   `projectUpdateForwardArgs()` 规则转给新的 Flower update 进程。
+- 普通 `update --dry-run` 在目标 `.trellis/.version` 与当前 Flower 捆绑 Trellis 版本不同
+  时，`shouldSkipSkillGardenPreview()` 必须返回 `true`：上游 dry-run 不写入新模板，因此本轮
+  只打印“跳过 Skill-Garden 强化预演”，不调用 Skill-Garden Plugin add/update。
+- 同版本普通 dry-run 继续执行 Plugin 预演；`--enhance-only --dry-run` 也必须严格预检当前
+  模板，不能借跨版本保护绕过 compatibility、required selector 或 conflict error。
+- `--no-enhance --dry-run` 仍按既有规则预演外部 Plugin replay；跨版本保护只跳过
+  `flower/skill-garden`，不得吞掉其它 Plugin 的升级计划。
 
 ### 4. Validation & Error Matrix
 
@@ -151,22 +161,37 @@ checkForUpdate(ctx, label)
 | `flower-trellis update --yes --force` | Flower 识别非交互；Trellis 仅收到 `update --force` |
 | `flower-trellis init -y` | `-y` 继续透传给 Trellis init，并默认 codex + claude |
 | `flower-trellis update --backup-retention 5 --dry-run` | backup-retention 被消费；Trellis 收到 `--dry-run` |
+| 目标 `0.6.5`、捆绑 `0.6.12`、普通 `update --dry-run` | Trellis 预览成功；跳过 Skill-Garden Plugin 预演；目标树零写入 |
+| 目标版本等于捆绑版本、普通 `update --dry-run` | Trellis 与 Skill-Garden Plugin 均执行预演 |
+| 跨版本 `--enhance-only --dry-run` | 不跳过；对当前模板执行严格 Skill-Garden preflight |
+| 跨版本 `--no-enhance --dry-run` | Skill-Garden 保持冻结；外部 Plugin replay 继续预演 |
 | 未知 Trellis update flag | 保留在 `ctx.passthrough` 并透传，除非已被 Flower 明确定义为命令级兼容 flag |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: 提交前 dogfood 使用 `flower-trellis update --target ./test-target -y --dry-run`，
   Flower 不弹自身更新确认，上游 Trellis 不收到不支持的 `-y`。
+- Good: 旧 `0.6.5` 项目用新版 Flower 执行普通 dry-run，只预览到 `0.6.12` 的 Trellis
+  变化并明确延后 Skill-Garden 重放，目标目录前后逐字节一致。
 - Base: `flower-trellis update --target ./test-target --dry-run` 与过去行为一致。
+- Base: 已是捆绑版本的项目继续显示 `Plugin update 预览`，证明同版本预演没有被关闭。
 - Base: `flower-trellis init --target ./test-target -y` 仍由 Trellis init 非交互创建默认平台。
 - Bad: 把 `-y` 加入全局 `OWN_FLAGS`，导致 init 不再把非交互意图传给 Trellis。
 - Bad: `update(ctx)` 直接使用 `ctx.passthrough` 调用上游，导致 Trellis update 报
   `unknown option '-y'`。
+- Bad: 跨版本普通 dry-run 在 Trellis 没有写入新模板时直接运行新版 Skill-Garden
+  preflight，最终把正常升级预览误报为 selector/baseline 冲突。
+- Bad: 为让普通 dry-run 通过而同时跳过 `--enhance-only`，使用户无法预演当前模板上的真实
+  compatibility 或 Patch 冲突。
 
 ### 6. Tests Required
 
 - `parseCliArgs()` 必须覆盖 `update -y --yes --dry-run` 保留原始 `ctx.passthrough`，
   同时 `trellisUpdatePassthroughArgs()` 返回只含真实上游参数的集合。
+- `shouldSkipSkillGardenPreview()` 必须覆盖跨版本普通 dry-run、同版本 dry-run、
+  `--enhance-only` 和真实写入四种分支。
+- 真实 CLI 回归必须用最小 `0.6.5` 项目运行到捆绑 `0.6.12` 的普通 dry-run，断言退出码为
+  `0`、出现延后提示、不出现 Plugin update 预览，并比较完整目标树保持零写入。
 - Dogfood 必须覆盖隔离目标上的
   `flower-trellis init --target <tmp> -y`、
   `flower-trellis update --target <tmp> -y --dry-run`、
@@ -197,6 +222,21 @@ const code = await runTrellisPty(
 原因:命令级 helper 保留 `init` 的全局兼容性，同时只在 `update` 上游调用边界过滤不支持的
 Flower 兼容 flag。
 
+跨版本 dry-run 的正确边界：
+
+```js
+if (shouldSkipSkillGardenPreview({
+  dryRun,
+  enhanceOnly: ctx.enhanceOnly,
+  currentVersion: selectVariant(target).version,
+  targetVersion: trellisVersion(),
+})) {
+  // 只延后 Skill-Garden；真实 update 完成后仍按正常顺序重放。
+}
+```
+
+不得根据 `variant` 名称判断版本变化；同属 `0.6` 变体的 `0.6.5` 与 `0.6.12` 仍是跨版本。
+
 ---
 
 ## Variant Selection (`src/lib/variant.js`)
@@ -206,7 +246,7 @@ Flower 兼容 flag。
 - 规则(逐字符移植 skill-garden `install.sh` 263-274):主版本 ≥1 或次版本 ≥6 → `0.6`;
   次版本 ≥5 → `0.5`;文件缺失/解析失败/更低 → `old`。次版本会先剥掉 `-beta.x` 后缀。
 - 改这条规则前先确认上游 install.sh 的对应逻辑,保持一致。
-- 映射到 `0.6` 不等于语义兼容：0.6.5 是已登记版本，同线未登记版本 warning，0.7+/1.x 由 Patch policy 阻断并提示 `--no-enhance`。
+- 映射到 `0.6` 不等于语义兼容：`0.6.12` 是当前已登记版本，同线未登记版本 warning，0.7+/1.x 由 Patch policy 阻断并提示 `--no-enhance`。
 
 ---
 

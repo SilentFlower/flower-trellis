@@ -101,7 +101,7 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 
 ## Baseline
 
-Skill-Garden Claude + Codex 最终入口基线（2026-07-24；target/review ceiling 未调整）：
+Skill-Garden 代表性最终入口基线（`.agents` + `.claude`，2026-07-24；target/review ceiling 未调整）：
 
 | 对象 | Lines | Bytes | 状态 |
 |---|---:|---:|---|
@@ -115,7 +115,11 @@ Skill-Garden Claude + Codex 最终入口基线（2026-07-24；target/review ceil
 | SessionStart | 172 | 12,300 | ok |
 | control-context-total | - | 90,397 | ok |
 
-Patch 生成的静态最终入口读取 Skill-Garden canonical compiled full target；直接铺设的 Auto-Loop 读取 canonical variant skill。Flower 全平台 matrix 只做临时集成验证，不参与预算重复计数。target/review ceiling 未提高，默认和 strict 仍只有超过 review ceiling 才由 strict 阻断。
+Patch 生成的静态最终入口读取 Skill-Garden `all-platforms` canonical compiled full target；预算只选取
+`.trellis`、共享 `.agents` 和 `.claude` 的代表性最终入口，不把其它平台的等价投影重复累加。
+直接铺设的 Auto-Loop 读取 canonical variant skill。Flower 双 catalog 全平台 fixture 继续只做临时
+集成验证，不参与预算重复计数。target/review ceiling 未提高，默认和 strict 仍只有超过 review
+ceiling 才由 strict 阻断。
 
 ## Change Review
 

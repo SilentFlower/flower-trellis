@@ -134,9 +134,11 @@
       "assertion": {
         "type": "required-literal",
         "values": [
-          "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Planning Handoff",
-          "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n- Planning artifacts are ready for the final brief handoff.",
-          "Implementation intent expressed before the final artifacts and full brief are shown authorizes planning only",
+          "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Quality Bar",
+          "## Planning Handoff",
+          "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n8. Load `trellis-task-brief`",
+          "The latest full Brief has been presented to the user with dynamic Artifact Status.",
+          "Implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
           "unresolved items are `- [ ]`",
           "Do not write bare placeholders"
         ]
@@ -155,9 +157,11 @@
       "assertion": {
         "type": "required-literal",
         "values": [
-          "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Planning Handoff",
-          "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n- Planning artifacts are ready for the final brief handoff.",
-          "Implementation intent expressed before the final artifacts and full brief are shown authorizes planning only",
+          "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Quality Bar",
+          "## Planning Handoff",
+          "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n8. Load `trellis-task-brief`",
+          "The latest full Brief has been presented to the user with dynamic Artifact Status.",
+          "Implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
           "unresolved items are `- [ ]`",
           "Do not write bare placeholders"
         ]
@@ -260,14 +264,14 @@
         "task-create-duplicate-slug",
         "task-create-initial-write",
         "task-create-parent-link",
-        "task-create-active-warning",
         "task-archive-metadata-guard",
         "task-add-subtask-pair-write",
         "task-remove-subtask-pair-write",
         "task-archive-status-write",
         "task-set-branch-write",
         "task-set-base-branch-write",
-        "task-set-scope-write"
+        "task-set-scope-write",
+        "task-set-meta-write"
       ],
       "assertion": {
         "type": "required-literal",
@@ -281,15 +285,42 @@
           "Failed to write initial task.json",
           "Relationship rollback incomplete",
           "Failed to persist completed task status",
-          "Task was created, but the active-task pointer could not be persisted.",
           "task.json not found or invalid:",
           "Failed to persist branch",
           "Failed to persist base branch",
-          "Failed to persist scope"
+          "Failed to persist scope",
+          "Failed to persist task metadata"
         ]
       },
       "owner": "task-store",
       "reason": "task store 核心命令不得在关键 JSON 写入失败后继续输出成功。"
+    },
+    {
+      "id": "workflow-state-required-local-runtime",
+      "severity": "error",
+      "target": ".codex/hooks/inject-workflow-state.py",
+      "whenOperations": [
+        "workflow-state-codex-session-start-guard",
+        "workflow-state-stale-task-status",
+        "workflow-state-untracked-helper",
+        "workflow-state-breadcrumb-subject",
+        "workflow-state-main-subject-routing"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch workflow-state-codex-session-start-guard v0.6",
+          "# BEGIN skill-garden patch workflow-state-stale-task-status v0.6",
+          "# BEGIN skill-garden patch workflow-state-untracked-helper v0.6",
+          "# BEGIN skill-garden patch workflow-state-breadcrumb-subject v0.6",
+          "# BEGIN skill-garden patch workflow-state-main-subject-routing v0.6",
+          "DEFAULT_PROMPT_INJECTION_SKIP_KEYWORD = \"no-trellis\"",
+          "\"ZCODE_PROJECT_DIR\": \"zcode\"",
+          "Normalize `codex.dispatch_mode` from .trellis/config.yaml to \"auto\" or \"inline\"."
+        ]
+      },
+      "owner": "workflow-state",
+      "reason": "局部 Patch 必须同时保留 Flower subject 分支与 0.6.12 的 no-trellis、ZCode 和 Codex auto 能力。"
     },
     {
       "id": "paths-required-clear-result",
@@ -708,6 +739,7 @@
       "target": ".agents/skills/trellis-meta/references/local-architecture/bundled-skills.md",
       "whenOperations": [
         "trellis-meta-managed-skill-taxonomy",
+        "trellis-meta-managed-platform-skill-roots",
         "trellis-meta-managed-bundled-overrides"
       ],
       "assertion": {
@@ -716,6 +748,11 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-taxonomy v0.6 -->\n## What Counts As Bundled (vs. Adjacent Concepts)",
           "| Skill-Garden managed |",
           "selectors and full baselines fail closed on upstream drift",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-platform-skill-roots v0.6 -->\n## Where Bundled Skills Land Per Platform",
+          "`.omp/skills/<skill>/`",
+          "`.grok/skills/<skill>/`",
+          "`.snow/skills/<skill>/`",
+          "`.kimi-code/skills/` must not receive a second bundled copy",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-bundled-overrides v0.6 -->\n## Overriding a Bundled Skill Locally"
         ]
       },
@@ -728,6 +765,7 @@
       "target": ".claude/skills/trellis-meta/references/local-architecture/bundled-skills.md",
       "whenOperations": [
         "trellis-meta-managed-skill-taxonomy",
+        "trellis-meta-managed-platform-skill-roots",
         "trellis-meta-managed-bundled-overrides"
       ],
       "assertion": {
@@ -736,6 +774,11 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-taxonomy v0.6 -->\n## What Counts As Bundled (vs. Adjacent Concepts)",
           "| Skill-Garden managed |",
           "selectors and full baselines fail closed on upstream drift",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-platform-skill-roots v0.6 -->\n## Where Bundled Skills Land Per Platform",
+          "`.omp/skills/<skill>/`",
+          "`.grok/skills/<skill>/`",
+          "`.snow/skills/<skill>/`",
+          "`.kimi-code/skills/` must not receive a second bundled copy",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-bundled-overrides v0.6 -->\n## Overriding a Bundled Skill Locally"
         ]
       },
@@ -828,7 +871,9 @@
       "target": ".agents/skills/trellis-meta/references/customize-local/change-skills-or-commands.md",
       "whenOperations": [
         "trellis-meta-managed-skill-classification",
-        "trellis-meta-managed-skill-edit-route"
+        "trellis-meta-managed-skill-edit-route",
+        "trellis-meta-managed-common-paths",
+        "trellis-meta-managed-shared-skill-consumers"
       ],
       "assertion": {
         "type": "required-literal",
@@ -836,7 +881,13 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-classification v0.6 -->",
           "Do not classify every non-bundled name as project-local.",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-edit-route v0.6 -->\n### Bundled vs. Project-Local",
-          "| Skill-Garden | `flower/skill-garden` lock/state entry or managed marker |"
+          "| Skill-Garden | `flower/skill-garden` lock/state entry or managed marker |",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-common-paths v0.6 -->\n## Common Paths",
+          "| Oh My Pi | `.omp/skills/`, `.omp/commands/` |",
+          "| Grok Build | `.grok/skills/`, `.grok/commands/` |",
+          "| Snow CLI | `.snow/skills/`, `.snow/commands/` |",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-shared-skill-consumers v0.6 -->",
+          "Codex, Gemini CLI, Pi Agent, Kimi Code"
         ]
       },
       "owner": "trellis-meta",
@@ -848,7 +899,9 @@
       "target": ".claude/skills/trellis-meta/references/customize-local/change-skills-or-commands.md",
       "whenOperations": [
         "trellis-meta-managed-skill-classification",
-        "trellis-meta-managed-skill-edit-route"
+        "trellis-meta-managed-skill-edit-route",
+        "trellis-meta-managed-common-paths",
+        "trellis-meta-managed-shared-skill-consumers"
       ],
       "assertion": {
         "type": "required-literal",
@@ -856,7 +909,13 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-classification v0.6 -->",
           "Do not classify every non-bundled name as project-local.",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-skill-edit-route v0.6 -->\n### Bundled vs. Project-Local",
-          "| Skill-Garden | `flower/skill-garden` lock/state entry or managed marker |"
+          "| Skill-Garden | `flower/skill-garden` lock/state entry or managed marker |",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-common-paths v0.6 -->\n## Common Paths",
+          "| Oh My Pi | `.omp/skills/`, `.omp/commands/` |",
+          "| Grok Build | `.grok/skills/`, `.grok/commands/` |",
+          "| Snow CLI | `.snow/skills/`, `.snow/commands/` |",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-shared-skill-consumers v0.6 -->",
+          "Codex, Gemini CLI, Pi Agent, Kimi Code"
         ]
       },
       "owner": "trellis-meta",

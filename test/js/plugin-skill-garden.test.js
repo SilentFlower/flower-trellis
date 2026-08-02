@@ -37,6 +37,34 @@ function quietApply(target, options) {
   }
 }
 
+/**
+ * 把当前 route 投影改造成升级前的 Pi 私有 Skill 状态。
+ *
+ * @param {string} target 测试项目根
+ * @returns {{currentRoot:string,legacyRoot:string}} 新旧 Skill 根
+ */
+function simulateLegacyPiRoute(target) {
+  const currentRoot = path.join(target, ".agents/skills/trellis-route");
+  const legacyRoot = path.join(target, ".pi/skills/trellis-route");
+  fs.mkdirSync(path.dirname(legacyRoot), { recursive: true });
+  fs.renameSync(currentRoot, legacyRoot);
+  fs.mkdirSync(path.dirname(currentRoot), { recursive: true });
+
+  const store = new ProjectStore(target);
+  const state = store.readState();
+  const plugin = state.plugins.find(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
+  for (const entry of plugin.paths) {
+    if (entry.path.startsWith(".agents/skills/trellis-route/")) {
+      entry.path = entry.path.replace(
+        ".agents/skills/trellis-route/",
+        ".pi/skills/trellis-route/",
+      );
+    }
+  }
+  store.writeState(state);
+  return { currentRoot, legacyRoot };
+}
+
 test("builtin provider 使用进程内信任且 digest 稳定绑定 variant", (t) => {
   const target = createTarget(t, "0.6.5");
   fs.writeFileSync(
@@ -78,6 +106,34 @@ test("builtin update 可刷新旧精确声明到当前 Flower 版本", (t) => {
     version: provider.manifest.version,
   });
   assert.equal(store.readPlugins().plugins[0].version, flowerVersion());
+});
+
+test("Pi 强化 Skill 从旧私有 root 安全迁移到共享 agents root", (t) => {
+  const target = createTarget(t, "0.6.12");
+  fs.rmSync(path.join(target, ".claude"), { recursive: true, force: true });
+  fs.mkdirSync(path.join(target, ".agents/skills"), { recursive: true });
+  quietApply(target, { variant: "0.6", skills: ["trellis-route"] });
+  const { currentRoot, legacyRoot } = simulateLegacyPiRoute(target);
+
+  quietApply(target, { variant: "0.6", skills: ["trellis-route"] });
+
+  assert.equal(fs.existsSync(path.join(legacyRoot, "SKILL.md")), false);
+  assert.equal(fs.existsSync(path.join(currentRoot, "SKILL.md")), true);
+});
+
+test("Pi 旧私有 Skill 被用户修改时拒绝迁移删除", (t) => {
+  const target = createTarget(t, "0.6.12");
+  fs.rmSync(path.join(target, ".claude"), { recursive: true, force: true });
+  fs.mkdirSync(path.join(target, ".agents/skills"), { recursive: true });
+  quietApply(target, { variant: "0.6", skills: ["trellis-route"] });
+  const { legacyRoot } = simulateLegacyPiRoute(target);
+  fs.appendFileSync(path.join(legacyRoot, "SKILL.md"), "\n用户修改\n");
+
+  assert.throws(
+    () => quietApply(target, { variant: "0.6", skills: ["trellis-route"] }),
+    /受管 Plugin 文件已被用户修改，拒绝删除/,
+  );
+  assert.equal(fs.existsSync(path.join(legacyRoot, "SKILL.md")), true);
 });
 
 test("legacy manifest 只读迁移到 Plugin state 且重复运行不改旧证据", (t) => {

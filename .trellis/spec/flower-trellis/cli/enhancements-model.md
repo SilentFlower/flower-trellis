@@ -44,7 +44,7 @@ Plugin Runtime 的统一计划、事务、lock 和 state 管理。整条链路**
 - Flower 自有 Codex/Claude 配置 Patch 位于 `src/patches/`，不进入 Skill-Garden 源；两类 catalog
   由 builtin Provider 交给 Plugin Patch Planner，在同一个 preflight/事务中执行。
 - 随包发布靠 `package.json` 的 `files: ["bin","src","enhancements","README.md"]`。
-- `vendor/skill-garden/compiled-targets/` 是 Skill-Garden 子仓内的 Claude + Codex canonical 维护审阅产物，不属于 `.trellis/` 离线安装快照；`npm run sync` 只读取 variant 源，不读取或复制该目录。vendor 子仓不进入 npm tarball，维护期 `patch-fixture.js` 也继续显式排除。
+- `vendor/skill-garden/compiled-targets/` 是 Skill-Garden 子仓内的 `all-platforms` canonical 维护审阅产物，不属于 `.trellis/` 离线安装快照；`npm run sync` 只读取 variant 源，不读取或复制该目录。vendor 子仓不进入 npm tarball，维护期 `patch-fixture.js` 也继续显式排除。
 - **同步源 = git submodule `vendor/skill-garden`**(不在 `files` 白名单,不进 npm tarball)。
   `sync-enhancements.mjs` 三级路径解析:`SKILL_GARDEN_DIR` 环境变量 → `PKG_ROOT/vendor/skill-garden`
   → 都缺则 `exit(1)` 提示 `git submodule update --init --recursive`。
@@ -88,7 +88,102 @@ Plugin Runtime 的统一计划、事务、lock 和 state 管理。整条链路**
 `init` 默认显式声明 builtin Plugin；`--enhance-only` 使用同一 Runtime。普通 `update` 只允许
 skill-garden 以当前 Flower 精确版本刷新直接声明并重新选 variant，其它 Plugin lock-first 重放；
 `--no-enhance` 冻结 skill-garden 的完整 lock 约束、capability grant 和 state，但仍重放外部 Plugin。
+普通跨版本 `update --dry-run` 因上游不会写入新 Trellis 模板，只跳过 Skill-Garden Plugin 预演；
+同版本 dry-run 与 `--enhance-only --dry-run` 仍执行严格 Patch preflight，外部 Plugin replay 不受影响。
 独立 `plugin add` 不隐式声明 skill-garden。
+
+---
+
+## Scenario: Trellis 0.6.12 Platform Skill Projection
+
+### 1. Scope / Trigger
+
+- Trigger: Trellis 新增平台 flag、平台 Skill root 迁移，或修改 `PLATFORM_FLAGS`、
+  `ENHANCEMENT_SKILL_TARGETS`、builtin 内容 adapter 和平台 stale cleanup。
+- Scope: 只描述 Flower 工作流强化 Skill 的投影；平台原生 agent、command、hook 和 extension
+  继续由 Trellis 模板拥有，Flower 不为无项目 hook 能力的平台伪造入口。
+
+### 2. Signatures
+
+```js
+PLATFORM_FLAGS: string[]
+ENHANCEMENT_SKILL_TARGETS: Array<{
+  platform: string,
+  platforms: string[],
+  root: string,
+  source: "agents" | "claude",
+}>
+projectSkillGardenContent(options) -> ContentProjection
+```
+
+### 3. Contracts
+
+- `PLATFORM_FLAGS` 必须包含 Trellis 当前 init 平台 flag；0.6.12 新增的
+  `--omp`、`--grok`、`--kimi`、`--snow` 必须阻止 Flower 在用户已显式选平台时误补
+  `--claude`。
+- Codex、Gemini、Pi 与 Kimi 共享唯一 `.agents/skills` target，使用同一 `agents` canonical
+  源并生成逐字节一致的 neutral 内容；不得按消费者重复生成同一路径。
+- Pi 不再写 `.pi/skills`。只有 state/hash 能证明是旧 Trellis/Flower 产物时才允许清理旧
+  私有 root；用户修改内容必须保留并报告冲突。
+- Kimi 的 `.kimi-code/skills` 只承载 Trellis 命令入口与 agent prompt，不是 Flower 工作流
+  Skill root；Flower 不向该目录重复投影 shared Skill。
+- OMP、Grok、Snow 的 Flower Skill root 分别为 `.omp/skills`、`.grok/skills`、
+  `.snow/skills`。Grok/Kimi 没有项目 hook 时只使用 pull-based 入口；OMP/Snow/Pi 保留上游
+  实际 extension/hook/agent 能力。
+- 内容投影和 Patch target 只作用于目标中已经启用的平台 root；缺失平台返回
+  `missing-target` 或不生成 mutation，不得创建整个平台目录。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+|---|---|
+| 用户只传 `--grok` / `--kimi` / `--omp` / `--snow` | 识别为已选平台，不额外补 `--claude` |
+| Codex、Gemini、Pi、Kimi 同时启用 | `.agents/skills` 只有一份目标 mutation，内容一致 |
+| 旧 `.pi/skills` hash 匹配受管状态 | 迁移到共享 root 后安全清理旧副本 |
+| 旧 `.pi/skills` 被用户修改 | 保留旧副本并报告冲突，不猜测删除 |
+| Grok/Kimi 启用 | 投影对应 Skill，不创建不存在的项目 hook |
+| 平台根目录未启用 | 跳过，不创建平台目录 |
+
+### 5. Good / Base / Bad Cases
+
+- Good: 同时启用 Codex、Pi 和 Kimi，只生成一套 `.agents/skills/trellis-*`，state 记录共享
+  目标，三者读取完全相同的内容。
+- Base: 仅启用 Claude，继续从 `claude` canonical 源投影 `.claude/skills`，其它平台目录不变。
+- Bad: 为 Pi 保留 `.pi/skills` 的第二份 Flower Skill，导致 init/update 两条投影路径漂移。
+- Bad: 把 shared Skill 同时写入 `.agents/skills` 与 `.kimi-code/skills`，混淆 Kimi 的共享
+  Skill root 和私有 command/agent prompt root。
+
+### 6. Tests Required
+
+- 常量测试覆盖全部平台 flag，并验证四个新增 flag 不触发默认 `--claude`。
+- 平台投影测试断言 Codex/Gemini/Pi/Kimi 共用一个 target，OMP/Grok/Snow 使用各自原生 root。
+- stale cleanup 测试覆盖 Pi 旧副本 hash 匹配可删除、用户修改必须保留。
+- 全平台 fixture、Patch conflict 和 compiled target 测试覆盖 21 个平台、全部 profile root，
+  并验证缺失平台不创建目录。
+- 重复 Plugin update 必须为零变化，vendor canonical、`enhancements/0.6`、compiled targets 和
+  dogfood 最终内容保持一致。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```js
+{ platform: "pi", root: ".pi/skills", source: "agents" }
+{ platform: "kimi", root: ".kimi-code/skills", source: "agents" }
+```
+
+#### Correct
+
+```js
+{
+  platform: "codex-gemini-pi-kimi",
+  platforms: ["codex", "gemini", "pi", "kimi"],
+  root: ".agents/skills",
+  source: "agents",
+}
+```
+
+共享消费者合并成一个 target；Kimi 私有目录和 Pi extension/agent 继续由上游平台模板管理。
 
 ---
 
@@ -865,16 +960,17 @@ bundles/intent-routing.json
 - `missing_task` 通过带 managed marker 的 `literal insert after` 加到唯一
   `[/workflow-state:no_task]` 后。Core `workflow-state` selector 只负责替换已有 body,不得为此
   新增平行注入器。
-- shared whole-file Hook Patch 目标以 Trellis `SHARED_HOOKS_BY_PLATFORM` 的实际 per-turn
-  能力为准:Claude、Codex、Gemini、Qoder、Copilot、CodeBuddy、Droid、Kiro、Trae。
+- shared runtime 局部 Patch 目标以 Trellis `SHARED_HOOKS_BY_PLATFORM` 的实际 per-turn
+  能力为准:Claude、Codex、Gemini、Qoder、Copilot、CodeBuddy、Droid、Kiro、Trae、ZCode。
   Cursor 当前没有 per-turn workflow-state Hook,不进入目标。所有目标 `missing=skip`,不得创建
-  未启用平台目录。
+  未启用平台目录；每个 import/helper/main 分支必须独立声明 selector、baseline 和顺序关系。
 - Codex / Claude 已有 SessionStart stale 分支必须与 per-turn state 保持一致;只替换已有入口,
   不为其它平台创建 SessionStart 文件。
 - `intent-routing` Bundle 必须同时包含 `missing_task` workflow state、shared runtime 和 Codex/Claude
   SessionStart Patch,保证全装及 `task-intent` / `intent-routing` 精细安装都完整生效。
-- whole-file desired content 升级时,baselines 必须同时包含 Trellis 0.6.5 上游原始 Hook和上一版
-  Flower 强化 Hook。未知用户改动继续返回 fingerprint drift,不得用宽松覆盖换取升级成功。
+- 共享 Hook 不再使用 whole-file desired content。局部 replace/insert 必须以 Trellis `0.6.12`
+  目标片段和已知旧 marker 为精确 baseline；未知用户改动继续返回 selector/baseline drift，
+  不得用宽松覆盖换取升级成功。
 
 ### 4. Validation & Error Matrix
 
@@ -885,8 +981,8 @@ bundles/intent-routing.json
 | `task.py finish` 失败 | 报告失败并停止,不执行后续编辑或任务动作 |
 | 清理成功 | 当前请求同轮按 `no_task` 分类,不再次机械询问用户下一步 |
 | 平台 per-turn Hook 不存在 | `missing-target`,不创建目录或文件 |
-| 目标是上游原始 Hook或上一版 Flower Hook | whole-file baseline 收敛到当前 desired content |
-| 目标含未知用户修改 | required fingerprint drift,全量 preflight 零写入 |
+| 目标是 `0.6.12` 上游片段或已知旧 marker | 局部 Patch 按稳定顺序收敛到当前 managed content |
+| 目标含未知用户修改 | required selector/baseline drift,全量 preflight 零写入 |
 
 ### 5. Good/Base/Bad Cases
 
@@ -894,8 +990,8 @@ bundles/intent-routing.json
   `task.py finish`,成功后同轮把当前用户请求按 `no_task` 意图重新分类。
 - Base:目标项目没有某个平台的 per-turn Hook 文件,Patch 返回 `missing-target`,不创建平台目录,
   其它已存在平台仍正常升级。
-- Base:目标 Hook 等于 Trellis 0.6.5 上游原始内容或上一版 Flower 强化内容,whole-file Patch
-  都能通过 baseline 收敛到当前 desired content。
+- Base:目标 Hook 等于 Trellis `0.6.12` 上游结构,各局部 Patch 依次命中并保留未触及的 ZCode、
+  `no-trellis`、异常边界和其它上游能力。
 - Bad:把 stale 来源拼成 `stale_session-fallback` workflow-state,导致 workflow 找不到正文并退化为
   `Refer to workflow.md for current step.`。
 - Bad:`task.py finish` 成功后询问“下一步做什么”,或直接编辑文件,等于丢失当前用户请求的任务意图。
@@ -906,8 +1002,8 @@ bundles/intent-routing.json
   普通 `no_task`、planning、in_progress 模板输出保持不变。
 - Python CLI 行为测试必须实际执行 `task.py finish`:唯一 `session-fallback` 被清理,多个 session
   保持不变且返回无当前任务,避免只验证提示文本而遗漏恢复动作。
-- JS apply 测试覆盖 fresh apply、上一版 Flower Hook 升级、九个平台已有目标、缺平台 skip、
-  Codex/Claude SessionStart、两个 intent alias 和第二次运行幂等。
+- JS apply 测试覆盖 fresh apply、旧 marker 迁移、十个平台已有目标、缺平台 skip、
+  Codex/Claude SessionStart、两个 intent alias、局部 Patch 顺序和第二次运行幂等。
 - Python consumer 的真实 catalog preflight 必须断言 `task-intent` 选中完整 stale recovery Patch 集合。
 - `npm run sync` 后核对 vendor、`enhancements/0.6`、当前 dogfood workflow/Hook 与 provenance;
   同时运行默认及 strict AI context budget,避免 stale state 复制长 `no_task` 正文。

@@ -1,0 +1,1 @@
+For every non-trivial task, the user must respond at least once after the initial request before implementation begins. If no clarification is needed, that response must approve the final Brief described below.

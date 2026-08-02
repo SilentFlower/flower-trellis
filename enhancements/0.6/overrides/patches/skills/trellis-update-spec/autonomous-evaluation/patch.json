@@ -8,8 +8,7 @@
     "targetPolicy": "each-existing",
     "targets": [
       { "kind": "skill", "path": ".agents/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
-      { "kind": "skill", "path": ".claude/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
-      { "kind": "command", "path": ".claude/commands/trellis/update-spec.md", "missing": "skip" }
+      { "kind": "skill", "path": ".claude/skills/trellis-update-spec/SKILL.md", "missing": "skip" }
     ],
     "selector": { "type": "markdown-section", "heading": "## Interactive Mode" },
     "baselines": ["baseline.md"],
@@ -26,13 +25,16 @@
       { "kind": "skill", "path": ".devin/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
       { "kind": "skill", "path": ".factory/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
       { "kind": "skill", "path": ".github/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".grok/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
       { "kind": "skill", "path": ".kilocode/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
       { "kind": "skill", "path": ".kiro/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".omp/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
       { "kind": "skill", "path": ".opencode/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
-      { "kind": "skill", "path": ".pi/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
       { "kind": "skill", "path": ".qoder/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
       { "kind": "skill", "path": ".reasonix/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
-      { "kind": "skill", "path": ".trae/skills/trellis-update-spec/SKILL.md", "missing": "skip" }
+      { "kind": "skill", "path": ".snow/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".trae/skills/trellis-update-spec/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".zcode/skills/trellis-update-spec/SKILL.md", "missing": "skip" }
     ],
     "selector": { "type": "markdown-section", "heading": "## Interactive Mode" },
     "cleanup": [{ "type": "skill-override", "id": "trellis-update-spec" }],

@@ -17,6 +17,26 @@ import { ProjectStore } from "../plugin/state/project-store.js";
 import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
 import { showCommandCompletion } from "../lib/command-completion.js";
 import { reportTelemetry } from "../lib/telemetry.js";
+import { selectVariant } from "../lib/variant.js";
+import { trellisVersion } from "../lib/versions.js";
+
+/**
+ * 判断普通跨版本 dry-run 是否应跳过 Skill-Garden 预演。
+ *
+ * Trellis 的 dry-run 不会把目标项目写成捆绑版本，因此新版本 Patch 不能提前在旧模板上
+ * 重放。`--enhance-only` 仍必须对当前模板严格预检，不能借此绕过真实冲突。
+ *
+ * @param {{dryRun:boolean,enhanceOnly:boolean,currentVersion:string,targetVersion:string}} options 判定输入
+ * @returns {boolean} 是否只预览 Trellis 更新并延后 Skill-Garden 重放
+ */
+export function shouldSkipSkillGardenPreview(options) {
+  const { dryRun, enhanceOnly, currentVersion, targetVersion } = options;
+  return dryRun
+    && !enhanceOnly
+    && Boolean(currentVersion)
+    && Boolean(targetVersion)
+    && currentVersion !== targetVersion;
+}
 
 function printBackupRetentionResult(result) {
   if (result.status === "preview") {
@@ -44,7 +64,8 @@ function printBackupRetentionResult(result) {
  *
  * 打印 flower 品牌头部;trellis update 在伪终端(pty)里运行,保留其冲突处理等交互,
  * 同时过滤掉它重复打印的启动 banner / Developer。
- * `--dry-run` 时只让 trellis 预览,叠加阶段跳过。
+ * `--dry-run` 在同版本时继续预演强化包；跨版本时只预览 Trellis 更新，并把强化包重放
+ * 延后到真实更新完成后，避免新 Patch 错误套用到旧模板。
  *
  * @param {object} ctx 见 cli-args.js 的 parseCliArgs()
  * @returns {Promise<void>} 升级、强化叠加与备份保留处理完成后返回
@@ -53,6 +74,14 @@ export async function update(ctx) {
   const { target } = ctx;
   const backupRetention = normalizeUpdateBackupRetention(ctx.backupRetention);
   const dryRun = ctx.passthrough.includes("--dry-run");
+  const currentTrellisVersion = selectVariant(target).version;
+  const targetTrellisVersion = trellisVersion();
+  const skipSkillGardenPreview = ctx.enhance && shouldSkipSkillGardenPreview({
+    dryRun,
+    enhanceOnly: ctx.enhanceOnly,
+    currentVersion: currentTrellisVersion,
+    targetVersion: targetTrellisVersion,
+  });
   const shouldManageBackups = !ctx.enhanceOnly && backupRetention > 0;
   const backupSnapshot = shouldManageBackups
     ? snapshotUpdateBackups(target)
@@ -84,7 +113,11 @@ export async function update(ctx) {
       console.log("· --enhance-only:跳过 trellis update,仅重新叠加强化包");
     }
 
-    if (ctx.enhance) {
+    if (skipSkillGardenPreview) {
+      console.log(
+        `· 跨版本 dry-run:跳过 Skill-Garden 强化预演(${currentTrellisVersion} → ${targetTrellisVersion});真实更新会在 Trellis 升级完成后重放`,
+      );
+    } else if (ctx.enhance) {
       const declared = new ProjectStore(target).readPlugins().plugins
         .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
       const code = await plugin({

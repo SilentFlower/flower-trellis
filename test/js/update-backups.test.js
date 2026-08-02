@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +7,8 @@ import test from "node:test";
 import { OWN_FLAGS } from "../../src/constants.js";
 import { parseCliArgs, trellisUpdatePassthroughArgs } from "../../src/lib/cli-args.js";
 import { projectUpdateForwardArgs } from "../../src/lib/self-check.js";
+import { trellisVersion } from "../../src/lib/versions.js";
+import { shouldSkipSkillGardenPreview } from "../../src/commands/update.js";
 import {
   normalizeUpdateBackupRetention,
   planUpdateBackupRetention,
@@ -40,6 +43,45 @@ function existingBackups(target, names) {
   return names.filter((name) => fs.existsSync(path.join(target, ".trellis", name)));
 }
 
+function snapshotTree(root) {
+  const entries = [];
+
+  function walk(directory, relativeDirectory = "") {
+    const children = fs.readdirSync(directory, { withFileTypes: true })
+      .sort((left, right) => left.name.localeCompare(right.name));
+    for (const entry of children) {
+      const relativePath = path.posix.join(relativeDirectory, entry.name);
+      const absolutePath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        entries.push([relativePath, "directory"]);
+        walk(absolutePath, relativePath);
+      } else {
+        entries.push([relativePath, "file", fs.readFileSync(absolutePath, "base64")]);
+      }
+    }
+  }
+
+  walk(root);
+  return entries;
+}
+
+function createFakeGlobalTrellis(t, version) {
+  const prefix = fs.mkdtempSync(path.join(os.tmpdir(), "flower-global-prefix-"));
+  t.after(() => fs.rmSync(prefix, { recursive: true, force: true }));
+
+  if (process.platform === "win32") {
+    fs.writeFileSync(path.join(prefix, "trellis.cmd"), `@echo off\r\necho ${version}\r\n`);
+  } else {
+    const binDirectory = path.join(prefix, "bin");
+    fs.mkdirSync(binDirectory, { recursive: true });
+    const executable = path.join(binDirectory, "trellis");
+    fs.writeFileSync(executable, `#!/bin/sh\nprintf '${version}\\n'\n`);
+    fs.chmodSync(executable, 0o755);
+  }
+
+  return prefix;
+}
+
 test("升级备份保留数量只接受非负安全整数", () => {
   assert.equal(normalizeUpdateBackupRetention(undefined), 3);
   assert.equal(normalizeUpdateBackupRetention(0), 0);
@@ -52,6 +94,67 @@ test("升级备份保留数量只接受非负安全整数", () => {
     () => normalizeUpdateBackupRetention("9007199254740992"),
     /超出安全整数范围/,
   );
+});
+
+test("跨版本普通 dry-run 延后 Skill-Garden 重放", () => {
+  const targetVersion = trellisVersion();
+
+  assert.equal(shouldSkipSkillGardenPreview({
+    dryRun: true,
+    enhanceOnly: false,
+    currentVersion: "0.6.5",
+    targetVersion,
+  }), true);
+  assert.equal(shouldSkipSkillGardenPreview({
+    dryRun: true,
+    enhanceOnly: false,
+    currentVersion: targetVersion,
+    targetVersion,
+  }), false);
+  assert.equal(shouldSkipSkillGardenPreview({
+    dryRun: true,
+    enhanceOnly: true,
+    currentVersion: "0.6.5",
+    targetVersion,
+  }), false);
+  assert.equal(shouldSkipSkillGardenPreview({
+    dryRun: false,
+    enhanceOnly: false,
+    currentVersion: "0.6.5",
+    targetVersion,
+  }), false);
+});
+
+test("0.6.5 最小项目可零写入预览升级到捆绑版本", (t) => {
+  const target = createTarget(t, "flower-update-dry-run-065-");
+  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.5\n");
+  fs.writeFileSync(path.join(target, ".trellis/.developer"), "tester\n");
+  fs.writeFileSync(path.join(target, ".trellis/config.yaml"), "# Trellis Configuration\n");
+  const before = snapshotTree(target);
+  const prefix = createFakeGlobalTrellis(t, trellisVersion());
+
+  const result = spawnSync(process.execPath, [
+    path.resolve("bin/flower-trellis.js"),
+    "update",
+    "--dry-run",
+    "--no-update-check",
+    "--target",
+    target,
+  ], {
+    cwd: path.resolve("."),
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      FLOWER_NO_TELEMETRY: "1",
+      npm_config_prefix: prefix,
+    },
+    timeout: 20_000,
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /跨版本 dry-run:跳过 Skill-Garden 强化预演\(0\.6\.5 → 0\.6\.12\)/);
+  assert.doesNotMatch(result.stdout, /Plugin update 预览/);
+  assert.deepEqual(snapshotTree(target), before);
 });
 
 test("CLI 消费 backup-retention 并保留其它 Trellis 参数", () => {

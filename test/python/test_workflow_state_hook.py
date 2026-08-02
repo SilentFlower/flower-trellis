@@ -17,8 +17,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 HOOK_SOURCE = (
     ROOT
-    / "vendor/skill-garden/.trellis/0.6/overrides/patches/hooks/"
-    "inject-workflow-state/shared-runtime/content.py"
+    / "vendor/skill-garden/compiled-targets/0.6.12/full/targets/"
+    ".codex/hooks/inject-workflow-state.py"
 )
 STALE_STATE_SOURCE = (
     ROOT
@@ -51,6 +51,7 @@ SESSION_ENV_KEYS = (
     "PI_SESSION_ID",
     "PI_SESSIONID",
     "TRAE_SESSION_ID",
+    "SNOW_SESSION_ID",
     "CURSOR_CONVERSATION_ID",
     "CURSOR_CONVERSATIONID",
     "CLAUDE_TRANSCRIPT_PATH",
@@ -65,7 +66,7 @@ SESSION_ENV_KEYS = (
 
 
 def _load_hook_module() -> types.ModuleType:
-    """从真实 Patch 源加载 Hook，且不在 catalog 目录生成 pycache。
+    """从真实 compiled target 加载 Hook，且不生成 pycache。
 
     Returns:
         已执行的 Hook 模块。
@@ -162,6 +163,37 @@ class WorkflowStateHookTest(unittest.TestCase):
                     task,
                     ("missing-task", "missing_task", f"{source_type}:context-id"),
                 )
+
+    def test_shared_platform_hooks_are_byte_identical(self) -> None:
+        """共享 Hook 副本必须保留局部 Patch 与 0.6.12 上游能力。"""
+        target_root = HOOK_SOURCE.parents[2]
+        relatives = (
+            ".codex/hooks/inject-workflow-state.py",
+            ".claude/hooks/inject-workflow-state.py",
+            ".gemini/hooks/inject-workflow-state.py",
+            ".qoder/hooks/inject-workflow-state.py",
+            ".github/copilot/hooks/inject-workflow-state.py",
+            ".codebuddy/hooks/inject-workflow-state.py",
+            ".factory/hooks/inject-workflow-state.py",
+            ".kiro/hooks/inject-workflow-state.py",
+            ".trae/hooks/inject-workflow-state.py",
+            ".zcode/hooks/inject-workflow-state.py",
+        )
+        values = [target_root.joinpath(*relative.split("/")).read_bytes() for relative in relatives]
+
+        self.assertTrue(all(value == values[0] for value in values[1:]))
+        text = values[0].decode("utf-8")
+        for marker in (
+            "workflow-state-codex-session-start-guard",
+            "workflow-state-stale-task-status",
+            "workflow-state-untracked-helper",
+            "workflow-state-breadcrumb-subject",
+            "workflow-state-main-subject-routing",
+        ):
+            self.assertIn(marker, text)
+        self.assertIn('DEFAULT_PROMPT_INJECTION_SKIP_KEYWORD = "no-trellis"', text)
+        self.assertIn('"ZCODE_PROJECT_DIR": "zcode"', text)
+        self.assertIn('"auto" or "inline"', text)
 
     def test_real_stale_runtime_sources_emit_stable_breadcrumb(self) -> None:
         """验证真实 session runtime 的两种 stale 来源都输出权威恢复正文。"""

@@ -62,6 +62,46 @@ class CompiledTargetPathTest(unittest.TestCase):
         )
 
 
+class CompiledTargetProfileTest(unittest.TestCase):
+    """验证 canonical fixture 覆盖 0.6.12 全平台矩阵。"""
+
+    def test_canonical_init_uses_all_current_platforms(self) -> None:
+        """生成器必须启用新增平台并排除已废弃的 Windsurf 别名。"""
+        generator = _load_generator()
+        arguments = set(generator.CANONICAL_INIT_ARGS)
+        for flag in ("--omp", "--grok", "--kimi", "--snow", "--pi", "--zcode"):
+            self.assertIn(flag, arguments)
+        self.assertNotIn("--windsurf", arguments)
+
+    def test_serialized_profile_declares_all_platform_roots(self) -> None:
+        """审阅 plan 必须明确记录全平台 profile 与迁移后的 Skill roots。"""
+        generator = _load_generator()
+        plan = {
+            "catalogHash": "hash",
+            "catalogs": [],
+            "selectedBundles": [],
+            "selectedPatches": [],
+            "operationOrder": [],
+            "catalogOperations": [],
+            "files": [],
+            "results": [],
+        }
+        report = {
+            "version": {"value": "0.6.12", "status": "tested"},
+            "summary": {"errors": 0, "warnings": 0, "info": 0},
+            "diagnostics": [],
+        }
+
+        profile = generator._serialize_plan("0.6.12", plan, report)["profile"]
+
+        self.assertEqual(profile["id"], "all-platforms")
+        self.assertIn("pi", profile["platforms"])
+        self.assertIn("kimi", profile["platforms"])
+        self.assertIn(".agents", profile["roots"])
+        self.assertIn(".kimi-code", profile["roots"])
+        self.assertIn(".zcode", profile["roots"])
+
+
 class CompiledTargetOutputTest(unittest.TestCase):
     """验证 compiled target 的 diff 与目录替换异常语义。"""
 

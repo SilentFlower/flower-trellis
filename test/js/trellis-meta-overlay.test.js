@@ -19,7 +19,7 @@ const UPSTREAM_META_ROOT = path.resolve(
   "node_modules/@mindfoldhq/trellis/dist/templates/common/bundled-skills/trellis-meta",
 );
 const COMPILED_TARGET_ROOT = path.resolve(
-  "vendor/skill-garden/compiled-targets/0.6.5/full/targets",
+  "vendor/skill-garden/compiled-targets/0.6.12/full/targets",
 );
 const ENHANCEMENTS_MODEL_SPEC = path.resolve(
   ".trellis/spec/flower-trellis/cli/enhancements-model.md",
@@ -40,6 +40,7 @@ const META_OPERATIONS = [
   "trellis-meta-managed-template-hashes",
   "trellis-meta-managed-file-boundaries",
   "trellis-meta-managed-skill-taxonomy",
+  "trellis-meta-managed-platform-skill-roots",
   "trellis-meta-managed-bundled-overrides",
   "trellis-meta-managed-customization-entry",
   "trellis-meta-managed-customization-order",
@@ -47,6 +48,8 @@ const META_OPERATIONS = [
   "trellis-meta-managed-workflow-edit-route",
   "trellis-meta-managed-skill-classification",
   "trellis-meta-managed-skill-edit-route",
+  "trellis-meta-managed-common-paths",
+  "trellis-meta-managed-shared-skill-consumers",
   "trellis-meta-managed-platform-edit-route",
   "trellis-meta-managed-workflow-source",
   "trellis-meta-managed-owner-routing",
@@ -68,7 +71,7 @@ const META_ASSERTION_FILES = [
 function makeTarget(prefix) {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   fs.mkdirSync(path.join(target, ".trellis"), { recursive: true });
-  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.5\n");
+  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.12\n");
   return target;
 }
 
@@ -131,6 +134,11 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(architecture, /npm run sync.*enhancements\/0\.6/);
   assert.match(generated, /Plugin ownership, Patch provenance, transaction checks/);
   assert.match(bundled, /selectors and full baselines fail closed on upstream drift/);
+  assert.match(bundled, /\| Oh My Pi \| `\.omp\/skills\/<skill>\/` \|/);
+  assert.match(bundled, /\| Grok Build \| `\.grok\/skills\/<skill>\/` \|/);
+  assert.match(bundled, /\| Snow CLI \| `\.snow\/skills\/<skill>\/` \|/);
+  assert.match(bundled, /Codex, Gemini CLI, Pi Agent, and Kimi Code/);
+  assert.match(bundled, /`\.kimi-code\/skills\/` must not receive a second bundled copy/);
   assert.match(bundled, /Do not infer ownership from a skill name/);
   assert.match(workflow, /Do not choose implementation or checking behavior from a static platform-capability split/);
   assert.match(workflow, /trellis-route/);
@@ -140,6 +148,10 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(workflow, /Planning handoff \| `trellis-task-brief` and the task-start brief guard/);
   assert.match(workflow, /Do not maintain a fixed Skill-Garden skill count/);
   assert.match(skillRoute, /Do not classify every non-bundled name as project-local/);
+  assert.match(skillRoute, /\| Oh My Pi \| `\.omp\/skills\/`, `\.omp\/commands\/` \|/);
+  assert.match(skillRoute, /\| Grok Build \| `\.grok\/skills\/`, `\.grok\/commands\/` \|/);
+  assert.match(skillRoute, /\| Snow CLI \| `\.snow\/skills\/`, `\.snow\/commands\/` \|/);
+  assert.match(skillRoute, /Codex, Gemini CLI, Pi Agent, Kimi Code/);
 
   assert.doesNotMatch(bundled, /Not managed by Trellis at all/);
   assert.doesNotMatch(bundled, /Edit the local file directly/);

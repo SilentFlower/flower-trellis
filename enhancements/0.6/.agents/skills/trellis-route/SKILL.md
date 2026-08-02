@@ -51,6 +51,15 @@ Codex inline mode 只表示主会话默认直接执行，不是 route 选项过�
 
 如果命中上述覆盖意图，即使 `.trellis/.route-prefs.tmp` 存在，也不能直接使用配置；必须进入 Step 2 展示对应选项。
 
+### Step 0.25: 识别当前平台能力
+
+从当前 host 暴露的工具名、平台上下文和原生 agent 发现结果识别执行平台。项目中可能同时存在多个平台目录，不能仅凭 `.claude/`、`.codex/` 等目录存在就猜测当前 host。
+
+- `target=implement`：只有当前平台具备下方“平台执行配方”中的原生 dispatch 工具，且对应 `trellis-implement` 定义可用时，才提供 subagent 选项。
+- `target=check`：只有当前平台存在明确 audit-only 的 `trellis-check-all` agent，或存在能按完整 dispatch 契约运行且保持只读的通用 subagent 时，才提供 subagent 选项。上游 `trellis-check` 会自修复，不满足该条件。
+- 已保存的 subagent 偏好在当前平台不可执行时视为本次 miss；不得静默改成 inline，也不得调用不兼容 agent。进入 Step 2，只展示当前可执行选项并说明被排除的能力。
+- 当前平台只能 inline 时，仍需用户选择“本次 Inline”或“保存默认：Inline”；不能替用户自动确认执行模式。
+
 ---
 
 ## Step 0.5: 解析已有 route state
@@ -86,6 +95,8 @@ helper 默认输出为精简 JSON，只包含 route 执行必需的 `status`、`
 优先调用 `AskUserQuestion`。选项 label 前缀编号，方便用户直接打数字快速选。
 
 裸数字回复（如 `1` / `2` / `3` / `4`）只有在当前可见的上一条 assistant 消息刚刚展示同一个 target 的 route 选项、并明确停下等待用户回答时，才可解释为本次 numbered fallback 选择。compact summary、ordinary summary、SessionStart 摘要、replacement history、历史消息、旧 target 的裸数字、非紧邻回复里的裸数字都不能触发 `write --source numbered-fallback`；遇到这些情况必须重新展示当前 target 的选项并等待新的紧邻回复。
+
+下列四项是平台能力完整时的标准选项。Step 0.25 判定 subagent 不可用时，删除所有 Subagent 选项及对应编号，只保留 Inline 选项；不要保留一个注定失败的选择。
 
 如果当前平台或模式没有 `AskUserQuestion` / `request_user_input`，不要自行选择 inline 或 subagent 继续。改用普通聊天消息原样呈现同一组编号选项，并停止等待用户回复；只有用户在这条选项消息之后立即回复裸数字，才可进入 Step 2.5 / 2.6 / 3。
 
@@ -200,11 +211,33 @@ helper 写入规则：保留另一个 target 的 runtime 决策和偏好；覆�
 | 路由决定 | 主 agent 应执行 |
 |---------|----------------|
 | `inline implement` | `Skill({skill: "trellis-before-dev"})` 加载 spec；task 再读任务文档，untracked 读取 helper 状态与实际 scope → 主线程实施 → 跑必要验证 → 回到 Phase 2.1 completion contract |
-| `subagent implement` | `Agent({subagent_type: "trellis-implement"})`；task 使用 `Active task:`，untracked 使用下方自包含 `Untracked work:` 契约；主 agent 收到结果后回到 Phase 2.1 completion contract |
+| `subagent implement` | 按下方当前平台执行配方调用 `trellis-implement`；task 使用 `Active task:`，untracked 使用下方自包含 `Untracked work:` 契约；主 agent 收到结果后回到 Phase 2.1 completion contract |
 | `inline check-all` | `Skill({skill: "trellis-check-all"})` |
 | `subagent check-all` | 优先使用明确 audit-only 的 `trellis-check-all` agent；不存在时使用平台通用 subagent，并用下方 dispatch 契约执行本地 `trellis-check-all`。subagent 只返回 `DOC-*` 文档漂移候选，不写文件；主会话负责允许的文档自修。禁止 fallback 到会直接修改工作区的 `trellis-check` agent；无兼容 subagent 时停止并请用户改选 inline |
 
 implement 路由只决定执行位置，不拥有实现后的停止策略。无论 inline 或 subagent，focused validation 完成后都必须返回 workflow Phase 2.1 的 completion contract；由该 owner 处理 auto-loop、用户显式继续/暂缓、已有 hold 和默认立即 Check-All 的优先级。
+
+### 平台执行配方
+
+dispatch prompt 第一行始终遵守当前 task/untracked 契约。下表只决定“如何启动”，不改变 Flower Phase 2 owner、上下文顺序或 Check-All 只读边界。
+
+| 当前平台 | Implement subagent 启动方式 | Check-All subagent 资格 |
+| --- | --- | --- |
+| Codex | 原生 `Agent`/subagent 工具，`subagent_type="trellis-implement"` | 仅通用 agent 能接受完整 audit-only prompt 时可用；不得使用 `trellis-check` |
+| Claude Code、CodeBuddy、Factory Droid、Qoder、ZCode | 平台原生 `Task` 或 `Agent`，选择 `trellis-implement` | 仅专用 audit-only agent 或可保持只读的通用 agent |
+| Cursor | 原生 `Task` / `Subagent`，`subagent_type="trellis-implement"` | 同上 |
+| GitHub Copilot | 原生 `task` 工具，选择 `trellis-implement` | 同上 |
+| Gemini CLI | 调用平台发现的 `trellis-implement` agent tool | 同上 |
+| Kiro | 原生 agent spawn，`agent_name="trellis-implement"` | 没有 audit-only agent 或只读通用 agent时仅 inline |
+| Pi Agent | `trellis_subagent({agent:"trellis-implement", mode:"single", prompt:"..."})` | 默认仅有可写 `trellis-check`，因此 Check-All subagent 不可用；只有项目另有明确 audit-only agent 时例外 |
+| Oh My Pi | 原生 `task` 工具选择 auto-discovered `trellis-implement` | 没有明确 audit-only agent 或只读通用 task role 时仅 inline |
+| Grok Build | `spawn_subagent(subagent_type="trellis-implement", prompt="...")` | 只可使用通用 audit-only subagent；不得选择自修复 `trellis-check` |
+| Kimi Code | `Agent` 工具启动内置 `coder`，prompt 内嵌 `.kimi-code/skills/trellis-implement/SKILL.md` 角色说明 | 仅内置 `explore` 能加载本地 Check-All 并保持只读时可用；`coder` 与 `trellis-check` 不可用于 Check-All |
+| Snow CLI | 原生 project-agent launcher 选择 auto-discovered `trellis-implement` | 仅专用 audit-only agent 或可保持只读的通用 subagent |
+| Reasonix | dispatch 带 `runAs: subagent` 的 `.reasonix/skills/trellis-implement/SKILL.md` | 默认没有 audit-only Check-All subagent，使用 inline |
+| Antigravity、Devin、Kilo 及其它无原生 project-subagent 的入口 | 不提供 subagent 选项 | 仅 inline |
+
+不要把 agent 文件存在本身当成工具可调用证据；必须同时确认当前 host 确实暴露了对应 dispatch 能力。
 
 ### Untracked Subagent Dispatch 契约
 

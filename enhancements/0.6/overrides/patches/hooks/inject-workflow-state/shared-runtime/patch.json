@@ -2,28 +2,103 @@
   "schemaVersion": 2,
   "id": "inject-workflow-state-shared-runtime",
   "purpose": "hook_override",
-  "operations": [{
-    "id": "inject-workflow-state-shared-runtime",
-    "operation": "replace",
-    "targetPolicy": "each-existing",
-    "targets": [
-      { "kind": "file", "path": ".codex/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
-      { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
-      { "kind": "file", "path": ".gemini/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
-      { "kind": "file", "path": ".qoder/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
-      { "kind": "file", "path": ".github/copilot/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
-      { "kind": "file", "path": ".codebuddy/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
-      { "kind": "file", "path": ".factory/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
-      { "kind": "file", "path": ".kiro/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" },
-      { "kind": "file", "path": ".trae/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "none" }
-    ],
-    "selector": { "type": "whole-file" },
-    "baselines": [
-      "selector.py",
-      "baseline-flower-beta2.py",
-      "baseline-flower-stale-task.py",
-      "baseline-flower-pre-untracked.py"
-    ],
-    "content": { "source": "content.py" }
-  }]
+  "operations": [
+    {
+      "id": "workflow-state-codex-session-start-guard",
+      "operation": "insert",
+      "position": "after",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "file", "path": ".codex/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".gemini/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".qoder/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".github/copilot/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".codebuddy/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".factory/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".kiro/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".trae/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".zcode/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" }
+      ],
+      "selector": { "type": "literal", "source": "codex-session-start-selector.py" },
+      "content": { "source": "codex-session-start-content.py" }
+    },
+    {
+      "id": "workflow-state-stale-task-status",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "file", "path": ".codex/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".gemini/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".qoder/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".github/copilot/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".codebuddy/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".factory/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".kiro/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".trae/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".zcode/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" }
+      ],
+      "selector": { "type": "literal", "source": "stale-task-selector.py" },
+      "content": { "source": "stale-task-content.py" }
+    },
+    {
+      "id": "workflow-state-untracked-helper",
+      "operation": "insert",
+      "position": "after",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "file", "path": ".codex/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".gemini/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".qoder/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".github/copilot/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".codebuddy/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".factory/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".kiro/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".trae/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".zcode/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" }
+      ],
+      "selector": { "type": "literal", "source": "untracked-helper-selector.py" },
+      "content": { "source": "untracked-helper-content.py" }
+    },
+    {
+      "id": "workflow-state-breadcrumb-subject",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "file", "path": ".codex/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".gemini/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".qoder/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".github/copilot/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".codebuddy/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".factory/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".kiro/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".trae/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".zcode/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" }
+      ],
+      "selector": { "type": "literal", "source": "breadcrumb-selector.py" },
+      "content": { "source": "breadcrumb-content.py" }
+    },
+    {
+      "id": "workflow-state-main-subject-routing",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "file", "path": ".codex/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".gemini/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".qoder/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".github/copilot/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".codebuddy/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".factory/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".kiro/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".trae/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".zcode/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" }
+      ],
+      "selector": { "type": "literal", "source": "main-selector.py" },
+      "content": { "source": "main-content.py" }
+    }
+  ]
 }

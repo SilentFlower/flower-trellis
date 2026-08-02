@@ -55,11 +55,36 @@ test("Skill-Garden canonical compiled targets 可重复生成并检测漂移", (
       fs.readFileSync(path.join(outputRoot, version, "full", "plan.json"), "utf8"),
     );
     assert.deepEqual(plan.catalogs, [{ id: "skill-garden" }]);
-    assert.equal(plan.profile.id, "claude-codex");
-    assert.deepEqual(plan.profile.roots, [".trellis", ".agents", ".claude", ".codex"]);
+    assert.equal(plan.profile.id, "all-platforms");
+    assert.equal(plan.profile.platforms.length, 21);
+    assert.deepEqual(plan.profile.roots, [
+      ".trellis",
+      ".agent",
+      ".agents",
+      ".claude",
+      ".codebuddy",
+      ".codex",
+      ".cursor",
+      ".devin",
+      ".factory",
+      ".gemini",
+      ".github",
+      ".grok",
+      ".kilocode",
+      ".kimi-code",
+      ".kiro",
+      ".omp",
+      ".opencode",
+      ".pi",
+      ".qoder",
+      ".reasonix",
+      ".snow",
+      ".trae",
+      ".zcode",
+    ]);
     assert.deepEqual(
       [...new Set(plan.targets.map((item) => item.target.split("/", 1)[0]))].sort(),
-      [".agents", ".claude", ".codex", ".trellis"],
+      plan.profile.roots.toSorted(),
     );
     for (const [file, content] of firstTree) {
       if (!file.endsWith(".diff")) continue;
@@ -114,7 +139,7 @@ test("Flower 发布包排除 Skill-Garden compiled targets 与维护 fixture", (
 test("Skill-Garden diff sidecar 保留补丁空白且不触发仓库 whitespace 检查", () => {
   const sidecar = path.join(
     "compiled-targets",
-    "0.6.5",
+    "0.6.12",
     "full",
     "targets",
     ".trellis",

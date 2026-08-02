@@ -1,20 +1,21 @@
 #### 2.1 Implement `[required · repeatable]`
 
-[Claude Code, Cursor, OpenCode, CodeBuddy, Droid, Pi]
+[Claude Code, Cursor, OpenCode, codex-sub-agent, CodeBuddy, Droid, Pi, ZCode, Snow, Oh My Pi]
 
 Spawn the implement sub-agent:
 
 - **Agent type**: `trellis-implement`
 - **Task description**: Implement the reviewed task artifacts, consulting materials under `{TASK_DIR}/research/`; finish by running project lint and type-check
-- **Dispatch prompt guard**: Tell the spawned agent it is already the `trellis-implement` sub-agent and must implement directly, not spawn another `trellis-implement` / `trellis-check`.
+- **Dispatch prompt guard**: The prompt MUST start with `Active task: <task path>`, then tell the spawned agent it is already the `trellis-implement` sub-agent and must implement directly, not spawn another `trellis-implement` / `trellis-check`.
 
 The platform hook/plugin auto-handles:
 - Reads `implement.jsonl` and injects referenced spec/research files into the agent prompt
 - Injects `prd.md`, `design.md` if present, and `implement.md` if present
+- For Codex, `SubagentStart` supplies native context injection; the agent profile keeps child-side loading as the fallback
 
-[/Claude Code, Cursor, OpenCode, CodeBuddy, Droid, Pi]
+[/Claude Code, Cursor, OpenCode, codex-sub-agent, CodeBuddy, Droid, Pi, ZCode, Snow, Oh My Pi]
 
-[codex-sub-agent, Gemini, Qoder, Copilot, ZCode, Reasonix, Trae]
+[Gemini, Qoder, Copilot, Reasonix, Trae, Grok, Kimi Code]
 
 Spawn the implement sub-agent:
 
@@ -26,7 +27,7 @@ The pull-based sub-agent definition auto-handles the context load requirement:
 - Resolves the active task with `task.py current --source`, then reads `prd.md`, `design.md` if present, and `implement.md` if present
 - Reads `implement.jsonl` and requires the agent to load each referenced spec/research file before coding
 
-[/codex-sub-agent, Gemini, Qoder, Copilot, ZCode, Reasonix, Trae]
+[/Gemini, Qoder, Copilot, Reasonix, Trae, Grok, Kimi Code]
 
 [Kiro]
 

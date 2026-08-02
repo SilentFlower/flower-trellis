@@ -37,21 +37,26 @@ export const PLATFORM_FLAGS = [
   "--pi",
   "--reasonix",
   "--zcode",
+  "--omp",
   "--trae",
+  "--grok",
+  "--kimi",
+  "--snow",
 ];
 
 /**
  * Flower 工作流强化 Skill 的平台原生目标。
  *
- * `source` 指向强化快照中的 canonical Skill 源；Codex、Gemini 与 ZCode
- * 共用 `.agents/skills`，因此这里只保留一个目标。Windsurf 没有 Skill root，
- * 其 workflow 入口继续由 Patch Engine 单独维护。
+ * `source` 指向强化快照中的 canonical Skill 源；Codex、Gemini、Pi 与 Kimi
+ * 共用 `.agents/skills`，因此这里只保留一个目标。Kimi 的
+ * `.kimi-code/skills` 只承载命令与 agent prompts，不是工作流 Skill 根。
+ * Windsurf 没有 Skill root，其 workflow 入口继续由 Patch Engine 单独维护。
  */
 export const ENHANCEMENT_SKILL_TARGETS = [
   { platform: "claude", platforms: ["claude"], root: ".claude/skills", source: "claude" },
   {
-    platform: "codex-gemini-zcode",
-    platforms: ["codex", "gemini", "zcode"],
+    platform: "codex-gemini-pi-kimi",
+    platforms: ["codex", "gemini", "pi", "kimi"],
     root: ".agents/skills",
     source: "agents",
   },
@@ -65,9 +70,12 @@ export const ENHANCEMENT_SKILL_TARGETS = [
   { platform: "codebuddy", platforms: ["codebuddy"], root: ".codebuddy/skills", source: "agents" },
   { platform: "copilot", platforms: ["copilot"], root: ".github/skills", source: "agents" },
   { platform: "droid", platforms: ["droid"], root: ".factory/skills", source: "agents" },
-  { platform: "pi", platforms: ["pi"], root: ".pi/skills", source: "agents" },
+  { platform: "grok", platforms: ["grok"], root: ".grok/skills", source: "agents" },
+  { platform: "omp", platforms: ["omp"], root: ".omp/skills", source: "agents" },
+  { platform: "snow", platforms: ["snow"], root: ".snow/skills", source: "agents" },
   { platform: "trae", platforms: ["trae"], root: ".trae/skills", source: "agents" },
   { platform: "reasonix", platforms: ["reasonix"], root: ".reasonix/skills", source: "agents" },
+  { platform: "zcode", platforms: ["zcode"], root: ".zcode/skills", source: "agents" },
 ];
 
 /**

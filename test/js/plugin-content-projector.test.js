@@ -21,11 +21,18 @@ test("平台检测支持显式选择并按共享物理 root 去重", (t) => {
   const project = createPluginTestRoot(t);
   const selection = detectPluginPlatforms(project, ["zcode", "codex", "gemini"]);
   assert.deepEqual(selection.platforms, ["codex", "gemini", "zcode"]);
-  assert.deepEqual(selection.targets, [{
-    root: ".agents/skills",
-    source: "agents",
-    platforms: ["codex", "gemini", "zcode"],
-  }]);
+  assert.deepEqual(selection.targets, [
+    {
+      root: ".agents/skills",
+      source: "agents",
+      platforms: ["codex", "gemini"],
+    },
+    {
+      root: ".zcode/skills",
+      source: "agents",
+      platforms: ["zcode"],
+    },
+  ]);
   assert.ok(listPluginPlatforms().includes("claude"));
   assert.throws(
     () => detectPluginPlatforms(project),
@@ -39,7 +46,7 @@ test("平台检测从已有原生 root 推断逻辑平台", (t) => {
   fs.mkdirSync(path.join(project, ".claude/skills"), { recursive: true });
   fs.mkdirSync(path.join(project, ".agents/skills"), { recursive: true });
   const selection = detectPluginPlatforms(project);
-  assert.deepEqual(selection.platforms, ["claude", "codex", "gemini", "zcode"]);
+  assert.deepEqual(selection.platforms, ["claude", "codex", "gemini", "kimi", "pi"]);
   assert.equal(selection.targets.length, 2);
 });
 

@@ -1,0 +1,2 @@
+- Only the main session may dispatch Trellis implement/check agents. If more implementation work
+  is needed, report that recommendation instead of spawning.

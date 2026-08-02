@@ -8,17 +8,13 @@
     "targets": [
       { "kind": "skill", "path": ".agents/skills/trellis-start/SKILL.md", "missing": "skip" },
       { "kind": "command", "path": ".agent/workflows/start.md", "missing": "skip" },
-      { "kind": "command", "path": ".claude/commands/trellis/start.md", "missing": "skip" },
-      { "kind": "command", "path": ".codebuddy/commands/trellis/start.md", "missing": "skip" },
-      { "kind": "command", "path": ".cursor/commands/trellis/start.md", "missing": "skip" },
       { "kind": "command", "path": ".devin/workflows/trellis-start.md", "missing": "skip" },
-      { "kind": "command", "path": ".github/prompts/start.prompt.md", "missing": "skip" },
+      { "kind": "command", "path": ".grok/commands/trellis-start.md", "missing": "skip" },
       { "kind": "command", "path": ".kilocode/workflows/start.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kimi-code/skills/trellis-start/SKILL.md", "missing": "skip" },
       { "kind": "command", "path": ".opencode/commands/trellis/start.md", "missing": "skip" },
       { "kind": "command", "path": ".pi/prompts/trellis-start.md", "missing": "skip" },
-      { "kind": "command", "path": ".qoder/commands/trellis/start.md", "missing": "skip" },
-      { "kind": "skill", "path": ".reasonix/skills/trellis-start/SKILL.md", "missing": "skip" },
-      { "kind": "command", "path": ".zcode/commands/trellis/start.md", "missing": "skip" }
+      { "kind": "skill", "path": ".reasonix/skills/trellis-start/SKILL.md", "missing": "skip" }
     ],
     "selector": { "type": "literal", "source": "selector.md" },
     "content": { "source": "content.md" },

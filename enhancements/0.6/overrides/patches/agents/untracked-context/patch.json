@@ -29,9 +29,12 @@
       "targetPolicy": "each-existing",
       "targets": [
         { "kind": "file", "path": ".gemini/agents/trellis-implement.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".grok/agents/trellis-implement.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".kimi-code/skills/trellis-implement/SKILL.md", "missing": "skip", "markerStyle": "html" },
         { "kind": "file", "path": ".qoder/agents/trellis-implement.md", "missing": "skip", "markerStyle": "html" },
         { "kind": "file", "path": ".pi/agents/trellis-implement.md", "missing": "skip", "markerStyle": "html" },
-        { "kind": "file", "path": ".reasonix/agents/trellis-implement.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".reasonix/skills/trellis-implement/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".snow/agents/trellis-implement.md", "missing": "skip", "markerStyle": "html" },
         { "kind": "file", "path": ".trae/agents/trellis-implement.md", "missing": "skip", "markerStyle": "html" },
         { "kind": "file", "path": ".zcode/agents/trellis-implement.md", "missing": "skip", "markerStyle": "html" }
       ],
@@ -46,15 +49,38 @@
       "targetPolicy": "each-existing",
       "targets": [
         { "kind": "file", "path": ".gemini/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".grok/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".kimi-code/skills/trellis-check/SKILL.md", "missing": "skip", "markerStyle": "html" },
         { "kind": "file", "path": ".qoder/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
         { "kind": "file", "path": ".pi/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
-        { "kind": "file", "path": ".reasonix/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".reasonix/skills/trellis-check/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "file", "path": ".snow/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
         { "kind": "file", "path": ".trae/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" },
         { "kind": "file", "path": ".zcode/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" }
       ],
       "selector": { "type": "literal", "source": "markdown-check-selector.md" },
       "content": { "source": "markdown-content.md" },
       "legacyMarkers": [{ "namespace": "patch", "id": "markdown-agents-untracked-context", "style": "html" }]
+    },
+    {
+      "id": "omp-implement-agent-untracked-context",
+      "operation": "insert",
+      "position": "after",
+      "targets": [
+        { "kind": "file", "path": ".omp/agents/trellis-implement.md", "missing": "skip", "markerStyle": "html" }
+      ],
+      "selector": { "type": "literal", "source": "omp-implement-selector.md", "expectedMatches": 1 },
+      "content": { "source": "markdown-content.md" }
+    },
+    {
+      "id": "omp-check-agent-untracked-context",
+      "operation": "insert",
+      "position": "after",
+      "targets": [
+        { "kind": "file", "path": ".omp/agents/trellis-check.md", "missing": "skip", "markerStyle": "html" }
+      ],
+      "selector": { "type": "literal", "source": "omp-check-selector.md", "expectedMatches": 1 },
+      "content": { "source": "markdown-content.md" }
     },
     {
       "id": "codex-agents-untracked-context",

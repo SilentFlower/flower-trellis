@@ -80,6 +80,14 @@ test("route 只决定 Check-All 执行位置", () => {
   assert.match(routeState, /"check-subagent": "check-all-subagent"/);
   assert.match(routeState, /def _normalize_mode/);
   assert.match(agents, /light\/full 是 Check-All 的 requested depth/);
+  assert.match(agents, /Step 0\.25: 识别当前平台能力/);
+  assert.match(agents, /不能仅凭 `.claude\/`、`.codex\/` 等目录存在就猜测当前 host/);
+  assert.match(agents, /删除所有 Subagent 选项及对应编号/);
+  assert.match(agents, /trellis_subagent\(\{agent:"trellis-implement", mode:"single"/);
+  assert.match(agents, /spawn_subagent\(subagent_type="trellis-implement"/);
+  assert.match(agents, /内置 `coder`/);
+  assert.match(agents, /内置 `explore`/);
+  assert.match(agents, /不得使用 `trellis-check`/);
 });
 
 test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {

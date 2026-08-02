@@ -41,13 +41,6 @@
       "content": { "source": "create-parent-content.py" }
     },
     {
-      "id": "task-create-active-warning",
-      "operation": "replace",
-      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
-      "selector": { "type": "literal", "source": "create-active-selector.py" },
-      "content": { "source": "create-active-content.py" }
-    },
-    {
       "id": "task-archive-metadata-guard",
       "operation": "insert",
       "position": "after",
@@ -96,6 +89,13 @@
       "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
       "selector": { "type": "literal", "source": "set-scope-selector.py" },
       "content": { "source": "set-scope-content.py" }
+    },
+    {
+      "id": "task-set-meta-write",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "set-meta-selector.py" },
+      "content": { "source": "set-meta-content.py" }
     }
   ]
 }

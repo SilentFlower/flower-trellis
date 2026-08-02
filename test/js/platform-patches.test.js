@@ -72,7 +72,7 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
     "keep = true",
     "",
   ].join("\n"));
-  write(target, ".trellis/config.yaml", "project: demo\ncodex: { other: true }\n");
+  write(target, ".trellis/config.yaml", "project: demo\ncodex: { dispatch_mode: inline, other: true }\n");
 
   const first = applyPatchPlan(target, prepare(target));
   assert.equal(first.changed, 4);
@@ -93,7 +93,8 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   assert.doesNotMatch(toml, /multi_agent_v2/);
   assert.match(toml, /\[other\] # keep user section/);
   const yaml = fs.readFileSync(path.join(target, ".trellis/config.yaml"), "utf8");
-  assert.match(yaml, /codex:\n  dispatch_mode: sub-agent\n  other: true/);
+  assert.match(yaml, /codex:\n  dispatch_mode: auto\n  other: true/);
+  assert.doesNotMatch(yaml, /dispatch_mode: (?:inline|sub-agent)/);
 
   const second = applyPatchPlan(target, prepare(target));
   assert.equal(second.changed, 0);

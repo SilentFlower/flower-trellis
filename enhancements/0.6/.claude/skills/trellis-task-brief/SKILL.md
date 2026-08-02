@@ -12,7 +12,8 @@ description: "从最新 prd.md、design.md、implement.md 生成、刷新、校�
 - 每次运行都重新读取最新 `prd.md`、`design.md if present`、`implement.md if present`。
 - 已存在的 `brief.md` 不能作为跳过同步的理由。
 - `brief.md` 必须以三件套为准覆盖旧内容；无法从三件套追溯的旧内容不能保留为事实。
-- 不要在 `brief.md` 里发明三件套没有表达的新需求。缺失字段写“未明确”，并提示应补充三件套。
+- 不要在 `brief.md` 里发明三件套没有表达的新需求。必填字段缺失时写“未明确”，并提示应补充三件套；没有相关内容时直接省略 `Risks / Deferred` 整节。
+- `Artifact Status` 只在对话展示时根据当前文件和 checkbox 状态动态计算，绝不写入 `brief.md`。
 - 写回 `brief.md` 后，必须在当前对话中展示 brief 正文；不要只给文件路径。
 - Phase 1.4 前必须展示完整 brief。默认等待用户确认后再运行 `task.py start`；只有用户明确把当前任务或最终 Brief 与“展示后直接开始 / 不用再次确认 / 视为已确认”绑定时，才可在范围未变化的前提下免除第二次确认。
 - “开始做吧”“按你建议来”“可以创建任务”等普通实现或建任务意图不是 Brief 预授权，不能据此跳过确认。
@@ -39,11 +40,18 @@ description: "从最新 prd.md、design.md、implement.md 生成、刷新、校�
    - `Goal`：任务目标一句话。
    - `Scope`：本轮实现范围。
    - `Non-Goals`：明确不做的范围。
-   - `Key Context`：关键文件、模块、入口、约束或风险。
+   - `Key Decisions`：已经收敛且会改变实现方式的产品、架构或工作流决定。
+   - `Key Context`：关键文件、模块、入口和约束。
+   - `Risks / Deferred`：仍需在实现或验证中关注的风险，以及明确延后的事项；没有内容时不生成该 section。
    - `Acceptance`：主要验收标准。
-   - `Next Step`：进入实现后的下一步。
+   - `Next Step`：只写进入下一阶段后的一个直接动作，不展开完整实施计划。
 6. 写回 `<task>/brief.md`。如果文件已存在，仍用最新三件套派生内容覆盖旧正文。
-7. 在对话中展示 brief 正文，并说明来源文件：
+7. 动态计算 `Artifact Status`，但不写入 `brief.md`：
+   - `Planning artifacts`：报告 `prd.md`、`design.md`、`implement.md` 的实际存在状态；只有任务材料已明确归类为 lightweight 时，才能把后两者标为“不要求”。
+   - `Context manifests`：报告 `implement.jsonl`、`check.jsonl` 为 curated、seed-only、missing 或当前 inline 路由不要求；不能把文件存在等同于已策展。
+   - `Open Questions`：统计规划材料中仍未解决的 `- [ ]` 数量。
+   - `Review`：报告 awaiting approval，或由本 skill 已验证的 current Brief preauthorization。
+8. 在对话中展示 brief 正文、动态 `Artifact Status`，并说明来源文件：
    - 无有效预授权：展示后结束当前回合，等待用户确认。
    - 有有效预授权：先完整展示，再在同一回合返回主 workflow 执行 `task.py start`，不得省略展示步骤。
 
@@ -64,9 +72,17 @@ description: "从最新 prd.md、design.md、implement.md 生成、刷新、校�
 
 - <本轮明确不做的事情>
 
+## Key Decisions
+
+- <已经收敛且影响实现的决定>
+
 ## Key Context
 
-- <关键文件、模块、入口、约束或风险>
+- <关键文件、模块、入口和约束>
+
+## Risks / Deferred
+
+- <仅在存在相关风险或明确延后事项时生成；否则省略整个 section>
 
 ## Acceptance
 
@@ -86,6 +102,12 @@ Phase 1.4 review 前：
 
 <brief.md 正文>
 
+Artifact Status（动态，不写入 brief.md）：
+- Planning artifacts: <实际状态>
+- Context manifests: <实际状态>
+- Open Questions: <未解决数量>
+- Review: awaiting approval
+
 请确认 planning artifacts 和上述 brief；确认后才运行 `task.py start <task>`。
 ```
 
@@ -96,6 +118,12 @@ Phase 1.4 review 前：
 
 <brief.md 正文>
 
+Artifact Status（动态，不写入 brief.md）：
+- Planning artifacts: <实际状态>
+- Context manifests: <实际状态>
+- Open Questions: 0
+- Review: approved by current Brief preauthorization
+
 已按你对当前 Brief 的明确预授权完成复核；范围未扩大、无未解决问题，继续启动任务。
 ```
 
@@ -103,7 +131,8 @@ Phase 1.4 review 前：
 
 ```markdown
 当前任务 brief：<目标一句话>
-范围/约束：<不失真的压缩要点>
+范围/决定/约束：<不失真的压缩要点>
+风险/延后：<存在时展示；没有则省略>
 验收：<不失真的压缩要点>
 完整摘要：<task>/brief.md
 

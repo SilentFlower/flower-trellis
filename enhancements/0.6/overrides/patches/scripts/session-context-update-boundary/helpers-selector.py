@@ -146,5 +146,5 @@ def _get_update_hint(repo_root: Path) -> str | None:
 
     return (
         f"Trellis update available: {current_version} -> {latest_version}, "
-        "run trellis upgrade"
+        "run trellis update"
     )

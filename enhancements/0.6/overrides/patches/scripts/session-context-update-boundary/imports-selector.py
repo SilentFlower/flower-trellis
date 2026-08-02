@@ -2,6 +2,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 from .active_task import resolve_context_key

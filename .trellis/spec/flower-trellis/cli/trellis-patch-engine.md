@@ -180,7 +180,7 @@ adapter 必须通过 `flowerPatchAdapters()` 显式注册，并遵守相同的 p
 
 0.6 catalog 可通过 descriptor 声明只读 `compatibilityFile` / `conflictsFile`；文件必须位于 catalog 根内并参与 catalog hash。Skill-Garden 必须随源和快照携带同一份 policy：
 
-- `testedVersions` 的精确版本正常继续；当前登记 `0.6.5`。
+- `testedVersions` 的精确版本正常继续；当前登记 `0.6.12`。
 - 未登记但仍在 `compatibleLine=0.6` 的版本返回 `warning: untested-upstream`，只有完整 Patch preflight 与冲突断言通过后才允许写入。
 - `0.7+`、`1.x` 或不可解析版本返回 `error`，Patch、资产、stale 清理和 manifest 全部零写入；用户只能改用匹配 Flower 版本或 `--no-enhance`。
 - `conflicts.json` 首版只允许 `absent-literal`、`required-literal`、`max-occurrences`；规则只审计 `whenOperations` 全部实际选中的计划。
@@ -190,7 +190,7 @@ adapter 必须通过 `flowerPatchAdapters()` 显式注册，并遵守相同的 p
 - diagnostic 固定为 `error | warning | info`：互斥协议/未支持版本阻断，评审型重复与同线未测版本告警，正常 `missing-target` 只计 info。
 - warning 必须在 `applyPatchPlan()` / `apply_prepared()` 前输出 rule ID、target、reason 和 evidence；Skill-only 精细安装也不能因未选择 Bundle 而吞掉版本 warning。维护者与发布脚本复用同一 JS formatter。
 
-Workflow 内容所有权遵循“上游优先、Patch 只保留必要差异”：已确认冲突的 Active Task Routing、Phase 2.1、2.2、3.3、3.4 使用带 0.6.5 全文 baseline 的 `markdown-section replace`；Hub 不得再写“高优先级覆盖下层/下层 inactive”。State 只保留当前状态会改变下一动作的一跳门禁，完整 route/check/update-spec/push 协议由对应 Skill 所有。
+Workflow 内容所有权遵循“上游优先、Patch 只保留必要差异”：已确认冲突的 Active Task Routing、Phase 2.1、2.2、3.3、3.4 使用以 Trellis `0.6.12` 对应 section 为 baseline 的 `markdown-section replace`；Hub 不得再写“高优先级覆盖下层/下层 inactive”。State 只保留当前状态会改变下一动作的一跳门禁，完整 route/check/update-spec/push 协议由对应 Skill 所有。
 Phase 正向断言必须包含 managed marker、heading 和 section 首句形成的唯一签名，不能只搜索整个 Workflow 中会被 Hub/State 重复满足的裸 Skill 名。已删除的 State Hub 职责句 `max-occurrences` 固定为 `0`，任一回流都返回 warning。
 
 ## Managed Marker And Migration
@@ -293,14 +293,14 @@ provenance 必须在首次应用与重复应用之间稳定；不得把本轮 `c
 
 `vendor/skill-garden/compiled-targets/<trellis-version>/full/` 是维护者可审阅的 Skill-Garden canonical full plan 最终产物，不是用户安装时的运行输入：
 
-- `full` 只表示选择全部 Skill-Garden Bundle/Patch；平台 profile 固定为 Claude + Codex，最终目标只允许位于 `.trellis`、`.agents`、`.claude`、`.codex`。
+- `full` 只表示选择全部 Skill-Garden Bundle/Patch；平台 profile 固定为 `all-platforms`，覆盖 pinned Trellis 当前支持的全部 21 个平台及其 `.trellis`、共享 `.agents` 和平台原生 root。profile 中的 `platforms[]`、`roots[]` 与最终 `targets[]` 顶层目录必须互相一致。
 - `plan.json` 保存 profile、catalog hash、qualified selection/order、catalog operations、target before/after hash、operation provenance、missing/optional 结果和 conflict 汇总；catalog 固定只有 `skill-garden`。
 - `targets/<target>` 保存所有实际进入 plan 且有最终内容的 target；changed target 在同一目录旁保存 `targets/<target>.diff`，未变化 target 不生成 sidecar。
 - 生成器在写盘前必须验证最终文件与 sidecar 不存在同名或文件/目录前缀冲突；真实 target 以 `.diff` 结尾不能覆盖另一个 target 的审阅 sidecar。
 - `vendor/skill-garden/scripts/generate-compiled-targets.py` 必须直接复用 Python consumer 的 prepare/apply/policy API；Flower 薄调用器只负责传入当前包锁定的 Trellis/Node executable。
 - `npm run patch:targets` 只保留当前精确 Trellis semver，使用 staging 和严格版本目录边界替换子仓产物；`npm run patch:targets:check` 逐文件逐字节报告缺失、变更和多余项。
 - 产物不得包含绝对路径、临时路径、时间戳或用户名。vendor 子仓不进入 `package.json.files`；`npm run sync` 不得复制 compiled targets。
-- `src/lib/patch-fixture.js` 继续初始化全部受支持平台并加载 Skill-Garden + Flower 两个 catalog，供 coverage、adapter、compatibility 与 conflict 临时门禁使用；全平台 matrix 不写入仓库。
+- canonical compiled targets 只加载 `skill-garden` catalog，但持久化全平台最终目标，供跨平台 Patch 结果审阅。`src/lib/patch-fixture.js` 继续初始化同一平台集合并额外加载 Flower catalog，供双 catalog coverage、adapter、compatibility 与 conflict 临时门禁使用；该临时 fixture 不写入仓库。
 - AI context budget 的静态 workflow/skill 指标读取 compiled full `targets/` 中的最终文件；不得把 `.diff` sidecar 纳入最终上下文。Phase summary 与 SessionStart 继续真实执行测量。
 
 ## Validation Matrix
@@ -429,6 +429,8 @@ generate_compiled_targets(...) -> {
 
 ### 3. Contracts
 
+- `plan.json#profile.id` 固定为 `all-platforms`；`platforms[]` 必须覆盖 pinned Trellis 当前支持的平台，`roots[]` 必须等于 `targets[].target` 的顶层目录集合。
+- compiled plan 只包含 `skill-garden` catalog，不混入 Flower 平台 catalog；Flower catalog 继续由临时全平台 fixture 和冲突门禁验证。
 - `_unified_diff()` 固定使用 `a/<target>`、`b/<target>` 逻辑标签；输入末行缺少换行时，该删除行或新增行后必须独立输出 `\ No newline at end of file`，不得把 `-old` 与 `+new` 粘成同一行。
 - Skill-Garden 根 `.gitattributes` 必须对 `compiled-targets/**/targets/**/*.diff` 设置 `-whitespace`。sidecar 是补丁文本，`+ ` 等行表达目标文件真实空白，不能被仓库级 `git diff --check` 当作 sidecar 自身缺陷。
 - `staging.rename(output_root)` 是目录替换的提交点。提交点之前失败返回 `CompiledTargetError`，已有输出可恢复时必须恢复；提交点之后新树已经是权威结果。
@@ -439,6 +441,8 @@ generate_compiled_targets(...) -> {
 
 | 条件 | 结果 |
 |---|---|
+| profile 缺平台、root 与 target 顶层目录不一致 | compiled target 测试失败，禁止提交产物 |
+| plan 混入 Flower catalog | compiled target 测试失败；Flower catalog 只进入临时双 catalog 门禁 |
 | 首次生成且 output root 不存在 | staging 直接换入，`warnings=[]` |
 | 旧 root 移入 backup 或 staging 换入失败 | 返回 `CompiledTargetError`；可恢复时恢复旧 root |
 | 新 root 已换入但 backup 删除失败 | 返回成功 summary + cleanup warning；新 root 保持有效 |
@@ -458,6 +462,7 @@ generate_compiled_targets(...) -> {
 ### 6. Tests Required
 
 - Python 单测故障注入 `shutil.rmtree(backup)` 失败，断言 `_replace_output()` 不抛错、新树存在、旧树只位于 backup、warning 包含 backup 路径。
+- JS compiled target 测试断言 `profile.id=all-platforms`、平台数量、root 列表，以及 `roots[]` 与所有 target 顶层目录严格相等。
 - Python 单测覆盖两侧都缺、仅原文件缺、仅最终文件缺三种行尾组合，断言标记数量和删除/新增行边界。
 - 对上述 diff 运行 `git apply --check`，证明 sidecar 语法有效。
 - 读取代表性 sidecar 的 Git attribute，断言 `whitespace: unset`，并运行 Skill-Garden staged `git diff --check`。

@@ -69,7 +69,7 @@ flower-trellis/
 - `test/js/`：Node 内置 `node:test`。
 - `test/python/`：Python 内置 `unittest`。
 - `enhancements/0.6/overrides/compatibility.json`、`conflicts.json`、`patches/`、`bundles/`：随包发布的 Skill-Garden policy 与 Patch catalog 快照。
-- `vendor/skill-garden/compiled-targets/<version>/full/{plan.json,targets/}`：由子仓生成器维护的 Claude + Codex canonical full 计划；最终文件按原路径保存，changed target 的 `<target>.diff` sidecar 与文件并排。禁止手工修改，vendor 子仓不进入 `package.json.files`。
+- `vendor/skill-garden/compiled-targets/<version>/full/{plan.json,targets/}`：由子仓生成器维护的 `all-platforms` canonical full 计划；最终文件按原路径保存，changed target 的 `<target>.diff` sidecar 与文件并排。禁止手工修改，vendor 子仓不进入 `package.json.files`。
 - `vendor/skill-garden/scripts/apply-trellis-patches.py`：独立 `install.sh` 的 Python consumer；协议必须与 JS 引擎一致。
 - `src/lib/patch-fixture.js`：Flower 全平台 Skill-Garden + Flower 双 catalog 临时 fixture；只用于 coverage、compatibility 与 conflict 门禁，不保存全平台 files/diffs。
 

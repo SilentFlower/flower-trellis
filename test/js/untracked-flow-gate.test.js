@@ -56,7 +56,7 @@ test("untracked workflow owner 串联稳定完成链且不伪造 task route", ()
 });
 
 
-test("untracked agent Patch 覆盖 Markdown、Codex 与 Kiro 合同", () => {
+test("untracked agent Patch 覆盖 Markdown、OMP、Codex 与 Kiro 合同", () => {
   const declaration = JSON.parse(
     read("overrides/patches/agents/untracked-context/patch.json"),
   );
@@ -69,6 +69,8 @@ test("untracked agent Patch 覆盖 Markdown、Codex 与 Kiro 合同", () => {
     "markdown-agents-untracked-context",
     "markdown-implement-agents-untracked-context",
     "markdown-check-agents-untracked-context",
+    "omp-implement-agent-untracked-context",
+    "omp-check-agent-untracked-context",
     "codex-agents-untracked-context",
     "kiro-agents-untracked-context",
   ]);
@@ -83,27 +85,32 @@ test("untracked agent Patch 覆盖 Markdown、Codex 与 Kiro 合同", () => {
 test("untracked agent Patch 对完整平台真实模板重复应用幂等", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-untracked-agents-"));
   fs.mkdirSync(path.join(target, ".trellis"), { recursive: true });
-  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.5\n");
+  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.12\n");
   const targets = [];
-  for (const [sourcePlatform, sourceDirectory, targetDirectory, extension] of [
-    ["claude", "agents", ".claude/agents", "md"],
-    ["cursor", "agents", ".cursor/agents", "md"],
-    ["codebuddy", "agents", ".codebuddy/agents", "md"],
-    ["opencode", "agents", ".opencode/agents", "md"],
-    ["droid", "droids", ".factory/droids", "md"],
-    ["gemini", "agents", ".gemini/agents", "md"],
-    ["qoder", "agents", ".qoder/agents", "md"],
-    ["pi", "agents", ".pi/agents", "md"],
-    ["reasonix", "agents", ".reasonix/agents", "md"],
-    ["trae", "agents", ".trae/agents", "md"],
-    ["zcode", "agents", ".zcode/agents", "md"],
-    ["codex", "agents", ".codex/agents", "toml"],
-    ["kiro", "agents", ".kiro/agents", "json"],
+  for (const [sourcePlatform, sourceDirectory, targetPattern] of [
+    ["claude", "agents", ".claude/agents/{role}.md"],
+    ["cursor", "agents", ".cursor/agents/{role}.md"],
+    ["codebuddy", "agents", ".codebuddy/agents/{role}.md"],
+    ["opencode", "agents", ".opencode/agents/{role}.md"],
+    ["droid", "droids", ".factory/droids/{role}.md"],
+    ["gemini", "agents", ".gemini/agents/{role}.md"],
+    ["grok", "agents", ".grok/agents/{role}.md"],
+    ["kimi", "agents", ".kimi-code/skills/{role}/SKILL.md"],
+    ["qoder", "agents", ".qoder/agents/{role}.md"],
+    ["pi", "agents", ".pi/agents/{role}.md"],
+    ["reasonix", "agents", ".reasonix/skills/{role}/SKILL.md"],
+    ["snow", "agents", ".snow/agents/{role}.md"],
+    ["trae", "agents", ".trae/agents/{role}.md"],
+    ["zcode", "agents", ".zcode/agents/{role}.md"],
+    ["omp", "agents", ".omp/agents/{role}.md"],
+    ["codex", "agents", ".codex/agents/{role}.toml"],
+    ["kiro", "agents", ".kiro/agents/{role}.json"],
   ]) {
     for (const role of ["trellis-implement", "trellis-check"]) {
-      const relativePath = `${targetDirectory}/${role}.${extension}`;
+      const relativePath = targetPattern.replace("{role}", role);
       const destination = path.join(target, ...relativePath.split("/"));
       fs.mkdirSync(path.dirname(destination), { recursive: true });
+      const extension = path.extname(relativePath).slice(1);
       fs.copyFileSync(
         path.join(upstreamTemplates, sourcePlatform, sourceDirectory, `${role}.${extension}`),
         destination,

@@ -37,6 +37,16 @@ test("Brief 显式预授权只形成文案级窄例外", () => {
   assert.match(agents, /若最终内容扩大范围、仍有未解决 Open Questions/);
   assert.match(agents, /不建立跨会话永久偏好，也不写 session runtime/);
   assert.match(agents, /先完整展示，再在同一回合返回主 workflow/);
+  assert.match(agents, /## Key Decisions/);
+  assert.match(agents, /没有相关内容时直接省略 `Risks \/ Deferred` 整节/);
+  assert.match(agents, /`Artifact Status` 只在对话展示时/);
+  assert.match(agents, /不能把文件存在等同于已策展/);
+  assert.match(agents, /只写进入下一阶段后的一个直接动作/);
+  const persistedTemplate = agents.slice(
+    agents.indexOf("## 模板"),
+    agents.indexOf("## 展示格式"),
+  );
+  assert.doesNotMatch(persistedTemplate, /^## Artifact Status$/m);
   assert.equal(
     fs.existsSync(path.join(sourceRoot, "scripts/brief_review_state.py")),
     false,

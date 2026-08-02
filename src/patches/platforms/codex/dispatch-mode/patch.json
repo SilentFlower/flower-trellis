@@ -12,6 +12,6 @@
       "requires": [".codex"]
     }],
     "selector": { "type": "yaml-key", "path": "codex.dispatch_mode" },
-    "content": { "value": "sub-agent" }
+    "content": { "value": "auto" }
   }]
 }

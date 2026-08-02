@@ -9,12 +9,12 @@ import { FLOWER_UPDATE_HOOK_REL } from "./flower-assets.js";
  * 做三件事:
  *   1. 兼容旧 Trellis:注释掉 .codex/config.toml 的 [features.multi_agent_v2] 段;
  *   2. 合并 .codex/hooks.json —— 保留 Trellis 上游 hook 设置,只补 flower 需要的 SessionStart。
- *   3. 强制 .trellis/config.yaml 的 codex.dispatch_mode 为 sub-agent。
+ *   3. 强制 .trellis/config.yaml 的 codex.dispatch_mode 为 auto。
  */
 
 const WORKFLOW_HOOK_SCRIPT = ".codex/hooks/inject-workflow-state.py";
 const SESSION_START_SCRIPT = ".codex/hooks/session-start.py";
-const CODEX_DISPATCH_MODE = "sub-agent";
+const CODEX_DISPATCH_MODE = "auto";
 const SESSION_START_MATCHER = "startup|resume|clear|compact";
 const FLOWER_UPDATE_MATCHER = "startup";
 const SESSION_START_TIMEOUT = 30;
@@ -88,10 +88,11 @@ function parseInlineMapEntries(value) {
 }
 
 /**
- * 强制目标项目 `.trellis/config.yaml` 使用 Codex sub-agent 调度。
+ * 强制目标项目 `.trellis/config.yaml` 启用 Codex 原生 subagent 能力。
  *
- * Trellis 默认缺失该字段时按 inline 注入 `<codex-mode>`,会让 route 误判 subagent
- * 不可执行。flower 在 Codex 目标上直接写真实配置,避免依赖注释示例或模型推断。
+ * `auto` 只声明平台能力可用，单次任务实际采用 inline 还是 subagent 仍由
+ * `trellis-route` 决定。显式 `inline` 和兼容旧值 `sub-agent` 都归一化为正式值，
+ * 避免关闭 JSONL readiness 后仍允许 route 选择 subagent。
  *
  * @param {string} configPath 目标项目 `.trellis/config.yaml` 路径
  * @returns {boolean} 是否写入

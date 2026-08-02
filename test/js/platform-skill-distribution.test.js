@@ -47,7 +47,7 @@ test("全部平台原生 skill root 获得同一 Flower Gate Skill", () => {
 
   quietApply(target);
 
-  assert.equal(ENHANCEMENT_SKILL_TARGETS.length, 15);
+  assert.equal(ENHANCEMENT_SKILL_TARGETS.length, 18);
   for (const { platform, root } of ENHANCEMENT_SKILL_TARGETS) {
     const file = path.join(target, ...root.split("/"), "trellis-route", "SKILL.md");
     assert.equal(fs.existsSync(file), true, `${platform}:${root}`);

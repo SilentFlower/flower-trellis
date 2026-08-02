@@ -72,6 +72,8 @@ const COMMON_SKILL_RUNTIME_EXCLUDES = Object.freeze({
     "recorder/session.jsonl",
   ]),
 });
+const LEGACY_PI_SKILL_PREFIX = ".pi/skills/";
+const SHARED_AGENT_SKILL_PREFIX = ".agents/skills/";
 
 /**
  * 列出目标目录中的普通文件。
@@ -318,6 +320,23 @@ export function projectSkillGardenContent(options) {
         pluginPackage.skillGarden.variant === "0.6",
       );
       installed.add(entry.name);
+    }
+  }
+
+  if (previous && pluginPackage.skillGarden.variant === "0.6") {
+    for (const entry of previous.paths) {
+      if (!entry.path.startsWith(LEGACY_PI_SKILL_PREFIX)) continue;
+      const suffix = entry.path.slice(LEGACY_PI_SKILL_PREFIX.length);
+      const separator = suffix.indexOf("/");
+      if (separator <= 0) continue;
+      const skillName = suffix.slice(0, separator);
+      if (!shouldInstallName(skillName, skills)) continue;
+      const migratedPath = `${SHARED_AGENT_SKILL_PREFIX}${suffix}`;
+      if (paths.has(migratedPath)) {
+        // 只撤销已有 Plugin state 中且本轮已有等价新目标的旧路径。
+        // 最终删除仍由 ApplicationService 校验 previous hash 后执行。
+        paths.delete(entry.path);
+      }
     }
   }
 

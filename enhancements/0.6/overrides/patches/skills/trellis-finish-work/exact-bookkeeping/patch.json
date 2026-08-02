@@ -9,7 +9,6 @@
     "targetPolicy": "each-existing",
     "targets": [
       { "kind": "skill", "path": ".agents/skills/trellis-finish-work/SKILL.md", "missing": "skip" },
-      { "kind": "skill", "path": ".claude/skills/trellis-finish-work/SKILL.md", "missing": "skip" },
       { "kind": "command", "path": ".claude/commands/trellis/finish-work.md", "missing": "skip" }
     ],
     "selector": { "type": "markdown-document", "preserveFrontmatter": false },
@@ -28,12 +27,16 @@
       { "kind": "command", "path": ".devin/workflows/trellis-finish-work.md", "missing": "skip" },
       { "kind": "command", "path": ".factory/commands/trellis/finish-work.md", "missing": "skip" },
       { "kind": "command", "path": ".github/prompts/finish-work.prompt.md", "missing": "skip" },
+      { "kind": "command", "path": ".grok/commands/trellis-finish-work.md", "missing": "skip" },
       { "kind": "command", "path": ".kilocode/workflows/finish-work.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kimi-code/skills/trellis-finish-work/SKILL.md", "missing": "skip" },
       { "kind": "skill", "path": ".kiro/skills/trellis-finish-work/SKILL.md", "missing": "skip" },
+      { "kind": "command", "path": ".omp/commands/trellis-finish-work.md", "missing": "skip" },
       { "kind": "command", "path": ".opencode/commands/trellis/finish-work.md", "missing": "skip" },
       { "kind": "command", "path": ".pi/prompts/trellis-finish-work.md", "missing": "skip" },
       { "kind": "command", "path": ".qoder/commands/trellis-finish-work.md", "missing": "skip" },
       { "kind": "skill", "path": ".reasonix/skills/trellis-finish-work/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".snow/skills/trellis-finish-work/SKILL.md", "missing": "skip" },
       { "kind": "command", "path": ".trae/commands/trellis-finish-work.md", "missing": "skip" },
       { "kind": "command", "path": ".zcode/commands/trellis/finish-work.md", "missing": "skip" }
     ],

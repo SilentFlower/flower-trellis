@@ -6,7 +6,7 @@
     "minor": 6
   },
   "testedVersions": [
-    "0.6.5"
+    "0.6.12"
   ],
   "untestedPatchPolicy": "warning",
   "newLinePolicy": "error"
