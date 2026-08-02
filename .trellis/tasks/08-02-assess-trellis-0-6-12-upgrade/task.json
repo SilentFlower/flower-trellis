@@ -24,16 +24,16 @@
   "notes": "",
   "meta": {},
   "progress": {
-    "updatedAt": "2026-08-02T20:17:17+08:00",
+    "updatedAt": "2026-08-03T02:10:21+08:00",
     "completedSteps": [
-      "完成 Trellis 0.6.5 至 0.6.12 冲突评估与逐项方案确认",
-      "完成 Patch Engine、平台 Skill 投影和工作流状态适配",
-      "通过 Check-All、Patch 编译目标、dogfood 与上下文预算验证",
-      "更新 Flower-Trellis Patch Engine 可执行规范",
-      "提交并推送 Skill-Garden 与 Flower-Trellis 业务改动"
+      "完成 Trellis 0.6.5 至 0.6.12 升级及 D01-D15 全部设计与实现",
+      "完成 Skill-Garden canonical、compiled targets、Flower Patch、Plugin Runtime、dogfood 与发布快照同步",
+      "通过最终 full Check-All：352 个 Node 测试、189 个 Python 测试及全部独立门禁",
+      "提交并推送 Skill-Garden 与 flower-trellis 两仓业务改动",
+      "通过发布快照与 submodule pin 一致性检查"
     ],
     "partialStep": null,
-    "nextStep": "等待用户明确执行 trellis-finish-work 归档当前任务",
-    "notes": "Skill-Garden 提交 5881d64；Flower-Trellis 业务提交 3b1a32e。任务保持 in_progress，归档需用户明确请求 finish-work。"
+    "nextStep": "显式运行 trellis-finish-work，完成 release audit、任务归档和 journal 收尾",
+    "notes": "D01-D15 均已完成，full Check-All 无剩余 CHK；项目根不存在 .gemini/.kimi-code/.pi/.kiro。"
   }
 }

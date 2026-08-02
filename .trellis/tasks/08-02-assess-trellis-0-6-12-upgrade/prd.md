@@ -6,9 +6,8 @@
 
 ## Background
 
-- Flower-Trellis 当前固定依赖 `@mindfoldhq/trellis: 0.6.5`。
-- `enhancements/0.6/overrides/compatibility.json` 当前只登记 `0.6.5` 为已测试版本。
-- 在隔离的 Trellis `0.6.12` fixture 上执行 Flower Patch 预检，得到 61 条 required Patch 失败；预检遵守 zero-write，未产生部分写入。
+- 升级前 Flower-Trellis 固定依赖 `@mindfoldhq/trellis: 0.6.5`，兼容清单也只登记 `0.6.5`。
+- 在隔离的 Trellis `0.6.12` fixture 上执行首次 Flower Patch 预检，得到 61 条 required Patch 失败；预检遵守 zero-write，未产生部分写入。
 - 61 条失败由平台副本放大，归并后是 8 个 Patch 冲突组；此外还存在平台静态矩阵和 Pi skill root 等未被 required Patch 捕获的隐性冲突。
 - 本任务只分析 `0.6.12` 稳定版。`0.7 beta` 保持独立，不进入本任务的兼容结论。
 
@@ -45,12 +44,18 @@
 | D07 | 上游激活诊断与 Flower 跨文件写入完整性 | 中 | 已归类：吸收上游并机械扩展 |
 | D08 | OMP、Grok、Kimi、Snow 和 Pi skill root 的平台兼容策略 | 高 | 已确定：由 D04 直接推导 |
 | D09 | tested baseline 与升级版本控制 | 中 | 已确认：方案 A |
+| D10 | Codex `auto` 能力语义与 hook/config/route 文案一致性 | 高 | 已批准并实施：统一语义源与跨 owner 断言 |
+| D11 | 跨版本 update dry-run 与 Trellis/Plugin 事务边界 | 极高 | 已批准并实施：沙箱预演、预检扩展快照与失败补偿 |
+| D12 | audit-only Check-All 的专用 agent 与直接调用防绕过 | 高 | 已批准并实施：专用只读角色 + 自修复 agent 拒绝 Check-All |
+| D13 | 多平台 dispatch recipe 的静态 Markdown 漂移 | 高 | 已批准并实施：结构化能力清单 |
+| D14 | Phase 3.4 后缺少可观察的待归档任务状态 | 中 | 已批准并实施：progress push 成功后激活现有 `completed` |
+| D15 | 共享 `.agents/skills` 导致未启用逻辑平台误投影 | 高 | 已发现并修复：物理 target 与逻辑平台检测分离 |
 
 ### R4. 规划与实现隔离
 
-- 逐项确认期间只允许更新任务规划和研究材料。
-- 在全部设计决策收敛、生成 `design.md`、`implement.md` 和最终 `brief.md` 前，不运行 `task.py start`，不修改产品代码。
-- 用户对最终 brief 的确认才构成升级实施授权。
+- 原 D01-D09 已实施并验证；D10-D14 属于实施后审计发现的实质范围扩展，D15 是 Git 收尾前 dogfood 复核发现的平台检测缺口。
+- D10-D14 收敛期间曾只允许更新任务规划材料；最新 Brief 已完整展示并得到用户明确批准。D15 属于 D08/D12 已批准边界内的错误修复，当前实现授权有效。
+- 后续复核发现的缺口若属于 D11/D14 或既有 managed ownership 契约，可在本任务内修复并回写任务材料；新增产品决策仍需再次回到规划批准。
 
 ### R5. 最终升级计划
 
@@ -158,15 +163,78 @@
 
 新版 Flower 仍保证从旧项目升级到 `0.6.12` 的路径，但不保证新版 Patch 可直接应用在仍停留于 `0.6.5` 的项目上。
 
+### D10. Codex dispatch 语义统一
+
+Flower 管理项目继续把 `codex.dispatch_mode` 规范化为 `auto`，但必须把配置注释、workflow-state hook banner、`trellis-meta` 和 `trellis-route` 的表述统一为同一个契约：
+
+- `auto` 只表示 Codex 原生 subagent 上下文与 JSONL readiness 能力可用，不表示默认选择 subagent。
+- 本轮实际执行位置只读取 `trellis-route` 的 task/session 决策或个人偏好；hook 不得从 `auto` 推导执行模式。
+- Flower 管理项目不输出 `inline`；上游兼容输入仍可识别，但“始终 inline”只能通过 route preference 表达。
+- required conflict assertions 必须同时校验 config、hook 和 route 三个 owner，避免各自测试通过但组合语义互相矛盾。
+
+### D11. Update 沙箱预演与失败补偿
+
+跨版本 `flower-trellis update --dry-run` 不再跳过 Skill-Garden，而是在项目外临时沙箱中构造升级所需的 Trellis 管理面、`.flower` 元数据和既有 Plugin-owned paths，真实执行沙箱内的 `trellis update`，再对升级后树执行 Plugin replay 预检。目标项目保持 zero-write。
+
+真实更新增加 Flower 级补偿边界：
+
+- 更新前在项目外建立带路径清单、内容和 mode 的补偿快照，范围覆盖 Trellis `ALL_MANAGED_DIRS`、根 `AGENTS.md`、`.flower` 元数据和既有 Plugin-owned paths；Plugin preflight 在真实写入前把本轮计划触达的新外部路径补入快照。Trellis 明确排除的 task/spec/workspace/backlog/worktree 等用户数据保持排除。
+- `trellis update` 成功后才运行 Plugin replay；Plugin 继续使用自身 Transaction Writer 保证内部原子性。
+- 任一后续步骤失败时，Flower 按快照恢复旧文件、删除本轮新增的受管文件并恢复元数据；Trellis 本轮生成的 `.trellis/.backup-*` 保留为人工恢复证据。
+- 补偿失败必须返回结构化错误、未恢复路径和备份位置，禁止把部分升级报告为成功；config preserve 只在整条链成功后提交。
+
+### D12. 专用 audit-only Check-All agent
+
+对具备项目 subagent discovery 的平台投影独立 `trellis-check-all` agent，并新增 `.trellis/agents/check-all.md` 供 channel runtime 使用。该角色只读执行 collect-all，返回 `CHK-*` / `DOC-*` 候选，不得修改代码、测试、配置或任务文件。
+
+既有 `trellis-check` 保持 workspace-write/self-fix 职责，但所有平台副本和 channel `check` role 必须增加显式边界：收到 Check-All、全面检查或提交前统一检查意图时拒绝执行，并指向 `trellis-check-all`。`trellis-route` 的 subagent check 只能选择结构化能力清单声明的专用只读角色；不再用可写 `trellis-check` 或未声明只读能力的通用 agent 兜底。
+
+### D13. 结构化平台 dispatch 能力清单
+
+把 `trellis-route` 中手写的平台启动表迁为随 skill 分发、可校验的结构化清单。每个平台记录稳定 ID、实现 agent 启动契约、Check-All 专用角色路径/格式、是否允许 subagent Check-All、inline-only 原因和验证级别。
+
+- route skill 只保留选择算法和 prompt 契约，按当前平台读取清单条目，不重复维护整张 Markdown 表。
+- 内容投影、agent 目标和测试复用同一清单或对其做确定性闭包校验。
+- schema、平台覆盖、目标文件存在性、inline-only 原因和 compiled target 一致性必须自动测试。
+- 清单不能伪造 host 工具可用性；运行时仍需确认当前 host 暴露对应 dispatch API，未确认时 fail closed 为 inline-only。
+
+### D14. 激活 `completed` 待归档状态
+
+不新增第四种近义状态，直接激活 Trellis 已存在但正常流中不可观察的 `completed`：
+
+- 普通 `trellis-push` 在全部业务 commit/push 成功后先写入并推送最终 progress，任务仍保持 `in_progress`；只有 progress commit/push 成功后才用同一份 progress 原子执行本地 `in_progress -> completed`，保留活动任务指针。
+- 本地完成态不再创建第二个 progress commit，由后续显式 `trellis-finish-work` 的 archive bookkeeping commit 承接。
+- 部分成功、commit-only、auto-loop 内部提交或进度同步失败均保持 `in_progress`。
+- `[workflow-state:completed]` 与 `trellis-continue` 只指向 `trellis-finish-work`；`task.py archive` 要求任务已 completed，并保留已有 `completedAt`。
+- 新增显式 reopen 路径，把尚未归档的 `completed` 恢复为 `in_progress` 并清理 `completedAt`；实质规划变化仍先刷新 Brief 并重新批准。
+- 无活动指针时的进度候选扫描同时识别 `completed`，避免完成后 session 丢失导致任务不可恢复。
+
+### D15. 分离共享物理 Skill target 与逻辑平台检测
+
+Codex、Gemini、Pi、Kimi 继续共享 `.agents/skills` 的 neutral 内容，但该物理目录不能证明四个平台都已启用：
+
+- `ENHANCEMENT_SKILL_TARGETS` 为共享 target 分别登记平台原生 `trellis-implement` 检测路径。
+- 自动检测只选择实际存在原生入口的平台；显式 `--platform` 仍可选择任意受支持平台。
+- 普通 Plugin update/replay/remove 在没有新显式选择时复用既有 state 平台，只有首次安装才依赖自动检测。
+- Plugin 投影不得用自己创建的 `trellis-check-all` 文件反向证明平台已启用。
+- 仅启用 Claude/Codex 的项目不得生成 `.gemini`、`.pi`、`.kimi-code` 或 `.kiro` 根目录。
+- 回归测试同时覆盖部分消费者、全部共享消费者和 dogfood 二次更新零变化。
+
 ## Acceptance Criteria
 
-- [ ] D01-D09 均有代码证据和明确归类；真实设计冲突包含方案比较、推荐意见和用户确认，纯机械重基线项包含准确失配原因与验证要求。
-- [ ] 61 条预检失败均映射到明确决策或纯机械重基线步骤，没有遗漏。
-- [ ] 新平台和 Pi `.pi/skills -> .agents/skills` 迁移等隐性冲突已纳入设计。
-- [ ] 明确哪些上游能力完整吸收、哪些与 Flower 合并、哪些继续由 Flower 独占。
-- [ ] `prd.md` 完成收敛整理，不保留已解决的临时问题或重复结论。
-- [ ] 创建完整的 `design.md`、`implement.md` 和真实 `implement.jsonl` / `check.jsonl`。
-- [ ] 最终 `brief.md` 已展示并得到用户后续明确批准，才允许进入实现阶段。
+- [x] D01-D15 均有代码证据和明确归类；真实设计冲突包含方案比较、推荐意见和用户确认，纯机械重基线项包含准确失配原因与验证要求。
+- [x] 61 条预检失败均映射到明确决策或纯机械重基线步骤，没有遗漏。
+- [x] 新平台和 Pi `.pi/skills -> .agents/skills` 迁移等隐性冲突已纳入设计。
+- [x] 共享 `.agents/skills` 不会把 Gemini/Pi/Kimi 等未启用消费者误判为逻辑平台或创建其私有目录。
+- [x] 明确哪些上游能力完整吸收、哪些与 Flower 合并、哪些继续由 Flower 独占。
+- [x] `prd.md` 完成收敛整理，不保留已解决的临时问题或重复结论。
+- [x] 创建完整的 `design.md`、`implement.md` 和真实 `implement.jsonl` / `check.jsonl`。
+- [x] Codex config/hook/route 对 `auto` 的解释一致，且组合断言可发现语义回归。
+- [x] 跨版本 dry-run 能在沙箱内预演升级后 Plugin replay；真实 replay 失败会自动恢复升级前受管状态并报告恢复证据。
+- [x] 专用 `trellis-check-all` agent 覆盖所有声明支持的平台和 channel；可写 `trellis-check` 拒绝 Check-All 意图。
+- [x] 平台 dispatch 由结构化清单驱动并通过 schema、覆盖、目标闭包和 compiled target 检查。
+- [x] final progress 同步成功后任务保持活动且状态为 `completed`，finish-work 归档后才移出活动树；progress push 失败、partial/commit-only 不得误完成。
+- [x] 最新 `brief.md` 已展示并得到用户后续明确批准，才允许恢复实现。
 
 ## Out of Scope
 
