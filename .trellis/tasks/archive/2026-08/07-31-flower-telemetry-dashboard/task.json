@@ -3,7 +3,7 @@
   "name": "flower-telemetry-dashboard",
   "title": "Flower Trellis 安装与版本监控",
   "description": "",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": "flower-trellis",
@@ -11,7 +11,7 @@
   "creator": "silentflower",
   "assignee": "silentflower",
   "createdAt": "2026-07-31",
-  "completedAt": null,
+  "completedAt": "2026-08-02",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -22,5 +22,14 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-07-31T00:49:15Z",
+    "completedSteps": [
+      "auto-loop: 本地提交完成 dbc6ab2"
+    ],
+    "partialStep": null,
+    "nextStep": "auto-loop 已本地提交；需要用户显式运行 finish-work/archive 或继续后续人工流程",
+    "notes": "run_id=auto-20260730175312; task=.trellis/tasks/07-31-flower-telemetry-dashboard; commit=dbc6ab24289f502fd0a66bf0a71e3da0d1700213; status=completed"
+  }
 }
