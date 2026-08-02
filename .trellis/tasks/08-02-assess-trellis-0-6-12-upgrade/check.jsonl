@@ -1,0 +1,7 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查 canonical、快照、Plugin 事务和平台投影是否一致。"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查 required zero-write、policy、consumer parity、provenance 和 compiled targets。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"执行完整错误路径、幂等和回归质量审查。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查最终 Workflow/Brief/SessionStart 内容是否重复或超预算。"}
+{"file":".trellis/spec/flower-trellis/cli/release-and-publishing.md","reason":"检查 npm 依赖、tarball、快照和发布门禁。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 init/update、平台副本和运行时消费者的跨层一致性。"}
+{"file":".trellis/tasks/08-02-assess-trellis-0-6-12-upgrade/research/upgrade-conflict-inventory.md","reason":"逐项核对 D01-D09 与 61 条预检失败没有遗漏或漂移。"}

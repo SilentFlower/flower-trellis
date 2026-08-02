@@ -1,0 +1,11 @@
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"Flower CLI 规范入口与跨规范路由。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"canonical 源、发布快照、Plugin 重放、平台 Skill 投影和同步顺序。"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"0.6 Patch schema、required preflight、compatibility/conflict、compiled targets 与 JS/Python parity。"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"Flower/Trellis 配置、运行状态和版本边界。"}
+{"file":".trellis/spec/flower-trellis/cli/module-guidelines.md","reason":"ESM、常量集中、导出文档和实现风格。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"Workflow、Brief、Phase 与 SessionStart 最终上下文预算。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"单测、幂等、错误路径与质量门禁。"}
+{"file":".trellis/spec/flower-trellis/cli/release-and-publishing.md","reason":"npm 精确依赖、快照、compiled targets 和发布前验证。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"平台名单、共享 Skill root 和 helper 复用检查。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"上游模板、Patch、快照、dogfood 与运行时解析的一致性检查。"}
+{"file":".trellis/tasks/08-02-assess-trellis-0-6-12-upgrade/research/upgrade-conflict-inventory.md","reason":"D01-D09 证据、61 条失败归类和已确认取舍。"}

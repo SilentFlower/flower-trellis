@@ -1,0 +1,39 @@
+{
+  "id": "assess-trellis-0-6-12-upgrade",
+  "name": "assess-trellis-0-6-12-upgrade",
+  "title": "评估 Trellis 0.6.12 升级冲突",
+  "description": "逐项分析 Trellis 0.6.5 升级到 0.6.12 时与 Flower-Trellis 的 Patch、工作流、运行时状态和平台设计冲突，并由用户逐项确认处理策略。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-02",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-08-02T20:17:17+08:00",
+    "completedSteps": [
+      "完成 Trellis 0.6.5 至 0.6.12 冲突评估与逐项方案确认",
+      "完成 Patch Engine、平台 Skill 投影和工作流状态适配",
+      "通过 Check-All、Patch 编译目标、dogfood 与上下文预算验证",
+      "更新 Flower-Trellis Patch Engine 可执行规范",
+      "提交并推送 Skill-Garden 与 Flower-Trellis 业务改动"
+    ],
+    "partialStep": null,
+    "nextStep": "等待用户明确执行 trellis-finish-work 归档当前任务",
+    "notes": "Skill-Garden 提交 5881d64；Flower-Trellis 业务提交 3b1a32e。任务保持 in_progress，归档需用户明确请求 finish-work。"
+  }
+}
