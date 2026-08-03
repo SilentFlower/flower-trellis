@@ -643,3 +643,40 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 75: 归档 2 个已完成任务
+
+**Date**: 2026-08-03
+**Task**: 归档 2 个已完成任务
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+归档 Skill-Garden 升级平台投影污染修复任务和 Untracked 流程游标与 Push 路由简化任务；两个任务均完成 completion gate、decision audit 与 release audit，归档提交已生成。
+
+### Main Changes
+
+- 归档 08-03-fix-skill-garden-update-platform-state 到 2026-08 archive。
+- 归档 08-03-fix-untracked-spec-push-gate 到 2026-08 archive。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `787d4c7` | (see git log) |
+| `26ce73a` | (see git log) |
+
+### Testing
+
+- [OK] completion gate 均为 completed 且 completedAt 存在。
+- [OK] decision audit 均无未审决策；release audit 均为 no-op。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 无活动任务；如需继续发版或清理其它事项，按新请求进入对应流程。
