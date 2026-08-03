@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.5.6-beta.1",
+  "version": "0.6.0-beta.0",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -68,9 +68,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.5.6-beta.1",
+    "version": "0.6.0-beta.0",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **telemetry:** 将匿名遥测上报默认超时延长至 10 秒 ([5397204](https://github.com/SilentFlower/flower-trellis/commit/539720442676bca21b1d31662d28fbdf2aa9cb6d))",
+    "body": "### ✨ 新功能 Features\n\n* 升级 Patch Engine 适配 Trellis 0.6.12 ([3b1a32e](https://github.com/SilentFlower/flower-trellis/commit/3b1a32e1bdf6d532b467e786df5c0c5ff69e6f85))\n\n\n### 🐛 修复 Bug Fixes\n\n* 同步 Trellis 0.6.12 工作流修复 ([239ce16](https://github.com/SilentFlower/flower-trellis/commit/239ce1688d8d13af6cef2bfe64a5d8d1b5226136))\n* 完善 Trellis 0.6.12 升级与平台适配 ([aefda43](https://github.com/SilentFlower/flower-trellis/commit/aefda431e4af59e15afbad4d98a598522b7916bc))",
     "truncated": false
   },
   "optionalDependencies": {
