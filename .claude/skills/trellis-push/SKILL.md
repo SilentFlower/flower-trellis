@@ -17,7 +17,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 - 不发起、终止或解决分支合并；只允许普通模式完成已经开始、冲突已清零且索引完全可归属的 merge commit。
 - 不处理上线核对、任务归档、会话日志或自动任务队列状态。
 - 不使用 `git add .`、`git add -A`，不要求工作区整体干净，也不提交计划外文件。
-- untracked 上下文只接受 `stage=push` 且 Check-All / Update-Spec 证据与当前 workspace fingerprint 一致；不生成任务进度提交。
+- untracked 上下文只接受 `stage=push`；该状态只负责路由，不替代本 skill 的正式计划、确认和 Git 安全检查，也不生成任务进度提交。
 
 ## 模式
 
@@ -40,7 +40,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 auto-loop 内部 `commit-only` 已由 runner 的 `run_check_all -> run_spec_update -> commit_only` 状态机和预授权保证顺序，因此不重复记录或判断本交互证据。
 
-没有活动 task 时运行 `python3 ./.trellis/scripts/untracked_flow.py status --verbose`。命中 untracked 后，以 helper 返回的 stage、scope、baseline、current fingerprint、Check-All 和 Update-Spec 证据填写上述完成链；必须为 `stage=push` 且证据仍有效。`miss` 才按既有“无活动任务”普通 Git 路径处理；`error` 或 workspace drift 停止，不从摘要猜测。
+没有活动 task 时运行 `python3 ./.trellis/scripts/untracked_flow.py status --verbose`。命中 untracked 后，记录 work id、summary 和 stage，并要求 `stage=push`；完成链证据仍从当前 Check-All / Update-Spec 结果与实际 diff 获取。`miss` 才按既有“无活动任务”普通 Git 路径处理；损坏状态停止，不从摘要猜测。游标命中不表示 Push 已计划、已确认或已执行。
 
 ## Step 1：发现仓库与任务
 
@@ -67,7 +67,7 @@ python3 ./.trellis/scripts/task_progress.py status --json || true
 git status --short --untracked-files=all -- <task-dir>
 ```
 
-不得把默认 `git status --short` 可能返回的 `?? <task-dir>/` 折叠目录当成 exact file、展示条目或 pathspec。无活动 task 时仍可提交相关代码，但不生成任务进度。untracked 命中时，所有业务 `planned` 文件必须能由当前 state scope 与实际 diff 归属，计划同时显示 work id；scope 外文件只能保留或作为归属风险。存在活动 task 时，结合 `brief.md`、`implement.md`、当前 diff 与本轮执行范围生成一行语义进度；同时识别当前任务目录中已存在且可归属的 dirty/untracked 产物，供 Step 5 生成任务记录 exact files。不得从旧进度推断 Git 动作。
+不得把默认 `git status --short` 可能返回的 `?? <task-dir>/` 折叠目录当成 exact file、展示条目或 pathspec。无活动 task 时仍可提交相关代码，但不生成任务进度。untracked 命中时，结合当前请求、work summary 和实际 diff 判断业务 `planned` 文件归属，计划同时显示 work id；无法明确归属的文件只能保留或作为风险。存在活动 task 时，结合 `brief.md`、`implement.md`、当前 diff 与本轮执行范围生成一行语义进度；同时识别当前任务目录中已存在且可归属的 dirty/untracked 产物，供 Step 5 生成任务记录 exact files。不得从旧进度推断 Git 动作。
 
 ## Step 2：预检与文件归属
 

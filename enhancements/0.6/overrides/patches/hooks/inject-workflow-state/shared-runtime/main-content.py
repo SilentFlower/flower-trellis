@@ -29,10 +29,11 @@ def main() -> int:
             )
         else:
             work_id, stage, summary = untracked
-            untracked_key = resolve_breadcrumb_key("untracked", platform, config)
+            untracked_status = "untracked" if stage == "implement" else f"untracked_{stage}"
+            untracked_key = resolve_breadcrumb_key(untracked_status, platform, config)
             breadcrumb = build_breadcrumb(
                 None,
-                "untracked",
+                untracked_status,
                 templates,
                 breadcrumb_key=untracked_key,
                 subject_label=f"Untracked work: {work_id} ({stage})",

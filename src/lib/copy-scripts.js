@@ -70,14 +70,6 @@ export function copyScriptAssets(target, variantDir, skills = []) {
         "auto-loop",
         "auto-loop-runner",
         "trellis-auto-loop",
-        "trellis-route",
-        "route",
-        "trellis-check-all",
-        "check-all",
-        "trellis-update-spec",
-        "update-spec",
-        "trellis-push",
-        "push",
       ];
     } else if (name === "untracked_flow") {
       aliases = [

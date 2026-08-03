@@ -49,9 +49,7 @@ const SCRIPT_ALIASES = Object.freeze({
   task_intent: ["task-intent", "intent-routing", "workflow-enhancement"],
   git_evidence: [
     "git-evidence", "workflow-enhancement", "task-intent", "intent-routing",
-    "auto-loop", "auto-loop-runner", "trellis-auto-loop", "trellis-route", "route",
-    "trellis-check-all", "check-all", "trellis-update-spec", "update-spec",
-    "trellis-push", "push",
+    "auto-loop", "auto-loop-runner", "trellis-auto-loop",
   ],
   untracked_flow: [
     "untracked-flow", "workflow-enhancement", "task-intent", "intent-routing",

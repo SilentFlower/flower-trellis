@@ -1175,7 +1175,7 @@ class PatchConsumerTest(unittest.TestCase):
                 self.assertIn("Do not choose implementation or checking behavior", workflow)
                 self.assertIn("Untracked work completion", workflow)
                 self.assertIn(
-                    "| Untracked task adoption | `workflow-state:untracked`, "
+                    "| Untracked task adoption | `workflow-state:untracked*`, "
                     "`trellis-brainstorm`, and `task_intent.py adopt` |",
                     workflow,
                 )
@@ -1328,13 +1328,22 @@ class PatchConsumerTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            "Do not edit when baseline capture or workspace validation fails",
+            "A successful `begin` starts at `stage=implement`",
             workflow,
         )
         self.assertIn(
-            "Do not edit when baseline capture, scope extension, or workspace validation fails",
+            "[workflow-state:untracked_check]",
             workflow,
         )
+        self.assertIn(
+            "[workflow-state:untracked_spec]",
+            workflow,
+        )
+        self.assertIn(
+            "[workflow-state:untracked_push]",
+            workflow,
+        )
+        self.assertIn("`stage=push` is only a route cursor", workflow)
         self.assertIn("task_intent.py adopt", workflow)
         self.assertIn(
             "Entering untracked `direct_edit`, creating or resuming a task, or switching intent gets one non-blocking status line",

@@ -8,8 +8,8 @@ Stable owner categories are:
 | --- | --- |
 | Request intent and project knowledge discovery | Request Triage, `trellis-start`, and the referenced router helper |
 | Active task scope safety | Request Triage and the active-task scope guard |
-| Untracked work completion | `workflow-state:untracked`, Phase 2/3 owners, and `untracked_flow.py` |
-| Untracked task adoption | `workflow-state:untracked`, `trellis-brainstorm`, and `task_intent.py adopt` |
+| Untracked work completion | `workflow-state:untracked*`, Phase 2/3 owners, and `untracked_flow.py` |
+| Untracked task adoption | `workflow-state:untracked*`, `trellis-brainstorm`, and `task_intent.py adopt` |
 | Planning handoff and activation | `trellis-task-brief` and the task-start Brief guard |
 | Implement/check execution mode | `trellis-route` |
 | Unified quality verification | `trellis-check-all` |

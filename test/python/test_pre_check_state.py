@@ -101,7 +101,7 @@ class PreCheckStateTest(unittest.TestCase):
                     "platform": "codex",
                     "current_task": None,
                     "untracked_flow": {
-                        "version": 1,
+                        "version": 2,
                         "id": work_id,
                         "summary": "修复一个小问题",
                         "stage": "implement",
@@ -184,7 +184,22 @@ class PreCheckStateTest(unittest.TestCase):
         self.assertTrue(cleared["existed"])
         runtime = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(runtime["untracked_flow"]["id"], "work-123")
-        self.assertNotIn("pre_check_preference", runtime)
+
+    def test_legacy_v1_untracked_still_supports_hold(self) -> None:
+        """旧 v1 游标在升级后仍可绑定 pre-check hold。"""
+        path = self._activate_untracked("codex_untracked_v1")
+        runtime = json.loads(path.read_text(encoding="utf-8"))
+        runtime["untracked_flow"]["version"] = 1
+        path.write_text(json.dumps(runtime), encoding="utf-8")
+
+        with mock.patch.dict(os.environ, {"TRELLIS_CONTEXT_ID": "codex_untracked_v1"}, clear=False):
+            held = self.helper.set_pre_check_hold(self.root, "user-explicit")
+
+        self.assertEqual(held["subject"], {"kind": "untracked", "id": "work-123"})
+        self.assertIn(
+            "pre_check_preference",
+            json.loads(path.read_text(encoding="utf-8")),
+        )
 
     def test_untracked_hold_does_not_cross_work_item(self) -> None:
         """切换无任务事项后不得读取或清除旧 hold。"""

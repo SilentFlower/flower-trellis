@@ -32,7 +32,7 @@ function quietApply(target) {
 }
 
 
-test("untracked workflow owner 串联稳定完成链且不伪造 task route", () => {
+test("untracked workflow 只保存阶段游标并路由到单一 owner", () => {
   const state = read("overrides/patches/workflow/state-untracked/content.md");
   const noTask = read("overrides/patches/workflow/state-no-task/content.md");
   const triage = read("overrides/patches/workflow/intent-routing/request-triage/content.md");
@@ -40,29 +40,49 @@ test("untracked workflow owner 串联稳定完成链且不伪造 task route", ()
   const check = read(".agents/skills/trellis-check-all/references/reporting-and-disposition.md");
   const updateSpec = read("overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md");
   const push = read(".agents/skills/trellis-push/SKILL.md");
+  const helper = read("scripts/untracked_flow.py");
 
   assert.match(noTask, /untracked_flow\.py begin/);
   assert.match(noTask, /A same-item hit resumes the existing state/);
   assert.match(noTask, /`active-work-conflict` blocks unrelated code writes/);
   assert.match(noTask, /Unrelated read-only requests may continue without mutating the state/);
-  assert.match(noTask, /prepare-edit --paths/);
-  assert.match(noTask, /Do not edit when baseline capture or workspace validation fails/);
+  assert.match(noTask, /starts at `stage=implement`/);
+  assert.match(noTask, /helper is a workflow cursor/);
   assert.match(state, /single-active-work guard/);
-  assert.match(state, /Do not edit when baseline capture, scope extension, or workspace validation fails/);
+  assert.match(state, /\[workflow-state:untracked_check\]/);
+  assert.match(state, /\[workflow-state:untracked_spec\]/);
+  assert.match(state, /\[workflow-state:untracked_push\]/);
+  assert.match(state, /`stage=push` is only a route cursor/);
+  assert.match(state, /load `trellis-push`/);
   assert.match(state, /task_intent\.py adopt/);
   assert.doesNotMatch(triage, /untracked_flow\.py begin/);
   assert.doesNotMatch(triage, /prepare-edit --paths/);
   assert.doesNotMatch(triage, /task_intent\.py adopt/);
-  assert.match(state, /record-validation/);
-  assert.match(state, /record-check/);
-  assert.match(state, /record-spec/);
   assert.match(state, /--reason completed/);
+  for (const removed of [
+    /prepare-edit/,
+    /record-validation/,
+    /record-check/,
+    /record-spec/,
+    /workspace fingerprint/i,
+  ]) {
+    assert.doesNotMatch(state, removed);
+    assert.doesNotMatch(noTask, removed);
+  }
   assert.match(route, /read-pref --target/);
   assert.match(route, /untracked 的“仅本次”只用于当前调用，不写任何 runtime 或偏好/);
   assert.match(route, /不得写 `Active task:`/);
-  assert.match(check, /untracked_flow\.py record-check/);
-  assert.match(updateSpec, /untracked_flow\.py record-spec/);
+  assert.match(route, /helper 只提供流程游标/);
+  assert.match(check, /advance --stage implement/);
+  assert.match(check, /advance --stage spec/);
+  assert.doesNotMatch(check, /untracked_flow\.py record-check/);
+  assert.match(updateSpec, /untracked_flow\.py advance --stage push/);
+  assert.doesNotMatch(updateSpec, /untracked_flow\.py record-spec/);
   assert.match(push, /untracked_flow\.py clear --reason completed/);
+  assert.match(push, /游标命中不表示 Push 已计划、已确认或已执行/);
+  assert.doesNotMatch(helper, /from git_evidence/);
+  assert.doesNotMatch(helper, /workspace-drift/);
+  assert.doesNotMatch(helper, /record_validation|record_check|record_spec|prepare_edit/);
 });
 
 
@@ -159,7 +179,7 @@ test("untracked agent Patch 对完整平台真实模板重复应用幂等", () =
 });
 
 
-test("相关精细安装入口携带 untracked helper 与共享 Git 依赖", () => {
+test("相关精细安装入口携带 untracked helper，只有 task-intent 携带 Git evidence", () => {
   for (const skill of [
     "task-intent",
     "trellis-route",
@@ -175,11 +195,10 @@ test("相关精细安装入口携带 untracked helper 与共享 Git 依赖", () 
 
     const result = copyScriptAssets(target, variant, [skill]);
 
-    assert.deepEqual(
-      result.installed.sort(),
-      ["script:git_evidence.py", "script:untracked_flow.py"],
-      skill,
-    );
+    const expected = skill === "task-intent"
+      ? ["script:git_evidence.py", "script:untracked_flow.py"]
+      : ["script:untracked_flow.py"];
+    assert.deepEqual(result.installed.sort(), expected, skill);
     fs.rmSync(target, { recursive: true, force: true });
   }
 });

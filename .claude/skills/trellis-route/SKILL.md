@@ -212,7 +212,7 @@ dispatch prompt 第一行始终遵守当前 task/untracked 契约。agent 文件
 
 ### Untracked Subagent Dispatch 契约
 
-untracked 的 implement/check subagent prompt 第一行固定为 `Untracked work: <work-id>`，并包含事项摘要、stage、scope、baseline 仓库摘要、current fingerprint、已有验证证据、相关 spec 路径和本轮明确职责。不得写 `Active task:`，不得要求 `prd.md`、`implement.jsonl` 或 `check.jsonl`。agent 必须直接执行，不得递归 dispatch implement/check agent。
+untracked 的 implement/check subagent prompt 第一行固定为 `Untracked work: <work-id>`，并包含事项摘要、当前 stage、实际 diff、相关 spec 路径、已有验证上下文和本轮明确职责。helper 只提供流程游标，不提供 scope、baseline、fingerprint 或 owner evidence。不得写 `Active task:`，不得要求 `prd.md`、`implement.jsonl` 或 `check.jsonl`。agent 必须直接执行，不得递归 dispatch implement/check agent。
 
 ### Subagent Check-All Dispatch 契约
 

@@ -12,8 +12,8 @@ Complete contracts live in the owning phase, workflow state, skill, hook, or hel
 | Project Knowledge Discovery | `Request Triage` | `spec_router.py` |
 | Flower Update Confirmation | SessionStart update context + Flower CLI | update hook / `self-update` arguments |
 | Active Task Scope Guard | `Request Triage` | `task_intent.py` scope safety |
-| Untracked Work Completion Chain | `workflow-state:untracked` + Phase 2/3 owners | `untracked_flow.py` |
-| Untracked Task Adoption | `workflow-state:untracked` + `trellis-brainstorm` | `task_intent.py adopt` |
+| Untracked Work Completion Chain | `workflow-state:untracked*` + Phase 2/3 owners | `untracked_flow.py` |
+| Untracked Task Adoption | `workflow-state:untracked*` + `trellis-brainstorm` | `task_intent.py adopt` |
 | Routing Gate | Phase 2 + `trellis-route` | `route_state.py` |
 | Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` | `auto_loop.py record/next` |
 | Interactive Post-Check Stop Gate | Phase 2.2 + `trellis-check-all` | current Check-All evidence |

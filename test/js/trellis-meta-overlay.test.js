@@ -174,8 +174,8 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(workflow, /Do not choose implementation or checking behavior from a static platform-capability split/);
   assert.match(workflow, /trellis-route/);
   assert.match(workflow, /trellis-auto-loop/);
-  assert.match(workflow, /Untracked work completion \| `workflow-state:untracked`/);
-  assert.match(workflow, /Untracked task adoption \| `workflow-state:untracked`, `trellis-brainstorm`, and `task_intent\.py adopt` \|/);
+  assert.match(workflow, /Untracked work completion \| `workflow-state:untracked\*`/);
+  assert.match(workflow, /Untracked task adoption \| `workflow-state:untracked\*`, `trellis-brainstorm`, and `task_intent\.py adopt` \|/);
   assert.match(workflow, /Planning handoff and activation \| `trellis-task-brief` and the task-start Brief guard/);
   assert.match(workflow, /Commit\/push safety and completion activation \| `trellis-push` and `task_progress\.py`/);
   assert.match(workflow, /Cross-session task progress discovery and recovery \| `trellis-continue` owns the recovery decision, `task_progress\.py` owns candidate evidence and completed-task reopen, and `task\.py start` with `\.trellis\/scripts\/common\/active_task\.py` owns explicit session binding \|/);

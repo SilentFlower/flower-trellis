@@ -177,16 +177,6 @@ class TaskIntentTest(unittest.TestCase):
             ],
             env=self.env,
         )
-        self.run_command(
-            [
-                "python3",
-                ".trellis/scripts/untracked_flow.py",
-                "prepare-edit",
-                "--paths",
-                "tracked.txt",
-            ],
-            env=self.env,
-        )
         (self.root / "tracked.txt").write_text("adopted\n", encoding="utf-8")
         before = self.run_command(["git", "diff", "--", "tracked.txt"]).stdout
 
@@ -204,12 +194,58 @@ class TaskIntentTest(unittest.TestCase):
         self.assertTrue(intent["adoptedUntracked"])
         self.assertTrue(intent["implementationStarted"])
         self.assertEqual(intent["adoptedStage"], "implement")
+        self.assertTrue(any(entry["path"] == "tracked.txt" for entry in intent["baseline"]["status"]))
+        self.assertNotIn("workspaceFingerprint", intent)
+        self.assertNotIn("evidence", intent)
         self.assertEqual(self.run_command(["git", "diff", "--", "tracked.txt"]).stdout, before)
         sessions = list((self.root / ".trellis/.runtime/sessions").glob("*.json"))
         self.assertEqual(len(sessions), 1)
         runtime = json.loads(sessions[0].read_text(encoding="utf-8"))
         self.assertEqual(runtime["current_task"], payload["task"])
         self.assertNotIn("untracked_flow", runtime)
+
+    def test_adopt_migrates_v1_inspect_and_captures_current_baseline(self) -> None:
+        """adopt 接受 v1 inspect，并以当前 dirty 重新建立 task baseline。"""
+        (self.root / ".trellis/.gitignore").write_text(".runtime/\n", encoding="utf-8")
+        session = self.root / ".trellis/.runtime/sessions/intent-test-session.json"
+        session.parent.mkdir(parents=True)
+        session.write_text(
+            json.dumps(
+                {
+                    "untracked_flow": {
+                        "version": 1,
+                        "id": "uw-legacy",
+                        "mode": "direct_edit",
+                        "source": "inferred",
+                        "summary": "Legacy work",
+                        "stage": "inspect",
+                        "baseline": {"fingerprint": "stale"},
+                        "scope": ["tracked.txt"],
+                        "workspaceFingerprint": "stale",
+                        "evidence": {"checkAll": {"result": "pass"}},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        (self.root / "tracked.txt").write_text("legacy adopted\n", encoding="utf-8")
+
+        _, payload = self.helper(
+            "adopt",
+            "Legacy adopted task",
+            "--slug",
+            "legacy-adopted-task",
+        )
+
+        task_dir = self.root / payload["task"]
+        data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+        intent = data["meta"]["intentRouting"]
+        self.assertEqual(payload["adoptedStage"], "implement")
+        self.assertEqual(intent["adoptedStage"], "implement")
+        self.assertTrue(intent["implementationStarted"])
+        self.assertTrue(any(entry["path"] == "tracked.txt" for entry in intent["baseline"]["status"]))
+        self.assertNotIn("workspaceFingerprint", intent)
+        self.assertNotIn("evidence", intent)
 
     def test_adopt_failure_rolls_back_task_and_restores_untracked_session(self) -> None:
         """adoption 写入失败时删除新 task 并恢复原 session。"""

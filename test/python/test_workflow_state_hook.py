@@ -137,10 +137,6 @@ class WorkflowStateHookTest(unittest.TestCase):
         shutil.copy2(ROOT / ".trellis/scripts/task.py", scripts / "task.py")
         shutil.copy2(ROOT / ".trellis/scripts/decision_log.py", scripts / "decision_log.py")
         shutil.copy2(
-            ROOT / "vendor/skill-garden/.trellis/0.6/scripts/git_evidence.py",
-            scripts / "git_evidence.py",
-        )
-        shutil.copy2(
             ROOT / "vendor/skill-garden/.trellis/0.6/scripts/untracked_flow.py",
             scripts / "untracked_flow.py",
         )
@@ -306,8 +302,8 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn("before any edit or task action", breadcrumb)
         self.assertNotIn("Refer to workflow.md for current step.", breadcrumb)
 
-    def test_untracked_state_precedes_no_task_and_includes_recovery_context(self) -> None:
-        """合法 untracked 状态优先于 no_task，并显示事项恢复信息。"""
+    def test_untracked_stage_selects_one_hop_breadcrumb(self) -> None:
+        """合法 untracked 状态优先于 no_task，并按阶段选择单一 owner。"""
         self._install_task_scripts()
         (self.root / ".trellis/workflow.md").write_text(
             UNTRACKED_STATE_SOURCE.read_text(encoding="utf-8"),
@@ -315,33 +311,79 @@ class WorkflowStateHookTest(unittest.TestCase):
         )
         session = self.root / ".trellis/.runtime/sessions/codex_work-id.json"
         session.parent.mkdir(parents=True)
+        cases = {
+            "implement": "trellis-route(target=implement)",
+            "check": "trellis-check-all",
+            "spec": "trellis-update-spec",
+            "push": "load `trellis-push`",
+        }
+        for stage, owner in cases.items():
+            with self.subTest(stage=stage):
+                session.write_text(
+                    json.dumps(
+                        {
+                            "current_task": None,
+                            "untracked_flow": {
+                                "version": 2,
+                                "id": "work-123",
+                                "source": "user-explicit",
+                                "summary": "修复路由偏好",
+                                "stage": stage,
+                                "createdAt": "2026-08-03T00:00:00Z",
+                                "updatedAt": "2026-08-03T00:00:00Z",
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                breadcrumb = self._run_hook(
+                    {"cwd": str(self.root), "platform": "codex", "session_id": "work-id"}
+                )
+
+                self.assertIn(f"Untracked work: work-123 ({stage})", breadcrumb)
+                self.assertIn("Summary: 修复路由偏好", breadcrumb)
+                self.assertIn("untracked_flow.py status", breadcrumb)
+                self.assertIn(owner, breadcrumb)
+                self.assertNotIn("Status: no_task", breadcrumb)
+                if stage == "push":
+                    self.assertIn("`stage=push` is only a route cursor", breadcrumb)
+                    self.assertNotIn("trellis-check-all", breadcrumb)
+                    self.assertNotIn("trellis-update-spec", breadcrumb)
+
+    def test_legacy_inspect_state_routes_to_implement(self) -> None:
+        """旧 v1 inspect 状态经 helper 映射后进入 implement breadcrumb。"""
+        self._install_task_scripts()
+        (self.root / ".trellis/workflow.md").write_text(
+            UNTRACKED_STATE_SOURCE.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        session = self.root / ".trellis/.runtime/sessions/codex_legacy.json"
+        session.parent.mkdir(parents=True)
         session.write_text(
             json.dumps(
                 {
-                    "current_task": None,
                     "untracked_flow": {
                         "version": 1,
-                        "id": "work-123",
+                        "id": "work-legacy",
                         "mode": "direct_edit",
-                        "source": "user-explicit",
-                        "summary": "修复路由偏好",
-                        "stage": "implement",
-                        "scope": ["src/route.js"],
+                        "source": "inferred",
+                        "summary": "旧事项",
+                        "stage": "inspect",
+                        "scope": ["src/old.py"],
                         "evidence": {},
-                    },
+                    }
                 }
             ),
             encoding="utf-8",
         )
 
         breadcrumb = self._run_hook(
-            {"cwd": str(self.root), "platform": "codex", "session_id": "work-id"}
+            {"cwd": str(self.root), "platform": "codex", "session_id": "legacy"}
         )
 
-        self.assertIn("Untracked work: work-123 (implement)", breadcrumb)
-        self.assertIn("Summary: 修复路由偏好", breadcrumb)
-        self.assertIn("untracked_flow.py status", breadcrumb)
-        self.assertNotIn("Status: no_task", breadcrumb)
+        self.assertIn("Untracked work: work-legacy (implement)", breadcrumb)
+        self.assertIn("trellis-route(target=implement)", breadcrumb)
 
     def test_invalid_untracked_state_falls_back_to_no_task(self) -> None:
         """损坏的 untracked 字段不得伪造恢复 breadcrumb。"""

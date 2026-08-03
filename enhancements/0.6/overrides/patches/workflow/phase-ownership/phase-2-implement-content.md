@@ -7,13 +7,13 @@ Follow the validated route result:
 - `inline`: load `trellis-before-dev`, read the active task artifacts and referenced context, then implement and run focused verification.
 - `subagent`: dispatch the selected implement agent with `Active task: <task path>` as the first prompt line; the agent implements directly and must not recursively dispatch implement/check agents.
 
-For untracked work, route reads only the personal pref helper and never creates task-scoped route decisions. Inline loads relevant project specs from `spec_router.py`; subagent dispatch starts with `Untracked work: <work-id>` and includes the helper's complete state summary instead of task artifacts. Run `untracked_flow.py prepare-edit --paths <exact intended paths>` before every write batch.
+For untracked work, route reads only the personal pref helper and never creates task-scoped route decisions. Inline loads relevant project specs from `spec_router.py`; subagent dispatch starts with `Untracked work: <work-id>` and includes the work summary, current stage, actual diff/spec context, and this turn's responsibility instead of task artifacts. If implementation resumes from a downstream stage, set the cursor to `implement` before editing.
 
 Route preference recovery, fallback choices, and runtime evidence belong to `trellis-route`; do not reproduce them here.
 
 After implementation and focused verification, resolve the next action in this order:
 
-For untracked work, first record the focused validation through `untracked_flow.py record-validation`; before entering Check-All, advance to `check`. A failed or partial validation remains in `implement` until the owner evidence permits advancement.
+For untracked work, focused validation remains owned by the implementation path. When it is complete, advance the cursor to `check`; a failed or partial validation stays at `implement`.
 
 1. A validated auto-loop outstanding action wins; continue to its requested Check-All action without consulting interactive hold state.
 2. If the latest user message explicitly requests checking, continuation, commit, or deployment, run `python3 ./.trellis/scripts/pre_check_state.py clear` and enter Phase 2.2 in the same turn.

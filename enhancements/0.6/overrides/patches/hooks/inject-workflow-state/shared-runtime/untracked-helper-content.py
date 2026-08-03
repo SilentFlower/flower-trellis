@@ -12,7 +12,6 @@ def _get_untracked_work(root: Path, input_data: dict) -> Optional[tuple[str, str
             root,
             input_data,
             platform=_detect_platform(input_data),
-            validate_workspace=False,
         )
     except Exception:
         return None

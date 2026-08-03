@@ -120,7 +120,7 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 
   TAG ↔ PHASE scoping:
     [workflow-state:no_task]      → no active task; before Phase 1
-    [workflow-state:untracked]    → current-session direct-edit completion chain
+    [workflow-state:untracked*]   → current-session direct-edit stage cursor
     [workflow-state:missing_task]   → missing active-task directory recovery
     [workflow-state:planning]     → all of Phase 1 (status='planning')
     [workflow-state:planning-inline] → Codex inline variant of Phase 1
@@ -140,7 +140,7 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
       in Skill-Garden managed mode, edit the owning Patch and run source sync,
       compiled-target checks, and dogfood update
     - Runtime pseudo-status names are fixed. This Flower variant defines
-      `no_task`, `untracked`, and `missing_task`; hook diagnostic source types must not be
+      `no_task`, the `untracked*` stage family, and `missing_task`; hook diagnostic source types must not be
       appended to workflow-state tag names.
 -->
 <!-- END skill-garden patch workflow-state-contract-comment v0.6 -->
@@ -162,8 +162,8 @@ Complete contracts live in the owning phase, workflow state, skill, hook, or hel
 | Project Knowledge Discovery | `Request Triage` | `spec_router.py` |
 | Flower Update Confirmation | SessionStart update context + Flower CLI | update hook / `self-update` arguments |
 | Active Task Scope Guard | `Request Triage` | `task_intent.py` scope safety |
-| Untracked Work Completion Chain | `workflow-state:untracked` + Phase 2/3 owners | `untracked_flow.py` |
-| Untracked Task Adoption | `workflow-state:untracked` + `trellis-brainstorm` | `task_intent.py adopt` |
+| Untracked Work Completion Chain | `workflow-state:untracked*` + Phase 2/3 owners | `untracked_flow.py` |
+| Untracked Task Adoption | `workflow-state:untracked*` + `trellis-brainstorm` | `task_intent.py adopt` |
 | Routing Gate | Phase 2 + `trellis-route` | `route_state.py` |
 | Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` | `auto_loop.py record/next` |
 | Interactive Post-Check Stop Gate | Phase 2.2 + `trellis-check-all` | current Check-All evidence |
@@ -226,19 +226,31 @@ No active task. Infer the current request intent before acting.
 Repair intent alone is not a no-task switch; inspect unknown scope and reclassify before edits. Only an explicit current-request workflow instruction such as `直接做` / `不要任务` may override automatic `task_plan`.
 For non-trivial project work, follow the `Request Triage` Project Knowledge Discovery contract before routing the action. Load a Trellis capability directly only when the user explicitly names it or the request exactly matches that capability; route project-specific workflow actions through the matched SOP instead of keyword-mapping a general release/publish request to `trellis-release`.
 Handle `discuss` and `inspect` silently. For non-destructive `direct_edit`, state once that work will use the session-scoped untracked flow, then run `python3 ./.trellis/scripts/untracked_flow.py begin --summary "<bounded work summary>" --source <inferred|user-explicit>`.
-A same-item hit resumes the existing state; `active-work-conflict` blocks unrelated code writes until the current item is completed, explicitly abandoned, or adopted into a task. Unrelated read-only requests may continue without mutating the state. After a successful `begin`, run `python3 ./.trellis/scripts/untracked_flow.py prepare-edit --paths <exact intended paths>` before the first file write. Do not edit when baseline capture or workspace validation fails.
+A same-item hit resumes the existing state; `active-work-conflict` blocks unrelated code writes until the current item is completed, explicitly abandoned, or adopted into a task. Unrelated read-only requests may continue without mutating the state. A successful `begin` starts at `stage=implement`; the helper is a workflow cursor and does not gate edits on file scope, Git state, or owner evidence.
 For high-confidence complex implementation, create an auto-routed planning task through `task_intent.py create`, show one non-blocking switch hint, and enter `trellis-brainstorm`. Ask only for material ambiguity or independent safety gates.
 <!-- END skill-garden patch workflow-state-no-task v0.6 -->
 [/workflow-state:no_task]
 <!-- BEGIN skill-garden patch workflow-state-untracked v0.6 -->
 [workflow-state:untracked]
-One current-session untracked work item is active. Run `python3 ./.trellis/scripts/untracked_flow.py status` and continue its reported stage; do not create task artifacts or task-scoped route decisions.
-At `inspect` or `implement`, enter Phase 2.1 with `trellis-route(target=implement)` and run `prepare-edit --paths <exact paths>` before every write batch. Do not edit when baseline capture, scope extension, or workspace validation fails. Use `record-validation` for focused evidence, then advance to `check` only when it passes.
-At `check`, enter Phase 2.2 with `trellis-route(target=check)`; use `record-check` for the Check-All result and advance to `spec` only on a current valid pass.
-At `spec`, run `trellis-update-spec`; use `record-spec` for `no-op`, `written`, or `needs-review`, and advance to `push` only for the first two results.
-At `push`, load `trellis-push`; clear with `--reason completed` only after all confirmed Git actions succeed. New edits return through `prepare-edit`, which invalidates downstream evidence.
-A different implementation request is blocked by the single-active-work guard until this item is completed, explicitly abandoned, or adopted through `python3 ./.trellis/scripts/task_intent.py adopt "<title>" --slug <slug>`; adoption continues through planning artifacts, Brief review, and `task.py start`, and never authorizes immediate implementation. Unrelated read-only requests may continue without changing state.
+The current-session untracked work item is at `implement`. Run `python3 ./.trellis/scripts/untracked_flow.py status`, then enter Phase 2.1 through `trellis-route(target=implement)` without creating task artifacts or task-scoped route decisions.
+The helper is only a workflow cursor: it does not validate file scope, Git state, focused validation, or owner evidence. After focused validation is complete, run `python3 ./.trellis/scripts/untracked_flow.py advance --stage check` and continue through the normal Phase 2.1 completion contract.
+A different implementation request remains blocked by the single-active-work guard until this item is completed, explicitly abandoned, or adopted through `python3 ./.trellis/scripts/task_intent.py adopt "<title>" --slug <slug>`; adoption continues through planning artifacts, Brief review, and `task.py start`, and never authorizes immediate implementation. Unrelated read-only requests may continue without changing state.
 [/workflow-state:untracked]
+
+[workflow-state:untracked_check]
+The current-session untracked work item is at `check`. Run `python3 ./.trellis/scripts/untracked_flow.py status`, then enter Phase 2.2 through `trellis-route(target=check)` and execute `trellis-check-all`.
+If Check-All reports findings or a new edit is needed, run `python3 ./.trellis/scripts/untracked_flow.py advance --stage implement` before returning to implementation. On a strict pass, keep `check` while the interactive stop gate waits; only a same-turn direct Git continuation or a later explicit continuation advances to `spec`.
+[/workflow-state:untracked_check]
+
+[workflow-state:untracked_spec]
+The current-session untracked work item is at `spec`. Run `python3 ./.trellis/scripts/untracked_flow.py status`, then load `trellis-update-spec`.
+Keep `spec` for `needs-review`. For `no-op` or `written`, run `python3 ./.trellis/scripts/untracked_flow.py advance --stage push`. The helper records only the next owner; Update-Spec owns its evidence and validation.
+[/workflow-state:untracked_spec]
+
+[workflow-state:untracked_push]
+The current-session untracked work item is ready to enter Push. Run `python3 ./.trellis/scripts/untracked_flow.py status`, require `stage=push`, and load `trellis-push`.
+`stage=push` is only a route cursor: it is not a Git plan, user confirmation, or proof that Push already ran. `trellis-push` owns the exact plan, confirmation, Git safety checks, and execution. Clear with `--reason completed` only after every confirmed Git action succeeds; new edits first return the cursor to `implement`.
+[/workflow-state:untracked_push]
 <!-- END skill-garden patch workflow-state-untracked v0.6 -->
 <!-- BEGIN skill-garden patch workflow-state-missing-task v0.6 -->
 [workflow-state:missing_task]
@@ -580,13 +592,13 @@ Follow the validated route result:
 - `inline`: load `trellis-before-dev`, read the active task artifacts and referenced context, then implement and run focused verification.
 - `subagent`: dispatch the selected implement agent with `Active task: <task path>` as the first prompt line; the agent implements directly and must not recursively dispatch implement/check agents.
 
-For untracked work, route reads only the personal pref helper and never creates task-scoped route decisions. Inline loads relevant project specs from `spec_router.py`; subagent dispatch starts with `Untracked work: <work-id>` and includes the helper's complete state summary instead of task artifacts. Run `untracked_flow.py prepare-edit --paths <exact intended paths>` before every write batch.
+For untracked work, route reads only the personal pref helper and never creates task-scoped route decisions. Inline loads relevant project specs from `spec_router.py`; subagent dispatch starts with `Untracked work: <work-id>` and includes the work summary, current stage, actual diff/spec context, and this turn's responsibility instead of task artifacts. If implementation resumes from a downstream stage, set the cursor to `implement` before editing.
 
 Route preference recovery, fallback choices, and runtime evidence belong to `trellis-route`; do not reproduce them here.
 
 After implementation and focused verification, resolve the next action in this order:
 
-For untracked work, first record the focused validation through `untracked_flow.py record-validation`; before entering Check-All, advance to `check`. A failed or partial validation remains in `implement` until the owner evidence permits advancement.
+For untracked work, focused validation remains owned by the implementation path. When it is complete, advance the cursor to `check`; a failed or partial validation stays at `implement`.
 
 1. A validated auto-loop outstanding action wins; continue to its requested Check-All action without consulting interactive hold state.
 2. If the latest user message explicitly requests checking, continuation, commit, or deployment, run `python3 ./.trellis/scripts/pre_check_state.py clear` and enter Phase 2.2 in the same turn.
@@ -602,7 +614,7 @@ Planning documents may remain temporarily behind during repeated feedback. The e
 
 Run `trellis-route(target=check)`, then execute the unified `trellis-check-all` entry using the validated inline/subagent route.
 
-For untracked work, route reads only the personal pref helper and the dispatch prompt starts with `Untracked work: <work-id>` plus complete state/spec context. After Check-All, record its result through `untracked_flow.py record-check`; only a current valid pass may advance the work to `spec`.
+For untracked work, route reads only the personal pref helper and the dispatch prompt starts with `Untracked work: <work-id>` plus the work summary, current stage, actual diff, relevant specs, and validation context. Findings or new edits return the cursor to `implement`; a strict pass advances to `spec` only when the existing interactive/direct-Git disposition continues the completion chain.
 
 Before interactive Check-All begins, run `python3 ./.trellis/scripts/pre_check_state.py clear`. A missing, subject-mismatched, or already-cleared preference is a no-op; a damaged runtime is reported diagnostically but safely defaults to checking.
 
@@ -644,14 +656,14 @@ Load `trellis-update-spec` and let it decide whether the task produced executabl
 
 Do not ask a separate generic “update spec?” question before invoking the skill.
 
-For untracked work, evaluate the current state/diff/spec evidence without inventing task artifacts, record the result through `untracked_flow.py record-spec`, and advance to `push` only for `no-op` or `written`.
+For untracked work, evaluate the actual diff and relevant specs without inventing task artifacts. Keep the cursor at `spec` for `needs-review`; advance it to `push` only for `no-op` or `written`.
 <!-- END skill-garden patch workflow-phase-3-update-spec v0.6 -->
 <!-- BEGIN skill-garden patch workflow-phase-3-commit v0.6 -->
 #### 3.4 Commit changes `[required · once]`
 
 Load `trellis-push`. It owns dirty-file classification, exact file/message planning, one-shot confirmation, Git safety checks, ordinary commit + push, and current-task progress synchronization.
 
-For untracked work, the current state baseline/scope/evidence owns attribution and there is no task progress commit. After every confirmed repository action succeeds and the final workspace evidence is recorded, clear the untracked state with `--reason completed`; partial or failed Git execution keeps the state for recovery.
+For untracked work, `stage=push` identifies the next owner and there is no task progress commit. `trellis-push` derives attribution from the current request, work summary, and actual diff. After every confirmed repository action succeeds, clear the untracked state with `--reason completed`; partial or failed Git execution keeps the cursor for recovery.
 
 Ordinary mode defaults to commit and push. Commit-only is allowed only when the user explicitly requests a local commit or a validated auto-loop supplies its scoped preauthorization.
 
@@ -726,7 +738,7 @@ Supported events: `after_create / after_start / after_finish / after_archive`. N
 ### Full contract
 
 <!-- BEGIN skill-garden patch workflow-runtime-contract-reference v0.6 -->
-For the workflow state machine's runtime contract, the authoritative runtime inputs are the installed per-turn hook parser and the `[workflow-state:*]` tags in this file. This Flower variant uses fixed pseudo-status tag names `no_task`, `untracked`, and `missing_task`; hook diagnostic source types such as `session` or `session-fallback` must not become workflow-state tag names.
+For the workflow state machine's runtime contract, the authoritative runtime inputs are the installed per-turn hook parser and the `[workflow-state:*]` tags in this file. This Flower variant uses fixed pseudo-status tag names `no_task`, `untracked`, `untracked_check`, `untracked_spec`, `untracked_push`, and `missing_task`; hook diagnostic source types such as `session` or `session-fallback` must not become workflow-state tag names.
 
 - Installed `<platform>/hooks/inject-workflow-state.py` copies — parse this workflow and emit the current breadcrumb for platforms with a per-turn hook.
 - `.trellis/spec/` project specs, when present — project-local runtime contract notes and invariants.

@@ -8,4 +8,4 @@ Load `trellis-update-spec` and let it decide whether the task produced executabl
 
 Do not ask a separate generic “update spec?” question before invoking the skill.
 
-For untracked work, evaluate the current state/diff/spec evidence without inventing task artifacts, record the result through `untracked_flow.py record-spec`, and advance to `push` only for `no-op` or `written`.
+For untracked work, evaluate the actual diff and relevant specs without inventing task artifacts. Keep the cursor at `spec` for `needs-review`; advance it to `push` only for `no-op` or `written`.

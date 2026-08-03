@@ -74,8 +74,11 @@ function assertIntentRoutingSemantics(value) {
   assert.match(value, /A same-item hit resumes the existing state/);
   assert.match(value, /`active-work-conflict` blocks unrelated code writes/);
   assert.match(value, /Unrelated read-only requests may continue without mutating the state/);
-  assert.match(value, /Do not edit when baseline capture or workspace validation fails/);
-  assert.match(value, /Do not edit when baseline capture, scope extension, or workspace validation fails/);
+  assert.match(value, /starts at `stage=implement`/);
+  assert.match(value, /helper is a workflow cursor/);
+  assert.match(value, /\[workflow-state:untracked_check\]/);
+  assert.match(value, /\[workflow-state:untracked_spec\]/);
+  assert.match(value, /\[workflow-state:untracked_push\]/);
   assert.match(value, /task_intent\.py adopt/);
   assert.match(value, /Entering untracked `direct_edit`, creating or resuming a task, or switching intent gets one non-blocking status line/);
   assert.match(value, /the owning workflow state or capability owns its commands and transition details/);
@@ -529,8 +532,11 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /skill-garden patch workflow-state-completed/);
   assert.match(workflowText, /\[workflow-state:missing_task\]/);
   assert.match(workflowText, /\[workflow-state:untracked\]/);
+  assert.match(workflowText, /\[workflow-state:untracked_check\]/);
+  assert.match(workflowText, /\[workflow-state:untracked_spec\]/);
+  assert.match(workflowText, /\[workflow-state:untracked_push\]/);
   assert.match(workflowText, /in the same turn treat the current user request as `no_task`/);
-  assert.match(workflowText, /This Flower variant uses fixed pseudo-status tag names `no_task`, `untracked`, and `missing_task`/);
+  assert.match(workflowText, /fixed pseudo-status tag names `no_task`, `untracked`, `untracked_check`, `untracked_spec`, `untracked_push`, and `missing_task`/);
   assert.doesNotMatch(workflowText, /stale_<source_type>/);
   assert.doesNotMatch(workflowText, /\.trellis\/spec\/cli\/backend\/workflow-state-contract\.md/);
   assert.doesNotMatch(workflowText, /\.trellis\/scripts\/inject-workflow-state\.py/);

@@ -21,7 +21,7 @@
 
   TAG ↔ PHASE scoping:
     [workflow-state:no_task]      → no active task; before Phase 1
-    [workflow-state:untracked]    → current-session direct-edit completion chain
+    [workflow-state:untracked*]   → current-session direct-edit stage cursor
     [workflow-state:missing_task]   → missing active-task directory recovery
     [workflow-state:planning]     → all of Phase 1 (status='planning')
     [workflow-state:planning-inline] → Codex inline variant of Phase 1
@@ -41,6 +41,6 @@
       in Skill-Garden managed mode, edit the owning Patch and run source sync,
       compiled-target checks, and dogfood update
     - Runtime pseudo-status names are fixed. This Flower variant defines
-      `no_task`, `untracked`, and `missing_task`; hook diagnostic source types must not be
+      `no_task`, the `untracked*` stage family, and `missing_task`; hook diagnostic source types must not be
       appended to workflow-state tag names.
 -->
