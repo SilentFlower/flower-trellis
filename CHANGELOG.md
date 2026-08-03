@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.0-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.1...v0.6.0-beta.2) (2026-08-03)
+
+
+### 🐛 修复 Bug Fixes
+
+* 修复 Skill-Garden update 平台状态污染 ([787d4c7](https://github.com/SilentFlower/flower-trellis/commit/787d4c797834b4a0bb909e4eb20afe0be281fde1))
+
 ## [0.6.0-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.0...v0.6.0-beta.1) (2026-08-03)
 
 

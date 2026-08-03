@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.0-beta.1",
+  "version": "0.6.0-beta.2",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -68,9 +68,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.0-beta.1",
+    "version": "0.6.0-beta.2",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* 同步简化 untracked 流程与 Push 路由 ([26ce73a](https://github.com/SilentFlower/flower-trellis/commit/26ce73a0a9a5dbcc3b8a623ca08b062a54a1e810))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* 修复 Skill-Garden update 平台状态污染 ([787d4c7](https://github.com/SilentFlower/flower-trellis/commit/787d4c797834b4a0bb909e4eb20afe0be281fde1))",
     "truncated": false
   },
   "optionalDependencies": {
