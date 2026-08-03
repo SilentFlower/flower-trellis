@@ -35,6 +35,7 @@ buildPluginLock(graph) -> PluginLock
 listPluginPlatforms() -> string[]
 detectPluginPlatforms(projectRoot, explicitPlatforms?)
   -> { platforms, targets: Array<{ root, source, platforms }> }
+resolveSkillGardenPlatforms(projectRoot) -> string[]
 projectPluginContent(options) -> ContentProjection
 createInstallPlan(graph, mutations, options) -> InstallPlan
 
@@ -90,6 +91,11 @@ Source Provider 最小接口固定为：
 - 生命周期平台优先级固定为“本轮显式选择 -> 既有 Plugin state 实际平台 -> 首次安装自动检测”。
   update/replay/remove 不得依赖受管 Skill 目录反推平台；否则共享 root 收窄后会让已安装 Plugin
   无法更新或删除。Skill-Garden wrapper 可以显式传入重新检测结果，用于纠正旧的错误 state。
+- `resolveSkillGardenPlatforms(projectRoot)` 是 Skill-Garden wrapper 的平台事实入口：优先使用
+  Trellis `getConfiguredPlatforms()` 从 `.trellis/.template-hashes.json` 推导当前模板配置，并将
+  `claude-code` 映射为 Plugin 平台 `claude`；只有缺少 hash 证据或读取失败时，才回退到
+  `detectPluginPlatforms()` 的原生检测和 Claude compatibility fallback。不得让既有
+  `.flower/state.json` 的污染平台列表成为 Skill-Garden update 的默认事实源。
 - 完全没有可用平台时返回 `PLUGIN_PLATFORM_SELECTION_REQUIRED`，不得沿用增强链的 Claude fallback，也不得创建 `.trellis/` 或安装 `skill-garden`。
 - 多个逻辑平台共享同一物理 root 时只生成一个 mutation，并在 provenance 中保留全部逻辑平台。
 - `createInstallPlan()` 在写盘前统一检查安全相对路径、父路径软链、同目标多 owner/内容、文件目录前缀、现有用户文件和 state ownership。
@@ -125,6 +131,10 @@ Source Provider 最小接口固定为：
 - 0.6 的 skill-garden/flower catalog 必须进入同一个 Patch preflight；内容与 Patch 同目标仅在同 owner、可信 system 且最终 hash 完全相同时合并，否则按内容冲突失败。
 - old/0.5 后处理必须在临时镜像中计算最终字节，再作为普通 mutation 进入事务；不得直接对目标调用 legacy 写函数。
 - common skill 刷新记录为 `shared` ownership，Plugin 更新可刷新，卸载和 orphan 清理不得删除。
+- 0.6 Check-All agent 投影按本轮 `platformSelection.platforms` 收敛；旧 state 中不再启用的平台
+  agent 必须从新 state 删除，并由普通 removal mutation 清理文件。父目录只在当前目录全部普通文件
+  都是本轮确认淘汰的旧受管文件时才登记 `directoryRemovals`，避免删除用户自有 `.gemini`、`.zcode`
+  或其它平台目录内容。
 - `--no-enhance` 更新使用冻结 replay：skill-garden lock/state 原样保留，外部 Plugin 仍按固定 lock 重放，且不允许升级未显式请求的外部版本。
 - `flower-trellis uninstall` 必须在调用 Trellis 前检查 lock 中的反向依赖；仍有外部 Plugin 依赖 `flower/skill-garden` 时整次卸载失败关闭，Trellis 与 Plugin 目标均不得写入。
 
@@ -151,6 +161,9 @@ Source Provider 最小接口固定为：
 
 - 项目显式选择 `codex`，安装 `local/demo` 及其共享依赖；共享 `.agents/skills` 只产生一个目标 mutation，lock 使用稳定依赖优先顺序。
 - 项目已有 lock 且约束未变：普通 add/remove 重算仍保持兼容旧版本；显式 update 才升级目标节点。
+- `flower-trellis update` 遇到旧 Skill-Garden state 含 `gemini/zcode`，但 Trellis 模板 hash 只记录
+  `claude-code/codex` 时，wrapper 显式传入 `claude/codex`，新 state 收窄到真实平台，且只清理纯旧
+  check-all agent 目录。
 - P3 动态加载远程适配器、准备 GitLab Provider 后，把同一 `SourceRegistry` 交给 Application Service，远程包与 local/builtin 包走相同 Resolver 和事务。
 
 ### Base
@@ -166,6 +179,8 @@ Source Provider 最小接口固定为：
 - local Plugin 在无平台项目中隐式创建 `.claude/skills`。
 - Provider 返回绝对缓存路径进入 lock/JSON，或 Resolver 直接访问网络和目标文件系统。
 - 为 GitLab 或 Patch capability 复制一套依赖求解、InstallPlan 或事务 writer。
+- `flower-trellis update` 重放 `flower/skill-garden` 时不传 `--platform`，导致 Runtime 复用污染的旧
+  `.flower/state.json.platforms` 并重新创建未启用平台目录。
 - 在 Provider 内按遍历顺序选择第一个外部 manifest，或让 Adapter 直接写 `.agents/skills`、`.claude/skills`、`.flower/`。
 
 ## 6. Tests Required
@@ -179,6 +194,9 @@ Source Provider 最小接口固定为：
 - `plugin-interactive.test.js` 与 `plugin-remote-cli.test.js`：歧义选择、非 TTY 零 prompt、兼容预览、临时 cache 成功/失败清理和确认前零持久化。
 - `plugin-lifecycle-cli.test.js`：parser、真实 add/update/remove/verify、空项目 update、无平台零写入、JSON/人类输出、短 ID 和退出码。
 - `plugin-skill-garden.test.js`：builtin trust/digest、legacy 迁移、冻结 replay、shared common ownership 和 state/hash 卸载。
+- `update-backups.test.js`：`flower-trellis update` 的 Skill-Garden 重放必须覆盖污染平台 state
+  收窄；断言旧 state 含 `gemini/zcode` 而 Trellis hash 只含 Claude/Codex 时，新 state 只保留
+  `claude/codex`，且纯旧 `.gemini/.zcode` check-all agent 目录被清理。
 - 修改本契约后必须运行完整 `npm test`、`npm pack --dry-run --json`、全部受影响 JS 的 `node --check` 和 `git diff --check`。
 
 ## 7. Wrong vs Correct

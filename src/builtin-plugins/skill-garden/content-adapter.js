@@ -344,6 +344,46 @@ export function projectSkillGardenContent(options) {
   }
 
   /**
+   * 只有目录当前全部文件都会在本轮删除时，才登记父目录清理。
+   *
+   * 旧版本可能只登记 check-all agent 文件，没登记 `.gemini` / `.zcode` 父目录。
+   * 这里用当前目录完整文件集合做 fail-closed 判断，避免删除包含用户内容的平台目录。
+   *
+   * @param {string} directory 项目内目录
+   * @param {Set<string>} staleTargets 本轮确认淘汰的旧受管文件
+   */
+  function addDirectoryRemovalIfOnlyStaleFiles(directory, staleTargets) {
+    assertSafePosixRelativePath(directory, "skill-garden 待删目录");
+    const absoluteDirectory = path.join(projectRoot, ...directory.split("/"));
+    const existingTargets = listExistingFiles(absoluteDirectory)
+      .map((file) => `${directory}/${file.path}`);
+    if (existingTargets.length === 0) return;
+    if (!existingTargets.every((target) => staleTargets.has(target))) return;
+    const beforeHash = hashDirectoryIfExists(absoluteDirectory);
+    if (beforeHash === null) return;
+    if (directoryRemovals.some(({ path: targetPath }) => targetPath === directory)) return;
+    directoryRemovals.push({ owner: resolved.id, path: directory, beforeHash });
+  }
+
+  /**
+   * 为旧平台 check-all agent 规划安全父目录清理。
+   *
+   * @param {Set<string>} staleTargets 本轮确认淘汰的旧受管 check-all agent
+   */
+  function addStaleCheckAllDirectoryRemovals(staleTargets) {
+    for (const target of [...staleTargets].sort(compareUtf8)) {
+      const parent = path.posix.dirname(target);
+      if (parent !== "." && parent !== target) {
+        addDirectoryRemovalIfOnlyStaleFiles(parent, staleTargets);
+      }
+      const [root] = target.split("/");
+      if (root && root !== parent) {
+        addDirectoryRemovalIfOnlyStaleFiles(root, staleTargets);
+      }
+    }
+  }
+
+  /**
    * 把一个来源目录按 copyPath 语义投影到目标目录。
    *
    * @param {string} sourceRoot 来源目录
@@ -591,6 +631,12 @@ export function projectSkillGardenContent(options) {
     const selectedPlatforms = new Set(options.platformSelection?.platforms || []);
     const body = fs.readFileSync(path.join(variantDir, CHECK_ALL_AGENT_BODY_REL), "utf8");
     const checkAllSkillRoot = path.join(variantDir, ".agents", "skills", "trellis-check-all");
+    const checkAllTargets = new Set(
+      catalog.platforms
+        .filter(({ checkAll }) => checkAll.eligible)
+        .map(({ checkAll }) => checkAll.target),
+    );
+    const desiredCheckAllTargets = new Set();
     for (const entry of catalog.platforms.filter(({ checkAll }) => checkAll.eligible)) {
       const runtimePlatforms = entry.runtimePlatforms || [entry.id];
       const enabled = selectedPlatforms.size > 0
@@ -613,8 +659,16 @@ export function projectSkillGardenContent(options) {
         "exclusive",
         pluginPackage.skillGarden.variant === "0.6",
       );
+      desiredCheckAllTargets.add(entry.checkAll.target);
       installed.add(`agent:trellis-check-all:${entry.id}`);
     }
+    const staleCheckAllTargets = new Set();
+    for (const entry of previous?.paths || []) {
+      if (!checkAllTargets.has(entry.path) || desiredCheckAllTargets.has(entry.path)) continue;
+      paths.delete(entry.path);
+      staleCheckAllTargets.add(entry.path);
+    }
+    addStaleCheckAllDirectoryRemovals(staleCheckAllTargets);
     addFile(
       ".trellis/agents/check-all.md",
       Buffer.from([

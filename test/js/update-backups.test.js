@@ -5,13 +5,16 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { OWN_FLAGS } from "../../src/constants.js";
+import { plugin } from "../../src/commands/plugin.js";
 import { parseCliArgs, trellisUpdatePassthroughArgs } from "../../src/lib/cli-args.js";
 import { projectUpdateForwardArgs } from "../../src/lib/self-check.js";
 import { trellisVersion } from "../../src/lib/versions.js";
 import {
   createUpdateCompensationError,
+  replayPlugins,
   shouldUseUpdateSandbox,
 } from "../../src/commands/update.js";
+import { SKILL_GARDEN_PLUGIN_ID } from "../../src/builtin-plugins/skill-garden/provider.js";
 import {
   normalizeUpdateBackupRetention,
   planUpdateBackupRetention,
@@ -93,6 +96,29 @@ function createFakeGlobalTrellis(t, version) {
   return prefix;
 }
 
+function writeTemplateHashes(target, paths) {
+  fs.writeFileSync(
+    path.join(target, ".trellis/.template-hashes.json"),
+    `${JSON.stringify({
+      __version: 2,
+      hashes: Object.fromEntries(paths.map((entry) => [entry, "hash"])),
+    }, null, 2)}\n`,
+  );
+}
+
+async function quietAsync(callback) {
+  const originalLog = console.log;
+  const originalError = console.error;
+  console.log = () => {};
+  console.error = () => {};
+  try {
+    return await callback();
+  } finally {
+    console.log = originalLog;
+    console.error = originalError;
+  }
+}
+
 test("升级备份保留数量只接受非负安全整数", () => {
   assert.equal(normalizeUpdateBackupRetention(undefined), 3);
   assert.equal(normalizeUpdateBackupRetention(0), 0);
@@ -134,6 +160,69 @@ test("只有跨版本普通 dry-run 进入项目外升级沙箱", () => {
     currentVersion: "0.6.5",
     targetVersion,
   }), false);
+});
+
+test("Update 重放 Skill-Garden 时按 Trellis 配置收窄污染平台 state", async (t) => {
+  const target = createTarget(t, "flower-update-platform-state-");
+  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.12\n");
+  fs.mkdirSync(path.join(target, ".claude/agents"), { recursive: true });
+  fs.mkdirSync(path.join(target, ".claude/skills"), { recursive: true });
+  fs.mkdirSync(path.join(target, ".agents/skills"), { recursive: true });
+  fs.mkdirSync(path.join(target, ".codex/agents"), { recursive: true });
+  fs.copyFileSync(
+    path.resolve("vendor/skill-garden/compiled-targets/0.6.12/full/targets/.claude/agents/trellis-implement.md"),
+    path.join(target, ".claude/agents/trellis-implement.md"),
+  );
+  fs.copyFileSync(
+    path.resolve("vendor/skill-garden/compiled-targets/0.6.12/full/targets/.codex/agents/trellis-implement.toml"),
+    path.join(target, ".codex/agents/trellis-implement.toml"),
+  );
+  writeTemplateHashes(target, [
+    ".claude/agents/trellis-implement.md",
+    ".codex/agents/trellis-implement.toml",
+  ]);
+
+  const addCode = await quietAsync(() => plugin({
+    target,
+    passthrough: [
+      "add",
+      SKILL_GARDEN_PLUGIN_ID,
+      "--platform",
+      "claude",
+      "--platform",
+      "codex",
+      "--platform",
+      "gemini",
+      "--platform",
+      "zcode",
+      "--json",
+    ],
+  }, {
+    skillGarden: { variant: "0.6", skills: ["trellis-route", "trellis-check-all"] },
+    compact: true,
+  }));
+  assert.equal(addCode, 0);
+  assert.equal(fs.existsSync(path.join(target, ".gemini/agents/trellis-check-all.md")), true);
+  assert.equal(fs.existsSync(path.join(target, ".zcode/agents/trellis-check-all.md")), true);
+
+  await quietAsync(() => replayPlugins({
+    target,
+    enhance: true,
+    variant: "0.6",
+    skills: ["trellis-route", "trellis-check-all"],
+  }, target, false));
+
+  const state = JSON.parse(fs.readFileSync(path.join(target, ".flower/state.json"), "utf8"));
+  const skillGarden = state.plugins.find(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
+  assert.deepEqual(skillGarden.platforms, ["claude", "codex"]);
+  assert.equal(
+    skillGarden.paths.some(({ path: managedPath }) => (
+      managedPath.startsWith(".gemini/") || managedPath.startsWith(".zcode/")
+    )),
+    false,
+  );
+  assert.equal(fs.existsSync(path.join(target, ".gemini")), false);
+  assert.equal(fs.existsSync(path.join(target, ".zcode")), false);
 });
 
 test("0.6.5 最小项目可零写入预览升级到捆绑版本", (t) => {

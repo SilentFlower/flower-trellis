@@ -14,6 +14,7 @@ import {
   snapshotUpdateBackups,
 } from "../lib/update-backups.js";
 import { ProjectStore } from "../plugin/state/project-store.js";
+import { resolveSkillGardenPlatforms } from "../builtin-plugins/skill-garden/runtime.js";
 import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
 import { showCommandCompletion } from "../lib/command-completion.js";
 import { reportTelemetry } from "../lib/telemetry.js";
@@ -56,7 +57,26 @@ function sandboxTrellisUpdateArgs(passthrough) {
   return args;
 }
 
-async function replayPlugins(ctx, target, dryRun, compensationSnapshot = null) {
+/**
+ * 把平台列表转换成 Plugin CLI 的重复 `--platform` 参数。
+ *
+ * @param {string[]} platforms Plugin 平台 ID
+ * @returns {string[]} CLI passthrough 参数
+ */
+function pluginPlatformArgs(platforms) {
+  return platforms.flatMap((platform) => ["--platform", platform]);
+}
+
+/**
+ * 在 `flower-trellis update` 流程中重放 Plugin Runtime。
+ *
+ * @param {object} ctx update 命令上下文
+ * @param {string} target 目标项目根
+ * @param {boolean} dryRun 是否仅预演
+ * @param {ReturnType<typeof createUpdateSnapshot>|null} [compensationSnapshot] 失败补偿快照
+ * @returns {Promise<void>} Plugin 重放完成
+ */
+export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = null) {
   const onPreflight = compensationSnapshot
     ? ({ plan }) => extendUpdateSnapshot(compensationSnapshot, [
       ...plan.contentMutations.map(({ target: mutationTarget }) => mutationTarget),
@@ -72,6 +92,7 @@ async function replayPlugins(ctx, target, dryRun, compensationSnapshot = null) {
       passthrough: [
         declared ? "update" : "add",
         SKILL_GARDEN_PLUGIN_ID,
+        ...pluginPlatformArgs(resolveSkillGardenPlatforms(target)),
         ...(dryRun ? ["--dry-run"] : []),
       ],
     }, {
