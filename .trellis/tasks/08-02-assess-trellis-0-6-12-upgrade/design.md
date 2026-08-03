@@ -128,9 +128,9 @@ Flower npm 精确依赖 @mindfoldhq/trellis@0.6.12
 ### Phase 2
 
 - Workflow 只保留 Flower 的策略门禁和 owner 指向，不维护静态平台直接 dispatch 列表。
-- `trellis-route` 返回逻辑模式和当前平台的准确执行配方。
+- `trellis-route` 只返回逻辑模式；subagent 被选中后再按当前平台清单解析准确执行配方。
 - 上游 workspace-write `trellis-check` 不得替代 Flower audit-only Check-All。
-- 平台没有兼容只读 subagent 时，Check-All 只能选择 inline，不静默改用可写 agent。
+- 用户选中 subagent 后若平台没有兼容只读角色，dispatch 停止并让用户改选 inline，不静默改用可写 agent。
 
 ### Audit-only Agent 与 Dispatch Catalog
 
@@ -139,9 +139,9 @@ Skill-Garden 增加两类 canonical 产物：
 1. `trellis-check-all` 专用角色模板：按 Markdown、Codex TOML、Kiro JSON、Kimi/Reasonix skill frontmatter 等现有平台格式投影；channel runtime 使用 `.trellis/agents/check-all.md`。
 2. `trellis-route` 结构化平台能力清单：记录平台 ID、implement launch contract、Check-All agent target、subagent eligibility、inline-only 原因和验证等级。
 
-现有 `trellis-check` 仍是自修复 agent，但其所有平台副本与 channel role 增加 intent guard：Check-All/全面检查/提交前统一检查必须拒绝并转交专用角色。route 不再使用“通用 agent + 长 prompt”作为默认兼容推断，只在能力清单和当前 host 工具同时证明可用时提供 subagent Check-All。
+现有 `trellis-check` 仍是自修复 agent，但其所有平台副本与 channel role 增加 intent guard：Check-All/全面检查/提交前统一检查必须拒绝并转交专用角色。route 不再使用“通用 agent + 长 prompt”作为默认兼容推断；它始终保留 subagent 逻辑选项，选中后才按清单尝试启动专用角色。
 
-结构化清单随 route skill 分发，Markdown 只保留算法与 prompt 合同。测试以清单为输入校验平台全集、agent 目标存在、格式正确、compiled target 闭包和 inline-only 原因；运行时工具是否真实可用仍由主会话检查，清单不能替代 host capability probe。
+结构化清单随 route skill 分发，Markdown 只保留算法与 prompt 合同。测试以清单为输入校验平台全集、agent 目标存在、格式正确、compiled target 闭包和 inline-only 原因；实际启动失败在 dispatch 边界明确返回并要求改选 inline，不增加路由前 host capability probe。
 
 ### Planning consent 与 Brief
 
@@ -150,8 +150,8 @@ Skill-Garden 增加两类 canonical 产物：
 - planning task 创建只授权规划。
 - 逐项设计确认不构成实施批准。
 - 最终只展示和批准一次 Brief，不额外增加上游 final summary gate。
-- `brief.md` 固定包含 Goal、Scope、独立 Non-Goals、Key Decisions、Key Context、Acceptance、Next Step；Risks/Deferred 按需生成。
-- Artifact Status 在展示时动态计算，不写入持久文件。
+- `brief.md` 固定包含 Goal、Scope、独立 Non-Goals、Key Decisions、Key Context、Acceptance、Next Step；Key Decisions 只提炼影响实施批准的最终选择及其影响，Risks/Deferred 按需生成，不复制完整决策台账。
+- Brief 只展示正文，不再计算或附加 Artifact Status；planning readiness 仍由 Brainstorm、context 配置和 task start guard 各自负责。
 - 规划实质变化后刷新 Brief 并重新批准。
 
 ## 平台矩阵
@@ -227,7 +227,7 @@ workflow-state、`trellis-continue`、task progress candidates、`trellis-push` 
 - Brief 扩展造成高频上下文重复或超过预算。
 - 兼容声明先于完整 fixture/compiled target 验证更新，形成虚假 tested 状态。
 - 补偿恢复范围若和上游 `ALL_MANAGED_DIRS` 或排除规则漂移，可能漏掉新增受管文件或误触用户数据。
-- 专用 Check-All agent 的平台格式正确但 host 未实际发现，可能产生“文件存在即能力可用”的假阳性。
+- 专用 Check-All agent 的平台格式正确但 launcher 实际不可用时，dispatch 必须失败关闭，不能声称 subagent 已执行或静默改走 inline。
 - completed 转换若早于 progress push，可能把部分完成误标为待归档。
 - 共享 Skill root 若同时承担逻辑平台检测，会在 Codex 项目中自发创建 Gemini/Pi/Kimi 私有目录，并由 Plugin state 形成错误的持续启用状态。
 
@@ -249,7 +249,7 @@ workflow-state、`trellis-continue`、task progress candidates、`trellis-push` 
 - workflow-state 上游能力保留与 Flower 分支唯一性。
 - Codex `auto`、JSONL readiness 和 route preference。
 - OMP/Grok/Kimi/Snow/Pi 目录、hook 和 dispatch 能力矩阵。
-- Brief 结构、freshness guard、动态 Artifact Status 和单一批准点。
+- Brief 精简结构、freshness guard 和单一批准点。
 - canonical/snapshot/compiled target/dogfood 一致性。
 - AI context budget、npm pack 和升级 dry-run。
 - Codex config/hook/route 组合语义与 managed normalization。

@@ -128,8 +128,8 @@
 
 - 高置信复杂实施意图仍可自动创建 planning task，但只授权规划，不授权 `task.py start` 或实现。
 - 逐项问答只批准对应设计选择；完整展示最终 Brief 后的明确回复才构成默认实施授权。
-- `brief.md` 保留 Goal、Scope、独立 Non-Goals、Key Context、Acceptance 和一跳 Next Step；新增 Key Decisions，并仅在存在时生成 Risks / Deferred。
-- Artifact Status 不写入持久文件，在展示 Brief 时根据三件套、JSONL 和 Open Questions 实时生成。
+- `brief.md` 保留 Goal、Scope、独立 Non-Goals、Key Decisions、Key Context、Acceptance 和一跳 Next Step；Key Decisions 只提炼会影响实施批准的最终选择及其影响，不复制完整决策台账；仅在存在时生成 Risks / Deferred。
+- Brief 展示不再计算或附加 Artifact Status；planning readiness、Open Questions 和 context manifest 完整性继续由各自权威门禁负责。
 - 保留窄范围 Brief 预授权例外，以及 `task.py start` 对 Brief 缺失和过期的确定性硬门禁。
 - 规划实质变化后必须刷新、重新展示并重新批准 Brief。
 
@@ -193,10 +193,10 @@ Flower 管理项目继续把 `codex.dispatch_mode` 规范化为 `auto`，但必�
 
 把 `trellis-route` 中手写的平台启动表迁为随 skill 分发、可校验的结构化清单。每个平台记录稳定 ID、实现 agent 启动契约、Check-All 专用角色路径/格式、是否允许 subagent Check-All、inline-only 原因和验证级别。
 
-- route skill 只保留选择算法和 prompt 契约，按当前平台读取清单条目，不重复维护整张 Markdown 表。
+- route skill 只保留选择算法和 prompt 契约，不在选项展示或偏好解析前读取平台能力；只有 route 已选中 subagent 时才按当前平台读取清单条目。
 - 内容投影、agent 目标和测试复用同一清单或对其做确定性闭包校验。
 - schema、平台覆盖、目标文件存在性、inline-only 原因和 compiled target 一致性必须自动测试。
-- 清单不能伪造 host 工具可用性；运行时仍需确认当前 host 暴露对应 dispatch API，未确认时 fail closed 为 inline-only。
+- route 不预先删除 subagent 选项，也不把已保存的 subagent 偏好改写为 inline。实际 dispatch 时若 launcher、target 或资格不可用，必须停止并让用户改选 inline，禁止静默降级或发明替代 agent。
 
 ### D14. 激活 `completed` 待归档状态
 

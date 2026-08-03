@@ -35,21 +35,11 @@
 
 ## Key Decisions
 
-- D01：以上游 `0.6.12` active-task API 为基础，保留 Flower 的 corrupt/io_error 区分、原子 fsync 写入和结构化清理结果。
-- D02：Codex 输出正式值 `auto`；inline/subagent 只由 `trellis-route` 决定，始终 inline 使用 route preference。
-- D03：退役 489 行 workflow-state whole-file replacement，拆为局部 required Patch。
-- D04：上游拥有平台机制，Flower 拥有 Phase 2 策略，`trellis-route` 连接两者；无只读 subagent 能力的平台使用 inline Check-All。
-- D05：最终 Brief 是唯一实施批准点；保留独立 Non-Goals、Key Decisions、一跳 Next Step，Artifact Status 动态展示。
-- D06：更新提示没有新设计冲突，仅重基线 imports/helper selector，Flower 更新链保持不变。
-- D07：吸收上游 task create 激活诊断，保留 Flower 跨文件补偿，并把写失败规则扩展到 `set-meta`。
-- D08：按 D04 完整接入 OMP/Grok/Kimi/Snow，Pi Skill 迁到共享 `.agents/skills`。
-- D09：新版 Flower 只声明 Trellis `0.6.12` 为 tested version；npm 精确依赖和正常 update/self-update 链负责版本配对。
-- D10：`codex.dispatch_mode=auto` 只启用 subagent 上下文/readiness；实际 inline/subagent 只由 `trellis-route` 决定，跨 owner 组合断言负责防漂移。
-- D11：跨版本 dry-run 在项目外沙箱真实升级并预演 Plugin；真实链失败时恢复升级前受管状态，补偿失败必须 fail closed。
-- D12：新增专用只读 `trellis-check-all` agent 和 channel role；既有自修复 `trellis-check` 明确拒绝 Check-All 意图。
-- D13：route 使用结构化平台能力清单；文件存在不等于 host 能力可用，运行时仍需确认 dispatch API。
-- D14：不新增 `ready_to_archive`，激活现有 `completed`；final progress commit/push 成功后才本地进入，归档 bookkeeping 承接该状态，归档后才移出活动树。
-- D15：共享 `.agents/skills` 只负责 neutral 内容去重；自动检测必须逐个平台检查上游原生 implement 入口，Plugin 自有 Check-All 文件不能成为启用证据。
+- Flower 继续拥有 Phase 2、统一 Check-All、untracked/auto-loop/pre-check 与完成链策略；上游只提供平台机制和原生 dispatch 能力。
+- Codex `dispatch_mode=auto` 只声明原生上下文与 readiness 能力，实际 inline/subagent 模式只由 `trellis-route` 决定。
+- 上游 Planning Contract 与 Flower Task Brief Handoff 合并为一个最终批准点；Brief 展示 Key Decisions，但不复制完整决策台账，也不附加 Artifact Status。
+- Skill-Garden 0.6 改动必须从 canonical Patch 源生成 snapshot、compiled target 和 dogfood，不允许旁路修改生成结果。
+- 新版 Flower 只承诺 Trellis `0.6.12` tested baseline；跨版本升级通过项目外沙箱预演和失败补偿保证目标项目安全。
 
 ## Key Context
 
@@ -71,7 +61,7 @@
 - 新版不保证直接对 Trellis `0.6.5` 运行 `--enhance-only`；旧项目应走正常 update/self-update 升级链。
 - Trellis `0.7 beta` 的兼容处理延后到独立任务。
 - update 补偿必须严格复用上游受管根和排除规则；范围漂移可能造成漏恢复或误触用户数据，需 fixture 与故障注入覆盖。
-- 专用 agent 文件即使生成正确，也不能证明每个 host 已暴露启动工具；能力清单必须区分模板验证和运行时验证。
+- 专用 agent 文件正确不等于实际启动成功；subagent dispatch 遇到 launcher、target 或资格不可用时必须明确停止，不提前过滤 route 选项。
 - completed 转换必须晚于业务 push 和 progress sync；任何 progress commit/push 失败都保持 `in_progress`，本地完成态写失败只允许重试 helper。
 
 ## Acceptance
@@ -92,4 +82,4 @@
 
 ## Next Step
 
-- D01-D15、full Check-All、Update-Spec 和两仓业务 push 均已完成；任务进度同步后进入 `completed`。下一步显式运行 `trellis-finish-work`，完成 release audit、任务归档和 journal 收尾。
+- `trellis-meta` owner 路由修复与 full Check-All 重检已通过；下一步等待用户回复 `继续`，进入 `trellis-update-spec`，再由 `trellis-push` 生成 Git 收尾计划。

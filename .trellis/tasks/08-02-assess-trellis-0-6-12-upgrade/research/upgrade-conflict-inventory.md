@@ -245,7 +245,7 @@
 - `task.py start` 对 planning task 硬校验 `brief.md` 存在且不早于权威规划产物；它只能证明 handoff 新鲜度，不能伪造真人批准。
 - 用户可在当前对话中明确预授权“最终 Brief 展示后直接开始”，但范围扩大、仍有 Open Questions 或新增高风险边界时预授权失效。
 
-当前 Brief 固定栏目是 Goal、Scope、Non-Goals、Key Context、Acceptance、Next Step。它覆盖上游的目标、范围、非目标和验收，但没有独立展示 Key Decisions、Risks/Deferred Items 和 artifact status。
+本轮最终调整后，Brief 固定栏目是 Goal、Scope、Non-Goals、Key Decisions、Key Context、Acceptance、Next Step，并按需生成 Risks/Deferred Items；它不附加 artifact status。
 
 用户已确认 `Non-Goals` 继续作为独立栏目。原因是它承担防止范围扩张的显式交接边界；虽然语义等同于上游 Out of Scope，但不应为了压缩标题而降低其可见性。
 
@@ -264,7 +264,7 @@
 - 高置信复杂实施意图仍可自动创建 planning task；自动创建不等于开工授权，并保留现有安全 discard。
 - 用户逐项确认 D01-D09 等内容只批准对应设计选择，不构成 implementation approval。
 - Brainstorm 收敛、三件套完成后直接调用 `trellis-task-brief`；不先展示另一个需要批准的通用 final summary。
-- 扩展最终 handoff，使其覆盖上游 final summary：`brief.md` 保留 Goal、Scope、独立 Non-Goals、Key Context、Acceptance、Next Step，新增 Key Decisions，并仅在存在时生成 Risks/Deferred Items。Artifact Status 不写入持久文件，在完整展示 Brief 时根据实际三件套、JSONL 和 Open Questions 动态附加。
+- 最终 handoff 覆盖上游 final summary 的批准职责，但保持精简：`brief.md` 保留 Goal、Scope、独立 Non-Goals、Key Decisions、Key Context、Acceptance、Next Step，并仅在存在时生成 Risks/Deferred Items；Key Decisions 只提炼影响实施批准的最终选择及其影响，不复制完整决策台账，也不计算或展示 Artifact Status。
 - 完整展示最新 Brief 后的明确批准是唯一默认 `task.py start` 授权；规划实质变化后必须刷新 Brief 并重新批准。
 - 保留当前窄预授权例外及 `task.py start` 的缺失/过期 Brief 硬门禁。
 
@@ -290,7 +290,7 @@
 
 用户确认方案 A：保留 planning task 自动创建但不复用为实施授权；上游 final review 原则与 Flower Task Brief Handoff 合并为一个最终批准点。
 
-最终 Brief 结构为 Goal、Scope、独立 Non-Goals、Key Decisions、Key Context、条件性 Risks / Deferred、Acceptance 和一跳 Next Step。Artifact Status 在展示时根据实际规划材料动态附加，不持久化。逐项 QA 只确认局部决定；规划实质变化后必须刷新并重新批准 Brief。
+最终 Brief 结构为 Goal、Scope、独立 Non-Goals、Key Decisions、Key Context、条件性 Risks / Deferred、Acceptance 和一跳 Next Step。逐项 QA 只确认局部决定；Brief 提炼影响实施批准的最终选择，但不复制完整决策台账或附加 Artifact Status，规划实质变化后必须刷新并重新批准。
 
 ## D06 Session Context 更新提示 Patch
 

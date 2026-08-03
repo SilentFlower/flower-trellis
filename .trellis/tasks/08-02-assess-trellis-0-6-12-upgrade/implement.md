@@ -7,6 +7,8 @@
 - Check-All 修复完成：跨版本普通 dry-run 会延后 Skill-Garden 重放，已用真实 `0.6.5` 升级备份验证退出码为 `0`；README 已声明 tested `0.6.12` 并补充 OMP / Grok / Kimi / Snow；`trellis-meta` 通过三个受管 Patch operation 补全平台 root 与共享 `.agents/skills/` 消费者，source、snapshot、compiled target 和 dogfood 最终产物一致。
 - 实施后审计 D10-D14 已修复：Codex 组合语义由 Flower policy 审计，Update 具备跨版本沙箱预演和失败补偿，Check-All 使用专用只读角色，平台 dispatch 使用结构化 catalog，任务 completed/reopen 生命周期已激活。
 - 最新 full Check-All 已通过：Node 352 项、Python 189 项及其余独立门禁全部通过；Update-Spec 结论为 `no-op`，Skill-Garden 与 flower-trellis 业务改动已推送，任务进度同步后进入 `completed`。
+- 完成后返工已实施：`Request Triage` 保留全局意图、知识发现和 Active Task Scope Guard 语义，状态相关的 begin / prepare-edit / adopt / discard 下沉到条件 workflow-state；canonical、snapshot、compiled target 与 dogfood 已同步。
+- Task Brief 展示结构已收敛：恢复 `Key Decisions`，保留 `Key Context`，继续删除 `Artifact Status`；planning readiness 与 freshness 由既有 owner 负责。
 
 ## 前置门禁
 
@@ -79,8 +81,8 @@
 
 - [x] 合并上游 Brainstorm Planning Contract、decision tracking 和 convergence gate。
 - [x] 删除额外 final summary approval，最终只通过 `trellis-task-brief` handoff。
-- [x] 扩展 Brief 模板：新增 Key Decisions，保留独立 Non-Goals 和一跳 Next Step，Risks/Deferred 按需生成。
-- [x] 展示时动态生成 Artifact Status，不持久化。
+- [x] Brief 模板保留独立 Non-Goals、Key Decisions、Key Context 和一跳 Next Step，Risks/Deferred 按需生成；Key Decisions 不复制完整决策台账。
+- [x] 删除 Artifact Status 的计算与展示；readiness 检查继续由既有权威 owner 承担。
 - [x] 保留窄预授权和 `task.py start` missing/stale brief 硬门禁。
 - [x] 增加规划实质变化后必须刷新/重新批准的回归测试。
 
@@ -121,7 +123,7 @@
 - [x] Session Context：无原生 update hint，保留 polyrepo/Git timeout。
 - [x] workflow-state：Flower 分支唯一，上游新增能力仍存在，9+ 平台 target 行为正确。
 - [x] Codex：`auto` 输出、legacy 输入、inline preference、JSONL readiness、SubagentStart。
-- [x] Brief：栏目、动态 Artifact Status、freshness、一次批准和变更后重批。
+- [x] Brief：精简栏目、freshness、一次批准和变更后重批。
 - [x] 平台：OMP/Grok/Kimi/Snow/Pi 的 flags、Skill roots、hooks、agent/route 配方与 stale cleanup。
 - [x] Patch Engine：JS/Python parity、required zero-write、conflict policy、provenance 和幂等。
 
@@ -181,13 +183,14 @@ git -C vendor/skill-garden diff --check
 - [x] 通过内容投影只向已启用且具备原生 agent discovery 的平台写入对应角色；新增 `.trellis/agents/check-all.md`。
 - [x] 专用角色只读执行本地 `trellis-check-all`，返回 `CHK-*` / `DOC-*` 候选，禁止任何文件写入和普通问题自修。
 - [x] 为所有既有 `trellis-check` 平台副本和 channel `check` 增加 Check-All intent guard，收到统一检查意图时拒绝并指向专用角色。
-- [x] route subagent Check-All 只选择专用角色；目标不存在或 host 未发现时明确 inline-only，不使用通用/可写 agent 兜底。
+- [x] route subagent Check-All 只选择专用角色；实际 dispatch 时目标、launcher 或资格不可用则停止并让用户改选 inline，不使用通用/可写 agent 兜底。
 
 ### 10.4 结构化 dispatch catalog
 
 - [x] 在 `trellis-route` canonical skill 中新增结构化平台能力清单，定义 schema 和稳定平台 ID。
 - [x] 每个平台登记 implement launch、Check-All target/format、eligibility、inline-only reason 和 verification level。
 - [x] 删除 route SKILL 中重复的手写全平台表，改为读取当前平台条目；保留统一 dispatch prompt contract。
+- [x] 删除 `Step 0.25` 和路由前平台能力过滤；inline 不读取 catalog，subagent 选中后才解析当前平台条目。
 - [x] 内容投影或闭包测试复用清单，校验所有声明 target 在官方 `0.6.12` full compiled target 中存在且格式可解析。
 - [x] 平台新增长度测试改为集合/闭包断言，不再只断言静态 `ENHANCEMENT_SKILL_TARGETS.length`。
 
@@ -228,3 +231,71 @@ git -C vendor/skill-garden diff --check
 - [x] 据最新文件集合重新生成并执行 Trellis Push 计划。
 
 验证证据：最新重检中 352 个 Node 测试和 189 个 Python 测试全部通过；Patch conflict、compiled targets、strict context budget、真实 update dry-run、npm pack、双仓 diff check、canonical/snapshot 逐文件比较和 dogfood 平台 state/目录检查均通过。Skill-Garden 提交并同步快照后，`check-snapshot.mjs` 通过，确认 `enhancements` 与 submodule pin 一致。
+
+## 13. 完成后返工：Request Triage 常驻上下文精简
+
+- [x] 把 canonical `Request Triage` 从 15 条压缩为 7 条，保留 discuss / inspect、direct_edit / task_plan、Project Knowledge Discovery、Active Task Scope Guard 和最新显式 switch 的全局语义。
+- [x] 把 `untracked_flow.py begin`、`prepare-edit`、`task_intent.py adopt` 与 `discard` 的确定性命令移入 no-task、untracked 和 planning 状态，避免所有 SessionStart 常驻加载。
+- [x] 保留 Active Task Scope Guard 的全局 owner，避免历史上仅由 active state 承担时 planning 入口漏检的回归。
+- [x] 更新 Hub owner、conflict policy、JS/Python owner 测试和 `enhancements-model.md` 长期契约。
+- [x] 运行 `npm run sync`、Patch conflict、compiled target 生成/检查和 dogfood Plugin replay。
+- [x] strict context budget 通过；`Request Triage` 从 5303 B / 15 行降到 2934 B / 7 行。
+- [x] 全量验证通过：Node 352 项、Python 189 项、Patch conflict、compiled target、strict context budget、source/snapshot diff、dogfood 二次 replay 0 变化和 npm pack dry-run 均通过。
+- [x] 首轮 Check-All 发现 `CHK-001`：迁移命令时遗漏了 `same-item`、`active-work-conflict`、`prepare-edit` 失败关闭、知识查询构造和状态提示触发语义。
+- [x] 在保持 `Request Triage` 7 行的前提下补回全局查询/提示规则，并在 no-task、untracked state 补齐结构化结果与失败关闭规则；最终大小为 3090 B，仍比原版缩小约 42%。
+- [x] 强化 conflict policy 与 JS/Python owner/consumer 测试；Patch conflict、compiled target、strict context budget、source/snapshot diff、Python 20 项和定向 Node 23 项均通过，dogfood 二次 replay 0 变化。
+- [x] 运行本轮最终 Check-All；三件套实现、实现假设、完整性与规范均通过，无剩余 `CHK-*`。
+
+## 14. 完成后返工：删除 route 平台能力前置探测
+
+- [x] 删除 canonical `trellis-route` 的 `Step 0.25` 及其路由前 host/agent 能力探测。
+- [x] route 选项不再按平台能力裁剪，已有 subagent 偏好也不因预探测失败变成 miss。
+- [x] 保留结构化 dispatch catalog，仅在 subagent 已选中后读取当前平台条目并尝试启动。
+- [x] launcher、target 或资格不可用时在 dispatch 边界明确停止并让用户改选 inline，禁止静默 fallback。
+- [x] 同步 snapshot、compiled target 和 dogfood 输出，并确认二次 replay 为 0 变化。
+- [x] 运行 route/catalog 定向测试、Patch conflict、strict context budget 和双仓 diff check。
+
+验证证据：Node route/catalog 定向测试 11 项通过，Python Patch 测试 20 项通过；Patch conflict、compiled target check、strict context budget、canonical/snapshot/dogfood 逐字节比较和双仓 `diff --check` 通过。发布级 `check-snapshot.mjs` 因 `vendor/skill-garden` 尚有本任务未提交改动而按设计拒绝执行，需两仓提交并更新 submodule pin 后再运行。
+
+## 15. 完成后返工：精简 Task Brief 展示结构
+
+- [x] 当时从 canonical `trellis-task-brief` 的提取规则、模板和重述格式中删除 `Key Decisions`，保留 `Key Context`；该决定随后在第 16 节复核并恢复。
+- [x] 删除 `Artifact Status` 的动态计算、对话展示和 Brainstorm handoff 文案。
+- [x] 保留 Brainstorm Quality Bar、Open Questions、JSONL readiness 和 `task.py start` freshness guard 的原有 owner 边界。
+- [x] 更新 Brief 预授权测试、conflict policy、长期规范与当前任务三件套。
+- [x] 同步 snapshot、compiled target 和 dogfood，并确认二次 replay 为 0 变化。
+- [x] 运行 Brief 定向测试、Patch conflict、strict context budget 和双仓 diff check。
+
+验证证据：Brief/Workflow/应用链 Node 定向测试 20 项通过，task start 与 Skill-Garden Patch Python 测试 32 项通过；Patch conflict、compiled target check、strict context budget、canonical/snapshot/dogfood 逐字节比较和双仓 `diff --check` 通过。首次 dogfood replay 更新 4 项，第二次为 0 变化。
+
+## 16. 完成后返工：恢复 Brief Key Decisions
+
+- [x] 在 canonical `trellis-task-brief` 的提取规则、模板和 in-progress 重述中恢复 `Key Decisions`。
+- [x] `Key Decisions` 只提炼影响实施批准的最终选择及其影响，不复制完整决策台账。
+- [x] 更新 Brainstorm summary shape、conflict policy、Brief 定向测试、长期规范和当前任务材料。
+- [x] 同步 snapshot、compiled target 和 dogfood，并确认二次 replay 为 0 变化。
+- [x] 运行 Brief 定向测试、Patch conflict、strict context budget 和双仓 `diff --check`。
+
+验证证据：首次 dogfood 重放更新 4 项，第二次为 0 变化；Brief Node 定向测试 2 项、Skill-Garden Patch Python 测试 20 项、task start Brief gate Python 测试 12 项通过；完整 `npm test` 通过，Patch conflict、compiled target check 和 strict context budget 均通过。
+
+## 17. 完成后返工：补齐 trellis-meta 生命周期语义
+
+- [x] 在 `task-system.md` 补入 `brief.md` 的规划交接角色，并明确 `task.json.status`、planning artifacts、progress recovery evidence 的权威边界。
+- [x] 补齐正常完成、completed candidate 恢复、显式 reopen 与 finish-work/archive 的状态链；候选恢复禁止自动绑定 session。
+- [x] 更新 `change-task-lifecycle.md`，把 Brief 激活、progress、push completion、continue recovery、reopen 和 archive 路由到真实 owner。
+- [x] 删除 `change-workflow.md` 中固定的旧 continue route table，改为读取当前 workflow、`trellis-continue` 和 `task_progress.py` owner。
+- [x] 更新 workflow owner map、conflict policy、Meta JS/Python 测试与长期规范，防止静态 route table、旧 Check 文案或完成态语义再次漂移。
+- [x] 从 Skill-Garden canonical 源同步 snapshot、compiled targets 和当前 `.agents` / `.claude` dogfood，第二次 replay 为 0 变化。
+- [x] 运行 Meta 定向测试、Patch conflict、compiled target check、strict context budget、canonical/snapshot/dogfood 一致性和双仓 diff check。
+
+验证证据：Meta Node 专项 4 项、Python Patch 专项 3 项通过；Patch conflict 检查覆盖 43 个 Patch、131 个 operation、829 个 ready target 且 0 warning；compiled target 749 个文件、374 个变更 target 无漂移；strict context budget 通过；8 个 dogfood Meta 关键文件与 `0.6.12` compiled target 逐字节一致，第二次 enhance-only replay 为 0 变化。
+
+## 18. Check-All 修复：Meta owner 路由对齐
+
+- [x] 把 untracked task adoption 的稳定 owner 从旧 Request Triage 路由改为 `workflow-state:untracked`、`trellis-brainstorm` 与 `task_intent.py adopt`。
+- [x] 区分候选恢复的用户决策、候选证据与 session pointer 写入：分别由 `trellis-continue`、`task_progress.py`、`task.py start` / `common/active_task.py` 所有。
+- [x] 把 completed-task reopen 独立路由到 `task_progress.py reopen`，不再与 candidate rebind 合并成一个模糊 owner 行。
+- [x] 强化 shared/Claude conflict policy 与 JS/Python final-output 测试，并禁止旧 owner 行重新出现。
+- [x] 同步 snapshot、compiled target 和 dogfood，完成定向验证与 full Check-All 重检。
+
+验证证据：Meta Node 专项 4 项、Python Patch 专项 3 项通过；完整 `npm test` 通过 352 个 Node 测试和 189 个 Python 测试；Patch conflict 覆盖 43 个 Patch、131 个 operation、829 个 ready target 且 0 warning；compiled target、strict context budget、真实 update dry-run、npm pack、canonical/snapshot、8 个 dogfood Meta 文件 hash 和双仓 `diff --check` 均通过，第二次 enhance-only replay 为 0 变化。`check-snapshot.mjs` 仅因子仓存在本任务未提交改动而命中预期 Git-stage 门禁。
