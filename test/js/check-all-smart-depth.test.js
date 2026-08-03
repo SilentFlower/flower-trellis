@@ -84,9 +84,11 @@ test("route 只决定 Check-All 执行位置", () => {
   assert.match(routeState, /"check-subagent": "check-all-subagent"/);
   assert.match(routeState, /def _normalize_mode/);
   assert.match(agents, /light\/full 是 Check-All 的 requested depth/);
-  assert.match(agents, /Step 0\.25: 识别当前平台能力/);
-  assert.match(agents, /不能仅凭 `.claude\/`、`.codex\/` 等目录存在就猜测当前 host/);
-  assert.match(agents, /删除所有 Subagent 选项及对应编号/);
+  assert.doesNotMatch(agents, /Step 0\.25: 识别当前平台能力/);
+  assert.doesNotMatch(agents, /删除所有 Subagent 选项及对应编号/);
+  assert.doesNotMatch(agents, /当前平台只能 inline/);
+  assert.match(agents, /仅当 route 已选中 subagent 时/);
+  assert.match(agents, /inline 路径不读取 catalog，也不预先过滤 route 选项/);
   assert.equal(catalog.schemaVersion, 1);
   assert.equal(catalog.platforms.length, 21);
   assert.equal(new Set(catalog.platforms.map(({ id }) => id)).size, 21);

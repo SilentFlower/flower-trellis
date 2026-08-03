@@ -51,18 +51,6 @@ Codex 的 `<codex-mode>` 与 `workflow-state:*-inline` 只描述上游原生上�
 
 如果命中上述覆盖意图，即使 `.trellis/.route-prefs.tmp` 存在，也不能直接使用配置；必须进入 Step 2 展示对应选项。
 
-### Step 0.25: 识别当前平台能力
-
-从当前 host 暴露的工具名、平台上下文和原生 agent 发现结果识别执行平台。项目中可能同时存在多个平台目录，不能仅凭 `.claude/`、`.codex/` 等目录存在就猜测当前 host。
-
-- 总是先完整读取 `references/platform-dispatch.json`，校验 `schemaVersion=1`，再按当前 host 的稳定平台 ID 读取唯一条目。不得凭记忆、平台目录或本文件历史版本补写启动方式。
-- `target=implement`：只有当前条目的 `implement.eligible=true`、当前 host 暴露了 `implement.launch` 对应工具，且声明的 agent target 可发现时，才提供 subagent 选项。
-- `target=check`：只有当前条目的 `checkAll.eligible=true`、`checkAll.target` 可发现、角色内容明确 audit-only，且当前 host 暴露 `checkAll.launch` 对应工具时，才提供 subagent 选项。不得使用通用 agent 或上游 workspace-write `trellis-check` 兜底。
-- 已保存的 subagent 偏好在当前平台不可执行时视为本次 miss；不得静默改成 inline，也不得调用不兼容 agent。进入 Step 2，只展示当前可执行选项并说明被排除的能力。
-- 当前平台只能 inline 时，仍需用户选择“本次 Inline”或“保存默认：Inline”；不能替用户自动确认执行模式。
-
----
-
 ## Step 0.5: 解析已有 route state
 
 task 仅在没有覆盖意图、当前上下文没有 target + 当前 task 匹配的合法 `route_decision` 时调用 `resolve`，解析顺序固定为 runtime -> prefs -> auto-loop。untracked 不调用 `resolve`，每次直接调用 `read-pref`；命中即可执行，miss 才进入 Step 2。
@@ -96,8 +84,6 @@ helper 默认输出为精简 JSON，只包含 route 执行必需的 `status`、`
 优先调用 `AskUserQuestion`。选项 label 前缀编号，方便用户直接打数字快速选。
 
 裸数字回复（如 `1` / `2` / `3` / `4`）只有在当前可见的上一条 assistant 消息刚刚展示同一个 target 的 route 选项、并明确停下等待用户回答时，才可解释为本次 numbered fallback 选择。compact summary、ordinary summary、SessionStart 摘要、replacement history、历史消息、旧 target 的裸数字、非紧邻回复里的裸数字都不能触发 `write --source numbered-fallback`；遇到这些情况必须重新展示当前 target 的选项并等待新的紧邻回复。
-
-下列四项是平台能力完整时的标准选项。Step 0.25 判定 subagent 不可用时，删除所有 Subagent 选项及对应编号，只保留 Inline 选项；不要保留一个注定失败的选择。
 
 如果当前平台或模式没有 `AskUserQuestion` / `request_user_input`，不要自行选择 inline 或 subagent 继续。改用普通聊天消息原样呈现同一组编号选项，并停止等待用户回复；只有用户在这条选项消息之后立即回复裸数字，才可进入 Step 2.5 / 2.6 / 3。
 
@@ -220,9 +206,9 @@ implement 路由只决定执行位置，不拥有实现后的停止策略。无�
 
 ### 平台 Dispatch Catalog
 
-`references/platform-dispatch.json` 是平台启动契约的唯一事实源。当前条目提供稳定 `id`、`implement.launch/target`、`checkAll.launch/target/format/verification` 和 `inlineOnlyReason`。主 agent 只把 catalog 字段翻译成当前 host 的工具调用，不在 skill 内维护第二份平台表。
+`references/platform-dispatch.json` 是平台启动契约的唯一事实源。当前条目提供稳定 `id`、`implement.launch/target`、`checkAll.launch/target/format/verification` 和 `inlineOnlyReason`。仅当 route 已选中 subagent 时，主 agent 才从当前运行平台上下文确定稳定平台 ID，读取 catalog 对应条目，并把 `launch` 字段翻译成当前 host 的工具调用。inline 路径不读取 catalog，也不预先过滤 route 选项。
 
-dispatch prompt 第一行始终遵守当前 task/untracked 契约。agent 文件存在只证明项目产物已投影；还必须确认当前 host 实际暴露 catalog 声明的 launch 能力。`verification` 只说明该角色如何证明只读资格，不放宽 Check-All 边界。`eligible=false` 时展示 `inlineOnlyReason`，不得自行发明替代 agent。
+dispatch prompt 第一行始终遵守当前 task/untracked 契约。agent 文件存在只证明项目产物已投影；实际 dispatch 时还必须确认当前 host 暴露 catalog 声明的 launch 能力。目标、launcher 或资格不可用时停止并让用户改选 inline，不得静默降级、发明替代 agent 或使用上游 workspace-write `trellis-check`。`verification` 只说明该角色如何证明只读资格，不放宽 Check-All 边界；`eligible=false` 时同时展示 `inlineOnlyReason`。
 
 ### Untracked Subagent Dispatch 契约
 

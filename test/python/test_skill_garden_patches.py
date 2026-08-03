@@ -47,7 +47,12 @@ META_OPERATIONS = {
     "trellis-meta-managed-owner-routing",
     "trellis-meta-managed-state-boundary",
     "trellis-meta-managed-workflow-change-map",
-    "trellis-meta-managed-continue-check-route",
+    "trellis-meta-managed-task-artifacts",
+    "trellis-meta-managed-task-readiness",
+    "trellis-meta-managed-active-task-lifecycle",
+    "trellis-meta-managed-lifecycle-entry-points",
+    "trellis-meta-managed-lifecycle-modification-steps",
+    "trellis-meta-managed-continue-recovery",
     "trellis-meta-managed-workflow-notes",
     "trellis-meta-managed-check-all-agent-route",
 }
@@ -1136,6 +1141,24 @@ class PatchConsumerTest(unittest.TestCase):
                     )
                     and item["target"].startswith(".agents/")
                 )
+                task_system = next(
+                    item["next"]
+                    for item in plan["files"]
+                    if item["target"]
+                    == ".agents/skills/trellis-meta/references/local-architecture/task-system.md"
+                )
+                workflow_change = next(
+                    item["next"]
+                    for item in plan["files"]
+                    if item["target"]
+                    == ".agents/skills/trellis-meta/references/customize-local/change-workflow.md"
+                )
+                lifecycle_change = next(
+                    item["next"]
+                    for item in plan["files"]
+                    if item["target"]
+                    == ".agents/skills/trellis-meta/references/customize-local/change-task-lifecycle.md"
+                )
                 bundled = next(
                     item["next"]
                     for item in plan["files"]
@@ -1151,13 +1174,74 @@ class PatchConsumerTest(unittest.TestCase):
                 self.assertIn("Flower/Skill-Garden managed Plugin overlays", skill)
                 self.assertIn("Do not choose implementation or checking behavior", workflow)
                 self.assertIn("Untracked work completion", workflow)
-                self.assertIn("Untracked task adoption", workflow)
+                self.assertIn(
+                    "| Untracked task adoption | `workflow-state:untracked`, "
+                    "`trellis-brainstorm`, and `task_intent.py adopt` |",
+                    workflow,
+                )
+                self.assertIn("Commit/push safety and completion activation", workflow)
+                self.assertIn(
+                    "| Cross-session task progress discovery and recovery | "
+                    "`trellis-continue` owns the recovery decision, `task_progress.py` "
+                    "owns candidate evidence and completed-task reopen, and "
+                    "`task.py start` with `.trellis/scripts/common/active_task.py` owns "
+                    "explicit session binding |",
+                    workflow,
+                )
+                self.assertIn(
+                    "| Change explicit candidate rebind | `trellis-continue` owns the "
+                    "decision, and `task.py start` with "
+                    "`.trellis/scripts/common/active_task.py` owns the session pointer "
+                    "write |",
+                    workflow,
+                )
+                self.assertIn(
+                    "| Change completed-task reopen | The explicit "
+                    "`task_progress.py reopen` path |",
+                    workflow,
+                )
+                self.assertIn("| `brief.md` | Generated planning handoff", task_system)
+                self.assertIn("## Active Task And Lifecycle", task_system)
+                self.assertIn("never bind a session automatically", task_system)
+                self.assertIn("## `/trellis:continue` Recovery Ownership", workflow_change)
+                self.assertNotIn("## `/trellis:continue` Route Table", workflow_change)
+                self.assertIn("Change normal completion activation", lifecycle_change)
+                self.assertIn(
+                    "| Change interruption recovery or candidate rebinding | "
+                    "`trellis-continue` owns the user decision, `task_progress.py` owns "
+                    "candidate evidence, and `task.py start` with "
+                    "`.trellis/scripts/common/active_task.py` owns the explicit session "
+                    "bind; never bind a candidate automatically. |",
+                    lifecycle_change,
+                )
+                self.assertIn("final progress synchronization before local completion", lifecycle_change)
                 self.assertIn(".omp/skills/<skill>/", bundled)
                 self.assertIn(".grok/skills/<skill>/", bundled)
                 self.assertIn(".snow/skills/<skill>/", bundled)
                 self.assertIn("Codex, Gemini CLI, Pi Agent, and Kimi Code", bundled)
                 self.assertIn("Codex, Gemini CLI, Pi Agent, Kimi Code", skill_route)
                 self.assertNotIn("dispatch `trellis-implement` by default", workflow)
+                self.assertNotIn(
+                    "| Untracked task adoption | Request Triage, `trellis-brainstorm`, "
+                    "and `task_intent.py adopt` |",
+                    workflow,
+                )
+                self.assertNotIn(
+                    "| Cross-session task progress discovery and recovery | "
+                    "`trellis-continue` and `task_progress.py` |",
+                    workflow,
+                )
+                self.assertNotIn(
+                    "| Change recovery, explicit rebind, or completed-task reopen | "
+                    "`trellis-continue` and `task_progress.py` |",
+                    workflow,
+                )
+                self.assertNotIn(
+                    "| Change interruption recovery or candidate rebinding | "
+                    "`trellis-continue` and `task_progress.py`; never bind a candidate "
+                    "automatically. |",
+                    lifecycle_change,
+                )
 
     def test_real_catalog_task_intent_selects_complete_stale_recovery(self) -> None:
         """验证 Python consumer 的精细安装包含完整 stale recovery Patch。"""
@@ -1198,19 +1282,19 @@ class PatchConsumerTest(unittest.TestCase):
             if item["target"] == ".trellis/workflow.md"
         )
         self.assertIn(
-            "Repair authorization and permission to skip task planning are separate",
+            "Selecting a repair does not authorize editing while scope is unknown or permission to skip task planning",
             workflow,
         )
         self.assertIn(
-            "repair scope is unknown, use `inspect` first and reclassify from evidence",
+            "Both are read-only unless the current request explicitly authorizes a concrete edit",
             workflow,
         )
         self.assertIn(
-            "Asking for an opinion, expressing discomfort, rejecting a proposal",
+            "Treat requests for an opinion, expressions of discomfort, rejected proposals",
             workflow,
         )
         self.assertIn(
-            "Asking to inspect, explain, verify, or locate a cause is `inspect`",
+            "treat requests to inspect, explain, verify, or locate a cause as `inspect`",
             workflow,
         )
         self.assertIn(
@@ -1218,20 +1302,46 @@ class PatchConsumerTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            "risk signals, not automatic `task_plan` outcomes",
+            "do not automatically require `task_plan`",
             workflow,
         )
         self.assertIn(
             "exact rollback or mechanically synchronized known change",
             workflow,
         )
-        self.assertIn("`fix item 1`, `change that`, `修一下`, `改一下`", workflow)
+        self.assertIn(
+            "build a short query from the request, intended commands, affected files or systems, package/layer, and domain terms",
+            workflow,
+        )
         self.assertIn("Only an explicit current-request workflow instruction", workflow)
         self.assertIn("python3 ./.trellis/scripts/spec_router.py", workflow)
-        self.assertIn("follow `load_strategy`", workflow)
-        self.assertIn("`sections` reads the listed ranges", workflow)
+        self.assertIn("follow its returned `load_strategy` and `action`", workflow)
         self.assertIn(
             "apply the Active Task Scope Guard before artifact ownership",
+            workflow,
+        )
+        self.assertIn("untracked_flow.py begin --summary", workflow)
+        self.assertIn("A same-item hit resumes the existing state", workflow)
+        self.assertIn("`active-work-conflict` blocks unrelated code writes", workflow)
+        self.assertIn(
+            "Unrelated read-only requests may continue without mutating the state",
+            workflow,
+        )
+        self.assertIn(
+            "Do not edit when baseline capture or workspace validation fails",
+            workflow,
+        )
+        self.assertIn(
+            "Do not edit when baseline capture, scope extension, or workspace validation fails",
+            workflow,
+        )
+        self.assertIn("task_intent.py adopt", workflow)
+        self.assertIn(
+            "Entering untracked `direct_edit`, creating or resuming a task, or switching intent gets one non-blocking status line",
+            workflow,
+        )
+        self.assertIn(
+            "the owning workflow state or capability owns its commands and transition details",
             workflow,
         )
         self.assertIn("skill-garden patch workflow-phase-1-activate", workflow)

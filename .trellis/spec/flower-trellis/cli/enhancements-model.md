@@ -443,15 +443,17 @@ Gate -> one primary policy owner -> zero or one runtime owner -> short Hub resid
   该动作的 Phase、workflow-state、Skill 或 Hook；确定性状态检查可由一个 runtime helper 承担。
 - Hub 只保留 owner 索引和必须常驻的跨阶段顺序，不得复制 helper schema、完整交互模板、错误矩阵、
   Git path 规则或 owning Skill 的步骤。
-- workflow-state 只保留当前状态会改变下一动作的一跳门禁。它可以指向 owner，但不得成为第二份
-  完整 policy owner。
+- workflow-state 只保留当前状态会改变下一动作的一跳门禁、确定性命令和状态转换。它可以指向
+  全局语义 owner，但不得复制全局意图分类、风险判断或其它状态的完整流程。
 - primary policy owner 必须位于真实请求或恢复入口。若完整规则只存在于更窄的下游 Skill，导致
   `inspect`、`direct_edit`、`workflow_action`、planning resume 或平台原生入口不会加载它，视为
   owner 不可达；不能用 owner 表或 marker 存在宣称能力已经保留。
-- Project Knowledge Discovery 与 Active Task Scope Guard 的完整自然语言 policy 位于 workflow
-  `Request Triage`；`trellis-before-dev`、brainstorm 和 active workflow-state 只保留回到该 owner
-  的一跳引用。Task Progress Recovery 的读取 policy 位于 `trellis-continue`，`task_progress.py`
-  负责确定性读取；`trellis-push` 只拥有业务 push 后的 progress 写入。
+- Project Knowledge Discovery 的短查询构造、返回计划消费，以及 Active Task Scope Guard 的全局触发
+  和语义边界位于 workflow `Request Triage`；`spec_router.py` 返回按置信度计算的读取计划，no-task、
+  planning、untracked 和 active workflow-state 拥有仅在该状态下注入的确定性命令、结构化结果处理、
+  失败关闭规则与转换。Task Progress Recovery
+  的读取 policy 位于 `trellis-continue`，`task_progress.py` 负责确定性读取；`trellis-push` 只拥有
+  业务 push 后的 progress 写入。
 - 自然语言意图、需求清晰度和语义归属由 policy owner 判断；task 状态、route/task 匹配、runner
   action/profile、Git exact paths 和 progress schema 等确定事实才允许进入 runtime hard guard。
 - 迁移必须通过目标导向 Patch 执行 `replace/remove/insert`。旧正文不能以“低优先级”“inactive”或
@@ -478,9 +480,10 @@ Gate -> one primary policy owner -> zero or one runtime owner -> short Hub resid
 
 - Good:Request Intent 完整规则位于 workflow `Request Triage`，`trellis-start` 只负责进入该 owner，
   `task_intent.py` 只执行已判定的 create/discard 安全边界。
-- Good:Project Knowledge Discovery 与 Active Task Scope Guard 完整契约位于 `Request Triage`；
-  no-task、planning、in-progress 和 before-dev 入口只保留一跳动作，`spec_router.py` 与
-  `task_intent.py` 只负责确定性 helper 边界。
+- Good:Project Knowledge Discovery 与 Active Task Scope Guard 的全局判断位于 `Request Triage`；
+  no-task、planning、untracked 和 in-progress 只保存当前状态实际需要的 begin、prepare-edit、
+  adopt、discard 或 scope 一跳动作及其结构化结果、失败关闭规则，`spec_router.py` 与
+  `task_intent.py` 负责确定性 helper 边界。
 - Good:Task Progress Recovery 由 `trellis-continue` 在 Phase 判断前读取；`trellis-push` 继续只写
   progress，SessionStart/continue 不从 progress 推断 Phase、push mode 或 Git 编排。
 - Base:某 Gate 原本已经由 `trellis-push` 或 `trellis-check-all` 完整拥有；迁移只删除 Hub 副本并
@@ -546,6 +549,7 @@ capability discovery path
 authoring source and managed ownership
 Plugin/Patch lifecycle and customization route
 Bundle selection and platform distribution surface
+task artifact role and lifecycle handoff
 ```
 
 `patch-required` 的作者源与验证链固定为:
@@ -568,13 +572,23 @@ vendor/skill-garden/.trellis/0.6/overrides/patches/skills/trellis-meta/
   owning skill/helper 持有，meta 不得复制第二份完整合同。
 - owner 身份或边界迁移、能力发现入口变化、managed/project-local 分类变化、作者源变化、Plugin/Patch
   生命周期变化、Bundle 选择变化或受支持平台分发面变化必须判定为 `patch-required`。
+- 任务产物进入/退出正式生命周期、权威状态写入 owner、完成/恢复/归档交接发生变化时，属于稳定
+  架构合同，必须判定为 `patch-required`。单个 Brief 栏目、progress 字段说明或 owner 内部命令参数
+  仍属于内部 SOP，不应复制进 meta。
+- 跨 session 候选恢复的稳定 owner 路由必须区分：`trellis-continue` 负责用户恢复决策，
+  `task_progress.py` 负责候选证据和 completed-task reopen，`task.py start` 与
+  `.trellis/scripts/common/active_task.py` 负责显式 session pointer 写入；任何候选都不得自动绑定。
+- untracked task adoption 的状态 owner 是 `workflow-state:untracked`，并继续路由到
+  `trellis-brainstorm` 与 `task_intent.py adopt`；不得把已下沉的 adoption 命令重新归给全局
+  Request Triage。
 - `patch-required` 必须修改 canonical Skill-Garden meta Patch 源；随后同步 snapshot、刷新 compiled
   targets、重放当前 dogfood，并验证各已启用平台最终语义。只改 `.agents`、`.claude`、
   `enhancements/0.6` 或 compiled target 都不构成完成。
 - 若 meta 已用稳定 owner 类别和发现路径覆盖新行为，不得为了记录单个 feature 把其完整 SOP、状态结构
   或错误矩阵写入 meta。若新能力没有任何可发现 owner 路径，则不能用 `no-op` 掩盖架构缺口。
 - Planning Brief 的显式预授权属于 `trellis-task-brief` 与 task-start brief guard 的内部交互合同；
-  Planning handoff owner、边界和发现路径未变时，本次 meta 影响结论必须是 `no-op`。
+  Planning handoff owner、边界和发现路径未变时，本次 meta 影响结论必须是 `no-op`。但 `brief.md`
+  是否为正式任务产物、由谁生成并在何处进入 activation gate，属于需要保持准确的稳定产物边界。
 
 ### 4. Validation & Error Matrix
 
@@ -585,6 +599,8 @@ vendor/skill-garden/.trellis/0.6/overrides/patches/skills/trellis-meta/
 | 新增或移动 capability discovery 入口 | `patch-required`，更新发现路径并验证可达性 |
 | authoring source、Plugin/Patch ownership 或 customization route 变化 | `patch-required` |
 | Bundle alias、精细安装依赖或平台 target 集变化 | `patch-required`，验证选择范围和跨平台一致性 |
+| 正式任务产物、权威状态 writer 或 completion/recovery/archive handoff 变化 | `patch-required`，更新 task/lifecycle Meta 路由 |
+| Meta adoption 仍指向 Request Triage，或 candidate rebind 未指向真实 session pointer writer | conflict/final-output 测试失败，禁止完成 |
 | 仅修改生成清单、lock hash 或 compiled plan，稳定合同未变 | 读取真实源确认后可为 `no-op`，不得仅凭生成文件判定 |
 | 声称 `no-op`，但最终 meta 无法把行为路由到 owner | 复核失败，禁止完成 |
 | 声称 `patch-required`，但只修改 dogfood/deployed meta | 作者源错误，禁止完成 |
@@ -595,16 +611,25 @@ vendor/skill-garden/.trellis/0.6/overrides/patches/skills/trellis-meta/
   `trellis-task-brief` 和 task-start brief guard，因此记录 `no-op`，详细预授权合同只留在 owner。
 - Good:把 implement/check 执行 owner 从静态平台分支迁移到 `trellis-route`；更新 canonical meta Patch、
   sync、compiled targets、dogfood 和最终断言，记录 `patch-required`。
+- Good:激活 `completed` 为 push 与 archive 之间的可观察状态，并把 `brief.md` 纳入正式 planning
+  handoff；更新 task-system、lifecycle customization 和 recovery owner 路由，记录 `patch-required`。
+- Good:候选恢复文档分别标出决策、证据/reopen 和 session pointer writer，并用 required/absent
+  assertions 锁定新旧 owner 行；completed candidate 仍只建议显式 rebind，不自动修改 session。
 - Base:owner skill 只调整错误文案或内部 CLI 参数，稳定架构合同不变；复核最终 meta 后记录 `no-op`。
 - Bad:每次 skill 文案变化都往 meta 追加一段摘要；meta 会变成第二份易漂移 SOP 集合。
 - Bad:新增平台 target 或改变 Bundle alias 后仍记录 `no-op`，导致 meta 的分发与定制路径失真。
+- Bad:只把 candidate recovery 写成 `trellis-continue` + `task_progress.py`，遗漏实际调用
+  `set_active_task()` 的 `task.py start` / `common/active_task.py` writer。
 
 ### 6. Tests Required
 
-- code-spec 测试必须固定 `meta-impact: no-op | patch-required` 双态术语、五类稳定合同和 canonical
+- code-spec 测试必须固定 `meta-impact: no-op | patch-required` 双态术语、六类稳定合同和 canonical
   Patch 作者源，防止规则退化成“所有变化都改 meta”或“从不改 meta”。
 - meta 最终产物测试必须验证 Planning handoff 仍路由到 `trellis-task-brief` 与 task-start brief guard，
   同时不得包含 Brief 显式预授权的交互细节。
+- recovery/adoption 测试必须精确断言 `workflow-state:untracked` adoption owner，以及 decision、
+  candidate evidence/reopen、session pointer writer 三段路由；conflict policy 还必须禁止旧 Request
+  Triage adoption 行和遗漏 writer 的二 owner 行重新出现。
 - owner/发现/所有权/Bundle/platform 变化的任务必须扩展对应 Patch final-output、选择安装、跨平台和
   compiled target 测试；`no-op` 场景至少要读取最终 meta 与 owner 证明路由仍准确。
 - `patch-required` 继续执行 Patch conflict、源/快照一致性、compiled targets、dogfood 幂等、strict
@@ -616,6 +641,7 @@ vendor/skill-garden/.trellis/0.6/overrides/patches/skills/trellis-meta/
 
 ```text
 owner 内部 SOP 有变化 -> 无条件复制到 trellis-meta
+candidate rebind -> trellis-continue + task_progress.py
 ```
 
 #### Correct
@@ -624,6 +650,9 @@ owner 内部 SOP 有变化 -> 无条件复制到 trellis-meta
 review stable meta contracts
   -> unchanged: meta-impact no-op; keep detail in owner
   -> changed: meta-impact patch-required; update canonical meta Patch and distribution evidence
+candidate rebind -> trellis-continue decision
+  -> task_progress.py candidate evidence / reopen
+  -> task.py start + common/active_task.py explicit session pointer write
 ```
 
 原因:所有相关变更都经过复核，但只有稳定架构合同变化才修改 meta，既不会漏掉所有权/分发漂移，
@@ -686,8 +715,10 @@ node scripts/check-ai-context-budget.mjs --strict
   恢复自动推断。
 - 命中 `task_plan` 只授权创建 planning task 并进入 `trellis-brainstorm`，不得越过 brief、
   `task.py start` 或 `trellis-route` 门禁直接实现。
-- workflow `Request Triage` 保存完整权威语义；`trellis-start` 与 `workflow-state:no_task` 只保留
-  一跳入口，Hub 只登记 owner。`task_intent.py` 继续只执行已经判定后的 create/discard。
+- workflow `Request Triage` 保存完整的全局分类、风险、scope、知识查询构造和状态提示触发语义；
+  `trellis-start` 只保留入口，no-task、untracked 与 planning state 保存命中后才需要的命令、
+  结构化结果处理、失败关闭规则和状态转换，Hub 只登记 owner。
+  `task_intent.py` 继续只执行已经判定后的 create/discard/adopt。
 - 修改必须从 `vendor/skill-garden/.trellis/0.6` 源 Patch 开始，经 `npm run sync` 生成
   `enhancements/0.6`，再应用到当前 dogfood workflow；禁止只改快照或最终安装副本。
 
@@ -914,6 +945,11 @@ prd.md | design.md | implement.md
 ```
 
 `brief.md` 是从上述文件生成的派生交接视图，不是新的需求或设计权威源。
+
+Brief 固定覆盖 Goal、Scope、Non-Goals、Key Decisions、Key Context、Acceptance 和一跳 Next Step；
+Risks / Deferred 仅在存在时生成。Key Decisions 只提炼会影响实施批准的最终选择及其影响，
+不复制 planning artifacts 中的完整决策台账；Brief 不计算或展示 Artifact Status。
+规划完整性、Open Questions、context manifest readiness 和 brief freshness 继续由各自既有 owner 负责。
 
 ### 3. Contracts
 
@@ -1519,9 +1555,11 @@ ID: CHK-001, CHK-002, ...
   `trellis-route(target=implement)`。定向验证后复用当前 check route 执行 Check-All 重检。
 - `references/platform-dispatch.json` 是平台启动契约唯一事实源，必须覆盖上游 `0.6.12` 的 21 个
   稳定平台 ID。route skill 不维护第二张 Markdown 平台表；内容投影和闭包测试必须读取同一目录。
+- route 只选择 inline/subagent 逻辑模式，不在展示选项、解析偏好或执行 inline 前读取 catalog，
+  也不根据 host 能力预先删除 subagent 选项。subagent 被选中后才确定当前平台 ID 并读取唯一条目。
 - `check-all-subagent` 只允许 catalog 当前平台条目声明的专用 audit-only `trellis-check-all` 角色。
-  目标文件存在不等于 host 已发现；运行时还要确认当前 host 暴露对应 launcher。目标缺失、host
-  未发现、`eligible=false` 或 verification 不成立时阻塞并让用户重选 inline，禁止通用 agent、
+  目标文件存在不等于可以成功启动；实际 dispatch 时确认当前 host 暴露对应 launcher。目标缺失、host
+  未发现、`eligible=false` 或 verification 不成立时停止并让用户重选 inline，禁止通用 agent、
   `trellis-check` 或静默 inline fallback。
 - 专用角色只能读取本地 `trellis-check-all`、运行无写入验证并返回 profile、`CHK-*`、`DOC-*`、
   blocked checks 和 residual risk。其平台格式必须显式只读：Codex `sandbox_mode=read-only`、
@@ -1556,8 +1594,8 @@ ID: CHK-001, CHK-002, ...
 | 验证可能修改生产数据或调用有副作用外部系统 | 不执行,标记阻塞或未覆盖风险 |
 | 用户选择部分 `CHK-*` | 只批量修复选中 ID,未选问题保留在重检结果 |
 | subagent 只有自修复型 `trellis-check` agent | 禁止 dispatch,让用户改选 `check-all-inline` |
-| catalog target 存在但 host 未发现 launcher | fail closed,让用户重选 inline,不得声称 subagent 已执行 |
-| 当前平台 `checkAll.eligible=false` | 展示 `inlineOnlyReason`,只允许用户显式选择 inline |
+| subagent 已选中但 catalog target 或 host launcher 不可用 | dispatch fail closed,展示原因并让用户重选 inline,不得声称 subagent 已执行 |
+| subagent 已选中但当前平台 `checkAll.eligible=false` | dispatch 停止,展示 `inlineOnlyReason` 并让用户重选 inline |
 | workspace-write `trellis-check` 收到统一检查意图 | Intent Guard 停止且零写入,指向专用 `trellis-check-all` |
 | 普通 interactive Check-All 无问题 | 报告画像、通过和剩余风险,指向 Phase 3.3/3.4,停止等待 |
 | direct Git + Check-All 严格通过 | 展示同一标准报告,同轮进入 Update-Spec;不生成专用摘要或 Git 计划 |
@@ -1641,10 +1679,10 @@ inline/subagent、修复和重检仍服从 Trellis 既有路由与阶段边界�
 - Trigger: 0.6 强化包需要让 AI 在“项目局部知识可能影响做法”的决策边界主动
   发现项目 SOP / 经验 / 标准流程,但不能为每个 SOP 新增一个 Skill,也不能把
   纯问答、只读查看、打开本地工具或轻量编辑都变成检索流程。
-- Scope:workflow `Request Triage` 保存完整触发、查询和读取契约，`spec_router.py` 是随 0.6
-  `scripts/` 分发的通用发现器；`trellis-before-dev`、brainstorm 与 workflow-state 只保留一跳
-  owner 指针。目标项目自己的 `.trellis/spec/**/*.md`(含 `spec/guides/**/*.md`)保存具体
-  SOP / spec / thinking guide。
+- Scope:workflow `Request Triage` 保存全局触发、调用时机和消费返回计划的契约，`spec_router.py`
+  是随 0.6 `scripts/` 分发的通用发现器并返回 `load_strategy` / `action`；`trellis-before-dev`、
+  brainstorm 与 workflow-state 只保留一跳 owner 指针。目标项目自己的
+  `.trellis/spec/**/*.md`(含 `spec/guides/**/*.md`)保存具体 SOP / spec / thinking guide。
 
 ### 2. Signatures
 
@@ -1705,9 +1743,9 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
   选择 2 个互不重叠章节且估算总量不超过 12 KiB；没有可靠章节、单个相关章节超预算或全部
   章节无法装入预算时使用 `outline`。H1 文档标题只负责文件召回，存在 H2/H3 时不能让所有
   子章节自动相关。
-- workflow 对 high-confidence 匹配按 `load_strategy` 消费：`full` 读取全文，`sections` 只读取
-  列出的行号范围，`outline` 先检查标题再读取相关范围；只有选中上下文不足时才逐步扩展。
-  medium-confidence 仅在 path / heading / index description / reason 明确相关时采用同一计划。
+- `spec_router.py` 的 `action` 必须把 high-confidence 的 `load_strategy` 消费方式和
+  medium-confidence 的相关性条件写入结果；workflow `Request Triage` 只要求调用方遵循返回的
+  `load_strategy` / `action`，不复制 `full` / `sections` / `outline` 的解释矩阵。
 - 无 `.trellis/`、无 `.trellis/spec/`、读取失败或无匹配都不阻断流程;输出
   “No relevant project SOP/spec matched. Continue with the normal workflow.”
 - `trellis-before-dev` 只能提示返回 `Request Triage` owner 并消费匹配结果，不得维护更窄的触发矩阵。

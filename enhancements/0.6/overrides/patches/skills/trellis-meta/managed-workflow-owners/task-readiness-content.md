@@ -1,0 +1,1 @@
+The AI should not treat phase numbers or saved progress text as task status. Planning readiness comes from the required planning artifacts plus the refreshed `brief.md` review gate; execution and recovery use authoritative task status, owner evidence, required JSONL context, and the current workflow. Saved progress is advisory recovery evidence only.

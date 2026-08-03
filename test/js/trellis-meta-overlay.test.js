@@ -55,7 +55,12 @@ const META_OPERATIONS = [
   "trellis-meta-managed-owner-routing",
   "trellis-meta-managed-state-boundary",
   "trellis-meta-managed-workflow-change-map",
-  "trellis-meta-managed-continue-check-route",
+  "trellis-meta-managed-task-artifacts",
+  "trellis-meta-managed-task-readiness",
+  "trellis-meta-managed-active-task-lifecycle",
+  "trellis-meta-managed-lifecycle-entry-points",
+  "trellis-meta-managed-lifecycle-modification-steps",
+  "trellis-meta-managed-continue-recovery",
   "trellis-meta-managed-workflow-notes",
   "trellis-meta-managed-check-all-agent-route",
 ];
@@ -65,8 +70,10 @@ const META_ASSERTION_FILES = [
   "references/local-architecture/generated-files.md",
   "references/local-architecture/bundled-skills.md",
   "references/local-architecture/workflow.md",
+  "references/local-architecture/task-system.md",
   "references/customize-local/overview.md",
   "references/customize-local/change-workflow.md",
+  "references/customize-local/change-task-lifecycle.md",
   "references/customize-local/change-agents.md",
   "references/customize-local/change-skills-or-commands.md",
   "references/platform-files/overview.md",
@@ -125,6 +132,11 @@ function assertManagedMeta(target, skillRoot) {
     skillRoot,
     "references/local-architecture/workflow.md",
   );
+  const taskSystem = readMeta(
+    target,
+    skillRoot,
+    "references/local-architecture/task-system.md",
+  );
   const skillRoute = readMeta(
     target,
     skillRoot,
@@ -134,6 +146,11 @@ function assertManagedMeta(target, skillRoot) {
     target,
     skillRoot,
     "references/customize-local/change-workflow.md",
+  );
+  const lifecycleChange = readMeta(
+    target,
+    skillRoot,
+    "references/customize-local/change-task-lifecycle.md",
   );
   const agentChange = readMeta(
     target,
@@ -158,17 +175,31 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(workflow, /trellis-route/);
   assert.match(workflow, /trellis-auto-loop/);
   assert.match(workflow, /Untracked work completion \| `workflow-state:untracked`/);
-  assert.match(workflow, /Untracked task adoption \| Request Triage, `trellis-brainstorm`/);
-  assert.match(workflow, /Planning handoff \| `trellis-task-brief` and the task-start brief guard/);
+  assert.match(workflow, /Untracked task adoption \| `workflow-state:untracked`, `trellis-brainstorm`, and `task_intent\.py adopt` \|/);
+  assert.match(workflow, /Planning handoff and activation \| `trellis-task-brief` and the task-start Brief guard/);
+  assert.match(workflow, /Commit\/push safety and completion activation \| `trellis-push` and `task_progress\.py`/);
+  assert.match(workflow, /Cross-session task progress discovery and recovery \| `trellis-continue` owns the recovery decision, `task_progress\.py` owns candidate evidence and completed-task reopen, and `task\.py start` with `\.trellis\/scripts\/common\/active_task\.py` owns explicit session binding \|/);
+  assert.match(workflow, /Change explicit candidate rebind \| `trellis-continue` owns the decision, and `task\.py start` with `\.trellis\/scripts\/common\/active_task\.py` owns the session pointer write \|/);
+  assert.match(workflow, /Change completed-task reopen \| The explicit `task_progress\.py reopen` path \|/);
   assert.match(workflow, /Do not maintain a fixed Skill-Garden skill count/);
+  assert.match(taskSystem, /\| `brief\.md` \| Generated planning handoff/);
+  assert.match(taskSystem, /Saved progress is advisory recovery evidence only/);
+  assert.match(taskSystem, /## Active Task And Lifecycle/);
+  assert.match(taskSystem, /in_progress -> trellis-push final progress commit\/push -> local completed/);
+  assert.match(taskSystem, /never bind a session automatically/);
   assert.match(skillRoute, /Do not classify every non-bundled name as project-local/);
   assert.match(skillRoute, /\| Oh My Pi \| `\.omp\/skills\/`, `\.omp\/commands\/` \|/);
   assert.match(skillRoute, /\| Grok Build \| `\.grok\/skills\/`, `\.grok\/commands\/` \|/);
   assert.match(skillRoute, /\| Snow CLI \| `\.snow\/skills\/`, `\.snow\/commands\/` \|/);
   assert.match(skillRoute, /Codex, Gemini CLI, Pi Agent, Kimi Code/);
-  assert.match(workflowChange, /no unified Check-All run/);
-  assert.match(workflowChange, /trellis-route\(target=check\).*trellis-check-all/);
+  assert.match(workflowChange, /## `\/trellis:continue` Recovery Ownership/);
+  assert.match(workflowChange, /Implement\/check execution goes through `trellis-route`/);
+  assert.match(workflowChange, /A `completed` task points only to explicit `trellis-finish-work` and archive/);
   assert.match(workflowChange, /Direct edits are valid only for unowned local sections/);
+  assert.match(lifecycleChange, /Change normal completion activation/);
+  assert.match(lifecycleChange, /Change interruption recovery or candidate rebinding \| `trellis-continue` owns the user decision, `task_progress\.py` owns candidate evidence, and `task\.py start` with `\.trellis\/scripts\/common\/active_task\.py` owns the explicit session bind/);
+  assert.match(lifecycleChange, /final progress synchronization before local completion/);
+  assert.match(lifecycleChange, /change the canonical Patch\/skill\/helper source/);
   assert.match(agentChange, /Unified Check-All commands must run during checking/);
   assert.match(agentChange, /self-fixing reviewer-only commands remain in `trellis-check`/);
 
@@ -178,7 +209,14 @@ function assertManagedMeta(target, skillRoot) {
   assert.doesNotMatch(workflow, /dispatch `trellis-implement` by default/);
   assert.doesNotMatch(workflow, /edit these state blocks and the routing table above them/);
   assert.doesNotMatch(workflow, /preauthori[sz]ation/i);
+  assert.doesNotMatch(workflow, /Untracked task adoption \| Request Triage, `trellis-brainstorm`/);
+  assert.doesNotMatch(workflow, /Cross-session task progress discovery and recovery \| `trellis-continue` and `task_progress\.py`/);
+  assert.doesNotMatch(workflow, /Change recovery, explicit rebind, or completed-task reopen/);
+  assert.doesNotMatch(workflowChange, /## `\/trellis:continue` Route Table/);
+  assert.doesNotMatch(workflowChange, /mapping is fixed in the command itself/i);
+  assert.doesNotMatch(workflowChange, /no unified Check-All run/);
   assert.doesNotMatch(workflowChange, /no `trellis-check` run/);
+  assert.doesNotMatch(lifecycleChange, /Change interruption recovery or candidate rebinding \| `trellis-continue` and `task_progress\.py`/);
 }
 
 function snapshotMeta(target) {
@@ -221,6 +259,7 @@ test("trellis-meta 联动复核区分 owner 内部 SOP 与稳定架构变化", (
   assert.match(spec, /capability discovery path/);
   assert.match(spec, /authoring source and managed ownership/);
   assert.match(spec, /Bundle selection and platform distribution surface/);
+  assert.match(spec, /task artifact role and lifecycle handoff/);
   assert.match(
     spec,
     /vendor\/skill-garden\/\.trellis\/0\.6\/overrides\/patches\/skills\/trellis-meta\//,
@@ -229,6 +268,7 @@ test("trellis-meta 联动复核区分 owner 内部 SOP 与稳定架构变化", (
     spec,
     /Planning Brief 的显式预授权属于 `trellis-task-brief` 与 task-start brief guard 的内部交互合同/,
   );
+  assert.match(spec, /正式任务产物、权威状态 writer 或 completion\/recovery\/archive handoff 变化/);
 });
 
 test("trellis-meta 四个选择入口只应用 meta Patch", () => {

@@ -1,1 +1,1 @@
-The final Brief must cover Goal, Scope, Non-Goals, Key Decisions, Key Context, Acceptance, one-hop Next Step, and relevant Risks / Deferred items. Artifact Status is computed at display time and is not persisted in `brief.md`.
+The final Brief must cover Goal, Scope, Non-Goals, Key Decisions, Key Context, Acceptance, one-hop Next Step, and relevant Risks / Deferred items.

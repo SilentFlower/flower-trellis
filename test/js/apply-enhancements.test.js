@@ -53,22 +53,32 @@ function patchSource(ref, name) {
 }
 
 function assertIntentRoutingSemantics(value) {
-  assert.match(value, /Asking for an opinion, expressing discomfort, rejecting a proposal/);
-  assert.match(value, /Asking to inspect, explain, verify, or locate a cause is `inspect`/);
-  assert.match(value, /Repair authorization and permission to skip task planning are separate/);
-  assert.match(value, /repair scope is unknown, use `inspect` first and reclassify from evidence/);
+  assert.match(value, /Treat requests for an opinion, expressions of discomfort, rejected proposals/);
+  assert.match(value, /treat requests to inspect, explain, verify, or locate a cause as `inspect`/);
+  assert.match(value, /Both are read-only unless the current request explicitly authorizes a concrete edit/);
+  assert.match(value, /Selecting a repair does not authorize editing while scope is unknown or permission to skip task planning/);
   assert.match(value, /`direct_edit` requires known, bounded, low-risk, reversible scope/);
   assert.match(value, /no unresolved design choice, and simple validation/);
   assert.match(value, /Permission\/authentication\/data-scope\/security/);
   assert.match(value, /cross-package\/layer or multi-entry behavior/);
-  assert.match(value, /risk signals, not automatic `task_plan` outcomes/);
+  assert.match(value, /do not automatically require `task_plan`/);
   assert.match(value, /exact rollback or mechanically synchronized known change/);
+  assert.match(value, /build a short query from the request, intended commands, affected files or systems, package\/layer, and domain terms/);
   assert.match(value, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
-  assert.match(value, /Project Knowledge Discovery applies once per user intent/);
+  assert.match(value, /once per user intent, workflow phase, or decision boundary/);
+  assert.match(value, /follow its returned `load_strategy` and `action`/);
   assert.match(value, /apply the Active Task Scope Guard before artifact ownership/);
-  assert.match(value, /without reusing the current task or progress/);
-  assert.match(value, /`fix item 1`, `change that`, `修一下`, `改一下`/);
+  assert.match(value, /does not reuse current progress/);
   assert.match(value, /Only an explicit current-request workflow instruction/);
+  assert.match(value, /untracked_flow\.py begin --summary/);
+  assert.match(value, /A same-item hit resumes the existing state/);
+  assert.match(value, /`active-work-conflict` blocks unrelated code writes/);
+  assert.match(value, /Unrelated read-only requests may continue without mutating the state/);
+  assert.match(value, /Do not edit when baseline capture or workspace validation fails/);
+  assert.match(value, /Do not edit when baseline capture, scope extension, or workspace validation fails/);
+  assert.match(value, /task_intent\.py adopt/);
+  assert.match(value, /Entering untracked `direct_edit`, creating or resuming a task, or switching intent gets one non-blocking status line/);
+  assert.match(value, /the owning workflow state or capability owns its commands and transition details/);
 }
 
 function writeContinueTargets(target) {

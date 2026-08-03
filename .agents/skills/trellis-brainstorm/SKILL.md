@@ -72,7 +72,7 @@ Use a concise title from the user's request and a slug without a date prefix. Bo
 6. When no user-owned decision remains, create or update `design.md` and `implement.md` for complex tasks.
 7. Run the requirement convergence gate, then the PRD convergence pass.
 <!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->
-8. Load `trellis-task-brief`, refresh `brief.md` from the converged artifacts, display the full Brief with dynamic Artifact Status, and stop. Do not run `task.py start` or edit product code in the same turn.
+8. Load `trellis-task-brief`, refresh `brief.md` from the converged artifacts, display the full Brief, and stop. Do not run `task.py start` or edit product code in the same turn.
 9. Only a subsequent user message that explicitly approves the latest full Brief authorizes `task.py start` and implementation. If the artifacts change materially after approval, refresh and repeat the Brief review.
 <!-- END skill-garden patch brainstorm-planning-readiness v0.6 -->
 
@@ -156,7 +156,7 @@ Before final review, verify all of the following:
 Lightweight tasks may omit `design.md` and `implement.md`; they may not skip evidence inspection, requirement convergence, final review, or fresh implementation approval.
 
 <!-- BEGIN skill-garden patch brainstorm-planning-summary-shape v0.6 -->
-The final Brief must cover Goal, Scope, Non-Goals, Key Decisions, Key Context, Acceptance, one-hop Next Step, and relevant Risks / Deferred items. Artifact Status is computed at display time and is not persisted in `brief.md`.
+The final Brief must cover Goal, Scope, Non-Goals, Key Decisions, Key Context, Acceptance, one-hop Next Step, and relevant Risks / Deferred items.
 <!-- END skill-garden patch brainstorm-planning-summary-shape v0.6 -->
 
 ## Artifact Rules
@@ -216,14 +216,14 @@ Before declaring planning ready:
 - Complex tasks have `design.md` and `implement.md`.
 - Sub-agent-dispatch tasks have real curated entries in both `implement.jsonl` and `check.jsonl`; seed-only manifests are not ready.
 - Planning artifacts are ready for the final Brief handoff.
-- The latest full Brief has been presented to the user with dynamic Artifact Status.
+- The latest full Brief has been presented to the user.
 - In a subsequent message, the user explicitly approved that Brief for implementation.
 
 Do not start implementation merely because the user originally asked for implementation.
 
 ## Planning Handoff
 
-Once the Quality Bar is satisfied, load `trellis-task-brief`, refresh `brief.md` from the final planning artifacts, display the full Brief and dynamic Artifact Status in chat, and end the current turn. Wait for the user's planning review confirmation before running `task.py start` or beginning implementation.
+Once the Quality Bar is satisfied, load `trellis-task-brief`, refresh `brief.md` from the final planning artifacts, display the full Brief in chat, and end the current turn. Wait for the user's planning review confirmation before running `task.py start` or beginning implementation.
 
 Implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only; it cannot be reused as the final review confirmation.
 

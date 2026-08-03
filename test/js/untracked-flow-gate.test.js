@@ -34,15 +34,25 @@ function quietApply(target) {
 
 test("untracked workflow owner 串联稳定完成链且不伪造 task route", () => {
   const state = read("overrides/patches/workflow/state-untracked/content.md");
+  const noTask = read("overrides/patches/workflow/state-no-task/content.md");
   const triage = read("overrides/patches/workflow/intent-routing/request-triage/content.md");
   const route = read(".agents/skills/trellis-route/SKILL.md");
   const check = read(".agents/skills/trellis-check-all/references/reporting-and-disposition.md");
   const updateSpec = read("overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md");
   const push = read(".agents/skills/trellis-push/SKILL.md");
 
-  assert.match(triage, /untracked_flow\.py begin/);
-  assert.match(triage, /prepare-edit --paths/);
-  assert.match(triage, /active-work-conflict/);
+  assert.match(noTask, /untracked_flow\.py begin/);
+  assert.match(noTask, /A same-item hit resumes the existing state/);
+  assert.match(noTask, /`active-work-conflict` blocks unrelated code writes/);
+  assert.match(noTask, /Unrelated read-only requests may continue without mutating the state/);
+  assert.match(noTask, /prepare-edit --paths/);
+  assert.match(noTask, /Do not edit when baseline capture or workspace validation fails/);
+  assert.match(state, /single-active-work guard/);
+  assert.match(state, /Do not edit when baseline capture, scope extension, or workspace validation fails/);
+  assert.match(state, /task_intent\.py adopt/);
+  assert.doesNotMatch(triage, /untracked_flow\.py begin/);
+  assert.doesNotMatch(triage, /prepare-edit --paths/);
+  assert.doesNotMatch(triage, /task_intent\.py adopt/);
   assert.match(state, /record-validation/);
   assert.match(state, /record-check/);
   assert.match(state, /record-spec/);

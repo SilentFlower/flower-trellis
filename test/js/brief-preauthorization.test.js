@@ -17,6 +17,14 @@ test("Brief 显式预授权只形成文案级窄例外", () => {
   );
   const agents = read(sourceRoot, ".agents/skills/trellis-task-brief/SKILL.md");
   const claude = read(sourceRoot, ".claude/skills/trellis-task-brief/SKILL.md");
+  const brainstormHandoff = read(
+    sourceRoot,
+    "overrides/patches/skills/trellis-brainstorm/planning-handoff/content.md",
+  );
+  const briefShape = read(
+    sourceRoot,
+    "overrides/patches/skills/trellis-brainstorm/planning-handoff/summary-shape-content.md",
+  );
   const startPatch = [
     "helper-content.py",
     "guard-content.py",
@@ -38,10 +46,15 @@ test("Brief 显式预授权只形成文案级窄例外", () => {
   assert.match(agents, /不建立跨会话永久偏好，也不写 session runtime/);
   assert.match(agents, /先完整展示，再在同一回合返回主 workflow/);
   assert.match(agents, /## Key Decisions/);
+  assert.match(agents, /## Key Context/);
   assert.match(agents, /没有相关内容时直接省略 `Risks \/ Deferred` 整节/);
-  assert.match(agents, /`Artifact Status` 只在对话展示时/);
-  assert.match(agents, /不能把文件存在等同于已策展/);
+  assert.doesNotMatch(agents, /Artifact Status/);
+  assert.doesNotMatch(agents, /Planning artifacts|Context manifests|Review: awaiting approval/);
   assert.match(agents, /只写进入下一阶段后的一个直接动作/);
+  assert.match(brainstormHandoff, /display the full Brief in chat/);
+  assert.doesNotMatch(brainstormHandoff, /Artifact Status/);
+  assert.match(briefShape, /Non-Goals, Key Decisions, Key Context, Acceptance/);
+  assert.doesNotMatch(briefShape, /Artifact Status/);
   const persistedTemplate = agents.slice(
     agents.indexOf("## 模板"),
     agents.indexOf("## 展示格式"),
@@ -58,6 +71,9 @@ test("0.6 发布快照与 Brief 预授权作者源一致", () => {
   for (const relativePath of [
     ".agents/skills/trellis-task-brief/SKILL.md",
     ".claude/skills/trellis-task-brief/SKILL.md",
+    "overrides/patches/skills/trellis-brainstorm/planning-handoff/content.md",
+    "overrides/patches/skills/trellis-brainstorm/planning-handoff/readiness-content.md",
+    "overrides/patches/skills/trellis-brainstorm/planning-handoff/summary-shape-content.md",
     "overrides/patches/workflow/task-brief-review/phase-1-activate-content.md",
     "overrides/conflicts.json",
   ]) {

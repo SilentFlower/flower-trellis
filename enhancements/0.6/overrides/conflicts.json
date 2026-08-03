@@ -137,7 +137,8 @@
           "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Quality Bar",
           "## Planning Handoff",
           "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n8. Load `trellis-task-brief`",
-          "The latest full Brief has been presented to the user with dynamic Artifact Status.",
+          "The latest full Brief has been presented to the user.",
+          "The final Brief must cover Goal, Scope, Non-Goals, Key Decisions, Key Context, Acceptance, one-hop Next Step",
           "Implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
           "unresolved items are `- [ ]`",
           "Do not write bare placeholders"
@@ -160,7 +161,8 @@
           "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Quality Bar",
           "## Planning Handoff",
           "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n8. Load `trellis-task-brief`",
-          "The latest full Brief has been presented to the user with dynamic Artifact Status.",
+          "The latest full Brief has been presented to the user.",
+          "The final Brief must cover Goal, Scope, Non-Goals, Key Decisions, Key Context, Acceptance, one-hop Next Step",
           "Implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
           "unresolved items are `- [ ]`",
           "Do not write bare placeholders"
@@ -374,7 +376,7 @@
           "| Project Knowledge Discovery | `Request Triage` | `spec_router.py` |",
           "| Active Task Scope Guard | `Request Triage` | `task_intent.py` scope safety |",
           "| Untracked Work Completion Chain | `workflow-state:untracked` + Phase 2/3 owners | `untracked_flow.py` |",
-          "| Untracked Task Adoption | `Request Triage` + `trellis-brainstorm` | `task_intent.py adopt` |",
+          "| Untracked Task Adoption | `workflow-state:untracked` + `trellis-brainstorm` | `task_intent.py adopt` |",
           "| Routing Gate | Phase 2 + `trellis-route` | `route_state.py` |",
           "| Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` | `auto_loop.py record/next` |",
           "| Code Commit Confirmation Gate | Phase 3.4 + `trellis-push` | exact Git safety checks |",
@@ -441,21 +443,53 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch workflow-request-triage v0.6 -->",
-          "Asking for an opinion, expressing discomfort, rejecting a proposal, or asking how something should change is `discuss` unless the current request also explicitly authorizes a concrete edit.",
-          "Repair authorization and permission to skip task planning are separate.",
+          "Treat requests for an opinion, expressions of discomfort, rejected proposals, or questions about how something should change as `discuss`",
+          "Both are read-only unless the current request explicitly authorizes a concrete edit.",
+          "Selecting a repair does not authorize editing while scope is unknown or permission to skip task planning",
           "`direct_edit` requires known, bounded, low-risk, reversible scope, no unresolved design choice, and simple validation.",
-          "they are risk signals, not automatic `task_plan` outcomes.",
+          "but do not automatically require `task_plan`.",
           "An exact rollback or mechanically synchronized known change may remain `direct_edit` or `workflow_action`",
+          "build a short query from the request, intended commands, affected files or systems, package/layer, and domain terms",
           "python3 ./.trellis/scripts/spec_router.py \"<short query describing the intended action>\"",
-          "Project Knowledge Discovery applies once per user intent, workflow phase, or decision boundary",
+          "once per user intent, workflow phase, or decision boundary and follow its returned `load_strategy` and `action`",
           "When an active task exists, apply the Active Task Scope Guard before artifact ownership, task routing, or file edits.",
-          "proceed untracked without reusing the current task or progress",
-          "Only an explicit current-request workflow instruction such as `直接做` / `不要任务` may override automatic `task_plan`.",
-          "run `task_intent.py discard --task <current-task>` before changing route"
+          "New implementation outside the active task title/brief requires a new task",
+          "does not reuse current progress",
+          "`task_intent.py` executes the already-decided safety boundary",
+          "Entering untracked `direct_edit`, creating or resuming a task, or switching intent gets one non-blocking status line",
+          "the owning workflow state or capability owns its commands and transition details"
         ]
       },
       "owner": "workflow-request-triage",
-      "reason": "Request Intent Routing 的完整语义由原生 Request Triage section 拥有，Hub 和 state 只保留索引或一跳动作。"
+      "reason": "Request Triage 只保留全局意图、知识发现和 task scope 语义；具体命令、提示和状态转换由命中的 workflow-state 或 capability owner 承担。"
+    },
+    {
+      "id": "workflow-state-required-intent-transition-details",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-state-no-task",
+        "workflow-state-untracked",
+        "workflow-state-planning"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "Only an explicit current-request workflow instruction such as `直接做` / `不要任务` may override automatic `task_plan`.",
+          "python3 ./.trellis/scripts/untracked_flow.py begin --summary \"<bounded work summary>\" --source <inferred|user-explicit>",
+          "A same-item hit resumes the existing state",
+          "`active-work-conflict` blocks unrelated code writes until the current item is completed, explicitly abandoned, or adopted into a task",
+          "Unrelated read-only requests may continue without mutating the state.",
+          "python3 ./.trellis/scripts/untracked_flow.py prepare-edit --paths <exact intended paths>",
+          "Do not edit when baseline capture or workspace validation fails.",
+          "Do not edit when baseline capture, scope extension, or workspace validation fails.",
+          "python3 ./.trellis/scripts/task_intent.py adopt \"<title>\" --slug <slug>",
+          "adoption continues through planning artifacts, Brief review, and `task.py start`, and never authorizes immediate implementation",
+          "task_intent.py discard --task <current-task>"
+        ]
+      },
+      "owner": "workflow-state-transition-owners",
+      "reason": "从 Request Triage 移出的 direct-edit、adoption 和 discard 操作及其结构化结果、失败关闭语义，必须在仅按当前状态注入的 owner 中保持完整且可执行。"
     },
     {
       "id": "start-required-request-triage-pointer",
@@ -543,6 +577,7 @@
         "values": [
           "| Project Knowledge Discovery | `trellis-before-dev` | `spec_router.py` |",
           "| Active Task Scope Guard | active workflow state | `task_intent.py` scope safety |",
+          "| Untracked Task Adoption | `Request Triage` + `trellis-brainstorm` | `task_intent.py adopt` |",
           "| Task Progress Recovery | `trellis-push` recovery entry | `task_progress.py` |"
         ]
       },
@@ -841,7 +876,7 @@
       "whenOperations": [
         "trellis-meta-managed-workflow-entry",
         "trellis-meta-managed-workflow-edit-route",
-        "trellis-meta-managed-continue-check-route",
+        "trellis-meta-managed-continue-recovery",
         "trellis-meta-managed-workflow-notes"
       ],
       "assertion": {
@@ -851,7 +886,9 @@
           "determine whether the relevant section is project-local, an upstream template, or a Skill-Garden managed Patch output",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-edit-route v0.6 -->\n## Modification Steps",
           "Do not add a parallel workflow injector",
-          "no unified Check-All run",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-continue-recovery v0.6 -->\n## `/trellis:continue` Recovery Ownership",
+          "never bind a session automatically",
+          "A `completed` task points only to explicit `trellis-finish-work` and archive",
           "Direct edits are valid only for unowned local sections"
         ]
       },
@@ -865,7 +902,7 @@
       "whenOperations": [
         "trellis-meta-managed-workflow-entry",
         "trellis-meta-managed-workflow-edit-route",
-        "trellis-meta-managed-continue-check-route",
+        "trellis-meta-managed-continue-recovery",
         "trellis-meta-managed-workflow-notes"
       ],
       "assertion": {
@@ -875,12 +912,166 @@
           "determine whether the relevant section is project-local, an upstream template, or a Skill-Garden managed Patch output",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-edit-route v0.6 -->\n## Modification Steps",
           "Do not add a parallel workflow injector",
-          "no unified Check-All run",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-continue-recovery v0.6 -->\n## `/trellis:continue` Recovery Ownership",
+          "never bind a session automatically",
+          "A `completed` task points only to explicit `trellis-finish-work` and archive",
           "Direct edits are valid only for unowned local sections"
         ]
       },
       "owner": "trellis-meta",
       "reason": "Claude workflow customization 必须与 shared owner/Patch 路由一致。"
+    },
+    {
+      "id": "trellis-meta-required-task-lifecycle-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/local-architecture/task-system.md",
+      "whenOperations": [
+        "trellis-meta-managed-task-artifacts",
+        "trellis-meta-managed-task-readiness",
+        "trellis-meta-managed-active-task-lifecycle"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-task-artifacts v0.6 -->\n## Task Directory Structure",
+          "| `brief.md` | Generated planning handoff",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-task-readiness v0.6 -->",
+          "Saved progress is advisory recovery evidence only.",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-active-task-lifecycle v0.6 -->\n## Active Task And Lifecycle",
+          "in_progress -> trellis-push final progress commit/push -> local completed",
+          "never bind a session automatically"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared task-system 参考必须包含 Brief 正式产物、权威状态和 completed/recovery 生命周期边界。"
+    },
+    {
+      "id": "trellis-meta-required-task-lifecycle-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/local-architecture/task-system.md",
+      "whenOperations": [
+        "trellis-meta-managed-task-artifacts",
+        "trellis-meta-managed-task-readiness",
+        "trellis-meta-managed-active-task-lifecycle"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-task-artifacts v0.6 -->\n## Task Directory Structure",
+          "| `brief.md` | Generated planning handoff",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-task-readiness v0.6 -->",
+          "Saved progress is advisory recovery evidence only.",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-active-task-lifecycle v0.6 -->\n## Active Task And Lifecycle",
+          "in_progress -> trellis-push final progress commit/push -> local completed",
+          "never bind a session automatically"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude task-system 参考必须与 shared 的 Brief 和生命周期模型一致。"
+    },
+    {
+      "id": "trellis-meta-required-lifecycle-customization-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/customize-local/change-task-lifecycle.md",
+      "whenOperations": [
+        "trellis-meta-managed-lifecycle-entry-points",
+        "trellis-meta-managed-lifecycle-modification-steps"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-lifecycle-entry-points v0.6 -->\n## Read These Files First",
+          "Change normal completion activation",
+          "| Change interruption recovery or candidate rebinding | `trellis-continue` owns the user decision, `task_progress.py` owns candidate evidence, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the explicit session bind; never bind a candidate automatically. |",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-lifecycle-modification-steps v0.6 -->\n## Modification Steps",
+          "final progress synchronization before local completion",
+          "change the canonical Patch/skill/helper source"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared lifecycle customization 必须路由到 Brief、progress、push、continue、finish-work 和 archive 的真实 owner。"
+    },
+    {
+      "id": "trellis-meta-required-lifecycle-customization-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/customize-local/change-task-lifecycle.md",
+      "whenOperations": [
+        "trellis-meta-managed-lifecycle-entry-points",
+        "trellis-meta-managed-lifecycle-modification-steps"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-lifecycle-entry-points v0.6 -->\n## Read These Files First",
+          "Change normal completion activation",
+          "| Change interruption recovery or candidate rebinding | `trellis-continue` owns the user decision, `task_progress.py` owns candidate evidence, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the explicit session bind; never bind a candidate automatically. |",
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-lifecycle-modification-steps v0.6 -->\n## Modification Steps",
+          "final progress synchronization before local completion",
+          "change the canonical Patch/skill/helper source"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude lifecycle customization 必须与 shared owner 和 managed source 路由一致。"
+    },
+    {
+      "id": "trellis-meta-no-stale-lifecycle-rebind-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/customize-local/change-task-lifecycle.md",
+      "whenOperations": ["trellis-meta-managed-lifecycle-entry-points"],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "| Change interruption recovery or candidate rebinding | `trellis-continue` and `task_progress.py`; never bind a candidate automatically. |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared lifecycle customization 不得把候选决策、证据发现和 session pointer 写入合并成两个 owner。"
+    },
+    {
+      "id": "trellis-meta-no-stale-lifecycle-rebind-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/customize-local/change-task-lifecycle.md",
+      "whenOperations": ["trellis-meta-managed-lifecycle-entry-points"],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "| Change interruption recovery or candidate rebinding | `trellis-continue` and `task_progress.py`; never bind a candidate automatically. |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude lifecycle customization 不得保留遗漏 session pointer writer 的旧路由。"
+    },
+    {
+      "id": "trellis-meta-no-static-continue-route-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/customize-local/change-workflow.md",
+      "whenOperations": ["trellis-meta-managed-continue-recovery"],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "## `/trellis:continue` Route Table",
+          "The mapping is fixed in the command itself",
+          "no unified Check-All run"
+        ]
+      },
+      "owner": "trellis-continue",
+      "reason": "shared workflow customization 不得复制静态 continue 路由表或旧 Check-All 行。"
+    },
+    {
+      "id": "trellis-meta-no-static-continue-route-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/customize-local/change-workflow.md",
+      "whenOperations": ["trellis-meta-managed-continue-recovery"],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "## `/trellis:continue` Route Table",
+          "The mapping is fixed in the command itself",
+          "no unified Check-All run"
+        ]
+      },
+      "owner": "trellis-continue",
+      "reason": "Claude workflow customization 不得回流静态 continue 路由表。"
     },
     {
       "id": "trellis-meta-required-check-all-agent-route-agents",
@@ -1016,9 +1207,14 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-source v0.6 -->",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-owner-routing v0.6 -->\n## Skill Routing",
           "Do not choose implementation or checking behavior from a static platform-capability split.",
+          "| Untracked task adoption | `workflow-state:untracked`, `trellis-brainstorm`, and `task_intent.py adopt` |",
           "| Automatic task loop and return gate | `trellis-auto-loop`",
+          "| Commit/push safety and completion activation | `trellis-push` and `task_progress.py` |",
+          "| Cross-session task progress discovery and recovery | `trellis-continue` owns the recovery decision, `task_progress.py` owns candidate evidence and completed-task reopen, and `task.py start` with `.trellis/scripts/common/active_task.py` owns explicit session binding |",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-state-boundary v0.6 -->\n## Workflow-State Prompt Blocks",
-          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-change-map v0.6 -->\n## Local Modification Patterns"
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-change-map v0.6 -->\n## Local Modification Patterns",
+          "| Change explicit candidate rebind | `trellis-continue` owns the decision, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the session pointer write |",
+          "| Change completed-task reopen | The explicit `task_progress.py reopen` path |"
         ]
       },
       "owner": "trellis-meta",
@@ -1040,13 +1236,56 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-source v0.6 -->",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-owner-routing v0.6 -->\n## Skill Routing",
           "Do not choose implementation or checking behavior from a static platform-capability split.",
+          "| Untracked task adoption | `workflow-state:untracked`, `trellis-brainstorm`, and `task_intent.py adopt` |",
           "| Automatic task loop and return gate | `trellis-auto-loop`",
+          "| Commit/push safety and completion activation | `trellis-push` and `task_progress.py` |",
+          "| Cross-session task progress discovery and recovery | `trellis-continue` owns the recovery decision, `task_progress.py` owns candidate evidence and completed-task reopen, and `task.py start` with `.trellis/scripts/common/active_task.py` owns explicit session binding |",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-state-boundary v0.6 -->\n## Workflow-State Prompt Blocks",
-          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-change-map v0.6 -->\n## Local Modification Patterns"
+          "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-change-map v0.6 -->\n## Local Modification Patterns",
+          "| Change explicit candidate rebind | `trellis-continue` owns the decision, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the session pointer write |",
+          "| Change completed-task reopen | The explicit `task_progress.py reopen` path |"
         ]
       },
       "owner": "trellis-meta",
       "reason": "Claude workflow reference 必须与 shared owner map 和 route 边界一致。"
+    },
+    {
+      "id": "trellis-meta-no-stale-workflow-owner-routes-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/local-architecture/workflow.md",
+      "whenOperations": [
+        "trellis-meta-managed-owner-routing",
+        "trellis-meta-managed-workflow-change-map"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "| Untracked task adoption | Request Triage, `trellis-brainstorm`, and `task_intent.py adopt` |",
+          "| Cross-session task progress discovery and recovery | `trellis-continue` and `task_progress.py` |",
+          "| Change recovery, explicit rebind, or completed-task reopen | `trellis-continue` and `task_progress.py` |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "shared workflow reference 不得保留旧 adoption owner 或遗漏 session pointer writer 的恢复路由。"
+    },
+    {
+      "id": "trellis-meta-no-stale-workflow-owner-routes-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-meta/references/local-architecture/workflow.md",
+      "whenOperations": [
+        "trellis-meta-managed-owner-routing",
+        "trellis-meta-managed-workflow-change-map"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "| Untracked task adoption | Request Triage, `trellis-brainstorm`, and `task_intent.py adopt` |",
+          "| Cross-session task progress discovery and recovery | `trellis-continue` and `task_progress.py` |",
+          "| Change recovery, explicit rebind, or completed-task reopen | `trellis-continue` and `task_progress.py` |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "Claude workflow reference 不得保留已下沉的 adoption owner 或不完整的候选重绑路由。"
     },
     {
       "id": "trellis-meta-no-native-only-scope-agents",

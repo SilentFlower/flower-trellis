@@ -122,6 +122,12 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   const planningState = readSource(
     "overrides/patches/workflow/states-planning/common-content.md",
   );
+  const noTaskState = readSource(
+    "overrides/patches/workflow/state-no-task/content.md",
+  );
+  const untrackedState = readSource(
+    "overrides/patches/workflow/state-untracked/content.md",
+  );
   const activeState = readSource(
     "overrides/patches/workflow/states-in-progress/common-content.md",
   );
@@ -143,14 +149,32 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   );
   const progress = readSource("scripts/task_progress.py");
 
-  assert.match(requestTriage, /Asking for an opinion, expressing discomfort, rejecting a proposal/);
-  assert.match(requestTriage, /Asking to inspect, explain, verify, or locate a cause is `inspect`/);
+  assert.match(requestTriage, /Treat requests for an opinion, expressions of discomfort, rejected proposals/);
+  assert.match(requestTriage, /treat requests to inspect, explain, verify, or locate a cause as `inspect`/);
+  assert.match(requestTriage, /Both are read-only unless the current request explicitly authorizes a concrete edit/);
+  assert.match(requestTriage, /Selecting a repair does not authorize editing while scope is unknown/);
   assert.match(requestTriage, /`direct_edit` requires known, bounded, low-risk, reversible scope/);
-  assert.match(requestTriage, /risk signals, not automatic `task_plan` outcomes/);
+  assert.match(requestTriage, /do not automatically require `task_plan`/);
   assert.match(requestTriage, /exact rollback or mechanically synchronized known change/);
-  assert.match(requestTriage, /task_intent\.py discard --task <current-task>/);
+  assert.match(requestTriage, /build a short query from the request, intended commands, affected files or systems, package\/layer, and domain terms/);
   assert.match(requestTriage, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(requestTriage, /apply the Active Task Scope Guard before artifact ownership, task routing, or file edits/);
+  assert.match(requestTriage, /Entering untracked `direct_edit`, creating or resuming a task, or switching intent gets one non-blocking status line/);
+  assert.match(requestTriage, /the owning workflow state or capability owns its commands and transition details/);
+  assert.doesNotMatch(requestTriage, /untracked_flow\.py begin/);
+  assert.doesNotMatch(requestTriage, /untracked_flow\.py prepare-edit/);
+  assert.doesNotMatch(requestTriage, /task_intent\.py adopt/);
+  assert.doesNotMatch(requestTriage, /task_intent\.py discard/);
+  assert.match(noTaskState, /untracked_flow\.py begin --summary/);
+  assert.match(noTaskState, /A same-item hit resumes the existing state/);
+  assert.match(noTaskState, /`active-work-conflict` blocks unrelated code writes/);
+  assert.match(noTaskState, /Unrelated read-only requests may continue without mutating the state/);
+  assert.match(noTaskState, /untracked_flow\.py prepare-edit --paths/);
+  assert.match(noTaskState, /Do not edit when baseline capture or workspace validation fails/);
+  assert.match(untrackedState, /Do not edit when baseline capture, scope extension, or workspace validation fails/);
+  assert.match(untrackedState, /task_intent\.py adopt/);
+  assert.match(untrackedState, /never authorizes immediate implementation/);
+  assert.match(planningState, /task_intent\.py discard --task <current-task>/);
   assert.match(brainstorm, /Wait for the user's planning review confirmation/);
   assert.match(brainstormQualityBar, /contains testable acceptance criteria/);
   assert.match(brainstormQualityBar, /Repository-answerable questions have already been answered/);
@@ -219,6 +243,9 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   const planning = readSource(
     "overrides/patches/workflow/states-planning/common-content.md",
   );
+  const untracked = readSource(
+    "overrides/patches/workflow/state-untracked/content.md",
+  );
   const inProgress = readSource(
     "overrides/patches/workflow/states-in-progress/common-content.md",
   );
@@ -244,11 +271,24 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
     "For non-destructive `direct_edit`",
     "无任务非平凡 inspect/direct_edit",
   );
-  assert.match(requestTriage, /follow `load_strategy`/);
-  assert.match(requestTriage, /`sections` reads the listed ranges/);
+  assert.match(requestTriage, /follow its returned `load_strategy`/);
+  assert.match(requestTriage, /and `action`/);
+  assert.match(requestTriage, /build a short query from the request, intended commands, affected files or systems/);
   assert.doesNotMatch(noTask, /load_strategy/);
   assert.doesNotMatch(planning, /load_strategy/);
   assert.doesNotMatch(inProgress, /load_strategy/);
+  assert.match(noTask, /untracked_flow\.py begin --summary/);
+  assert.match(noTask, /A same-item hit resumes the existing state/);
+  assert.match(noTask, /`active-work-conflict` blocks unrelated code writes/);
+  assert.match(noTask, /untracked_flow\.py prepare-edit --paths/);
+  assert.match(noTask, /Do not edit when baseline capture or workspace validation fails/);
+  assert.match(untracked, /Do not edit when baseline capture, scope extension, or workspace validation fails/);
+  assert.match(untracked, /task_intent\.py adopt/);
+  assert.match(untracked, /planning artifacts, Brief review, and `task\.py start`/);
+  assert.match(planning, /task_intent\.py discard --task <current-task>/);
+  assert.doesNotMatch(requestTriage, /untracked_flow\.py begin/);
+  assert.doesNotMatch(requestTriage, /task_intent\.py adopt/);
+  assert.doesNotMatch(requestTriage, /task_intent\.py discard/);
 
   for (const [name, value, downstream] of [
     ["planning", planning, "Before `task.py start`"],
