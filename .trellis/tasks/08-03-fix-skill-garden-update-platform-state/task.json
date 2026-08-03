@@ -1,0 +1,84 @@
+{
+  "id": "fix-skill-garden-update-platform-state",
+  "name": "fix-skill-garden-update-platform-state",
+  "title": "修复 Skill-Garden 升级平台投影污染",
+  "description": "flower-trellis update 重放 flower/skill-garden 时不应复用污染的 .flower/state.json platforms；应以当前 Trellis 实际启用平台为准，并清理错误生成的 Gemini/ZCode check-all agent。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-03",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-03T14:11:48Z",
+      "contextKey": "codex_019fc730-78fe-76e0-a24d-5ae653cf21ba",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "7257c3874157639e0aaaea85ee12319be42d8fa3",
+        "status": [
+          {
+            "status": " M",
+            "path": ".trellis/tasks/08-03-fix-untracked-spec-push-gate/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "7257c3874157639e0aaaea85ee12319be42d8fa3",
+            "status": [
+              {
+                "status": " M",
+                "path": ".trellis/tasks/08-03-fix-untracked-spec-push-gate/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "73ee12763bb3df44b5c2bed023c0be311816e393bc68c5bef1f7cc115a8c29be",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "008951b7a976b791edb6a1a7598e3fb60c5ca2a477f0dc2f51ec3e22eadb3ecd"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "99505703777997be615cecb2e950fbd766398bc9",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "98184c2dd0f32ee5df9e5a2a67579e0914be76312b20cb0a7e0a135744e74439"
+          }
+        ],
+        "fingerprint": "86be96ab73aeebee5b7847dd4ed982eb5721865661213b408fee4bae35e6662d"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-03T14:49:11Z",
+    "completedSteps": [
+      "定位 update 重放复用污染平台 state 的根因",
+      "实现按 Trellis 配置重算 Skill-Garden replay 平台并清理 stale Check-All 投影",
+      "补充污染 state 回归测试并更新平台状态规范",
+      "完成目标测试、完整 npm test、打包 dry-run 与 diff 检查"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档当前任务",
+    "notes": "等待 finish-work 归档。"
+  }
+}
