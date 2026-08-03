@@ -1,0 +1,6 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查 untracked v2、兼容迁移、owner 路由与测试覆盖"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查 Python/JS 质量、兼容和验证要求"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查 Patch 冲突、快照和多平台生成一致性"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查阶段专用 breadcrumb 的严格预算"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查重复逻辑和分发依赖是否收敛"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 canonical、snapshot、dogfood 和测试的全链同步"}

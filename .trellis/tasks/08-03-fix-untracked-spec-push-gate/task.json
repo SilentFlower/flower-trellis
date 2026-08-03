@@ -1,0 +1,75 @@
+{
+  "id": "fix-untracked-spec-push-gate",
+  "name": "fix-untracked-spec-push-gate",
+  "title": "简化 Untracked 流程游标与 Push 路由",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-03",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-03T11:10:02Z",
+      "contextKey": "codex_019fc730-78fe-76e0-a24d-5ae653cf21ba",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "d59a718e18137cf30f7759fc5f32f6c8021bffd0",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "d59a718e18137cf30f7759fc5f32f6c8021bffd0",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "07d1fc6e5d378d1dfae69f85d168192714aee6610ff9db55d11128837de4b3d6"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "b13cc63622af845aa482d02832dac2bec0b35b2a",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "ede31f3b67b969eeaad9f4b926d92892bbc396b3a60e9a22aeb8076fa405479c"
+          }
+        ],
+        "fingerprint": "80535c514156725f93d77aab689a173e8d70ba650592cb8f350ec0836aa91539"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-03T13:40:06.842Z",
+    "completedSteps": [
+      "简化 untracked helper 为无 Git 门禁的流程游标",
+      "增加阶段专用 breadcrumb 并明确 Push 路由",
+      "同步 canonical、snapshot、dogfood、compiled targets 和测试",
+      "通过 full Check-All，Update-Spec 结果为 no-op",
+      "完成 vendor 与 Flower 业务提交和推送"
+    ],
+    "partialStep": null,
+    "nextStep": "按需运行 trellis-finish-work 归档任务",
+    "notes": "npm test 与提交后的 snapshot 检查均通过"
+  }
+}
