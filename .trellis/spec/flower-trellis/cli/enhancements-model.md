@@ -1516,6 +1516,12 @@ ID: CHK-001, CHK-002, ...
 标题 / 来源 / 证据 / 影响 / 建议 / 位置 / 验证
 ```
 
+低风险文档漂移记录必须使用独立 `DOC-*` 编号,并允许以下类型:
+
+```text
+DOC type: task-status | brief-stale | implementation-note | check-record | mechanical-link | fact-status
+```
+
 普通模式的修复选择只允许在完整报告末尾出现一次:
 
 ```text
@@ -1528,6 +1534,11 @@ ID: CHK-001, CHK-002, ...
 
 - 检查阶段必须只读。允许读取文件、搜索和运行无业务写入副作用的 lint、typecheck、
   测试;禁止编辑代码、配置、测试或任务规格。
+- 唯一写入例外是 Check-All 主会话在最终报告前处理低风险 `DOC-*` 文档漂移。`fact-status`
+  不按文档类别授权,而按片段语义和证据唯一性授权:任务、规范、运行手册、接入说明、
+  Markdown、HTML 或本地上下文摘要中,只有仅记录已验证事实状态的片段可自动修复。
+- `fact-status` 修复只允许同步状态、URL、版本号、配置键、命令结果、验证结论或时间点。
+  不得改操作步骤、责任边界、安全提示、协议字段、上线承诺、验收口径或其它产品语义。
 - 所有用户可见 check 入口都调用 Check-All。`trellis-route(target=check)` 只决定执行位置,
   用户说 light/full 不创建新的 route mode。
 - requested depth 优先使用当前请求内最后一次明确表达:`简单检查` / `轻量检查` /
@@ -1594,6 +1605,8 @@ ID: CHK-001, CHK-002, ...
 | 缺少历史数据或运行环境证据 | 标记 `部分验证` 或 `阻塞`,不得标记通过 |
 | 规划冲突导致无法判断正确行为 | 输出统一阻塞报告,只询问解除阻塞所需的业务决策 |
 | 验证可能修改生产数据或调用有副作用外部系统 | 不执行,标记阻塞或未覆盖风险 |
+| 文档片段仍写旧状态且发布记录/环境回读/测试输出唯一证明新状态 | 记录 `DOC-*` `fact-status`,主会话自动修复并在报告展示验证 |
+| 文档片段需要改操作路径、接口协议、安全边界、上线承诺或验收口径 | 不得自动修复,转为 `CHK-*`、剩余风险或阻塞 |
 | 用户选择部分 `CHK-*` | 只批量修复选中 ID,未选问题保留在重检结果 |
 | subagent 只有自修复型 `trellis-check` agent | 禁止 dispatch,让用户改选 `check-all-inline` |
 | subagent 已选中但 catalog target 或 host launcher 不可用 | dispatch fail closed,展示原因并让用户重选 inline,不得声称 subagent 已执行 |
@@ -1611,6 +1624,8 @@ ID: CHK-001, CHK-002, ...
   `CHK-001` 至 `CHK-003`,用户回复“修复全部”,实现阶段一次修复并统一重检。
 - Base: 只改一处 UI 文案且可穷举引用;auto 选择 light,API/历史数据/跨层维度标记
   `N/A`,定向验证通过后正式满足检查门禁。
+- Base: 接入说明 HTML 仍写“待回读”,但已读取 Nacos 回读输出唯一证明固定回调已生效;
+  Check-All 将该片段作为 `DOC-* fact-status` 自动改为已回读状态,不改联调步骤或协议字段。
 - Base: 旧 runtime 保存 `check-subagent`;helper 输出 canonical `check-all-subagent`,
   后续仍执行 audit-only Check-All。
 - Base: subagent 返回标准只读报告;主会话负责展示清单并询问一次修复范围,subagent 不修改文件。
@@ -1642,6 +1657,8 @@ ID: CHK-001, CHK-002, ...
   输入不被原地篡改,resolve 后 runtime 可升级为 canonical 值。
 - `npm run sync` 后用 `cmp -s` 确认 vendor 源、`enhancements/0.6` 快照和当前 dogfood
   `.agents` / `.claude` 副本一致;确认 `old` / `0.5` 无漂移。
+- `DOC-*` 测试覆盖 `fact-status`:允许任意项目文档中的已验证事实状态片段自动修复,并拒绝
+  操作路径、接口协议、安全边界、上线承诺和验收口径改写。
 - 快速路径场景断言未命中 Trigger 的维度为 `N/A`,不会展开无关检查。
 - collect-all 场景断言多个独立失败被完整收集,报告只出现一次修复范围选择,检查阶段文件无变化。
 - 修复/重检场景断言原问题 ID 保持稳定,修复复用 implement route,重检复用 check route。
