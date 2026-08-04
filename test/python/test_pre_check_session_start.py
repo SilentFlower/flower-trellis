@@ -22,7 +22,11 @@ from common.active_task import resolve_context_key
 
 
 HINT = "Pre-check: deferred for current work; latest user intent may override."
-UNTRACKED_HINT = "Untracked work: work-123; stage=implement; summary=修复路由偏好."
+UNTRACKED_HINT = (
+    "Untracked work: work-123; stage=implement; owner=trellis-route(target=implement); "
+    "remaining=trellis-route(target=implement) -> trellis-check-all -> "
+    "trellis-update-spec -> trellis-push; summary=修复路由偏好."
+)
 HOOKS = (
     ("codex", ROOT / ".codex/hooks/session-start.py"),
     ("claude", ROOT / ".claude/hooks/session-start.py"),

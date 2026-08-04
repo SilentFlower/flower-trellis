@@ -841,6 +841,9 @@ session 字段固定为：
   阶段结果真实性由当前 owner 的输出和测试负责，不由 helper 证明。
 - `status` 默认输出紧凑摘要；`status --verbose` 返回同一最小 v2 state，供 hook、owner 和 sub-agent
   校验 work id、summary 与 stage。不得从 raw session JSON 猜测当前事项。
+- `begin` / `advance` / `status` 额外返回只读派生字段 `owner`、`remainingOwners` 和当前阶段转换命令，
+  用于提醒 direct edit 后续必须经 `trellis-check-all`、`trellis-update-spec`、`trellis-push`。这些字段
+  不写入 runtime，也不构成 Check-All、Update-Spec 或 Push 的执行证据。
 - v1 runtime 兼容读取：`inspect` 映射到 `implement`，baseline/scope/fingerprint/evidence 字段忽略；
   下一次写操作惰性迁移为 v2，无需用户清理 session。
 - untracked implement/check 每次只读取 `.trellis/.route-prefs.tmp`，不得读取或写入 task-scoped
@@ -863,6 +866,7 @@ session 字段固定为：
 | 代码、规范、submodule 或独立 package 发生变化 | helper 不读取 Git，`status` / `advance` 继续成功 |
 | findings 或新编辑 | owner 执行 `advance --stage implement` |
 | Check-All 严格通过但交互停止 | 保持 `stage=check`，等待后续明确继续 |
+| 任一阶段读取 `status` | 返回当前 owner 与剩余 owner 链；helper 不补跑或证明这些 owner |
 | Update-Spec 返回 `needs-review` | 保持 `stage=spec` |
 | `stage=push` | hook 注入专用 Push breadcrumb，`trellis-push` 仍独立规划并确认 |
 | v1 `inspect` + 旧证据字段 | 读取为 `implement`，下一次写入迁移为最小 v2 |
@@ -883,8 +887,8 @@ session 字段固定为：
 
 ### 6. Tests Required
 
-- `test_untracked_flow.py` 覆盖单活跃事项、最小 v2、阶段前进/返工、workspace 变化不阻塞、verbose
-  status、v1 迁移、跨 session、损坏 runtime、原子写失败和精确 clear。
+- `test_untracked_flow.py` 覆盖单活跃事项、最小 v2、owner/remainingOwners 派生提示、阶段前进/返工、
+  workspace 变化不阻塞、verbose status、v1 迁移、跨 session、损坏 runtime、原子写失败和精确 clear。
 - `test_task_intent.py` 使用位置 title 调用 adoption，覆盖当前 baseline、v1/v2 stage、diff 保留和
   各失败点补偿。
 - `test_workflow_state_hook.py` 覆盖 implement/check/spec/push 四个 stage 的专用 breadcrumb，尤其

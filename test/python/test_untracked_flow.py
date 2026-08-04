@@ -94,6 +94,16 @@ class UntrackedFlowTest(unittest.TestCase):
 
         self.assertEqual(created["status"], "created")
         self.assertEqual(created["stage"], "implement")
+        self.assertEqual(created["owner"], "trellis-route(target=implement)")
+        self.assertEqual(
+            created["remainingOwners"],
+            [
+                "trellis-route(target=implement)",
+                "trellis-check-all",
+                "trellis-update-spec",
+                "trellis-push",
+            ],
+        )
         self.assertEqual(hit["status"], "hit")
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(conflict["reason"], "active-work-conflict")
@@ -108,10 +118,29 @@ class UntrackedFlowTest(unittest.TestCase):
         """文件变化不阻止阶段推进，findings 可把游标设回 implement。"""
         self._helper("begin", "--summary", "完成链", "--source", "inferred")
         observed = []
+        expected_owners = {
+            "check": [
+                "trellis-check-all",
+                "trellis-update-spec",
+                "trellis-push",
+            ],
+            "spec": [
+                "trellis-update-spec",
+                "trellis-push",
+            ],
+            "push": ["trellis-push"],
+            "implement": [
+                "trellis-route(target=implement)",
+                "trellis-check-all",
+                "trellis-update-spec",
+                "trellis-push",
+            ],
+        }
         for stage in ("check", "spec", "push", "implement"):
             (self.root / f"changed-{stage}.txt").write_text(stage, encoding="utf-8")
             _, payload = self._helper("advance", "--stage", stage)
             observed.append(payload["stage"])
+            self.assertEqual(payload["remainingOwners"], expected_owners[stage])
 
         self.assertEqual(observed, ["check", "spec", "push", "implement"])
         state = self._session()["untracked_flow"]
@@ -179,7 +208,11 @@ class UntrackedFlowTest(unittest.TestCase):
         self.assertEqual(payload["status"], "hit")
         self.assertIn(created["workId"], payload["hint"])
         self.assertIn("stage=push", payload["hint"])
+        self.assertIn("owner=trellis-push", payload["hint"])
+        self.assertIn("remaining=trellis-push", payload["hint"])
         self.assertIn("summary=恢复事项", payload["hint"])
+        self.assertNotIn("trellis-check-all", payload["hint"])
+        self.assertNotIn("trellis-update-spec", payload["hint"])
 
     def test_cross_session_and_active_task_are_isolated(self) -> None:
         """其它 session 不继承事项，当前 session 有 task 时拒绝 begin。"""

@@ -1,6 +1,6 @@
 [workflow-state:untracked]
 The current-session untracked work item is at `implement`. Run `python3 ./.trellis/scripts/untracked_flow.py status`, then enter Phase 2.1 through `trellis-route(target=implement)` without creating task artifacts or task-scoped route decisions.
-The helper is only a workflow cursor: it does not validate file scope, Git state, focused validation, or owner evidence. After focused validation is complete, run `python3 ./.trellis/scripts/untracked_flow.py advance --stage check` and continue through the normal Phase 2.1 completion contract.
+The helper is only a workflow cursor: it does not validate file scope, Git state, focused validation, or owner evidence. Its `owner` / `remainingOwners` fields are route reminders for `trellis-check-all` -> `trellis-update-spec` -> `trellis-push`, not proof that any owner already ran. After focused validation is complete, run `python3 ./.trellis/scripts/untracked_flow.py advance --stage check` and continue through the normal Phase 2.1 completion contract.
 A different implementation request remains blocked by the single-active-work guard until this item is completed, explicitly abandoned, or adopted through `python3 ./.trellis/scripts/task_intent.py adopt "<title>" --slug <slug>`; adoption continues through planning artifacts, Brief review, and `task.py start`, and never authorizes immediate implementation. Unrelated read-only requests may continue without changing state.
 [/workflow-state:untracked]
 

@@ -23,6 +23,41 @@ VALID_SOURCES = {"inferred", "user-explicit"}
 VALID_STAGES = {"implement", "check", "spec", "push"}
 LEGACY_STAGES = VALID_STAGES | {"inspect"}
 VALID_CLEAR_REASONS = {"completed", "abandoned", "adopted"}
+STAGE_CONTRACTS = {
+    "implement": {
+        "owner": "trellis-route(target=implement)",
+        "remainingOwners": [
+            "trellis-route(target=implement)",
+            "trellis-check-all",
+            "trellis-update-spec",
+            "trellis-push",
+        ],
+        "advanceAfterOwner": "python3 ./.trellis/scripts/untracked_flow.py advance --stage check",
+    },
+    "check": {
+        "owner": "trellis-check-all",
+        "remainingOwners": [
+            "trellis-check-all",
+            "trellis-update-spec",
+            "trellis-push",
+        ],
+        "advanceAfterOwner": "python3 ./.trellis/scripts/untracked_flow.py advance --stage spec",
+        "advanceOnFindings": "python3 ./.trellis/scripts/untracked_flow.py advance --stage implement",
+    },
+    "spec": {
+        "owner": "trellis-update-spec",
+        "remainingOwners": [
+            "trellis-update-spec",
+            "trellis-push",
+        ],
+        "advanceAfterOwner": "python3 ./.trellis/scripts/untracked_flow.py advance --stage push",
+    },
+    "push": {
+        "owner": "trellis-push",
+        "remainingOwners": ["trellis-push"],
+        "clearAfterOwner": "python3 ./.trellis/scripts/untracked_flow.py clear --reason completed",
+    },
+}
 
 
 class UntrackedFlowError(Exception):
@@ -174,11 +209,24 @@ def _normalized_state(value: Any) -> dict[str, Any] | None:
 
 def _state_summary(state: dict[str, Any]) -> dict[str, Any]:
     """返回默认输出需要的最小状态字段。"""
-    return {
+    stage = state.get("stage")
+    summary = {
         "workId": state.get("id"),
         "summary": state.get("summary"),
         "source": state.get("source"),
-        "stage": state.get("stage"),
+        "stage": stage,
+    }
+    if isinstance(stage, str) and stage in STAGE_CONTRACTS:
+        summary.update(_stage_contract(stage))
+    return summary
+
+
+def _stage_contract(stage: str) -> dict[str, Any]:
+    """返回当前阶段的 Trellis owner 和剩余完成链提示。"""
+    contract = STAGE_CONTRACTS[stage]
+    return {
+        key: list(value) if isinstance(value, list) else value
+        for key, value in contract.items()
     }
 
 
@@ -394,8 +442,17 @@ def session_start_hint(
         return None
     if result.get("status") != "hit":
         return None
+    owner = result.get("owner")
+    remaining_owners = result.get("remainingOwners")
+    remaining = (
+        [value for value in remaining_owners if isinstance(value, str) and value]
+        if isinstance(remaining_owners, list)
+        else []
+    )
+    remaining_text = " -> ".join(remaining) if remaining else str(owner)
     return (
         f"Untracked work: {result['workId']}; stage={result['stage']}; "
+        f"owner={owner}; remaining={remaining_text}; "
         f"summary={result['summary']}."
     )
 

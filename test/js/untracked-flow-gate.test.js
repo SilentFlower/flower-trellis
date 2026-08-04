@@ -52,6 +52,7 @@ test("untracked workflow 只保存阶段游标并路由到单一 owner", () => {
   assert.match(state, /\[workflow-state:untracked_check\]/);
   assert.match(state, /\[workflow-state:untracked_spec\]/);
   assert.match(state, /\[workflow-state:untracked_push\]/);
+  assert.match(state, /`owner` \/ `remainingOwners` fields are route reminders/);
   assert.match(state, /`stage=push` is only a route cursor/);
   assert.match(state, /load `trellis-push`/);
   assert.match(state, /task_intent\.py adopt/);
@@ -80,6 +81,11 @@ test("untracked workflow 只保存阶段游标并路由到单一 owner", () => {
   assert.doesNotMatch(updateSpec, /untracked_flow\.py record-spec/);
   assert.match(push, /untracked_flow\.py clear --reason completed/);
   assert.match(push, /游标命中不表示 Push 已计划、已确认或已执行/);
+  assert.match(helper, /STAGE_CONTRACTS/);
+  assert.match(helper, /"trellis-check-all"/);
+  assert.match(helper, /"trellis-update-spec"/);
+  assert.match(helper, /"trellis-push"/);
+  assert.match(helper, /remainingOwners/);
   assert.doesNotMatch(helper, /from git_evidence/);
   assert.doesNotMatch(helper, /workspace-drift/);
   assert.doesNotMatch(helper, /record_validation|record_check|record_spec|prepare_edit/);
