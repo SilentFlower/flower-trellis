@@ -702,3 +702,43 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 77: 更新 Flower 手动升级入口与 SLS skill 守则
+
+**Date**: 2026-08-04
+**Task**: 更新 Flower 手动升级入口与 SLS skill 守则
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+新增 trellis-flower-update 手动升级 skill，补齐 self-check/manual 与 self-update prompt suppression 合同；更新 SLS Forest trace 配对和 project/logstore 选择守则；补齐 skill catalog 中文说明并同步 enhancements 快照。
+
+### Main Changes
+
+- 新增 trellis-flower-update，明确排除发版、tag、publish 语义。
+- self-check 支持 manual 绕过提示抑制，self-update 显式入口使用同一预检语义。
+- aliyun-sls-query 增加 Forest trace 配对与 xhgj-zysys 优先锚定守则。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `634fdd2` | (see git log) |
+| `b1df949` | (see git log) |
+| `ec0b4ec` | (see git log) |
+
+### Testing
+
+- [OK] npm test
+- [OK] quick_validate.py 校验四个 skill 目录
+- [OK] source 与 enhancements 快照 diff 一致，git diff --check 通过
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 如需后续发布 npm 包，另走项目 release SOP。

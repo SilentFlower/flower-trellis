@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 76
+- **Total Sessions**: 77
 - **Last Active**: 2026-08-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~704 | Active |
+| `journal-2.md` | ~744 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 77 | 2026-08-04 | 更新 Flower 手动升级入口与 SLS skill 守则 | `634fdd2`, `b1df949`, `ec0b4ec` | `beta` |
 | 76 | 2026-08-04 | 兼容 Trellis worktree 开发入口 | skill-garden `e5953b3`; flower-trellis `5af8e7a`; task `44301d5` | `beta` |
 | 75 | 2026-08-03 | 归档 2 个已完成任务 | `787d4c7`, `26ce73a` | `beta` |
 | 74 | 2026-08-03 | 完成 Trellis 0.6.12 升级与工作流收敛 | `3b1a32e`, `5881d64`, `aefda43`, `efbeaff`, `239ce16`, `b13cc63` | `beta` |
