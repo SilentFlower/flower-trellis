@@ -40,6 +40,7 @@ const localizedSubjects = new Map([
   ["ef1a8c4", "拆分 Check-All 检查档位并同步快照"],
   ["5397204", "将匿名遥测上报默认超时延长至 10 秒"],
   ["8b48a5c", "同步 Check-All fact-status 文档修复规则"],
+  ["5af8e7a", "新增 linked worktree 入口准备能力"],
 ]);
 
 const detailedReleaseSubjects = new Map([
