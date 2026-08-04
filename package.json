@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.0-beta.3",
+  "version": "0.6.0-beta.4",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -68,9 +68,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.0-beta.3",
+    "version": "0.6.0-beta.4",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **check-all:** 同步 Check-All fact-status 文档修复规则 ([8b48a5c](https://github.com/SilentFlower/flower-trellis/commit/8b48a5c5b074ad614351726a85525853352da990))\n* **update:** 增加启动更新提示节流控制 ([d341841](https://github.com/SilentFlower/flower-trellis/commit/d34184194e260359a427da72205621579577ab65))\n\n\n### 🐛 修复 Bug Fixes\n\n* **trellis:** 同步 untracked_flow 入口限制 ([4732835](https://github.com/SilentFlower/flower-trellis/commit/47328352035b9d4c5e9972a95dd457e4d7eb9217))\n* **trellis:** 衔接 untracked 检查、规范更新和推送链路 ([9f1e3b1](https://github.com/SilentFlower/flower-trellis/commit/9f1e3b16af627b9c95a373047a146d07c6ecda72))",
+    "body": "### ✨ 新功能 Features\n\n* **common:** 升级 humanize-writing 去 AI 味流程 ([c02910c](https://github.com/SilentFlower/flower-trellis/commit/c02910c0e9bb7f31c221f0f927df2254309f8e92))\n* **trellis:** 新增 linked worktree 入口准备能力 ([5af8e7a](https://github.com/SilentFlower/flower-trellis/commit/5af8e7ad3f5fcbe839a27fd518a4d0341da9bc5d))",
     "truncated": false
   },
   "optionalDependencies": {

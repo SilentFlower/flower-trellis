@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.0-beta.4](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.3...v0.6.0-beta.4) (2026-08-04)
+
+
+### ✨ 新功能 Features
+
+* **common:** 升级 humanize-writing 去 AI 味流程 ([c02910c](https://github.com/SilentFlower/flower-trellis/commit/c02910c0e9bb7f31c221f0f927df2254309f8e92))
+* **trellis:** 新增 linked worktree 入口准备能力 ([5af8e7a](https://github.com/SilentFlower/flower-trellis/commit/5af8e7ad3f5fcbe839a27fd518a4d0341da9bc5d))
+
 ## [0.6.0-beta.3](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.2...v0.6.0-beta.3) (2026-08-04)
 
 
