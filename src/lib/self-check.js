@@ -15,6 +15,10 @@ import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider
 
 /** 上游 trellis update 支持的批量冲突处理参数。 */
 const CONFLICT_FLAGS = new Set(["-f", "--force", "-s", "--skip-all", "-n", "--create-new"]);
+/** 同一更新提示默认冷却时长,避免每次会话启动都阻塞用户。 */
+export const DEFAULT_UPDATE_PROMPT_COOLDOWN_HOURS = 24;
+/** 用户选择稍后时的默认延后时长。 */
+export const DEFAULT_UPDATE_PROMPT_SNOOZE_HOURS = 24 * 7;
 
 /** 给命令建议使用的保守 shell 引号。 */
 function shellQuote(value) {
@@ -273,6 +277,191 @@ export function selfUpdateCommand(target, options = {}) {
   return args.map(shellQuote).join(" ");
 }
 
+/**
+ * 生成 update-check 提示管理命令。
+ *
+ * @param {string} target 目标项目根
+ * @returns {{snooze:string,skip:string,reset:string}} 可执行命令
+ */
+function promptManagementCommands(target) {
+  const base = ["flower-trellis", "update-check"];
+  const targetArgs = ["--target", target];
+  return {
+    snooze: [...base, "snooze", ...targetArgs].map(shellQuote).join(" "),
+    skip: [...base, "skip", ...targetArgs].map(shellQuote).join(" "),
+    reset: [...base, "reset", ...targetArgs].map(shellQuote).join(" "),
+  };
+}
+
+/** 把版本差异字段转为稳定 prompt key 片段。 */
+function keyPart(value) {
+  return String(value || "unknown").replace(/\s+/g, "_");
+}
+
+/**
+ * 为可执行更新结果生成提示 key。
+ *
+ * @param {object} result self-check 结果
+ * @returns {string|null} 当前提示 key
+ */
+function updatePromptKey(result) {
+  if (result.status === "update_available" && result.recommendation?.version) {
+    return `update:${keyPart(result.recommendation.tag)}:${keyPart(result.recommendation.version)}`;
+  }
+  if (result.status === "project_out_of_sync") {
+    const current = result.current || {};
+    const project = result.project || {};
+    return [
+      "project",
+      `flower:${keyPart(project.flowerVersion)}>${keyPart(current.flowerVersion)}`,
+      `trellis:${keyPart(project.trellisVersion)}>${keyPart(current.bundledTrellisVersion)}`,
+    ].join(":");
+  }
+  return null;
+}
+
+/** 解析 ISO 时间,无效时返回 null。 */
+function parseTimeMs(value) {
+  const ms = Date.parse(String(value || ""));
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** 给时间加指定小时。 */
+function addHours(date, hours) {
+  return new Date(date.getTime() + hours * 60 * 60 * 1000);
+}
+
+/**
+ * 判断当前提示是否应被延后、跳过或冷却抑制。
+ *
+ * @param {object} updateCheck 归一化 updateCheck
+ * @param {string} promptKey 当前提示 key
+ * @param {Date} now 当前时间
+ * @returns {{suppressed:boolean,reason:string|null,until:string|null}} 抑制结果
+ */
+function promptSuppression(updateCheck, promptKey, now) {
+  if (updateCheck.promptSuppressedKey === promptKey) {
+    if (updateCheck.promptSuppressionReason === "skip") {
+      return { suppressed: true, reason: "skip", until: null };
+    }
+    if (updateCheck.promptSuppressionReason === "snooze") {
+      const suppressedUntilMs = parseTimeMs(updateCheck.promptSuppressedUntil);
+      if (suppressedUntilMs && suppressedUntilMs > now.getTime()) {
+        return {
+          suppressed: true,
+          reason: "snooze",
+          until: new Date(suppressedUntilMs).toISOString(),
+        };
+      }
+    }
+  }
+
+  if (updateCheck.lastPromptedKey === promptKey) {
+    const lastPromptedMs = parseTimeMs(updateCheck.lastPromptedAt);
+    if (lastPromptedMs) {
+      const nextPromptAt = addHours(
+        new Date(lastPromptedMs),
+        DEFAULT_UPDATE_PROMPT_COOLDOWN_HOURS,
+      );
+      if (nextPromptAt.getTime() > now.getTime()) {
+        return {
+          suppressed: true,
+          reason: "cooldown",
+          until: nextPromptAt.toISOString(),
+        };
+      }
+    }
+  }
+
+  return { suppressed: false, reason: null, until: null };
+}
+
+/**
+ * 构造提示节流诊断对象。
+ *
+ * @param {string} target 目标项目根
+ * @param {object} updateCheck 归一化 updateCheck
+ * @param {string} promptKey 当前提示 key
+ * @param {object} suppression 抑制结果
+ * @returns {object} prompt 字段
+ */
+function promptInfo(target, updateCheck, promptKey, suppression) {
+  return {
+    key: promptKey,
+    suppressed: suppression.suppressed,
+    reason: suppression.reason,
+    until: suppression.until,
+    lastPromptedAt: updateCheck.lastPromptedAt,
+    lastPromptedKey: updateCheck.lastPromptedKey,
+    suppressedKey: updateCheck.promptSuppressedKey,
+    suppressionReason: updateCheck.promptSuppressionReason,
+    cooldownHours: DEFAULT_UPDATE_PROMPT_COOLDOWN_HOURS,
+    snoozeHours: DEFAULT_UPDATE_PROMPT_SNOOZE_HOURS,
+    commands: promptManagementCommands(target),
+  };
+}
+
+/**
+ * 对可执行更新结果应用提示节流。
+ *
+ * 远程检查节流只回答“是否知道有更新”;这里单独回答“本次会话是否还要打扰用户”。
+ *
+ * @param {string} target 目标项目根
+ * @param {object} result 可执行 self-check 结果
+ * @param {{now:Date,writeCache:boolean,projectEvidence:object|null,recordPrompt:boolean,ignorePromptSuppression:boolean}} options 提示选项
+ * @returns {object} 应返回给 self-check 的结果
+ */
+function applyPromptPolicy(target, result, options) {
+  const promptKey = updatePromptKey(result);
+  if (!promptKey) return result;
+
+  const bypassSuppression = options.ignorePromptSuppression || result.ai?.mode === "auto";
+  const suppression = bypassSuppression
+    ? { suppressed: false, reason: null, until: null }
+    : promptSuppression(result.updateCheck, promptKey, options.now);
+
+  if (suppression.suppressed) {
+    return {
+      ...result,
+      status: "skipped",
+      reason: `prompt_${suppression.reason}`,
+      prompt: promptInfo(target, result.updateCheck, promptKey, suppression),
+      suppressedAction: {
+        status: result.status,
+        reason: result.reason,
+        recommendation: result.recommendation,
+        commands: result.commands,
+        releaseNotes: result.releaseNotes,
+      },
+      recommendation: null,
+      releaseNotes: null,
+      commands: {},
+      safety: null,
+      ai: null,
+    };
+  }
+
+  if (options.recordPrompt && options.writeCache && options.projectEvidence) {
+    const updateCheck = writeUpdateCheck(target, {
+      lastPromptedAt: options.now.toISOString(),
+      lastPromptedKey: promptKey,
+      promptSuppressedUntil: null,
+      promptSuppressedKey: null,
+      promptSuppressionReason: null,
+    });
+    return {
+      ...result,
+      updateCheck,
+      prompt: promptInfo(target, updateCheck, promptKey, suppression),
+    };
+  }
+
+  return {
+    ...result,
+    prompt: promptInfo(target, result.updateCheck, promptKey, suppression),
+  };
+}
+
 /** 根据 policy 和安全检查结果生成 AI 动作指令。 */
 function actionForPolicy(policy, command, safety) {
   if (policy === "notify") {
@@ -309,9 +498,9 @@ function withAction(target, policy, result, command) {
 }
 
 /** 生成项目重叠加建议结果。 */
-function projectOutOfSyncResult(base, target, remotePatch = {}, releaseNotes = null) {
+function projectOutOfSyncResult(base, target, remotePatch = {}, releaseNotes = null, promptOptions = null) {
   const command = selfUpdateCommand(target, { projectOnly: true });
-  return withAction(
+  const result = withAction(
     target,
     base.policy,
     {
@@ -327,6 +516,7 @@ function projectOutOfSyncResult(base, target, remotePatch = {}, releaseNotes = n
     },
     command,
   );
+  return promptOptions ? applyPromptPolicy(target, result, promptOptions) : result;
 }
 
 /** 计算 auto 策略安全门槛。 */
@@ -354,12 +544,14 @@ export function safetyState(target, status, command) {
  * 构建启动自更新检查结果。
  *
  * @param {string} target 目标项目根
- * @param {{writeCache?: boolean, forceRemote?: boolean, fetchMetadata?: () => Promise<object|null>,onRemoteCheck?:()=>Promise<unknown>}} options 检查选项
+ * @param {{writeCache?: boolean, forceRemote?: boolean, fetchMetadata?: () => Promise<object|null>,onRemoteCheck?:()=>Promise<unknown>,recordPrompt?:boolean,ignorePromptSuppression?:boolean}} options 检查选项
  * @returns {Promise<object>} 结构化检查结果
  */
 export async function buildSelfCheck(target, options = {}) {
   const writeCache = options.writeCache !== false;
   const forceRemote = options.forceRemote === true;
+  const recordPrompt = options.recordPrompt === true;
+  const ignorePromptSuppression = options.ignorePromptSuppression === true;
   const fetchMetadata = typeof options.fetchMetadata === "function"
     ? options.fetchMetadata
     : fetchPackageUpdateMetadata;
@@ -390,6 +582,13 @@ export async function buildSelfCheck(target, options = {}) {
     projectOutOfSyncReasons.push("trellis_version_mismatch");
   }
   const projectOutOfSync = projectOutOfSyncReasons.length > 0;
+  const promptOptions = {
+    now,
+    writeCache,
+    projectEvidence,
+    recordPrompt,
+    ignorePromptSuppression,
+  };
 
   const base = {
     status: "up_to_date",
@@ -452,7 +651,7 @@ export async function buildSelfCheck(target, options = {}) {
     if (recommendation) {
       const command = selfUpdateCommand(absoluteTarget);
       const releaseNotesRange = updateReleaseNotesRange(currentFlower, recommendation);
-      return withAction(
+      const result = withAction(
         absoluteTarget,
         updateCheck.policy,
         {
@@ -470,6 +669,7 @@ export async function buildSelfCheck(target, options = {}) {
         },
         command,
       );
+      return applyPromptPolicy(absoluteTarget, result, promptOptions);
     }
     if (projectOutOfSync) {
       const releaseNotesRange = projectReleaseNotesRange(projectFlower, currentFlower);
@@ -485,7 +685,7 @@ export async function buildSelfCheck(target, options = {}) {
         tags,
         fromCache: true,
         skipped: true,
-      }, releaseNotes);
+      }, releaseNotes, promptOptions);
     }
     return {
       ...base,
@@ -512,6 +712,7 @@ export async function buildSelfCheck(target, options = {}) {
         absoluteTarget,
         remotePatch,
         cachedReleaseNotes(updateCheck, releaseNotesRange),
+        promptOptions,
       );
     }
     return {
@@ -539,7 +740,7 @@ export async function buildSelfCheck(target, options = {}) {
 
   if (!recommendation) {
     if (projectOutOfSync) {
-      return projectOutOfSyncResult(resultBase, absoluteTarget, { tags }, releaseNotes);
+      return projectOutOfSyncResult(resultBase, absoluteTarget, { tags }, releaseNotes, promptOptions);
     }
     return {
       ...resultBase,
@@ -549,7 +750,7 @@ export async function buildSelfCheck(target, options = {}) {
   }
 
   const command = selfUpdateCommand(absoluteTarget);
-  return withAction(
+  const result = withAction(
     absoluteTarget,
     updateCheck.policy,
     {
@@ -566,4 +767,5 @@ export async function buildSelfCheck(target, options = {}) {
     },
     command,
   );
+  return applyPromptPolicy(absoluteTarget, result, promptOptions);
 }

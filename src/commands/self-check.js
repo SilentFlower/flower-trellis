@@ -17,6 +17,7 @@ export async function selfCheck(ctx) {
   }
   const result = await buildSelfCheck(ctx.target, {
     forceRemote,
+    recordPrompt: true,
     onRemoteCheck: () => reportTelemetry(ctx.target, "version_check"),
   });
   console.log(JSON.stringify(result, null, 2));

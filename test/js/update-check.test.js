@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { updateCheck } from "../../src/commands/update-check.js";
 import { buildSelfCheck } from "../../src/lib/self-check.js";
 import {
   readUpdateCheck,
@@ -32,6 +33,25 @@ function createTarget(t) {
     updateCheck: { enabled: true, policy: "ask", intervalHours: 8 },
   });
   return target;
+}
+
+function writeCachedRemoteUpdate(target, version = "9.0.0") {
+  writeUpdateCheck(target, {
+    lastCheckedAt: new Date().toISOString(),
+    lastRemote: { latest: version, beta: null },
+    lastStatus: "update_available",
+    lastErrorCode: null,
+  });
+}
+
+async function silenceConsole(fn) {
+  const original = console.log;
+  console.log = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.log = original;
+  }
 }
 
 test("升级推荐锁定精确版本并优先在线读取", () => {
@@ -279,4 +299,69 @@ test("update-check cache 拒绝软链且项目外零写入", (t) => {
   );
   assert.equal(fs.readFileSync(outsideFile, "utf8"), "outside\n");
   assert.equal(fs.lstatSync(updateCheckCachePath(target)).isSymbolicLink(), true);
+});
+
+test("self-check 记录同一更新提示后进入冷却", async (t) => {
+  const target = createTarget(t);
+  writeCachedRemoteUpdate(target);
+
+  const first = await buildSelfCheck(target, { recordPrompt: true });
+  assert.equal(first.status, "update_available");
+  assert.equal(first.prompt.key, "update:latest:9.0.0");
+  assert.equal(first.prompt.suppressed, false);
+  assert.equal(readUpdateCheck(target).lastPromptedKey, "update:latest:9.0.0");
+
+  const second = await buildSelfCheck(target, { recordPrompt: true });
+  assert.equal(second.status, "skipped");
+  assert.equal(second.reason, "prompt_cooldown");
+  assert.equal(second.prompt.suppressed, true);
+  assert.equal(second.suppressedAction.status, "update_available");
+
+  const ignored = await buildSelfCheck(target, { ignorePromptSuppression: true });
+  assert.equal(ignored.status, "update_available");
+});
+
+test("提示跳过只抑制当前版本 key", async (t) => {
+  const target = createTarget(t);
+  writeCachedRemoteUpdate(target, "9.0.0");
+  writeUpdateCheck(target, {
+    promptSuppressedKey: "update:latest:9.0.0",
+    promptSuppressedUntil: null,
+    promptSuppressionReason: "skip",
+  });
+
+  const skipped = await buildSelfCheck(target);
+  assert.equal(skipped.status, "skipped");
+  assert.equal(skipped.reason, "prompt_skip");
+
+  writeCachedRemoteUpdate(target, "9.1.0");
+  const nextVersion = await buildSelfCheck(target);
+  assert.equal(nextVersion.status, "update_available");
+  assert.equal(nextVersion.prompt.key, "update:latest:9.1.0");
+  assert.equal(nextVersion.prompt.suppressed, false);
+});
+
+test("update-check snooze、skip 和 reset 管理当前提示状态", async (t) => {
+  const target = createTarget(t);
+  writeCachedRemoteUpdate(target);
+
+  await silenceConsole(() => updateCheck({
+    target,
+    passthrough: ["snooze", "--hours", "2"],
+  }));
+  const snoozed = readUpdateCheck(target);
+  assert.equal(snoozed.promptSuppressedKey, "update:latest:9.0.0");
+  assert.equal(snoozed.promptSuppressionReason, "snooze");
+  assert.ok(Date.parse(snoozed.promptSuppressedUntil) > Date.now());
+  assert.equal((await buildSelfCheck(target)).reason, "prompt_snooze");
+
+  await silenceConsole(() => updateCheck({ target, passthrough: ["reset"] }));
+  const reset = readUpdateCheck(target);
+  assert.equal(reset.promptSuppressedKey, null);
+  assert.equal(reset.promptSuppressionReason, null);
+
+  await silenceConsole(() => updateCheck({ target, passthrough: ["skip"] }));
+  const skipped = readUpdateCheck(target);
+  assert.equal(skipped.promptSuppressedKey, "update:latest:9.0.0");
+  assert.equal(skipped.promptSuppressionReason, "skip");
 });

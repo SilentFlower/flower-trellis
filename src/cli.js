@@ -73,7 +73,8 @@ function printHelp() {
   flower-trellis update [trellis flags] [flower flags]   升级 + 按新版本重新叠加
   flower-trellis self-check --json [--target <dir>]      输出启动更新检查 JSON
   flower-trellis self-update --target <dir> --yes        自更新 + 项目重叠加
-  flower-trellis update-check <get|set|disable|enable>   管理启动更新策略
+  flower-trellis update-check <get|set|disable|enable|snooze|skip|reset>
+                                                        管理启动更新策略
   flower-trellis telemetry <status|enable|disable>       管理匿名安装遥测
   flower-trellis plugin                                 交互管理 Plugin、来源与 GitLab 授权
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
@@ -93,7 +94,8 @@ flower 自有 flag:
   self-check --json                 稳定输出检查 JSON
   self-update --yes [--dry-run]     执行或预览全局更新与项目 update
   update-check set --policy <off|notify|ask|auto> [--interval-hours <n>]
-  update-check disable|enable       只切换 enabled,不覆盖已选 policy
+  update-check snooze [--hours <n>|--days <n>]  延后当前更新提示(默认 7 天)
+  update-check skip|reset           跳过当前提示或清空提示节流状态
 
 命令别名:flower-trellis 可简写为 ftl 或 ft(三者完全等价)。
 init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联网、带超时,失败静默)。

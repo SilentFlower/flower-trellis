@@ -24,7 +24,13 @@ const UPDATE_CHECK_CACHE_KEYS = new Set([
   "lastReleaseNotes",
   "lastStatus",
   "lastErrorCode",
+  "lastPromptedAt",
+  "lastPromptedKey",
+  "promptSuppressedUntil",
+  "promptSuppressedKey",
+  "promptSuppressionReason",
 ]);
+const UPDATE_PROMPT_SUPPRESSION_REASONS = new Set(["snooze", "skip"]);
 const DEFAULT_UPDATE_CHECK_POLICY = {
   enabled: true,
   policy: "ask",
@@ -36,6 +42,11 @@ const DEFAULT_UPDATE_CHECK_CACHE = {
   lastReleaseNotes: null,
   lastStatus: null,
   lastErrorCode: null,
+  lastPromptedAt: null,
+  lastPromptedKey: null,
+  promptSuppressedUntil: null,
+  promptSuppressedKey: null,
+  promptSuppressionReason: null,
 };
 const DEFAULT_UPDATE_CHECK = {
   ...DEFAULT_UPDATE_CHECK_POLICY,
@@ -155,7 +166,7 @@ function normalizeUpdateCheckPolicy(value) {
  * 归一化启动更新检查运行缓存字段。
  *
  * @param {object|null|undefined} value 原始缓存字段
- * @returns {{lastCheckedAt:string|null,lastRemote:object|null,lastReleaseNotes:object|null,lastStatus:string|null,lastErrorCode:string|null}} 归一化后的缓存
+ * @returns {{lastCheckedAt:string|null,lastRemote:object|null,lastReleaseNotes:object|null,lastStatus:string|null,lastErrorCode:string|null,lastPromptedAt:string|null,lastPromptedKey:string|null,promptSuppressedUntil:string|null,promptSuppressedKey:string|null,promptSuppressionReason:string|null}} 归一化后的缓存
  */
 function normalizeUpdateCheckCache(value) {
   const raw = value && typeof value === "object" ? value : {};
@@ -165,6 +176,17 @@ function normalizeUpdateCheckCache(value) {
     lastReleaseNotes: normalizeLastReleaseNotes(raw.lastReleaseNotes),
     lastStatus: typeof raw.lastStatus === "string" ? raw.lastStatus : null,
     lastErrorCode: typeof raw.lastErrorCode === "string" ? raw.lastErrorCode : null,
+    lastPromptedAt: typeof raw.lastPromptedAt === "string" ? raw.lastPromptedAt : null,
+    lastPromptedKey: typeof raw.lastPromptedKey === "string" ? raw.lastPromptedKey : null,
+    promptSuppressedUntil: typeof raw.promptSuppressedUntil === "string"
+      ? raw.promptSuppressedUntil
+      : null,
+    promptSuppressedKey: typeof raw.promptSuppressedKey === "string"
+      ? raw.promptSuppressedKey
+      : null,
+    promptSuppressionReason: UPDATE_PROMPT_SUPPRESSION_REASONS.has(raw.promptSuppressionReason)
+      ? raw.promptSuppressionReason
+      : null,
   };
 }
 
@@ -372,7 +394,7 @@ export function readLegacyManifestStatus(target) {
  * 用户策略字段启用保守默认值;缓存字段只保留结构化摘要,避免把网络错误细节写入项目。
  *
  * @param {object|null|undefined} value 原始 updateCheck 字段
- * @returns {{enabled:boolean,policy:string,intervalHours:number,lastCheckedAt:string|null,lastRemote:object|null,lastReleaseNotes:object|null,lastStatus:string|null,lastErrorCode:string|null}} 归一化后的 updateCheck
+ * @returns {{enabled:boolean,policy:string,intervalHours:number,lastCheckedAt:string|null,lastRemote:object|null,lastReleaseNotes:object|null,lastStatus:string|null,lastErrorCode:string|null,lastPromptedAt:string|null,lastPromptedKey:string|null,promptSuppressedUntil:string|null,promptSuppressedKey:string|null,promptSuppressionReason:string|null}} 归一化后的 updateCheck
  */
 export function normalizeUpdateCheck(value) {
   return {

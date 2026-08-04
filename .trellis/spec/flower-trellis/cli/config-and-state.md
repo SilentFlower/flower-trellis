@@ -336,7 +336,9 @@ if (shouldUseUpdateSandbox({
 
 - 用户策略写 `.flower/settings.json#updateCheck`：`enabled` / `policy` / `intervalHours`。
 - 本机缓存写 `.flower/update-check.tmp`：`lastCheckedAt` / `lastRemote` /
-  `lastReleaseNotes` / `lastStatus` / `lastErrorCode`；由 `.flower/.gitignore` 的 `*.tmp` 忽略。
+  `lastReleaseNotes` / `lastStatus` / `lastErrorCode` / `lastPromptedAt` /
+  `lastPromptedKey` / `promptSuppressedUntil` / `promptSuppressedKey` /
+  `promptSuppressionReason`；由 `.flower/.gitignore` 的 `*.tmp` 忽略。
 - `readUpdateCheck(target)` 优先读新位置；缺失时依次 fallback 到旧
   `.trellis/.flower-update-check.tmp` 和旧 manifest `updateCheck`，损坏字段按默认值归一化。
 - `writeUpdateCheck(target, patch)` 只写新位置，使用 `.flower/` changed-only 原子写；不得修改
@@ -344,9 +346,12 @@ if (shouldUseUpdateSandbox({
 - `.flower/settings.json` 与 `.flower/update-check.tmp` 只能是普通文件；损坏 JSON、无效 settings 外层结构、目录或符号链接都必须在覆盖前失败。settings 已损坏时整次策略/缓存更新零写入，不能先刷新 cache 再报错。
 - 原子写临时文件必须位于目标同目录，以排他创建写入并 `fsync` 后 rename；失败时清理临时文件。既有目标在读取和替换前都要拒绝符号链接，不能跟随到项目外写入。
 - 默认视图固定为
-  `{ enabled:true, policy:"ask", intervalHours:8, lastCheckedAt:null, lastRemote:null, lastReleaseNotes:null, lastStatus:null, lastErrorCode:null }`。
+  `{ enabled:true, policy:"ask", intervalHours:8, lastCheckedAt:null, lastRemote:null, lastReleaseNotes:null, lastStatus:null, lastErrorCode:null, lastPromptedAt:null, lastPromptedKey:null, promptSuppressedUntil:null, promptSuppressedKey:null, promptSuppressionReason:null }`。
 - `lastRemote` 只记录 npm `dist-tags.latest` / `dist-tags.beta`；release notes 摘要只进入
   `lastReleaseNotes`，不得混入版本事实。
+- `lastPromptedKey` / `promptSuppressedKey` 记录当前更新提示 key；远端升级 key 固定为
+  `update:<tag>:<version>`，项目追平 key 固定包含项目与当前 `flower` / `trellis` 版本差异。
+  key 变化表示新提示，旧版本的冷却、延后或跳过不得误挡新版本。
 
 ## Scenario: Startup Self-Update Check
 
@@ -367,6 +372,9 @@ flower-trellis update-check get --target <dir>
 flower-trellis update-check set --target <dir> --policy <off|notify|ask|auto> [--interval-hours <n>]
 flower-trellis update-check disable --target <dir>
 flower-trellis update-check enable --target <dir>
+flower-trellis update-check snooze --target <dir> [--hours <n>|--days <n>]
+flower-trellis update-check skip --target <dir>
+flower-trellis update-check reset --target <dir>
 ```
 
 Hook 资产:
@@ -399,6 +407,10 @@ src/assets/flower_update_hook.py
 - `intervalHours` 只限制 npm registry 远程探测,不限制本地 manifest / `.trellis/.version`
   读取。缓存仍新鲜时可使用 `lastRemote` 作为远程证据;缓存过期或 `--force-remote`
   时必须先联网查 dist-tags,不得因为项目 out-of-sync 提前跳过远程探测。
+- 提示节流必须与远程探测节流分离：同一 `prompt.key` 默认 24 小时内最多向 SessionStart
+  hook 暴露一次 actionable 状态；用户运行 `update-check snooze` 后同一 key 默认 7 天不再提示；
+  用户运行 `update-check skip` 后同一 key 不再提示，直到远端目标版本或项目版本差异变化。
+  `update-check reset` 只清空提示节流状态，不修改远程缓存或用户 policy。
 - 缓存仍新鲜时可复用 `lastReleaseNotes`,但必须校验 `range.from` / `range.to` /
   `range.channel` 与本次结果一致;`range.reason` 只表示触发路径,同一版本范围在
   `update_available` 与 `project_out_of_sync` 间切换时仍可复用摘要,输出给本次
@@ -420,6 +432,10 @@ src/assets/flower_update_hook.py
   Plugin lock 又无旧 manifest 时跳过；写缓存失败不得阻断主流程。
 - `self-check --json` 本次写入远端缓存后,返回对象内的 `updateCheck` 必须重新读取写后视图;
   顶层 `status` 与 `updateCheck.lastStatus` 不得滞后一轮。离线写入同样适用。
+- `self-check --json` 由启动 hook 调用时必须记录非抑制 actionable 提示的
+  `lastPromptedAt` / `lastPromptedKey`；被冷却、延后或跳过抑制时返回
+  `status=skipped` 与 `reason=prompt_cooldown|prompt_snooze|prompt_skip`，并在
+  `suppressedAction` 中保留原始可执行状态供诊断，但 hook 不得注入 `<flower-update>`。
 - `checkForUpdate()` 必须同时尊重 `--no-update-check`、`FLOWER_NO_UPDATE_CHECK` 以及
   settings(旧项目 fallback manifest)中的 `updateCheck.enabled=false` / `policy=off`。
 - 若远端 dist-tags 表明当前 flower-trellis 有新版可用,最终状态优先为
@@ -439,7 +455,8 @@ src/assets/flower_update_hook.py
 - `<flower-update>` 存在 `release_notes` 时,AI 必须先用短句展示更新摘要和
   `recommended_command`,再询问用户确认;用户确认前不得执行推荐命令。
 - `<flower-update>` 应保持精简:保留 `priority`、`instruction_scope`、`status`、
-  版本差异、`release_notes*`、`recommended_command`、`safety_reasons` 和一条
+  版本差异、`release_notes*`、`recommended_command`、`snooze_command`、
+  `skip_command`、`safety_reasons` 和一条
   `ai_instruction`;不要同时输出重复的 `policy` / `ai_mode` / `ai_required_action`。
   `bundled_trellis` / `project_trellis` 仅在 Trellis 版本不一致时输出,`remote` 仅在
   真实远端升级或错误诊断需要时输出,`release_notes_truncated` /
@@ -450,6 +467,10 @@ src/assets/flower_update_hook.py
   `write:false` 和 `post_action_preview`。
 - `update-check disable` 只写 `enabled=false`,不修改既有 `policy`;`enable` 只写
   `enabled=true`,沿用既有 `policy`,缺失时按 `ask` 归一化。
+- `update-check snooze|skip` 必须先通过 `buildSelfCheck(..., {writeCache:false, ignorePromptSuppression:true})`
+  只读计算当前 actionable `prompt.key`，再写 `promptSuppressed*` 字段。目标没有当前
+  actionable 提示时抛中文错误，不凭用户输入猜 key。`snooze` 只接受正数 `--hours` 或
+  `--days`，两者不能同时出现。
 - `self-update --yes` 的项目阶段必须走完整 `flower-trellis update --target <dir>
   --no-update-check ...` 链路,包含 `syncGlobalTrellis()`、上游 `trellis update` 和
   Plugin Runtime 重放；skill-garden/平台后处理与 state 更新必须在同一事务内完成。
@@ -474,6 +495,9 @@ src/assets/flower_update_hook.py
 | 缓存的 `lastReleaseNotes.range.reason=update_available`,本次结果为 `project_out_of_sync`,且 `from` / `to` / `channel` 相同 | 复用缓存摘要并把输出 range reason 归一为 `project_out_of_sync` |
 | `lastCheckedAt` 仍在 interval 内且缓存无更新且项目不 out-of-sync | 返回 `skipped/interval_not_elapsed` |
 | `lastCheckedAt` 仍在 interval 内但缓存显示有更新 | 返回 `update_available`,来源标记为 cache |
+| 同一 `prompt.key` 已在 24 小时内提示过 | 返回 `skipped/prompt_cooldown`,hook 静默 |
+| 当前 `prompt.key` 已 snooze 且 `promptSuppressedUntil` 未到 | 返回 `skipped/prompt_snooze`,hook 静默 |
+| 当前 `prompt.key` 已 skip | 返回 `skipped/prompt_skip`,hook 静默；新版本或项目版本差异变化后恢复提示 |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目不 out-of-sync | 返回 `offline`,只写 `lastStatus=offline` 和简短 `lastErrorCode`,不刷新 `lastCheckedAt` |
 | registry 离线 / 超时 / 非 200 / 响应字段无效且项目 out-of-sync | 返回 `project_out_of_sync`,推荐 `--project-only`,同时标注远端 `errorCode` |
 | npm 精确版本安装命中 `ETARGET` | `--prefer-online` 等待 1 秒后只重试一次;仍失败则输出最终错误和精确手动命令 |
@@ -538,6 +562,16 @@ src/assets/flower_update_hook.py
   - `self-update --target <dir> --dry-run --project-only` 默认项目命令带 `--force`。
   - `self-update --target <dir> --dry-run --project-only -- --skip-all` 不再追加 `--force`。
   - `update-check set|disable|enable|get` 保留 policy / enabled 语义。
+  - 同一 `update_available` 被 `self-check` 记录提示后,下一次启动检查返回
+    `skipped/prompt_cooldown`;使用 `ignorePromptSuppression` 的内部命令仍可看到原始
+    actionable 状态。
+  - `update-check snooze --hours 2` 写入当前 `prompt.key`、未来
+    `promptSuppressedUntil` 和 `promptSuppressionReason=snooze`;随后 self-check 返回
+    `skipped/prompt_snooze`。
+  - `update-check skip` 只跳过当前 `prompt.key`;远端推荐版本变化后必须恢复
+    `update_available`。
+  - `update-check reset` 清空 `lastPrompted*` 与 `promptSuppressed*`,不修改 policy、
+    `lastRemote` 或 `lastReleaseNotes`。
   - `flower-trellis update --target <dir> --dry-run` 在远程探测成功时刷新已有 Plugin 项目的
     `.flower/update-check.tmp#lastRemote`;`--no-update-check` 或 `policy=off` 时不联网、不写缓存。
   - 构造旧 manifest 中含 `lastCheckedAt` / `lastRemote` / `lastReleaseNotes` 的场景,

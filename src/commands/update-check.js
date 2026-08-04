@@ -8,14 +8,61 @@ import {
   updateCheckCachePath,
   writeUpdateCheck,
 } from "../lib/manifest.js";
+import {
+  buildSelfCheck,
+  DEFAULT_UPDATE_PROMPT_SNOOZE_HOURS,
+} from "../lib/self-check.js";
 
 const POLICIES = new Set(["off", "notify", "ask", "auto"]);
+const ACTIONABLE_STATUSES = new Set(["update_available", "project_out_of_sync"]);
 
 /** 读取 flag 后面的取值。 */
 function optionValue(args, name) {
   const index = args.indexOf(name);
   if (index === -1) return null;
   return args[index + 1] || null;
+}
+
+/** 判断是否传入了某个 option。 */
+function hasOption(args, name) {
+  return args.includes(name);
+}
+
+/** 解析正数小时参数。 */
+function positiveHours(value, label) {
+  const hours = Number(value);
+  if (!Number.isFinite(hours) || hours <= 0) {
+    throw new Error(`${label} 必须是正数`);
+  }
+  return hours;
+}
+
+/** 解析 snooze 默认或显式时长。 */
+function snoozeHours(args) {
+  const hoursText = optionValue(args, "--hours");
+  const daysText = optionValue(args, "--days");
+  const hasHours = hasOption(args, "--hours");
+  const hasDays = hasOption(args, "--days");
+  if (hasHours && hoursText === null) throw new Error("--hours 缺少取值");
+  if (hasDays && daysText === null) throw new Error("--days 缺少取值");
+  if (hasHours && hasDays) {
+    throw new Error("update-check snooze 不能同时使用 --hours 和 --days");
+  }
+  if (hasHours) return positiveHours(hoursText, "--hours");
+  if (hasDays) return positiveHours(daysText, "--days") * 24;
+  return DEFAULT_UPDATE_PROMPT_SNOOZE_HOURS;
+}
+
+/** 当前是否有可延后或跳过的更新提示。 */
+async function currentPrompt(target) {
+  const result = await buildSelfCheck(target, {
+    writeCache: false,
+    ignorePromptSuppression: true,
+  });
+  if (!ACTIONABLE_STATUSES.has(result.status) || !result.prompt?.key) {
+    throw new Error("当前没有可延后或跳过的更新提示");
+  }
+  return result.prompt;
 }
 
 /** 确保目标是 Trellis 项目。 */
@@ -90,5 +137,44 @@ export async function updateCheck(ctx) {
     return;
   }
 
-  throw new Error("update-check 只支持 get / set / disable / enable");
+  if (action === "snooze") {
+    const prompt = await currentPrompt(ctx.target);
+    const hours = snoozeHours(args);
+    const until = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+    writeUpdateCheck(ctx.target, {
+      promptSuppressedKey: prompt.key,
+      promptSuppressedUntil: until,
+      promptSuppressionReason: "snooze",
+    });
+    console.log(`  ✓ 当前更新提示已延后到 ${until}`);
+    console.log(JSON.stringify(readUpdateCheck(ctx.target), null, 2));
+    return;
+  }
+
+  if (action === "skip") {
+    const prompt = await currentPrompt(ctx.target);
+    writeUpdateCheck(ctx.target, {
+      promptSuppressedKey: prompt.key,
+      promptSuppressedUntil: null,
+      promptSuppressionReason: "skip",
+    });
+    console.log("  ✓ 当前更新提示已跳过;新版本或项目版本差异变化后会再次提示");
+    console.log(JSON.stringify(readUpdateCheck(ctx.target), null, 2));
+    return;
+  }
+
+  if (action === "reset") {
+    writeUpdateCheck(ctx.target, {
+      lastPromptedAt: null,
+      lastPromptedKey: null,
+      promptSuppressedUntil: null,
+      promptSuppressedKey: null,
+      promptSuppressionReason: null,
+    });
+    console.log("  ✓ 更新提示节流状态已清空");
+    console.log(JSON.stringify(readUpdateCheck(ctx.target), null, 2));
+    return;
+  }
+
+  throw new Error("update-check 只支持 get / set / disable / enable / snooze / skip / reset");
 }

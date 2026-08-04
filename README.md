@@ -86,7 +86,7 @@ flower-trellis -v
 | `update` | 升级 Trellis,并按新版本重新叠加强化包 |
 | `self-check` | 输出启动更新检查 JSON,供 Codex / Claude Code hook 和 AI 自动化读取 |
 | `self-update` | 受控升级 flower-trellis 并对目标项目执行完整 `flower-trellis update` 重叠加 |
-| `update-check` | 管理 `.trellis/.flower-manifest.json` 内的启动更新检查策略 |
+| `update-check` | 管理 `.flower/settings.json` 内的启动更新策略和提示节流 |
 | `telemetry` | 查询、启用或停用用户级匿名安装遥测 |
 | `plugin` | 管理 Flower Plugin、Marketplace 来源、GitLab 授权和作者校验 |
 | `uninstall` | 移除 Trellis 本体并清理强化包残留(支持 `-y` / `--dry-run`) |
@@ -204,16 +204,17 @@ flower-trellis plugin add flower/flower-plugin-author --platform codex --json
 flower-trellis self-check --json --target .
 ```
 
-发现可更新或项目已铺版本不一致时,向 AI 注入 `<flower-update>` 上下文。无更新、离线、关闭检查、npx 临时运行时默认不打扰。
+发现可更新或项目已铺版本不一致时,向 AI 注入 `<flower-update>` 上下文。无更新、离线、关闭检查、npx 临时运行时默认不打扰;同一更新提示会按本机提示节流状态降噪。
 
 检查分两层:
 
-- **本地一致性检查**:每次启动都会比对当前安装的 `flower-trellis` / 捆绑 Trellis 版本与项目 `.trellis/.flower-manifest.json` / `.trellis/.version`;不受 `intervalHours` 限制。
+- **本地一致性检查**:每次启动都会比对当前安装的 `flower-trellis` / 捆绑 Trellis 版本与项目 `.flower/plugin-lock.json` / `.trellis/.flower-manifest.json` / `.trellis/.version`;不受 `intervalHours` 限制。
 - **远程版本探测**:访问 npm registry 读取 `flower-trellis` dist-tags;受 `intervalHours` 节流,带超时,失败静默。
+- **提示节流**:同一更新提示默认 24 小时内只注入一次;用户选择稍后时默认 7 天不再提示,选择跳过时同一版本不再提示。
 
-策略保存在 `.trellis/.flower-manifest.json` 的 `updateCheck`;运行缓存保存在 gitignored 的 `.trellis/.flower-update-check.tmp`,避免 `lastCheckedAt` 等字段反复污染 git。
+策略保存在 `.flower/settings.json` 的 `updateCheck`;运行缓存保存在 gitignored 的 `.flower/update-check.tmp`,避免 `lastCheckedAt` / `lastPromptedAt` 等字段反复污染 git。旧 `.trellis/.flower-manifest.json` 和 `.trellis/.flower-update-check.tmp` 只作为兼容 fallback 读取。
 
-manifest 中只保留用户策略:
+settings 中只保留用户策略:
 
 ```json
 {
@@ -231,8 +232,14 @@ tmp 中保存本地运行缓存:
 {
     "lastCheckedAt": "2026-07-07T00:00:00.000Z",
     "lastRemote": { "latest": "0.4.2", "beta": null },
+    "lastReleaseNotes": null,
     "lastStatus": "update_available",
-    "lastErrorCode": null
+    "lastErrorCode": null,
+    "lastPromptedAt": "2026-07-07T00:05:00.000Z",
+    "lastPromptedKey": "update:latest:0.4.2",
+    "promptSuppressedUntil": null,
+    "promptSuppressedKey": null,
+    "promptSuppressionReason": null
 }
 ```
 
@@ -254,6 +261,10 @@ flower-trellis update-check get --target .
 flower-trellis update-check set --policy auto --interval-hours 12 --target .
 flower-trellis update-check disable --target .  # 只设置 enabled=false,不改 policy
 flower-trellis update-check enable --target .   # 只设置 enabled=true,沿用原 policy
+flower-trellis update-check snooze --target .   # 延后当前提示,默认 7 天
+flower-trellis update-check snooze --days 3 --target .
+flower-trellis update-check skip --target .     # 跳过当前提示 key
+flower-trellis update-check reset --target .    # 清空提示节流状态
 ```
 
 执行更新:
