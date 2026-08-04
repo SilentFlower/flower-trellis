@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "检查 self-check/self-update/hook 是否符合启动更新契约和提示节流要求。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查 Skill-Garden/common skill authoring source 与 release snapshot 是否同步。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "检查测试、快照、幂等和 diff 质量。"}
+{"file": ".trellis/tasks/08-04-update-sls-query-skill/research/srm-forest-trace-pairing.md", "reason": "检查 SLS skill 新增守则是否覆盖事故复盘的关键误判。"}

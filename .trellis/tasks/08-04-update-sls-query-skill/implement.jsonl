@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "self-check/self-update/update-check 的启动更新契约、提示节流和人工更新边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "Skill-Garden authoring source、快照同步、Patch/Bundle 和托管能力边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "实现前后必须遵守的测试、幂等和质量要求。"}
+{"file": ".trellis/tasks/08-04-update-sls-query-skill/research/srm-forest-trace-pairing.md", "reason": "aliyun-sls-query 需要沉淀的 SRM Forest trace 误判复盘证据。"}

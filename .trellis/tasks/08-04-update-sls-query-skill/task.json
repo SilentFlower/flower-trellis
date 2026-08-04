@@ -1,0 +1,40 @@
+{
+  "id": "update-sls-query-skill",
+  "name": "update-sls-query-skill",
+  "title": "Update skill entry workflows",
+  "description": "合并更新 Flower 手动升级入口、SLS 查询排障守则和 worktree skill 菜单说明。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "skill-entry-updates",
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-04",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "用户要求把 Flower 升级入口、aliyun-sls-query 经验补充和 trellis-worktree 菜单说明合为一个任务。",
+  "meta": {
+    "merged_from": "flower-update-skill"
+  },
+  "progress": {
+    "updatedAt": "2026-08-04T11:56:29Z",
+    "completedSteps": [
+      "实现",
+      "Check-All",
+      "Update-Spec",
+      "业务 push"
+    ],
+    "partialStep": null,
+    "nextStep": "等待 finish-work 归档",
+    "notes": "已推送 skill-garden source 与 flower-trellis 业务变更；任务记录提交中。"
+  }
+}
