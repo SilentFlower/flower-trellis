@@ -55,6 +55,7 @@ const SKILL_DESCRIPTION_OVERRIDES = {
   "trellis-diff-brief": "快速总结当前 git 改动",
   "trellis-draw-uml": "绘制 UML 活动图梳理业务流程",
   "trellis-extract-prd": "从需求文档提取任务 PRD",
+  "trellis-flower-update": "手动追平已安装 Flower 强化包",
   "trellis-migrate-skill": "迁移旧命令为 Trellis skill",
   "trellis-plan-version": "规划版本任务、波次和分工",
   "trellis-push": "提交、推送并同步任务进度",
@@ -67,6 +68,7 @@ const SKILL_DESCRIPTION_OVERRIDES = {
   "trellis-verify-task": "校验任务文档是否覆盖需求",
   "trellis-verify-prd": "校验 PRD 准确性和覆盖度",
   "trellis-visualize": "生成架构、流程或状态图",
+  "trellis-worktree": "准备 linked worktree 的 Trellis 入口",
 };
 
 /**

@@ -29,3 +29,32 @@ test("Flower 更新完成后必须加载 trellis-push", () => {
   assert.doesNotMatch(sourceWorkflow, /load and follow\s+`trellis-push` before any Git inspection/);
   assert.equal(snapshotWorkflow, sourceWorkflow);
 });
+
+test("人工 Flower 更新入口不会进入 SessionStart hook", () => {
+  const command = read("src/commands/self-update.js");
+  const selfCheck = read("src/commands/self-check.js");
+  const hook = read("src/assets/flower_update_hook.py");
+
+  assert.match(hook, /"self-check",\s*"--json"/);
+  assert.doesNotMatch(hook, /--manual/);
+  assert.doesNotMatch(hook, /--ignore-prompt-suppression/);
+  assert.match(command, /ignorePromptSuppression:\s*true/);
+  assert.match(selfCheck, /recordPrompt:\s*!manual/);
+});
+
+test("trellis-flower-update 明确排除发版流程", () => {
+  const skillPaths = [
+    "vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-flower-update/SKILL.md",
+    "vendor/skill-garden/.trellis/0.6/.claude/skills/trellis-flower-update/SKILL.md",
+    "enhancements/0.6/.agents/skills/trellis-flower-update/SKILL.md",
+    "enhancements/0.6/.claude/skills/trellis-flower-update/SKILL.md",
+  ];
+
+  for (const skillPath of skillPaths) {
+    const skill = read(skillPath);
+    assert.match(skill, /已安装 Flower\/Trellis 强化包升级/);
+    assert.match(skill, /不要用于用户说想发版/);
+    assert.match(skill, /npm publish/);
+    assert.match(skill, /不运行 `npm run release`/);
+  }
+});

@@ -71,7 +71,8 @@ function printHelp() {
 用法:
   flower-trellis [init] [trellis flags] [flower flags]   安装 + 叠加强化包(默认命令)
   flower-trellis update [trellis flags] [flower flags]   升级 + 按新版本重新叠加
-  flower-trellis self-check --json [--target <dir>]      输出启动更新检查 JSON
+  flower-trellis self-check --json [--manual] [--target <dir>]
+                                                        输出启动更新检查 JSON
   flower-trellis self-update --target <dir> --yes        自更新 + 项目重叠加
   flower-trellis update-check <get|set|disable|enable|snooze|skip|reset>
                                                         管理启动更新策略
@@ -91,7 +92,7 @@ flower 自有 flag:
   --backup-retention <n>   update 成功后保留最近 n 份升级备份(默认 3,0=不清理)
 
 启动更新检查:
-  self-check --json                 稳定输出检查 JSON
+  self-check --json [--manual]      稳定输出检查 JSON；manual 只绕过提示节流
   self-update --yes [--dry-run]     执行或预览全局更新与项目 update
   update-check set --policy <off|notify|ask|auto> [--interval-hours <n>]
   update-check snooze [--hours <n>|--days <n>]  延后当前更新提示(默认 7 天)

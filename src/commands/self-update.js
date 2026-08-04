@@ -123,6 +123,7 @@ export async function selfUpdate(ctx) {
   const check = await buildSelfCheck(ctx.target, {
     writeCache: !dryRun,
     forceRemote: !projectOnly,
+    ignorePromptSuppression: true,
   });
   const shouldInstallFlower = !projectOnly && check.status === "update_available" && check.recommendation;
   const effectiveSafety = check.safety || safetyState(

@@ -12,12 +12,15 @@ import { reportTelemetry } from "../lib/telemetry.js";
  */
 export async function selfCheck(ctx) {
   const forceRemote = ctx.passthrough.includes("--force-remote");
+  const manual = ctx.passthrough.includes("--manual") ||
+    ctx.passthrough.includes("--ignore-prompt-suppression");
   if (ctx.updateCheck === false) {
     process.env.FLOWER_NO_UPDATE_CHECK = "1";
   }
   const result = await buildSelfCheck(ctx.target, {
     forceRemote,
-    recordPrompt: true,
+    ignorePromptSuppression: manual,
+    recordPrompt: !manual,
     onRemoteCheck: () => reportTelemetry(ctx.target, "version_check"),
   });
   console.log(JSON.stringify(result, null, 2));

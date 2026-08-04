@@ -120,6 +120,8 @@ for _ in range(300):
 - `from`/`to` 是 unix **秒**（不是毫秒）。
 - `query` 是全文/索引查询串（如 `ERROR`、`status>=500 and method:POST`）；`topic` 按 `__topic__` 精确过滤，两者可叠加。
 - `reverse=true` 最新在前，排障看最新日志必开。
+- **project/logstore 选择纪律**：不能只凭 project 名称“看起来像生产”或业务词相似就先查。先用用户给出的系统线索、服务名、应用名或已知前缀锚定 project（例如 SRM/supplier/API 应优先核对 `xhgj-zysys` 这类系统 project，而不是把 `xhxhgjmall` 仅因看起来像线上业务就当主入口）；再列该 project 的 logstore，并用 logstore 名、service/app 标记、已知 traceid 或 Request URL 反查确认。多个 K8s/业务 project 并存时，把未验证项目列为候选，不要直接下结论。
+- **Java Forest/HTTP trace 配对纪律**：不能用“某条 trace 链路里出现 404”反推“目标接口本身 404”。同一 trace 里可能有多个外部请求，状态码各不相同；必须按时间回查完整链路，把 `[Forest] Request`、`Response: Status = ...`、`调用接口异常` 配对后，再判断具体哪个 Request URL 失败。
 - 典型场景——**FC custom-container 排障**：FC 控制面只给 `operation not permitted` / `CAExited` 这类兜底信息，**真因（Java 堆栈等）在容器 stdout/stderr，落在 SLS**。FC 日志的 topic 形态是 `FCLogs:<函数名>`，用 `--topic` 精确过滤比全文查询准。
 - 多行日志（Java 堆栈）是否合并成一条，取决于采集端配置（如 K8s 采集 CRD 的 Multiline 配置），查询侧改不了；散成 N 条时按 `__time__` + 实例 id 拼回去。
 

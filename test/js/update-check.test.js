@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { updateCheck } from "../../src/commands/update-check.js";
 import { buildSelfCheck } from "../../src/lib/self-check.js";
 import {
@@ -18,6 +20,9 @@ import {
   installFlowerVersion,
 } from "../../src/lib/update-check.js";
 import { flowerVersion, trellisVersion } from "../../src/lib/versions.js";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const CLI = path.join(ROOT, "bin", "flower-trellis.js");
 
 function createTarget(t) {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-update-check-"));
@@ -42,6 +47,75 @@ function writeCachedRemoteUpdate(target, version = "9.0.0") {
     lastStatus: "update_available",
     lastErrorCode: null,
   });
+}
+
+function cleanCliEnv(extra = {}) {
+  const env = { ...process.env, ...extra };
+  delete env.FLOWER_NO_UPDATE_CHECK;
+  delete env.npm_command;
+  return env;
+}
+
+function runFlowerCli(args) {
+  return execFileSync(process.execPath, [CLI, ...args], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: cleanCliEnv(),
+  });
+}
+
+function runFlowerCliJson(args) {
+  return JSON.parse(runFlowerCli(args));
+}
+
+async function createSnoozedProjectOutOfSyncTarget(t) {
+  const target = createTarget(t);
+  const oldFlower = "0.0.1";
+  const currentFlower = flowerVersion();
+  const channel = currentFlower.includes("-") ? "beta" : "latest";
+  const remoteTags = channel === "beta"
+    ? { latest: "0.0.0", beta: currentFlower }
+    : { latest: currentFlower, beta: null };
+  writeManifest(target, {
+    flowerVersion: oldFlower,
+    variant: "0.6",
+    version: trellisVersion(),
+    skills: [],
+    paths: [],
+    updateCheck: { enabled: true, policy: "ask", intervalHours: 8 },
+  });
+  writeUpdateCheck(target, {
+    lastCheckedAt: new Date().toISOString(),
+    lastRemote: remoteTags,
+    lastStatus: "up_to_date",
+    lastErrorCode: null,
+    lastReleaseNotes: {
+      source: "npm-metadata",
+      range: {
+        from: oldFlower,
+        to: currentFlower,
+        channel,
+        reason: "project_out_of_sync",
+      },
+      versions: [
+        { version: currentFlower, body: "测试用 Flower 更新摘要", truncated: false },
+      ],
+      truncated: false,
+      moreVersions: false,
+      unavailable: false,
+    },
+  });
+  const actionable = await buildSelfCheck(target, {
+    ignorePromptSuppression: true,
+    fetchMetadata: async () => assert.fail("新鲜缓存已包含 release notes,不应请求 registry"),
+  });
+  assert.equal(actionable.status, "project_out_of_sync");
+  writeUpdateCheck(target, {
+    promptSuppressedKey: actionable.prompt.key,
+    promptSuppressedUntil: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    promptSuppressionReason: "snooze",
+  });
+  return target;
 }
 
 async function silenceConsole(fn) {
@@ -364,4 +438,47 @@ test("update-check snooze、skip 和 reset 管理当前提示状态", async (t) 
   const skipped = readUpdateCheck(target);
   assert.equal(skipped.promptSuppressedKey, "update:latest:9.0.0");
   assert.equal(skipped.promptSuppressionReason, "skip");
+});
+
+test("self-check manual 只绕过提示抑制且保留关闭开关", async (t) => {
+  const target = await createSnoozedProjectOutOfSyncTarget(t);
+
+  const automatic = runFlowerCliJson(["self-check", "--json", "--target", target]);
+  assert.equal(automatic.status, "skipped");
+  assert.equal(automatic.reason, "prompt_snooze");
+  assert.equal(automatic.suppressedAction.status, "project_out_of_sync");
+
+  const manual = runFlowerCliJson(["self-check", "--json", "--manual", "--target", target]);
+  assert.equal(manual.status, "project_out_of_sync");
+  assert.equal(manual.reason, "local_version_mismatch");
+  assert.equal(manual.prompt.suppressed, false);
+  assert.match(manual.commands.recommended, /self-update .* --yes --project-only/);
+  assert.equal(readUpdateCheck(target).promptSuppressionReason, "snooze");
+
+  const disabled = runFlowerCliJson([
+    "self-check",
+    "--json",
+    "--manual",
+    "--no-update-check",
+    "--target",
+    target,
+  ]);
+  assert.equal(disabled.status, "disabled");
+  assert.equal(disabled.reason, "disabled");
+});
+
+test("self-update 显式入口绕过旧提示抑制做项目预演", async (t) => {
+  const target = await createSnoozedProjectOutOfSyncTarget(t);
+
+  const output = runFlowerCli([
+    "self-update",
+    "--target",
+    target,
+    "--yes",
+    "--project-only",
+    "--dry-run",
+  ]);
+  assert.match(output, /当前状态:project_out_of_sync/);
+  assert.doesNotMatch(output, /当前状态:skipped/);
+  assert.match(output, /post_action_preview: run_trellis_push_after_real_update/);
 });

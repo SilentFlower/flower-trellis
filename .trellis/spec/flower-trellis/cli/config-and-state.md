@@ -467,7 +467,7 @@ python3 <main-worktree>/.trellis/scripts/worktree_setup.py prepare --target <lin
 ### 2. Signatures
 
 ```bash
-flower-trellis self-check --json --target <dir> [--force-remote] [--no-update-check]
+flower-trellis self-check --json --target <dir> [--force-remote] [--manual|--ignore-prompt-suppression] [--no-update-check]
 flower-trellis self-update --target <dir> --yes [--dry-run] [--project-only] [-- <trellis update flags>]
 flower-trellis update-check get --target <dir>
 flower-trellis update-check set --target <dir> --policy <off|notify|ask|auto> [--interval-hours <n>]
@@ -489,6 +489,10 @@ src/assets/flower_update_hook.py
 
 - `self-check --json` 始终输出 JSON,状态至少包括 `update_available`、
   `project_out_of_sync`、`up_to_date`、`disabled`、`skipped`、`offline`。
+- `self-check --manual` / `--ignore-prompt-suppression` 是用户显式检查入口，只绕过
+  prompt suppression(`prompt_cooldown` / `prompt_snooze` / `prompt_skip`)，不绕过
+  `--no-update-check`、`FLOWER_NO_UPDATE_CHECK`、`policy=off`、npx 短路、远程探测、
+  release notes、policy 或 safety 计算。SessionStart hook 不得传入该参数。
 - `self-check --json` 在 `update_available` 和 `project_out_of_sync` 中应尽力输出
   `releaseNotes` 摘要。`update_available` 范围为 `currentFlower < version <= recommendation.version`;
   `project_out_of_sync` 范围为 `projectFlower < version <= currentFlower`。
@@ -537,6 +541,9 @@ src/assets/flower_update_hook.py
   `lastPromptedAt` / `lastPromptedKey`；被冷却、延后或跳过抑制时返回
   `status=skipped` 与 `reason=prompt_cooldown|prompt_snooze|prompt_skip`，并在
   `suppressedAction` 中保留原始可执行状态供诊断，但 hook 不得注入 `<flower-update>`。
+- 用户显式运行 `self-update --yes` 已经是人工写入入口，预检必须等价使用
+  `self-check` 的 prompt suppression 绕过语义，避免旧的稍后/跳过选择阻止用户主动升级；
+  `--yes` 要求、项目更新补偿和后续 `trellis-push` 确认链路不变。
 - `checkForUpdate()` 必须同时尊重 `--no-update-check`、`FLOWER_NO_UPDATE_CHECK` 以及
   settings(旧项目 fallback manifest)中的 `updateCheck.enabled=false` / `policy=off`。
 - 若远端 dist-tags 表明当前 flower-trellis 有新版可用,最终状态优先为

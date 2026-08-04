@@ -12,9 +12,13 @@ import {
 import { ENHANCEMENTS_ROOT } from "../../src/lib/paths.js";
 
 const SKILL_NAME = "aliyun-sls-query";
+const ROOT = path.resolve(ENHANCEMENTS_ROOT, "..");
 const SNAPSHOT_ROOT = path.join(ENHANCEMENTS_ROOT, "common", ".common");
 const CODEX_SKILL = path.join(SNAPSHOT_ROOT, ".codex", "skills", SKILL_NAME);
 const CLAUDE_SKILL = path.join(SNAPSHOT_ROOT, ".claude", "skills", SKILL_NAME);
+const SOURCE_ROOT = path.join(ROOT, "vendor", "skill-garden", ".common");
+const SOURCE_CODEX_SKILL = path.join(SOURCE_ROOT, ".codex", "skills", SKILL_NAME);
+const SOURCE_CLAUDE_SKILL = path.join(SOURCE_ROOT, ".claude", "skills", SKILL_NAME);
 
 /**
  * 创建带指定平台目录的临时 Trellis 项目。
@@ -113,6 +117,34 @@ test("SLS common skill 快照在 Codex 与 Claude 中一致且不含凭证", () 
     )),
     false,
   );
+
+  for (const file of [
+    path.join(SOURCE_CODEX_SKILL, "SKILL.md"),
+    path.join(SOURCE_CLAUDE_SKILL, "SKILL.md"),
+    path.join(CODEX_SKILL, "SKILL.md"),
+    path.join(CLAUDE_SKILL, "SKILL.md"),
+  ]) {
+    const skill = fs.readFileSync(file, "utf8");
+    assert.match(skill, /Java Forest\/HTTP trace 配对纪律/);
+    assert.match(skill, /Response: Status = \.\.\./);
+    assert.match(skill, /调用接口异常/);
+    assert.match(skill, /project\/logstore 选择纪律/);
+    assert.match(skill, /xhgj-zysys/);
+    assert.match(skill, /xhxhgjmall/);
+  }
+});
+
+test("Trellis workflow skill 菜单显示中文短说明", (t) => {
+  const target = createTarget(t, ["codex"]);
+  const catalog = listSkillCatalog(target, "0.6");
+  const descriptions = Object.fromEntries(
+    catalog.enhancementSkills.map((item) => [item.name, item.description]),
+  );
+
+  assert.equal(descriptions["trellis-worktree"], "准备 linked worktree 的 Trellis 入口");
+  assert.equal(descriptions["trellis-flower-update"], "手动追平已安装 Flower 强化包");
+  assert.notEqual(descriptions["trellis-worktree"], "查看技能说明");
+  assert.notEqual(descriptions["trellis-flower-update"], "查看技能说明");
 });
 
 for (const platforms of [["codex"], ["claude"], ["codex", "claude"]]) {
