@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.0-beta.4",
+  "version": "0.6.0-beta.5",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -68,9 +68,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.0-beta.4",
+    "version": "0.6.0-beta.5",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **common:** 升级 humanize-writing 去 AI 味流程 ([c02910c](https://github.com/SilentFlower/flower-trellis/commit/c02910c0e9bb7f31c221f0f927df2254309f8e92))\n* **trellis:** 新增 linked worktree 入口准备能力 ([5af8e7a](https://github.com/SilentFlower/flower-trellis/commit/5af8e7ad3f5fcbe839a27fd518a4d0341da9bc5d))",
+    "body": "### ✨ 新功能 Features\n\n* **update:** 新增对话内 Flower 手动升级入口 ([b1df949](https://github.com/SilentFlower/flower-trellis/commit/b1df949cfc42bee5fd2d2b98fef5dd2870386bbb))",
     "truncated": false
   },
   "optionalDependencies": {
