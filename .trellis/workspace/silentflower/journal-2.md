@@ -680,3 +680,25 @@
 ### Next Steps
 
 - 无活动任务；如需继续发版或清理其它事项，按新请求进入对应流程。
+
+
+## Session 76: 兼容 Trellis worktree 开发入口
+
+**Date**: 2026-08-04
+**Task**: 兼容 Trellis worktree 开发入口
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+新增 trellis-worktree skill、worktree_setup helper、linked worktree root fallback 和对应快照/测试/spec；完成 Check-All、push 与归档前 release audit。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `skill-garden e5953b3; flower-trellis 5af8e7a; task 44301d5` | (see git log) |
+
+### Status
+
+[OK] **Completed**
