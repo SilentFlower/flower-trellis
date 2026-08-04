@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-08-04T02:44:38.844Z",
+  "syncedAt": "2026-08-04T08:36:13.207Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "32477325abe35122e9b12d4cc257fab9c7576c48",
+  "sourceCommit": "e5953b3891f51aa689423d51fdd3802939b4cdbc",
   "common": {
     "codexSkills": [
       "aliyun-sls-query",
@@ -112,7 +112,8 @@
         "trellis-run-full-chain",
         "trellis-task-brief",
         "trellis-verify-task",
-        "trellis-visualize"
+        "trellis-visualize",
+        "trellis-worktree"
       ],
       "agentsSkills": [
         "trellis-auto-loop",
@@ -127,7 +128,8 @@
         "trellis-run-full-chain",
         "trellis-task-brief",
         "trellis-verify-task",
-        "trellis-visualize"
+        "trellis-visualize",
+        "trellis-worktree"
       ],
       "commands": [],
       "overrides": [],
@@ -168,6 +170,8 @@
         "hooks/inject-workflow-state/shared-runtime/stale-task-selector.py",
         "hooks/inject-workflow-state/shared-runtime/untracked-helper-content.py",
         "hooks/inject-workflow-state/shared-runtime/untracked-helper-selector.py",
+        "hooks/inject-workflow-state/shared-runtime/worktree-root-content.py",
+        "hooks/inject-workflow-state/shared-runtime/worktree-root-selector.py",
         "hooks/session-start/pre-check-hold/claude-content.py",
         "hooks/session-start/pre-check-hold/claude-selector.py",
         "hooks/session-start/pre-check-hold/codex-content.py",
@@ -432,7 +436,8 @@
         "spec_router.py",
         "task_intent.py",
         "task_progress.py",
-        "untracked_flow.py"
+        "untracked_flow.py",
+        "worktree_setup.py"
       ]
     }
   }

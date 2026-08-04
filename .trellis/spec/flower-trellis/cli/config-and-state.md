@@ -332,6 +332,107 @@ if (shouldUseUpdateSandbox({
 - `uninstall` 在 Trellis 删除前冻结 state 清理计划；Trellis 成功后只删除 hash 仍匹配的
   `exclusive` 普通文件。某个用户修改项冲突时仍清理其它 hash-clean 路径；`shared`、其它 Plugin、用户修改项和无法证明 ownership 的旧路径保留，并继续记录冲突证据。
 
+## Scenario: Linked Worktree Entry Projection
+
+### 1. Scope / Trigger
+
+- Trigger: 新增或修改 `trellis-worktree` skill、`worktree_setup.py`、linked Git worktree 中的
+  `.trellis` / 平台入口投影、`.trellis-worktree.json`，或 hook / untracked 从 worktree 集合回找
+  Trellis 根的 fallback。
+- Scope: helper 只准备当前同一 Git 仓库 linked worktree 的本地 AI/Trellis 入口；普通 task、
+  untracked、check、push 的阶段语义不随 worktree 准备改变。
+
+### 2. Signatures
+
+```bash
+python3 ./.trellis/scripts/worktree_setup.py status [--target <path>] [--json]
+python3 ./.trellis/scripts/worktree_setup.py prepare [--target <path>] [--json]
+python3 <main-worktree>/.trellis/scripts/worktree_setup.py prepare --target <linked-worktree> --json
+```
+
+```text
+<linked-worktree>/.trellis-worktree.json
+```
+
+### 3. Contracts
+
+- `status` 只读输出 JSON；`prepare` 只能创建或修复由 manifest 证明受管的 symlink，并在目标
+  linked worktree 写 `.trellis-worktree.json`。两者都不得复制目录、删除普通文件或创建源 worktree
+  不存在的平台入口。
+- `--target` 可指向 worktree 根、子目录或文件；缺省为当前目录。target 必须解析到 Git worktree
+  toplevel，非 Git 目录返回 `reason=not-git-worktree`。
+- source 解析顺序固定为：有效 manifest 的 `sourceRoot`、目标 `.trellis` symlink、同仓
+  `git rev-parse --git-common-dir` 候选、`git worktree list --porcelain` 中第一个带 `.trellis`
+  的其它 worktree、最后才是 target 自身。找不到时返回 `reason=source-not-found`。
+- 投影路径固定从 `ENTRY_PATHS` 读取，当前只包含 `.trellis`、`.agents`、`.codex`、`.claude`。
+  新增平台入口必须先扩展该常量和测试，不得在 skill 文案里声明但 helper 不处理。
+- 输出字段必须稳定包含 `status`、`targetRoot`、`sourceRoot`、`source`、`manifest`、`links`、
+  `actions`、`conflicts`、`missingSources`；`prepare` 额外包含 `changed`、`changedLinks`、
+  `manifestWritten`。
+- manifest schema 固定为
+  `{schemaVersion:1, sourceRoot, targetRoot, links:[{path, source, target}], updatedAt}`。
+  比较幂等性时忽略 `updatedAt`；`sourceRoot` 和 `targetRoot` 必须是绝对路径。
+- hook / `untracked_flow.py` 的 Git worktree fallback 只在脚本已经被平台加载并执行后生效；
+  它不能替代入口投影，也不能扩大 untracked state schema 或把状态绑定到具体 worktree。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| linked worktree 缺少四个入口且主 worktree 都存在 | `status=needs-prepare`；`prepare` 创建 symlink 并写 manifest |
+| 重复运行 `prepare` | `status=ready`、`changed=false`、`changedLinks=[]`、不刷新 manifest |
+| 主 worktree 缺少某个入口 | 对应 link `state=source-missing`，跳过创建，不视为冲突 |
+| target 已有非受管 `.codex` / `.claude` / `.agents` / `.trellis` | `status=blocked`；`prepare` 返回 `reason=projection-conflict` 且零部分写入 |
+| target symlink 指向错误源且 manifest 证明受管 | link `state=repair`，`prepare` 可先 unlink 再重建 |
+| target symlink 指向错误源但不在 manifest | `projection-conflict`，不得覆盖 |
+| target 不是 Git worktree | `reason=not-git-worktree` |
+| 同仓 worktree 集合没有任何 `.trellis` | `reason=source-not-found` |
+| target 已是主 worktree | `status=ready`，不创建 `.trellis-worktree.json` |
+| linked cwd 中 hook / untracked 已能运行但无本地 `.trellis` | fallback 从同仓主 worktree 读取 `.trellis` runtime |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 用户在 linked worktree 中请求 worktree 处理时，skill 先指导从主 worktree 运行
+  `worktree_setup.py status --target <linked> --json`，确认无冲突后再运行 `prepare`。
+- Good: linked worktree 只有 `.codex` 用户目录时，helper 阻断全部投影，避免创建 `.trellis`
+  后留下半准备状态。
+- Base: 普通主 worktree 已有 `.trellis` 时，helper 返回 ready，不写 manifest，不影响现有 Trellis 流程。
+- Base: 主 worktree 没启用 `.claude` 时，linked worktree 也不自动生成 `.claude`。
+- Bad: 在 linked worktree 中 hand-copy `.trellis` 或 `.codex`，会制造与主 worktree 分叉的 skill/hook
+  状态，后续 update/sync 难以追踪。
+- Bad: 只给 `untracked_flow.py` 加 cwd fallback，却不准备 `.codex` / `.claude` 平台入口；这种情况下平台
+  hook 和 skill 仍可能根本不会加载。
+
+### 6. Tests Required
+
+- `test_worktree_setup.py` 必须覆盖 status、prepare、四个入口 symlink、manifest schema、重复
+  prepare 幂等、已有用户平台目录冲突、非 Git target、主 worktree ready 零 manifest。
+- `test_untracked_flow.py` 必须覆盖 linked worktree cwd 无 `.trellis` 时，`status` 能回退到主
+  `.trellis` runtime。
+- `test_workflow_state_hook.py` 必须覆盖 hook 从 linked worktree cwd 找到主 `.trellis/workflow.md`
+  和 runtime helper。
+- 改动 helper 或 fallback 后至少运行相关 Python 单测、`python3 -m py_compile`、`npm run sync`、
+  `npm run patch:targets:check`、`git diff --check`；Patch target 改动还要先刷新 compiled targets。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```bash
+cp -R <main-worktree>/.trellis <linked-worktree>/.trellis
+cp -R <main-worktree>/.codex <linked-worktree>/.codex
+```
+
+问题:复制会把入口状态变成两份可漂移内容，且无法区分哪些路径由 Trellis worktree 准备流程管理。
+
+#### Correct
+
+```bash
+python3 <main-worktree>/.trellis/scripts/worktree_setup.py prepare --target <linked-worktree> --json
+```
+
+原因:helper 统一执行同仓 source 识别、冲突拒绝、symlink 投影、manifest 记录和幂等检查。
+
 ## Update-Check State
 
 - 用户策略写 `.flower/settings.json#updateCheck`：`enabled` / `policy` / `intervalHours`。

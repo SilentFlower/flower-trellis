@@ -303,6 +303,7 @@
       "severity": "error",
       "target": ".codex/hooks/inject-workflow-state.py",
       "whenOperations": [
+        "workflow-state-worktree-root-fallback",
         "workflow-state-codex-session-start-guard",
         "workflow-state-stale-task-status",
         "workflow-state-untracked-helper",
@@ -312,11 +313,13 @@
       "assertion": {
         "type": "required-literal",
         "values": [
+          "# BEGIN skill-garden patch workflow-state-worktree-root-fallback v0.6",
           "# BEGIN skill-garden patch workflow-state-codex-session-start-guard v0.6",
           "# BEGIN skill-garden patch workflow-state-stale-task-status v0.6",
           "# BEGIN skill-garden patch workflow-state-untracked-helper v0.6",
           "# BEGIN skill-garden patch workflow-state-breadcrumb-subject v0.6",
           "# BEGIN skill-garden patch workflow-state-main-subject-routing v0.6",
+          "_find_trellis_root_from_git",
           "DEFAULT_PROMPT_INJECTION_SKIP_KEYWORD = \"no-trellis\"",
           "\"ZCODE_PROJECT_DIR\": \"zcode\"",
           "Normalize `codex.dispatch_mode` from .trellis/config.yaml to \"auto\" or \"inline\"."

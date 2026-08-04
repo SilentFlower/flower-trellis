@@ -385,6 +385,86 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn("Untracked work: work-legacy (implement)", breadcrumb)
         self.assertIn("trellis-route(target=implement)", breadcrumb)
 
+    def test_linked_worktree_cwd_falls_back_to_main_trellis_root(self) -> None:
+        """Hook 已运行时，可从 linked worktree cwd 回主 .trellis 读取状态。"""
+        with tempfile.TemporaryDirectory(prefix="flower-hook-worktree-") as temp:
+            base = Path(temp)
+            main = base / "main"
+            linked = base / "linked"
+            main.mkdir()
+            (main / ".trellis/scripts").mkdir(parents=True)
+            shutil.copytree(ROOT / ".trellis/scripts/common", main / ".trellis/scripts/common")
+            shutil.copy2(
+                ROOT / "vendor/skill-garden/.trellis/0.6/scripts/untracked_flow.py",
+                main / ".trellis/scripts/untracked_flow.py",
+            )
+            (main / ".trellis/workflow.md").write_text(
+                UNTRACKED_STATE_SOURCE.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            session = main / ".trellis/.runtime/sessions/codex_linked.json"
+            session.parent.mkdir(parents=True)
+            session.write_text(
+                json.dumps(
+                    {
+                        "current_task": None,
+                        "untracked_flow": {
+                            "version": 2,
+                            "id": "work-linked",
+                            "source": "user-explicit",
+                            "summary": "linked worktree",
+                            "stage": "implement",
+                            "createdAt": "2026-08-03T00:00:00Z",
+                            "updatedAt": "2026-08-03T00:00:00Z",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            subprocess.run(["git", "-C", str(main), "init"], check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "-C", str(main), "config", "user.email", "test@example.invalid"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(main), "config", "user.name", "Test User"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            (main / "README.md").write_text("main\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(main), "add", "README.md"], check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "-C", str(main), "commit", "-m", "init"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(main), "worktree", "add", "--detach", str(linked), "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(HOOK_SOURCE)],
+                cwd=linked,
+                input=json.dumps({"cwd": str(linked), "platform": "codex", "session_id": "linked"}),
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+        output = json.loads(result.stdout)
+        breadcrumb = output["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Untracked work: work-linked (implement)", breadcrumb)
+        self.assertIn("Summary: linked worktree", breadcrumb)
+        self.assertIn("trellis-route(target=implement)", breadcrumb)
+
     def test_invalid_untracked_state_falls_back_to_no_task(self) -> None:
         """损坏的 untracked 字段不得伪造恢复 breadcrumb。"""
         self._install_task_scripts()

@@ -4,6 +4,25 @@
   "purpose": "hook_override",
   "operations": [
     {
+      "id": "workflow-state-worktree-root-fallback",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "file", "path": ".codex/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".gemini/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".qoder/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".github/copilot/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".codebuddy/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".factory/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".kiro/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".trae/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".zcode/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" }
+      ],
+      "selector": { "type": "literal", "source": "worktree-root-selector.py" },
+      "content": { "source": "worktree-root-content.py" }
+    },
+    {
       "id": "workflow-state-codex-session-start-guard",
       "operation": "insert",
       "position": "after",
