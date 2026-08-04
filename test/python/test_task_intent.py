@@ -174,6 +174,8 @@ class TaskIntentTest(unittest.TestCase):
                 "Adopt work",
                 "--source",
                 "user-explicit",
+                "--mode",
+                "tracked-direct-edit",
             ],
             env=self.env,
         )
@@ -259,6 +261,8 @@ class TaskIntentTest(unittest.TestCase):
                 "Rollback adopt",
                 "--source",
                 "inferred",
+                "--mode",
+                "tracked-direct-edit",
             ],
             env=self.env,
         )

@@ -272,7 +272,7 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assertOrdered(
     noTaskPath,
     "spec_router.py",
-    "For non-destructive `direct_edit`",
+    "For quick direct edit",
     "无任务非平凡 inspect/direct_edit",
   );
   assert.match(requestTriage, /follow its returned `load_strategy`/);
@@ -281,7 +281,11 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.doesNotMatch(noTask, /load_strategy/);
   assert.doesNotMatch(planning, /load_strategy/);
   assert.doesNotMatch(inProgress, /load_strategy/);
+  assert.match(requestTriage, /Use quick direct edit for one-turn small fixes/);
+  assert.match(requestTriage, /Use tracked direct edit only when the user explicitly wants no task but still wants later turns to remember the current phase/);
   assert.match(noTask, /untracked_flow\.py begin --summary/);
+  assert.match(noTask, /--mode tracked-direct-edit/);
+  assert.match(noTask, /Never create `untracked_flow` for `workflow_action` itself/);
   assert.match(noTask, /A same-item hit resumes the existing state/);
   assert.match(noTask, /`active-work-conflict` blocks unrelated code writes/);
   assert.match(noTask, /starts at `stage=implement`/);

@@ -81,14 +81,32 @@ class UntrackedFlowTest(unittest.TestCase):
             encoding="utf-8",
         )
 
-        _, created = self._helper("begin", "--summary", "修改 A", "--source", "user-explicit")
-        _, hit = self._helper("begin", "--summary", "修改 A", "--source", "user-explicit")
+        _, created = self._helper(
+            "begin",
+            "--summary",
+            "修改 A",
+            "--source",
+            "user-explicit",
+            "--mode",
+            "tracked-direct-edit",
+        )
+        _, hit = self._helper(
+            "begin",
+            "--summary",
+            "修改 A",
+            "--source",
+            "user-explicit",
+            "--mode",
+            "tracked-direct-edit",
+        )
         result, conflict = self._helper(
             "begin",
             "--summary",
             "修改 B",
             "--source",
             "user-explicit",
+            "--mode",
+            "tracked-direct-edit",
             check=False,
         )
 
@@ -114,9 +132,59 @@ class UntrackedFlowTest(unittest.TestCase):
             {"version", "id", "source", "summary", "stage", "createdAt", "updatedAt"},
         )
 
+    def test_begin_requires_tracked_direct_edit_mode(self) -> None:
+        """小改和 workflow action 不应创建可恢复 untracked 游标。"""
+        result = self._run(
+            "python3",
+            ".trellis/scripts/untracked_flow.py",
+            "begin",
+            "--summary",
+            "快速改动",
+            "--source",
+            "inferred",
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("the following arguments are required: --mode", result.stderr)
+
+        result = self._run(
+            "python3",
+            ".trellis/scripts/untracked_flow.py",
+            "begin",
+            "--summary",
+            "发布 beta",
+            "--source",
+            "inferred",
+            "--mode",
+            "workflow-action",
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "status": "error",
+                "reason": "invalid-entry-mode",
+                "message": "只有需要跨轮恢复的无任务直接修改才能创建无任务事项",
+                "mode": "workflow-action",
+                "allowed": ["tracked-direct-edit"],
+            },
+        )
+        self.assertFalse(self._session_path().exists())
+
     def test_stage_cursor_ignores_workspace_changes_and_allows_backtrack(self) -> None:
         """文件变化不阻止阶段推进，findings 可把游标设回 implement。"""
-        self._helper("begin", "--summary", "完成链", "--source", "inferred")
+        self._helper(
+            "begin",
+            "--summary",
+            "完成链",
+            "--source",
+            "inferred",
+            "--mode",
+            "tracked-direct-edit",
+        )
         observed = []
         expected_owners = {
             "check": [
@@ -155,7 +223,15 @@ class UntrackedFlowTest(unittest.TestCase):
 
     def test_status_verbose_exposes_minimal_state_and_default_stays_compact(self) -> None:
         """verbose 返回内部游标，默认输出不暴露 state。"""
-        self._helper("begin", "--summary", "详细状态", "--source", "inferred")
+        self._helper(
+            "begin",
+            "--summary",
+            "详细状态",
+            "--source",
+            "inferred",
+            "--mode",
+            "tracked-direct-edit",
+        )
 
         _, compact = self._helper("status")
         _, verbose = self._helper("status", "--verbose")
@@ -200,7 +276,15 @@ class UntrackedFlowTest(unittest.TestCase):
 
     def test_session_start_hint_reports_current_cursor(self) -> None:
         """SessionStart 提示只携带事项、阶段和摘要。"""
-        _, created = self._helper("begin", "--summary", "恢复事项", "--source", "inferred")
+        _, created = self._helper(
+            "begin",
+            "--summary",
+            "恢复事项",
+            "--source",
+            "inferred",
+            "--mode",
+            "tracked-direct-edit",
+        )
         self._helper("advance", "--stage", "push")
 
         _, payload = self._helper("session-start-hint")
@@ -216,7 +300,15 @@ class UntrackedFlowTest(unittest.TestCase):
 
     def test_cross_session_and_active_task_are_isolated(self) -> None:
         """其它 session 不继承事项，当前 session 有 task 时拒绝 begin。"""
-        self._helper("begin", "--summary", "session A", "--source", "inferred")
+        self._helper(
+            "begin",
+            "--summary",
+            "session A",
+            "--source",
+            "inferred",
+            "--mode",
+            "tracked-direct-edit",
+        )
         other_env = {**self.env, "TRELLIS_CONTEXT_ID": "codex_other"}
         result = subprocess.run(
             ["python3", ".trellis/scripts/untracked_flow.py", "status"],
@@ -237,6 +329,8 @@ class UntrackedFlowTest(unittest.TestCase):
             "new",
             "--source",
             "inferred",
+            "--mode",
+            "tracked-direct-edit",
             check=False,
         )
         self.assertNotEqual(result.returncode, 0)
@@ -253,6 +347,8 @@ class UntrackedFlowTest(unittest.TestCase):
             "broken",
             "--source",
             "inferred",
+            "--mode",
+            "tracked-direct-edit",
             check=False,
         )
         self.assertNotEqual(result.returncode, 0)
@@ -276,7 +372,15 @@ class UntrackedFlowTest(unittest.TestCase):
 
     def test_clear_requires_matching_work_id(self) -> None:
         """精确 work id 防止误清其它事项。"""
-        _, created = self._helper("begin", "--summary", "clear", "--source", "inferred")
+        _, created = self._helper(
+            "begin",
+            "--summary",
+            "clear",
+            "--source",
+            "inferred",
+            "--mode",
+            "tracked-direct-edit",
+        )
         result, mismatch = self._helper(
             "clear",
             "--reason",

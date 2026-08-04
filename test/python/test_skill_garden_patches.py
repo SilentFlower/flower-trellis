@@ -1309,6 +1309,11 @@ class PatchConsumerTest(unittest.TestCase):
             "exact rollback or mechanically synchronized known change",
             workflow,
         )
+        self.assertIn("Use quick direct edit for one-turn small fixes", workflow)
+        self.assertIn(
+            "Use tracked direct edit only when the user explicitly wants no task but still wants later turns to remember the current phase",
+            workflow,
+        )
         self.assertIn(
             "build a short query from the request, intended commands, affected files or systems, package/layer, and domain terms",
             workflow,
@@ -1321,6 +1326,19 @@ class PatchConsumerTest(unittest.TestCase):
             workflow,
         )
         self.assertIn("untracked_flow.py begin --summary", workflow)
+        self.assertIn("--mode tracked-direct-edit", workflow)
+        self.assertIn(
+            "Never create `untracked_flow` for `workflow_action` itself",
+            workflow,
+        )
+        self.assertIn(
+            "release/publish, commit, push, finish-work, task operations, snapshot sync, auto-loop control",
+            workflow,
+        )
+        self.assertIn(
+            "later turns to remember that fix's check/spec/push handoff",
+            workflow,
+        )
         self.assertIn("A same-item hit resumes the existing state", workflow)
         self.assertIn("`active-work-conflict` blocks unrelated code writes", workflow)
         self.assertIn(

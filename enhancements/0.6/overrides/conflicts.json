@@ -476,7 +476,10 @@
         "type": "required-literal",
         "values": [
           "Only an explicit current-request workflow instruction such as `直接做` / `不要任务` may override automatic `task_plan`.",
-          "python3 ./.trellis/scripts/untracked_flow.py begin --summary \"<bounded work summary>\" --source <inferred|user-explicit>",
+          "Use quick direct edit for one-turn small fixes",
+          "Use tracked direct edit only when the user explicitly wants no task but still wants later turns to remember the current phase",
+          "python3 ./.trellis/scripts/untracked_flow.py begin --summary \"<bounded work summary>\" --source <inferred|user-explicit> --mode tracked-direct-edit",
+          "Never create `untracked_flow` for `workflow_action` itself",
           "A same-item hit resumes the existing state",
           "`active-work-conflict` blocks unrelated code writes until the current item is completed, explicitly abandoned, or adopted into a task",
           "Unrelated read-only requests may continue without mutating the state.",

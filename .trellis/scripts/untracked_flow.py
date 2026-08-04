@@ -20,6 +20,7 @@ STATE_KEY = "untracked_flow"
 STATE_VERSION = 2
 LEGACY_STATE_VERSION = 1
 VALID_SOURCES = {"inferred", "user-explicit"}
+VALID_BEGIN_MODES = {"tracked-direct-edit"}
 VALID_STAGES = {"implement", "check", "spec", "push"}
 LEGACY_STAGES = VALID_STAGES | {"inspect"}
 VALID_CLEAR_REASONS = {"completed", "abandoned", "adopted"}
@@ -251,6 +252,7 @@ def begin_untracked_work(
     repo_root: Path,
     summary: str,
     source: str,
+    mode: str | None,
     platform_input: dict[str, Any] | None = None,
     platform: str | None = None,
 ) -> dict[str, Any]:
@@ -260,12 +262,20 @@ def begin_untracked_work(
         repo_root: Trellis 项目根目录。
         summary: 当前事项摘要。
         source: ``inferred`` 或 ``user-explicit``。
+        mode: 入口模式，必须是 ``tracked-direct-edit``。
         platform_input: 可选平台 hook 输入。
         platform: 可选平台名称。
 
     Returns:
         创建或命中同一事项的结构化结果。
     """
+    if mode not in VALID_BEGIN_MODES:
+        raise UntrackedFlowError(
+            "invalid-entry-mode",
+            "只有需要跨轮恢复的无任务直接修改才能创建无任务事项",
+            mode=mode,
+            allowed=sorted(VALID_BEGIN_MODES),
+        )
     clean_summary = summary.strip()
     if not clean_summary:
         raise UntrackedFlowError("summary-empty", "无任务事项摘要不能为空")
@@ -479,6 +489,7 @@ def build_parser() -> argparse.ArgumentParser:
     begin_parser = subparsers.add_parser("begin", help="create one untracked work item")
     begin_parser.add_argument("--summary", required=True)
     begin_parser.add_argument("--source", choices=sorted(VALID_SOURCES), required=True)
+    begin_parser.add_argument("--mode", required=True)
 
     advance_parser = subparsers.add_parser("advance", help="set workflow stage cursor")
     advance_parser.add_argument("--stage", choices=sorted(VALID_STAGES), required=True)
@@ -509,7 +520,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try:
         if args.command == "begin":
-            payload = begin_untracked_work(repo_root, args.summary, args.source)
+            payload = begin_untracked_work(
+                repo_root,
+                args.summary,
+                args.source,
+                args.mode,
+            )
         elif args.command == "advance":
             payload = advance_stage(repo_root, args.stage)
         elif args.command == "status":

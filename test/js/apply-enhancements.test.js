@@ -63,6 +63,8 @@ function assertIntentRoutingSemantics(value) {
   assert.match(value, /cross-package\/layer or multi-entry behavior/);
   assert.match(value, /do not automatically require `task_plan`/);
   assert.match(value, /exact rollback or mechanically synchronized known change/);
+  assert.match(value, /Use quick direct edit for one-turn small fixes/);
+  assert.match(value, /Use tracked direct edit only when the user explicitly wants no task but still wants later turns to remember the current phase/);
   assert.match(value, /build a short query from the request, intended commands, affected files or systems, package\/layer, and domain terms/);
   assert.match(value, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(value, /once per user intent, workflow phase, or decision boundary/);
@@ -71,6 +73,10 @@ function assertIntentRoutingSemantics(value) {
   assert.match(value, /does not reuse current progress/);
   assert.match(value, /Only an explicit current-request workflow instruction/);
   assert.match(value, /untracked_flow\.py begin --summary/);
+  assert.match(value, /--mode tracked-direct-edit/);
+  assert.match(value, /Never create `untracked_flow` for `workflow_action` itself/);
+  assert.match(value, /release\/publish, commit, push, finish-work, task operations, snapshot sync, auto-loop control/);
+  assert.match(value, /later turns to remember that fix's check\/spec\/push handoff/);
   assert.match(value, /A same-item hit resumes the existing state/);
   assert.match(value, /`active-work-conflict` blocks unrelated code writes/);
   assert.match(value, /Unrelated read-only requests may continue without mutating the state/);

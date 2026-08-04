@@ -798,8 +798,9 @@ node scripts/check-ai-context-budget.mjs --strict
 
 ### 1. Scope / Trigger
 
-- Trigger:无活动 task 的请求最终路由为 `direct_edit`，或修改 No-Task 的恢复、检查、规范更新、
-  Push、纳管和阶段面包屑行为。
+- Trigger:无活动 task 的请求最终路由为 tracked direct edit，或修改 No-Task 的恢复、检查、
+  规范更新、Push、纳管和阶段面包屑行为。quick direct edit 是本轮可完成的小改/快修，不创建
+  untracked 游标，也不默认进入 Update-Spec。
 - Scope:使用 session runtime 中的单一 untracked work item 保存 Phase 2/3 流程游标；不创建轻量
   task，不保存 workspace fingerprint，也不复制 Check-All、Update-Spec、Push 或 task route 的
   owner 证据与门禁。
@@ -807,7 +808,7 @@ node scripts/check-ai-context-budget.mjs --strict
 ### 2. Signatures
 
 ```bash
-python3 ./.trellis/scripts/untracked_flow.py begin --summary "<summary>" --source <inferred|user-explicit>
+python3 ./.trellis/scripts/untracked_flow.py begin --summary "<summary>" --source <inferred|user-explicit> --mode tracked-direct-edit
 python3 ./.trellis/scripts/untracked_flow.py advance --stage <implement|check|spec|push>
 python3 ./.trellis/scripts/untracked_flow.py status [--verbose]
 python3 ./.trellis/scripts/untracked_flow.py session-start-hint
@@ -833,8 +834,10 @@ session 字段固定为：
 
 ### 3. Contracts
 
-- `direct_edit` 判定后立即 `begin`，新事项直接进入 `implement`。helper 不读取 Git、不要求文件范围，
-  也不验证 focused validation、Check-All 或 Update-Spec 是否完成。
+- quick direct edit 不调用 `begin`；完成本轮编辑和 focused validation 后直接报告。只有用户明确要求
+  无任务但后续 `下一步` / `继续` / check / push 仍要记住当前事项，或当前事项确实需要跨轮恢复时，
+  才调用 `begin --mode tracked-direct-edit`，新事项直接进入 `implement`。helper 不读取 Git、不要求
+  文件范围，也不验证 focused validation、Check-All 或 Update-Spec 是否完成。
 - 每个 session 最多一个事项。相同 summary 的 `begin` 幂等命中；不同事项返回
   `active-work-conflict`，直到当前事项完成、明确放弃或纳管为 task。
 - `advance` 是显式游标写入，允许正常前进，也允许 findings、新编辑或返工返回 `implement`。
@@ -861,6 +864,7 @@ session 字段固定为：
 
 | 条件 | 结果 |
 |---|---|
+| `begin` 缺少 `--mode tracked-direct-edit` | 参数错误；quick direct edit 和 workflow action 不创建游标 |
 | 当前 session 已绑定 task | `active-task-present`，不创建 untracked 状态 |
 | 已有不同事项 | `active-work-conflict`，保留原游标和 dirty diff |
 | 代码、规范、submodule 或独立 package 发生变化 | helper 不读取 Git，`status` / `advance` 继续成功 |
@@ -875,8 +879,10 @@ session 字段固定为：
 
 ### 5. Good/Base/Bad Cases
 
-- Good:用户明确“不走 task”，实现并验证后说“下一步”；恢复同一 work id，进入 Check-All，
+- Good:用户明确“不走 task，但后面继续帮我接检查和 push”，实现并验证后说“下一步”；恢复同一 work id，进入 Check-All，
   不重新执行 task intent classification。
+- Base:一行文案/配置小改或发布 dry-run 中的临时说明修正，完成 focused validation 后报告，不创建
+  untracked，也不强制 Update-Spec。
 - Good:Update-Spec 写入 `.trellis/spec/**` 后直接把游标推进到 `push`，不会因 fingerprint 漂移要求
   撤回合法规范 diff。
 - Good:compact/resume 时 hook 看到 `stage=push`，只提示加载 `trellis-push`，不重放实现、检查或规范。
@@ -888,7 +894,8 @@ session 字段固定为：
 ### 6. Tests Required
 
 - `test_untracked_flow.py` 覆盖单活跃事项、最小 v2、owner/remainingOwners 派生提示、阶段前进/返工、
-  workspace 变化不阻塞、verbose status、v1 迁移、跨 session、损坏 runtime、原子写失败和精确 clear。
+  workspace 变化不阻塞、verbose status、v1 迁移、跨 session、损坏 runtime、原子写失败、精确 clear，
+  以及缺少或错误 `--mode tracked-direct-edit` 时拒绝 begin。
 - `test_task_intent.py` 使用位置 title 调用 adoption，覆盖当前 baseline、v1/v2 stage、diff 保留和
   各失败点补偿。
 - `test_workflow_state_hook.py` 覆盖 implement/check/spec/push 四个 stage 的专用 breadcrumb，尤其
@@ -907,12 +914,13 @@ direct edit 完成 -> 清除临时判断 -> “下一步”重新分类 -> 误�
 #### Correct
 
 ```text
-direct_edit -> begin(implement) -> check -> spec -> push -> clear
+tracked-direct-edit -> begin(implement) -> check -> spec -> push -> clear
                     ^ findings / new edit |
                     +---------------------+
 ```
 
-原因:session 游标只解决 compact/resume 后“下一步去哪”；实际质量和副作用仍由对应 owner 负责，
+原因:session 游标只解决 compact/resume 后“下一步去哪”；quick direct edit 不需要这个恢复状态。
+实际质量和副作用仍由对应 owner 负责，
 避免用第二套隐藏状态机复制并冲突这些 owner 的规则。
 
 ---
