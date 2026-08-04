@@ -41,6 +41,7 @@ const localizedSubjects = new Map([
   ["5397204", "将匿名遥测上报默认超时延长至 10 秒"],
   ["8b48a5c", "同步 Check-All fact-status 文档修复规则"],
   ["5af8e7a", "新增 linked worktree 入口准备能力"],
+  ["b1df949", "新增对话内 Flower 手动升级入口"],
 ]);
 
 const detailedReleaseSubjects = new Map([
