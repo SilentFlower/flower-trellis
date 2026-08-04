@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "CLI / Skill-Garden authoring 的入口规范、质量门禁和相关 spec 索引。"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "修改 Skill-Garden 0.6 hook/workflow/skill overlay 必须遵守 Patch Engine authoring 和同步规则。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "涉及本地状态、manifest、路径解析和幂等写盘约束。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "确认幂等、不误伤、容错降级和验证要求。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "新增 helper 前搜索并复用现有 Git / root resolution 模式。"}

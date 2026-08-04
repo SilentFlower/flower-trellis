@@ -1,0 +1,106 @@
+{
+  "id": "trellis-worktree-support",
+  "name": "trellis-worktree-support",
+  "title": "兼容 Trellis worktree 开发入口",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-04",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-04T07:48:32Z",
+      "contextKey": "codex_019fcb92-8d33-77b2-aff1-8078f5ab3fe6",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "f2354f2d84d7d67317e68bd669629fa1dcb6d89c",
+        "status": [
+          {
+            "status": " M",
+            "path": "vendor/skill-garden"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "f2354f2d84d7d67317e68bd669629fa1dcb6d89c",
+            "status": [
+              {
+                "status": " M",
+                "path": "vendor/skill-garden"
+              }
+            ],
+            "worktreeDiffSha256": "cb8dd7917bf18e2537b6db8331dd20ff5c6b8a95104c3ac628c3e4ac6178457a",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "b1a1b70c1e4fa3ed8f58ac9e7ce5ebaeae9da80398eb92962a0095bf192e5c52"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "32477325abe35122e9b12d4cc257fab9c7576c48",
+            "status": [
+              {
+                "status": "??",
+                "path": ".trellis/0.6/overrides/patches/hooks/inject-workflow-state/shared-runtime/worktree-root-content.py"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/0.6/overrides/patches/hooks/inject-workflow-state/shared-runtime/worktree-root-selector.py"
+              },
+              {
+                "status": " M",
+                "path": ".trellis/0.6/scripts/untracked_flow.py"
+              }
+            ],
+            "worktreeDiffSha256": "1539225c80517e8038b1f62c6eb6607c84270b51d192d4c228653cc0cecbe4b4",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".trellis/0.6/overrides/patches/hooks/inject-workflow-state/shared-runtime/worktree-root-content.py",
+                "sha256": "644c67f46c36d3c52af94750e5b43146a0cfa71aab7272eadd6c8499abae5f50"
+              },
+              {
+                "path": ".trellis/0.6/overrides/patches/hooks/inject-workflow-state/shared-runtime/worktree-root-selector.py",
+                "sha256": "eeab3b91eb33d51749a254798c16b0943926f0e5e8dfa521521392fa918d5f6d"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "c77d9ac538dabfd0830e8d4e7c1baf6044a7ae11ac4e53416a5d6497a50b4a3f"
+          }
+        ],
+        "fingerprint": "2ae014b61c83086e5187def78010970e1d7d7d588543afa9a1b1676e129681e2"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-04T08:37:57Z",
+    "completedSteps": [
+      "实现 trellis-worktree skill、worktree_setup helper、worktree fallback 和同步快照",
+      "完成 full Check-All 并通过必需验证",
+      "写入 worktree 入口投影 code-spec",
+      "提交并推送 skill-garden 子仓与 flower-trellis 业务变更"
+    ],
+    "partialStep": null,
+    "nextStep": "finish-work/archive",
+    "notes": "业务提交已推送：skill-garden e5953b3，flower-trellis 5af8e7a。"
+  }
+}
