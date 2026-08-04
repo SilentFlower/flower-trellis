@@ -4,6 +4,20 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.0-beta.3](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.2...v0.6.0-beta.3) (2026-08-04)
+
+
+### ✨ 新功能 Features
+
+* **check-all:** 同步 Check-All fact-status 文档修复规则 ([8b48a5c](https://github.com/SilentFlower/flower-trellis/commit/8b48a5c5b074ad614351726a85525853352da990))
+* **update:** 增加启动更新提示节流控制 ([d341841](https://github.com/SilentFlower/flower-trellis/commit/d34184194e260359a427da72205621579577ab65))
+
+
+### 🐛 修复 Bug Fixes
+
+* **trellis:** 同步 untracked_flow 入口限制 ([4732835](https://github.com/SilentFlower/flower-trellis/commit/47328352035b9d4c5e9972a95dd457e4d7eb9217))
+* **trellis:** 衔接 untracked 检查、规范更新和推送链路 ([9f1e3b1](https://github.com/SilentFlower/flower-trellis/commit/9f1e3b16af627b9c95a373047a146d07c6ecda72))
+
 ## [0.6.0-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.1...v0.6.0-beta.2) (2026-08-03)
 
 
