@@ -857,3 +857,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 83: 统一 Check-All 兜底分类语义
+
+**Date**: 2026-08-06
+**Task**: 统一 Check-All 兜底分类语义
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+统一 Check-All 的 CHK/FBK/DOC 问题模型，完成 Skill Garden 与 Flower 快照同步、完整质量验证、双仓业务推送和任务归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `11ba49652bff38da5f3fe9366e8696d919908d87` | (see git log) |
+| `eda90ecc3fd3e92317cb15f054f837900fb2467e` | (see git log) |
+
+### Status
+
+[OK] **Completed**
