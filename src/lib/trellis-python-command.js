@@ -54,12 +54,12 @@ function resolveGeneratedCommand(targetRoot) {
  * 已生成目标文件是最高优先级证据；仅在目标中没有证据时才读取环境变量和平台回退。
  *
  * @param {string} target 目标 Trellis 项目根目录
- * @param {{env?:Record<string,string|undefined>,platform?:string}} [options] 环境与平台覆盖，主要用于测试
+ * @param {{env?:Record<string,string|undefined>,platform?:string,generatedEvidence?:boolean}} [options] 环境、平台与目标证据开关
  * @returns {{command:string,source:string}} 命令及解析来源
  */
 export function resolveTrellisPythonCommand(target, options = {}) {
   const targetRoot = path.resolve(target);
-  const generated = resolveGeneratedCommand(targetRoot);
+  const generated = options.generatedEvidence === false ? null : resolveGeneratedCommand(targetRoot);
   if (generated) return generated;
 
   const env = options.env || process.env;
@@ -92,4 +92,25 @@ export function materializeTrellisPythonText(value, command) {
     .split("\n")
     .map((line) => line.startsWith("#!") ? line : line.replaceAll("python3", normalizedCommand))
     .join("\n");
+}
+
+/**
+ * 将已解析的 Python 命令拆成无 shell 的可执行文件与前置参数。
+ *
+ * @param {string} command Trellis Python 命令
+ * @returns {{executable:string,args:string[]}} 可直接传给 child_process 的调用信息
+ */
+export function trellisPythonInvocation(command) {
+  const normalized = normalizePythonCommand(command, "Trellis Python 命令");
+  const tokens = normalized.match(/"[^"]*"|'[^']*'|\S+/g)?.map((token) => {
+    if ((token.startsWith("\"") && token.endsWith("\"")) ||
+        (token.startsWith("'") && token.endsWith("'"))) {
+      return token.slice(1, -1);
+    }
+    return token;
+  });
+  if (!tokens?.length || tokens.some((token) => !token)) {
+    throw new Error("Trellis Python 命令无法解析");
+  }
+  return { executable: tokens[0], args: tokens.slice(1) };
 }

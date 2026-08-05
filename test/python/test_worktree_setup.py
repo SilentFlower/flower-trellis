@@ -1,14 +1,18 @@
-"""worktree_setup.py linked worktree 入口投影测试。"""
+"""分支本地化 worktree engine 的真实 Git 回归测试。"""
 
 from __future__ import annotations
 
 import json
+import importlib.util
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,10 +20,10 @@ SOURCE = ROOT / "vendor/skill-garden/.trellis/0.6/scripts/worktree_setup.py"
 
 
 class WorktreeSetupTest(unittest.TestCase):
-    """验证 linked worktree 的 Trellis 入口准备。"""
+    """验证 branch-local readiness、迁移和生命周期。"""
 
     def setUp(self) -> None:
-        """创建带 linked worktree 的隔离 Git 仓库。"""
+        """创建包含版本化 Trellis 入口的隔离仓库和 linked worktree。"""
         self.temp = tempfile.TemporaryDirectory(prefix="flower-worktree-")
         self.base = Path(self.temp.name)
         self.main = self.base / "main"
@@ -28,35 +32,49 @@ class WorktreeSetupTest(unittest.TestCase):
         self._git(self.main, "init")
         self._git(self.main, "config", "user.email", "test@example.invalid")
         self._git(self.main, "config", "user.name", "Test User")
+        self._install_versioned_entries()
         (self.main / "README.md").write_text("main\n", encoding="utf-8")
-        self._git(self.main, "add", "README.md")
+        self._git(self.main, "add", ".trellis", ".agents", ".codex", ".claude", "README.md")
         self._git(self.main, "commit", "-m", "init")
-        self._git(self.main, "worktree", "add", "--detach", str(self.linked), "HEAD")
-        self._install_trellis_entries()
+        self._git(self.main, "worktree", "add", "-b", "feature/local", str(self.linked), "HEAD")
+        (self.main / ".trellis/.developer").write_text(
+            "name=tester\ninitialized_at=2026-08-05T00:00:00Z\n",
+            encoding="utf-8",
+        )
+        (self.main / ".trellis/.runtime/sessions").mkdir(parents=True)
 
     def tearDown(self) -> None:
         """删除隔离仓库。"""
         self.temp.cleanup()
 
-    def _git(self, cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    def _git(self, cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
         """运行 Git 命令。"""
         return subprocess.run(
             ["git", "-C", str(cwd), *args],
             text=True,
             capture_output=True,
-            check=True,
+            check=check,
         )
 
-    def _install_trellis_entries(self) -> None:
-        """在主 worktree 创建未追踪的 Trellis / 平台入口。"""
+    def _install_versioned_entries(self) -> None:
+        """安装测试所需的最小版本化 Trellis 和平台内容。"""
         scripts = self.main / ".trellis/scripts"
         scripts.mkdir(parents=True)
-        shutil.copy2(SOURCE, scripts / "worktree_setup.py")
-        (self.main / ".agents/skills/example").mkdir(parents=True)
-        (self.main / ".agents/skills/example/SKILL.md").write_text(
-            "---\nname: example\ndescription: example\n---\n",
+        for source in (ROOT / ".trellis/scripts").glob("*.py"):
+            shutil.copy2(source, scripts / source.name)
+        shutil.copytree(ROOT / ".trellis/scripts/common", scripts / "common")
+        (self.main / ".trellis/.gitignore").write_text(
+            ".developer\n.runtime/\n**/__pycache__/\n**/*.pyc\n",
             encoding="utf-8",
         )
+        (self.main / ".trellis/.version").write_text("0.6.12\n", encoding="utf-8")
+        (self.main / ".trellis/workflow.md").write_text("workflow=main\n", encoding="utf-8")
+        (self.main / ".trellis/.template-hashes.json").write_text(
+            json.dumps({"__version": 2, "hashes": {".codex/hooks.json": "hash", ".claude/settings.json": "hash"}}),
+            encoding="utf-8",
+        )
+        (self.main / ".agents/skills/example").mkdir(parents=True)
+        (self.main / ".agents/skills/example/SKILL.md").write_text("main agent\n", encoding="utf-8")
         (self.main / ".codex").mkdir()
         (self.main / ".codex/hooks.json").write_text("{}\n", encoding="utf-8")
         (self.main / ".claude").mkdir()
@@ -65,20 +83,13 @@ class WorktreeSetupTest(unittest.TestCase):
     def _helper(
         self,
         command: str,
-        *,
+        *extra: str,
         target: Path | None = None,
         check: bool = True,
     ) -> tuple[subprocess.CompletedProcess[str], dict]:
-        """运行 worktree_setup helper 并解析 JSON。"""
+        """运行随包 engine 并解析 JSON。"""
         result = subprocess.run(
-            [
-                sys.executable,
-                str(self.main / ".trellis/scripts/worktree_setup.py"),
-                command,
-                "--target",
-                str(target or self.linked),
-                "--json",
-            ],
+            [sys.executable, str(SOURCE), command, "--target", str(target or self.linked), *extra, "--json"],
             cwd=self.main,
             text=True,
             capture_output=True,
@@ -89,55 +100,403 @@ class WorktreeSetupTest(unittest.TestCase):
             self.fail(f"helper failed: {payload}\n{result.stderr}")
         return result, payload
 
-    def test_prepare_projects_missing_entries_and_is_idempotent(self) -> None:
-        """缺失入口会被 symlink 投影，重复 prepare 不再写盘。"""
+    def _install_legacy_projection(self, paths: tuple[str, ...] = (".trellis", ".agents", ".codex", ".claude")) -> None:
+        """把 linked 中的真实目录替换成 schema v1 受管 symlink。"""
+        links = []
+        for relative in paths:
+            target = self.linked / relative
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            os.symlink(self.main / relative, target, target_is_directory=True)
+            links.append(
+                {
+                    "path": relative,
+                    "source": str((self.main / relative).resolve()),
+                    "target": str(target.absolute()),
+                }
+            )
+        (self.linked / ".trellis-worktree.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "sourceRoot": str(self.main.resolve()),
+                    "targetRoot": str(self.linked.resolve()),
+                    "links": links,
+                    "updatedAt": "2026-08-05T00:00:00Z",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_real_local_entries_prepare_runtime_without_symlink_manifest(self) -> None:
+        """真实入口只准备本地运行态和 registry，不创建整目录 symlink。"""
         _, status = self._helper("status")
         self.assertEqual(status["status"], "needs-prepare")
-        self.assertEqual(
-            {item["path"] for item in status["actions"]},
-            {".trellis", ".agents", ".codex", ".claude"},
-        )
+        self.assertEqual(status["reason"], "local-runtime-missing")
 
-        _, prepared = self._helper("prepare")
+        _, prepared = self._helper("prepare", "--developer", "tester")
         self.assertEqual(prepared["status"], "prepared")
-        self.assertTrue(prepared["changed"])
-        self.assertEqual(
-            set(prepared["changedLinks"]),
-            {".trellis", ".agents", ".codex", ".claude"},
-        )
-        for rel_path in (".trellis", ".agents", ".codex", ".claude"):
-            target = self.linked / rel_path
-            self.assertTrue(target.is_symlink(), rel_path)
-            self.assertEqual(target.resolve(), (self.main / rel_path).resolve())
+        self.assertTrue((self.linked / ".trellis/.developer").is_file())
+        self.assertTrue((self.linked / ".trellis/.runtime/sessions").is_dir())
+        for relative in (".trellis", ".agents", ".codex", ".claude"):
+            self.assertTrue((self.linked / relative).is_dir())
+            self.assertFalse((self.linked / relative).is_symlink())
+        self.assertFalse((self.linked / ".trellis-worktree.json").exists())
 
-        manifest = json.loads((self.linked / ".trellis-worktree.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["schemaVersion"], 1)
-        self.assertEqual(manifest["sourceRoot"], str(self.main.resolve()))
-        self.assertEqual(manifest["targetRoot"], str(self.linked.resolve()))
+        registry_path = Path(prepared["registry"]["path"])
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        self.assertEqual(registry["schemaVersion"], 1)
+        self.assertEqual(
+            registry["worktrees"][prepared["worktreeId"]]["path"],
+            str(self.linked.resolve()),
+        )
 
         _, ready = self._helper("prepare")
-        self.assertEqual(ready["status"], "ready")
+        self.assertEqual(ready["status"], "ready-local")
         self.assertFalse(ready["changed"])
-        self.assertFalse(ready["changedLinks"])
-        self.assertFalse(ready["manifestWritten"])
 
-    def test_existing_user_platform_dir_blocks_prepare(self) -> None:
-        """已有用户平台目录时拒绝覆盖且不做部分写入。"""
-        (self.linked / ".codex").mkdir()
+    def test_two_branches_keep_workflow_and_platform_content_local(self) -> None:
+        """linked 分支修改 workflow/skill 后不会改变 main worktree。"""
+        (self.linked / ".trellis/workflow.md").write_text("workflow=feature\n", encoding="utf-8")
+        (self.linked / ".agents/skills/example/SKILL.md").write_text("feature agent\n", encoding="utf-8")
+        self._git(self.linked, "add", ".trellis/workflow.md", ".agents/skills/example/SKILL.md")
+        self._git(self.linked, "commit", "-m", "feature trellis")
+
+        self.assertEqual((self.main / ".trellis/workflow.md").read_text(encoding="utf-8"), "workflow=main\n")
+        self.assertEqual((self.main / ".agents/skills/example/SKILL.md").read_text(encoding="utf-8"), "main agent\n")
+        self.assertEqual((self.linked / ".trellis/workflow.md").read_text(encoding="utf-8"), "workflow=feature\n")
+        self.assertFalse((self.linked / ".trellis").is_symlink())
+
+    def test_missing_local_trellis_does_not_scan_other_worktrees(self) -> None:
+        """目标分支缺少 `.trellis` 时返回 needs-init，不选择 main 作为 source。"""
+        shutil.rmtree(self.linked / ".trellis")
+
+        _, payload = self._helper("status")
+
+        self.assertEqual(payload["status"], "needs-init")
+        self.assertEqual(payload["reason"], "local-trellis-missing")
+        self.assertNotIn("sourceRoot", payload)
+
+    def test_legacy_projection_migrates_only_from_target_head(self) -> None:
+        """有效 v1 投影从 linked 自己的 HEAD 重建成真实目录并删除 manifest。"""
+        (self.linked / ".trellis/workflow.md").write_text("workflow=feature-head\n", encoding="utf-8")
+        self._git(self.linked, "add", ".trellis/workflow.md")
+        self._git(self.linked, "commit", "-m", "feature workflow")
+        self._install_legacy_projection()
+
+        _, status = self._helper("status")
+        self.assertEqual(status["status"], "needs-migration")
+
+        _, dry_run = self._helper("migrate", "--dry-run")
+        self.assertEqual(dry_run["status"], "migration-ready")
+        self.assertTrue((self.linked / ".trellis").is_symlink())
+
+        _, migrated = self._helper("migrate")
+        self.assertEqual(migrated["status"], "migrated")
+        self.assertFalse((self.linked / ".trellis").is_symlink())
+        self.assertFalse((self.linked / ".trellis-worktree.json").exists())
+        self.assertEqual(
+            (self.linked / ".trellis/workflow.md").read_text(encoding="utf-8"),
+            "workflow=feature-head\n",
+        )
+        self.assertEqual((self.main / ".trellis/workflow.md").read_text(encoding="utf-8"), "workflow=main\n")
+
+        _, repeated = self._helper("migrate")
+        self.assertFalse(repeated["changed"])
+
+    def test_legacy_status_does_not_read_source_template_hashes(self) -> None:
+        """legacy `.trellis` symlink 只能用于验证链接，不能读取 source 分支配置。"""
+        (self.main / ".trellis/.template-hashes.json").write_text(
+            json.dumps({"__version": 2, "hashes": {".flower/plugin-lock.json": "source-only"}}),
+            encoding="utf-8",
+        )
+        self._install_legacy_projection()
+
+        _, payload = self._helper("status")
+
+        flower = next(item for item in payload["entries"] if item["path"] == ".flower")
+        self.assertFalse(flower["configured"])
+
+    def test_legacy_migration_fails_closed_when_head_cannot_rebuild(self) -> None:
+        """目标 HEAD 缺入口时不读取旧 sourceRoot，也不改动 symlink。"""
+        self._git(self.linked, "rm", "-r", ".agents")
+        self._git(self.linked, "commit", "-m", "remove agents")
+        self._install_legacy_projection()
+
+        result, payload = self._helper("migrate", check=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "migration-source-unavailable")
+        self.assertIn(".agents", payload["paths"])
+        self.assertTrue((self.linked / ".trellis").is_symlink())
+        self.assertTrue((self.linked / ".trellis-worktree.json").is_file())
+
+    def test_drifted_legacy_symlink_is_blocked_without_writes(self) -> None:
+        """manifest 受管 symlink 漂移后进入 blocked，迁移不覆盖。"""
+        self._install_legacy_projection()
+        (self.linked / ".codex").unlink()
+        os.symlink(self.base / "elsewhere", self.linked / ".codex", target_is_directory=True)
 
         _, status = self._helper("status")
         self.assertEqual(status["status"], "blocked")
-        self.assertEqual(status["conflicts"][0]["path"], ".codex")
-
-        result, payload = self._helper("prepare", check=False)
+        result, payload = self._helper("migrate", check=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(payload["reason"], "projection-conflict")
-        self.assertFalse((self.linked / ".trellis").exists())
-        self.assertFalse((self.linked / ".agents").exists())
-        self.assertFalse((self.linked / ".claude").exists())
+        self.assertEqual(payload["reason"], "migration-not-available")
+        self.assertTrue((self.linked / ".trellis").is_symlink())
+
+    def test_registry_lock_blocks_prepare(self) -> None:
+        """已有 registry 锁时 prepare 失败关闭。"""
+        common_value = Path(self._git(self.main, "rev-parse", "--git-common-dir").stdout.strip())
+        common = common_value.resolve() if common_value.is_absolute() else (self.main / common_value).resolve()
+        lock = common / "trellis/locks/registry.lock"
+        lock.mkdir(parents=True)
+
+        result, payload = self._helper("prepare", "--developer", "tester", check=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "registry-lock-held")
+        self.assertFalse((self.linked / ".trellis/.developer").exists())
+        self.assertFalse((self.linked / ".trellis/.runtime").exists())
+
+    def test_invalid_registry_blocks_status_without_overwrite(self) -> None:
+        """损坏 registry 进入 blocked，status 不覆盖原字节。"""
+        common_value = Path(self._git(self.main, "rev-parse", "--git-common-dir").stdout.strip())
+        common = common_value.resolve() if common_value.is_absolute() else (self.main / common_value).resolve()
+        registry_path = common / "trellis/registry-v1.json"
+        registry_path.parent.mkdir(parents=True)
+        registry_path.write_text("{broken\n", encoding="utf-8")
+
+        _, payload = self._helper("status")
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertEqual(payload["reason"], "worktree-local-conflict")
+        self.assertEqual(registry_path.read_text(encoding="utf-8"), "{broken\n")
+
+    def test_registry_drift_blocks_prepare_before_local_writes(self) -> None:
+        """当前 worktree registry 路径漂移时，prepare 不先创建本地状态。"""
+        _, status = self._helper("status")
+        registry_path = Path(status["registry"]["path"])
+        registry_path.parent.mkdir(parents=True, exist_ok=True)
+        registry_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "developer": "tester",
+                    "worktrees": {
+                        status["worktreeId"]: {
+                            "path": str(self.base / "wrong"),
+                            "gitDir": status["gitDir"],
+                            "branch": status["branch"],
+                            "head": status["head"],
+                            "task": None,
+                            "trellisVersion": "0.6.12",
+                            "updatedAt": "2026-08-05T00:00:00Z",
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        _, blocked = self._helper("status")
+        result, payload = self._helper("prepare", check=False)
+
+        self.assertEqual(blocked["status"], "blocked")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "worktree-local-conflict")
+        self.assertFalse((self.linked / ".trellis/.developer").exists())
+        self.assertFalse((self.linked / ".trellis/.runtime").exists())
+
+    def test_duplicate_task_registry_rolls_back_create(self) -> None:
+        """同一 task 路径已被其它 worktree 注册时，create 回滚新 branch/worktree。"""
+        _, status = self._helper("status")
+        registry_path = Path(status["registry"]["path"])
+        registry_path.parent.mkdir(parents=True, exist_ok=True)
+        task_relative = f".trellis/tasks/{datetime.now().strftime('%m-%d')}-duplicate-task"
+        registry_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "developer": "tester",
+                    "worktrees": {
+                        "existing": {
+                            "path": str(self.linked.resolve()),
+                            "gitDir": status["gitDir"],
+                            "branch": status["branch"],
+                            "head": status["head"],
+                            "task": task_relative,
+                            "trellisVersion": "0.6.12",
+                            "updatedAt": "2026-08-05T00:00:00Z",
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        target = self.base / "duplicate"
+
+        result, payload = self._helper(
+            "create",
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/duplicate",
+            "--task-title",
+            "重复任务",
+            "--task-slug",
+            "duplicate-task",
+            target=target,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "task-already-registered")
+        self.assertFalse(target.exists())
+        self.assertNotEqual(
+            self._git(self.main, "show-ref", "--verify", "refs/heads/feature/duplicate", check=False).returncode,
+            0,
+        )
+
+    def test_create_and_remove_manage_task_registry_and_preserve_branch(self) -> None:
+        """create 创建 planning task；完成并提交后 remove 只移除 worktree。"""
+        target = self.base / "created"
+        _, created = self._helper(
+            "create",
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/created",
+            "--base",
+            "HEAD",
+            "--task-title",
+            "并行任务",
+            "--task-slug",
+            "parallel-task",
+            target=target,
+        )
+        self.assertEqual(created["status"], "created")
+        task_path = target / created["task"] / "task.json"
+        task = json.loads(task_path.read_text(encoding="utf-8"))
+        self.assertEqual(task["status"], "planning")
+        self.assertEqual(task["branch"], "feature/created")
+        self.assertIsNone(task["worktree_path"])
+
+        dirty_result, dirty_payload = self._helper("remove", target=target, check=False)
+        self.assertNotEqual(dirty_result.returncode, 0)
+        self.assertEqual(dirty_payload["reason"], "worktree-dirty")
+
+        task["status"] = "completed"
+        task["completedAt"] = "2026-08-05"
+        task_path.write_text(json.dumps(task, indent=2) + "\n", encoding="utf-8")
+        self._git(target, "add", created["task"])
+        self._git(target, "commit", "-m", "complete task")
+
+        _, removed = self._helper("remove", target=target)
+        self.assertEqual(removed["status"], "removed")
+        self.assertFalse(target.exists())
+        self.assertIsNotNone(self._git(self.main, "show-ref", "--verify", "refs/heads/feature/created", check=False).stdout)
+
+    def test_remove_rejects_main_worktree(self) -> None:
+        """remove 拒绝删除仓库主 worktree。"""
+        result, payload = self._helper("remove", target=self.main, check=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "remove-main-worktree-forbidden")
+        self.assertTrue(self.main.is_dir())
+
+    def test_create_failure_rolls_back_new_branch_and_worktree(self) -> None:
+        """base 分支没有 Trellis 时 create 不残留新 path 或 branch。"""
+        plain_branch = "plain-base"
+        self._git(self.main, "checkout", "--orphan", plain_branch)
+        for relative in (".trellis", ".agents", ".codex", ".claude", "README.md"):
+            path = self.main / relative
+            if path.is_dir() and not path.is_symlink():
+                shutil.rmtree(path)
+            elif path.exists() or path.is_symlink():
+                path.unlink()
+        (self.main / "PLAIN.md").write_text("plain\n", encoding="utf-8")
+        self._git(self.main, "add", "-A")
+        self._git(self.main, "commit", "-m", "plain base")
+        target = self.base / "failed"
+
+        result, payload = self._helper(
+            "create",
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/failed",
+            "--base",
+            plain_branch,
+            "--task-title",
+            "失败任务",
+            "--task-slug",
+            "failed-task",
+            "--developer",
+            "tester",
+            target=target,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "local-trellis-missing")
+        self.assertFalse(target.exists())
+        self.assertNotEqual(
+            self._git(self.main, "show-ref", "--verify", "refs/heads/feature/failed", check=False).returncode,
+            0,
+        )
+
+    def test_remove_registry_failure_restores_worktree_and_local_state(self) -> None:
+        """Git remove 后 registry 写入失败时恢复 worktree、task 和忽略运行态。"""
+        target = self.base / "restore-remove"
+        _, created = self._helper(
+            "create",
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/restore-remove",
+            "--base",
+            "HEAD",
+            "--task-title",
+            "回滚删除",
+            "--task-slug",
+            "restore-remove",
+            target=target,
+        )
+        task_path = target / created["task"] / "task.json"
+        task = json.loads(task_path.read_text(encoding="utf-8"))
+        task["status"] = "completed"
+        task["completedAt"] = "2026-08-05"
+        task_path.write_text(json.dumps(task, indent=2) + "\n", encoding="utf-8")
+        self._git(target, "add", created["task"])
+        self._git(target, "commit", "-m", "complete task")
+        runtime_marker = target / ".trellis/.runtime/restore-marker.txt"
+        runtime_marker.parent.mkdir(parents=True, exist_ok=True)
+        runtime_marker.write_text("local\n", encoding="utf-8")
+
+        spec = importlib.util.spec_from_file_location("flower_worktree_remove_test", SOURCE)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        original_write = module._write_json_atomic
+
+        def fail_registry_write(path: Path, data: dict) -> None:
+            """只故障注入最终 registry 提交。"""
+            if path.name == "registry-v1.json":
+                raise OSError("injected registry failure")
+            original_write(path, data)
+
+        with mock.patch.object(module, "_write_json_atomic", side_effect=fail_registry_write):
+            with self.assertRaises(module.WorktreeSetupError) as captured:
+                module._remove(str(target))
+
+        self.assertEqual(captured.exception.reason, "registry-write-failed")
+        self.assertTrue(target.is_dir())
+        self.assertTrue(task_path.is_file())
+        self.assertEqual(runtime_marker.read_text(encoding="utf-8"), "local\n")
+        self.assertEqual(self._git(target, "status", "--porcelain").stdout, "")
 
     def test_non_git_target_reports_error(self) -> None:
-        """非 Git worktree 不被误判为可准备。"""
+        """非 Git worktree 返回稳定错误。"""
         other = self.base / "plain"
         other.mkdir()
 
@@ -145,14 +504,6 @@ class WorktreeSetupTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(payload["reason"], "not-git-worktree")
-
-    def test_main_worktree_is_ready_without_projection(self) -> None:
-        """主 worktree 自身已有 .trellis 时不创建 manifest。"""
-        _, payload = self._helper("prepare", target=self.main)
-
-        self.assertEqual(payload["status"], "ready")
-        self.assertFalse(payload["changed"])
-        self.assertFalse((self.main / ".trellis-worktree.json").exists())
 
 
 if __name__ == "__main__":

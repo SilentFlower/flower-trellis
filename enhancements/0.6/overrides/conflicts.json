@@ -319,7 +319,7 @@
           "# BEGIN skill-garden patch workflow-state-untracked-helper v0.6",
           "# BEGIN skill-garden patch workflow-state-breadcrumb-subject v0.6",
           "# BEGIN skill-garden patch workflow-state-main-subject-routing v0.6",
-          "_find_trellis_root_from_git",
+          "emit_worktree_local_trellis_missing",
           "DEFAULT_PROMPT_INJECTION_SKIP_KEYWORD = \"no-trellis\"",
           "\"ZCODE_PROJECT_DIR\": \"zcode\"",
           "Normalize `codex.dispatch_mode` from .trellis/config.yaml to \"auto\" or \"inline\"."

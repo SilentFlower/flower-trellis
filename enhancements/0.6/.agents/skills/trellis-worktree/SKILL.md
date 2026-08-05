@@ -1,56 +1,53 @@
 ---
 name: trellis-worktree
-description: "Prepare and diagnose Trellis usage inside linked Git worktrees. Use when the user mentions worktree, linked worktree, worktree development, missing .trellis in a worktree, or asks to make .claude/.codex/.agents/Trellis files work from a worktree."
+description: "Prepare and diagnose branch-local Trellis usage inside linked Git worktrees. Use when the user mentions worktree, linked worktree, worktree development, missing .trellis in a worktree, or parallel branch development."
 ---
 
 # Trellis Worktree
 
-Use this skill before normal Trellis routing when the user's current request is about using Trellis from a linked Git worktree.
+Use this skill before normal Trellis routing when the current request is about linked worktrees or parallel branch development.
 
-The problem is usually not task or untracked routing itself: linked worktrees often do not contain the untracked `.trellis`, `.agents`, `.codex`, or `.claude` directories that AI tools need before any Trellis hook or skill can run.
+Each worktree owns the Trellis and platform files checked out by its branch. Never load `.trellis`, `.agents`, `.codex`, `.claude`, or `.flower` from another worktree, and never create whole-directory symlinks between worktrees.
 
 ## Workflow
 
-1. Identify the target worktree. Use the user's explicit path if present; otherwise use the current working directory.
-2. Locate a source worktree in the same Git worktree set that contains `.trellis/scripts/worktree_setup.py`.
-3. Run read-only diagnosis first:
+1. Identify the target worktree. Use the explicit path if present; otherwise use the current working directory.
+2. Run external diagnosis first:
 
 ```bash
-python3 <source-worktree>/.trellis/scripts/worktree_setup.py status --target <target-worktree> --json
+flower-trellis worktree status --target <target-worktree> --json
 ```
 
-4. If status is `needs-prepare`, run:
+3. Route by status:
+   - `ready-local`: continue with the user's original Trellis intent in this worktree.
+   - `needs-prepare`: run `flower-trellis worktree prepare --target <target-worktree>` with an explicit developer identity when requested.
+   - `needs-init`: initialize Trellis in that branch; do not copy another worktree's version.
+   - `needs-migration`: run `flower-trellis worktree migrate --target <target-worktree> --dry-run` before the real migration.
+   - `blocked` or `error`: stop and report the stable reason and conflict paths.
+4. For a new parallel task, create the worktree before planning files exist:
 
 ```bash
-python3 <source-worktree>/.trellis/scripts/worktree_setup.py prepare --target <target-worktree> --json
+flower-trellis worktree create --target <path> --branch <branch> --base <ref> \
+  --task-title <title> --task-slug <slug>
 ```
 
-5. If status is `blocked` or `error`, stop and report the reason and conflict paths. Do not overwrite or delete user files.
-6. After `ready` or `prepared`, return to the user's original Trellis intent and follow the normal workflow state.
-
-## Source Worktree Discovery
-
-If `<source-worktree>` is not obvious, inspect Git worktrees:
-
-```bash
-git -C <target-worktree> worktree list --porcelain
-```
-
-Choose a listed worktree that contains `.trellis/scripts/worktree_setup.py`. If none exists, report that this project has not been updated with `trellis-worktree` support yet.
+5. Continue task planning in a new AI session whose cwd is the returned handoff directory.
 
 ## Safety Rules
 
-- The helper only projects source paths that already exist.
-- MVP projection paths are `.trellis`, `.agents`, `.codex`, and `.claude`.
-- Projection uses symlinks and records `<target-worktree>/.trellis-worktree.json`.
-- Existing non-managed `.codex`, `.claude`, `.agents`, or `.trellis` paths are conflicts.
-- Do not hand-copy platform directories. Copying creates drift between worktrees.
-- Do not treat successful setup as task approval, check approval, or push approval.
+- `status` is read-only.
+- `prepare` only creates target-local gitignored state and registry metadata.
+- `migrate` may replace only schema v1 manifest-managed symlinks, and only with content reconstructed from the target branch itself.
+- Do not read the legacy `sourceRoot` as migration content.
+- `create` does not attach or move an existing task.
+- `remove` requires a clean worktree with no active task, session, or lock; it preserves the branch.
+- Do not use force, copy directories between worktrees, or treat setup as approval to start, check, commit, merge, or push.
 
 ## Expected Results
 
-- `ready`: target worktree already has valid Trellis entry points.
-- `needs-prepare`: target worktree is safe to prepare; run `prepare`.
-- `prepared`: symlinks and manifest were created or repaired.
-- `blocked`: user-owned paths would be overwritten; stop and report `conflicts`.
-- `error`: Git or source-root resolution failed; stop and report `reason`.
+- `ready-local`: local real directories are active for this branch.
+- `needs-init`: the branch lacks versioned Trellis content.
+- `needs-prepare`: local runtime or developer state is missing.
+- `needs-migration`: a valid legacy projection was detected.
+- `blocked`: user paths, symlink drift, registry drift, dirty state, task state, or locks prevent mutation.
+- `error`: Git metadata or an operation failed with a stable reason.

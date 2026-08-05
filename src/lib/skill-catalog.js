@@ -68,7 +68,7 @@ const SKILL_DESCRIPTION_OVERRIDES = {
   "trellis-verify-task": "校验任务文档是否覆盖需求",
   "trellis-verify-prd": "校验 PRD 准确性和覆盖度",
   "trellis-visualize": "生成架构、流程或状态图",
-  "trellis-worktree": "准备 linked worktree 的 Trellis 入口",
+  "trellis-worktree": "管理分支本地化 Trellis worktree",
 };
 
 /**

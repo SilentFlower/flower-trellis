@@ -141,7 +141,7 @@ test("Trellis workflow skill 菜单显示中文短说明", (t) => {
     catalog.enhancementSkills.map((item) => [item.name, item.description]),
   );
 
-  assert.equal(descriptions["trellis-worktree"], "准备 linked worktree 的 Trellis 入口");
+  assert.equal(descriptions["trellis-worktree"], "管理分支本地化 Trellis worktree");
   assert.equal(descriptions["trellis-flower-update"], "手动追平已安装 Flower 强化包");
   assert.notEqual(descriptions["trellis-worktree"], "查看技能说明");
   assert.notEqual(descriptions["trellis-flower-update"], "查看技能说明");

@@ -14,6 +14,7 @@ export function parseCliArgs(argv, cwd = process.cwd()) {
   let enhanceOnly = false;
   let variant = null;
   let target = cwd;
+  let targetExplicit = false;
   let updateCheck = true;
   let backupRetention = DEFAULT_UPDATE_BACKUP_RETENTION;
   const skills = [];
@@ -51,6 +52,7 @@ export function parseCliArgs(argv, cwd = process.cwd()) {
         break;
       case "--target":
         target = path.resolve(cwd, argv[++i] || ".");
+        targetExplicit = true;
         break;
       case "--no-update-check":
         updateCheck = false;
@@ -75,6 +77,7 @@ export function parseCliArgs(argv, cwd = process.cwd()) {
     command,
     ctx: {
       target: path.resolve(target),
+      targetExplicit,
       passthrough,
       enhance,
       enhanceOnly,

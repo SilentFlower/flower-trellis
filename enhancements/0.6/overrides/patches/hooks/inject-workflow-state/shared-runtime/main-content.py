@@ -9,7 +9,8 @@ def main() -> int:
 
     root = find_trellis_root(cwd)
     if root is None:
-        return 0  # not a Trellis project
+        emit_worktree_local_trellis_missing(data)
+        return 0
 
     config = _read_trellis_config(root)
     if prompt_has_skip_keyword(data.get("prompt", ""), _resolve_skip_keyword(config)):

@@ -78,6 +78,8 @@ function printHelp() {
                                                         管理启动更新策略
   flower-trellis telemetry <status|enable|disable>       管理匿名安装遥测
   flower-trellis plugin                                 交互管理 Plugin、来源与 GitLab 授权
+  flower-trellis worktree <status|prepare|migrate|create|remove>
+                                                        管理分支本地化 Git worktree
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
   flower-trellis -v                                      打印版本
@@ -163,6 +165,10 @@ async function main() {
     } else if (cmd === "plugin") {
       const { plugin } = await import("./commands/plugin.js");
       const code = await plugin(ctx);
+      if (code !== 0) process.exitCode = code;
+    } else if (cmd === "worktree") {
+      const { worktree } = await import("./commands/worktree.js");
+      const code = await worktree(ctx);
       if (code !== 0) process.exitCode = code;
     } else if (cmd === "uninstall") {
       const { uninstall } = await import("./commands/uninstall.js");

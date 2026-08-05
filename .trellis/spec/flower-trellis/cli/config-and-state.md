@@ -332,85 +332,113 @@ if (shouldUseUpdateSandbox({
 - `uninstall` 在 Trellis 删除前冻结 state 清理计划；Trellis 成功后只删除 hash 仍匹配的
   `exclusive` 普通文件。某个用户修改项冲突时仍清理其它 hash-clean 路径；`shared`、其它 Plugin、用户修改项和无法证明 ownership 的旧路径保留，并继续记录冲突证据。
 
-## Scenario: Linked Worktree Entry Projection
+## Scenario: Branch-Local Trellis Worktree
 
 ### 1. Scope / Trigger
 
-- Trigger: 新增或修改 `trellis-worktree` skill、`worktree_setup.py`、linked Git worktree 中的
-  `.trellis` / 平台入口投影、`.trellis-worktree.json`，或 hook / untracked 从 worktree 集合回找
-  Trellis 根的 fallback。
-- Scope: helper 只准备当前同一 Git 仓库 linked worktree 的本地 AI/Trellis 入口；普通 task、
-  untracked、check、push 的阶段语义不随 worktree 准备改变。
+- Trigger: 新增或修改 `trellis-worktree` skill、`worktree_setup.py`、Flower `worktree` facade、
+  linked Git worktree 的分支本地 Trellis/平台入口、schema v1 迁移、common-dir registry/锁，
+  或 hook / untracked 的 worktree 根解析。
+- Scope: 每个 worktree 只加载当前分支自己的 `.trellis`、`.agents`、`.codex`、`.claude`、
+  `.flower` 和本地 runtime；普通 task、untracked、check、push 阶段语义不改变。
 
 ### 2. Signatures
 
 ```bash
-python3 ./.trellis/scripts/worktree_setup.py status [--target <path>] [--json]
-python3 ./.trellis/scripts/worktree_setup.py prepare [--target <path>] [--json]
-python3 <main-worktree>/.trellis/scripts/worktree_setup.py prepare --target <linked-worktree> --json
+flower-trellis worktree status [--target <path>] [--json]
+flower-trellis worktree prepare [--target <path>] [--developer <name>] [--json]
+flower-trellis worktree migrate [--target <path>] [--dry-run] [--json]
+flower-trellis worktree create --target <path> --branch <branch> --base <ref> \
+  --task-title <title> --task-slug <slug> [--developer <name>] [--json]
+flower-trellis worktree remove --target <path> [--json]
 ```
 
 ```text
-<linked-worktree>/.trellis-worktree.json
+<git-common-dir>/trellis/registry-v1.json
+<git-common-dir>/trellis/locks/registry.lock/
 ```
 
 ### 3. Contracts
 
-- `status` 只读输出 JSON；`prepare` 只能创建或修复由 manifest 证明受管的 symlink，并在目标
-  linked worktree 写 `.trellis-worktree.json`。两者都不得复制目录、删除普通文件或创建源 worktree
-  不存在的平台入口。
+- `status` 只读；稳定状态为 `ready-local`、`needs-init`、`needs-prepare`、
+  `needs-migration`、`blocked`、`error`。输出稳定包含 target/Git 身份、branch、HEAD、entry、
+  local state、legacy、registry、actions、conflicts 和 reason，不再输出新流程 `sourceRoot`。
 - `--target` 可指向 worktree 根、子目录或文件；缺省为当前目录。target 必须解析到 Git worktree
   toplevel，非 Git 目录返回 `reason=not-git-worktree`。
-- source 解析顺序固定为：有效 manifest 的 `sourceRoot`、目标 `.trellis` symlink、同仓
-  `git rev-parse --git-common-dir` 候选、`git worktree list --porcelain` 中第一个带 `.trellis`
-  的其它 worktree、最后才是 target 自身。找不到时返回 `reason=source-not-found`。
-- 投影路径固定从 `ENTRY_PATHS` 读取，当前只包含 `.trellis`、`.agents`、`.codex`、`.claude`。
-  新增平台入口必须先扩展该常量和测试，不得在 skill 文案里声明但 helper 不处理。
-- 输出字段必须稳定包含 `status`、`targetRoot`、`sourceRoot`、`source`、`manifest`、`links`、
-  `actions`、`conflicts`、`missingSources`；`prepare` 额外包含 `changed`、`changedLinks`、
-  `manifestWritten`。
-- manifest schema 固定为
-  `{schemaVersion:1, sourceRoot, targetRoot, links:[{path, source, target}], updatedAt}`。
-  比较幂等性时忽略 `updatedAt`；`sourceRoot` 和 `targetRoot` 必须是绝对路径。
-- hook / `untracked_flow.py` 的 Git worktree fallback 只在脚本已经被平台加载并执行后生效；
-  它不能替代入口投影，也不能扩大 untracked state schema 或把状态绑定到具体 worktree。
+- `.trellis` 必须是当前 worktree 的真实目录；平台入口按目标 `.template-hashes.json` 和当前真实
+  目录识别，未启用平台可以缺失。任何整目录 symlink 一律进入 legacy 或 conflict 分支。
+- Hook、untracked helper 等向上解析项目根时，必须先检查当前目录的本地 `.trellis`，随后在遇到
+  第一个 `.git` 文件、目录或 symlink 时停止；不得越过嵌套仓库 / linked worktree 边界命中父项目。
+- Flower `worktree` facade 作为外部 bootstrap 入口时，不得从目标目录的生成文件推断 Python
+  命令；目标可能仍是 legacy symlink。只允许使用显式 `TRELLIS_PYTHON_CMD` 或当前平台默认值。
+- `prepare` 只创建目标自己的 `.trellis/.developer`、`.trellis/.runtime/sessions` 和 registry
+  元数据；身份来自 `--developer`、目标本地文件或 common registry，不读取其它 worktree 文件。
+  获取 registry 锁后必须重新读取并校验 registry，再进行任何目标本地写入。
+- schema v1 `.trellis-worktree.json` 只读兼容。自动迁移要求 manifest target/path 白名单有效、
+  symlink 仍指向 manifest 声明来源，并且目标分支 `HEAD` 能重建全部受管真实目录。
+  旧 `sourceRoot` 只用于验证 symlink，禁止作为迁移内容源。
+- 迁移先在目标项目外临时目录执行 `git archive HEAD` 和内容验证，再事务替换 symlink；成功删除
+  v1 manifest，失败恢复原链接和 manifest。新流程不再创建 worktree manifest。
+- registry 固定为 `{schemaVersion:1,developer?,worktrees:{<id>:{path,gitDir,branch,head,task,
+  trellisVersion,updatedAt}}}`；ID 从 canonical git-dir 哈希派生，写入使用同目录临时文件、
+  `fsync` 和原子替换。
+- registry 写入前必须全表校验：同一 worktree ID 的 path/gitDir 不得漂移，不同 ID 不得复用
+  path 或 gitDir，同一 task 路径不得绑定多个 worktree，非对象条目必须失败关闭。
+- registry 写操作先用原子 `mkdir` 获取 `registry.lock/`；无法可靠证明旧 owner 已退出时必须阻断，
+  不得无锁覆盖。
+- `create` 必须在 task 规划文件产生前运行：校验 path/branch/base -> `git worktree add -b` ->
+  local readiness -> 目标 `task.py create --no-start` -> `set-branch` -> registry -> handoff。
+  失败只逆序清理本轮创建的 task/worktree/branch/registry。
+- `remove` 要求 registry 精确匹配、Git clean、无活动 session/锁，且绑定 task 不处于 planning 或
+  in_progress；主 worktree 和唯一 worktree 永远不得通过该命令移除。成功只移除 worktree 和
+  registry 条目，保留 branch。Git remove 后若 registry 提交失败，必须用原 branch/HEAD 重建
+  worktree，并恢复删除前快照中的 gitignored Trellis/平台本地状态；补偿不完整时返回独立 reason。
+- hook 和 `untracked_flow.py` 只能向上查找当前 cwd 本地 `.trellis`。Hook 已加载但 cwd 缺本地
+  Trellis 时输出 `worktree-local-trellis-missing` bootstrap 诊断，不读取其它 worktree workflow/runtime。
 
 ### 4. Validation & Error Matrix
 
 | 条件 | 行为 |
 |------|------|
-| linked worktree 缺少四个入口且主 worktree 都存在 | `status=needs-prepare`；`prepare` 创建 symlink 并写 manifest |
-| 重复运行 `prepare` | `status=ready`、`changed=false`、`changedLinks=[]`、不刷新 manifest |
-| 主 worktree 缺少某个入口 | 对应 link `state=source-missing`，跳过创建，不视为冲突 |
-| target 已有非受管 `.codex` / `.claude` / `.agents` / `.trellis` | `status=blocked`；`prepare` 返回 `reason=projection-conflict` 且零部分写入 |
-| target symlink 指向错误源且 manifest 证明受管 | link `state=repair`，`prepare` 可先 unlink 再重建 |
-| target symlink 指向错误源但不在 manifest | `projection-conflict`，不得覆盖 |
+| 目标存在真实 `.trellis`、本地 identity/runtime | `status=ready-local`；零 symlink/manifest 写入 |
+| 目标存在版本化内容但缺 identity/runtime | `status=needs-prepare`；prepare 只写本地状态和 registry |
+| 当前分支缺 `.trellis`，其它 worktree 有 Trellis | `status=needs-init`；不得扫描或选择其它 worktree |
+| schema v1 manifest 和 symlink 完整，目标 HEAD 可重建 | dry-run=`migration-ready`；真实迁移后目录本地化并删除 manifest |
+| schema v1 来源无法由目标 HEAD 重建 | `reason=migration-source-unavailable`；symlink/manifest 原样保留 |
+| manifest 损坏、target 不符、symlink 漂移或用户路径冲突 | `status=blocked`；任何写操作零部分写入 |
+| registry lock 已存在 | `reason=registry-lock-held`；不得 last-write-wins |
+| registry 中 ID/path/gitDir 漂移、路径碰撞或 task 重复绑定 | `status=blocked` 或稳定冲突 reason；prepare/create 在本地写入前停止或完整回滚 |
+| create 中 task 或 readiness 失败 | 回滚本轮新 worktree/branch/registry，不删除预先存在对象 |
+| remove 遇到 dirty、active task/session/lock 或 registry drift | 失败关闭，worktree 和 branch 保留 |
+| remove 目标是主 worktree 或唯一 worktree | `reason=remove-main-worktree-forbidden`；目标目录保持不变 |
+| Git remove 成功但 registry 写入失败 | 重建 worktree 并恢复 gitignored 本地状态；成功补偿返回 `registry-write-failed`，补偿不完整返回 `worktree-remove-rollback-failed` |
+| remove 成功 | worktree/registry 条目删除，branch 保留 |
 | target 不是 Git worktree | `reason=not-git-worktree` |
-| 同仓 worktree 集合没有任何 `.trellis` | `reason=source-not-found` |
-| target 已是主 worktree | `status=ready`，不创建 `.trellis-worktree.json` |
-| linked cwd 中 hook / untracked 已能运行但无本地 `.trellis` | fallback 从同仓主 worktree 读取 `.trellis` runtime |
+| linked cwd 中 hook 已能运行但无本地 `.trellis` | 输出 bootstrap 诊断，不包含其它 worktree task/untracked 内容 |
+| linked cwd 直接调用 untracked helper 且无本地 `.trellis` | `reason=not-trellis-project` |
 
 ### 5. Good/Base/Bad Cases
 
-- Good: 用户在 linked worktree 中请求 worktree 处理时，skill 先指导从主 worktree 运行
-  `worktree_setup.py status --target <linked> --json`，确认无冲突后再运行 `prepare`。
-- Good: linked worktree 只有 `.codex` 用户目录时，helper 阻断全部投影，避免创建 `.trellis`
-  后留下半准备状态。
-- Base: 普通主 worktree 已有 `.trellis` 时，helper 返回 ready，不写 manifest，不影响现有 Trellis 流程。
-- Base: 主 worktree 没启用 `.claude` 时，linked worktree 也不自动生成 `.claude`。
-- Bad: 在 linked worktree 中 hand-copy `.trellis` 或 `.codex`，会制造与主 worktree 分叉的 skill/hook
-  状态，后续 update/sync 难以追踪。
-- Bad: 只给 `untracked_flow.py` 加 cwd fallback，却不准备 `.codex` / `.claude` 平台入口；这种情况下平台
-  hook 和 skill 仍可能根本不会加载。
+- Good: 两个分支分别提交不同 workflow/spec/skill，两个 worktree 都只读取自己的文件。
+- Good: 新并行任务先运行 `flower-trellis worktree create`，再在 handoff cwd 启动新会话规划。
+- Good: legacy migration 的候选内容只来自目标 `HEAD`，旧 source 分支更新不会进入迁移结果。
+- Good: remove 在 registry 故障注入后恢复原 worktree、task 文件和 `.trellis/.runtime` 本地状态。
+- Base: 当前分支未启用 `.claude` 时，缺少 `.claude` 不阻断 ready-local。
+- Bad: 把 `.trellis` 或平台目录 symlink 到另一个 worktree；分支切换会跨目录污染运行语义。
+- Bad: 把 tasks/spec/workspace/session 放进 common-dir registry；registry 只能保存机器映射和锁。
+- Bad: 为了 remove 方便使用 `--force` 绕过 dirty/task/session 检查或顺带删除 branch。
+- Bad: bootstrap 为选择 Python 解释器而读取 legacy `.trellis/workflow.md`；这会再次执行其它分支配置。
 
 ### 6. Tests Required
 
-- `test_worktree_setup.py` 必须覆盖 status、prepare、四个入口 symlink、manifest schema、重复
-  prepare 幂等、已有用户平台目录冲突、非 Git target、主 worktree ready 零 manifest。
-- `test_untracked_flow.py` 必须覆盖 linked worktree cwd 无 `.trellis` 时，`status` 能回退到主
-  `.trellis` runtime。
-- `test_workflow_state_hook.py` 必须覆盖 hook 从 linked worktree cwd 找到主 `.trellis/workflow.md`
-  和 runtime helper。
+- `test_worktree_setup.py` 必须覆盖 ready/prepare、双分支本地内容、needs-init、registry/锁、legacy
+  成功迁移/不可重建/漂移、registry 全局碰撞与重复 task、create/remove、主 worktree 删除保护，
+  以及 registry 写失败后的 worktree/本地状态补偿。
+- `test_untracked_flow.py` 必须覆盖 linked worktree cwd 无 `.trellis` 时不读取主 runtime，并覆盖
+  嵌套 `.git` 边界不能命中父 Trellis。
+- `test_workflow_state_hook.py` 必须覆盖 linked cwd 只输出 local-missing 诊断及嵌套 `.git` 边界。
+- `worktree-cli.test.js` 必须覆盖 facade parse、无 shell Python 命令调用、禁用 legacy 生成证据和
+  真实 CLI status。
 - 改动 helper 或 fallback 后至少运行相关 Python 单测、`python3 -m py_compile`、`npm run sync`、
   `npm run patch:targets:check`、`git diff --check`；Patch target 改动还要先刷新 compiled targets。
 
@@ -419,19 +447,20 @@ python3 <main-worktree>/.trellis/scripts/worktree_setup.py prepare --target <lin
 #### Wrong
 
 ```bash
-cp -R <main-worktree>/.trellis <linked-worktree>/.trellis
-cp -R <main-worktree>/.codex <linked-worktree>/.codex
+ln -s <main-worktree>/.trellis <linked-worktree>/.trellis
+ln -s <main-worktree>/.codex <linked-worktree>/.codex
 ```
 
-问题:复制会把入口状态变成两份可漂移内容，且无法区分哪些路径由 Trellis worktree 准备流程管理。
+问题:整目录链接让一个分支执行另一个分支的 workflow、spec、task 和平台配置。
 
 #### Correct
 
 ```bash
-python3 <main-worktree>/.trellis/scripts/worktree_setup.py prepare --target <linked-worktree> --json
+flower-trellis worktree create --target <linked-worktree> --branch feature/example \
+  --base beta --task-title "Example" --task-slug example
 ```
 
-原因:helper 统一执行同仓 source 识别、冲突拒绝、symlink 投影、manifest 记录和幂等检查。
+原因:先建立分支本地 worktree，再由目标分支自己的 Trellis 创建 planning task；common-dir 只保存机器映射。
 
 ## Update-Check State
 

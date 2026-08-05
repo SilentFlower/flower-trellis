@@ -413,8 +413,8 @@ class UntrackedFlowTest(unittest.TestCase):
         for command in ("prepare-edit", "record-validation", "record-check", "record-spec"):
             self.assertNotIn(command, result.stdout)
 
-    def test_status_from_linked_worktree_falls_back_to_main_trellis_root(self) -> None:
-        """linked worktree 无 .trellis 时可通过 Git worktree 集合读取主 runtime。"""
+    def test_status_from_linked_worktree_does_not_read_main_trellis_root(self) -> None:
+        """linked worktree 无本地 .trellis 时不得读取其它分支 runtime。"""
         (self.root / "README.md").write_text("main\n", encoding="utf-8")
         self._run("git", "init")
         self._run("git", "config", "user.email", "test@example.invalid")
@@ -444,13 +444,33 @@ class UntrackedFlowTest(unittest.TestCase):
             env=self.env,
             capture_output=True,
             text=True,
-            check=True,
+            check=False,
         )
         payload = json.loads(result.stdout)
 
-        self.assertEqual(payload["status"], "hit")
-        self.assertEqual(payload["workId"], created["workId"])
-        self.assertEqual(payload["summary"], "worktree 恢复")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["status"], "error")
+        self.assertEqual(payload["reason"], "not-trellis-project")
+        self.assertEqual(self._session()["untracked_flow"]["id"], created["workId"])
+
+    def test_nested_git_boundary_does_not_read_parent_trellis_root(self) -> None:
+        """嵌套 worktree 根有 `.git` 时不得继续读取父目录的 Trellis。"""
+        nested = self.root / "nested-linked"
+        nested.mkdir()
+        (nested / ".git").write_text("gitdir: /tmp/example\n", encoding="utf-8")
+
+        result = subprocess.run(
+            ["python3", str(self.root / ".trellis/scripts/untracked_flow.py"), "status"],
+            cwd=nested,
+            env=self.env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        payload = json.loads(result.stdout)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "not-trellis-project")
 
 
 if __name__ == "__main__":

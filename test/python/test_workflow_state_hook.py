@@ -385,8 +385,8 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn("Untracked work: work-legacy (implement)", breadcrumb)
         self.assertIn("trellis-route(target=implement)", breadcrumb)
 
-    def test_linked_worktree_cwd_falls_back_to_main_trellis_root(self) -> None:
-        """Hook 已运行时，可从 linked worktree cwd 回主 .trellis 读取状态。"""
+    def test_linked_worktree_cwd_reports_missing_local_trellis(self) -> None:
+        """Hook 已运行时只报告本地 Trellis 缺失，不读取主 worktree 状态。"""
         with tempfile.TemporaryDirectory(prefix="flower-hook-worktree-") as temp:
             base = Path(temp)
             main = base / "main"
@@ -461,9 +461,18 @@ class WorkflowStateHookTest(unittest.TestCase):
 
         output = json.loads(result.stdout)
         breadcrumb = output["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Untracked work: work-linked (implement)", breadcrumb)
-        self.assertIn("Summary: linked worktree", breadcrumb)
-        self.assertIn("trellis-route(target=implement)", breadcrumb)
+        self.assertIn("<worktree-local-trellis-missing>", breadcrumb)
+        self.assertIn("flower-trellis worktree status", breadcrumb)
+        self.assertNotIn("work-linked", breadcrumb)
+        self.assertNotIn("linked worktree", breadcrumb)
+
+    def test_find_trellis_root_stops_at_nested_git_boundary(self) -> None:
+        """Hook 根解析遇到当前 `.git` 边界后不得命中父 Trellis。"""
+        nested = self.root / "nested-linked"
+        nested.mkdir()
+        (nested / ".git").write_text("gitdir: /tmp/example\n", encoding="utf-8")
+
+        self.assertIsNone(self.hook.find_trellis_root(nested))
 
     def test_invalid_untracked_state_falls_back_to_no_task(self) -> None:
         """损坏的 untracked 字段不得伪造恢复 breadcrumb。"""
