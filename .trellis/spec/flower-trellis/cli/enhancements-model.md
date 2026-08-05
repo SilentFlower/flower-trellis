@@ -954,7 +954,7 @@ session 字段固定为：
   文件范围，也不验证 focused validation、Check-All 或 Update-Spec 是否完成。
 - 每个 session 最多一个事项。相同 summary 的 `begin` 幂等命中；不同事项返回
   `active-work-conflict`，直到当前事项完成、明确放弃或纳管为 task。
-- `advance` 是显式游标写入，允许正常前进，也允许剩余 `CHK-*`、部分验证、阻塞、新编辑或返工返回 `implement`。
+- `advance` 是显式游标写入，允许正常前进，也允许剩余 `CHK-*`、`FBK-*`、部分验证、阻塞、新编辑或返工返回 `implement`。
   阶段结果真实性由当前 owner 的输出和测试负责，不由 helper 证明。
 - `status` 默认输出紧凑摘要；`status --verbose` 返回同一最小 v2 state，供 hook、owner 和 sub-agent
   校验 work id、summary 与 stage。不得从 raw session JSON 猜测当前事项。
@@ -982,7 +982,7 @@ session 字段固定为：
 | 当前 session 已绑定 task | `active-task-present`，不创建 untracked 状态 |
 | 已有不同事项 | `active-work-conflict`，保留原游标和 dirty diff |
 | 代码、规范、submodule 或独立 package 发生变化 | helper 不读取 Git，`status` / `advance` 继续成功 |
-| 剩余 `CHK-*`、部分验证、阻塞或新编辑 | owner 执行 `advance --stage implement`；只有 `OPT-*` 时保持通过路径 |
+| 剩余 `CHK-*`、`FBK-*`、部分验证、阻塞或新编辑 | owner 执行 `advance --stage implement`；只有两类问题均为 0 时保持通过路径 |
 | Check-All 严格通过但交互停止 | 保持 `stage=check`，等待后续明确继续 |
 | 任一阶段读取 `status` | 返回当前 owner 与剩余 owner 链；helper 不补跑或证明这些 owner |
 | Update-Spec 返回 `needs-review` | 保持 `stage=spec` |
@@ -1000,7 +1000,7 @@ session 字段固定为：
 - Good:Update-Spec 写入 `.trellis/spec/**` 后直接把游标推进到 `push`，不会因 fingerprint 漂移要求
   撤回合法规范 diff。
 - Good:compact/resume 时 hook 看到 `stage=push`，只提示加载 `trellis-push`，不重放实现、检查或规范。
-- Base:Check-All 报告剩余 `CHK-*`，游标回到 `implement`；只有 `OPT-*` 时不回退；helper 不保存 findings 内容，报告仍由
+- Base:Check-All 报告剩余 `CHK-*` 或 `FBK-*`，游标回到 `implement`；helper 不保存 findings 内容，报告仍由
   Check-All owner 持有。
 - Bad:把 `stage=push` 当成用户已确认，绕过 `trellis-push` 的正式计划与 Git 检查。
 - Bad:把“走 Trellis 流程”解释为补建 task，或让 untracked 使用历史 task route decision。
@@ -1578,7 +1578,7 @@ cleanly or reported findings; latest user intent and validated auto-loop overrid
 
 - Trigger: 0.6 强化包需要让普通、轻量、全面、最终、提交前和 auto-loop 检查都进入
   Check-All,由真实任务、diff、风险和运行上下文智能选择 light/full 深度,同时保持
-  audit-only collect-all、稳定 `CHK-*` / `OPT-*` / `DOC-*` 问题模型和 `CHK-*` 修复循环。
+  audit-only collect-all、稳定 `CHK-*` / `FBK-*` / `DOC-*` 问题模型和统一修复循环。
 - Scope: `trellis-check-all/SKILL.md` 定义深度策略、检查、报告、修复和 disposition;
   `trellis-route/SKILL.md`、`references/platform-dispatch.json` 与 `route_state.py` 只决定
   inline/subagent 执行位置和平台启动目标;`trellis-check` 是 workspace-write 自修角色，不能成为
@@ -1634,7 +1634,7 @@ check-subagent -> check-all-subagent
 
 归一化后的 decision 必须只暴露 canonical mode,不得重新 dispatch 顶层 `trellis-check`。
 
-阻断问题记录必须包含固定字段:
+主路径问题记录必须包含固定字段:
 
 ```text
 ID: CHK-001, CHK-002, ...
@@ -1642,11 +1642,12 @@ ID: CHK-001, CHK-002, ...
 标题 / 来源 / 证据 / 影响 / 建议 / 位置 / 验证
 ```
 
-非阻断可选改进使用独立编号且不分配 P0/P1/P2:
+兜底问题使用独立编号，并按当前实际影响分配 P0/P1/P2:
 
 ```text
-ID: OPT-001, OPT-002, ...
-标题 / 来源 / 证据 / 为什么可选 / 收益 / 位置 / 验证
+ID: FBK-001, FBK-002, ...
+严重度: P0 | P1 | P2
+标题 / 来源 / 证据 / 兜底场景 / 影响 / 保护收益 / 建议 / 位置 / 验证
 ```
 
 低风险文档漂移记录必须使用独立 `DOC-*` 编号,并允许以下类型:
@@ -1655,19 +1656,12 @@ ID: OPT-001, OPT-002, ...
 DOC type: task-status | brief-stale | implementation-note | check-record | mechanical-link | fact-status
 ```
 
-普通模式的阻断修复选择只允许在完整报告末尾出现一次:
+普通模式的统一修复选择只允许在完整报告末尾出现一次:
 
 ```text
-修复全部（仅 CHK）
-修复 CHK-001,CHK-003
+修复全部
+修复 CHK-001,FBK-002
 仅保留报告
-```
-
-可选项只有精确 ID 或明确全部可选项授权才进入修复:
-
-```text
-修复 OPT-001,OPT-003
-修复全部可选项
 ```
 
 ### 3. Contracts
@@ -1690,26 +1684,27 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   其它情况 fallback full,不得机械询问用户。
 - hard-full 至少包括复杂三件套完整映射、跨层/跨仓/submodule、公共 API/CLI、schema/
   持久化/缓存、迁移/历史数据、权限/安全/资金、并发/状态机/回滚、workflow/skill/hook
-  注入、安装/升级/发布/push 控制面、已有 full `CHK-*` 重检和未知影响面。
+  注入、安装/升级/发布/push 控制面、已有 full `CHK-*` / `FBK-*` 重检和未知影响面。
 - light 只有在变更可完整归属、单一局部行为、无 hard-full、引用与回归路径可穷举、
   有定向验证且不在 full 修复链时成立。执行中发现强风险只允许单向升级 full。
 - 高置信 light 通过正式满足 Phase 2.2 门禁;未执行维度必须标记 `N/A`,不得伪装成 full。
-- 执行顺序固定为三件套实现 -> 实现假设 -> 完整性与规范。每个发现先按当前契约、验证和可达证据
-  判定为阻断 `CHK-*` 或非阻断 `OPT-*`,再只为 `CHK-*` 分配 P0/P1/P2；严重度不能反向决定处置。
-- 需求/spec/公开契约违背、失败验证、缺失必需测试、声明支持范围内兼容问题、真实可达错误、
-  安全/数据/发布风险和证据不足的未知影响必须保留为 `CHK-*`、部分验证、剩余风险或阻塞。
-  只有契约已满足、验证无失败、无真实可达错误且不影响当前验收，并有具体可验证额外收益时，
-  才能记录为 `OPT-*`。历史 P1 只有假设后果时可重新经过同一准入判断；P2 不自动视为可选。
+- 执行顺序固定为三件套实现 -> 实现假设 -> 完整性与规范。每个发现先按根因性质和可达证据
+  判定为主路径 `CHK-*` 或兜底 `FBK-*`,再为两类问题分配 P0/P1/P2；严重度不能反向决定通道。
+- 主路径逻辑、非兜底需求/契约违背、失败验证、缺失必需测试、真实数据流断点、兼容性和发布集成问题进入 `CHK-*`。
+  fail-closed、异常输入、失败路径降级、防御性权限或数据保护、容错与故障可观测性保护缺口进入 `FBK-*`。
+  即使 PRD/design/implement/spec 或公开契约已经声明该兜底行为，仍保持 `FBK-*`；契约证据只影响影响和严重度。
+- `FBK-*` 必须有具体位置、可达异常或失败场景、问题证据、保护收益和验证方式。纯代码风格偏好、
+  主观重构建议或没有具体场景与可验证收益的“更健壮”建议不报告。证据不足时使用部分验证、剩余风险或阻塞。
 - 只有业务/规划冲突导致无法判断、已知问题使后续前提失效、或验证可能产生破坏性/
   外部副作用时,才允许提前阻塞。阻塞结果仍须报告已完成范围和统一问题 ID。
 - 局部文案、普通配置值、局部样式或单点条件修改可以走快速路径;未命中 API、组件上下文、
   历史数据、跨层数据流等 Trigger 的维度必须标记 `N/A`,不得展开无关检查。
-- `CHK-*` 与 `OPT-*` ID 分开编号,首次分配后在同一修复/重检循环保持稳定;同根因的多个位置合并,
-  新根因使用对应通道的下一个 ID。只有 `CHK-*` 按严重度排序,但不重排 ID。
-- 报告顺序固定为总体摘要、维度结果、`DOC-*` 自动修复、`CHK-*` 问题清单、`OPT-*` 可选改进、
-  未覆盖与风险、`CHK-*` 修复批次。只有 `OPT-*` 时总体仍为通过并继续完成链；没有对应通道时省略
-  该区。有 `CHK-*` 时只在末尾询问一次阻断修复范围,不得附带 commit/push 计划。
-- 用户确认 `CHK-*` 修复范围或精确授权 `OPT-*` 后,批量修复所选项并复用当前任务合法 implement route;不存在时重新进入
+- `CHK-*` 与 `FBK-*` ID 分开编号,首次分配后在同一修复/重检循环保持稳定;同根因的多个位置合并,
+  新根因使用对应通道的下一个 ID。两类问题按严重度排序,但不重排 ID。
+- 报告顺序固定为总体摘要、维度结果、`DOC-*` 自动修复、`CHK-*` 主路径问题、`FBK-*` 兜底问题、
+  未覆盖与风险、统一修复批次。没有对应通道时省略该区；任一通道有问题时总体不得 strict pass，
+  只在末尾询问一次修复范围，不得附带 commit/push 计划。
+- 用户确认 `修复全部`、混合精确问题 ID 或其它明确修复范围后,批量修复所选项并复用当前任务合法 implement route;不存在时重新进入
   `trellis-route(target=implement)`。定向验证后复用当前 check route 执行 Check-All 重检。
 - `references/platform-dispatch.json` 是平台启动契约唯一事实源，必须覆盖上游 `0.6.12` 的 21 个
   稳定平台 ID。route skill 不维护第二张 Markdown 平台表；内容投影和闭包测试必须读取同一目录。
@@ -1719,7 +1714,7 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   目标文件存在不等于可以成功启动；实际 dispatch 时确认当前 host 暴露对应 launcher。目标缺失、host
   未发现、`eligible=false` 或 verification 不成立时停止并让用户重选 inline，禁止通用 agent、
   `trellis-check` 或静默 inline fallback。
-- 专用角色只能读取本地 `trellis-check-all`、运行无写入验证并返回 profile、`CHK-*`、`OPT-*`、`DOC-*`、
+- 专用角色只能读取本地 `trellis-check-all`、运行无写入验证并返回 profile、`CHK-*`、`FBK-*`、`DOC-*`、
   blocked checks 和 residual risk。其平台格式必须显式只读：Codex `sandbox_mode=read-only`、
   Kiro/Reasonix/Snow/Kimi 等使用各自 allowlist/frontmatter；Markdown 平台正文仍保留相同硬边界。
 - 内容投影只为 Plugin Runtime 已选择或项目中已存在 root 的 eligible 平台写专用角色，并始终写
@@ -1730,11 +1725,10 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - Check-All 开始时默认 interactive;只有 runner `status` / `next` 验证 running、task 和
   outstanding check action 后才使用 auto-loop context,不得相信摘要或 raw runtime。
 - interactive 默认在标准报告后停止。若触发本轮完成链的最新用户消息已明确请求普通 push
-  或用户主动 `commit-only`,则只在整体通过、0 个阻断 `CHK-*`、无阻塞、无部分验证且无待用户接受的
-  实质剩余风险时,报告后同轮进入 Update-Spec；合规 `OPT-*` 不阻断。其它结果仍停止。
-  validated auto-loop 不展示普通修复选择:有剩余 `CHK-*` 时 `record failed`,真正产品/权限/生产副作用/
-  破坏性边界 `record blocked`,无剩余 `CHK-*` 时 `record ok` 并在摘要保留 `OPT-*` 数量和 ID；只有
-  `OPT-*` 时不进入 fix/recheck、不消耗预算。随后立即 `next`。subagent 返回三类候选、报告和 profile,
+  或用户主动 `commit-only`,则只在整体通过、剩余 `CHK-*` 与 `FBK-*` 均为 0、无阻塞、无部分验证且无待用户接受的
+  实质剩余风险时,报告后同轮进入 Update-Spec。其它结果仍停止。
+  validated auto-loop 不展示普通修复选择:有剩余 `CHK-*` 或 `FBK-*` 时 `record failed`,真正产品/权限/生产副作用/
+  破坏性边界 `record blocked`,两类问题均为 0 时 `record ok`。随后立即 `next`。subagent 返回三类候选、报告和 profile,
   主会话负责分流或 `record + next`。
 
 ### 4. Validation & Error Matrix
@@ -1749,23 +1743,22 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 | light 执行中发现影响面扩大 | 单向升级 full,补齐所有适用维度 |
 | 历史 runtime mode 为 `check-inline` | 归一为 `check-all-inline`,可复用但不直达 trellis-check |
 | 某个 lint/typecheck/test 失败 | 记录命令、退出状态和关键错误,继续其它独立验证 |
-| 历史 P1 只有极端场景假设后果且满足全部可选准入条件 | 重新分类为 `OPT-*`,不保留 P1 |
-| P2、证据不足或无法证明不影响当前验收 | 不自动降级；保留 `CHK-*`、部分验证或剩余风险 |
+| 兜底行为同时写入需求或公开契约 | 仍按保护路径根因记录为 `FBK-*`；契约证据用于严重度和影响 |
+| 候选缺少具体场景、证据、保护收益或验证方式 | 不生成 `FBK-*`；按证据使用部分验证、剩余风险、阻塞或不报告 |
 | 缺少历史数据或运行环境证据 | 标记 `部分验证` 或 `阻塞`,不得标记通过 |
 | 规划冲突导致无法判断正确行为 | 输出统一阻塞报告,只询问解除阻塞所需的业务决策 |
 | 验证可能修改生产数据或调用有副作用外部系统 | 不执行,标记阻塞或未覆盖风险 |
 | 文档片段仍写旧状态且发布记录/环境回读/测试输出唯一证明新状态 | 记录 `DOC-*` `fact-status`,主会话自动修复并在报告展示验证 |
-| 文档片段需要改操作路径、接口协议、安全边界、上线承诺或验收口径 | 不得自动修复,转为 `CHK-*`、剩余风险或阻塞 |
-| 用户选择部分 `CHK-*` | 只批量修复选中 ID,未选问题保留在重检结果 |
+| 文档片段需要改操作路径、接口协议、安全边界、上线承诺或验收口径 | 不得自动修复,按根因转为 `CHK-*`、`FBK-*`、剩余风险或阻塞 |
+| 用户选择部分 `CHK-*` / `FBK-*` | 只批量修复选中 ID,未选问题保留在重检结果 |
 | subagent 只有自修复型 `trellis-check` agent | 禁止 dispatch,让用户改选 `check-all-inline` |
 | subagent 已选中但 catalog target 或 host launcher 不可用 | dispatch fail closed,展示原因并让用户重选 inline,不得声称 subagent 已执行 |
 | subagent 已选中但当前平台 `checkAll.eligible=false` | dispatch 停止,展示 `inlineOnlyReason` 并让用户重选 inline |
 | workspace-write `trellis-check` 收到统一检查意图 | Intent Guard 停止且零写入,指向专用 `trellis-check-all` |
 | 普通 interactive Check-All 无问题 | 报告画像、通过和剩余风险,指向 Phase 3.3/3.4,停止等待 |
-| 普通 interactive Check-All 只有 `OPT-*` | 总体通过,展示“为什么可选”和收益,主动作仍是继续完成链 |
 | direct Git + Check-All 严格通过 | 展示同一标准报告,同轮进入 Update-Spec;不生成专用摘要或 Git 计划 |
-| direct Git + 剩余 `CHK-*`/blocked/部分验证/实质风险 | 展示标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
-| validated auto-loop 只有 `OPT-*` | `record ok`,摘要保留数量和 ID,不进入 fix/recheck |
+| direct Git + 剩余 `CHK-*`/`FBK-*`/blocked/部分验证/实质风险 | 展示标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
+| validated auto-loop 存在 `CHK-*` 或 `FBK-*` | `record failed`,进入 fix/recheck |
 | validated auto-loop Check-All 完成 | 写回 effective depth/result/reason 并立即 next |
 
 ### 5. Good/Base/Bad Cases
@@ -1773,15 +1766,15 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - Good: 用户先说轻量检查、后改为最终检查;以最后一次表达选择 full,完成三个适用维度。
 - Good: 两个验证命令和一个规划对照分别发现问题;Check-All 完成其余安全检查后输出
   `CHK-001` 至 `CHK-003`,用户回复“修复全部”,实现阶段一次修复并统一重检。
-- Good: 历史 P1 只描述极端场景的假设后果,当前契约和验证均已满足且无可达错误证据；重新列为
-  `OPT-001`,报告解释“为什么可选”和额外收益,用户可直接继续。
+- Good: 阿里云迁移声明要求无效范围必须失败关闭,实现却继续放行；根因是 fail-closed 保护失效，
+  记录为 `FBK-001 [P1]`,契约证据用于确认影响与严重度，不改列为 `CHK-*`。
 - Base: 只改一处 UI 文案且可穷举引用;auto 选择 light,API/历史数据/跨层维度标记
   `N/A`,定向验证通过后正式满足检查门禁。
 - Base: 接入说明 HTML 仍写“待回读”,但已读取 Nacos 回读输出唯一证明固定回调已生效;
   Check-All 将该片段作为 `DOC-* fact-status` 自动改为已回读状态,不改联调步骤或协议字段。
 - Base: 旧 runtime 保存 `check-subagent`;helper 输出 canonical `check-all-subagent`,
   后续仍执行 audit-only Check-All。
-- Base: subagent 返回包含 `CHK-*` / `OPT-*` / `DOC-*` 的标准只读报告;主会话负责展示清单并询问一次阻断修复范围,subagent 不修改文件。
+- Base: subagent 返回包含 `CHK-*` / `FBK-*` / `DOC-*` 的标准只读报告;主会话负责展示清单并询问一次统一修复范围,subagent 不修改文件。
 - Base: 项目只启用 Codex 和 Claude;投影只新增两个原生专用 agent 与 channel `check-all`,不创建
   Gemini/Kiro 等未启用 root。
 - Bad: 第一个测试失败后立即问“要不要修”,导致后续 lint、规划和跨层问题未被发现。
@@ -1794,7 +1787,7 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 ### 6. Tests Required
 
 - 静态检查 `trellis-check-all` 的 `.agents` / `.claude` 源副本一致,并确认包含
-  requested/effective profile、hard-full、light eligibility、稳定 `CHK-*` / `OPT-*`、Auto-Loop Return Gate
+  requested/effective profile、hard-full、light eligibility、稳定 `CHK-*` / `FBK-*`、Auto-Loop Return Gate
   先于 Interactive Post-Check Stop Gate。
 - 静态检查 `trellis-route` 不再把 `check-all-subagent` fallback 到
   `Agent({subagent_type: "trellis-check"})`,且 dispatch prompt 第一行包含当前任务路径。
@@ -1814,8 +1807,8 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   操作路径、接口协议、安全边界、上线承诺和验收口径改写。
 - 快速路径场景断言未命中 Trigger 的维度为 `N/A`,不会展开无关检查。
 - collect-all 场景断言多个独立失败被完整收集,报告只出现一次修复范围选择,检查阶段文件无变化。
-- optional 场景断言分类先于严重度、P1/P2 不直接决定处置、禁止降级清单完整、`修复全部` 仅覆盖
-  `CHK-*`,optional-only 对 interactive/untracked/auto-loop/direct Git/Push 均按通过处理。
+- fallback 场景断言分类先于严重度、明确兜底契约不改变 `FBK-*` 归属、严格准入完整、纯偏好不报告、
+  `修复全部` 覆盖 `CHK-*` 与 `FBK-*`,任一剩余 `FBK-*` 都阻断 interactive/untracked/auto-loop/direct Git/Push。
 - 修复/重检场景断言原问题 ID 保持稳定,修复复用 implement route,重检复用 check route。
 - 深度场景覆盖 auto light、显式 full、显式 light 命中 hard-full、fallback full、执行中升级,
   以及 full 修复/blocked retry 不降级。
@@ -1844,7 +1837,7 @@ to the validated auto-loop runner.
 ```
 
 原因:检查深度不再与执行位置耦合;用户先看到完整风险面再一次决策,auto-loop 则保持连续推进;
-分类先于严重度,避免把真实错误弱化为可选项或把纯假设兜底误打成 P1 必修；
+分类先于严重度,让主路径与兜底根因稳定可见，同时用严格准入避免把纯偏好变成阻断项；
 inline/subagent、修复和重检仍服从 Trellis 既有路由与阶段边界。
 
 ## Scenario: Project Knowledge Discovery Helper
@@ -2090,7 +2083,7 @@ python3 ./.trellis/scripts/decision_log.py review \
 - `decisions.jsonl` 使用 append-only decision/review 事件；decision ID 单调递增，review 绑定当前全部 decision digest。新增 decision 会使旧 review 失效，损坏 JSONL 默认失败关闭。
 - decision 修改 planning/handoff 时，`--file` 必须列出全部 `<repository>::<path>`。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则进入匹配 action 的 artifact drift 处理。
 - `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。`run_check_all` / `run_recheck` 的 outstanding action 还要保存 `prd.md`、`design.md`、`implement.md`、`brief.md` 的逐文件 baseline；检查结果必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
-- Check-All record 以剩余 `CHK-*` 决定 `failed|ok`：只有 `OPT-*` 时必须 `record ok`,摘要保留可选项数量和 ID,不得进入 fix/recheck 或消耗修复预算。
+- Check-All record 以剩余 `CHK-*` 与 `FBK-*` 共同决定 `failed|ok`：任一通道存在问题时必须 `record failed` 并进入 fix/recheck；只有两类问题均为 0 时才能 `record ok`。
 - Check-All 自动修复当前任务 `implement.md` 或 `brief.md` 时，每个实际变化文件必须通过重复的 `--doc-remediation-file` 精确声明。声明集合必须与 action baseline 后的真实变化完全一致；`prd.md`、`design.md`、其它任务和其它文件拒绝重绑。合法 DOC 修复重算 planning/handoff hash，追加 `change_source=check-doc-remediation` 和 files 的 manifest revision 与 item audit event。
 - 未声明或未完全授权的 Check record artifact drift 返回 `status=retryable`，保持 item running 和原 outstanding action，不得调用 `next`。agent 只能撤回本 action 误改、补充合法 DOC 声明后重录，或用 `--result blocked --failure-type artifact-drift` 明确结束。其它 action、protected drift 和 `next` 发出 action 前的跨 action 漂移继续 terminal blocked。
 - 任务级 failure、planning repair 预算耗尽、terminal artifact drift、protected 冲突、spec needs-review 或 commit-only 归属失败只阻塞当前项，并传播到显式依赖项；独立任务继续。队列结束后不自动执行第二遍恢复扫描。
@@ -2137,7 +2130,8 @@ python3 ./.trellis/scripts/decision_log.py review \
 | action files 命中 protected key | 当前项以 `protected-path-conflict` 阻塞 |
 | protected 内容在 action 期间变化 | 记录 repository/path/前后 hash，以 `protected-baseline-drift` 阻塞当前项 |
 | requested/minimum full 却 record light | 返回 `check-depth-below-minimum`，outstanding action 保留 |
-| Check-All 只有 `OPT-*` 且无阻塞/部分验证/实质风险 | `record ok`,摘要保留 OPT 数量和 ID,下一步进入 spec update |
+| Check-All 存在 `CHK-*` 或 `FBK-*` | `record failed`,进入 fix/recheck 并消耗现有修复预算 |
+| Check-All 两类问题均为 0 且无阻塞/部分验证/实质风险 | `record ok`,下一步进入 spec update |
 | `fix_recheck` 计数等于 `MAX_FIX_RECHECK` | 下一步仍返回第 3 个 `run_fix`，不得提前阻断 |
 | 第 3 次 recheck 仍 failed，计数大于预算 | 当前 item 以 `retry-budget-exhausted` blocked |
 | `retry-blocked` 恢复 `retry-budget-exhausted` | item 回到 pending，`attempts.fix_recheck=0` |
@@ -2216,7 +2210,7 @@ python3 ./.trellis/scripts/decision_log.py review \
   目录移动前零副作用失败；accepted 后保持既有归档行为。
 - Check-All 测试覆盖 requested/minimum/effective depth、legacy full fallback、failed -> fix -> full
   recheck、DOC manifest 重绑、非法路径、声明/实际不一致、retryable 后成功、3 次预算后阻塞、
-  显式 blocked、optional-only `record ok` 且不消耗 fix/recheck 预算，以及成功 record 后立即 `next`。
+  显式 blocked、任一 `FBK-*` 必须 `record failed` 并进入 fix/recheck，以及成功 record 后立即 `next`。
 - commit-only runner 测试覆盖旧单 `--commit` 兼容、多 `--repo-commit` 幂等保存、默认短 hash/verbose
   完整列表、task progress 多仓摘要，以及未登记仓库、非法 hash、非 commit object、仓库不可读、
   同仓冲突和主 commit 不匹配的结构化错误。
@@ -2320,8 +2314,8 @@ run_check_all -> run_spec_update -> commit_only
 
 - Check-All 的 interactive stop 保持默认行为。仅当已经进入当前 Check-All 完成链，且触发本轮
   完成链的最新用户消息明确请求普通
-  push 或用户主动 `commit-only`,且 Check-All 整体通过、0 个阻断 `CHK-*`、无阻塞、无部分验证、
-  无待用户接受的实质剩余风险时,先展示现有标准报告,再同轮运行 Update-Spec；合规 `OPT-*` 不阻断。
+  push 或用户主动 `commit-only`,且 Check-All 整体通过、剩余 `CHK-*` 与 `FBK-*` 均为 0、无阻塞、无部分验证、
+  无待用户接受的实质剩余风险时,先展示现有标准报告,再同轮运行 Update-Spec。
   不得从历史、摘要、dirty
   状态或 auto-loop 内部 action 推断该意图,也不得新增 direct Git 专用摘要。
 - 该窄例外只控制已经启动的 Check-All completion chain，不授权 Check-All 或 Update-Spec 拦截
@@ -2356,7 +2350,7 @@ run_check_all -> run_spec_update -> commit_only
 |------|------|
 | 普通 Check-All passed,用户尚未继续 | 报告并停止,不运行 Update-Spec |
 | 当前 Check-All 完成链内 direct Git + strict pass | 展示现有标准报告,同轮运行 Update-Spec |
-| 当前 Check-All 完成链内 direct Git + 剩余 `CHK-*`/blocked/partial/material risk | 标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
+| 当前 Check-All 完成链内 direct Git + 剩余 `CHK-*`/`FBK-*`/blocked/partial/material risk | 标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
 | 用户 next/continue,无新契约 | 返回 no-op,同轮进入 Trellis Push |
 | 新契约有代码/测试证据且目标唯一 | 最小 written + 自校验,同轮进入 Trellis Push |
 | 现有 spec 已完整覆盖 | no-op,不得重复写同义内容 |
@@ -2499,11 +2493,11 @@ risk_items          ->始终逐项展示,不折叠
   `trellis-push` 在读取 Git 计划前只记录当前可验证的 Check-All / Update-Spec 证据，不补跑、
   不切换阶段、不要求用户改写成“跳过检查后 push”，也不增加运行/跳过检查的二选一确认。
 - Check-All 证据状态固定为 `通过`、`未运行`、`已失效`、`存在阻断 findings`、`blocked` 或
-  `部分验证`；只有合规 `OPT-*` 的报告仍标记为 `通过`。Update-Spec 证据状态固定为
+  `部分验证`；只有剩余 `CHK-*` 与 `FBK-*` 均为 0 才能标记为 `通过`。Update-Spec 证据状态固定为
   `no-op`、`written`、`needs-review`、`未运行` 或
   `已失效`。没有当前可验证证据时使用 `未运行`，不得从历史、摘要或 dirty 状态猜测通过。
-- 完成链状态不阻止读取 Git 状态或生成提交计划。`未运行`、`已失效`、阻断 findings、blocked、
-  部分验证或 `needs-review` 必须同时进入计划风险区，但不得派生第二次确认；合规 `OPT-*` 不单独降为风险。
+- 完成链状态不阻止读取 Git 状态或生成提交计划。`未运行`、`已失效`、任一剩余 `CHK-*` / `FBK-*`、blocked、
+  部分验证或 `needs-review` 必须同时进入计划风险区，但不得派生第二次确认。
 - 当前 `spec_update_result.status=written` 只有在结果仍适用于实际 diff 时才展示为 `written`；
   结果外出现其它变化时标记为 `已失效` 并披露风险，不得因此把请求拉回 Phase 2.2。
 - 只有 Git 层面的确定性安全条件可以阻断计划，包括冲突或未完成集成状态、exact files 无法
@@ -2589,7 +2583,7 @@ risk_items          ->始终逐项展示,不折叠
 | 普通 check 汇总准备输出 commit message / planned files | 停止;只输出检查报告与下一步 |
 | 显式 Push 缺少 Check-All | 记录 `未运行` 并进入风险区，继续 Git 预检与计划 |
 | Check-All 报告过期、存在阻断 findings、blocked 或部分验证 | 记录对应状态并进入风险区，继续 Git 预检与计划 |
-| Check-All 报告只有合规 `OPT-*` | 记录 `通过`,不因可选项单独进入风险区 |
+| Check-All 报告存在 `CHK-*` 或 `FBK-*` | 记录 `存在阻断 findings` 并进入风险区 |
 | Update-Spec 缺少/过期或为 needs-review | 记录对应状态并进入风险区，继续 Git 预检与计划 |
 | Check-All / Update-Spec 均有效 | 展示实际状态，继续 Git 预检与计划 |
 | 计划存在冲突、无法归属 exact files 或其它 Git 安全阻塞 | 停止并报告确定性 Git 问题 |
@@ -2633,7 +2627,7 @@ risk_items          ->始终逐项展示,不折叠
   两项 `未运行` 并列入风险，同时展示 exact files 和 commit message，只等待原有一次最终确认。
 - Good:当前 Check-All 存在阻断 findings、Update-Spec 为 `needs-review`；两项状态进入同一计划风险区，
   不再追加“是否跳过”确认，Git 安全预检通过后仍可由用户一次确认执行。
-- Good:当前 Check-All 只有 `OPT-*`；完成链证据仍显示 `通过`,Push 计划不把可选项重复列为风险。
+- Good:当前 Check-All 存在 `FBK-001`；完成链证据显示 `存在阻断 findings`,Push 计划把它纳入风险区而不伪装通过。
 - Good:单仓 20 个普通 planned files 按目录压成 6 行,2 个未识别 dirty 文件仍逐项展示;
   用户回复“展开文件”后看到原 20 个 exact paths。
 - Good:两个业务仓库各自拥有 commit message 和 branch/upstream,顶部显示执行顺序和一行任务
@@ -2667,8 +2661,8 @@ risk_items          ->始终逐项展示,不折叠
   `Proposed commits`、commit message、planned files 和提交确认。
 - 静态扫描普通用户继续和当前 Check-All completion chain 内的 direct Git strict-pass 两条
   resume-chain，确认正常 workflow 仍沿用标准报告并经 Update-Spec 进入 `trellis-push`。
-- 静态与行为测试覆盖显式 Push 在 Check-All/Update-Spec 未运行、已失效、阻断 findings、blocked、
-  部分验证或 `needs-review` 时仍生成计划，并把状态写入“完成链证据”与风险区；只有 `OPT-*` 时保持通过。
+- 静态与行为测试覆盖显式 Push 在 Check-All/Update-Spec 未运行、已失效、任一剩余 `CHK-*` / `FBK-*`、blocked、
+  部分验证或 `needs-review` 时仍生成计划，并把状态写入“完成链证据”与风险区。
 - 静态断言 `trellis-push` 不返回 Phase 2.2、不加载 `trellis-check-all` / `trellis-update-spec`、
   不包含运行/跳过检查二选一；auto-loop internal commit-only 继续复用既有
   `run_spec_update -> commit_only` 预授权而不重复记录交互证据。

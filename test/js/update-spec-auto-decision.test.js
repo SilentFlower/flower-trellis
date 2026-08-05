@@ -86,7 +86,7 @@ test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Upd
   assert.match(autoLoopReturn, /不得 `next`/);
   assert.doesNotMatch(autoLoopReturn, /提示用户回复 `继续`/);
   assert.match(postCheck, /最新用户消息识别 direct Git intent/);
-  assert.match(postCheck, /整体结论通过、剩余 `CHK-\*` 为 0、无阻塞、无部分验证/);
+  assert.match(postCheck, /整体结论通过、剩余 `CHK-\*` 和 `FBK-\*` 均为 0、无阻塞、无部分验证/);
   assert.match(postCheck, /标准报告输出后，同一轮进入 Phase 3\.3 `trellis-update-spec`/);
   assert.match(postCheck, /普通 interactive 检查保持原行为：报告后立即停止并等待用户选择/);
   assert.match(postCheck, /### 交互式下一步引导/);
@@ -113,8 +113,8 @@ test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Upd
   assert.match(push, /不得加载 `trellis-check-all` 或 `trellis-update-spec`/);
   assert.match(push, /不会阻止读取 Git 状态或生成提交计划/);
   assert.match(push, /### 完成链证据/);
-  assert.match(push, /`未运行`、`已失效`、阻断 findings、blocked、部分验证或 `needs-review` 同时计入风险区/);
-  assert.match(push, /只有合规 `OPT-\*` 的报告仍标记为 `通过`/);
+  assert.match(push, /`未运行`、`已失效`、任一剩余 `CHK-\*` \/ `FBK-\*`、blocked、部分验证或 `needs-review` 同时计入风险区/);
+  assert.match(push, /只有剩余 `CHK-\*` 与 `FBK-\*` 均为 0 才能标记为 `通过`/);
   assert.match(push, /auto-loop 内部 `commit-only` 已由 runner/);
   assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);
 });

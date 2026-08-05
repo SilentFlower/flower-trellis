@@ -94,7 +94,7 @@ check_profile:
 - 权限、鉴权、安全、资金、并发、时序、状态机或回滚；
 - workflow、skill、command、hook 注入或生成快照；
 - 安装、升级、发布、push/commit 工作流控制面；
-- 正在重检既有 full `CHK-*` 修复结果；
+- 正在重检既有 full `CHK-*` / `FBK-*` 修复结果；
 - light 执行中发现未知 dirty path、真实影响面扩大或关键验证缺口。
 
 **light eligibility 必须全部满足**：
