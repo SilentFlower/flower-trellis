@@ -1,0 +1,74 @@
+{
+  "id": "unify-check-all-fallback-semantics",
+  "name": "unify-check-all-fallback-semantics",
+  "title": "统一 Check-All 兜底分类语义",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-05T14:36:19Z",
+      "contextKey": "codex_019fd1d8-9900-7da0-8c70-f36964fc6f62",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "ebb1edfc7b589d1519987ac65393a824ba80a297",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "ebb1edfc7b589d1519987ac65393a824ba80a297",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "655e4eff61c679587f322779f243a68e05248e26d87cf8c73c378d879f970be8"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "3482b8028d8db708c032a4b668532bc0400fda12",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "c705c6806bee06ee1dd6aa36d7fef81d94e134d639419848f9dbcb4daa69e462"
+          }
+        ],
+        "fingerprint": "b166c3695d20e10b2562bfa272187d97cdd2400304b1d28c632511b4654ff407"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-05T15:56:53.056Z",
+    "completedSteps": [
+      "统一 Check-All 的 CHK/FBK/DOC 问题模型",
+      "同步 Skill Garden、Flower 快照、dogfood 与编译目标",
+      "完成 Full Check-All、完整质量门和最终快照一致性验证",
+      "完成双仓业务提交与推送"
+    ],
+    "partialStep": null,
+    "nextStep": "等待显式 trellis-finish-work 归档任务",
+    "notes": ""
+  }
+}

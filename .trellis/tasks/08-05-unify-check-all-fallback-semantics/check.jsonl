@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"核对 CHK/FBK/DOC 在所有完成链 owner 中一致落地"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"核对源、快照、dogfood、compiled targets 与完整质量门"}
+{"file":".trellis/tasks/archive/2026-08/08-05-check-all-optional-findings/prd.md","reason":"反向检查旧 OPT 语义已完整替换且未保留并行授权分支"}
+{"file":".trellis/tasks/archive/2026-08/08-05-unify-aliyun-query-skill/design.md","reason":"用无效迁移 fail-closed 场景验证兜底性质优先于可选/必修分类"}

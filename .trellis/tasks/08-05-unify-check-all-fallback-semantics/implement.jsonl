@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"Check-All、auto-loop、untracked、workflow 与 push 的跨 owner 长期契约"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"Skill-Garden 真实源、快照一致性、Patch 冲突与完整测试要求"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"避免在 Check-All、route、workflow、push 中维护漂移的重复分类语义"}
+{"file":".trellis/tasks/archive/2026-08/08-05-check-all-optional-findings/design.md","reason":"上一版 OPT 模型的文件所有权、报告与完成链设计基线"}
