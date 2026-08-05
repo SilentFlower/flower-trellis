@@ -765,3 +765,27 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 79: 集成阿里云 DMS Skill 到 skill-garden
+
+**Date**: 2026-08-05
+**Task**: 集成阿里云 DMS Skill 到 skill-garden
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 aliyun-dms-query 双平台 Skill 源、Flower 离线快照和文档测试集成；修复 CLI 文档参数顺序与 spec-router 测试基线，完整测试通过并完成双仓推送。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7cda3f7` | (see git log) |
+| `a582d1c` | (see git log) |
+| `fe0e0f6` | (see git log) |
+
+### Status
+
+[OK] **Completed**

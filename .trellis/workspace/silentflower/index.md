@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 78
+- **Total Sessions**: 79
 - **Last Active**: 2026-08-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~767 | Active |
+| `journal-2.md` | ~791 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 79 | 2026-08-05 | 集成阿里云 DMS Skill 到 skill-garden | `7cda3f7`, `a582d1c`, `fe0e0f6` | `beta` |
 | 78 | 2026-08-05 | 完成 Trellis worktree 分支隔离重构 | `a64ff6e`, `dde2fbb` | `beta` |
 | 77 | 2026-08-04 | 更新 Flower 手动升级入口与 SLS skill 守则 | `634fdd2`, `b1df949`, `ec0b4ec` | `beta` |
 | 76 | 2026-08-04 | 兼容 Trellis worktree 开发入口 | skill-garden `e5953b3`; flower-trellis `5af8e7a`; task `44301d5` | `beta` |
