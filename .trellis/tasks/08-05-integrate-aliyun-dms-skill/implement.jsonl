@@ -1,0 +1,3 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"定义 skill-garden 子模块、common Skill 离线快照、manifest 与提交顺序。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"约束幂等、精确分发、测试与敏感信息检查。"}
+{"file":".trellis/tasks/08-05-integrate-aliyun-dms-skill/research/dms-skill-integration.md","reason":"记录 Claude 会话产物、DMS 安全契约和仓库集成证据。"}

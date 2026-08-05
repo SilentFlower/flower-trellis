@@ -1,0 +1,74 @@
+{
+  "id": "integrate-aliyun-dms-skill",
+  "name": "integrate-aliyun-dms-skill",
+  "title": "集成阿里云 DMS Skill 到 skill-garden",
+  "description": "将 Claude 会话 ac060d54-fe9a-46ac-b194-64a39f5b6740 中生成并实测的 aliyun-dms-query 通用 Skill 集成到 skill-garden 的 Claude/Codex 分发源，并同步 Flower 离线快照与验证。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "skill-garden",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-05T06:40:33Z",
+      "contextKey": "codex_019fd0a4-5cbf-7f73-8bac-da94301681b4",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "e8fbf21556191128179c1e6fd3ab827b51e7b793",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "e8fbf21556191128179c1e6fd3ab827b51e7b793",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "0c867c585c56dcd0b3a5a34f2905e2945c718b033419e8d28fd7fe756701c15f"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "a64ff6e9efc2fdfb8354e17fa9868b4eb72b59d5",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "48d35b95cc4aa6a8c8a0c5505990ebf9f787e2359b1bafe31200b020949495c9"
+          }
+        ],
+        "fingerprint": "a23a429aca0bb07ee3f6a06935ae5285534d7ac0c11ec26afcbe9ca3a9474c46"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-05T07:17:12Z",
+    "completedSteps": [
+      "集成 aliyun-dms-query 到 skill-garden 的 Claude/Codex 通用 Skill 源",
+      "同步 Flower common 离线快照、manifest 与父仓文档",
+      "修复 CHK-002 与 CHK-005 并通过聚焦及全量验证",
+      "完成 skill-garden 与 flower-trellis 业务提交和推送"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档任务",
+    "notes": "用户明确保留 CHK-001、CHK-003、CHK-004；未创建真实 DMS 工单。"
+  }
+}
