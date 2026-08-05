@@ -42,6 +42,13 @@ const localizedSubjects = new Map([
   ["8b48a5c", "同步 Check-All fact-status 文档修复规则"],
   ["5af8e7a", "新增 linked worktree 入口准备能力"],
   ["b1df949", "新增对话内 Flower 手动升级入口"],
+  ["dde2fbb", "让 Trellis worktree 状态按分支隔离"],
+  ["a582d1c", "集成阿里云 DMS 查询 Skill"],
+  ["a27b5c", "新增 Trellis 项目级关闭与恢复能力"],
+  ["add project-level disable and recovery", "新增 Trellis 项目级关闭与恢复能力"],
+  ["839904e", "新增 Check-All 可选问题分类"],
+  ["44ba195", "将 DMS、SLS、MSE/Nacos 整合为阿里云运维查询 Skill"],
+  ["eda90ec", "将 Check-All 可选问题收敛为统一兜底分类"],
 ]);
 
 const detailedReleaseSubjects = new Map([
