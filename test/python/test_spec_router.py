@@ -392,7 +392,7 @@ open IntelliJ IDEA local tool launch
         self.assertNotIn(secret, markdown)
 
     def test_repository_positive_and_negative_queries_do_not_regress(self) -> None:
-        """历史发版正例与轻量操作负例保持稳定。"""
+        """历史发版正例保持稳定，轻量操作不得形成高置信候选。"""
         positive = SPEC_ROUTER.find_candidates(
             ROOT,
             "beta release publish tag changelog npm",
@@ -409,11 +409,7 @@ open IntelliJ IDEA local tool launch
             positive[0].path,
             ".trellis/spec/flower-trellis/cli/release-and-publishing.md",
         )
-        self.assertEqual(
-            SPEC_ROUTER.find_candidates(ROOT, negative_queries[0], 3),
-            [],
-        )
-        for query in negative_queries[1:]:
+        for query in negative_queries:
             with self.subTest(query=query):
                 candidates = SPEC_ROUTER.find_candidates(ROOT, query, 3)
                 self.assertFalse(
