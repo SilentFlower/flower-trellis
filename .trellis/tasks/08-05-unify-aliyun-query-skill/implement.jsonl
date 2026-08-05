@@ -1,0 +1,6 @@
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"统一 common Skill 的真实源、快照、removedSkills 与共享 ownership 契约"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"builtin Plugin 事务、shared common Skill 与卸载保留语义"}
+{"file":".trellis/spec/flower-trellis/cli/module-guidelines.md","reason":"Flower ESM 模块、导出函数与中文 JSDoc 规范"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"迁移幂等、精确清理、安全边界和测试要求"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Skill-Garden 源、Flower 快照、安装器与 Plugin 跨层数据流"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"公共 ENV/RPC 模块与单一迁移清单的复用边界"}

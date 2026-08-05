@@ -1,0 +1,74 @@
+{
+  "id": "unify-aliyun-query-skill",
+  "name": "unify-aliyun-query-skill",
+  "title": "整合可扩展的阿里云运维查询 Skill",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-05T12:18:52Z",
+      "contextKey": "codex_019fd1d8-9900-7da0-8c70-f36964fc6f62",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "2516e79d8bb6909a1a1da3cd0840d1c4cc3c1902",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "2516e79d8bb6909a1a1da3cd0840d1c4cc3c1902",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "e7079fb93b0fb313b85d54b9da73063baccd3aa0cde02ac601eb90abacc6755f"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "c76177cedba8a6f6d8f06c98a53571519062a683",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "858bba85d254a055c821ad2c5a20e2bd5e3e4bfe9f0af6326196ea36086de0fc"
+          }
+        ],
+        "fingerprint": "983559d1d3a9231d401739d34d63cd689a3fbb0d9a6961bc10ee9b1f84e4f5c8"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-05T14:27:25Z",
+    "completedSteps": [
+      "完成 aliyun-ops Skill 整合、旧 Skill 自动迁移与 ENV 兼容",
+      "修复 Check-All 全部发现并通过完整质量门",
+      "更新 common Skill 替换迁移代码规范",
+      "提交并推送 skill-garden 与 flower-trellis 业务变更"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档任务，再创建 Check-All 兜底通道独立任务",
+    "notes": "Node 410/410、Python 224/224、Patch 冲突、compiled targets、上下文预算与快照一致性检查通过。"
+  }
+}
