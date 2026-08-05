@@ -1,0 +1,2 @@
+{"file":".trellis/tasks/08-05-check-all-optional-findings/research/current-check-all-rules.md","reason":"提供当前 CHK/DOC 基线、OPT 设计约束以及 Skill-Garden 0.6 源、Patch、compiled targets、快照和 dogfood 同步规则"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"约束聚焦测试、全量测试、diff 校验和跨仓质量门禁"}

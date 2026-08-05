@@ -1,0 +1,73 @@
+{
+  "id": "check-all-optional-findings",
+  "name": "check-all-optional-findings",
+  "title": "区分 Check-All 必修问题与可选改进",
+  "description": "为 Check-All 新增非阻断 OPT 可选改进通道，并保持报告、auto-loop、workflow、route 与 push 处置一致。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "skill-garden 0.6 Check-All 问题模型、报告与跨阶段处置契约",
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-05T10:04:05Z",
+      "contextKey": "codex_019fd15d-c6c6-7153-abc5-37dfc272cc80",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "031ef1997a8a130c893f5fc3f3b498e5f6df2c1e",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "031ef1997a8a130c893f5fc3f3b498e5f6df2c1e",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "1f81ae90a9f29b81c2604a062123c8898aaaffee41de444f6bb20c257ac2a9d3"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "7cda3f77a57d9782a4618a2ac497de1e207d6b93",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "d175a569215fdaaa5bbcd46cd47c24e2bddd3d8c5ffea84b7ec9a778047d247b"
+          }
+        ],
+        "fingerprint": "dc7972046c93c0a3a0ff8717e6d89d4498b6785886772044eb151fc64828c206"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-05T12:08:05Z",
+    "completedSteps": [
+      "实现 Check-All CHK/OPT/DOC 分类与跨阶段处置",
+      "同步 Skill-Garden compiled targets、Flower 快照与 dogfood 产物",
+      "完成 full Check-All、Update-Spec 与双仓业务推送"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 完成归档和会话收尾",
+    "notes": "Skill-Garden 与 flower-trellis 已推送 beta 分支。"
+  }
+}

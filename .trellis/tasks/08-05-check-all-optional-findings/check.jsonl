@@ -1,0 +1,2 @@
+{"file":".trellis/tasks/08-05-check-all-optional-findings/research/current-check-all-rules.md","reason":"复核新增 OPT 通道没有破坏既有 collect-all、strict pass、完成链和持久化同步基线"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查聚焦测试、全量测试、diff 校验和跨仓质量门禁是否完整执行"}
