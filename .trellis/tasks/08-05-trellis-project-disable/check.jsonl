@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"完整质量门禁、错误处理和回归审查"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"事务、回滚、state ownership 与错误矩阵核对"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"状态文件、update 补偿和 CLI 契约核对"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"确认控制面没有造成 Skill-Garden 源/快照漂移"}
+{"file":".trellis/tasks/08-05-trellis-project-disable/research/ownership-and-update-boundaries.md","reason":"验证实现覆盖已研究的目标发现与显式绕过边界"}

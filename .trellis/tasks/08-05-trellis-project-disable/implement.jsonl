@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"统一 Plugin preflight、事务、平台选择与 lifecycle 边界"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"项目本机状态、路径、CLI 参数和 update 补偿契约"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"Skill-Garden 投影、所有权与快照同步边界"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"CLI、状态、平台入口、update 和 Plugin 的跨层闭环"}
+{"file":".trellis/tasks/08-05-trellis-project-disable/research/ownership-and-update-boundaries.md","reason":"本任务已确认的所有权事实与直接上游 update 技术边界"}

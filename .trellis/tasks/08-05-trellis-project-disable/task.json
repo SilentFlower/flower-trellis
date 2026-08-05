@@ -1,0 +1,74 @@
+{
+  "id": "trellis-project-disable",
+  "name": "trellis-project-disable",
+  "title": "实现 Trellis 项目级关闭与恢复",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-05T07:42:08Z",
+      "contextKey": "codex_019fd0ce-88fd-7bb3-b073-1b8f8ae875e5",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "bb339000326c447f8a7482dffbada4d9fb794f61",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "bb339000326c447f8a7482dffbada4d9fb794f61",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "f4a370107cc88ec64db3425171ec508e361f3e96b058c25591b739e91abba2ae"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "7cda3f77a57d9782a4618a2ac497de1e207d6b93",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "d175a569215fdaaa5bbcd46cd47c24e2bddd3d8c5ffea84b7ec9a778047d247b"
+          }
+        ],
+        "fingerprint": "219b2407fd3c4fe5793902d4d274a37225cc4098fff98ab2b6d1f586d0b2c476"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-05T09:46:45Z",
+    "completedSteps": [
+      "实现项目级 Trellis disable、enable 与 status 控制面",
+      "完成所有权安全、共享配置恢复、漂移检测与事务回滚",
+      "集成 update、self-update 与 Plugin disabled 生命周期补偿",
+      "完成文档规范、全量测试、隔离 dogfood 与 Full Check-All"
+    ],
+    "partialStep": null,
+    "nextStep": "等待显式 trellis-finish-work 归档",
+    "notes": "Full Check-All 严格通过；Node 404 项、Python 210 项、打包与隔离关闭恢复验证均通过。"
+  }
+}
