@@ -1,0 +1,39 @@
+{
+  "id": "refactor-trellis-worktree-branch-isolation",
+  "name": "refactor-trellis-worktree-branch-isolation",
+  "title": "重构 Trellis worktree 分支隔离",
+  "description": "将 trellis-worktree 从跨 worktree 整目录 symlink 投影重构为分支本地 Trellis 环境，并补充机器本地 worktree 注册、任务映射和旧投影迁移。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "flower-trellis CLI、Skill-Garden worktree helper/skill、hook fallback、任务 worktree 编排与兼容迁移",
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-08-05T06:05:45Z",
+    "completedSteps": [
+      "完成 branch-local worktree engine、Flower CLI facade 与 legacy migration",
+      "移除跨 worktree fallback，补全 registry、create/remove 安全边界",
+      "同步 Skill-Garden、compiled targets、enhancements、dogfood 与 code-spec",
+      "Full Check-All、npm test、Patch 漂移和 diff 检查全部通过",
+      "两个业务仓库的 beta 分支均已提交并推送"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档任务",
+    "notes": "业务变更已推送；任务记录提交成功后进入 completed。"
+  }
+}

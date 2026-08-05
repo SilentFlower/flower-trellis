@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "定位 CLI 状态、Patch、模块和质量规范的权威文档。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "新增 Flower CLI command/lib 时遵守模块、导出和 JSDoc 约定。"}
+{"file": ".trellis/tasks/08-05-refactor-trellis-worktree-branch-isolation/research/worktree-isolation-findings.md", "reason": "保留当前实现证据、上一版决策和本次分支隔离根因。"}

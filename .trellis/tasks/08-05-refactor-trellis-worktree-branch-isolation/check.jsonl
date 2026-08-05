@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "定位 worktree 状态、Patch、事务和质量规范的权威章节。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "执行项目级 Node/Python、dogfood、快照和 diff 质量门槛。"}
+{"file": ".trellis/tasks/08-05-refactor-trellis-worktree-branch-isolation/research/worktree-isolation-findings.md", "reason": "反向验证实现没有重新引入跨分支 Trellis 内容共享。"}
