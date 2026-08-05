@@ -742,3 +742,26 @@
 ### Next Steps
 
 - 如需后续发布 npm 包，另走项目 release SOP。
+
+
+## Session 78: 完成 Trellis worktree 分支隔离重构
+
+**Date**: 2026-08-05
+**Task**: 完成 Trellis worktree 分支隔离重构
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+将 Trellis worktree 改为分支本地运行模型，补充 legacy 迁移、common-dir registry、create/remove 补偿与 Flower CLI，并完成全量验证和规范同步。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a64ff6e` | (see git log) |
+| `dde2fbb` | (see git log) |
+
+### Status
+
+[OK] **Completed**
