@@ -257,5 +257,48 @@
  * @property {{source:"legacy-flower-manifest",schemaVersion:number}} [migration] 旧状态迁移来源
  */
 
+/**
+ * @typedef {object} TrellisExpectedDisabledEntry
+ * @property {string} path 项目内 POSIX 相对路径
+ * @property {"exclusive-file"|"managed-block"|"json-fragment"} kind 关闭 mutation 类型
+ * @property {string|null} afterHash 关闭后文件摘要；目标缺失时为 null
+ */
+
+/**
+ * @typedef {object} TrellisControlState
+ * @property {1} schemaVersion schema 版本
+ * @property {"disabled"|"repair-required"} status 控制状态
+ * @property {string} transactionId detach 事务 ID
+ * @property {string} disabledAt 关闭时间
+ * @property {string[]} configuredPlatforms 关闭时已配置平台
+ * @property {string} trellisVersion 关闭时捆绑 Trellis 版本
+ * @property {string} flowerVersion 关闭时 Flower 版本
+ * @property {string} manifestPath 项目内恢复 manifest 路径
+ * @property {TrellisExpectedDisabledEntry[]} expectedDisabled 关闭态磁盘期望
+ */
+
+/**
+ * @typedef {object} TrellisDetachedEntry
+ * @property {string} path 项目内 POSIX 相对路径
+ * @property {"exclusive-file"|"managed-block"|"json-fragment"} kind mutation 类型
+ * @property {string[]} owners 所有权证据
+ * @property {string} beforeHash 关闭前原始字节摘要
+ * @property {string|null} afterHash 关闭后字节摘要
+ * @property {number} mode 关闭前文件 mode
+ * @property {string} backupPath 原始字节备份路径
+ * @property {string|null} disabledPath 关闭态字节路径
+ * @property {{content:string,prefix:string,suffix:string}} [block] Markdown 管理块恢复锚点
+ */
+
+/**
+ * @typedef {object} TrellisDetachedManifest
+ * @property {1} schemaVersion schema 版本
+ * @property {string} id detach 事务 ID
+ * @property {string} createdAt 创建时间
+ * @property {string[]} configuredPlatforms 关闭时已配置平台
+ * @property {TrellisDetachedEntry[]} entries 恢复条目
+ * @property {string[]} completed 已完成 mutation 路径
+ */
+
 /** Flower Plugin DTO 契约版本。 */
 export const PLUGIN_CONTRACT_VERSION = 1;

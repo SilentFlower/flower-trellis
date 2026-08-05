@@ -337,6 +337,29 @@ test("Plugin 预检扩展快照后可恢复新增外部路径及其原内容", (
   assert.equal(fs.existsSync(path.join(target, "generated")), false);
 });
 
+test("Plugin 精确快照可覆盖通常排除的 Trellis spec 目标", (t) => {
+  const target = createTarget(t, "flower-update-plugin-spec-plan-");
+  const specPath = path.join(target, ".trellis/spec/guide.md");
+  fs.mkdirSync(path.dirname(specPath), { recursive: true });
+  fs.writeFileSync(specPath, "old spec\n", { mode: 0o640 });
+  const snapshot = createUpdateSnapshot(target);
+  t.after(() => disposeUpdateSnapshot(snapshot));
+
+  assert.deepEqual(extendUpdateSnapshot(snapshot, [
+    ".trellis/spec/guide.md",
+    ".trellis/spec/generated/new.md",
+  ]), [".trellis/spec/generated", ".trellis/spec/guide.md"]);
+  fs.writeFileSync(specPath, "new spec\n");
+  fs.mkdirSync(path.join(target, ".trellis/spec/generated"), { recursive: true });
+  fs.writeFileSync(path.join(target, ".trellis/spec/generated/new.md"), "new file\n");
+
+  const result = restoreUpdateSnapshot(snapshot);
+  assert.equal(result.ok, true, JSON.stringify(result.failedPaths));
+  assert.equal(fs.readFileSync(specPath, "utf8"), "old spec\n");
+  assert.equal(fs.statSync(specPath).mode & 0o777, 0o640);
+  assert.equal(fs.existsSync(path.join(target, ".trellis/spec/generated")), false);
+});
+
 test("真实 CLI 在 Plugin replay 失败后补偿恢复受管状态并保留备份", (t) => {
   const target = createTarget(t, "flower-update-cli-compensation-");
   fs.mkdirSync(path.join(target, ".codex"));

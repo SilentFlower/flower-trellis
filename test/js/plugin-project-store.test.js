@@ -66,7 +66,7 @@ test("Project Store 在无 Trellis 项目初始化独立 .flower 边界", (t) =>
   assert.equal(fs.existsSync(path.join(target, ".flower", "transactions")), true);
   assert.equal(
     fs.readFileSync(path.join(target, ".flower", ".gitignore"), "utf8"),
-    "state.json\ncache/\ntransactions/\n*.tmp\n",
+    "state.json\ncache/\ntransactions/\ntrellis-control.json\ntrellis-detached/\n*.tmp\n",
   );
   assert.equal(store.ensureLayout().status, "unchanged");
 });
@@ -78,7 +78,10 @@ test("Project Store 保留自定义 ignore 并读写三类状态", (t) => {
   const store = new ProjectStore(target);
   store.ensureLayout();
   const ignore = fs.readFileSync(path.join(target, ".flower", ".gitignore"), "utf8");
-  assert.equal(ignore, "custom/\nstate.json\ncache/\ntransactions/\n*.tmp\n");
+  assert.equal(
+    ignore,
+    "custom/\nstate.json\ncache/\ntransactions/\ntrellis-control.json\ntrellis-detached/\n*.tmp\n",
+  );
 
   assert.deepEqual(store.readPlugins(), { schemaVersion: 1, plugins: [] });
   assert.equal(store.readLock(), null);
@@ -94,6 +97,22 @@ test("Project Store 保留自定义 ignore 并读写三类状态", (t) => {
   assert.deepEqual(store.readPlugins(), plugins);
   assert.deepEqual(store.readLock(), validLock());
   assert.deepEqual(store.readState(), validState());
+
+  const control = {
+    schemaVersion: 1,
+    status: "disabled",
+    transactionId: "a".repeat(24),
+    disabledAt: "2026-08-05T00:00:00.000Z",
+    configuredPlatforms: ["codex"],
+    trellisVersion: "0.6.12",
+    flowerVersion: "0.6.0-beta.5",
+    manifestPath: `.flower/trellis-detached/${"a".repeat(24)}/manifest.json`,
+    expectedDisabled: [],
+  };
+  assert.equal(store.writeTrellisControl(control).status, "written");
+  assert.deepEqual(store.readTrellisControl(), control);
+  assert.equal(store.removeTrellisControl().status, "removed");
+  assert.equal(store.readTrellisControl(), null);
 });
 
 test("相同状态重复写不修改文件 mtime", (t) => {

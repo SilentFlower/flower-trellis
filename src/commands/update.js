@@ -28,6 +28,17 @@ import {
   extendUpdateSnapshot,
   restoreUpdateSnapshot,
 } from "../lib/update-transaction.js";
+import { runWithTrellisIntegrationEnabled } from "../lib/trellis-control.js";
+
+const SILENT_OUTPUT = Object.freeze({
+  columns: 80,
+  rows: 30,
+  log() {},
+  error() {},
+  write() { return true; },
+  on() {},
+  off() {},
+});
 
 /**
  * 判断普通跨版本 dry-run 是否需要进入项目外升级沙箱。
@@ -77,11 +88,16 @@ function pluginPlatformArgs(platforms) {
  * @returns {Promise<void>} Plugin 重放完成
  */
 export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = null) {
-  const onPreflight = compensationSnapshot
-    ? ({ plan }) => extendUpdateSnapshot(compensationSnapshot, [
-      ...plan.contentMutations.map(({ target: mutationTarget }) => mutationTarget),
-      ...plan.patchMutations.map(({ target: mutationTarget }) => mutationTarget),
-    ])
+  const output = ctx.trellisControlQuiet ? SILENT_OUTPUT : console;
+  const onPreflight = compensationSnapshot || ctx.trellisControlExtendSnapshot
+    ? ({ plan }) => {
+      const targets = [
+        ...plan.contentMutations.map(({ target: mutationTarget }) => mutationTarget),
+        ...plan.patchMutations.map(({ target: mutationTarget }) => mutationTarget),
+      ];
+      if (compensationSnapshot) extendUpdateSnapshot(compensationSnapshot, targets);
+      ctx.trellisControlExtendSnapshot?.(targets);
+    }
     : undefined;
   if (ctx.enhance) {
     const declared = new ProjectStore(target).readPlugins().plugins
@@ -99,12 +115,13 @@ export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = 
       skillGarden: { variant: ctx.variant, skills: ctx.skills },
       compact: true,
       onPreflight,
+      output,
     });
     if (code !== 0) throw new Error(`Plugin Runtime 重放失败(退出码 ${code})`);
     return;
   }
 
-  console.log("· --no-enhance:跳过 Skill-Garden，仅重放其它已声明 Plugin");
+  output.log("· --no-enhance:跳过 Skill-Garden，仅重放其它已声明 Plugin");
   const preserveSkillGarden = new ProjectStore(target).readLock()?.plugins
     .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID) === true;
   const code = await plugin({
@@ -116,6 +133,7 @@ export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = 
     preserveIds: preserveSkillGarden ? [SKILL_GARDEN_PLUGIN_ID] : [],
     compact: true,
     onPreflight,
+    output,
   });
   if (code !== 0) throw new Error(`外部 Plugin 重放失败(退出码 ${code})`);
 }
@@ -156,24 +174,24 @@ export function createUpdateCompensationError(updateError, recovery) {
   return error;
 }
 
-function printBackupRetentionResult(result) {
+function printBackupRetentionResult(result, output = console) {
   if (result.status === "preview") {
-    console.log("\n升级备份清理预览:");
-    console.log(
+    output.log("\n升级备份清理预览:");
+    output.log(
       `  · 保留策略:${result.retention} 份;预计保留 ${result.retained.length} 份;预计删除 ${result.removable.length} 份`,
     );
     for (const name of result.removable) {
-      console.log(`  · 将删除 .trellis/${name}`);
+      output.log(`  · 将删除 .trellis/${name}`);
     }
   } else if (result.status === "completed" && result.removed.length > 0) {
-    console.log(`  ✓ 已清理 ${result.removed.length} 份旧升级备份，保留策略:${result.retention} 份`);
+    output.log(`  ✓ 已清理 ${result.removed.length} 份旧升级备份，保留策略:${result.retention} 份`);
   }
 
   if (result.protected.length > result.retention) {
-    console.log(`  · 本轮新建备份受保护，当前临时保留 ${result.protected.length} 份`);
+    output.log(`  · 本轮新建备份受保护，当前临时保留 ${result.protected.length} 份`);
   }
   for (const warning of result.warnings) {
-    console.log(`  · 升级备份清理警告:${warning}`);
+    output.log(`  · 升级备份清理警告:${warning}`);
   }
 }
 
@@ -189,9 +207,18 @@ function printBackupRetentionResult(result) {
  * @returns {Promise<void>} 升级、强化叠加与备份保留处理完成后返回
  */
 export async function update(ctx) {
-  const { target } = ctx;
-  const backupRetention = normalizeUpdateBackupRetention(ctx.backupRetention);
   const dryRun = ctx.passthrough.includes("--dry-run");
+  if (!dryRun && ctx.trellisControlMode !== "materialized" && ctx.trellisControlMode !== "restoring") {
+    return runWithTrellisIntegrationEnabled(ctx.target, ({ extendSnapshot }) => update({
+      ...ctx,
+      trellisControlMode: "materialized",
+      trellisControlExtendSnapshot: extendSnapshot,
+    }));
+  }
+  const { target } = ctx;
+  const quiet = ctx.trellisControlQuiet === true;
+  const output = quiet ? SILENT_OUTPUT : console;
+  const backupRetention = normalizeUpdateBackupRetention(ctx.backupRetention);
   const currentTrellisVersion = selectVariant(target).version;
   const targetTrellisVersion = trellisVersion();
   const useUpdateSandbox = shouldUseUpdateSandbox({
@@ -209,13 +236,13 @@ export async function update(ctx) {
   let compensationRecovered = false;
   let updateSucceeded = false;
 
-  printBanner(getDeveloper(ctx.passthrough, target));
+  if (!quiet) printBanner(getDeveloper(ctx.passthrough, target));
 
   // 主操作前尽力而为地检测 flower-trellis 自身新版本(失败静默;用户确认升级成功会直接退出)
   await checkForUpdate(ctx, "update");
 
-  console.log("\n同步全局 Trellis:");
-  syncGlobalTrellis();
+  output.log("\n同步全局 Trellis:");
+  syncGlobalTrellis({ logger: output, stdio: quiet ? "ignore" : "inherit" });
 
   try {
     compensationSnapshot = !dryRun && !ctx.enhanceOnly
@@ -228,7 +255,7 @@ export async function update(ctx) {
       const code = await runTrellisPty(
         ["update", ...trellisUpdatePassthroughArgs(ctx.passthrough)],
         target,
-        { stripBanner: true },
+        { stripBanner: true, ...(quiet ? { stdout: SILENT_OUTPUT } : {}) },
       );
       if (code !== 0) {
         throw new Error(`trellis update 失败(退出码 ${code}),已中止,未重新叠加`);
@@ -236,7 +263,7 @@ export async function update(ctx) {
       await replayPlugins(ctx, target, dryRun, compensationSnapshot);
       updateSucceeded = true;
     } else {
-      console.log("· --enhance-only:跳过 trellis update,仅重新叠加强化包");
+      output.log("· --enhance-only:跳过 trellis update,仅重新叠加强化包");
       await replayPlugins(ctx, target, dryRun);
       updateSucceeded = true;
     }
@@ -244,13 +271,13 @@ export async function update(ctx) {
     if (compensationSnapshot) {
       const recovery = restoreUpdateSnapshot(compensationSnapshot);
       if (!recovery.ok) {
-        console.error(`  ✗ Update 补偿恢复不完整;快照保留:${recovery.manifestPath}`);
+        output.error(`  ✗ Update 补偿恢复不完整;快照保留:${recovery.manifestPath}`);
         for (const failure of recovery.failedPaths) {
-          console.error(`    · ${failure.path}:${failure.error}`);
+          output.error(`    · ${failure.path}:${failure.error}`);
         }
         throw createUpdateCompensationError(error, recovery);
       }
-      console.error(
+      output.error(
         `  ✓ Update 已补偿恢复:${recovery.restored.length} 项;移除新增 ${recovery.removed.length} 项;` +
         `Trellis .backup-* 已保留`,
       );
@@ -261,7 +288,7 @@ export async function update(ctx) {
     if (updateSucceeded && !dryRun && !ctx.enhanceOnly) {
       const restored = restoreConfigPreserveSnapshot(target, configSnapshot);
       if (restored.restored) {
-        console.log(`  ✓ config.yaml 已保留本地配置: ${restored.keys.join(", ")}`);
+        output.log(`  ✓ config.yaml 已保留本地配置: ${restored.keys.join(", ")}`);
       }
     }
     if (compensationSnapshot && (updateSucceeded || compensationRecovered)) {
@@ -275,9 +302,9 @@ export async function update(ctx) {
       beforeSnapshot: backupSnapshot,
       dryRun,
     });
-    printBackupRetentionResult(backupResult);
+    printBackupRetentionResult(backupResult, output);
   } else if (!ctx.enhanceOnly && backupRetention === 0) {
-    console.log("  · --backup-retention 0:保留全部升级备份");
+    output.log("  · --backup-retention 0:保留全部升级备份");
   }
 
   const telemetryPromise = dryRun
@@ -286,6 +313,7 @@ export async function update(ctx) {
   await showCommandCompletion("update", target, {
     passthrough: ctx.passthrough,
     outcome: dryRun ? "preview" : "success",
+    output,
   });
   await telemetryPromise;
 }

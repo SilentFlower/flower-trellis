@@ -110,6 +110,14 @@ Source Provider 最小接口固定为：
 - changed-only：before/after hash 相同的目标不重写；空项目 `plugin update` 返回 `unchanged`，且不初始化 Runtime。
 - `remove` 只删除 state 中归属当前 Plugin 且当前 hash 仍匹配的路径，并只清理不再从 roots 可达的传递依赖。单个路径冲突不得阻止其它 hash-clean exclusive 路径清理；冲突、shared 和仍被其它 owner 使用的证据继续保留在 state。
 - `verify` 只读检查声明、lock roots/可达性、固定包、state ownership、版本和目标 hash，不更新 Provider、不修复文件。
+- 项目存在合法 `.flower/trellis-control.json` 且状态为 `disabled` 时，真实
+  `plugin add/update/remove/replay` 必须通过 `runWithTrellisIntegrationEnabled()` 临时恢复 Trellis
+  入口，执行原 Plugin 事务后再按最新 ownership 重新 detach。最终状态必须仍为 `disabled`；
+  外部 Plugin 的声明、lock、state 和目标内容必须保留。
+- disabled 包装只作用于会修改项目的生命周期命令。`list`、`verify`、source/auth/search、作者工具和
+  所有 `dryRun` 继续遵守原只读边界，不得为了检查而 materialize Trellis 入口。
+- Plugin 事务或重新 detach 任一步失败时，外层 update snapshot 必须恢复调用前完整 disabled 现场；
+  恢复不完整升级为 Trellis control `repair-required`，不能输出 Plugin 成功后留下可发现入口。
 
 ### Optional Runtime Boundaries
 
@@ -154,6 +162,13 @@ Source Provider 最小接口固定为：
 | CLI 参数错误 | 退出码 `2` | JSON diagnostics 不含绝对路径 |
 | 验证或内容冲突 | 退出码 `3` | 零写入或只读 verify |
 | 其它执行失败 | 退出码 `1` | 按事务边界恢复 |
+| disabled 项目执行真实 mutating lifecycle | 临时 materialize，操作后重新 detach | 外部 Plugin 内容保留，最终 `status=disabled` |
+| disabled 包装失败且补偿成功 | 返回原失败 | 恢复调用前 disabled 现场 |
+| disabled 包装补偿不完整 | Trellis control repair blocker | 持久化 `repair-required` 并保留项目外补偿 manifest |
+
+- disabled 包装的外层快照必须在 Plugin `onPreflight` 后按 `contentMutations` 与 `patchMutations` 的
+  精确 target 扩展。普通 Update 快照仍排除 tasks/spec/workspace 用户数据；只有 Plugin 明确计划触达的
+  文件或首个缺失祖先进入 forced scope，回滚不得借此扫描或覆盖整个用户数据目录。
 
 ## 5. Good / Base / Bad Cases
 
@@ -193,10 +208,14 @@ Source Provider 最小接口固定为：
 - `plugin-format-adapters.test.js`：Flower/Codex/Claude/skill-only 检测、歧义、路径边界、commands 转换、主动组件仅诊断和标准包校验。
 - `plugin-interactive.test.js` 与 `plugin-remote-cli.test.js`：歧义选择、非 TTY 零 prompt、兼容预览、临时 cache 成功/失败清理和确认前零持久化。
 - `plugin-lifecycle-cli.test.js`：parser、真实 add/update/remove/verify、空项目 update、无平台零写入、JSON/人类输出、短 ID 和退出码。
+- `trellis-control.test.js`：disabled 项目真实 `plugin add` 后外部 Skill、声明和 state 保留，Trellis
+  平台入口重新 detach，最终 `inspectTrellisControl().status === "disabled"`；同时覆盖 excluded spec
+  精确快照恢复和外层补偿不完整时的 `repair-required` 持久化。
 - `plugin-skill-garden.test.js`：builtin trust/digest、legacy 迁移、冻结 replay、shared common ownership 和 state/hash 卸载。
 - `update-backups.test.js`：`flower-trellis update` 的 Skill-Garden 重放必须覆盖污染平台 state
   收窄；断言旧 state 含 `gemini/zcode` 而 Trellis hash 只含 Claude/Codex 时，新 state 只保留
-  `claude/codex`，且纯旧 `.gemini/.zcode` check-all agent 目录被清理。
+  `claude/codex`，且纯旧 `.gemini/.zcode` check-all agent 目录被清理；精确 Plugin target 即使位于
+  普通快照排除的 `.trellis/spec` 也必须可恢复，而未声明的其它 spec 保持不变。
 - 修改本契约后必须运行完整 `npm test`、`npm pack --dry-run --json`、全部受影响 JS 的 `node --check` 和 `git diff --check`。
 
 ## 7. Wrong vs Correct

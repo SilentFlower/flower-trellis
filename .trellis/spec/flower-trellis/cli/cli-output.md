@@ -64,7 +64,8 @@
 |--------|------|------|
 | `0` | 正常完成 | 各命令默认 |
 | `1` | 捕获到异常 | `cli.js` 顶层 catch |
-| `2` | flower 自有 flag 冲突(`--enhance-only` × `--no-enhance`) | `cli.js:124-127` |
+| `2` | flower 自有 flag 冲突或 Plugin/Trellis control usage error | 命令参数解析层 |
+| `3` | Plugin/Trellis control 冲突、验证失败或 repair-required | 命令编排层 |
 | `130` | 用户 Ctrl+C(父进程 SIGINT) | `cli.js:106` |
 | `128` | 透传的 trellis 子进程被信号终止 | `trellis-runner.js`(`signal → resolve(128)`) |
 | 子进程码 | 兜底透传命令,原样回传 trellis 退出码 | `cli.js:141-142` |

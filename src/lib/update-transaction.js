@@ -108,14 +108,19 @@ function ensureSafeDirectory(root, relativePath) {
   return destination;
 }
 
-function scanScopes(projectRoot, scopes, onFile) {
+function scanScopes(projectRoot, scopes, onFile, options = {}) {
   const entries = new Map();
+  const forcedScopes = options.forcedScopes || [];
+
+  const isForced = (relativePath) => forcedScopes.some((scope) => (
+    scopeContains(scope, relativePath) || scopeContains(relativePath, scope)
+  ));
 
   function walk(absolutePath, relativePath) {
     const stat = fs.lstatSync(absolutePath);
     if (stat.isSymbolicLink()) throw new Error(`Update 受管范围包含软链:${relativePath}`);
     if (stat.isDirectory()) {
-      if (isExcluded(relativePath, true)) return;
+      if (isExcluded(relativePath, true) && !isForced(relativePath)) return;
       entries.set(relativePath, { path: relativePath, kind: "directory", mode: stat.mode & 0o777 });
       const children = fs.readdirSync(absolutePath, { withFileTypes: true })
         .sort((left, right) => left.name.localeCompare(right.name));
@@ -126,7 +131,7 @@ function scanScopes(projectRoot, scopes, onFile) {
       return;
     }
     if (!stat.isFile()) throw new Error(`Update 受管范围包含特殊文件:${relativePath}`);
-    if (isExcluded(relativePath)) return;
+    if (isExcluded(relativePath) && !isForced(relativePath)) return;
     entries.set(relativePath, { path: relativePath, kind: "file", mode: stat.mode & 0o777 });
     onFile?.(absolutePath, relativePath);
   }
@@ -166,7 +171,7 @@ function materializeSnapshot(snapshot, destinationRoot) {
  * 为 Flower update 创建项目外补偿快照。
  *
  * @param {string} projectRoot 目标项目根目录
- * @returns {{root:string,dataRoot:string,manifestPath:string,manifest:{schemaVersion:number,projectRoot:string,scopes:string[],entries:Array<{path:string,kind:"file"|"directory",mode:number}>}}} 快照描述
+ * @returns {{root:string,dataRoot:string,manifestPath:string,manifest:{schemaVersion:number,projectRoot:string,scopes:string[],forcedScopes:string[],entries:Array<{path:string,kind:"file"|"directory",mode:number}>}}} 快照描述
  */
 export function createUpdateSnapshot(projectRoot) {
   const realProjectRoot = assertOrdinaryRoot(projectRoot);
@@ -184,6 +189,7 @@ export function createUpdateSnapshot(projectRoot) {
       schemaVersion: SNAPSHOT_SCHEMA_VERSION,
       projectRoot: realProjectRoot,
       scopes,
+      forcedScopes: [],
       entries,
     };
     writeManifest(snapshotRoot, manifest);
@@ -208,23 +214,27 @@ export function createUpdateSnapshot(projectRoot) {
  */
 export function extendUpdateSnapshot(snapshot, targets) {
   const projectRoot = snapshot.manifest.projectRoot;
+  const previousForcedScopes = snapshot.manifest.forcedScopes || [];
   const additions = [...new Set(targets.map((target) => snapshotScopeForTarget(projectRoot, target)))]
-    .filter((target) => !snapshot.manifest.scopes.some((scope) => scopeContains(scope, target)))
+    .filter((target) => !previousForcedScopes.some((scope) => scopeContains(scope, target)))
     .sort((left, right) => left.localeCompare(right));
   if (additions.length === 0) return [];
 
   const reducedAdditions = additions.filter((target, index) => (
     !additions.some((scope, otherIndex) => otherIndex !== index && scopeContains(scope, target))
   ));
+  const forcedScopes = [...previousForcedScopes, ...reducedAdditions]
+    .sort((left, right) => left.localeCompare(right));
   const captured = scanScopes(projectRoot, reducedAdditions, (source, relativePath) => {
     const destination = path.join(snapshot.dataRoot, ...relativePath.split("/"));
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.copyFileSync(source, destination);
-  });
+  }, { forcedScopes });
   const entries = new Map(snapshot.manifest.entries.map((entry) => [entry.path, entry]));
   for (const entry of captured) entries.set(entry.path, entry);
   snapshot.manifest.scopes = [...snapshot.manifest.scopes, ...reducedAdditions]
     .sort((left, right) => left.localeCompare(right));
+  snapshot.manifest.forcedScopes = forcedScopes;
   snapshot.manifest.entries = [...entries.values()]
     .sort((left, right) => left.path.localeCompare(right.path));
   writeManifest(snapshot.root, snapshot.manifest);
@@ -264,7 +274,9 @@ export function restoreUpdateSnapshot(snapshot) {
   const previous = new Map(snapshot.manifest.entries.map((entry) => [entry.path, entry]));
   let currentEntries = [];
   try {
-    currentEntries = scanScopes(projectRoot, snapshot.manifest.scopes);
+    currentEntries = scanScopes(projectRoot, snapshot.manifest.scopes, undefined, {
+      forcedScopes: snapshot.manifest.forcedScopes || [],
+    });
   } catch (error) {
     failedPaths.push({ path: "<scan>", error: error.message });
   }

@@ -15,9 +15,17 @@ import {
   validatePluginsFile,
   validatePluginState,
 } from "../schemas/project-files.js";
+import { validateTrellisControlState } from "../schemas/trellis-control.js";
 
 const FLOWER_DIR_NAME = ".flower";
-const REQUIRED_IGNORE_RULES = ["state.json", "cache/", "transactions/", "*.tmp"];
+const REQUIRED_IGNORE_RULES = [
+  "state.json",
+  "cache/",
+  "transactions/",
+  "trellis-control.json",
+  "trellis-detached/",
+  "*.tmp",
+];
 
 /**
  * 判断 candidate 是否位于 root 内部或等于 root。
@@ -130,6 +138,48 @@ export class ProjectStore {
    */
   writeState(value) {
     return this.#writeJson("state.json", value, validatePluginState);
+  }
+
+  /**
+   * 读取 `.flower/trellis-control.json`；文件缺失时返回 null。
+   *
+   * @returns {import("../contracts.js").TrellisControlState|null} Trellis 控制状态
+   */
+  readTrellisControl() {
+    return /** @type {import("../contracts.js").TrellisControlState|null} */ (
+      this.#readJson("trellis-control.json", validateTrellisControlState, null)
+    );
+  }
+
+  /**
+   * 原子写入 `.flower/trellis-control.json`。
+   *
+   * @param {unknown} value Trellis 控制状态
+   * @returns {{status:"written"|"unchanged",path:string}} 写入结果
+   */
+  writeTrellisControl(value) {
+    return this.#writeJson("trellis-control.json", value, validateTrellisControlState);
+  }
+
+  /**
+   * 删除已校验的 `.flower/trellis-control.json`。
+   *
+   * @returns {{status:"removed"|"unchanged",path:string}} 删除结果
+   */
+  removeTrellisControl() {
+    this.#assertReadBoundary();
+    const target = path.join(this.flowerDir, "trellis-control.json");
+    if (this.#readTextIfExists(target) === null) return { status: "unchanged", path: target };
+    this.#readJson("trellis-control.json", validateTrellisControlState, null);
+    try {
+      this.fileSystem.unlinkSync(target);
+      return { status: "removed", path: target };
+    } catch (error) {
+      throw new PluginIoError(`无法删除 Trellis 控制状态:${target}`, {
+        path: target,
+        cause: error,
+      });
+    }
   }
 
   /**

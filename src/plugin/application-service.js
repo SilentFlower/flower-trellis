@@ -229,7 +229,7 @@ export class PluginApplicationService {
   /**
    * 移除直接 Plugin，并清理不再可达的传递依赖。
    *
-   * @param {{id:string,platforms?:string[],dryRun?:boolean}} options 移除选项
+   * @param {{id:string,platforms?:string[],dryRun?:boolean,onPreflight?:(result:object)=>void}} options 移除选项
    * @returns {object} 生命周期结果
    */
   remove(options) {
@@ -251,6 +251,7 @@ export class PluginApplicationService {
       approvals: [],
       approvedDigests: null,
       nonInteractive: true,
+      onPreflight: options.onPreflight,
     });
   }
 

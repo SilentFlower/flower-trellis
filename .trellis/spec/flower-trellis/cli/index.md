@@ -70,7 +70,7 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [Directory Structure](./directory-structure.md) | 目录分层与命名 |
 | [Module Guidelines](./module-guidelines.md) | ESM 模块/导出/JSDoc 约定 |
 | [CLI Output](./cli-output.md) | 横幅、进度行、错误与退出码 |
-| [Config & State](./config-and-state.md) | 常量、路径、版本、manifest 状态 |
+| [Config & State](./config-and-state.md) | 常量、路径、版本、manifest 状态与项目级 Trellis 开关 |
 | [Enhancements Model](./enhancements-model.md) | 强化包快照与叠加流水线 |
 | [Trellis Patch Engine](./trellis-patch-engine.md) | Skill-Garden/Flower 对 workflow、skill、hook、平台配置的统一 Patch、Bundle、迁移与 provenance 协议 |
 | [Flower Plugin Contracts](./flower-plugin-contracts.md) | Plugin/Marketplace schema、共享 DTO、canonical hash 与 `.flower/` Project Store 契约 |

@@ -77,6 +77,7 @@ function printHelp() {
   flower-trellis update-check <get|set|disable|enable|snooze|skip|reset>
                                                         管理启动更新策略
   flower-trellis telemetry <status|enable|disable>       管理匿名安装遥测
+  flower-trellis trellis <disable|enable|status>         项目级关闭、恢复或检查 Trellis
   flower-trellis plugin                                 交互管理 Plugin、来源与 GitLab 授权
   flower-trellis worktree <status|prepare|migrate|create|remove>
                                                         管理分支本地化 Git worktree
@@ -159,6 +160,10 @@ async function main() {
     } else if (cmd === "telemetry") {
       const { telemetry } = await import("./commands/telemetry.js");
       await telemetry(ctx);
+    } else if (cmd === "trellis") {
+      const { trellis } = await import("./commands/trellis.js");
+      const code = await trellis(ctx);
+      if (code !== 0) process.exitCode = code;
     } else if (cmd === "skill") {
       const { skill } = await import("./commands/skill.js");
       await skill(ctx);

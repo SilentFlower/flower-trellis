@@ -17,6 +17,7 @@ import {
   SKILL_GARDEN_PLUGIN_ID,
   SkillGardenBuiltinProvider,
 } from "../builtin-plugins/skill-garden/provider.js";
+import { runWithTrellisIntegrationEnabled } from "../lib/trellis-control.js";
 
 const REMOTE_PLUGIN_ENTRY = new URL("./plugin-remote.js", import.meta.url);
 const PATCH_RUNTIME_ENTRY = new URL("../plugin/install/patch-planner.js", import.meta.url);
@@ -649,7 +650,7 @@ function pluginExitCode(error) {
  * 执行 Plugin 生命周期命令。
  *
  * @param {object} ctx cli-args.js 的执行上下文
- * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},interactive?:boolean,prompts?:object,confirmApproval?:(requests:object[])=>Promise<boolean>|boolean,compact?:boolean,onPreflight?:(result:object)=>void}} [options] 测试、Provider、输出与交互确认注入
+ * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},interactive?:boolean,prompts?:object,confirmApproval?:(requests:object[])=>Promise<boolean>|boolean,compact?:boolean,onPreflight?:(result:object)=>void,trellisControlMode?:"materialized"|"restoring"}} [options] 测试、Provider、输出与交互确认注入
  * @returns {Promise<number>} 进程退出码
  */
 export async function plugin(ctx, options = {}) {
@@ -679,6 +680,28 @@ export async function plugin(ctx, options = {}) {
     if (["source", "auth", "search"].includes(parsed.command)) {
       const remoteRuntime = await loadRemotePluginRuntime();
       return await remoteRuntime.runPluginManagementCommand(parsed, ctx, options, output);
+    }
+    const trellisAlreadyMaterialized = ["materialized", "restoring"].includes(ctx.trellisControlMode) ||
+      ["materialized", "restoring"].includes(options.trellisControlMode);
+    if (
+      ["add", "update", "remove", "replay"].includes(parsed.command) &&
+      !parsed.dryRun &&
+      !trellisAlreadyMaterialized
+    ) {
+      return await runWithTrellisIntegrationEnabled(ctx.target, ({ extendSnapshot }) => plugin(
+        { ...ctx, trellisControlMode: "materialized" },
+        {
+          ...options,
+          trellisControlMode: "materialized",
+          onPreflight: (result) => {
+            extendSnapshot([
+              ...result.plan.contentMutations.map(({ target }) => target),
+              ...result.plan.patchMutations.map(({ target }) => target),
+            ]);
+            options.onPreflight?.(result);
+          },
+        },
+      ));
     }
     await loadOptionalPatchRuntime();
     const store = new ProjectStore(ctx.target);
@@ -811,6 +834,7 @@ export async function plugin(ctx, options = {}) {
         id: canonicalId,
         platforms: parsed.platforms,
         dryRun: parsed.dryRun,
+        onPreflight: options.onPreflight,
       });
     } else if (parsed.command === "replay") {
       result = service.replay({

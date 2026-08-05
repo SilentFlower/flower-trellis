@@ -332,6 +332,124 @@ if (shouldUseUpdateSandbox({
 - `uninstall` 在 Trellis 删除前冻结 state 清理计划；Trellis 成功后只删除 hash 仍匹配的
   `exclusive` 普通文件。某个用户修改项冲突时仍清理其它 hash-clean 路径；`shared`、其它 Plugin、用户修改项和无法证明 ownership 的旧路径保留，并继续记录冲突证据。
 
+## Scenario: Project-Level Trellis Disable And Recovery
+
+### 1. Scope / Trigger
+
+- Trigger: 修改 `src/lib/trellis-control.js`、`src/commands/trellis.js`、Trellis control schema、
+  Project Store 控制状态，或让 update / self-update / Plugin 写链在 disabled 项目中运行。
+- Scope: 开关始终覆盖整个项目和全部已配置平台；不支持平台级关闭，也不删除 `.trellis` 用户数据、
+  Plugin 声明、lock、state 或活动任务。
+
+### 2. Signatures And State
+
+```bash
+flower-trellis trellis disable [--dry-run] [--force] [--target <dir>] [--json]
+flower-trellis trellis enable  [--dry-run] [--force] [--target <dir>] [--json]
+flower-trellis trellis status  [--target <dir>] [--json]
+```
+
+```text
+.flower/trellis-control.json
+.flower/trellis-detached/<transaction-id>/manifest.json
+.flower/trellis-detached/<transaction-id>/files/
+.flower/trellis-detached/<transaction-id>/disabled/
+```
+
+```js
+inspectTrellisControl(projectRoot)
+disableTrellis(projectRoot, options?)
+materializeTrellis(projectRoot, options?)
+finalizeTrellisEnable(projectRoot)
+enableTrellisExact(projectRoot, options?)
+runWithTrellisIntegrationEnabled(projectRoot, operation)
+```
+
+### 3. Contracts
+
+- `disable` 的目标真源只允许来自 Trellis `.template-hashes.json`、
+  `getConfiguredPlatforms()` + `collectPlatformTemplates()` 和 `flower/skill-garden` Plugin state；
+  不得按目录名猜测 ownership。重复物理路径必须稳定去重并保留全部 owner provenance。
+- `.trellis/**` 和 `.flower/**` 永远不是 detach 目标。`AGENTS.md` 只移除唯一完整的
+  `TRELLIS:START/END` 管理块；共享 JSON 只结构化移除 Trellis 节点；独占文件只有 hash-clean
+  或显式 `force` 才能删除。
+- 全部目标在第一处写盘前完成路径、文件类型、ownership、冲突和恢复材料 preflight。
+  软链、特殊文件、非法 POSIX 相对路径、项目外逃逸、损坏 state/manifest 或无法拆分的修改必须
+  fail closed。普通冲突退出码为 `3` 且零写入。
+- `--force` 只允许处理恢复证据完整时的独占文件冲突、共享 JSON 恢复冲突或 drifted 重收敛；
+  `repair-required` 即使显式 force 也禁止覆盖。drifted 重收敛必须把旧 manifest 的全部原始恢复材料
+  迁移到新事务，只对重新出现的入口执行 detach，并在新 control state 落盘后才清理旧事务。
+- control state 与 detached manifest 都使用 schema 校验。manifest 保存原始字节、mode、owner、
+  mutation kind、before/after hash 和材料路径；事务逐项记录 `completed`，失败时逆序回滚。
+  回滚不完整必须写 `repair-required` 并保留 journal/evidence，不能伪装为成功。
+- `enable` 先对全部目标做恢复 preflight。独占文件恢复关闭前原始字节；共享 JSON 做
+  base/desired/current 三方合并，数组按 matcher/id/name/path/command 等稳定身份递归匹配；
+  模板减法命中同一数组节点但仍保留用户子节点时，必须保留 matcher/id/name 等匹配身份，不能把
+  用户 hook 组改成无 matcher 的全局组；
+  `AGENTS.md` 按管理块局部锚点恢复。关闭期间新增的无关用户内容
+  必须保留；冲突默认全量阻断，`force` 前先保存当前现场。
+- 共享 JSON ownership 只来自平台模板节点或对已确认受管路径的明确引用，禁止仅因字符串名称包含
+  `trellis` 而删除用户节点；已经中和的共享 JSON 不产生 mutation，也绝不能退化为独占文件删除或
+  被 `status` 误报为 drifted。
+- 用户级 `trellis enable` 在精确 materialize 后必须运行当前 Flower/Trellis update 与 Plugin replay，
+  完整成功才删除 control state。任一步失败由项目外 update snapshot 恢复调用前 disabled 现场。
+- disabled 项目上的真实 `flower-trellis update` 和 Plugin mutating lifecycle 使用
+  `runWithTrellisIntegrationEnabled()` 临时 materialize；成功后以最新 ownership 重新 disable，失败后
+  恢复调用前 disabled 树。Plugin preflight 的 content/Patch 精确目标必须扩展到外层补偿快照；即使目标
+  位于普通 Update 为保护用户数据而排除的 `.trellis/spec`，也只对该明确目标及其缺失祖先强制取证，
+  不得扩大到整个 spec。外层恢复不完整时必须持久化 `repair-required`。dry-run 不得为了临时恢复而写来源项目。
+- 直接上游 `trellis update` 不读取 Flower control state，允许其产生入口漂移；
+  `status` 必须检查真实目标并返回 `drifted`，不能只信任状态文件。稳定状态至少包括
+  `enabled`、`disabled`、`drifted`、`repair-required`、`not-initialized`。
+- disable / enable 后必须提示重启 AI 会话；已经启动的会话、auto-loop 或外部 worker 不在本功能的
+  撤回范围内。
+
+### 4. Validation Matrix
+
+| 条件 | 结果 |
+|---|---|
+| clean 多平台项目 disable | 全部平台入口一次 detach；`.trellis` 与 `.flower` 数据保留 |
+| 重复 disable / enable | 返回 `unchanged`，不重写目标 |
+| disable / enable `--dry-run` | 返回真实目标与冲突，来源项目零写入 |
+| 修改过的独占目标 | 默认冲突且零写入；`--force` 保存原字节后继续 |
+| 共享 JSON 在 disabled 期间新增用户字段 | enable 后用户字段与 Trellis 节点同时存在 |
+| 共享 hook 组追加用户 hook | disable 保留原 matcher；enable 仍为单一组且保留全部用户 hook |
+| 已中和 JSON 仅含用户配置 | `status=disabled`，重复 disable 返回 `unchanged` |
+| materialize 或 normalize 中途失败 | 恢复调用前完整 disabled 状态 |
+| Plugin 修改精确 `.trellis/spec` 目标后外层失败 | 精确恢复该目标，不回滚其它用户 spec |
+| disabled 状态出现任一 Trellis 入口 | `status=drifted` 并列出路径 |
+| control/manifest/material 损坏或 journal 未完成 | `status=repair-required`，保留证据 |
+| disabled 项目执行 Flower update / Plugin 写命令 | 操作完成后仍为 `disabled`，外部 Plugin 内容保留 |
+
+### 5. Good / Base / Bad Cases
+
+- Good: Claude 与 Codex 同时启用，`disable` 一次移除两平台入口并保留 `.trellis` 用户数据；
+  关闭期间用户向共享 hook 组追加节点，`enable` 后仍保持原 matcher、单一 hook 组和全部用户节点。
+- Base: 项目已经完整 disabled 时重复 `disable` 返回 `unchanged`；项目已经 enabled 时重复
+  `enable` 返回 `unchanged`，两者都不重写目标或恢复证据。
+- Bad: disabled Plugin 写链只快照普通 Update 范围，遗漏计划修改的 `.trellis/spec` 精确目标；
+  后续失败会留下无法恢复的用户数据变化。必须在 Plugin preflight 后扩展外层快照，并在补偿不完整时
+  持久化 `repair-required`。
+
+### 6. Tests Required
+
+- `trellis-control.test.js` 覆盖目标发现、管理块/共享 JSON 拆分、修改冲突、force 原样恢复、
+  dry-run/幂等、软链、故障回滚、drifted、repair-required、真实 CLI 与 disabled Plugin lifecycle。
+- Update 测试覆盖 disabled 包装、项目外补偿与失败恢复；Plugin lifecycle 测试覆盖外部内容不会被
+  Trellis reconciliation 删除。
+- 隔离项目 dogfood 覆盖 Claude + Codex init、disable、status、enable、update dry-run 和
+  uninstall dry-run；不得在当前开发仓执行真实 disable。
+- 修改本契约后必须运行完整 `npm test`、`npm pack --dry-run --json`、相关 `node --check`、
+  `git diff --check` 和 snapshot / compiled-target 一致性检查。
+
+### 7. Wrong Vs Correct
+
+**Wrong**:只写一个 `disabled=true` 或设置 Hook 环境变量，却保留项目 Skills、Agents、Commands、
+`AGENTS.md` 管理块和平台配置入口。
+
+**Correct**:先从所有权真源生成全项目计划，保存可验证恢复材料，再事务性 detach 全部可发现入口；
+恢复时三方合并共享配置，并在当前版本规范化成功后才清除 control state。
+
 ## Scenario: Branch-Local Trellis Worktree
 
 ### 1. Scope / Trigger

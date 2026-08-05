@@ -107,8 +107,9 @@ export function globalTrellisVersion(cwd = os.tmpdir(), command = "trellis") {
  * 同步本机全局 Trellis 到 flower-trellis 捆绑版本。
  *
  * @param {object} [opts] 运行选项
- * @param {Console} [opts.logger] 输出对象,默认使用 console
+ * @param {{log:(message:string)=>void}} [opts.logger] 输出对象,默认使用 console
  * @param {string} [opts.cwd] 执行目录,默认当前目录
+ * @param {"inherit"|"ignore"} [opts.stdio] npm 安装子进程输出模式
  * @returns {{targetVersion:string,currentVersion:string|null,installed:boolean,skipped:boolean,command:string}} 同步结果
  */
 export function syncGlobalTrellis(opts = {}) {
@@ -150,7 +151,7 @@ export function syncGlobalTrellis(opts = {}) {
 
   const res = spawnSync("npm", ["install", "-g", `${TRELLIS_PACKAGE}@${targetVersion}`], {
     cwd,
-    stdio: "inherit",
+    stdio: opts.stdio || "inherit",
     shell: process.platform === "win32",
   });
 
