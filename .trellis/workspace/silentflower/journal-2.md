@@ -811,3 +811,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 81: 归档 Check-All 可选问题分类优化
+
+**Date**: 2026-08-05
+**Task**: 归档 Check-All 可选问题分类优化
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 Check-All CHK/OPT/DOC 分类、跨阶段处置、双仓同步与质量验证，并归档任务记录。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c76177c` | (see git log) |
+| `839904e` | (see git log) |
+
+### Status
+
+[OK] **Completed**
