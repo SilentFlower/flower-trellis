@@ -834,3 +834,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 82: 整合阿里云运维查询 Skill
+
+**Date**: 2026-08-05
+**Task**: 整合阿里云运维查询 Skill
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+将 DMS、SLS、MSE/Nacos 整合为 aliyun-ops，完成旧 Skill 自动迁移、ENV 兼容、安全检查、完整测试与双仓推送。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3482b80` | (see git log) |
+| `44ba195` | (see git log) |
+
+### Status
+
+[OK] **Completed**
