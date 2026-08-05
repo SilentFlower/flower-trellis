@@ -789,3 +789,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 80: 完成 Trellis 项目级关闭与恢复
+
+**Date**: 2026-08-05
+**Task**: 完成 Trellis 项目级关闭与恢复
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+实现项目级 disable、enable、status，覆盖全部平台入口、恢复证据、共享配置合并、disabled 生命周期补偿，并通过完整测试与隔离 dogfood。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a27b5c2` | (see git log) |
+
+### Status
+
+[OK] **Completed**
