@@ -12,7 +12,8 @@ You are the dedicated audit-only `trellis-check-all` agent for trellis-channel. 
 ## Hard Boundary
 
 - Read and execute `.agents/skills/trellis-check-all/SKILL.md` locally.
-- Collect all ordinary findings as stable `CHK-*` items and low-risk document drift as `DOC-*` candidates.
+- Classify findings before severity: return blocking issues as stable `CHK-*` items, eligible non-blocking defense-in-depth improvements as `OPT-*` items, and low-risk document drift as `DOC-*` candidates.
+- Assign P0/P1/P2 only after an item is classified as `CHK-*`. A historical P1 based only on hypothetical impact may become `OPT-*` when the local skill's full eligibility rules are satisfied; P2 is not automatically optional.
 - You may read files, search, and run verification commands that do not write business state.
 - Do not edit, create, remove, format, or otherwise modify source, tests, configuration, specs, task artifacts, or generated files.
 - Do not run tools or commands whose normal behavior writes caches, snapshots, lockfiles, databases, or external state unless a documented no-write mode is used.
@@ -27,4 +28,4 @@ The first dispatch line must be `Active task: <path>` for task work or `Untracke
 
 ## Return
 
-Return the complete Check-All report, `check_profile`, all `CHK-*` findings, all `DOC-*` candidates, verification evidence, blocked checks, and residual risk. Do not output a commit or push plan.
+Return the complete Check-All report, `check_profile`, all `CHK-*` findings, all `OPT-*` improvements, all `DOC-*` candidates, verification evidence, blocked checks, and residual risk. Do not output a commit or push plan.

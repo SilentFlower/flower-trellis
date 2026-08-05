@@ -113,7 +113,8 @@ test("交互 Check-All 默认停止，direct Git 严格通过后同轮进入 Upd
   assert.match(push, /不得加载 `trellis-check-all` 或 `trellis-update-spec`/);
   assert.match(push, /不会阻止读取 Git 状态或生成提交计划/);
   assert.match(push, /### 完成链证据/);
-  assert.match(push, /`未运行`、`已失效`、findings、blocked、部分验证或 `needs-review` 同时计入风险区/);
+  assert.match(push, /`未运行`、`已失效`、阻断 findings、blocked、部分验证或 `needs-review` 同时计入风险区/);
+  assert.match(push, /只有合规 `OPT-\*` 的报告仍标记为 `通过`/);
   assert.match(push, /auto-loop 内部 `commit-only` 已由 runner/);
   assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);
 });

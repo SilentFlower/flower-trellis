@@ -54,7 +54,7 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   assert.match(interactiveGate, /非 validated auto-loop 先输出完整标准报告/);
   assert.match(interactiveGate, /提示用户回复 `继续`/);
   assert.match(reporting, /最新用户消息识别 direct Git intent/);
-  assert.match(reporting, /findings、blocked、部分验证或实质剩余风险/);
+  assert.match(reporting, /剩余 `CHK-\*`、blocked、部分验证或实质剩余风险/);
   assert.match(reporting, /普通 interactive 检查保持原行为/);
   assert.match(reporting, /所有 interactive 标准报告都必须在末尾输出 `### 下一步`/);
   assert.match(reporting, /有 blocked、部分验证或实质剩余风险：指出解除阻塞所需的精确决策、授权或验证/);
@@ -148,11 +148,13 @@ test("0.6 发布快照与智能检查源保持一致", () => {
     ".agents/skills/trellis-check-all/references/document-drift-auto-remediation.md",
     ".agents/skills/trellis-check-all/references/full-profile.md",
     ".agents/skills/trellis-check-all/references/light-profile.md",
+    ".agents/skills/trellis-check-all/references/optional-findings.md",
     ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
     ".claude/skills/trellis-check-all/references/depth-routing.md",
     ".claude/skills/trellis-check-all/references/document-drift-auto-remediation.md",
     ".claude/skills/trellis-check-all/references/full-profile.md",
     ".claude/skills/trellis-check-all/references/light-profile.md",
+    ".claude/skills/trellis-check-all/references/optional-findings.md",
     ".claude/skills/trellis-check-all/references/reporting-and-disposition.md",
     ".agents/skills/trellis-route/SKILL.md",
     ".agents/skills/trellis-route/scripts/route_state.py",
