@@ -1,8 +1,3 @@
----
-name: aliyun-sls-query
-description: "用 AK/SK 直连阿里云 SLS（日志服务）查日志和指标的实战经验。当需要拉 SLS logstore 日志、查 metricstore 指标、写 SLS API 签名器、排查 SLS 调用报错（401/403/signature not match）、或在无 SDK 环境临时取数时触发。"
----
-
 # 阿里云 SLS：AK/SK 直连取数实战
 
 沉淀自真实排障与取数场景（FC 容器日志拉取、ARMS 指标底层 metricstore 取数、日志生命周期治理），所有姿势都在生产环境实跑验证过。
@@ -18,13 +13,13 @@ description: "用 AK/SK 直连阿里云 SLS（日志服务）查日志和指标�
 
 ## 配置文件（Codex / Claude 共用）
 
-默认从 `~/.config/aliyun-sls-query/env` 读取配置。进程环境变量优先，配置文件只补齐缺失项，因此临时 `export` 可以安全覆盖默认配置。
+默认从 `~/.config/aliyun-ops/env` 读取配置，再只读回退 `~/.config/aliyun-sls-query/env` 与 `~/.config/aliyun-dms-query/env`。进程环境变量优先，配置文件只补齐缺失项，因此临时 `export` 可以安全覆盖默认配置。旧文件无需迁移。
 
 首次使用时复制 `assets/env.example` 到该路径并设置仅当前用户可读：
 
 ```bash
-mkdir -p ~/.config/aliyun-sls-query
-install -m 600 assets/env.example ~/.config/aliyun-sls-query/env
+mkdir -p ~/.config/aliyun-ops
+install -m 600 assets/env.example ~/.config/aliyun-ops/env
 ```
 
 支持的配置项：
@@ -38,7 +33,7 @@ ALIYUN_SLS_REGION=cn-hangzhou
 ```
 
 - 临时指定其它文件：`--env-file /path/to/env`。
-- 为 Codex / Claude 统一指定其它文件：设置 `ALIYUN_SLS_ENV_FILE=/path/to/env`。
+- 为 Codex / Claude 统一指定其它文件：设置 `ALIYUN_SLS_ENV_FILE=/path/to/env` 或 `ALIYUN_OPS_ENV_FILE=/path/to/env`。显式文件缺失时会立即失败，不再回退其它凭证。
 - `--project`、`--logstore`、`--region` 参数优先于配置文件中的同类值。
 - 不把真实凭证写进 skill 目录、仓库、命令行参数或对话；私有 ENV 文件权限保持 `600`。
 

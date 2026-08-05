@@ -306,28 +306,43 @@ test("replay 冻结 skill-garden 时保留原 lock/state 且不重算 variant", 
 test("已启用 common skill 以 shared ownership 刷新且卸载保留", (t) => {
   const target = createTarget(t);
   const commonSkill = path.join(target, ".claude/skills/open-idea/SKILL.md");
+  const oldAliyunSkill = path.join(
+    target,
+    ".claude/skills/aliyun-sls-query/SKILL.md",
+  );
+  const aliyunSkill = path.join(target, ".claude/skills/aliyun-ops/SKILL.md");
   const removedCommonSkill = path.join(
     target,
     ".claude/skills/sub2api-account-json-fix/SKILL.md",
   );
   fs.mkdirSync(path.dirname(commonSkill), { recursive: true });
+  fs.mkdirSync(path.dirname(oldAliyunSkill), { recursive: true });
   fs.mkdirSync(path.dirname(removedCommonSkill), { recursive: true });
   fs.writeFileSync(commonSkill, "stale\n");
+  fs.writeFileSync(oldAliyunSkill, "stale aliyun\n");
   fs.writeFileSync(removedCommonSkill, "removed\n");
   quietApply(target, { variant: "0.5" });
   const state = JSON.parse(fs.readFileSync(path.join(target, ".flower/state.json"), "utf8"));
   const commonState = state.plugins
     .find(({ id }) => id === SKILL_GARDEN_PLUGIN_ID)
     .paths.find(({ path: value }) => value === ".claude/skills/open-idea/SKILL.md");
+  const aliyunState = state.plugins
+    .find(({ id }) => id === SKILL_GARDEN_PLUGIN_ID)
+    .paths.find(({ path: value }) => value === ".claude/skills/aliyun-ops/SKILL.md");
   assert.equal(commonState.ownership, "shared");
+  assert.equal(aliyunState.ownership, "shared");
   assert.notEqual(fs.readFileSync(commonSkill, "utf8"), "stale\n");
+  assert.equal(fs.existsSync(aliyunSkill), true);
+  assert.equal(fs.existsSync(path.dirname(oldAliyunSkill)), false);
   assert.equal(fs.existsSync(path.dirname(removedCommonSkill)), false);
 
   const cleanupPlan = planSkillGardenUninstall(target);
   assert.ok(cleanupPlan.shared.includes(".claude/skills/open-idea/SKILL.md"));
+  assert.ok(cleanupPlan.shared.includes(".claude/skills/aliyun-ops/SKILL.md"));
   fs.rmSync(path.join(target, ".trellis"), { recursive: true, force: true });
   applySkillGardenUninstall(target, cleanupPlan);
   assert.equal(fs.existsSync(commonSkill), true);
+  assert.equal(fs.existsSync(aliyunSkill), true);
 });
 
 test("common craft-rpa 旧运行时软链与依赖缓存不阻断 Plugin 重放", (t) => {

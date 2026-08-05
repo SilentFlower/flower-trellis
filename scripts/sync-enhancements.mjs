@@ -30,6 +30,7 @@ const DST = path.join(PKG_ROOT, "enhancements");
 const MANIFEST_PATH = path.join(DST, "MANIFEST.json");
 const VARIANTS = ["old", "0.5", "0.6"];
 const COMMON_REMOVED_SKILL_SEEDS = ["sub2api-account-json-fix"];
+const COMMON_MIGRATIONS_PATH = path.join(COMMON_SRC, "skill-migrations.json");
 
 if (!fs.existsSync(SRC)) {
   // CI 幂等:源不可用(如 CI 未拉 submodule)但快照已提交 → 沿用快照、跳过重建。
@@ -106,6 +107,62 @@ function listRelativeFilesRecursive(rootDir) {
   return result.sort();
 }
 
+/**
+ * 读取并校验 common skill 迁移清单。
+ *
+ * @param {string[]} codexSkills Codex 当前 skill 名称
+ * @param {string[]} claudeSkills Claude 当前 skill 名称
+ * @returns {Array<{from:string,to:string}>} 已校验迁移映射
+ */
+function readCommonSkillMigrations(codexSkills, claudeSkills) {
+  if (!fs.existsSync(COMMON_MIGRATIONS_PATH)) return [];
+  const data = JSON.parse(fs.readFileSync(COMMON_MIGRATIONS_PATH, "utf8"));
+  if (data?.version !== 1 || !Array.isArray(data?.skills)) {
+    throw new Error("common skill 迁移清单格式或版本不受支持");
+  }
+
+  const codexNames = new Set(codexSkills);
+  const claudeNames = new Set(claudeSkills);
+  const mappings = new Map();
+  for (const item of data.skills) {
+    const from = item?.from;
+    const to = item?.to;
+    if (!isSafeSkillName(from) || !isSafeSkillName(to)) {
+      throw new Error("common skill 迁移清单包含不安全的名称");
+    }
+    if (from === to || mappings.has(from)) {
+      throw new Error("common skill 迁移清单包含自映射或重复来源");
+    }
+    if (!codexNames.has(to) || !claudeNames.has(to)) {
+      throw new Error(`common skill 迁移目标缺少双平台源: ${to}`);
+    }
+    mappings.set(from, to);
+  }
+
+  for (const source of mappings.keys()) {
+    const seen = new Set();
+    let current = source;
+    while (mappings.has(current)) {
+      if (seen.has(current)) {
+        throw new Error("common skill 迁移清单包含环形迁移");
+      }
+      seen.add(current);
+      current = mappings.get(current);
+    }
+  }
+  return [...mappings].map(([from, to]) => ({ from, to }));
+}
+
+/**
+ * 判断 skill 名称是否能安全作为单一路径段。
+ *
+ * @param {unknown} name 待校验名称
+ * @returns {name is string} 是否安全
+ */
+function isSafeSkillName(name) {
+  return typeof name === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name);
+}
+
 if (fs.existsSync(COMMON_SRC)) {
   fs.cpSync(COMMON_SRC, path.join(DST, "common", ".common"), {
     recursive: true,
@@ -119,8 +176,10 @@ if (fs.existsSync(COMMON_SRC)) {
   for (const name of [...codexSkills, ...claudeSkills]) {
     commonSkillNames.add(name);
   }
+  const skillMigrations = readCommonSkillMigrations(codexSkills, claudeSkills);
   const removedSkills = new Set([
     ...COMMON_REMOVED_SKILL_SEEDS,
+    ...skillMigrations.map(({ from }) => from),
     ...(Array.isArray(previousCommon.codexSkills) ? previousCommon.codexSkills : []),
     ...(Array.isArray(previousCommon.claudeSkills) ? previousCommon.claudeSkills : []),
     ...(Array.isArray(previousCommon.removedSkills) ? previousCommon.removedSkills : []),
@@ -129,6 +188,7 @@ if (fs.existsSync(COMMON_SRC)) {
   manifest.common = {
     codexSkills,
     claudeSkills,
+    skillMigrations,
     removedSkills: [...removedSkills].sort((a, b) => a.localeCompare(b)),
   };
   console.log(
@@ -138,6 +198,7 @@ if (fs.existsSync(COMMON_SRC)) {
   manifest.common = {
     codexSkills: [],
     claudeSkills: [],
+    skillMigrations: [],
     removedSkills: [
       ...new Set([
         ...COMMON_REMOVED_SKILL_SEEDS,

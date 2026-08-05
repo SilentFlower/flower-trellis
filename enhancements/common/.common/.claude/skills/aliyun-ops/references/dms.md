@@ -1,8 +1,3 @@
----
-name: aliyun-dms-query
-description: 用 AK/SK 直连阿里云 DMS(数据管理) OpenAPI 查询线上数据库、提交数据变更工单。当需要查生产库数据做统计排查、列 DMS 实例/库拿 DbId、执行只读 SQL、对生产库做 UPDATE/DELETE 需要走审批工单、或排查 DMS 调用报错(403/InvalidParameterValid/安全规则拦截)时触发。不用于本地或测试库直连(用 MySQL MCP 之类)。
----
-
 # 阿里云 DMS：AK/SK 直连查线上库
 
 沉淀自真实生产排障（SRM 银行回单积压单据分类统计），所有姿势都在 `product` 环境实跑验证过。
@@ -39,14 +34,14 @@ DMS 对只读和写入是**两条完全不同的通道**，这是本 skill 的�
    ```
 3. RAM 授权按最小面给。只读取数场景给 `dms:ExecuteScript` + `dms:ListInstances` + `dms:ListDatabases`；需要提工单再加 `dms:CreateDataCorrectOrder`。同机多把 AK 时用 `--ak-env` / `--sk-env` 指定变量名，不要写死。
 
-首次使用：
+新用户首次使用：
 
 ```bash
-mkdir -p ~/.config/aliyun-dms-query
-install -m 600 assets/env.example ~/.config/aliyun-dms-query/env
+mkdir -p ~/.config/aliyun-ops
+install -m 600 assets/env.example ~/.config/aliyun-ops/env
 ```
 
-配置查找顺序：进程环境变量 → `~/.config/aliyun-dms-query/env` → `~/.config/aliyun-sls-query/env`(同一把 AK 时可直接复用)。用 `--env-file` 或 `ALIYUN_DMS_ENV_FILE` 显式指定时**文件必须存在**，否则 fail-fast，避免"以为读了配置、实际用了别处凭证"。
+默认配置查找顺序：进程环境变量 → `~/.config/aliyun-ops/env` → `~/.config/aliyun-dms-query/env` → `~/.config/aliyun-sls-query/env`。旧文件只读且继续有效，无需迁移。用 `--env-file`、`ALIYUN_DMS_ENV_FILE` 或 `ALIYUN_OPS_ENV_FILE` 显式指定时**文件必须存在**，且不会再回退其它文件，避免"以为读了配置、实际用了别处凭证"。
 
 ## 用法
 

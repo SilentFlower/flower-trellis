@@ -95,6 +95,120 @@ replay 不受影响。真实 update 的 Trellis + Plugin 链失败时由项目�
 
 ---
 
+## Scenario: Common Skill Replacement Migration
+
+### 1. Scope / Trigger
+
+- Trigger:把一个或多个已发布 common Skill 替换为新名称，且 Flower update、builtin Plugin 和
+  Skill-Garden 独立安装器都必须迁移既有安装。
+- Scope:迁移只处理受管 common Skill 根中的精确目录；用户配置、凭证和其它自有 Skill 不属于迁移目标。
+
+### 2. Signatures
+
+真实源与快照声明：
+
+```json
+{
+  "version": 1,
+  "skills": [{ "from": "old-skill", "to": "new-skill" }]
+}
+```
+
+```text
+vendor/skill-garden/.common/skill-migrations.json
+  -> scripts/sync-enhancements.mjs
+  -> MANIFEST.common.skillMigrations
+```
+
+Flower 与独立安装入口：
+
+```js
+describeInstalledCommonSkillSync(target)
+syncInstalledCommonSkills(target)
+installCommonSkills(target, names)
+```
+
+```bash
+bash scripts/install.sh --scope common <target> [skill-name ...]
+```
+
+### 3. Contracts
+
+- `skill-migrations.json` 是迁移关系唯一真实源。`from` / `to` 必须是安全单一路径段，来源不得重复，
+  不得自映射或成环，且目标 Skill 必须在当前 Claude/Codex common 源中完整存在。
+- 同步脚本校验清单后写入 `MANIFEST.common.skillMigrations`，并把来源名称累计进
+  `removedSkills`；旧名称不得继续出现在当前 common Skill catalog。
+- Flower 运行时按平台检查旧精确目录。只有同平台新 Skill 的 `SKILL.md` 可用时，才把新目标加入
+  refresh 计划，并把旧目标加入 remove 计划；多个旧名称指向同一目标时，每个平台只写一次新树。
+- 迁移来源不得再走普通 tombstone 删除。普通同步先复制新树再删除旧目录；builtin Plugin 复用
+  `describeInstalledCommonSkillSync()`，把新增和删除放入同一个事务，并把新 Skill 记录为 `shared`。
+- 显式存在的迁移声明只要解析或校验失败，Flower 必须失败关闭：迁移 refresh、迁移删除和普通
+  `removedSkills` tombstone 删除全部禁用，不能因旧名称同时出现在 tombstone 中而绕过保护。
+- 兼容旧版 Flower manifest：完全没有 `common.skillMigrations` 字段时，视为合法空迁移，历史
+  `removedSkills` tombstone 继续按原契约清理；字段存在但类型非法不属于该兼容分支。
+- `installCommonSkills()` 和独立安装器把旧名称解析为新名称的输入别名，但最终只安装新目录。
+  全量 common 安装、显式旧名称或显式新名称会执行对应迁移；显式安装无关 Skill 不得顺带迁移。
+- 独立安装器先写新 Skill 并确认 `SKILL.md` 存在，再精确删除同平台旧目录。迁移不得扫描 Skill
+  根之外的路径，也不得创建、复制、合并、改写、改权限或删除 `~/.config` 下的 ENV/凭证文件。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 合法映射，目标平台存在旧 Skill | 新目标加入 refresh，随后精确删除旧目录 |
+| 两个旧名称指向同一新 Skill | 同平台新树只写一次，两个旧目录分别删除 |
+| 新旧 Skill 同时存在 | 刷新新 Skill，再删除旧目录 |
+| 无旧 Skill 的普通 Flower update | 不自动启用新 Skill |
+| 显式旧名称或新名称安装 | 安装新 Skill，并在写入成功后清理对应旧目录 |
+| 显式安装无关 Skill | 不迁移、不删除旧 Skill |
+| `from` / `to` 不安全、重复、自映射、成环或目标缺失 | 生成/独立安装失败；Flower 运行时不生成任何删除目标 |
+| manifest 显式 `skillMigrations` 非数组或不可解析 | Flower 禁止迁移和全部 tombstone 删除 |
+| 旧 manifest 缺少 `skillMigrations` 字段 | 按合法空迁移处理，历史 tombstone 继续生效 |
+| 新 Skill 写入失败或 `SKILL.md` 缺失 | 保留旧目录 |
+| 迁移前后存在 ENV 文件 | 内容、权限和修改时间保持不变 |
+
+### 5. Good / Base / Bad Cases
+
+- Good:项目同时安装两个旧 Skill；一次 update 在同平台只写一份新 Skill，确认新文件存在后删除
+  两个旧目录，用户自有 Skill 与 ENV 文件保持原状。
+- Base:旧 manifest 没有迁移字段但包含历史 tombstone；继续执行原有精确清理，不要求补写迁移声明。
+- Bad:迁移目标缺失时仍根据 `removedSkills` 删除旧目录，导致升级后能力丢失。
+- Bad:用户只安装无关 Skill 时顺带清理旧名称，或把旧 ENV 合并到新的统一配置文件。
+
+### 6. Tests Required
+
+- 快照测试断言迁移清单、`MANIFEST.common.skillMigrations`、catalog、`removedSkills` 和双平台源一致。
+- Flower 同步测试覆盖单旧、双旧、新旧并存、无旧、Codex、Claude 和 legacy `.agents/skills`，并
+  断言新树去重、删除顺序、用户 Skill 保留。
+- 无效声明测试至少覆盖目标缺失、自映射、非数组和解析失败，断言 refresh/removedTargets 都为空；
+  另用缺少迁移字段的旧 manifest 断言 tombstone 仍执行。
+- `installCommonSkills()` 与独立安装器测试覆盖旧别名、新名称、双别名去重、全量安装和无关定向安装。
+- builtin Plugin 测试断言迁移后的新 Skill 为 `shared`，卸载保留；事务失败时不得只留下删除结果。
+- ENV 不变性测试比较安装/升级前后的文件内容、mode 和 `mtimeNs`。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```js
+for (const name of manifest.common.removedSkills) rmrf(skillRoot(name));
+```
+
+问题:删除只依赖 tombstone，无法证明替代 Skill 已准备成功；迁移声明损坏时也会误删旧能力。
+
+#### Correct
+
+```text
+validate migration declaration
+  -> plan one replacement refresh per platform
+  -> only then plan exact old-directory removals
+  -> apply refresh + removal in one transaction
+```
+
+原因:替代关系、安装别名和删除安全共享同一声明；无效声明失败关闭，旧 manifest 的无迁移语义仍兼容。
+
+---
+
 ## Scenario: Trellis 0.6.12 Platform Skill Projection
 
 ### 1. Scope / Trigger

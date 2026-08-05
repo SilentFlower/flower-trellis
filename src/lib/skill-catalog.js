@@ -31,6 +31,7 @@ const LEGACY_COMMON_SKILL_DIRS = [
 ];
 
 const SKILL_DESCRIPTION_OVERRIDES = {
+  "aliyun-ops": "统一查询阿里云 DMS、SLS 与 MSE 运维数据",
   "analyze-task": "深度分析并细化任务",
   "check-all": "全维度检查任务与实现",
   "check-impl": "检查实现是否符合任务要求",
@@ -238,34 +239,106 @@ function listRemovedCommonSkillNames() {
 }
 
 /**
+ * 读取并校验随包 manifest 中的 common skill 迁移状态。
+ *
+ * 未声明迁移的旧 manifest 视为合法空映射；只要显式声明存在但
+ * 校验失败，就返回 ``valid=false``，让 tombstone 清理 fail closed。
+ *
+ * @returns {{valid:boolean,migrations:Array<{from:string,to:string}>}} 迁移校验状态
+ */
+function readCommonSkillMigrationState() {
+  try {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(ENHANCEMENTS_ROOT, "MANIFEST.json"), "utf8"),
+    );
+    const declared = manifest?.common?.skillMigrations;
+    if (declared === undefined) return { valid: true, migrations: [] };
+    if (!Array.isArray(declared)) return { valid: false, migrations: [] };
+
+    const mappings = new Map();
+    const currentNames = new Set(listCommonSnapshotNames());
+    for (const item of declared) {
+      const from = item?.from;
+      const to = item?.to;
+      if (
+        !isSafeSkillName(from) ||
+        !isSafeSkillName(to) ||
+        from === to ||
+        mappings.has(from) ||
+        !currentNames.has(to)
+      ) {
+        return { valid: false, migrations: [] };
+      }
+      mappings.set(from, to);
+    }
+    for (const source of mappings.keys()) {
+      const seen = new Set();
+      let current = source;
+      while (mappings.has(current)) {
+        if (seen.has(current)) return { valid: false, migrations: [] };
+        seen.add(current);
+        current = mappings.get(current);
+      }
+    }
+    return {
+      valid: true,
+      migrations: [...mappings]
+        .map(([from, to]) => ({ from, to }))
+        .sort((left, right) => left.from.localeCompare(right.from)),
+    };
+  } catch {
+    return { valid: false, migrations: [] };
+  }
+}
+
+/**
  * 描述当前项目中已启用 common skill 的无写入同步输入。
  *
  * @param {string} target 目标项目根目录
  * @returns {{refreshes:Array<{source:string,target:string,name:string}>,removedTargets:string[]}} 快照来源与 tombstone 目标
  */
 export function describeInstalledCommonSkillSync(target) {
-  const refreshes = [];
+  const refreshesByTarget = new Map();
   const currentNames = new Set(listCommonSnapshotNames());
+  const migrationState = readCommonSkillMigrationState();
   for (const name of currentNames) {
     for (const dir of allCommonSkillDirs()) {
       const targetPath = `${dir.target}/${name}`;
       if (!fs.existsSync(path.join(target, ...targetPath.split("/")))) continue;
       const source = path.join(ENHANCEMENTS_ROOT, "common", dir.source, name);
       if (!fs.existsSync(source)) continue;
-      refreshes.push({ source, target: targetPath, name });
+      refreshesByTarget.set(targetPath, { source, target: targetPath, name });
     }
   }
-  const removedTargets = [];
-  for (const name of listRemovedCommonSkillNames()) {
-    if (currentNames.has(name)) continue;
+  const migrationSources = new Set();
+  const removedTargets = new Set();
+  for (const { from, to } of migrationState.migrations) {
+    migrationSources.add(from);
     for (const dir of allCommonSkillDirs()) {
-      const targetPath = `${dir.target}/${name}`;
-      if (fs.existsSync(path.join(target, ...targetPath.split("/")))) {
-        removedTargets.push(targetPath);
+      const oldTarget = `${dir.target}/${from}`;
+      if (!fs.existsSync(path.join(target, ...oldTarget.split("/")))) continue;
+      const source = path.join(ENHANCEMENTS_ROOT, "common", dir.source, to);
+      if (!fs.existsSync(path.join(source, "SKILL.md"))) continue;
+      const newTarget = `${dir.target}/${to}`;
+      refreshesByTarget.set(newTarget, { source, target: newTarget, name: to });
+      removedTargets.add(oldTarget);
+    }
+  }
+  if (migrationState.valid) {
+    for (const name of listRemovedCommonSkillNames()) {
+      if (currentNames.has(name) || migrationSources.has(name)) continue;
+      for (const dir of allCommonSkillDirs()) {
+        const targetPath = `${dir.target}/${name}`;
+        if (fs.existsSync(path.join(target, ...targetPath.split("/")))) {
+          removedTargets.add(targetPath);
+        }
       }
     }
   }
-  return { refreshes, removedTargets };
+  return {
+    refreshes: [...refreshesByTarget.values()],
+    removedTargets: [...removedTargets],
+  };
 }
 
 /**
@@ -463,15 +536,21 @@ function activeCommonTargets(target) {
  */
 export function installCommonSkills(target, names) {
   const available = new Set(listCommonSnapshotNames());
+  const migrations = readCommonSkillMigrationState().migrations;
+  const aliases = new Map(migrations.map(({ from, to }) => [from, to]));
   const installed = new Set();
+  const processed = new Set();
   const paths = [];
   const skipped = [];
 
-  for (const name of names) {
+  for (const requestedName of names) {
+    const name = aliases.get(requestedName) || requestedName;
     if (!available.has(name)) {
-      skipped.push(name);
+      skipped.push(requestedName);
       continue;
     }
+    if (processed.has(name)) continue;
+    processed.add(name);
 
     let installedOne = false;
     for (const dir of activeCommonTargets(target)) {
@@ -481,6 +560,12 @@ export function installCommonSkills(target, names) {
       const dst = path.join(target, ...dir.target.split("/"), name);
       ensureDir(path.dirname(dst));
       copyPath(src, dst);
+      for (const migration of migrations.filter(({ to }) => to === name)) {
+        const oldPath = path.join(target, ...dir.target.split("/"), migration.from);
+        if (fs.existsSync(path.join(dst, "SKILL.md")) && fs.existsSync(oldPath)) {
+          rmrf(oldPath);
+        }
+      }
       installed.add(name);
       paths.push(`${dir.target}/${name}`);
       installedOne = true;
@@ -506,36 +591,20 @@ export function syncInstalledCommonSkills(target) {
   const removed = new Set();
   const refreshedPaths = [];
   const removedPaths = [];
-  const currentNames = new Set(listCommonSnapshotNames());
-
-  for (const name of currentNames) {
-    for (const dir of allCommonSkillDirs()) {
-      const rel = `${dir.target}/${name}`;
-      const dst = path.join(target, ...dir.target.split("/"), name);
-      if (!fs.existsSync(dst)) continue;
-
-      const src = path.join(ENHANCEMENTS_ROOT, "common", dir.source, name);
-      if (!fs.existsSync(src)) continue;
-
-      copyPath(src, dst);
-      refreshed.add(name);
-      refreshedPaths.push(rel);
-    }
+  const description = describeInstalledCommonSkillSync(target);
+  for (const refresh of description.refreshes) {
+    const dst = path.join(target, ...refresh.target.split("/"));
+    copyPath(refresh.source, dst);
+    refreshed.add(refresh.name);
+    refreshedPaths.push(refresh.target);
   }
 
-  for (const name of listRemovedCommonSkillNames()) {
-    // 防御旧 manifest 漂移：重新进入当前快照的名称绝不能被 tombstone 删除。
-    if (currentNames.has(name)) continue;
-
-    for (const dir of allCommonSkillDirs()) {
-      const rel = `${dir.target}/${name}`;
-      const dst = path.join(target, ...dir.target.split("/"), name);
-      if (!fs.existsSync(dst)) continue;
-
-      rmrf(dst);
-      removed.add(name);
-      removedPaths.push(rel);
-    }
+  for (const removedTarget of description.removedTargets) {
+    const dst = path.join(target, ...removedTarget.split("/"));
+    if (!fs.existsSync(dst)) continue;
+    rmrf(dst);
+    removed.add(path.posix.basename(removedTarget));
+    removedPaths.push(removedTarget);
   }
 
   return {

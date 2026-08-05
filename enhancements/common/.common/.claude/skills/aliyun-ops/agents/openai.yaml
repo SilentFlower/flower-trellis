@@ -1,0 +1,4 @@
+interface:
+  display_name: "阿里云运维查询"
+  short_description: "统一查询阿里云 DMS、SLS 与 MSE 运维数据"
+  default_prompt: "使用 $aliyun-ops 查询并分析阿里云 DMS、SLS 或 MSE 数据。"

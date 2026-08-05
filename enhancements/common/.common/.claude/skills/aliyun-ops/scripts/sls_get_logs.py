@@ -6,8 +6,8 @@
 SLS 用自有 V1 签名（HMAC-SHA1 + x-log-* headers），与阿里云 RPC/ROA 的
 ACS3-HMAC-SHA256 是两套协议，不能混用，故单独实现。
 
-配置：先读取进程环境变量，再从 ~/.config/aliyun-sls-query/env 补齐缺失项；
-     可用 --env-file 或 ALIYUN_SLS_ENV_FILE 指定其它配置文件。
+配置：先读取进程环境变量，再按统一配置与旧配置路径补齐缺失项；
+     可用 --env-file、ALIYUN_SLS_ENV_FILE 或 ALIYUN_OPS_ENV_FILE 指定唯一文件。
 凭证：默认使用 ALIYUN_ACCESS_KEY_ID / ALIYUN_ACCESS_KEY_SECRET；
      可用 --ak-env / --sk-env 指定其它环境变量名（AK/SK 永远不进命令行参数）。
 
@@ -36,57 +36,15 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from email.utils import formatdate
-from pathlib import Path
-
-
-DEFAULT_ENV_FILE = "~/.config/aliyun-sls-query/env"
-
-
-def _parse_env_file(path):
-    """解析简单 KEY=VALUE 配置文件，不执行 shell 展开。"""
-    values = {}
-    for line_no, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[7:].lstrip()
-        if "=" not in line:
-            raise ValueError(f"第 {line_no} 行缺少 '='")
-        key, value = line.split("=", 1)
-        key = key.strip()
-        if not key or not (key[0].isalpha() or key[0] == "_") or not all(
-            char.isalnum() or char == "_" for char in key
-        ):
-            raise ValueError(f"第 {line_no} 行变量名不合法: {key!r}")
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
-        values[key] = value
-    return values
-
-
-def _load_env_file(path, required=False):
-    """加载私有配置，已有进程环境变量优先。"""
-    env_path = Path(path).expanduser()
-    if not env_path.is_file():
-        if required:
-            raise FileNotFoundError(f"ENV 文件不存在: {env_path}")
-        return env_path
-    for key, value in _parse_env_file(env_path).items():
-        if not os.environ.get(key):
-            os.environ[key] = value
-    return env_path
+from aliyun_common import UNIFIED_ENV_FILE, get_credentials, load_product_env
 
 
 def _bootstrap_env(argv):
     """在构造完整参数默认值前加载 ENV 文件。"""
-    configured_path = os.environ.get("ALIYUN_SLS_ENV_FILE", DEFAULT_ENV_FILE)
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--env-file", default=configured_path)
+    parser.add_argument("--env-file")
     known, _ = parser.parse_known_args(argv)
-    explicit = "--env-file" in argv or "ALIYUN_SLS_ENV_FILE" in os.environ
-    return _load_env_file(known.env_file, required=explicit)
+    return load_product_env("sls", known.env_file)
 
 
 def _canonicalized_headers(headers):
@@ -129,6 +87,21 @@ def get_logs(project, logstore, region, ak, sk, from_ts, to_ts,
 
     data：命中日志的 list（每条是 dict）；progress：x-log-progress 响应头，
     'Incomplete' 表示查询没扫完（大时间窗常见），应重试或缩窗。
+
+    @param project: SLS project 名称。
+    @param logstore: SLS logstore 名称。
+    @param region: 阿里云地域 ID。
+    @param ak: AccessKey ID。
+    @param sk: AccessKey Secret。
+    @param from_ts: 起始 Unix 秒。
+    @param to_ts: 结束 Unix 秒。
+    @param query: SLS 查询语句。
+    @param line: 单页最大行数。
+    @param offset: 分页偏移。
+    @param reverse: 是否按时间倒序。
+    @param topic: 可选的 topic 过滤值。
+    @param timeout: 网络超时秒数。
+    @return: ``(http_status, data, progress, error)`` 元组。
     """
     host = f"{project}.{region}.log.aliyuncs.com"
     path = f"/logstores/{logstore}"
@@ -170,13 +143,17 @@ def get_logs(project, logstore, region, ak, sk, from_ts, to_ts,
 
 
 def main():
+    """执行 SLS GetLogs CLI。
+
+    @return: 进程退出码。
+    """
     try:
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
         pass
     try:
-        env_file = _bootstrap_env(sys.argv[1:])
+        _bootstrap_env(sys.argv[1:])
     except (OSError, ValueError) as exc:
         print(f"[sls] ENV 配置读取失败: {exc}", file=sys.stderr)
         return 2
@@ -184,8 +161,7 @@ def main():
     ap = argparse.ArgumentParser(description="查询阿里云 SLS logstore（stdlib-only）")
     ap.add_argument(
         "--env-file",
-        default=str(env_file),
-        help=f"私有 ENV 文件，默认 {DEFAULT_ENV_FILE}",
+        help=f"私有 ENV 文件，默认 {UNIFIED_ENV_FILE}",
     )
     ap.add_argument(
         "--project",
@@ -222,10 +198,10 @@ def main():
         )
         return 2
 
-    ak = os.environ.get(args.ak_env, "")
-    sk = os.environ.get(args.sk_env, "")
-    if not ak or not sk:
-        print(f"[sls] 环境变量 {args.ak_env} / {args.sk_env} 未设置或为空", file=sys.stderr)
+    try:
+        ak, sk = get_credentials("sls", args.ak_env, args.sk_env)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
         return 2
 
     now = int(time.time())

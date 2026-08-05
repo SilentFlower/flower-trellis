@@ -19,140 +19,184 @@
 凭证：AK/SK 只从环境变量/私有 ENV 文件读取，绝不接受命令行传入、绝不打印。
 """
 import argparse
-import base64
-import csv
-import hashlib
-import hmac
-import io
 import json
 import os
 import sys
-import urllib.error
-import urllib.parse
-import urllib.request
-import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
-# 主配置文件；不存在时回退到 SLS skill 的配置(通常是同一把 AK)
-DEFAULT_ENV_FILE = "~/.config/aliyun-dms-query/env"
-FALLBACK_ENV_FILE = "~/.config/aliyun-sls-query/env"
+from aliyun_common import UNIFIED_ENV_FILE, get_credentials, load_product_env, render_rows
+from aliyun_rpc_v1 import rpc_request
 
 ENDPOINT = "dms-enterprise.aliyuncs.com"
 API_VERSION = "2018-11-01"
 
 # 只读语句白名单：这些直接走 ExecuteScript
 READONLY_HEADS = {"SELECT", "SHOW", "DESC", "DESCRIBE", "EXPLAIN", "WITH"}
+MUTATING_SQL_KEYWORDS = {
+    "ALTER",
+    "CALL",
+    "CREATE",
+    "DELETE",
+    "DO",
+    "DROP",
+    "GRANT",
+    "INSERT",
+    "LOAD",
+    "LOCK",
+    "MERGE",
+    "OPTIMIZE",
+    "RENAME",
+    "REPAIR",
+    "REPLACE",
+    "REVOKE",
+    "SET",
+    "TRUNCATE",
+    "UNLOCK",
+    "UPDATE",
+    "USE",
+}
 
 
 # --------------------------------------------------------------------------
 # 配置加载
 # --------------------------------------------------------------------------
-def _parse_env_file(path):
-    """解析简单 KEY=VALUE 配置文件，不执行 shell 展开。"""
-    values = {}
-    for line_no, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[7:].lstrip()
-        if "=" not in line:
-            raise ValueError(f"第 {line_no} 行缺少 '='")
-        key, value = line.split("=", 1)
-        key = key.strip()
-        if not key or not (key[0].isalpha() or key[0] == "_") or not all(
-            c.isalnum() or c == "_" for c in key
-        ):
-            raise ValueError(f"第 {line_no} 行变量名不合法: {key!r}")
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
-        values[key] = value
-    return values
-
-
 def load_env(explicit_path=None):
-    """加载配置。已存在的进程环境变量优先，配置文件只补缺失项。
+    """按统一入口和 DMS 旧路径加载配置。
 
-    显式指定(--env-file 或 ALIYUN_DMS_ENV_FILE)时，文件必须存在，否则 fail-fast，
-    避免"以为读了配置、实际用了别处凭证"的静默错配。
-    未显式指定时，按 DMS 专用 → SLS 共用 的顺序依次补齐(通常是同一把 AK)。
+    @param explicit_path: ``--env-file`` 显式路径。
+    @return: 实际读取过的配置文件路径。
     """
-    explicit = explicit_path or os.environ.get("ALIYUN_DMS_ENV_FILE")
-    if explicit:
-        p = Path(explicit).expanduser()
-        if not p.is_file():
-            raise FileNotFoundError(f"ENV 文件不存在: {p}")
-        for k, v in _parse_env_file(p).items():
-            if not os.environ.get(k):
-                os.environ[k] = v
-        return [str(p)]
+    return load_product_env("dms", explicit_path)
 
-    loaded = []
-    for cand in (DEFAULT_ENV_FILE, FALLBACK_ENV_FILE):
-        p = Path(cand).expanduser()
-        if not p.is_file():
+
+def _scan_sql_statements(script):
+    """将 SQL 拆成不含注释和字符串内容的词元列表。"""
+    statements = []
+    tokens = []
+    token = []
+    quote = None
+    block_comment = False
+    index = 0
+
+    def flush_token():
+        if token:
+            tokens.append("".join(token).upper())
+            token.clear()
+
+    def flush_statement():
+        flush_token()
+        if tokens:
+            statements.append(tokens.copy())
+            tokens.clear()
+
+    while index < len(script):
+        char = script[index]
+        next_char = script[index + 1] if index + 1 < len(script) else ""
+
+        if quote is not None:
+            if char == "\\" and next_char:
+                index += 2
+                continue
+            if char == quote:
+                if next_char == quote:
+                    index += 2
+                    continue
+                quote = None
+            index += 1
             continue
-        for k, v in _parse_env_file(p).items():
-            if not os.environ.get(k):
-                os.environ[k] = v
-        loaded.append(str(p))
-    return loaded
+
+        if block_comment:
+            if char == "*" and next_char == "/":
+                block_comment = False
+                index += 2
+                continue
+            index += 1
+            continue
+
+        if char in {"'", '"', "`"}:
+            flush_token()
+            quote = char
+            index += 1
+            continue
+        if char == "/" and next_char == "*":
+            flush_token()
+            if index + 2 < len(script) and script[index + 2] == "!":
+                return [], "MYSQL_EXEC_COMMENT"
+            block_comment = True
+            index += 2
+            continue
+        if char == "#":
+            flush_token()
+            index = script.find("\n", index)
+            if index == -1:
+                break
+            continue
+        if char == "-" and next_char == "-":
+            after = script[index + 2] if index + 2 < len(script) else ""
+            if not after or after.isspace():
+                flush_token()
+                index = script.find("\n", index)
+                if index == -1:
+                    break
+                continue
+        if char == ";":
+            flush_statement()
+            index += 1
+            continue
+        if char.isalnum() or char in {"_", "$"}:
+            token.append(char)
+        else:
+            flush_token()
+        index += 1
+
+    if quote is not None or block_comment:
+        return [], "INVALID_SQL"
+    flush_statement()
+    return statements, None
 
 
-def get_credentials(ak_env, sk_env):
-    """取 AK/SK。取不到直接 fail-fast，绝不回显凭证内容。"""
-    ak, sk = os.environ.get(ak_env, ""), os.environ.get(sk_env, "")
-    if not ak or not sk:
-        raise SystemExit(
-            f"[dms] 环境变量 {ak_env} / {sk_env} 未设置。\n"
-            f"      请创建 {DEFAULT_ENV_FILE} (权限 600) 并填入凭证。"
-        )
-    return ak, sk
+def _find_non_readonly_head(script):
+    """返回首个非只读语句关键词，全部只读时返回 ``None``。"""
+    statements, scan_error = _scan_sql_statements(script)
+    if scan_error:
+        return scan_error
+    if not statements:
+        return "EMPTY"
+    for tokens in statements:
+        head = tokens[0]
+        if head not in READONLY_HEADS:
+            return head
+        if head == "WITH":
+            # WITH 本身不代表只读，必须继续检查 CTE 与主语句中的写关键词。
+            for keyword in tokens[1:]:
+                if keyword in MUTATING_SQL_KEYWORDS:
+                    return keyword
+    return None
 
 
 # --------------------------------------------------------------------------
 # RPC v1.0 签名与调用
 # --------------------------------------------------------------------------
-def _pct(s):
-    """阿里云 RPC 签名要求的 percent encode(safe='~')。"""
-    return urllib.parse.quote(str(s), safe="~")
-
-
 def rpc(action, params, ak, sk, timeout=60):
-    """调用 DMS RPC 接口。返回 (http_status, body_dict)。"""
-    q = {
-        "Format": "JSON",
-        "Version": API_VERSION,
-        "Action": action,
-        "AccessKeyId": ak,
-        "SignatureMethod": "HMAC-SHA1",
-        "SignatureVersion": "1.0",
-        "SignatureNonce": uuid.uuid4().hex,
-        "Timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    }
-    q.update({k: v for k, v in params.items() if v is not None})
-    # StringToSign = METHOD & pct(/) & pct(按key升序拼接的query)
-    canon = "&".join(f"{_pct(k)}={_pct(q[k])}" for k in sorted(q))
-    sts = f"POST&{_pct('/')}&{_pct(canon)}"
-    q["Signature"] = base64.b64encode(
-        hmac.new((sk + "&").encode(), sts.encode(), hashlib.sha1).digest()
-    ).decode()
-    req = urllib.request.Request(
-        f"https://{ENDPOINT}/", data=urllib.parse.urlencode(q).encode(), method="POST",
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    """调用 DMS RPC 接口。
+
+    @param action: DMS OpenAPI Action。
+    @param params: DMS 业务参数。
+    @param ak: AccessKey ID。
+    @param sk: AccessKey Secret。
+    @param timeout: 网络超时秒数。
+    @return: ``(http_status, body_dict)`` 元组。
+    """
+    return rpc_request(
+        ENDPOINT,
+        API_VERSION,
+        action,
+        params,
+        ak,
+        sk,
+        method="POST",
+        timeout=timeout,
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status, json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        try:
-            return exc.code, json.loads(exc.read().decode("utf-8"))
-        except Exception:
-            return exc.code, {"Message": "unparseable error body"}
-    except Exception as exc:  # noqa: BLE001
-        return -1, {"Message": f"{type(exc).__name__}: {exc}"}
 
 
 def _fail(status, body, what):
@@ -164,7 +208,13 @@ def _fail(status, body, what):
 
 
 def resolve_tid(ak, sk, tid=None):
-    """未显式指定 Tid 时，自动取当前激活租户。"""
+    """未显式指定 Tid 时自动取当前激活租户。
+
+    @param ak: AccessKey ID。
+    @param sk: AccessKey Secret。
+    @param tid: 可选的 DMS 租户 ID。
+    @return: 整数形式的租户 ID。
+    """
     if tid:
         return int(tid)
     st, b = rpc("GetUserActiveTenant", {}, ak, sk)
@@ -176,36 +226,17 @@ def resolve_tid(ak, sk, tid=None):
 # --------------------------------------------------------------------------
 # 结果渲染
 # --------------------------------------------------------------------------
-def render(cols, rows, fmt, max_width=60):
-    """按指定格式输出结果集。"""
-    if fmt == "json":
-        print(json.dumps(rows, ensure_ascii=False, indent=2))
-        return
-    if fmt == "csv":
-        w = csv.DictWriter(sys.stdout, fieldnames=cols, extrasaction="ignore")
-        w.writeheader()
-        w.writerows(rows)
-        return
-    # table：按列内容宽度对齐
-    if not rows:
-        print("  (0 行)")
-        return
-    widths = {}
-    for c in cols:
-        cell_max = max((len(str(r.get(c, ""))[:max_width]) for r in rows), default=0)
-        widths[c] = min(max(len(c), cell_max), max_width)
-    print("  " + " | ".join(str(c).ljust(widths[c]) for c in cols))
-    print("  " + "-+-".join("-" * widths[c] for c in cols))
-    for r in rows:
-        print("  " + " | ".join(str(r.get(c, ""))[:max_width].ljust(widths[c]) for c in cols))
-    print(f"\n  ({len(rows)} 行)")
-
-
 # --------------------------------------------------------------------------
 # 子命令
 # --------------------------------------------------------------------------
 def cmd_instances(args, ak, sk):
-    """列出 DMS 纳管的实例。"""
+    """列出 DMS 纳管的实例。
+
+    @param args: instances 命令参数。
+    @param ak: AccessKey ID。
+    @param sk: AccessKey Secret。
+    @return: 进程退出码。
+    """
     tid = resolve_tid(ak, sk, args.tid)
     st, b = rpc("ListInstances", {
         "Tid": tid, "PageNumber": 1, "PageSize": args.limit,
@@ -223,12 +254,18 @@ def cmd_instances(args, ak, sk):
         "Mode": (i.get("StandardGroup") or {}).get("GroupMode"),
         "Host": i.get("Host"),
     } for i in items]
-    render(list(rows[0].keys()) if rows else [], rows, args.format)
+    render_rows(list(rows[0].keys()) if rows else [], rows, args.format)
     return 0
 
 
 def cmd_databases(args, ak, sk):
-    """列出某实例下的数据库(含 DbId，查询时要用)。"""
+    """列出某实例下的数据库。
+
+    @param args: databases 命令参数。
+    @param ak: AccessKey ID。
+    @param sk: AccessKey Secret。
+    @return: 进程退出码。
+    """
     tid = resolve_tid(ak, sk, args.tid)
     st, b = rpc("ListDatabases", {"Tid": tid, "InstanceId": args.instance}, ak, sk)
     if st != 200:
@@ -241,18 +278,24 @@ def cmd_databases(args, ak, sk):
         "State": d.get("State"),
         "Host": d.get("Host"),
     } for d in items]
-    render(list(rows[0].keys()) if rows else [], rows, args.format)
+    render_rows(list(rows[0].keys()) if rows else [], rows, args.format)
     return 0
 
 
 def cmd_query(args, ak, sk):
-    """执行只读 SQL。DML 会被拒绝并提示改用 order 子命令。"""
+    """执行只读 SQL，拒绝通过本通道执行 DML。
+
+    @param args: query 命令参数。
+    @param ak: AccessKey ID。
+    @param sk: AccessKey Secret。
+    @return: 进程退出码。
+    """
     script = args.sql
     if args.file:
         script = Path(args.file).expanduser().read_text(encoding="utf-8")
     script = script.strip().rstrip(";")
-    head = script.lstrip("( \t\n").split(None, 1)[0].upper() if script else ""
-    if head not in READONLY_HEADS:
+    head = _find_non_readonly_head(script)
+    if head is not None:
         print(
             f"[dms] 拒绝执行: 检测到非只读语句 ({head})。\n"
             f"      DMS 安全规则禁止 DML 在 SQL 控制台直接执行。\n"
@@ -281,7 +324,7 @@ def cmd_query(args, ak, sk):
             print(f"[dms] 执行被拒: {r.get('Message', '')}", file=sys.stderr)
             rc = 1
             continue
-        render(r.get("ColumnNames") or [], r.get("Rows") or [], args.format)
+        render_rows(r.get("ColumnNames") or [], r.get("Rows") or [], args.format)
     return rc
 
 
@@ -290,6 +333,11 @@ def cmd_order(args, ak, sk):
 
     注意：这是有副作用的操作，会在 DMS 中真实创建一张待审批工单。
     必须显式带 --yes 才会提交。
+
+    @param args: order 命令参数。
+    @param ak: AccessKey ID。
+    @param sk: AccessKey Secret。
+    @return: 进程退出码。
     """
     script = args.sql
     if args.file:
@@ -337,6 +385,11 @@ def cmd_orders(args, ak, sk):
     注意：OrderResultType(按提交人/审批人筛选)需要额外的 RAM 权限，
     权限不足时接口返回 403 InvalidParameterValid。因此默认不传该参数，
     仅在用户显式指定 --result-type 时才带上。
+
+    @param args: orders 命令参数。
+    @param ak: AccessKey ID。
+    @param sk: AccessKey Secret。
+    @return: 进程退出码。
     """
     tid = resolve_tid(ak, sk, args.tid)
     st, b = rpc("ListOrders", {
@@ -356,11 +409,15 @@ def cmd_orders(args, ak, sk):
         "Comment": str(o.get("Comment", ""))[:40],
         "CreateTime": o.get("CreateTime"),
     } for o in items]
-    render(list(rows[0].keys()) if rows else [], rows, args.format)
+    render_rows(list(rows[0].keys()) if rows else [], rows, args.format)
     return 0
 
 
 def main():
+    """执行 DMS CLI。
+
+    @return: 进程退出码。
+    """
     try:
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
@@ -369,7 +426,7 @@ def main():
 
     ap = argparse.ArgumentParser(
         description="阿里云 DMS OpenAPI 客户端(stdlib-only)。只读直连，DML 走工单。")
-    ap.add_argument("--env-file", help=f"私有 ENV 文件，默认 {DEFAULT_ENV_FILE}")
+    ap.add_argument("--env-file", help=f"私有 ENV 文件，默认 {UNIFIED_ENV_FILE}")
     ap.add_argument("--ak-env", default="ALIYUN_ACCESS_KEY_ID", help="AK 所在环境变量名")
     ap.add_argument("--sk-env", default="ALIYUN_ACCESS_KEY_SECRET", help="SK 所在环境变量名")
     ap.add_argument("--tid", help="DMS 租户 Tid，默认自动取当前激活租户")
@@ -418,7 +475,13 @@ def main():
     except (OSError, ValueError) as exc:
         print(f"[dms] ENV 配置读取失败: {exc}", file=sys.stderr)
         return 2
-    ak, sk = get_credentials(args.ak_env, args.sk_env)
+    if not args.tid:
+        args.tid = os.environ.get("ALIYUN_DMS_TID")
+    try:
+        ak, sk = get_credentials("dms", args.ak_env, args.sk_env)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
     return args.func(args, ak, sk)
 
 

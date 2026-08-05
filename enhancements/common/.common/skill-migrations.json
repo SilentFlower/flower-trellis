@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "from": "aliyun-dms-query",
+      "to": "aliyun-ops"
+    },
+    {
+      "from": "aliyun-sls-query",
+      "to": "aliyun-ops"
+    }
+  ]
+}

@@ -1,11 +1,10 @@
 {
-  "syncedAt": "2026-08-05T11:48:24.866Z",
+  "syncedAt": "2026-08-05T14:24:13.049Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "c76177cedba8a6f6d8f06c98a53571519062a683",
+  "sourceCommit": "3482b8028d8db708c032a4b668532bc0400fda12",
   "common": {
     "codexSkills": [
-      "aliyun-dms-query",
-      "aliyun-sls-query",
+      "aliyun-ops",
       "craft-rpa",
       "craft-slides",
       "humanize-writing",
@@ -13,15 +12,26 @@
       "torrent-analyze"
     ],
     "claudeSkills": [
-      "aliyun-dms-query",
-      "aliyun-sls-query",
+      "aliyun-ops",
       "craft-rpa",
       "craft-slides",
       "humanize-writing",
       "open-idea",
       "torrent-analyze"
     ],
+    "skillMigrations": [
+      {
+        "from": "aliyun-dms-query",
+        "to": "aliyun-ops"
+      },
+      {
+        "from": "aliyun-sls-query",
+        "to": "aliyun-ops"
+      }
+    ],
     "removedSkills": [
+      "aliyun-dms-query",
+      "aliyun-sls-query",
       "sub2api-account-json-fix"
     ]
   },
