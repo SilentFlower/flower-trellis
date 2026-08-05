@@ -4,6 +4,18 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.0-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.5...v0.6.0-beta.6) (2026-08-05)
+
+
+### ✨ 新功能 Features
+
+* **skill-garden:** 将 DMS、SLS、MSE/Nacos 整合为阿里云运维查询 Skill ([44ba195](https://github.com/SilentFlower/flower-trellis/commit/44ba195a5cbc8943fe0f38bbcff94ae4d940791e))
+* **skill:** 集成阿里云 DMS 查询 Skill ([a582d1c](https://github.com/SilentFlower/flower-trellis/commit/a582d1cc45ea38b8288b75bd4511f378eb5997a2))
+* **trellis:** 将 Check-All 可选问题收敛为统一兜底分类 ([eda90ec](https://github.com/SilentFlower/flower-trellis/commit/eda90ecc3fd3e92317cb15f054f837900fb2467e))
+* **trellis:** 新增 Check-All 可选问题分类 ([839904e](https://github.com/SilentFlower/flower-trellis/commit/839904e3d584f3f71190d95fb623612673f9b210))
+* **trellis:** 新增 Trellis 项目级关闭与恢复能力 ([a27b5c2](https://github.com/SilentFlower/flower-trellis/commit/a27b5c2966a29f394d1dc98341e4c3be5ac7a030))
+* **worktree:** 让 Trellis worktree 状态按分支隔离 ([dde2fbb](https://github.com/SilentFlower/flower-trellis/commit/dde2fbb792714f326d9f48a85e055229eb4bd4bb))
+
 ## [0.6.0-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.4...v0.6.0-beta.5) (2026-08-04)
 
 
