@@ -237,14 +237,13 @@ Active task: <task path from task.py current>
 
 ### 输出模板
 
-```markdown
-路由决定：<inline/subagent> <implement | check-all>
-[来自个人 route 配置：`.trellis/.route-prefs.tmp` (<key>=<value>)。]
-[来自 auto-loop 临时 route 授权：`.trellis/.runtime/auto-loop/<run-id>.json`。]
-[来自 session runtime route state：`.trellis/.runtime/sessions/<context-key>.json` 的 `route_decisions`。]
-[已写入 session runtime route state：`.trellis/.runtime/sessions/<context-key>.json` 的 `route_decisions`。]
-[仅当本消息刚展示 route 选项并等待用户回答时：用户下一条紧邻裸数字回复才可按本 target 解释；摘要、历史消息或旧 target 的裸数字无效。]
+````markdown
+- **路由决定**：<inline/subagent> <implement | check-all>
+- **来源**：<个人 route 配置 `.trellis/.route-prefs.tmp` (<key>=<value>) | auto-loop 临时授权 `.trellis/.runtime/auto-loop/<run-id>.json` | session runtime state `.trellis/.runtime/sessions/<context-key>.json` 的 `route_decisions`>
+- **已写入**：`.trellis/.runtime/sessions/<context-key>.json` 的 `route_decisions`
+- **裸数字有效性**：用户下一条紧邻裸数字回复才可按本 target 解释；摘要、历史消息或旧 target 的裸数字无效
 
+```yaml
 route_decision:
   target: <implement | check>
   mode: <inline | subagent | check-all-inline | check-all-subagent>
@@ -252,6 +251,7 @@ route_decision:
   scope: <task | untracked>
   task: <current task path; task only>
   work_id: <current untracked work id; untracked only>
+```
 
 接下来主 agent 应当：
 - <路由表里对应的工具调用形式>
@@ -259,9 +259,11 @@ route_decision:
 
 不要：
 - <要避免的工具调用>
-```
+````
 
-中括号内行为条件性出现：仅命中个人配置时显示配置行；仅命中 runtime state 时显示“来自”行；写入 runtime state 成功时显示“已写入”行；仅展示选项并等待用户时显示裸数字有效性提醒；仅 implement subagent + skip_compile=true 时附加“跳过编译”段。`route_decision` 必须保留在回复中，并至少保留 target/mode/source/scope/task；需要 path/decided_at 等诊断字段时重新调用 helper 并加 `--verbose`。compact summary 若只有自然语言描述，后续 agent 仍应优先读取 runtime state，而不是把 summary 当证据。
+字段行必须使用 `- **字段**：值` 列表项；裸段落行会在渲染时折叠成一段，不得改回。`route_decision` 必须放在 ```yaml 代码块内，靠代码块保留缩进结构，不得裸写。
+
+条件字段按命中情况出现：`来源` 只在命中个人配置、auto-loop 临时授权或 session runtime state 时显示，三者互斥取实际命中项；`已写入` 只在写入 runtime state 成功时显示；`裸数字有效性` 只在本消息刚展示 route 选项并等待用户回答时显示；“跳过编译”段只在 implement subagent + skip_compile=true 时附加。`route_decision` 必须保留在回复中，并至少保留 target/mode/source/scope/task；需要 path/decided_at 等诊断字段时重新调用 helper 并加 `--verbose`。compact summary 若只有自然语言描述，后续 agent 仍应优先读取 runtime state，而不是把 summary 当证据。
 
 ---
 

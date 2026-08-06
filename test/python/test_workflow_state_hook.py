@@ -108,6 +108,12 @@ class WorkflowStateHookTest(unittest.TestCase):
     def _run_hook(self, input_data: dict) -> str:
         """执行完整 Hook 并返回 additionalContext。
 
+        会话身份必须完全由 input_data 决定,因此显式传入剔除会话变量的环境:
+        Hook 内部的 read_untracked_state 会优先采信 TRELLIS_CONTEXT_ID /
+        CLAUDE_CODE_SESSION_ID 等环境变量解析 contextKey。若继承宿主环境,在
+        Claude Code、Codex 等 AI 会话里运行时会解析出宿主自身的 contextKey,
+        读不到用例写入的 session 文件而误判为无活动工作 —— 表现为 CI 绿、本地红。
+
         Args:
             input_data: Hook stdin JSON。
 
@@ -121,6 +127,7 @@ class WorkflowStateHookTest(unittest.TestCase):
             text=True,
             capture_output=True,
             check=True,
+            env=_sessionless_env(),
         )
         output = json.loads(result.stdout)
         return output["hookSpecificOutput"]["additionalContext"]
