@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.0-beta.7",
+  "version": "0.6.0-beta.8",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -68,9 +68,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.0-beta.7",
+    "version": "0.6.0-beta.8",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **trellis:** 支持接受 Check-All 检查风险 ([589dd9a](https://github.com/SilentFlower/flower-trellis/commit/589dd9ad14e0755ea47da46345f14567b1632285))\n\n\n### 🐛 修复 Bug Fixes\n\n* **plugin:** 修复 GitLab 私有来源安装 ([4ba3cf6](https://github.com/SilentFlower/flower-trellis/commit/4ba3cf610f8fef99ef0297654d1859510be8f07e))",
+    "body": "### ✨ 新功能 Features\n\n* **worktree:** 完善多仓预检与会话交接 ([362d42c](https://github.com/SilentFlower/flower-trellis/commit/362d42c4d78e3bd544554975c10fa2db3b1d9729))\n\n\n### 🐛 修复 Bug Fixes\n\n* **plugin:** 修复 Plugin 管理器加载、预览噪音与更新链路 ([ee45d43](https://github.com/SilentFlower/flower-trellis/commit/ee45d433810c2eca90a6622bd7b5cca56b7bb027))",
     "truncated": false
   },
   "optionalDependencies": {

@@ -4,6 +4,18 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.0-beta.8](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.7...v0.6.0-beta.8) (2026-08-06)
+
+
+### ✨ 新功能 Features
+
+* **worktree:** 完善多仓预检与会话交接 ([362d42c](https://github.com/SilentFlower/flower-trellis/commit/362d42c4d78e3bd544554975c10fa2db3b1d9729))
+
+
+### 🐛 修复 Bug Fixes
+
+* **plugin:** 修复 Plugin 管理器加载、预览噪音与更新链路 ([ee45d43](https://github.com/SilentFlower/flower-trellis/commit/ee45d433810c2eca90a6622bd7b5cca56b7bb027))
+
 ## [0.6.0-beta.7](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.6...v0.6.0-beta.7) (2026-08-06)
 
 
