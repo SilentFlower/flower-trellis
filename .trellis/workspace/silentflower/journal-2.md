@@ -917,3 +917,25 @@
 ### Next Steps
 
 - 无；任务已完成并归档
+
+
+## Session 85: 修复 Flower Plugin 管理器加载、预览噪音与更新链路
+
+**Date**: 2026-08-06
+**Task**: 修复 Flower Plugin 管理器加载、预览噪音与更新链路
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+五项修复：延迟加载 trellis-control 与 ajv 编译；生命周期清单按 transaction.changed 过滤幂等重写；安装不再询问平台；发现页三态徽标；安装写 ^x.y.z 并新增 plugin update --widen 批量放宽。Check-All 发现解析器互锁（Marketplace 只留最新版时多个精确锁互相阻塞），修复方案扩到服务层 update() 入口。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ee45d43 8d5b886` | (see git log) |
+
+### Status
+
+[OK] **Completed**
