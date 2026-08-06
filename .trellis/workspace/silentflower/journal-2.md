@@ -880,3 +880,40 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 84: 完成 Worktree 多仓基线确认与会话交接
+
+**Date**: 2026-08-06
+**Task**: 完成 Worktree 多仓基线确认与会话交接
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 worktree 两阶段只读预检、route 个人偏好继承、多仓分支动作披露和新会话 handoff；修复 CHK-001，完整测试通过，其余四项风险按用户确认接受。
+
+### Main Changes
+
+- 新增根仓与子仓 selected/createsBranch/targetBranch 合同及 CLI 展示
+- 补齐 package context、多仓独立确认、route 偏好与本地状态转移边界
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `200555a` | (see git log) |
+| `362d42c` | (see git log) |
+
+### Testing
+
+- [OK] npm test：Node 418 项、Python 235 项通过
+- [OK] npm pack --dry-run、Patch 冲突与 compiled targets 检查通过
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 无；任务已完成并归档
