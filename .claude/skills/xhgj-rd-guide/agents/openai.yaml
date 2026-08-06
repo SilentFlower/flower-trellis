@@ -1,0 +1,4 @@
+interface:
+  display_name: "XHGJ 研发治理路由"
+  short_description: "最小加载研发治理规则并核对权威、来源、安装版本与失败边界"
+  default_prompt: "Use $xhgj-rd-guide to identify the minimum current governance sources, installed-skill state, and constraints for this task."

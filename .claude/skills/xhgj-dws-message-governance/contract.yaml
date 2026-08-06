@@ -1,0 +1,48 @@
+# xhgj-dws-message-governance 的可离线机器契约；使用 JSON-compatible YAML 供标准库解析。
+{
+  "schema_version": 2,
+  "name": "xhgj-dws-message-governance",
+  "aliases": ["dws-message-governance"],
+  "status": "incubating",
+  "version": "0.2.0",
+  "owner": "rd-guide-maintainers",
+  "authority": "rd-guide-maintainers",
+  "source": "migration:xhgj-dws-message-governance",
+  "entrypoint": "SKILL.md",
+  "self_check": "scripts/self_check.py",
+  "tests": ["tests/test_self_check.py", "tests/cases.json"],
+  "compatibility": {
+    "skill_format": "codex-skill-v1",
+    "python": ">=3.7",
+    "offline": true,
+    "clients": ["codex"],
+    "client_verification": {
+      "required_layers": ["discovery", "routing", "constraints"],
+      "results": [
+        {
+          "client": "codex",
+          "verified_layers": ["discovery", "routing", "constraints"],
+          "as_of": "2026-08-03",
+          "evidence": ["skill:tests/fixtures/real-usage.json"],
+          "limitations": ["verified from the repository source copy while the live A5 activation, Catalog and Ledger state was inconsistent; both scenarios correctly failed closed, so no successful draft, workstation installation or real DWS send was exercised"]
+        }
+      ]
+    },
+    "project_rule_entries": []
+  },
+  "upgrade_protection": {
+    "mode": "detect-and-stop",
+    "compare_command": "python scripts/self_check.py --compare <installed-skill-directory>",
+    "protected_paths": ["SKILL.md", "agents/openai.yaml", "contract.yaml", "references", "scripts", "tests"],
+    "on_difference": "report differences and require an explicit choice; never overwrite"
+  },
+  "real_usage": {
+    "status": "executed",
+    "evidence": "tests/fixtures/real-usage.json",
+    "review_projection": "tests/fixtures/real-usage.md",
+    "environment": "Controlled Codex forward use from the repository source copy while live A5 activation, Catalog and Ledger state was inconsistent; both scenarios failed closed; no workstation installation and no real DWS send",
+    "review_status": "pending-maintainer-review",
+    "as_of": "2026-08-03"
+  },
+  "feedback": "issue:1"
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "XHGJ 受控邮件分发"
+  short_description: "为企业邮件线程恢复、载荷冻结、预览与受控 SMTP 投递提供组织级门禁"
+  default_prompt: "Use $xhgj-governed-mail-distribution to prepare and preflight this enterprise mail without executing a real send until the frozen payload is explicitly approved."

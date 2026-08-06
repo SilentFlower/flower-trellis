@@ -1,0 +1,4 @@
+interface:
+  display_name: "XHGJ DWS 消息治理"
+  short_description: "为钉钉消息起草、预览、授权发送与回读提供组织级门禁"
+  default_prompt: "Use $xhgj-dws-message-governance to review and preflight this DWS message without sending until the final payload is explicitly approved."

@@ -1,0 +1,68 @@
+# xhgj-governed-mail-distribution 的可离线机器契约；使用 JSON-compatible YAML 供标准库解析。
+{
+  "schema_version": 2,
+  "name": "xhgj-governed-mail-distribution",
+  "aliases": ["governed-mail-distribution"],
+  "status": "incubating",
+  "version": "0.2.2",
+  "owner": "rd-guide-maintainers",
+  "authority": "rd-guide-maintainers",
+  "source": "migration:xhgj-governed-mail-distribution",
+  "entrypoint": "SKILL.md",
+  "self_check": "scripts/self_check.py",
+  "tests": ["tests/test_self_check.py", "tests/cases.json"],
+  "compatibility": {
+    "skill_format": "codex-skill-v1",
+    "python": ">=3.7",
+    "offline": true,
+    "clients": ["codex", "claude-code"],
+    "client_verification": {
+      "required_layers": ["discovery", "routing", "constraints"],
+      "results": [
+        {
+          "client": "codex",
+          "verified_layers": ["discovery", "routing", "constraints"],
+          "as_of": "2026-08-05",
+          "evidence": ["skill:tests/fixtures/real-usage-0.1.0-codex.json"],
+          "limitations": [
+            "verified in a ChatGPT Codex session from the repository source copy; no workstation installation or installed-copy discovery was exercised",
+            "the verification ran before the P2 Catalog and Ledger registration landed, so target-canonical and activation paths were exercised only as fail-closed; the live migration status must be read from the current default branch at use time and is deliberately not snapshotted here",
+            "no mailbox, real recipient, SMTP, IMAP, POP3, DWS, real mail send, delivery confirmation or sent-folder/recipient readback was exercised",
+            "the verified asset was 0.1.0; it predates the 0.2.0 release gate, so this client has not re-verified discovery, routing or constraints against the approval-timestamp fields",
+            "re-verification against the installed 0.2.0 copy was attempted on 2026-08-05 under codex-cli 0.146.0 with --sandbox read-only and could not run: the Windows sandbox runner failed at SpawnChild with CreateProcessAsUserW error 1920 because pwsh.exe on this workstation is a WindowsApps execution-alias stub and PowerShell 7 is not installed; no wider-permission fallback was accepted as an equivalent result",
+            "the blocker is unchanged at 0.2.1 and 0.2.2, so this client still carries 0.1.0 evidence while the canonical has advanced; closing it requires either PowerShell 7 on this workstation or a different Codex host"
+          ]
+        },
+        {
+          "client": "claude-code",
+          "verified_layers": ["discovery", "routing", "constraints"],
+          "as_of": "2026-08-05",
+          "evidence": ["skill:tests/fixtures/real-usage-0.2.0-claude-code.json"],
+          "limitations": [
+            "verified against the installed 0.2.0 copy discovered through the ~/.claude per-Skill junction into the ~/.agents entity; the ~/.codex independent copy was not exercised by this client",
+            "each layer ran as a separate non-interactive read-only session with Read, Glob, Grep and Skill only; no mailbox, real recipient, SMTP, IMAP, POP3, DWS, real mail send, delivery confirmation or sent-folder/recipient readback was exercised",
+            "the constraints layer covered the 0.2.0 approval-timestamp gate and the DWS-send prohibition as read-only probes; the controlled delivery that closes the Ledger consumer-path verification was executed separately on 2026-08-05 against the installed 0.2.1 copy and is recorded in tests/fixtures/real-usage.json, not in this client-admission fixture",
+            "the three layers were verified against 0.2.0; 0.2.1 and 0.2.2 are contract- and gate-only revisions that leave SKILL.md, references and the routing and constraint text unchanged, and this client has not re-run the three layers against them",
+            "while locating the install path the discovery probe additionally opened ~/.claude/settings.json and echoed a credential value, unrelated to this Skill, into its own local session transcript; the value was not written into this repository and rotation was reported separately"
+          ]
+        }
+      ]
+    },
+    "project_rule_entries": []
+  },
+  "upgrade_protection": {
+    "mode": "detect-and-stop",
+    "compare_command": "python scripts/self_check.py --compare <installed-skill-directory>",
+    "protected_paths": ["SKILL.md", "agents/openai.yaml", "contract.yaml", "references", "scripts", "tests"],
+    "on_difference": "report differences and require an explicit choice; never overwrite"
+  },
+  "real_usage": {
+    "status": "passed",
+    "evidence": "tests/fixtures/real-usage.json",
+    "review_projection": "tests/fixtures/real-usage.md",
+    "environment": "Owner workstation, end-to-end consumer path on the installed copy: 0.2.1 was installed from the rd-guide default-branch source into the ~/.agents entity and the ~/.codex independent copy with the ~/.claude per-Skill junction verified, leaving all three discovery entries at zero gap against canonical, and one real controlled mail delivery was then executed through that installed copy over enterprise SMTP with owner review at both the preview and the formal-release boundary and a post-send readback. Credentials were read from the runtime environment only; no recipient address, payload, attachment, receipt or credential value is recorded in this repository. The ChatGPT Codex client remains on the 0.1.0 verification frozen at tests/fixtures/real-usage-0.1.0-codex.json because its re-verification is blocked by a codex-cli 0.146.0 Windows sandbox defect",
+    "review_status": "passed",
+    "as_of": "2026-08-05"
+  },
+  "feedback": "issue:1"
+}

@@ -22,17 +22,117 @@
       },
       "dependencies": {},
       "id": "flower/skill-garden",
-      "integrity": "sha256:f4ca2bf7745b88fcff3d6ce8755457c0b026bc3697da07350d9635a5173b6215",
+      "integrity": "sha256:c4369b0f97e29601f7d2527c11c6396c52b4bb173b0b8c18cd03357d90b4844f",
       "source": {
         "id": "flower",
         "reference": "package:skill-garden:0.6",
         "type": "builtin"
       },
       "version": "0.6.0-beta.7"
+    },
+    {
+      "capabilities": {
+        "approvalDigest": null,
+        "denied": [],
+        "granted": [
+          "content.skills"
+        ],
+        "profile": "standard"
+      },
+      "commit": "2be57e893bd0fd6e864a1f07f5102350a9e8528d",
+      "compatibility": {
+        "flower": ">=0.6.0-0 <1.0.0"
+      },
+      "dependencies": {},
+      "id": "rd-guide/xhgj-dws-message-governance",
+      "integrity": "sha256:d0fa86897205d649b23b0bd558f1e3590b45033aa65dbd12fcf335e27e45711f",
+      "source": {
+        "id": "rd-guide",
+        "indexCommit": "012054fd22a7a5fd90799e740ab210e1dc586baf",
+        "reference": "digital-rd-governance/rd-guide",
+        "type": "gitlab"
+      },
+      "version": "0.2.0"
+    },
+    {
+      "capabilities": {
+        "approvalDigest": null,
+        "denied": [],
+        "granted": [
+          "content.skills"
+        ],
+        "profile": "standard"
+      },
+      "commit": "2be57e893bd0fd6e864a1f07f5102350a9e8528d",
+      "compatibility": {
+        "flower": ">=0.6.0-0 <1.0.0"
+      },
+      "dependencies": {},
+      "id": "rd-guide/xhgj-gitlab-collaboration",
+      "integrity": "sha256:c571fe25af7cb37f27a02d3c1a5035bed3abe2a58a087b3599cd47f362bbb113",
+      "source": {
+        "id": "rd-guide",
+        "indexCommit": "012054fd22a7a5fd90799e740ab210e1dc586baf",
+        "reference": "digital-rd-governance/rd-guide",
+        "type": "gitlab"
+      },
+      "version": "0.4.2"
+    },
+    {
+      "capabilities": {
+        "approvalDigest": null,
+        "denied": [],
+        "granted": [
+          "content.skills"
+        ],
+        "profile": "standard"
+      },
+      "commit": "2be57e893bd0fd6e864a1f07f5102350a9e8528d",
+      "compatibility": {
+        "flower": ">=0.6.0-0 <1.0.0"
+      },
+      "dependencies": {},
+      "id": "rd-guide/xhgj-governed-mail-distribution",
+      "integrity": "sha256:02e6e78270c3b1f1194f8568d57a39860488e8a888e88e4e2cd2bcf1b1fbdd0d",
+      "source": {
+        "id": "rd-guide",
+        "indexCommit": "012054fd22a7a5fd90799e740ab210e1dc586baf",
+        "reference": "digital-rd-governance/rd-guide",
+        "type": "gitlab"
+      },
+      "version": "0.2.2"
+    },
+    {
+      "capabilities": {
+        "approvalDigest": null,
+        "denied": [],
+        "granted": [
+          "content.skills"
+        ],
+        "profile": "standard"
+      },
+      "commit": "2be57e893bd0fd6e864a1f07f5102350a9e8528d",
+      "compatibility": {
+        "flower": ">=0.6.0-0 <1.0.0"
+      },
+      "dependencies": {},
+      "id": "rd-guide/xhgj-rd-guide",
+      "integrity": "sha256:d50478d7eddb94506f2dd21d2f776443e2dd254707146b7c8911944a17523ffa",
+      "source": {
+        "id": "rd-guide",
+        "indexCommit": "012054fd22a7a5fd90799e740ab210e1dc586baf",
+        "reference": "digital-rd-governance/rd-guide",
+        "type": "gitlab"
+      },
+      "version": "0.4.0"
     }
   ],
   "roots": [
-    "flower/skill-garden"
+    "flower/skill-garden",
+    "rd-guide/xhgj-dws-message-governance",
+    "rd-guide/xhgj-gitlab-collaboration",
+    "rd-guide/xhgj-governed-mail-distribution",
+    "rd-guide/xhgj-rd-guide"
   ],
   "schemaVersion": 1
 }

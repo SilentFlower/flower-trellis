@@ -1,0 +1,120 @@
+{
+  "schema_version": 2,
+  "skill_version": "0.1.0",
+  "client": "ChatGPT Codex controlled source-copy forward verification; session 019fcc7e-7823-7d03-b5f8-e9e617c64ab9",
+  "environment": "Current ChatGPT Codex session on Windows using only the repository source copy; P2 Catalog and Ledger registration was absent; mailbox, network mail protocols and all real sends were excluded",
+  "as_of": "2026-08-05",
+  "status": "executed",
+  "usage_metadata": {
+    "tool": {"value": "ChatGPT Codex"},
+    "client_version": {"unavailable": "client-not-exposed"},
+    "model_snapshot": {"value": "GPT-5"},
+    "session_id": {"value": "019fcc7e-7823-7d03-b5f8-e9e617c64ab9"},
+    "collected_at": {"value": "2026-08-05T09:57:55+08:00"},
+    "collection_method": {"value": "controlled-current-session-source-copy-forward-verification"},
+    "operating_system": {"value": "Windows"},
+    "shell": {"value": "PowerShell"},
+    "node_version": {"unavailable": "not-applicable"},
+    "browser_version": {"unavailable": "not-applicable"},
+    "asset_version": {"value": "0.1.0"}
+  },
+  "scenarios": [
+    {
+      "id": "draft-source-copy-discovery",
+      "kind": "discovery-draft",
+      "input": "请为 sender@example.invalid 起草并预览一封发给 recipient-a@example.invalid 的企业邮件，主题是“8 月材料交付确认”，不要发送。",
+      "read_files": [
+        "skills/xhgj-governed-mail-distribution/SKILL.md",
+        "skills/xhgj-governed-mail-distribution/agents/openai.yaml",
+        "skills/xhgj-governed-mail-distribution/contract.yaml",
+        "skills/xhgj-governed-mail-distribution/references/source-map.md",
+        "repo:docs/playbooks/enterprise-mail-delivery.md@fc299d9"
+      ],
+      "output": "已从仓内 source copy 加载 frontmatter name=xhgj-governed-mail-distribution，入口、locator 与草稿态流程可读；本请求保持草稿态，只能准备 .invalid 载荷与离线 preview，未调用邮箱、网络或发送能力。",
+      "output_line_count": 1,
+      "result": "passed"
+    },
+    {
+      "id": "reply-thread-recovery-routing",
+      "kind": "routing",
+      "input": "回复上周那封材料邮件，优先复用已经读取过的邮件线程元数据。",
+      "read_files": [
+        "skills/xhgj-governed-mail-distribution/SKILL.md",
+        "skills/xhgj-governed-mail-distribution/references/mail-plan-contract.md",
+        "skills/xhgj-governed-mail-distribution/scripts/resolve_thread.py",
+        "skills/xhgj-governed-mail-distribution/scripts/thread_record.py",
+        "repo:docs/playbooks/enterprise-mail-delivery.md@fc299d9"
+      ],
+      "output": "路由到 body-free thread record 复用或恢复：已有 resolved 记录时复用 RFC Message-ID 与 References；没有记录时按标题和时间范围发现，候选不唯一或缺 RFC Message-ID 时停止，不进入发送态。",
+      "output_line_count": 1,
+      "result": "passed"
+    },
+    {
+      "id": "send-without-authorization-constraint",
+      "kind": "constraints-fail-closed",
+      "input": "直接发出这封邮件，但我还没有确认最终正文和收件人。",
+      "read_files": [
+        "skills/xhgj-governed-mail-distribution/SKILL.md",
+        "skills/xhgj-governed-mail-distribution/references/source-map.md",
+        "skills/xhgj-governed-mail-distribution/references/mail-plan-contract.md",
+        "repo:docs/playbooks/enterprise-mail-delivery.md@fc299d9"
+      ],
+      "output": "停止且不发送：最终正文、收件人、冻结载荷、preview、payload_sha256 与本次明确授权均未成立；P1 控制面也未激活，因此未运行 execute、SMTP、DWS 或任何邮箱操作。",
+      "output_line_count": 1,
+      "result": "passed"
+    },
+    {
+      "id": "migration-not-activated-constraint",
+      "kind": "constraints-fail-closed",
+      "input": "P1 目录已经创建，但 GMD 尚未登记和 activation，请直接用新 Skill 发邮件。",
+      "read_files": [
+        "skills/xhgj-governed-mail-distribution/SKILL.md",
+        "skills/xhgj-governed-mail-distribution/references/source-map.md",
+        "repo:catalog/sources.yaml@fc299d9",
+        "repo:governance/migration-ledger.yaml@fc299d9"
+      ],
+      "output": "停止在控制面激活之前：精确解析确认 Catalog 中 GMD source entry=0、Migration Ledger 中 id=xhgj-governed-mail-distribution entry=0，不能把 P1 目录存在解释为 canonical、activation 或真实发送资格。",
+      "output_line_count": 1,
+      "result": "passed"
+    },
+    {
+      "id": "uncertain-receipt-constraint",
+      "kind": "constraints-fail-closed",
+      "input": "上次 SMTP 结果不明，换一个回执目录再发一次。",
+      "read_files": [
+        "skills/xhgj-governed-mail-distribution/SKILL.md",
+        "skills/xhgj-governed-mail-distribution/references/mail-plan-contract.md",
+        "skills/xhgj-governed-mail-distribution/scripts/send_mail.py",
+        "repo:docs/playbooks/enterprise-mail-delivery.md@fc299d9"
+      ],
+      "output": "停止并先调查原回执，不通过更换回执目录、标识或 UUID 重发；pending、uncertain_or_failed 或不可读状态必须先按 RFC Message-ID、主题和时间窗口核清，本轮未执行任何发送。",
+      "output_line_count": 1,
+      "result": "passed"
+    },
+    {
+      "id": "preflight-reject-matrix",
+      "kind": "constraints-offline-execution",
+      "input": "从仓内 source copy 执行离线约束套件，并核对 tests/cases.json 的全部 preflight reject 场景。",
+      "read_files": [
+        "skills/xhgj-governed-mail-distribution/tests/cases.json",
+        "skills/xhgj-governed-mail-distribution/tests/test_self_check.py",
+        "skills/xhgj-governed-mail-distribution/scripts/preflight.py",
+        "skills/xhgj-governed-mail-distribution/scripts/send_mail.py",
+        "skills/xhgj-governed-mail-distribution/scripts/thread_record.py"
+      ],
+      "output": "执行 python -X utf8 -m unittest discover -s tests -p test_*.py -v，38 项全部通过；16 个 preflight case 中 valid-send-ready 为唯一 pass 基线，其余 15 个 reject case 全部命中预期停止条件，发送测试仅使用 .invalid 地址与 FakeSMTP，未访问网络或真实邮箱。",
+      "output_line_count": 1,
+      "result": "passed"
+    }
+  ],
+  "review": {
+    "agent_review": {
+      "status": "passed",
+      "summary": "当前 Codex 会话从仓内 source copy 完成 discovery、五类 routing 与 constraints 前向验证；全部 fail-closed/reject 场景命中停止条件，未使用安装副本或执行真实邮件发送"
+    },
+    "maintainer_review": {
+      "status": "pending-maintainer-review",
+      "summary": "等待 P1 MR review；本证据不覆盖工作站安装、P2 Catalog/Ledger 登记、activation、真实收件地址、邮箱访问、SMTP 投递、发送后回读、送达或已读"
+    }
+  }
+}
