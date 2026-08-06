@@ -13,7 +13,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 - 普通多仓计划可以包含本地确定性生成命令；生成后没有新增计划外文件时沿用同一次确认。
 - 普通模式把当前任务产物与更新后的 `task.json` 纳入同一次确认下的独立任务记录提交。
 - 用户明确要求“只提交不推送”时使用 `commit-only`。
-- auto-loop 可调用内部 `commit-only`，复用本 skill 的仓库发现、动态多仓计划、确定性本地生成、精确提交和失败保留能力；不再次确认、不 push，也不执行 Step 5 的任务进度写入、进度 commit 或 progress push。Auto-Loop runner 仍按自己的状态契约写入本地 `task.json.progress`。
+- auto-loop 可调用内部 `commit-only`，复用本 skill 的仓库发现、动态多仓计划、确定性本地生成、精确提交和失败保留能力；不再次确认、不 push，也不执行 Step 5 的任务进度写入、进度 commit 或 progress push。Auto-Loop runner 仍按自己的状态契约写入本地 `task.json.progress` 与本地完成态（`status=completed` + `completedAt`）。
 - 不发起、终止或解决分支合并；只允许普通模式完成已经开始、冲突已清零且索引完全可归属的 merge commit。
 - 不处理上线核对、任务归档、会话日志或自动任务队列状态。
 - 不使用 `git add .`、`git add -A`，不要求工作区整体干净，也不提交计划外文件。
@@ -25,7 +25,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 | --- | --- | --- | --- |
 | 普通 | 展示最小计划并确认一次 | exact commit；已有 merge 就绪时完成双父提交；然后 push | 有活动任务时立即同步 |
 | 用户 `commit-only` | 展示最小计划并确认一次 | exact local commit | 跳过 |
-| auto-loop 内部 `commit-only` | 复用 auto-loop 预授权 | exact local commit chain | 由 Auto-Loop runner 写本地 progress；本 skill 跳过 Step 5 |
+| auto-loop 内部 `commit-only` | 复用 auto-loop 预授权 | exact local commit chain | 由 Auto-Loop runner 写本地 progress 与本地完成态；本 skill 跳过 Step 5 |
 
 内部 `commit-only` 不接受超出当前任务证据、runner owned dirty 和 protected-retained 边界的文件，不执行远端推送或其他附加动作。安全条件不满足时返回失败，由调用方决定后续状态。
 
@@ -280,7 +280,7 @@ python3 ./.trellis/scripts/task_progress.py write \
   --json
 ```
 
-部分成功时调用同一 helper，并写入精确恢复位置。用户 `commit-only`、auto-loop 内部 `commit-only` 和尚未发生任何成功业务 Git 动作的失败都不得请求 complete。helper 写入失败时任务保持原状态，不得继续任务进度提交或报告完成。
+部分成功时调用同一 helper，并写入精确恢复位置。用户 `commit-only`、auto-loop 内部 `commit-only` 和尚未发生任何成功业务 Git 动作的失败都不得由本 skill 请求 complete；auto-loop 的本地完成态由 Auto-Loop runner 自己写入，不经过本步骤。helper 写入失败时任务保持原状态，不得继续任务进度提交或报告完成。
 
 然后只提交并推送首次确认的当前任务 exact files；该集合包含 helper 更新后的 `task.json`，以及首次计划时已存在且可归属的当前任务 dirty/untracked 产物：
 

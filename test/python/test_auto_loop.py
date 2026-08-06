@@ -1392,7 +1392,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         self.assertEqual(next_task["task"], ".trellis/tasks/task-two")
 
     def test_commit_only_success_writes_recoverable_task_progress(self) -> None:
-        """commit-only 成功后写入 progress，但不改变 task 生命周期状态。"""
+        """commit-only 成功后写入 progress，并把任务置为本地完成态。"""
         self.advance_to_check()
         self.runner(
             "record",
@@ -1423,7 +1423,8 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
 
         self.assertEqual(recorded["item_status"], "completed")
         metadata = self.task_json()
-        self.assertEqual(metadata["status"], "in_progress")
+        self.assertEqual(metadata["status"], "completed")
+        self.assertRegex(metadata["completedAt"], r"^\d{4}-\d{2}-\d{2}$")
         progress = metadata["progress"]
         self.assertIn("auto-loop: 本地提交完成 abc1234", progress["completedSteps"])
         self.assertIsNone(progress["partialStep"])
@@ -1432,6 +1433,140 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         status = self.progress_status()
         self.assertEqual(status["status"], "ok")
         self.assertIn("finish-work/archive", status["summary"]["nextStep"])
+        handoff = recorded["summary"]["pending_archive"]
+        self.assertEqual(handoff["tasks_awaiting_archive"], [".trellis/tasks/task-one"])
+        self.assertNotIn("parent_tasks_outside_queue", handoff)
+
+    def test_local_completion_is_idempotent_across_state_writes(self) -> None:
+        """后续 state 写入不得刷新 completedAt 或重复改写生命周期。"""
+        self.advance_to_check()
+        self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+            "--check-depth-reason",
+            "定向检查通过",
+        )
+        self.runner("next")
+        self.runner("record", "--action", "run_spec_update", "--result", "ok")
+        self.runner("next")
+        self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--commit",
+            "abc1234def",
+            "--summary",
+            "本地提交完成",
+        )
+        first = self.task_json()
+        # 人工确认过的完成日期不能被 runner 后续写入覆盖。
+        path = self.root / ".trellis/tasks/task-one/task.json"
+        first["completedAt"] = "2020-01-01"
+        path.write_text(json.dumps(first), encoding="utf-8")
+
+        self.runner("next")
+        self.runner("status")
+
+        metadata = self.task_json()
+        self.assertEqual(metadata["status"], "completed")
+        self.assertEqual(metadata["completedAt"], "2020-01-01")
+
+    def test_parent_task_outside_queue_surfaces_in_pending_archive(self) -> None:
+        """队列外父任务必须在 start 状态与归档待办里显式列出。"""
+        parent = self.root / ".trellis/tasks/parent-task"
+        parent.mkdir(parents=True)
+        (parent / "task.json").write_text(
+            json.dumps({"status": "in_progress", "children": ["task-one"]}),
+            encoding="utf-8",
+        )
+        child_path = self.root / ".trellis/tasks/task-one/task.json"
+        child_path.write_text(
+            json.dumps({"status": "in_progress", "parent": "parent-task"}),
+            encoding="utf-8",
+        )
+
+        started = self.start()
+
+        self.assertEqual(
+            started["pending_archive"]["parent_tasks_outside_queue"],
+            [".trellis/tasks/parent-task"],
+        )
+        self.assertIn("单独 finish-work", started["pending_archive"]["parent_note"])
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["parent_tasks_outside_queue"], [".trellis/tasks/parent-task"])
+
+    def test_queued_parent_task_is_not_reported_as_outside_queue(self) -> None:
+        """父任务已纳入队列时不得重复出现在归档待办里。"""
+        parent = self.root / ".trellis/tasks/parent-task"
+        parent.mkdir(parents=True)
+        (parent / "task.json").write_text(
+            json.dumps({"status": "in_progress", "children": ["task-one"]}),
+            encoding="utf-8",
+        )
+        child_path = self.root / ".trellis/tasks/task-one/task.json"
+        child_path.write_text(
+            json.dumps({"status": "in_progress", "parent": "parent-task"}),
+            encoding="utf-8",
+        )
+
+        self.start(tasks=("task-one", "parent-task"))
+
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["parent_tasks_outside_queue"], [])
+
+    def test_commit_only_completion_unblocks_task_archive(self) -> None:
+        """auto-loop 本地完成态必须能直接通过 task.py archive 的归档守卫。"""
+        self.advance_to_check()
+        self.runner(
+            "record",
+            "--action",
+            "run_check_all",
+            "--result",
+            "ok",
+            "--effective-check-depth",
+            "light",
+            "--check-depth-reason",
+            "定向检查通过",
+        )
+        self.runner("next")
+        self.runner("record", "--action", "run_spec_update", "--result", "ok")
+        self.runner("next")
+        self.runner(
+            "record",
+            "--action",
+            "commit_only",
+            "--result",
+            "ok",
+            "--commit",
+            "abc1234def",
+            "--summary",
+            "本地提交完成",
+        )
+
+        archived = subprocess.run(
+            [
+                "python3",
+                ".trellis/scripts/task.py",
+                "archive",
+                "task-one",
+                "--no-commit",
+            ],
+            cwd=self.root,
+            env=self.env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(archived.returncode, 0, archived.stderr)
+        self.assertFalse((self.root / ".trellis/tasks/task-one").exists())
 
     def test_commit_only_records_multiple_repository_commits(self) -> None:
         """多仓 commit-only 保存全部提交并以最后一仓作为兼容主提交。"""
