@@ -7,6 +7,7 @@ import test from "node:test";
 import { parseCliArgs } from "../../src/lib/cli-args.js";
 import {
   parseWorktreeArgs,
+  printWorktreeResult,
   worktreeEngineArgs,
 } from "../../src/commands/worktree.js";
 import {
@@ -74,6 +75,126 @@ test("worktree 参数拒绝缺失字段和无关 dry-run", () => {
     () => parseWorktreeArgs(["status", "--force"]),
     /不支持参数/,
   );
+  assert.throws(
+    () => parseWorktreeArgs([
+      "create",
+      "--branch",
+      "feature/test",
+      "--task-title",
+      "测试",
+      "--task-slug",
+      "test",
+      "--yes",
+    ]),
+    /--plan-fingerprint/,
+  );
+  assert.throws(
+    () => parseWorktreeArgs(["status", "--inherit-route-prefs"]),
+    /只用于 worktree prepare/,
+  );
+});
+
+test("worktree 确认参数和 prepare 偏好来源按边界转发", () => {
+  const confirmed = parseWorktreeArgs([
+    "create",
+    "--branch",
+    "feature/confirmed",
+    "--task-title",
+    "确认任务",
+    "--task-slug",
+    "confirmed",
+    "--yes",
+    "--plan-fingerprint",
+    "abc123",
+  ]);
+  assert.deepEqual(
+    worktreeEngineArgs(confirmed, "/tmp/confirmed", "/tmp/source"),
+    [
+      "create",
+      "--source",
+      "/tmp/source",
+      "--target",
+      "/tmp/confirmed",
+      "--branch",
+      "feature/confirmed",
+      "--task-title",
+      "确认任务",
+      "--task-slug",
+      "confirmed",
+      "--yes",
+      "--plan-fingerprint",
+      "abc123",
+      "--json",
+    ],
+  );
+
+  const prepared = parseWorktreeArgs([
+    "prepare",
+    "--developer",
+    "tester",
+    "--inherit-route-prefs",
+  ]);
+  assert.deepEqual(
+    worktreeEngineArgs(prepared, "/tmp/target", "/tmp/source"),
+    [
+      "prepare",
+      "--target",
+      "/tmp/target",
+      "--source",
+      "/tmp/source",
+      "--developer",
+      "tester",
+      "--inherit-route-prefs",
+      "--json",
+    ],
+  );
+});
+
+test("worktree 人类输出区分选中根仓和只展示子仓", () => {
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    printWorktreeResult({
+      status: "confirmation-required",
+      branch: "feature/example",
+      repositories: [
+        {
+          path: ".",
+          baseCommit: "root-sha",
+          selected: true,
+          targetBranch: "feature/example",
+          initialized: true,
+          sourceBranch: "beta",
+          sourceHead: "root-sha",
+        },
+        {
+          path: "vendor/example",
+          baseCommit: "child-sha",
+          selected: false,
+          initialized: true,
+          sourceBranch: "main",
+          sourceHead: "child-sha",
+        },
+      ],
+    });
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.match(lines.join("\n"), /本次创建根分支 feature\/example/);
+  assert.match(lines.join("\n"), /仅展示，不自动创建子仓分支/);
+});
+
+test("trellis-worktree Skill 读取 package context 并要求子仓独立确认", () => {
+  const skill = fs.readFileSync(
+    path.resolve("vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-worktree/SKILL.md"),
+    "utf8",
+  );
+
+  assert.match(skill, /get_context\.py --mode packages/);
+  assert.match(skill, /independent Git package/);
+  assert.match(skill, /never infer a child repository base from the root branch/);
 });
 
 test("Python 命令拆分不经过 shell", () => {

@@ -101,6 +101,14 @@ flower 自有 flag:
   update-check snooze [--hours <n>|--days <n>]  延后当前更新提示(默认 7 天)
   update-check skip|reset           跳过当前提示或清空提示节流状态
 
+Worktree:
+  worktree create --target <dir> --branch <name> --task-title <title> --task-slug <slug>
+                                      只读预检；默认 base 为当前来源分支
+  worktree create ... --yes --plan-fingerprint <sha256>
+                                      按已确认且未变化的计划创建
+  worktree prepare --target <dir> [--developer <name>] [--inherit-route-prefs]
+                                      可显式继承同仓同开发者的个人 route 偏好
+
 命令别名:flower-trellis 可简写为 ftl 或 ft(三者完全等价)。
 init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联网、带超时,失败静默)。
 通用技能管理已整合到 Plugin 管理器的 Flower 内置 Skill Garden 入口；

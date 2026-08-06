@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -16,7 +17,6 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator
-
 
 REGISTRY_SCHEMA_VERSION = 1
 LEGACY_MANIFEST_SCHEMA_VERSION = 1
@@ -27,6 +27,18 @@ REGISTRY_DIRECTORY = "trellis"
 REGISTRY_NAME = "registry-v1.json"
 ACTIVE_TASK_STATUSES = {"planning", "in_progress"}
 LOCAL_STATE_PATHS = (".trellis", ".flower", ".agents", ".codex", ".claude")
+ROUTE_PREFERENCES_PATH = ".trellis/.route-prefs.tmp"
+ROUTE_PREFERENCE_MODES = {
+    "implement": {"inline", "subagent"},
+    "check": {"check-all-inline", "check-all-subagent"},
+}
+NOT_INHERITED_LOCAL_STATE = (
+    "session-state",
+    "auto-loop",
+    "flower-local-state",
+    "platform-local-settings",
+    "cache-and-transaction-state",
+)
 
 
 class WorktreeSetupError(Exception):
@@ -77,6 +89,59 @@ def _git_run(
             command=["git", "-C", str(start), *args],
             error=str(error),
         ) from error
+
+
+def _git_run_bytes(
+    start: Path,
+    *args: str,
+    timeout: int = 10,
+) -> subprocess.CompletedProcess[bytes]:
+    """运行需要保留 Git NUL 分隔输出的命令。"""
+    try:
+        return subprocess.run(
+            ["git", "-C", str(start), *args],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise WorktreeSetupError(
+            "git-command-failed",
+            "Git 命令无法执行",
+            command=["git", "-C", str(start), *args],
+            error=str(error),
+        ) from error
+
+
+def _parse_porcelain_z(payload: bytes) -> list[dict[str, str]]:
+    """解析 Git porcelain NUL 输出，避免路径转义和换行歧义。"""
+    parts = payload.split(b"\0")
+    entries: list[dict[str, str]] = []
+    index = 0
+    while index < len(parts):
+        item = parts[index]
+        index += 1
+        if not item:
+            continue
+        if len(item) < 4 or item[2:3] != b" ":
+            raise WorktreeSetupError("git-status-invalid", "无法解析 Git porcelain 状态")
+        status = item[:2].decode("ascii", errors="replace")
+        entry = {"status": status, "path": os.fsdecode(item[3:])}
+        if "R" in status or "C" in status:
+            if index >= len(parts) or not parts[index]:
+                raise WorktreeSetupError("git-status-invalid", "Git rename/copy 状态缺少第二路径")
+            entry["originalPath"] = os.fsdecode(parts[index])
+            index += 1
+        entries.append(entry)
+    return sorted(
+        entries,
+        key=lambda entry: (
+            entry.get("path", ""),
+            entry.get("originalPath", ""),
+            entry.get("status", ""),
+        ),
+    )
 
 
 def _git_output(start: Path, *args: str) -> str | None:
@@ -185,6 +250,22 @@ def _write_json_atomic(path: Path, data: dict[str, Any]) -> None:
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             handle.write(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, path)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    """使用同目录临时文件原子写入 UTF-8 文本。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_path, path)
@@ -556,7 +637,91 @@ def _write_developer(target_root: Path, developer: str) -> None:
     developer_path.write_text(f"name={developer}\ninitialized_at={_utc_now()}\n", encoding="utf-8")
 
 
-def _prepare_local(plan: dict[str, Any], developer: str | None) -> dict[str, Any]:
+def _read_route_preferences(target_root: Path) -> dict[str, Any]:
+    """安全读取并规范化个人 route 偏好。"""
+    path = target_root / ROUTE_PREFERENCES_PATH
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return {"path": _path_text(path), "status": "missing", "values": {}}
+    except OSError as error:
+        return {
+            "path": _path_text(path),
+            "status": "unreadable",
+            "values": {},
+            "error": str(error),
+        }
+    if not stat.S_ISREG(mode):
+        return {"path": _path_text(path), "status": "type-invalid", "values": {}}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        return {
+            "path": _path_text(path),
+            "status": "unreadable",
+            "values": {},
+            "error": str(error),
+        }
+
+    values: dict[str, str] = {}
+    for raw in lines:
+        if "=" not in raw:
+            continue
+        key, value = raw.split("=", 1)
+        normalized_key = key.strip()
+        normalized_value = value.strip()
+        if normalized_value in ROUTE_PREFERENCE_MODES.get(normalized_key, set()):
+            values[normalized_key] = normalized_value
+    ordered = {key: values[key] for key in ROUTE_PREFERENCE_MODES if key in values}
+    return {
+        "path": _path_text(path),
+        "status": "ok" if ordered else "invalid",
+        "values": ordered,
+    }
+
+
+def _route_preference_transfer(
+    source_root: Path,
+    target_root: Path,
+    source_developer: str | None,
+    target_developer: str,
+) -> dict[str, Any]:
+    """计算 route 偏好继承动作，不写入目标。"""
+    target_path = target_root / ROUTE_PREFERENCES_PATH
+    if target_path.exists() or target_path.is_symlink():
+        return {"action": "preserved", "values": {}}
+    if source_developer != target_developer:
+        return {"action": "notInherited", "reason": "developer-mismatch", "values": {}}
+    source = _read_route_preferences(source_root)
+    if source["status"] != "ok":
+        return {
+            "action": "notInherited",
+            "reason": f"source-{source['status']}",
+            "values": {},
+        }
+    return {"action": "inherited", "values": source["values"]}
+
+
+def _write_route_preferences(target_root: Path, values: dict[str, str]) -> None:
+    """以固定字段顺序写入已规范化的 route 偏好。"""
+    path = target_root / ROUTE_PREFERENCES_PATH
+    if path.exists() or path.is_symlink():
+        raise WorktreeSetupError(
+            "route-preferences-target-conflict",
+            "目标 route 偏好路径已经存在，拒绝覆盖",
+            path=_path_text(path),
+        )
+    content = "".join(f"{key}={values[key]}\n" for key in ROUTE_PREFERENCE_MODES if key in values)
+    _write_text_atomic(path, content)
+
+
+def _prepare_local(
+    plan: dict[str, Any],
+    developer: str | None,
+    *,
+    source: str | None = None,
+    inherit_route_prefs: bool = False,
+) -> dict[str, Any]:
     """初始化当前 worktree 自己的 gitignored 运行态并注册。"""
     if plan["status"] == "needs-migration":
         raise WorktreeSetupError("migration-required", "检测到旧投影，请先运行 migrate")
@@ -567,7 +732,23 @@ def _prepare_local(plan: dict[str, Any], developer: str | None) -> dict[str, Any
 
     target_root = Path(plan["targetRoot"])
     context = _worktree_context(target_root)
+    source_context = None
+    source_developer = None
+    if inherit_route_prefs:
+        if not source:
+            raise WorktreeSetupError(
+                "route-preferences-source-required",
+                "显式继承 route 偏好时需要 --source",
+            )
+        source_context = _worktree_context(_resolve_start(source))
+        if source_context["gitCommonDir"] != context["gitCommonDir"]:
+            raise WorktreeSetupError(
+                "route-preferences-repository-mismatch",
+                "route 偏好来源与目标不属于同一 Git 仓库",
+            )
+        source_developer = _developer_from_file(source_context["targetRoot"])
     changed_paths: list[str] = []
+    route_transfer = {"action": "notRequested", "values": {}}
     with _registry_lock(context["gitCommonDir"]):
         current_developer = _developer_from_file(target_root)
         registry = _load_registry(context["gitCommonDir"])
@@ -585,21 +766,44 @@ def _prepare_local(plan: dict[str, Any], developer: str | None) -> dict[str, Any
                 "developer-required",
                 "目标 worktree 缺少本地开发者身份，请传入 --developer",
             )
+        normalized_developer = resolved_developer.strip()
+        if inherit_route_prefs:
+            if source_developer != normalized_developer:
+                raise WorktreeSetupError(
+                    "route-preferences-developer-mismatch",
+                    "route 偏好来源与目标开发者身份不一致",
+                    sourceDeveloper=source_developer,
+                    targetDeveloper=normalized_developer,
+                )
+            route_transfer = _route_preference_transfer(
+                source_context["targetRoot"],
+                target_root,
+                source_developer,
+                normalized_developer,
+            )
         runtime_sessions = target_root / ".trellis/.runtime/sessions"
         if not runtime_sessions.is_dir():
             runtime_sessions.mkdir(parents=True, exist_ok=True)
             changed_paths.append(".trellis/.runtime/sessions")
         if current_developer is None:
-            _write_developer(target_root, resolved_developer.strip())
+            _write_developer(target_root, normalized_developer)
             changed_paths.append(".trellis/.developer")
-        registry_changed = _register_worktree(context, developer=resolved_developer)
-    return {
+        if route_transfer["action"] == "inherited":
+            _write_route_preferences(target_root, route_transfer["values"])
+            changed_paths.append(ROUTE_PREFERENCES_PATH)
+        registry_changed = _register_worktree(context, developer=normalized_developer)
+    result = {
         **_analyze(str(target_root)),
         "status": "prepared" if changed_paths or registry_changed else "ready-local",
         "changed": bool(changed_paths or registry_changed),
         "changedPaths": changed_paths,
         "registryChanged": registry_changed,
     }
+    result["localStateTransfer"] = {
+        "routePreferences": route_transfer,
+        "notInherited": list(NOT_INHERITED_LOCAL_STATE),
+    }
+    return result
 
 
 def _archive_head_entries(target_root: Path, entries: list[str], destination: Path) -> None:
@@ -766,8 +970,130 @@ def _run_target_python(target_root: Path, script: Path, *args: str) -> None:
         )
 
 
-def _create(args: argparse.Namespace) -> dict[str, Any]:
-    """创建新 branch/worktree、planning task 和 registry 记录。"""
+def _working_tree_summary(source_root: Path) -> dict[str, Any]:
+    """返回根仓当前未提交状态，并明确这些内容不属于基线。"""
+    result = _git_run_bytes(
+        source_root,
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise WorktreeSetupError(
+            "git-status-unavailable",
+            "无法读取来源 worktree 状态",
+            stderr=result.stderr.decode("utf-8", errors="replace").strip(),
+        )
+    entries = _parse_porcelain_z(result.stdout)
+
+    conflict_codes = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
+    return {
+        "clean": not entries,
+        "includedInBase": False,
+        "entries": entries,
+        "counts": {
+            "tracked": sum(entry["status"] != "??" for entry in entries),
+            "staged": sum(entry["status"] != "??" and entry["status"][0] != " " for entry in entries),
+            "unstaged": sum(entry["status"] != "??" and entry["status"][1] != " " for entry in entries),
+            "untracked": sum(entry["status"] == "??" for entry in entries),
+            "conflicts": sum(entry["status"] in conflict_codes for entry in entries),
+        },
+    }
+
+
+def _submodule_names(source_root: Path, commit: str) -> dict[str, str]:
+    """通过选定提交的 `.gitmodules` 解析 submodule 名称。"""
+    output = _git_output(
+        source_root,
+        "config",
+        "--blob",
+        f"{commit}:.gitmodules",
+        "--get-regexp",
+        r"^submodule\..*\.path$",
+    )
+    if not output:
+        return {}
+    names: dict[str, str] = {}
+    for line in output.splitlines():
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            continue
+        key, path = parts
+        if key.startswith("submodule.") and key.endswith(".path"):
+            names[path] = key[len("submodule.") : -len(".path")]
+    return names
+
+
+def _base_repositories(
+    source_root: Path,
+    source_context: dict[str, Any],
+    commit: str,
+    target_branch: str,
+) -> list[dict[str, Any]]:
+    """盘点基线提交中的根仓与全部递归 gitlink。"""
+    result = _git_run_bytes(source_root, "ls-tree", "-r", "-z", commit, timeout=30)
+    if result.returncode != 0:
+        raise WorktreeSetupError(
+            "create-base-inventory-failed",
+            "无法盘点 base 提交中的 submodule",
+            stderr=result.stderr.decode("utf-8", errors="replace").strip(),
+        )
+    names = _submodule_names(source_root, commit)
+    repositories: list[dict[str, Any]] = [
+        {
+            "kind": "root",
+            "name": source_root.name,
+            "path": ".",
+            "selected": True,
+            "createsBranch": True,
+            "targetBranch": target_branch,
+            "sourcePath": _path_text(source_root),
+            "baseCommit": commit,
+            "initialized": True,
+            "sourceBranch": source_context["branch"],
+            "sourceHead": source_context["head"],
+        }
+    ]
+    submodules: list[dict[str, Any]] = []
+    for raw in result.stdout.split(b"\0"):
+        if not raw or b"\t" not in raw:
+            continue
+        metadata, raw_path = raw.split(b"\t", 1)
+        fields = metadata.split(b" ", 2)
+        if len(fields) != 3 or fields[0] != b"160000":
+            continue
+        relative = os.fsdecode(raw_path)
+        candidate = source_root / relative
+        initialized = (candidate / ".git").exists()
+        source_branch = None
+        source_head = None
+        if initialized and _git_toplevel(candidate) == candidate.resolve():
+            source_branch = _git_output(candidate, "branch", "--show-current")
+            source_head = _git_output(candidate, "rev-parse", "HEAD")
+        else:
+            initialized = False
+        submodules.append(
+            {
+                "kind": "submodule",
+                "name": names.get(relative, PurePosixPath(relative).name),
+                "path": relative,
+                "selected": False,
+                "createsBranch": False,
+                "targetBranch": None,
+                "sourcePath": _path_text(candidate),
+                "baseCommit": fields[2].decode("ascii"),
+                "initialized": initialized,
+                "sourceBranch": source_branch,
+                "sourceHead": source_head,
+            }
+        )
+    return repositories + sorted(submodules, key=lambda item: item["path"])
+
+
+def _create_plan(args: argparse.Namespace) -> dict[str, Any]:
+    """构造无写入的 create 计划及确认指纹。"""
     source_context = _worktree_context(_resolve_start(args.source))
     source_root = source_context["targetRoot"]
     target = Path(args.target).expanduser().resolve(strict=False)
@@ -775,11 +1101,100 @@ def _create(args: argparse.Namespace) -> dict[str, Any]:
         raise WorktreeSetupError("create-target-exists", "create 目标路径已经存在", target=_path_text(target))
     if _git_output(source_root, "show-ref", "--verify", f"refs/heads/{args.branch}") is not None:
         raise WorktreeSetupError("create-branch-exists", "create 目标分支已经存在", branch=args.branch)
-    if _git_output(source_root, "rev-parse", "--verify", f"{args.base}^{{commit}}") is None:
-        raise WorktreeSetupError("create-base-invalid", "base ref 无法解析", base=args.base)
-    developer = args.developer or _developer_from_file(source_root)
+
+    requested_base = args.base
+    effective_base = requested_base or source_context["branch"] or "HEAD"
+    resolved_commit = _git_output(source_root, "rev-parse", "--verify", f"{effective_base}^{{commit}}")
+    if resolved_commit is None:
+        raise WorktreeSetupError("create-base-invalid", "base ref 无法解析", base=effective_base)
+    task_entry = _git_run(source_root, "cat-file", "-e", f"{resolved_commit}:.trellis/scripts/task.py")
+    if task_entry.returncode != 0:
+        raise WorktreeSetupError(
+            "local-trellis-missing",
+            "base 提交不包含 `.trellis/scripts/task.py`",
+            base=effective_base,
+            resolvedCommit=resolved_commit,
+        )
+
+    source_developer = _developer_from_file(source_root)
+    developer = args.developer or source_developer
     if not developer:
         raise WorktreeSetupError("developer-required", "create 需要 --developer 或来源 worktree 的本地身份")
+    route_transfer = _route_preference_transfer(source_root, target, source_developer, developer)
+    plan: dict[str, Any] = {
+        "status": "confirmation-required",
+        "changed": False,
+        "requiresConfirmation": True,
+        "source": {
+            "repository": source_root.name,
+            "root": _path_text(source_root),
+            "gitCommonDir": _path_text(source_context["gitCommonDir"]),
+            "gitDir": _path_text(source_context["gitDir"]),
+            "worktreeId": source_context["worktreeId"],
+            "branch": source_context["branch"],
+            "head": source_context["head"],
+            "workingTree": _working_tree_summary(source_root),
+        },
+        "base": {
+            "requested": requested_base,
+            "ref": effective_base,
+            "resolvedCommit": resolved_commit,
+            "defaultedFromCurrentBranch": requested_base is None and source_context["branch"] is not None,
+        },
+        "baseRef": effective_base,
+        "target": {
+            "root": _path_text(target),
+            "branch": args.branch,
+        },
+        "targetRoot": _path_text(target),
+        "branch": args.branch,
+        "repositories": _base_repositories(source_root, source_context, resolved_commit, args.branch),
+        "taskRequest": {
+            "title": args.task_title,
+            "slug": args.task_slug,
+            "description": args.task_description,
+        },
+        "localStateTransfer": {
+            "developer": {
+                "action": "initialized",
+                "name": developer,
+                "sourceName": source_developer,
+            },
+            "routePreferences": route_transfer,
+            "initialized": ["session-runtime"],
+            "notInherited": list(NOT_INHERITED_LOCAL_STATE),
+        },
+    }
+    fingerprint_payload = json.dumps(plan, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    fingerprint = hashlib.sha256(fingerprint_payload.encode("utf-8")).hexdigest()
+    plan["confirmation"] = {"flag": "--yes", "fingerprint": fingerprint}
+    return plan
+
+
+def _create(args: argparse.Namespace) -> dict[str, Any]:
+    """创建新 branch/worktree、planning task 和 registry 记录。"""
+    plan = _create_plan(args)
+    if not args.yes:
+        return plan
+    if not args.plan_fingerprint:
+        raise WorktreeSetupError(
+            "create-plan-fingerprint-required",
+            "确认创建时必须提供预检计划指纹",
+            plan=plan,
+        )
+    if args.plan_fingerprint != plan["confirmation"]["fingerprint"]:
+        raise WorktreeSetupError(
+            "create-plan-changed",
+            "create 计划已变化，请重新确认最新计划",
+            plan=plan,
+        )
+
+    source_context = _worktree_context(_resolve_start(args.source))
+    source_root = source_context["targetRoot"]
+    target = Path(plan["targetRoot"])
+    developer = plan["localStateTransfer"]["developer"]["name"]
+    base_ref = plan["base"]["ref"]
+    base_commit = plan["base"]["resolvedCommit"]
 
     created_worktree = False
     registry_written = False
@@ -787,6 +1202,10 @@ def _create(args: argparse.Namespace) -> dict[str, Any]:
     rollback_errors: list[str] = []
     with _registry_lock(source_context["gitCommonDir"]):
         try:
+            if target.exists() or target.is_symlink():
+                raise WorktreeSetupError("create-target-exists", "create 目标路径已经存在", target=_path_text(target))
+            if _git_output(source_root, "show-ref", "--verify", f"refs/heads/{args.branch}") is not None:
+                raise WorktreeSetupError("create-branch-exists", "create 目标分支已经存在", branch=args.branch)
             _git_require(
                 source_root,
                 "worktree",
@@ -794,28 +1213,31 @@ def _create(args: argparse.Namespace) -> dict[str, Any]:
                 "-b",
                 args.branch,
                 str(target),
-                args.base,
+                base_commit,
                 reason="worktree-create-failed",
                 message="Git worktree 创建失败",
             )
             created_worktree = True
-            plan = _analyze(str(target))
-            if plan["status"] == "needs-init":
+            target_plan = _analyze(str(target))
+            if target_plan["status"] == "needs-init":
                 raise WorktreeSetupError(
                     "local-trellis-missing",
                     "base 分支不包含本地 Trellis，create 已停止；请先在该分支安装",
                 )
-            if plan["status"] not in {"ready-local", "needs-prepare"}:
+            if target_plan["status"] not in {"ready-local", "needs-prepare"}:
                 raise WorktreeSetupError(
                     "worktree-create-not-ready",
                     "新 worktree 无法进入本地 ready 状态",
-                    status=plan["status"],
-                    conflicts=plan["conflicts"],
+                    status=target_plan["status"],
+                    conflicts=target_plan["conflicts"],
                 )
             runtime_sessions = target / ".trellis/.runtime/sessions"
             runtime_sessions.mkdir(parents=True, exist_ok=True)
             if _developer_from_file(target) is None:
                 _write_developer(target, developer)
+            route_transfer = plan["localStateTransfer"]["routePreferences"]
+            if route_transfer["action"] == "inherited":
+                _write_route_preferences(target, route_transfer["values"])
 
             task_script = target / ".trellis/scripts/task.py"
             if not task_script.is_file():
@@ -829,7 +1251,7 @@ def _create(args: argparse.Namespace) -> dict[str, Any]:
                 "--assignee",
                 developer,
                 "--base-branch",
-                args.base,
+                base_ref,
                 "--no-start",
             ]
             if args.task_description:
@@ -878,18 +1300,20 @@ def _create(args: argparse.Namespace) -> dict[str, Any]:
 
     target_context = _worktree_context(target)
     return {
+        **plan,
         "status": "created",
         "changed": True,
-        "targetRoot": _path_text(target),
-        "branch": args.branch,
-        "base": args.base,
+        "requiresConfirmation": False,
         "head": target_context["head"],
         "task": task_relative,
         "registry": _path_text(_registry_path(target_context["gitCommonDir"])),
         "handoff": {
             "cwd": _path_text(target),
+            "workspaceRoot": _path_text(target),
             "task": task_relative,
             "command": f"cd {target}",
+            "requiresNewSession": True,
+            "reason": "新 worktree 需要独立会话，避免继承来源会话运行态",
         },
     }
 
@@ -1131,6 +1555,12 @@ def build_parser() -> argparse.ArgumentParser:
         command_parser.add_argument("--json", action="store_true", help="emit compact stable JSON")
         if command == "prepare":
             command_parser.add_argument("--developer", help="target-local developer identity")
+            command_parser.add_argument("--source", help="explicit controlling worktree for preference inheritance")
+            command_parser.add_argument(
+                "--inherit-route-prefs",
+                action="store_true",
+                help="inherit normalized route preferences from --source",
+            )
         if command == "migrate":
             command_parser.add_argument("--dry-run", action="store_true", help="validate migration without writing")
 
@@ -1138,11 +1568,13 @@ def build_parser() -> argparse.ArgumentParser:
     create_parser.add_argument("--source", help="existing repository worktree; defaults to cwd")
     create_parser.add_argument("--target", required=True, help="new worktree path")
     create_parser.add_argument("--branch", required=True, help="new branch name")
-    create_parser.add_argument("--base", default="HEAD", help="base commit or branch")
+    create_parser.add_argument("--base", help="base commit or branch; defaults to current source branch")
     create_parser.add_argument("--task-title", required=True, help="planning task title")
     create_parser.add_argument("--task-slug", required=True, help="planning task slug")
     create_parser.add_argument("--task-description", help="planning task description")
     create_parser.add_argument("--developer", help="target-local developer identity")
+    create_parser.add_argument("--yes", action="store_true", help="execute a previously confirmed create plan")
+    create_parser.add_argument("--plan-fingerprint", help="fingerprint returned by create preflight")
     create_parser.add_argument("--json", action="store_true", help="emit compact stable JSON")
     return parser
 
@@ -1166,7 +1598,12 @@ def main(argv: list[str] | None = None) -> int:
         else:
             plan = _analyze(args.target)
             if args.command == "prepare":
-                payload = _prepare_local(plan, args.developer)
+                payload = _prepare_local(
+                    plan,
+                    args.developer,
+                    source=args.source,
+                    inherit_route_prefs=args.inherit_route_prefs,
+                )
             elif args.command == "migrate":
                 payload = _migrate(plan, dry_run=args.dry_run)
             else:

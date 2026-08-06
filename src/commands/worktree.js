@@ -15,8 +15,9 @@ const VALUE_OPTIONS = new Set([
   "--task-slug",
   "--task-description",
   "--developer",
+  "--plan-fingerprint",
 ]);
-const BOOLEAN_OPTIONS = new Set(["--json", "--dry-run"]);
+const BOOLEAN_OPTIONS = new Set(["--json", "--dry-run", "--yes", "--inherit-route-prefs"]);
 
 /**
  * 解析 Flower worktree 子命令参数。
@@ -51,9 +52,21 @@ export function parseWorktreeArgs(args) {
     for (const required of ["--branch", "--task-title", "--task-slug"]) {
       if (!options.has(required)) throw new Error(`worktree create 缺少 ${required}`);
     }
+    if (options.has("--yes") && !options.has("--plan-fingerprint")) {
+      throw new Error("worktree create --yes 需要 --plan-fingerprint");
+    }
+    if (!options.has("--yes") && options.has("--plan-fingerprint")) {
+      throw new Error("--plan-fingerprint 只用于已确认的 worktree create --yes");
+    }
   }
   if (command !== "migrate" && options.has("--dry-run")) {
     throw new Error("--dry-run 只用于 worktree migrate");
+  }
+  if (command !== "create" && options.has("--yes")) {
+    throw new Error("--yes 只用于 worktree create");
+  }
+  if (command !== "prepare" && options.has("--inherit-route-prefs")) {
+    throw new Error("--inherit-route-prefs 只用于 worktree prepare");
   }
   return { command, options, json: options.has("--json") };
 }
@@ -72,6 +85,9 @@ export function worktreeEngineArgs(parsed, target, source) {
     args.push("--source", source, "--target", target);
   } else {
     args.push("--target", target);
+    if (parsed.command === "prepare" && parsed.options.has("--inherit-route-prefs")) {
+      args.push("--source", source);
+    }
   }
   for (const [name, value] of parsed.options) {
     if (name === "--json") continue;
@@ -92,11 +108,42 @@ export function printWorktreeResult(payload) {
   console.log(`worktree: ${payload.status}`);
   if (payload.targetRoot) console.log(`target: ${payload.targetRoot}`);
   if (payload.branch) console.log(`branch: ${payload.branch}`);
+  if (payload.source?.root) {
+    console.log(`source: ${payload.source.root}`);
+    console.log(`source branch: ${payload.source.branch || "(detached HEAD)"}`);
+    console.log(`source HEAD: ${payload.source.head}`);
+  }
+  if (payload.base?.ref) {
+    console.log(`base: ${payload.base.ref}`);
+    console.log(`base commit: ${payload.base.resolvedCommit}`);
+  }
+  if (payload.source?.workingTree && !payload.source.workingTree.clean) {
+    const count = payload.source.workingTree.entries?.length || 0;
+    console.log(`warning: 来源 worktree 有 ${count} 项未提交状态，不包含在 base 中`);
+  }
+  if (Array.isArray(payload.repositories)) {
+    for (const repository of payload.repositories) {
+      const local = repository.initialized
+        ? `source ${repository.sourceBranch || "detached"}@${repository.sourceHead}`
+        : "source 未初始化";
+      const selection = repository.selected
+        ? `本次创建根分支 ${repository.targetBranch || payload.branch}`
+        : "仅展示，不自动创建子仓分支";
+      console.log(`repository: ${repository.path} ${repository.baseCommit} (${selection}; ${local})`);
+    }
+  }
+  if (payload.localStateTransfer?.routePreferences?.action) {
+    console.log(`route preferences: ${payload.localStateTransfer.routePreferences.action}`);
+  }
+  if (payload.requiresConfirmation && payload.confirmation?.fingerprint) {
+    console.log(`confirmation: 使用 --yes --plan-fingerprint ${payload.confirmation.fingerprint}`);
+  }
   if (payload.task) console.log(`task: ${payload.task}`);
   if (payload.reason) console.log(`reason: ${payload.reason}`);
   if (payload.message) console.log(`message: ${payload.message}`);
   if (payload.handoff?.cwd) {
     console.log(`handoff: 在 ${payload.handoff.cwd} 启动新会话继续任务规划`);
+    if (payload.handoff.reason) console.log(`handoff reason: ${payload.handoff.reason}`);
   }
 }
 

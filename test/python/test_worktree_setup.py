@@ -100,6 +100,25 @@ class WorktreeSetupTest(unittest.TestCase):
             self.fail(f"helper failed: {payload}\n{result.stderr}")
         return result, payload
 
+    def _create_helper(
+        self,
+        *extra: str,
+        target: Path,
+        check: bool = True,
+    ) -> tuple[subprocess.CompletedProcess[str], dict]:
+        """先获取只读计划，再携带原指纹确认 create。"""
+        _, plan = self._helper("create", *extra, target=target)
+        self.assertEqual(plan["status"], "confirmation-required")
+        return self._helper(
+            "create",
+            *extra,
+            "--yes",
+            "--plan-fingerprint",
+            plan["confirmation"]["fingerprint"],
+            target=target,
+            check=check,
+        )
+
     def _install_legacy_projection(self, paths: tuple[str, ...] = (".trellis", ".agents", ".codex", ".claude")) -> None:
         """把 linked 中的真实目录替换成 schema v1 受管 symlink。"""
         links = []
@@ -307,6 +326,328 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertFalse((self.linked / ".trellis/.developer").exists())
         self.assertFalse((self.linked / ".trellis/.runtime").exists())
 
+    def test_create_preflight_is_read_only_and_reports_current_branch_dirty_state(self) -> None:
+        """create 首次调用只返回当前分支基线计划，不创建 branch/worktree。"""
+        target = self.base / "planned"
+        route_path = self.main / ".trellis/.route-prefs.tmp"
+        route_path.write_text(
+            "check=check-all-inline\nunknown=value\nimplement=inline\ncheck=invalid\n",
+            encoding="utf-8",
+        )
+        (self.main / ".claude/settings.local.json").write_text("{}\n", encoding="utf-8")
+        (self.main / "README.md").write_text("dirty\n", encoding="utf-8")
+        (self.main / "UNTRACKED.md").write_text("local\n", encoding="utf-8")
+        branch = self._git(self.main, "branch", "--show-current").stdout.strip()
+
+        _, plan = self._helper(
+            "create",
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/planned",
+            "--task-title",
+            "预检任务",
+            "--task-slug",
+            "planned-task",
+            target=target,
+        )
+
+        self.assertEqual(plan["status"], "confirmation-required")
+        self.assertFalse(plan["changed"])
+        self.assertTrue(plan["requiresConfirmation"])
+        self.assertEqual(plan["base"]["ref"], branch)
+        self.assertTrue(plan["base"]["defaultedFromCurrentBranch"])
+        self.assertFalse(plan["source"]["workingTree"]["includedInBase"])
+        dirty_paths = {entry["path"] for entry in plan["source"]["workingTree"]["entries"]}
+        self.assertIn("README.md", dirty_paths)
+        self.assertIn("UNTRACKED.md", dirty_paths)
+        self.assertEqual(
+            plan["localStateTransfer"]["routePreferences"],
+            {
+                "action": "inherited",
+                "values": {"implement": "inline", "check": "check-all-inline"},
+            },
+        )
+        self.assertIn("platform-local-settings", plan["localStateTransfer"]["notInherited"])
+        self.assertFalse(target.exists())
+        self.assertNotEqual(
+            self._git(self.main, "show-ref", "--verify", "refs/heads/feature/planned", check=False).returncode,
+            0,
+        )
+
+    def test_create_confirmation_inherits_only_normalized_route_preferences(self) -> None:
+        """确认 create 只继承同开发者的合法 route 值，不复制平台本地设置。"""
+        target = self.base / "route-created"
+        (self.main / ".trellis/.route-prefs.tmp").write_text(
+            "check=check-all-subagent\nignored=value\nimplement=subagent\n",
+            encoding="utf-8",
+        )
+        (self.main / ".claude/settings.local.json").write_text("{\"private\":true}\n", encoding="utf-8")
+
+        _, created = self._create_helper(
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/route-created",
+            "--task-title",
+            "继承偏好",
+            "--task-slug",
+            "route-created",
+            target=target,
+        )
+
+        self.assertEqual(created["localStateTransfer"]["routePreferences"]["action"], "inherited")
+        self.assertEqual(
+            (target / ".trellis/.route-prefs.tmp").read_text(encoding="utf-8"),
+            "implement=subagent\ncheck=check-all-subagent\n",
+        )
+        self.assertFalse((target / ".claude/settings.local.json").exists())
+        self.assertTrue(created["handoff"]["requiresNewSession"])
+        self.assertEqual(created["handoff"]["workspaceRoot"], str(target.resolve()))
+
+    def test_create_different_developer_does_not_inherit_route_preferences(self) -> None:
+        """显式切换开发者时 create 不继承来源个人 route 偏好。"""
+        target = self.base / "other-developer"
+        (self.main / ".trellis/.route-prefs.tmp").write_text("implement=inline\n", encoding="utf-8")
+
+        _, created = self._create_helper(
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/other-developer",
+            "--task-title",
+            "其他开发者",
+            "--task-slug",
+            "other-developer",
+            "--developer",
+            "other",
+            target=target,
+        )
+
+        transfer = created["localStateTransfer"]["routePreferences"]
+        self.assertEqual(transfer["action"], "notInherited")
+        self.assertEqual(transfer["reason"], "developer-mismatch")
+        self.assertFalse((target / ".trellis/.route-prefs.tmp").exists())
+
+    def test_create_rejects_stale_plan_fingerprint_without_writes(self) -> None:
+        """来源状态变化后旧指纹失效，且不创建 branch/worktree。"""
+        target = self.base / "stale-plan"
+        create_args = (
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/stale-plan",
+            "--task-title",
+            "过期计划",
+            "--task-slug",
+            "stale-plan",
+        )
+        _, plan = self._helper("create", *create_args, target=target)
+        (self.main / "README.md").write_text("changed after plan\n", encoding="utf-8")
+
+        result, payload = self._helper(
+            "create",
+            *create_args,
+            "--yes",
+            "--plan-fingerprint",
+            plan["confirmation"]["fingerprint"],
+            target=target,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "create-plan-changed")
+        self.assertEqual(payload["plan"]["status"], "confirmation-required")
+        self.assertFalse(target.exists())
+        self.assertNotEqual(
+            self._git(self.main, "show-ref", "--verify", "refs/heads/feature/stale-plan", check=False).returncode,
+            0,
+        )
+
+    def test_create_yes_requires_plan_fingerprint(self) -> None:
+        """create --yes 缺少计划指纹时保持零写入并返回稳定错误。"""
+        target = self.base / "missing-fingerprint"
+
+        result, payload = self._helper(
+            "create",
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/missing-fingerprint",
+            "--task-title",
+            "缺少指纹",
+            "--task-slug",
+            "missing-fingerprint",
+            "--yes",
+            target=target,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "create-plan-fingerprint-required")
+        self.assertEqual(payload["plan"]["status"], "confirmation-required")
+        self.assertFalse(target.exists())
+
+    def test_create_detached_source_defaults_base_to_head(self) -> None:
+        """来源 detached HEAD 时默认基线明确回退为 HEAD。"""
+        self._git(self.main, "checkout", "--detach")
+        target = self.base / "detached-plan"
+
+        _, plan = self._helper(
+            "create",
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/detached-plan",
+            "--task-title",
+            "Detached 计划",
+            "--task-slug",
+            "detached-plan",
+            target=target,
+        )
+
+        self.assertIsNone(plan["source"]["branch"])
+        self.assertEqual(plan["base"]["ref"], "HEAD")
+        self.assertFalse(plan["base"]["defaultedFromCurrentBranch"])
+        self.assertEqual(plan["base"]["resolvedCommit"], plan["source"]["head"])
+
+    def test_create_plan_inventories_initialized_submodule_commit(self) -> None:
+        """预检盘点基线 gitlink，并报告来源 submodule 的分支和 HEAD。"""
+        module = self.base / "module-source"
+        module.mkdir()
+        self._git(module, "init")
+        self._git(module, "config", "user.email", "module@example.invalid")
+        self._git(module, "config", "user.name", "Module User")
+        (module / "MODULE.md").write_text("module\n", encoding="utf-8")
+        self._git(module, "add", "MODULE.md")
+        self._git(module, "commit", "-m", "module init")
+        module_head = self._git(module, "rev-parse", "HEAD").stdout.strip()
+        self._git(
+            self.main,
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            str(module),
+            "modules/sample",
+        )
+        self._git(self.main, "commit", "-am", "add submodule")
+        target = self.base / "submodule-plan"
+
+        _, plan = self._helper(
+            "create",
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/submodule-plan",
+            "--task-title",
+            "Submodule 计划",
+            "--task-slug",
+            "submodule-plan",
+            target=target,
+        )
+
+        submodule = next(item for item in plan["repositories"] if item["path"] == "modules/sample")
+        root = next(item for item in plan["repositories"] if item["path"] == ".")
+        self.assertTrue(root["selected"])
+        self.assertTrue(root["createsBranch"])
+        self.assertEqual(root["targetBranch"], "feature/submodule-plan")
+        self.assertEqual(submodule["name"], "modules/sample")
+        self.assertFalse(submodule["selected"])
+        self.assertFalse(submodule["createsBranch"])
+        self.assertIsNone(submodule["targetBranch"])
+        self.assertEqual(submodule["baseCommit"], module_head)
+        self.assertTrue(submodule["initialized"])
+        self.assertEqual(submodule["sourceHead"], module_head)
+
+    def test_create_does_not_follow_route_preference_symlink(self) -> None:
+        """来源 route 偏好为 symlink 时不读取目标内容。"""
+        target = self.base / "unsafe-route"
+        external = self.base / "external-prefs"
+        external.write_text("implement=subagent\n", encoding="utf-8")
+        os.symlink(external, self.main / ".trellis/.route-prefs.tmp")
+
+        _, plan = self._helper(
+            "create",
+            "--source",
+            str(self.main),
+            "--branch",
+            "feature/unsafe-route",
+            "--task-title",
+            "不安全偏好",
+            "--task-slug",
+            "unsafe-route",
+            target=target,
+        )
+
+        transfer = plan["localStateTransfer"]["routePreferences"]
+        self.assertEqual(transfer["action"], "notInherited")
+        self.assertEqual(transfer["reason"], "source-type-invalid")
+
+    def test_prepare_inherits_route_preferences_only_when_explicit(self) -> None:
+        """prepare 只有显式请求时才从同仓同开发者控制端继承偏好。"""
+        (self.main / ".trellis/.route-prefs.tmp").write_text(
+            "check=check-all-inline\nimplement=inline\n",
+            encoding="utf-8",
+        )
+
+        _, prepared = self._helper(
+            "prepare",
+            "--developer",
+            "tester",
+            "--source",
+            str(self.main),
+            "--inherit-route-prefs",
+        )
+
+        self.assertEqual(prepared["localStateTransfer"]["routePreferences"]["action"], "inherited")
+        self.assertEqual(
+            (self.linked / ".trellis/.route-prefs.tmp").read_text(encoding="utf-8"),
+            "implement=inline\ncheck=check-all-inline\n",
+        )
+
+    def test_prepare_preserves_existing_target_route_preferences(self) -> None:
+        """prepare 显式继承也不覆盖目标已经存在的个人偏好。"""
+        (self.main / ".trellis/.route-prefs.tmp").write_text("implement=inline\n", encoding="utf-8")
+        target_route = self.linked / ".trellis/.route-prefs.tmp"
+        target_route.write_text("implement=subagent\n", encoding="utf-8")
+
+        _, prepared = self._helper(
+            "prepare",
+            "--developer",
+            "tester",
+            "--source",
+            str(self.main),
+            "--inherit-route-prefs",
+        )
+
+        self.assertEqual(prepared["localStateTransfer"]["routePreferences"]["action"], "preserved")
+        self.assertEqual(target_route.read_text(encoding="utf-8"), "implement=subagent\n")
+
+    def test_prepare_rejects_route_preferences_from_other_repository_before_writes(self) -> None:
+        """prepare 显式继承拒绝其它仓库来源，并且不先创建目标运行态。"""
+        other = self.base / "other-repository"
+        other.mkdir()
+        self._git(other, "init")
+        (other / ".trellis").mkdir()
+        (other / ".trellis/.developer").write_text("name=tester\n", encoding="utf-8")
+        (other / ".trellis/.route-prefs.tmp").write_text("implement=inline\n", encoding="utf-8")
+
+        result, payload = self._helper(
+            "prepare",
+            "--developer",
+            "tester",
+            "--source",
+            str(other),
+            "--inherit-route-prefs",
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "route-preferences-repository-mismatch")
+        self.assertFalse((self.linked / ".trellis/.developer").exists())
+        self.assertFalse((self.linked / ".trellis/.runtime").exists())
+
     def test_duplicate_task_registry_rolls_back_create(self) -> None:
         """同一 task 路径已被其它 worktree 注册时，create 回滚新 branch/worktree。"""
         _, status = self._helper("status")
@@ -335,8 +676,7 @@ class WorktreeSetupTest(unittest.TestCase):
         )
         target = self.base / "duplicate"
 
-        result, payload = self._helper(
-            "create",
+        result, payload = self._create_helper(
             "--source",
             str(self.main),
             "--branch",
@@ -360,8 +700,7 @@ class WorktreeSetupTest(unittest.TestCase):
     def test_create_and_remove_manage_task_registry_and_preserve_branch(self) -> None:
         """create 创建 planning task；完成并提交后 remove 只移除 worktree。"""
         target = self.base / "created"
-        _, created = self._helper(
-            "create",
+        _, created = self._create_helper(
             "--source",
             str(self.main),
             "--branch",
@@ -448,8 +787,7 @@ class WorktreeSetupTest(unittest.TestCase):
     def test_remove_registry_failure_restores_worktree_and_local_state(self) -> None:
         """Git remove 后 registry 写入失败时恢复 worktree、task 和忽略运行态。"""
         target = self.base / "restore-remove"
-        _, created = self._helper(
-            "create",
+        _, created = self._create_helper(
             "--source",
             str(self.main),
             "--branch",
