@@ -1,0 +1,1582 @@
+{
+  "id": "improve-plugin-manager-ux",
+  "name": "improve-plugin-manager-ux",
+  "title": "Flower Plugin 管理器体验与更新链路修复",
+  "description": "修复 Plugin 交互管理器加载慢、卸载/安装计划噪音、安装强制选平台、发现页缺少已安装状态、已安装更新不生效五个问题",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-06",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-06T07:11:48Z",
+      "contextKey": "claude_2538e75c-4c62-4083-a2fb-872c951207c4",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "3ade2cfaad9f570947a6649ad24dd612d8420f4e",
+        "status": [
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/contract.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/references/message-plan-contract.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/references/source-map.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/scripts/preflight.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/scripts/render_real_usage.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/scripts/self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/tests/cases.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-dws-message-governance/tests/test_self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/contract.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/references/execution-contract.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/references/source-index.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/references/troubleshooting.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/scripts/render_real_usage.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/scripts/self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/tests/cases.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/tests/fixtures/operation-evidence-v0.3.0.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/tests/test_self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/contract.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/references/mail-plan-contract.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/references/source-map.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/mail_contract.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/preflight.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/render_mail.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/render_real_usage.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/resolve_thread.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/send_mail.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/thread_record.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/tests/cases.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.1.0-codex.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.2.0-claude-code.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-governed-mail-distribution/tests/test_self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/contract.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/references/authority-and-access.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/references/routing-map.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/scripts/render_real_usage.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/scripts/self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/tests/cases.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/tests/fixtures/real-usage.json"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/tests/fixtures/real-usage.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/tests/fixtures/trellis-project/.trellis/spec/release-check.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-rd-guide/tests/test_self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/contract.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/references/message-plan-contract.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/references/source-map.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/scripts/preflight.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/scripts/render_real_usage.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/scripts/self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/tests/cases.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-dws-message-governance/tests/test_self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/contract.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/references/execution-contract.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/references/source-index.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/references/troubleshooting.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/scripts/render_real_usage.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/scripts/self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/tests/cases.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/tests/fixtures/operation-evidence-v0.3.0.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/tests/test_self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/contract.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/references/mail-plan-contract.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/references/source-map.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/mail_contract.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/preflight.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/render_mail.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/render_real_usage.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/resolve_thread.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/send_mail.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/thread_record.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/tests/cases.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.1.0-codex.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.2.0-claude-code.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-governed-mail-distribution/tests/test_self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/contract.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/references/authority-and-access.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/references/routing-map.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/scripts/render_real_usage.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/scripts/self_check.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/tests/cases.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/tests/fixtures/real-usage.json"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/tests/fixtures/real-usage.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/tests/fixtures/trellis-project/.trellis/spec/release-check.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-rd-guide/tests/test_self_check.py"
+          },
+          {
+            "status": " M",
+            "path": ".flower/plugin-lock.json"
+          },
+          {
+            "status": " M",
+            "path": ".flower/plugins.json"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/brief.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/design.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/implement.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/research/current-worktree-contract.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/task.json"
+          },
+          {
+            "status": " M",
+            "path": "src/cli.js"
+          },
+          {
+            "status": " M",
+            "path": "src/commands/worktree.js"
+          },
+          {
+            "status": " M",
+            "path": "test/js/worktree-cli.test.js"
+          },
+          {
+            "status": " M",
+            "path": "test/python/test_worktree_setup.py"
+          },
+          {
+            "status": " M",
+            "path": "vendor/skill-garden"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "3ade2cfaad9f570947a6649ad24dd612d8420f4e",
+            "status": [
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/contract.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/references/message-plan-contract.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/references/source-map.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/scripts/preflight.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/scripts/render_real_usage.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/scripts/self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/tests/cases.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-dws-message-governance/tests/test_self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/contract.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/execution-contract.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/source-index.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/troubleshooting.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/scripts/render_real_usage.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/scripts/self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/tests/cases.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/tests/fixtures/operation-evidence-v0.3.0.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/tests/test_self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/contract.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/references/mail-plan-contract.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/references/source-map.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/mail_contract.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/preflight.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/render_mail.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/render_real_usage.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/resolve_thread.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/send_mail.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/thread_record.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/cases.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.1.0-codex.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.2.0-claude-code.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/test_self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/contract.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/references/authority-and-access.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/references/routing-map.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/scripts/render_real_usage.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/scripts/self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/tests/cases.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/tests/fixtures/real-usage.json"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/tests/fixtures/real-usage.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/tests/fixtures/trellis-project/.trellis/spec/release-check.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-rd-guide/tests/test_self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/contract.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/references/message-plan-contract.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/references/source-map.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/scripts/preflight.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/scripts/render_real_usage.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/scripts/self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/tests/cases.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-dws-message-governance/tests/test_self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/contract.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/execution-contract.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/source-index.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/troubleshooting.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/scripts/render_real_usage.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/scripts/self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/tests/cases.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/tests/fixtures/operation-evidence-v0.3.0.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/tests/test_self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/contract.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/references/mail-plan-contract.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/references/source-map.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/mail_contract.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/preflight.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/render_mail.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/render_real_usage.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/resolve_thread.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/send_mail.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/thread_record.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/cases.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.1.0-codex.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.2.0-claude-code.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/test_self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/contract.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/references/authority-and-access.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/references/routing-map.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/scripts/render_real_usage.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/scripts/self_check.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/tests/cases.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/tests/fixtures/real-usage.json"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/tests/fixtures/real-usage.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/tests/fixtures/trellis-project/.trellis/spec/release-check.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-rd-guide/tests/test_self_check.py"
+              },
+              {
+                "status": " M",
+                "path": ".flower/plugin-lock.json"
+              },
+              {
+                "status": " M",
+                "path": ".flower/plugins.json"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/brief.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/design.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/implement.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/research/current-worktree-contract.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/task.json"
+              },
+              {
+                "status": " M",
+                "path": "src/cli.js"
+              },
+              {
+                "status": " M",
+                "path": "src/commands/worktree.js"
+              },
+              {
+                "status": " M",
+                "path": "test/js/worktree-cli.test.js"
+              },
+              {
+                "status": " M",
+                "path": "test/python/test_worktree_setup.py"
+              },
+              {
+                "status": " M",
+                "path": "vendor/skill-garden"
+              }
+            ],
+            "worktreeDiffSha256": "4162f063594765de2a57806afb771aad88a134057266013f96f8732dd8f812a5",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/SKILL.md",
+                "sha256": "a4137b809c0c9239edcc1bca8ac8660967034df597dfb3e7fa1996edd7d16a44"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/agents/openai.yaml",
+                "sha256": "11f3dfc2d478baf1357ce38bbc1e7573693bfdc9670cf58c89fa86400eabe1a8"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/contract.yaml",
+                "sha256": "0186d21ca0267a2a7f508b98c21a27de78282829f7b47984698ee64a89761c05"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/references/message-plan-contract.md",
+                "sha256": "dc90b28f70d97ac1b0fa1f77fd4d9ef50c97bb8950e641ac1f0aadcab5136bd5"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/references/source-map.md",
+                "sha256": "3e648f56fc837b5e7cd2a3e8c785670d7c811c94d9c37ad30a19c7dc99eb4cb6"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/scripts/preflight.py",
+                "sha256": "c3a55121fb53cd018e57fd251f69a4d57e0626944853b33eba5407913d9f40ab"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/scripts/render_real_usage.py",
+                "sha256": "7409395110999845220beae5df8b83954413430f6c4fdd642d23812369f28285"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/scripts/self_check.py",
+                "sha256": "c41bdeadcffcb72a9afdbc56cd77afef0d0cde6dbf92f96b451c55ac23dc9858"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/tests/cases.json",
+                "sha256": "d56fe5b5541694d322e0ae0d80d48ebe2305732df7f131765cb0d709f80da614"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.json",
+                "sha256": "1a42ecfa01d4599ec0a97a81e3db1ea78765ef3810a17ca0f1ad019bd88db859"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.md",
+                "sha256": "a21f2e6cb09067e78b6e3c1b875e499c7d3749583ee79eb994896e47583be7d7"
+              },
+              {
+                "path": ".agents/skills/xhgj-dws-message-governance/tests/test_self_check.py",
+                "sha256": "cd4473f39ac5505136dc63cde6dca42f4df842e53b7c0be841e40af25f766c0b"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/SKILL.md",
+                "sha256": "1c207f6c9ec1e37bf5a638fc83f573d167175388e7dda0282b1f61146d8b9992"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/agents/openai.yaml",
+                "sha256": "de19fed8ed893a0af8386cf3f23d97fac1b28efcd1ae636f2af87ba9cb29f37d"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/contract.yaml",
+                "sha256": "869352a618fee7036c5275818b08237701541795033d8e7e86dba05a2f964bda"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/execution-contract.md",
+                "sha256": "738a9ed87cf73b165be608cba369175830d3afa6589194f0aaa95fd072222b6a"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/source-index.md",
+                "sha256": "84ddadb4b43c46a26b3a57627fe21111a17186b4064bb7731bb3f0055a7fcf8b"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/troubleshooting.md",
+                "sha256": "a41d16123b80bfcc793090707b7409cc814bc4e633fdf78ffc761a20aa9dc92a"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/scripts/render_real_usage.py",
+                "sha256": "c603033ee16422616386210aa360b31712f44f6baa33d6bfcaf8370ffa74ecaa"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/scripts/self_check.py",
+                "sha256": "d429b579d971380324f4ce5c662e05f53cb54d0860009659b698575e738a30d4"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/tests/cases.json",
+                "sha256": "89cc7564f1bfcc106eaf930b04b4abb9aacf2a432c2ac0079f49d2261d36e30e"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/tests/fixtures/operation-evidence-v0.3.0.json",
+                "sha256": "7c142c5e287e5d877fb0db50fe311fb4c244ce4dbb12d8d88da99722e3e3676d"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.json",
+                "sha256": "fd58665c359cb48661a3417cd6dfd2cab74d00beb38801598b4eee815df77d9e"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.md",
+                "sha256": "2029b1866f9d8b7b5329bc71dc164c303d8a552907cde0b096373daf2a17edc9"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/tests/test_self_check.py",
+                "sha256": "645c50414eb04f027fdfacdcead9bb7f5685acc4f4c409edaebfed5f2da163f1"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/SKILL.md",
+                "sha256": "73e42f8e3faa768779b6f512faad07ee40cef1bce124d21b647b9d6cfe3d9d8c"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/agents/openai.yaml",
+                "sha256": "e1e49ba196f92e410caa31fb592eac4e48db1a6865ad009c743a9449f8cb7c75"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/contract.yaml",
+                "sha256": "2293eff41f2b10b80f56cdf80e5aecb97b01eac25f4d8f52f346a4a20ff984bd"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/references/mail-plan-contract.md",
+                "sha256": "97df96515d8a94626be9cc97b9f4d855316328da9f195066ccd6fb93962f30ef"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/references/source-map.md",
+                "sha256": "ae969343937eabf518ec5d9f8b797d0f5dc42a646e56116b1bf36ddc920ec52d"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/mail_contract.py",
+                "sha256": "06ac66dc5071e1e464ec301020f9d6e05fae5422f2e2774fb02dda637174ee72"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/preflight.py",
+                "sha256": "0bde4efebc7fb04e6007a063c18813b4a92277143124034381c3ceb0efc7bb2d"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/render_mail.py",
+                "sha256": "e0e7f52d505e4e0d4f9b3cd0001b400f4cbb621008cc185bb1ae13d4b9916c0b"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/render_real_usage.py",
+                "sha256": "b43cc4668707444cdbd94f7b533d6452e8ad7dc14a52761be88158d3c9623691"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/resolve_thread.py",
+                "sha256": "193d87c59ffc5e9e905b2d3286a7ebdd796d233ab50ab95b5259e7e8025d4a4c"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/self_check.py",
+                "sha256": "ebb2bf7fcd4404b6d6a9ce36e215418ed926539140d55656681d4461b02d7735"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/send_mail.py",
+                "sha256": "549338a0ee4b0615482b3fa94ab9731353223eeed127815171faf155cbffeee7"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/scripts/thread_record.py",
+                "sha256": "2a95e65b840e314299800e71e74748530d5321947d8353c1180f60cdf99443e0"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/cases.json",
+                "sha256": "872cb4b4853dec831e17a83c380b1e0ebcc1be36ac109c51c15ec27ec3dbd52f"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.1.0-codex.json",
+                "sha256": "7cc93add0c376887d37095fa4d356408ffd6917d80f4429e335f1d15aa8cf7b9"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.2.0-claude-code.json",
+                "sha256": "0a46dd755085e8cd12b41ff34146a71fbaed251956907bf3e4192abdc5dfe5f8"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.json",
+                "sha256": "ca6706120c92971a5728b1f4338ef8ea8f122540ae6c07864a7ea6229eda30f3"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.md",
+                "sha256": "c4b9954761f950519d4363d416adaeb3df051150368bb2dbc45b1cea0eedff77"
+              },
+              {
+                "path": ".agents/skills/xhgj-governed-mail-distribution/tests/test_self_check.py",
+                "sha256": "2df76a65f765e294b17c71546f5822e0a8dbbe6fbfbdb2abd68282fbaa06f80b"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/SKILL.md",
+                "sha256": "954746baa44e2e3e494ebadc57000455180cef059d30e6f36b6e3166836ddfa7"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/agents/openai.yaml",
+                "sha256": "5ca660a88ab7803d02381cb0aaddea2b6b8b16b6845731a515516540ad4b47b2"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/contract.yaml",
+                "sha256": "1201962dc1ee53bd573ebb8630e95a5cc73f89560033fb9eca184ae90532f946"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/references/authority-and-access.md",
+                "sha256": "0d6f82a3a8d3471554334a520febdc202dbb9a5f4b32006b6c7d7ebe2cc9b01d"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/references/routing-map.md",
+                "sha256": "5e71848e1f2edad9d4f39cb3e8e1ad03ccd8744fd7143554b361948a70c8ad97"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/scripts/render_real_usage.py",
+                "sha256": "cf2be0e49404b52b388ef86944b6666933e399b39a26c399a670f58128b8dcfd"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/scripts/self_check.py",
+                "sha256": "5e3d87e6decb10b9e9457a4767ce75d795fa3644c29eef9a7ddad58f01f48934"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/tests/cases.json",
+                "sha256": "df376eed01f358470bb4c2398714d2a5ce2e6c1d749db05ee6f10d77a7ed0aa1"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/tests/fixtures/real-usage.json",
+                "sha256": "5b79d41fbfe9e58c1dc32cb0906fde1e7ac0898455926d7b20176cf047a359b0"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/tests/fixtures/real-usage.md",
+                "sha256": "222a09c2539a1f36c27affb3b2e7b5282c1206c53141838c3e708073cbfe3f7f"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/tests/fixtures/trellis-project/.trellis/spec/release-check.md",
+                "sha256": "951c7d319cb9714abace10447b606cb4d410634292c7e5edeaa90facb86dc3ae"
+              },
+              {
+                "path": ".agents/skills/xhgj-rd-guide/tests/test_self_check.py",
+                "sha256": "37e663f163d2e55ab2bde97943cc453be05787879405d9fb48c5a6bea8dc6fbc"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/SKILL.md",
+                "sha256": "a4137b809c0c9239edcc1bca8ac8660967034df597dfb3e7fa1996edd7d16a44"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/agents/openai.yaml",
+                "sha256": "11f3dfc2d478baf1357ce38bbc1e7573693bfdc9670cf58c89fa86400eabe1a8"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/contract.yaml",
+                "sha256": "0186d21ca0267a2a7f508b98c21a27de78282829f7b47984698ee64a89761c05"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/references/message-plan-contract.md",
+                "sha256": "dc90b28f70d97ac1b0fa1f77fd4d9ef50c97bb8950e641ac1f0aadcab5136bd5"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/references/source-map.md",
+                "sha256": "3e648f56fc837b5e7cd2a3e8c785670d7c811c94d9c37ad30a19c7dc99eb4cb6"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/scripts/preflight.py",
+                "sha256": "c3a55121fb53cd018e57fd251f69a4d57e0626944853b33eba5407913d9f40ab"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/scripts/render_real_usage.py",
+                "sha256": "7409395110999845220beae5df8b83954413430f6c4fdd642d23812369f28285"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/scripts/self_check.py",
+                "sha256": "c41bdeadcffcb72a9afdbc56cd77afef0d0cde6dbf92f96b451c55ac23dc9858"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/tests/cases.json",
+                "sha256": "d56fe5b5541694d322e0ae0d80d48ebe2305732df7f131765cb0d709f80da614"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.json",
+                "sha256": "1a42ecfa01d4599ec0a97a81e3db1ea78765ef3810a17ca0f1ad019bd88db859"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/tests/fixtures/real-usage.md",
+                "sha256": "a21f2e6cb09067e78b6e3c1b875e499c7d3749583ee79eb994896e47583be7d7"
+              },
+              {
+                "path": ".claude/skills/xhgj-dws-message-governance/tests/test_self_check.py",
+                "sha256": "cd4473f39ac5505136dc63cde6dca42f4df842e53b7c0be841e40af25f766c0b"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/SKILL.md",
+                "sha256": "1c207f6c9ec1e37bf5a638fc83f573d167175388e7dda0282b1f61146d8b9992"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/agents/openai.yaml",
+                "sha256": "de19fed8ed893a0af8386cf3f23d97fac1b28efcd1ae636f2af87ba9cb29f37d"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/contract.yaml",
+                "sha256": "869352a618fee7036c5275818b08237701541795033d8e7e86dba05a2f964bda"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/execution-contract.md",
+                "sha256": "738a9ed87cf73b165be608cba369175830d3afa6589194f0aaa95fd072222b6a"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/source-index.md",
+                "sha256": "84ddadb4b43c46a26b3a57627fe21111a17186b4064bb7731bb3f0055a7fcf8b"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/troubleshooting.md",
+                "sha256": "a41d16123b80bfcc793090707b7409cc814bc4e633fdf78ffc761a20aa9dc92a"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/scripts/render_real_usage.py",
+                "sha256": "c603033ee16422616386210aa360b31712f44f6baa33d6bfcaf8370ffa74ecaa"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/scripts/self_check.py",
+                "sha256": "d429b579d971380324f4ce5c662e05f53cb54d0860009659b698575e738a30d4"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/tests/cases.json",
+                "sha256": "89cc7564f1bfcc106eaf930b04b4abb9aacf2a432c2ac0079f49d2261d36e30e"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/tests/fixtures/operation-evidence-v0.3.0.json",
+                "sha256": "7c142c5e287e5d877fb0db50fe311fb4c244ce4dbb12d8d88da99722e3e3676d"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.json",
+                "sha256": "fd58665c359cb48661a3417cd6dfd2cab74d00beb38801598b4eee815df77d9e"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/tests/fixtures/real-usage.md",
+                "sha256": "2029b1866f9d8b7b5329bc71dc164c303d8a552907cde0b096373daf2a17edc9"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/tests/test_self_check.py",
+                "sha256": "645c50414eb04f027fdfacdcead9bb7f5685acc4f4c409edaebfed5f2da163f1"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/SKILL.md",
+                "sha256": "73e42f8e3faa768779b6f512faad07ee40cef1bce124d21b647b9d6cfe3d9d8c"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/agents/openai.yaml",
+                "sha256": "e1e49ba196f92e410caa31fb592eac4e48db1a6865ad009c743a9449f8cb7c75"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/contract.yaml",
+                "sha256": "2293eff41f2b10b80f56cdf80e5aecb97b01eac25f4d8f52f346a4a20ff984bd"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/references/mail-plan-contract.md",
+                "sha256": "97df96515d8a94626be9cc97b9f4d855316328da9f195066ccd6fb93962f30ef"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/references/source-map.md",
+                "sha256": "ae969343937eabf518ec5d9f8b797d0f5dc42a646e56116b1bf36ddc920ec52d"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/mail_contract.py",
+                "sha256": "06ac66dc5071e1e464ec301020f9d6e05fae5422f2e2774fb02dda637174ee72"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/preflight.py",
+                "sha256": "0bde4efebc7fb04e6007a063c18813b4a92277143124034381c3ceb0efc7bb2d"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/render_mail.py",
+                "sha256": "e0e7f52d505e4e0d4f9b3cd0001b400f4cbb621008cc185bb1ae13d4b9916c0b"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/render_real_usage.py",
+                "sha256": "b43cc4668707444cdbd94f7b533d6452e8ad7dc14a52761be88158d3c9623691"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/resolve_thread.py",
+                "sha256": "193d87c59ffc5e9e905b2d3286a7ebdd796d233ab50ab95b5259e7e8025d4a4c"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/self_check.py",
+                "sha256": "ebb2bf7fcd4404b6d6a9ce36e215418ed926539140d55656681d4461b02d7735"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/send_mail.py",
+                "sha256": "549338a0ee4b0615482b3fa94ab9731353223eeed127815171faf155cbffeee7"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/scripts/thread_record.py",
+                "sha256": "2a95e65b840e314299800e71e74748530d5321947d8353c1180f60cdf99443e0"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/cases.json",
+                "sha256": "872cb4b4853dec831e17a83c380b1e0ebcc1be36ac109c51c15ec27ec3dbd52f"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.1.0-codex.json",
+                "sha256": "7cc93add0c376887d37095fa4d356408ffd6917d80f4429e335f1d15aa8cf7b9"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage-0.2.0-claude-code.json",
+                "sha256": "0a46dd755085e8cd12b41ff34146a71fbaed251956907bf3e4192abdc5dfe5f8"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.json",
+                "sha256": "ca6706120c92971a5728b1f4338ef8ea8f122540ae6c07864a7ea6229eda30f3"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/fixtures/real-usage.md",
+                "sha256": "c4b9954761f950519d4363d416adaeb3df051150368bb2dbc45b1cea0eedff77"
+              },
+              {
+                "path": ".claude/skills/xhgj-governed-mail-distribution/tests/test_self_check.py",
+                "sha256": "2df76a65f765e294b17c71546f5822e0a8dbbe6fbfbdb2abd68282fbaa06f80b"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/SKILL.md",
+                "sha256": "954746baa44e2e3e494ebadc57000455180cef059d30e6f36b6e3166836ddfa7"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/agents/openai.yaml",
+                "sha256": "5ca660a88ab7803d02381cb0aaddea2b6b8b16b6845731a515516540ad4b47b2"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/contract.yaml",
+                "sha256": "1201962dc1ee53bd573ebb8630e95a5cc73f89560033fb9eca184ae90532f946"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/references/authority-and-access.md",
+                "sha256": "0d6f82a3a8d3471554334a520febdc202dbb9a5f4b32006b6c7d7ebe2cc9b01d"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/references/routing-map.md",
+                "sha256": "5e71848e1f2edad9d4f39cb3e8e1ad03ccd8744fd7143554b361948a70c8ad97"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/scripts/render_real_usage.py",
+                "sha256": "cf2be0e49404b52b388ef86944b6666933e399b39a26c399a670f58128b8dcfd"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/scripts/self_check.py",
+                "sha256": "5e3d87e6decb10b9e9457a4767ce75d795fa3644c29eef9a7ddad58f01f48934"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/tests/cases.json",
+                "sha256": "df376eed01f358470bb4c2398714d2a5ce2e6c1d749db05ee6f10d77a7ed0aa1"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/tests/fixtures/real-usage.json",
+                "sha256": "5b79d41fbfe9e58c1dc32cb0906fde1e7ac0898455926d7b20176cf047a359b0"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/tests/fixtures/real-usage.md",
+                "sha256": "222a09c2539a1f36c27affb3b2e7b5282c1206c53141838c3e708073cbfe3f7f"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/tests/fixtures/trellis-project/.trellis/spec/release-check.md",
+                "sha256": "951c7d319cb9714abace10447b606cb4d410634292c7e5edeaa90facb86dc3ae"
+              },
+              {
+                "path": ".claude/skills/xhgj-rd-guide/tests/test_self_check.py",
+                "sha256": "37e663f163d2e55ab2bde97943cc453be05787879405d9fb48c5a6bea8dc6fbc"
+              },
+              {
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/brief.md",
+                "sha256": "564f341d8e690f4a770a98961a8ee07a98356a0b9f7fc2370f9271b994c40fc0"
+              },
+              {
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/check.jsonl",
+                "sha256": "5cdfaa0766b3d5052bb6d46cc6a4d28f60d694d9047aa5186fa4f6af4a4628ed"
+              },
+              {
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/design.md",
+                "sha256": "bf33f0f4600daf649f6ecc6ed2b004059c40dca09c0847eda4e5c51bc2d08795"
+              },
+              {
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/implement.jsonl",
+                "sha256": "92765098ebd2e6df4a7e9654ec837db9256ba4d50d3a6a974beb643ff731a826"
+              },
+              {
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/implement.md",
+                "sha256": "2af2b665ba41dffb16b2fba974826f51d451d7fedb586b73cd1213dc836f6935"
+              },
+              {
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/prd.md",
+                "sha256": "6e115c2d59073822fec3c350f29f36536022be2b9f404534b33e525ffcc8c2aa"
+              },
+              {
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/research/current-worktree-contract.md",
+                "sha256": "d8a772913e85610ed1f90f816dec725a9dd11dcaee55bb6e30c3c70ebf4aa5ba"
+              },
+              {
+                "path": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/task.json",
+                "sha256": "5d0d66fa4a8b3193a1b15ce83ede84d78f328fdea4b96925fe633b540522c3bd"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "13180cdda0f5c8024e98799b576e70b789673302028504f32e2dbe8a29227ba4"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "ff6502fdecdab6f47b62587ae0da233a47268872",
+            "status": [
+              {
+                "status": " M",
+                "path": ".trellis/0.6/scripts/worktree_setup.py"
+              }
+            ],
+            "worktreeDiffSha256": "11534dd5bd7c86154a173911aeffbc786ab7741aa55b4fd3d92b9044f43b4723",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "bdf9d2b7d1de47c9a735f3b00e14d76336ba516d63cfe6b6f9a21cb5e62baccb"
+          }
+        ],
+        "fingerprint": "7b4602688118a0701e16b436a4130d0eaea13f9249fe3d368954fd135da533f2"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-06T16:44:54+08:00",
+    "completedSteps": [
+      "R1 延迟加载：plugin.js 分支内 await import trellis-control；createSchemaValidator 延迟 ajv.compile；交互层缓存来源登录态并与 discovery 同生命周期失效",
+      "R2 预览降噪：printResult 按 transaction.changed 过滤空操作并折叠为一行；FLOWER_DEBUG 保留完整清单；--json 全量不变",
+      "R3 去平台询问：installPlugin 删除平台多选，仅在 inferPlatforms 为空时兜底",
+      "R4 发现页状态：discovery 改缓存原始 entries，已安装态每轮重算，三态徽标含 0.3.0 → 0.4.0",
+      "R5 更新链路：安装写 ^x.y.z；新增 planVersionUpdate 与 collectWidenPlan；服务层 update({widen}) + CLI --widen 批量放宽；命令失败后停顿可读",
+      "Check-All 第一轮发现 CHK-001/CHK-002/FBK-001，修复轮全部解决并重检 strict pass",
+      "Update-Spec written：flower-plugin-runtime.md 补 widen 契约与互锁错误矩阵，cli-output.md 修正输出过滤契约",
+      "业务提交 ee45d43 已推送 origin/beta"
+    ],
+    "partialStep": "无",
+    "nextStep": "AC11（npm test 全绿）待 worktree-multirepo-handoff 线同步 test_workflow_state_hook.py 后转绿；本任务其余验收全部达成",
+    "notes": "关键取舍：放宽必须一次覆盖全部越界声明并按 update=\"all\" 解析——Marketplace 只留最新版时，未列入 update 的节点走 lock-first 会抛「已锁定 Plugin 包不可重放」，逐个放宽会互相死锁。为此把范围从原 design.md 的「服务层不改」扩到 update() 入口，解析器本身未动，已回写 design.md。遗留：npm test 有 5 项 Python 失败，源于 vendor/skill-garden 推进到 200555a 后 state-untracked/content.md 移除 Untracked work: 文案而父仓测试未同步，与本任务改动无交集。"
+  }
+}
