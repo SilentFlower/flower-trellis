@@ -7,6 +7,7 @@ Complete contracts live in the owning phase, workflow state, skill, hook, or hel
 | Gate / Guard | Primary policy owner | Runtime owner |
 | --- | --- | --- |
 | Request Intent Routing | `Request Triage` + `trellis-start` | `task_intent.py` |
+| Harness Plan Mode Ban | `workflow-state:no_task` + `workflow-state:planning*` + `workflow-state:in_progress*` | injected state text (no runtime hook) |
 | Brainstorm Gate | Phase 1.1 + `trellis-brainstorm` | `task.py start` readiness |
 | Task Brief Handoff | Phase 1.4 + `trellis-task-brief` | `task.py start` brief guard |
 | Project Knowledge Discovery | `Request Triage` | `spec_router.py` |

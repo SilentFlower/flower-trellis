@@ -25,6 +25,7 @@ function assertOrdered(value, first, second, scenario) {
 
 const GATES = [
   "Request Intent Routing",
+  "Harness Plan Mode Ban",
   "Brainstorm Gate",
   "Task Brief Handoff",
   "Project Knowledge Discovery",
@@ -41,7 +42,7 @@ const GATES = [
   "Task Progress Recovery",
 ];
 
-test("Workflow Hub 只保留 15 项 owner 索引和跨阶段顺序", () => {
+test("Workflow Hub 只保留 16 项 owner 索引和跨阶段顺序", () => {
   const hub = readSource("overrides/patches/workflow/hub/content.md");
 
   assert.match(hub, /### Skill-Garden Workflow Owner Index/);
@@ -71,6 +72,24 @@ test("Workflow Hub 只保留 15 项 owner 索引和跨阶段顺序", () => {
   ]) {
     assert.doesNotMatch(hub, new RegExp(forbidden.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+});
+
+test("内置 Plan Mode 禁令必须存在于所有会产生 planning 冲动的注入状态", () => {
+  const banned = /`EnterPlanMode` \/ `ExitPlanMode`/;
+  const states = [
+    "overrides/patches/workflow/state-no-task/content.md",
+    "overrides/patches/workflow/states-planning/common-content.md",
+    "overrides/patches/workflow/states-in-progress/common-content.md",
+  ];
+
+  for (const relativePath of states) {
+    assert.match(readSource(relativePath), banned, relativePath);
+  }
+  // hub 的 owner 行是 canonical 归属：3e9f2d3 那次重构正因无人认领才把禁令整段丢掉。
+  assert.match(
+    readSource("overrides/patches/workflow/hub/content.md"),
+    /\| Harness Plan Mode Ban \|/,
+  );
 });
 
 test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算", () => {
