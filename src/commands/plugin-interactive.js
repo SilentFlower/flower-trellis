@@ -60,6 +60,26 @@ function readProjectView(store, projectRoot) {
 }
 
 /**
+ * 推断安装时应使用的平台；没有任何平台证据时返回空列表。
+ *
+ * 服务层本身会按「显式平台 → 既有 state 平台 → 项目探测」兜底，所以这里返回非空
+ * 就意味着不必再问用户；返回空才需要交互补齐。
+ *
+ * @param {string} projectRoot 项目根
+ * @param {object|null} state 当前应用状态
+ * @returns {string[]} 已推断出的平台
+ */
+function inferPlatforms(projectRoot, state) {
+  const applied = [...new Set((state?.plugins || []).flatMap(({ platforms }) => platforms))];
+  if (applied.length > 0) return applied;
+  try {
+    return detectPluginPlatforms(projectRoot).platforms;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * 为安装流程选择默认平台。
  *
  * @param {string} projectRoot 项目根
@@ -67,14 +87,43 @@ function readProjectView(store, projectRoot) {
  * @returns {string[]} 默认选中平台
  */
 function defaultPlatforms(projectRoot, state) {
-  const applied = [...new Set((state?.plugins || []).flatMap(({ platforms }) => platforms))];
-  if (applied.length > 0) return applied;
-  try {
-    return detectPluginPlatforms(projectRoot).platforms;
-  } catch {
-    const supported = new Set(listPluginPlatforms());
-    return ["codex", "claude"].filter((platform) => supported.has(platform));
+  const inferred = inferPlatforms(projectRoot, state);
+  if (inferred.length > 0) return inferred;
+  const supported = new Set(listPluginPlatforms());
+  return ["codex", "claude"].filter((platform) => supported.has(platform));
+}
+
+/**
+ * 计算一次更新应当使用的版本约束。
+ *
+ * Marketplace 常常只保留最新版，此时旧的精确锁会让解析器筛不到任何候选并直接报错。
+ * 这里把「最新版是否仍落在声明范围内」显式区分出来，让交互层可以在跨兼容边界时先问人。
+ *
+ * @param {{declared?:string,available?:string[]}} input 当前声明与 Marketplace 可用版本
+ * @returns {{action:"in-range"|"widen"|"unknown",latest?:string,nextRange?:string}} 更新计划
+ */
+export function planVersionUpdate(input = {}) {
+  const available = (input.available || []).filter((value) => semver.valid(value));
+  if (available.length === 0) return { action: "unknown" };
+  const latest = [...available].sort(semver.rcompare)[0];
+  const declared = input.declared || "";
+  if (semver.validRange(declared) && semver.satisfies(latest, declared)) {
+    return { action: "in-range", latest };
   }
+  return { action: "widen", latest, nextRange: `^${latest}` };
+}
+
+/**
+ * 从缓存的发现页结果中读取某个 Plugin 的 Marketplace 版本列表。
+ *
+ * @param {object} state 交互状态
+ * @param {string} pluginId canonical Plugin ID
+ * @returns {string[]} 可用版本；未知时为空
+ */
+function marketplaceVersions(state, pluginId) {
+  const entry = (state.discovery?.entries || [])
+    .find((candidate) => candidate.kind === "plugin" && candidate.plugin.id === pluginId);
+  return entry?.plugin.versions || [];
 }
 
 /**
@@ -478,30 +527,31 @@ function recordIssue(state, title, error) {
 }
 
 /**
- * 构造 Flower 内置 Plugin 入口。
+ * 让 Marketplace 目录与登录态一起失效。
+ *
+ * 二者来自同一批网络与凭据读取，任何认证或来源变更都会同时影响它们；
+ * 分开失效会让发现页出现「已登录但仍显示需要登录」这类漂移。
+ *
+ * @param {object} state 交互状态
+ * @returns {void}
+ */
+function invalidateDiscovery(state) {
+  state.discovery = null;
+  state.authStatuses.clear();
+}
+
+/**
+ * 构造 Flower 内置 Plugin 的发现页 entry。
  *
  * @param {object} context 交互上下文
- * @param {Map<string,object>} actions 动作索引
- * @param {object[]} cachedActions 缓存动作
- * @returns {object[]} 内置 Plugin 条目
+ * @returns {object[]} 内置 entry
  */
-function buildBuiltinDiscoverItems(context, actions, cachedActions) {
+function buildBuiltinDiscoverEntries(context) {
   if (!fs.existsSync(path.join(context.ctx.target, ".trellis"))) return [];
   try {
     const candidate = context.skillGardenProvider.listCandidates(SKILL_GARDEN_PLUGIN_ID)[0];
     if (!candidate) return [];
-    const key = `builtin:${candidate.id}`;
-    const value = { type: "skill-manager", pluginId: candidate.id };
-    actions.set(key, value);
-    cachedActions.push({ key, value });
-    return [{
-      title: candidate.id,
-      meta: `Flower 内置 · ${candidate.version}`,
-      description: "管理 Skill Garden 提供的工作流强化与可选通用技能。",
-      badge: "内置",
-      tone: "success",
-      value: key,
-    }];
+    return [{ kind: "builtin", id: candidate.id, version: candidate.version }];
   } catch (error) {
     recordIssue(context.state, "Skill Garden 内置入口加载失败", error);
     return [];
@@ -521,6 +571,9 @@ function clearInteractiveScreen(output) {
 /**
  * 执行命令并把非零退出码纳入问题页签。
  *
+ * 主循环在每次动作后会清屏重绘，命令自身打印的 `❌` 行会被一并抹掉。
+ * 这里额外记下失败标记，让主循环先停下来让用户读完再继续。
+ *
  * @param {object} context 交互上下文
  * @param {string[]} args 命令参数
  * @param {string} title 失败标题
@@ -528,27 +581,28 @@ function clearInteractiveScreen(output) {
  */
 async function runChecked(context, args, title) {
   const code = await context.runCommand(args, context.commandOptions);
-  if (code !== 0) recordIssue(context.state, title, new Error(`命令退出码 ${code}`));
+  if (code !== 0) {
+    recordIssue(context.state, title, new Error(`命令退出码 ${code}`));
+    context.state.lastFailure = title;
+  }
   return code;
 }
 
 /**
- * 构造发现页条目，并缓存已授权 Marketplace 的目录。
+ * 拉取发现页原始 entry，并缓存已授权 Marketplace 的目录。
+ *
+ * 这里只缓存 Marketplace 侧的事实（来源、登录态、Plugin 记录）。已安装状态会随安装、
+ * 卸载、更新实时变化，交给 renderDiscoverItems 每轮重新计算，避免缓存导致状态过期。
  *
  * @param {object} context 交互上下文
- * @param {Map<string,object>} actions 动作索引
  * @param {Map<string,object>} statuses 登录状态
- * @returns {Promise<object[]>} 发现页条目
+ * @returns {Promise<object[]>} 发现页 entry
  */
-async function buildDiscoverItems(context, actions, statuses) {
-  if (context.state.discovery) {
-    for (const entry of context.state.discovery.actions) actions.set(entry.key, entry.value);
-    return context.state.discovery.items;
-  }
+async function loadDiscoverEntries(context, statuses) {
+  if (context.state.discovery) return context.state.discovery.entries;
 
-  const items = [];
-  const cachedActions = [];
-  items.push(...buildBuiltinDiscoverItems(context, actions, cachedActions));
+  const entries = [];
+  entries.push(...buildBuiltinDiscoverEntries(context));
   const sources = context.sourceStore.list().filter(({ enabled }) => enabled);
   for (const source of sources) {
     let status = statuses.get(source.id);
@@ -565,68 +619,121 @@ async function buildDiscoverItems(context, actions, statuses) {
       }
     }
     if (!status.authorized) {
-      const key = `auth:${source.id}`;
-      const value = { type: "auth", sourceId: source.id, returnTab: "discover" };
-      actions.set(key, value);
-      cachedActions.push({ key, value });
-      items.push({
-        title: source.name,
-        meta: source.project,
-        description: status.error
-          ? "现有凭据已失效，按 Enter 获取新授权码并覆盖旧凭据。"
-          : "按 Enter 获取 GitLab 授权码，完成后自动返回这里加载插件。",
-        badge: status.error ? "重新登录" : "需要登录",
-        tone: "warning",
-        value: key,
-      });
+      entries.push({ kind: "auth", source, invalid: Boolean(status.error) });
       continue;
     }
     try {
       const results = await context.searchPlugins("", source.id);
       for (const plugin of results) {
-        const key = `plugin:${source.id}:${plugin.id}`;
-        const value = { type: "plugin", plugin: { ...plugin, source: plugin.source || source.id } };
-        actions.set(key, value);
-        cachedActions.push({ key, value });
-        items.push({
-          title: plugin.id,
-          meta: `${source.name} · ${[...plugin.versions].sort(semver.rcompare)[0] || "未知版本"}`,
-          description: plugin.description || "暂无描述",
-          badge: source.id,
-          tone: "info",
-          value: key,
+        entries.push({
+          kind: "plugin",
+          source,
+          plugin: { ...plugin, source: plugin.source || source.id },
         });
       }
     } catch (error) {
       if (error?.code === PLUGIN_RUNTIME_ERROR_CODES.AUTH_REQUIRED) {
-        const key = `auth:${source.id}`;
-        const value = { type: "auth", sourceId: source.id, returnTab: "discover" };
-        actions.set(key, value);
-        cachedActions.push({ key, value });
-        items.push({
-          title: source.name,
-          meta: source.project,
-          description: "登录状态已失效，按 Enter 重新获取授权码。",
-          badge: "重新登录",
-          tone: "warning",
-          value: key,
-        });
+        entries.push({ kind: "auth", source, invalid: true });
       } else {
         recordIssue(context.state, `${source.name} Marketplace 加载失败`, error);
       }
     }
   }
+  if (sources.length === 0) entries.push({ kind: "no-source" });
+  context.state.discovery = { entries };
+  return entries;
+}
 
-  if (sources.length === 0) {
-    items.push({
-      title: "没有启用的 Plugin 来源",
-      description: "切换到“来源”页签新增或启用 Marketplace。",
-      badge: "空",
-      tone: "muted",
-      value: "discover:empty",
-      disabled: true,
-    });
-  } else if (items.length === 0) {
+/**
+ * 计算一个 Marketplace Plugin 相对当前项目的安装状态。
+ *
+ * @param {object} plugin Marketplace Plugin 记录
+ * @param {{declared:Map<string,object>,locked:Map<string,object>}} project 项目视图索引
+ * @returns {{installed:boolean,current:string|null,latest:string,outdated:boolean}} 安装状态
+ */
+function installedStatus(plugin, project) {
+  const latest = [...plugin.versions].sort(semver.rcompare)[0] || "未知版本";
+  const declaration = project.declared.get(plugin.id);
+  if (!declaration) return { installed: false, current: null, latest, outdated: false };
+  const current = project.locked.get(plugin.id)?.version || declaration.version;
+  const outdated = Boolean(
+    semver.valid(current) && semver.valid(latest) && semver.gt(latest, current),
+  );
+  return { installed: true, current, latest, outdated };
+}
+
+/**
+ * 把发现页 entry 渲染成当前项目视角下的条目。
+ *
+ * @param {object[]} entries 发现页 entry
+ * @param {{declared:Map<string,object>,locked:Map<string,object>}} project 项目视图索引
+ * @param {Map<string,object>} actions 动作索引
+ * @returns {object[]} 发现页条目
+ */
+function renderDiscoverItems(entries, project, actions) {
+  const items = [];
+  for (const entry of entries) {
+    if (entry.kind === "builtin") {
+      const key = `builtin:${entry.id}`;
+      actions.set(key, { type: "skill-manager", pluginId: entry.id });
+      items.push({
+        title: entry.id,
+        meta: `Flower 内置 · ${entry.version}`,
+        description: "管理 Skill Garden 提供的工作流强化与可选通用技能。",
+        badge: "内置",
+        tone: "success",
+        value: key,
+      });
+      continue;
+    }
+    if (entry.kind === "auth") {
+      const key = `auth:${entry.source.id}`;
+      actions.set(key, { type: "auth", sourceId: entry.source.id, returnTab: "discover" });
+      items.push({
+        title: entry.source.name,
+        meta: entry.source.project,
+        description: entry.invalid
+          ? "现有凭据已失效，按 Enter 获取新授权码并覆盖旧凭据。"
+          : "按 Enter 获取 GitLab 授权码，完成后自动返回这里加载插件。",
+        badge: entry.invalid ? "重新登录" : "需要登录",
+        tone: "warning",
+        value: key,
+      });
+      continue;
+    }
+    if (entry.kind === "plugin") {
+      const { plugin, source } = entry;
+      const status = installedStatus(plugin, project);
+      const key = `plugin:${source.id}:${plugin.id}`;
+      actions.set(key, status.installed
+        ? { type: "installed", pluginId: plugin.id }
+        : { type: "plugin", plugin });
+      items.push({
+        title: plugin.id,
+        meta: status.outdated
+          ? `${source.name} · ${status.current} → ${status.latest}`
+          : `${source.name} · ${status.current || status.latest}`,
+        description: status.installed
+          ? `${plugin.description || "暂无描述"}（已安装，按 Enter 校验、更新或卸载）`
+          : plugin.description || "暂无描述",
+        badge: status.outdated ? "可更新" : status.installed ? "已安装" : source.id,
+        tone: status.outdated ? "warning" : status.installed ? "success" : "info",
+        value: key,
+      });
+      continue;
+    }
+    if (entry.kind === "no-source") {
+      items.push({
+        title: "没有启用的 Plugin 来源",
+        description: "切换到“来源”页签新增或启用 Marketplace。",
+        badge: "空",
+        tone: "muted",
+        value: "discover:empty",
+        disabled: true,
+      });
+    }
+  }
+  if (items.length === 0) {
     items.push({
       title: "Marketplace 中暂无 Plugin",
       description: "刷新目录，或到“问题”页签查看加载异常。",
@@ -643,7 +750,6 @@ async function buildDiscoverItems(context, actions, statuses) {
     tone: "muted",
     value: "refresh:discover",
   });
-  context.state.discovery = { items, actions: cachedActions };
   return items;
 }
 
@@ -656,9 +762,12 @@ async function buildDiscoverItems(context, actions, statuses) {
 async function buildManagerModel(context) {
   const view = readProjectView(context.store, context.ctx.target);
   const actions = new Map();
-  const statuses = new Map();
+  // 登录态与 Marketplace 目录同生命周期缓存：主循环每完成一次动作都会重建视图，
+  // 若每轮都重查全部来源，Keyring 读取会成为固定的启动开销。
+  const statuses = context.state.authStatuses;
   const sources = context.sourceStore.list();
   for (const source of sources) {
+    if (statuses.has(source.id)) continue;
     try {
       statuses.set(source.id, await context.authStatus(source.id));
     } catch (error) {
@@ -669,9 +778,11 @@ async function buildManagerModel(context) {
     }
   }
 
-  const discover = await buildDiscoverItems(context, actions, statuses);
   const locked = new Map((view.lock?.plugins || []).map((plugin) => [plugin.id, plugin]));
   const applied = new Map((view.state?.plugins || []).map((plugin) => [plugin.id, plugin]));
+  const declared = new Map(view.plugins.plugins.map((plugin) => [plugin.id, plugin]));
+  const discoverEntries = await loadDiscoverEntries(context, statuses);
+  const discover = renderDiscoverItems(discoverEntries, { declared, locked }, actions);
   const installed = view.plugins.plugins.map((declaration) => {
     const lock = locked.get(declaration.id);
     const state = applied.get(declaration.id);
@@ -815,25 +926,34 @@ async function installPlugin(context, plugin) {
   if (action === "back") return;
 
   const versions = [...plugin.versions].sort(semver.rcompare);
-  const version = await context.prompts.select({
-    message: "选择版本",
-    choices: versions.map((value) => ({ name: value, value })),
-    loop: false,
-  });
+  // Marketplace 只发一个版本时没有可选项，多问一步只是噪音。
+  const version = versions.length === 1
+    ? versions[0]
+    : await context.prompts.select({
+      message: "选择版本",
+      choices: versions.map((value) => ({ name: value, value })),
+      loop: false,
+    });
+  // 声明写兼容范围而不是精确版本，否则 Marketplace 一发新版，解析器就再也筛不到候选。
+  const range = `^${version}`;
+  const args = ["add", plugin.id, "--version", range];
+  // 平台交给服务层的「既有 state → 项目探测」链；只有项目完全没有平台证据时才问用户。
   const current = readProjectView(context.store, context.ctx.target);
-  const defaults = new Set(defaultPlatforms(context.ctx.target, current.state));
-  const platforms = await context.prompts.checkbox({
-    message: "选择目标平台",
-    choices: listPluginPlatforms().map((platform) => ({
-      name: platform,
-      value: platform,
-      checked: defaults.has(platform),
-    })),
-    required: true,
-    loop: false,
-    pageSize: 12,
-  });
-  const args = withPlatforms(["add", plugin.id, "--version", version], platforms);
+  if (inferPlatforms(context.ctx.target, current.state).length === 0) {
+    const defaults = new Set(defaultPlatforms(context.ctx.target, current.state));
+    const platforms = await context.prompts.checkbox({
+      message: "当前项目还没有可识别的平台，请选择安装目标",
+      choices: listPluginPlatforms().map((platform) => ({
+        name: platform,
+        value: platform,
+        checked: defaults.has(platform),
+      })),
+      required: true,
+      loop: false,
+      pageSize: 12,
+    });
+    args.push(...withPlatforms([], platforms));
+  }
   context.output.log("\n安装预览:");
   if (await runChecked(context, [...args, "--dry-run"], `${plugin.id} 安装预览失败`) !== 0) return;
   const confirmed = await context.prompts.confirm({
@@ -846,6 +966,69 @@ async function installPlugin(context, plugin) {
   }
   if (await runChecked(context, args, `${plugin.id} 安装失败`) === 0) {
     context.state.activeTab = "installed";
+  }
+}
+
+/**
+ * 计算一个已安装 Plugin 的更新版本约束。
+ *
+ * 内置 skill-garden 的版本跟随 flower 本体，不参与 Marketplace range 协商。
+ *
+ * @param {object} context 交互上下文
+ * @param {string} pluginId canonical Plugin ID
+ * @returns {{action:"in-range"|"widen"|"unknown",latest?:string,nextRange?:string,declared?:string}} 更新计划
+ */
+function updatePlanFor(context, pluginId) {
+  if (pluginId === SKILL_GARDEN_PLUGIN_ID) return { action: "unknown" };
+  const declaration = context.store.readPlugins().plugins.find(({ id }) => id === pluginId);
+  if (!declaration) return { action: "unknown" };
+  const plan = planVersionUpdate({
+    declared: declaration.version,
+    available: marketplaceVersions(context.state, pluginId),
+  });
+  return { ...plan, declared: declaration.version };
+}
+
+/**
+ * 收集全部需要放宽的声明。
+ *
+ * 声明范围盖不住最新版时，该 Plugin 的锁定包通常也已从 Marketplace 移除。解析器对
+ * 未请求更新的节点执行 lock-first，遇到不可重放的锁定包会抛 `已锁定 Plugin 包不可重放`，
+ * 于是「只更新 A」会被 B 挡住、「只更新 B」又被 A 挡住。放宽必须一次覆盖全部被阻塞的
+ * 声明，并按 `update: "all"` 解析，才能解开这种互锁。
+ *
+ * @param {object} context 交互上下文
+ * @returns {Array<{id:string,declared:string,latest:string,nextRange:string}>} 需要放宽的声明
+ */
+function collectWidenPlan(context) {
+  return context.store.readPlugins().plugins
+    .map(({ id }) => ({ id, ...updatePlanFor(context, id) }))
+    .filter(({ action }) => action === "widen")
+    .map(({ id, declared, latest, nextRange }) => ({ id, declared, latest, nextRange }));
+}
+
+/**
+ * 构造批量放宽命令参数。
+ *
+ * @param {Array<{id:string,nextRange:string}>} plan 放宽计划
+ * @returns {string[]} 命令参数
+ */
+function widenArgs(plan) {
+  return ["update", ...plan.flatMap(({ id, nextRange }) => ["--widen", `${id}=${nextRange}`])];
+}
+
+/**
+ * 打印放宽计划，让跨兼容边界的升级在确认前完全可见。
+ *
+ * @param {object} context 交互上下文
+ * @param {Array<{id:string,declared:string,latest:string,nextRange:string}>} plan 放宽计划
+ * @returns {void}
+ */
+function printWidenPlan(context, plan) {
+  context.output.log("");
+  context.output.log(chalk.yellow("  ! 以下声明未覆盖 Marketplace 最新版，将一并放宽后更新:"));
+  for (const entry of plan) {
+    context.output.log(chalk.yellow(`    ${entry.id}  ${entry.declared} → ${entry.nextRange}（${entry.latest}）`));
   }
 }
 
@@ -872,17 +1055,50 @@ async function manageInstalledPlugin(context, pluginId) {
     await runChecked(context, ["verify", pluginId], `${pluginId} 校验失败`);
     return;
   }
-  context.output.log(`\n${action === "remove" ? "卸载" : "更新"}预览:`);
-  if (await runChecked(context, [action, pluginId, "--dry-run"], `${pluginId} ${action} 预览失败`) !== 0) return;
-  const confirmed = await context.prompts.confirm({
-    message: action === "remove" ? `确认卸载 ${pluginId}?` : `确认更新 ${pluginId}?`,
-    default: action !== "remove",
-  });
-  if (!confirmed) {
-    context.output.log(`  · 已取消${action === "remove" ? "卸载" : "更新"}`);
+  if (action === "update") {
+    await runUpdate(context, collectWidenPlan(context), pluginId);
     return;
   }
-  await runChecked(context, [action, pluginId], `${pluginId} ${action} 失败`);
+  context.output.log("\n卸载预览:");
+  if (await runChecked(context, ["remove", pluginId, "--dry-run"], `${pluginId} 卸载预览失败`) !== 0) return;
+  const confirmed = await context.prompts.confirm({
+    message: `确认卸载 ${pluginId}?`,
+    default: false,
+  });
+  if (!confirmed) {
+    context.output.log("  · 已取消卸载");
+    return;
+  }
+  await runChecked(context, ["remove", pluginId], `${pluginId} 卸载失败`);
+}
+
+/**
+ * 执行一次更新：需要放宽时走批量放宽，否则按请求范围普通更新。
+ *
+ * @param {object} context 交互上下文
+ * @param {Array<{id:string,declared:string,latest:string,nextRange:string}>} plan 放宽计划
+ * @param {string|null} pluginId 只更新单个 Plugin 时的 ID
+ * @returns {Promise<void>} 完成信号
+ */
+async function runUpdate(context, plan, pluginId) {
+  let args = pluginId ? ["update", pluginId] : ["update"];
+  let message = pluginId ? `确认更新 ${pluginId}?` : "按上述计划更新项目 Plugin?";
+  if (plan.length > 0) {
+    printWidenPlan(context, plan);
+    if (pluginId && !plan.some(({ id }) => id === pluginId)) {
+      context.output.log(chalk.yellow(`    （${pluginId} 本身在范围内，但上述声明不放宽则整图无法解析）`));
+    }
+    args = widenArgs(plan);
+    message = `放宽 ${plan.length} 个声明并更新项目 Plugin?`;
+  }
+  context.output.log("\n更新预览:");
+  if (await runChecked(context, [...args, "--dry-run"], "Plugin 更新预览失败") !== 0) return;
+  const confirmed = await context.prompts.confirm({ message, default: true });
+  if (!confirmed) {
+    context.output.log("  · 已取消更新");
+    return;
+  }
+  await runChecked(context, args, "Plugin 更新失败");
 }
 
 /**
@@ -896,14 +1112,7 @@ async function updateAllPlugins(context) {
     context.output.log("  · 当前项目未声明 Plugin");
     return;
   }
-  context.output.log("\n更新预览:");
-  if (await runChecked(context, ["update", "--dry-run"], "Plugin 更新预览失败") !== 0) return;
-  const confirmed = await context.prompts.confirm({
-    message: "按上述计划更新项目 Plugin?",
-    default: true,
-  });
-  if (confirmed) await runChecked(context, ["update"], "Plugin 更新失败");
-  else context.output.log("  · 已取消更新");
+  await runUpdate(context, collectWidenPlan(context), null);
 }
 
 /**
@@ -1064,7 +1273,7 @@ async function manageSource(context, sourceId) {
     if (confirmed) await runChecked(context, ["source", "remove", sourceId], `${source.name} ${label}失败`);
     else context.output.log(`  · 已取消${label}`);
   }
-  context.state.discovery = null;
+  invalidateDiscovery(context.state);
 }
 
 /**
@@ -1140,7 +1349,7 @@ async function inspectGitHubSourceForUi(context, source, title) {
   } catch (error) {
     recordIssue(context.state, `${title} GitHub 来源检测失败`, error);
     context.state.activeTab = "issues";
-    context.state.discovery = null;
+    invalidateDiscovery(context.state);
     context.output.log(chalk.yellow("  ! GitHub 来源检测失败，已记录到问题页。"));
     return null;
   }
@@ -1156,7 +1365,7 @@ async function inspectGitHubSourceForUi(context, source, title) {
  */
 async function handleAction(context, actionKey, actions) {
   if (actionKey === "refresh:discover") {
-    context.state.discovery = null;
+    invalidateDiscovery(context.state);
     return;
   }
   if (actionKey === "update:all") {
@@ -1192,7 +1401,7 @@ async function handleAction(context, actionKey, actions) {
     }
     context.output.log(`\n正在保存 ${sourceType === "github" ? "GitHub" : "GitLab"} 来源:${values.id}`);
     await runChecked(context, sourceCommand("add", values.id, values), `${values.name} 来源新增失败`);
-    context.state.discovery = null;
+    invalidateDiscovery(context.state);
     return;
   }
 
@@ -1200,7 +1409,7 @@ async function handleAction(context, actionKey, actions) {
   if (!action) return;
   if (action.type === "auth") {
     if (await runChecked(context, ["auth", "login", action.sourceId, "--device"], `${action.sourceId} 登录失败`) === 0) {
-      context.state.discovery = null;
+      invalidateDiscovery(context.state);
       context.state.activeTab = action.returnTab;
     }
   } else if (action.type === "plugin") {
@@ -1294,7 +1503,9 @@ export async function runPluginInteractive(ctx, options) {
     queries: Object.fromEntries(TAB_IDS.map((id) => [id, ""])),
     selectedByTab: Object.fromEntries(TAB_IDS.map((id) => [id, null])),
     discovery: null,
+    authStatuses: new Map(),
     issues: [],
+    lastFailure: null,
     exitRequested: false,
   };
   const context = {
@@ -1329,6 +1540,16 @@ export async function runPluginInteractive(ctx, options) {
       if (state.exitRequested) {
         output.log("  · 已退出 Plugin 管理");
         return 0;
+      }
+      if (state.lastFailure) {
+        // 命令已经把 `❌` 打到终端，但下一轮会清屏；先停下来让用户读完。
+        const failure = state.lastFailure;
+        state.lastFailure = null;
+        await prompts.select({
+          message: `${failure}，返回管理器?`,
+          choices: [{ name: "返回", value: "back" }],
+          loop: false,
+        });
       }
     }
   } catch (error) {

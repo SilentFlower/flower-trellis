@@ -17,7 +17,6 @@ import {
   SKILL_GARDEN_PLUGIN_ID,
   SkillGardenBuiltinProvider,
 } from "../builtin-plugins/skill-garden/provider.js";
-import { runWithTrellisIntegrationEnabled } from "../lib/trellis-control.js";
 
 const REMOTE_PLUGIN_ENTRY = new URL("./plugin-remote.js", import.meta.url);
 const PATCH_RUNTIME_ENTRY = new URL("../plugin/install/patch-planner.js", import.meta.url);
@@ -51,6 +50,44 @@ const PLUGIN_CONFLICT_CODES = new Set([
 function parsePlatforms(values) {
   return [...new Set(values.flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean))]
     .sort(compareUtf8);
+}
+
+/**
+ * 解析可重复的 `--widen <plugin>=<range>` 取值。
+ *
+ * 取值形态固定为 `id=range`，按第一个 `=` 切分即可，`>=1.0.0` 这类含 `=` 的
+ * range 落在右侧不受影响。
+ *
+ * @param {string[]} values 原始 `--widen` 取值
+ * @returns {Record<string,string>} plugin ID 到版本约束的映射
+ */
+function parseWidenPairs(values) {
+  const pairs = {};
+  for (const value of values) {
+    const separator = value.indexOf("=");
+    const id = separator === -1 ? "" : value.slice(0, separator).trim();
+    const range = separator === -1 ? "" : value.slice(separator + 1).trim();
+    if (!id || !range) {
+      throw new PluginRuntimeError(`--widen 取值必须是 <plugin>=<range>:${value}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: value,
+      });
+    }
+    if (!isSemVerRange(range)) {
+      throw new PluginRuntimeError(`--widen 的版本约束不是合法 SemVer range:${value}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: value,
+      });
+    }
+    if (pairs[id]) {
+      throw new PluginRuntimeError(`--widen 重复声明同一个 Plugin:${id}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: id,
+      });
+    }
+    pairs[id] = range;
+  }
+  return pairs;
 }
 
 /**
@@ -201,6 +238,7 @@ export function parsePluginArgs(argv) {
   const command = rootHelp ? "list" : (argv[0] || "list");
   const positional = [];
   const platforms = [];
+  const widen = [];
   let source = null;
   let version = null;
   let dryRun = false;
@@ -209,7 +247,7 @@ export function parsePluginArgs(argv) {
 
   for (let index = 1; index < argv.length; index += 1) {
     const token = argv[index];
-    if (token === "--source" || token === "--version" || token === "--platform") {
+    if (token === "--source" || token === "--version" || token === "--platform" || token === "--widen") {
       const value = argv[index + 1];
       if (!value || value.startsWith("--")) {
         throw new PluginRuntimeError(`${token} 缺少取值`, {
@@ -220,6 +258,7 @@ export function parsePluginArgs(argv) {
       index += 1;
       if (token === "--source") source = value;
       else if (token === "--version") version = value;
+      else if (token === "--widen") widen.push(value);
       else platforms.push(value);
       continue;
     }
@@ -259,8 +298,15 @@ export function parsePluginArgs(argv) {
       path: command,
     });
   }
-  if (command !== "add" && (source || version)) {
-    throw new PluginRuntimeError(`--source/--version 仅支持 plugin add`, {
+  if (command !== "add" && source) {
+    throw new PluginRuntimeError(`--source 仅支持 plugin add`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: command,
+    });
+  }
+  // update 需要 --version 才能放宽存量精确锁，把声明改写成兼容范围。
+  if (!["add", "update"].includes(command) && version) {
+    throw new PluginRuntimeError(`--version 仅支持 plugin add 与 plugin update`, {
       code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
       path: command,
     });
@@ -269,6 +315,18 @@ export function parsePluginArgs(argv) {
     throw new PluginRuntimeError(`--version 必须是合法 SemVer range:${version}`, {
       code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
       path: version,
+    });
+  }
+  if (command !== "update" && widen.length > 0) {
+    throw new PluginRuntimeError(`--widen 仅支持 plugin update`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: command,
+    });
+  }
+  if (widen.length > 0 && (version || positional.length > 0)) {
+    throw new PluginRuntimeError("--widen 不能与单个 Plugin ID 或 --version 同时使用", {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: "--widen",
     });
   }
   if (!["add", "update", "replay"].includes(command) && platforms.length > 0) {
@@ -288,6 +346,7 @@ export function parsePluginArgs(argv) {
     pluginId: positional[0] || null,
     source,
     version,
+    widen: parseWidenPairs(widen),
     platforms: parsePlatforms(platforms),
     dryRun,
     json,
@@ -307,7 +366,7 @@ function printPluginHelp(output) {
   output.log(`用法:
   flower-trellis plugin list [--json]
   flower-trellis plugin add <plugin> [--source <来源 ID|项目内路径>] [--version <range>] [--platform <id>] [--dry-run] [--json]
-  flower-trellis plugin update [plugin] [--platform <id>] [--dry-run] [--json]
+  flower-trellis plugin update [plugin] [--version <range>] [--widen <plugin>=<range>]... [--platform <id>] [--dry-run] [--json]
   flower-trellis plugin remove <plugin> [--dry-run] [--json]
   flower-trellis plugin verify [plugin] [--json]
   flower-trellis plugin init --id <source/plugin> --name <name> [--version <semver>] [--profile <standard|integration>] [--patches] [--marketplace] [--non-interactive] [--json]
@@ -596,7 +655,7 @@ function localReferencesFromLock(lock) {
  * @param {object} result 命令结果
  * @param {boolean} json 是否 JSON 输出
  * @param {{log:(message:string)=>void}} output 输出适配器
- * @param {{compact?:boolean}} [options] 人类可读输出选项
+ * @param {{compact?:boolean,verbose?:boolean}} [options] 人类可读输出选项
  */
 function printResult(result, json, output, options = {}) {
   if (json) {
@@ -621,7 +680,16 @@ function printResult(result, json, output, options = {}) {
     if (dependencies.length > 0) output.log(`  依赖:${dependencies.join(", ")}`);
   }
   if (!options.compact) {
-    for (const change of result.changes) output.log(`  ${change.operation} ${change.target}`);
+    // 生命周期命令会重新投影整图，未受影响的 Plugin 会产生大量前后字节一致的幂等写入。
+    // 判定依据取事务层的 changed 清单而不是 before/after hash 比较：ensure-directory 的
+    // afterHash 恒为 null，新建目录时 beforeHash 同样是 null，直接比较会把真实新建误判为空操作。
+    const changedTargets = new Set(result.transaction.changed);
+    const visible = options.verbose
+      ? result.changes
+      : result.changes.filter(({ target }) => changedTargets.has(target));
+    for (const change of visible) output.log(`  ${change.operation} ${change.target}`);
+    const hidden = result.changes.length - visible.length;
+    if (hidden > 0) output.log(`  · 另有 ${hidden} 项目标无变化(设 FLOWER_DEBUG=1 查看完整清单)`);
   }
   for (const diagnostic of result.diagnostics.filter(({ severity }) => severity === "warning")) {
     output.log(`  · ${diagnostic.message}`);
@@ -688,6 +756,9 @@ export async function plugin(ctx, options = {}) {
       !parsed.dryRun &&
       !trellisAlreadyMaterialized
     ) {
+      // trellis-control 会连带加载 @mindfoldhq/trellis 的配置器(约 240ms)，
+      // 只有真正需要物化 Trellis 的写入路径才付这份加载成本。
+      const { runWithTrellisIntegrationEnabled } = await import("../lib/trellis-control.js");
       return await runWithTrellisIntegrationEnabled(ctx.target, ({ extendSnapshot }) => plugin(
         { ...ctx, trellisControlMode: "materialized" },
         {
@@ -816,9 +887,11 @@ export async function plugin(ctx, options = {}) {
     } else if (parsed.command === "update") {
       const updateOptions = {
         id: canonicalId,
+        // 内置 skill-garden 的版本跟随 flower 本体，不接受调用方的 range。
         ...(canonicalId === SKILL_GARDEN_PLUGIN_ID
           ? { version: registry.get("flower").manifest.version }
-          : {}),
+          : parsed.version ? { version: parsed.version } : {}),
+        ...(Object.keys(parsed.widen || {}).length > 0 ? { widen: parsed.widen } : {}),
         platforms: parsed.platforms,
         dryRun: parsed.dryRun,
         onPreflight: options.onPreflight,
@@ -846,8 +919,9 @@ export async function plugin(ctx, options = {}) {
     } else {
       result = { command: "verify", ...service.verify({ id: canonicalId }) };
     }
-    const compact = options.compact === true && !process.env.DEBUG && !process.env.FLOWER_DEBUG;
-    printResult(result, parsed.json, output, { compact });
+    const verbose = Boolean(process.env.DEBUG || process.env.FLOWER_DEBUG);
+    const compact = options.compact === true && !verbose;
+    printResult(result, parsed.json, output, { compact, verbose });
     return result.ok === false ? 3 : 0;
   } catch (error) {
     const json = parsed?.json || ctx.passthrough?.includes("--json");

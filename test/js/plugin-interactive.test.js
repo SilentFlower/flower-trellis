@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { runPluginInteractive } from "../../src/commands/plugin-interactive.js";
+import { planVersionUpdate, runPluginInteractive } from "../../src/commands/plugin-interactive.js";
 import { MemoryCredentialStore } from "../../src/plugin/auth/memory-credential-store.js";
 import { UserSourceStore } from "../../src/plugin/sources/user-source-store.js";
 import { ProjectStore } from "../../src/plugin/state/project-store.js";
@@ -225,8 +225,8 @@ test("发现页先展示详情，再执行 dry-run 和确认安装", async (t) =
   });
   assert.equal(code, 0);
   assert.deepEqual(commands, [
-    ["add", "rd-guide/review", "--version", "1.2.0", "--platform", "codex", "--dry-run"],
-    ["add", "rd-guide/review", "--version", "1.2.0", "--platform", "codex"],
+    ["add", "rd-guide/review", "--version", "^1.2.0", "--platform", "codex", "--dry-run"],
+    ["add", "rd-guide/review", "--version", "^1.2.0", "--platform", "codex"],
   ]);
   assert.match(fixture.output.join("\n"), /代码评审规范/);
   script.assertDone();
@@ -242,7 +242,6 @@ test("未登录来源按 Enter 直接设备码授权并返回原发现页", asyn
     },
     { type: "manager", value: managerResult("discover", "plugin:rd-guide:rd-guide/review") },
     { type: "select", value: "install" },
-    { type: "select", value: "1.0.0" },
     { type: "checkbox", value: ["claude"] },
     { type: "confirm", value: false },
     { type: "manager", value: managerResult("discover", "exit") },
@@ -275,7 +274,7 @@ test("未登录来源按 Enter 直接设备码授权并返回原发现页", asyn
   assert.equal(searches, 1);
   assert.deepEqual(commands, [
     ["auth", "login", "rd-guide", "--device"],
-    ["add", "rd-guide/review", "--version", "1.0.0", "--platform", "claude", "--dry-run"],
+    ["add", "rd-guide/review", "--version", "^1.0.0", "--platform", "claude", "--dry-run"],
   ]);
   assert.match(fixture.output.join("\n"), /已取消安装/);
   script.assertDone();
@@ -347,6 +346,373 @@ test("已安装页复用全项目 update dry-run 和真实事务", async (t) => 
     runCommand: async (args) => { commands.push(args); return 0; },
   });
   assert.deepEqual(commands, [["update", "--dry-run"], ["update"]]);
+  script.assertDone();
+});
+
+test("planVersionUpdate 区分范围内更新与跨兼容边界放宽", () => {
+  assert.deepEqual(
+    planVersionUpdate({ declared: "^0.4.0", available: ["0.4.0", "0.4.3"] }),
+    { action: "in-range", latest: "0.4.3" },
+  );
+  // Marketplace 只保留最新版时，旧的精确锁筛不到任何候选，必须放宽。
+  assert.deepEqual(
+    planVersionUpdate({ declared: "0.3.0", available: ["0.4.0"] }),
+    { action: "widen", latest: "0.4.0", nextRange: "^0.4.0" },
+  );
+  assert.deepEqual(
+    planVersionUpdate({ declared: "^0.4.0", available: ["0.5.0"] }),
+    { action: "widen", latest: "0.5.0", nextRange: "^0.5.0" },
+  );
+  assert.deepEqual(planVersionUpdate({ declared: "^0.4.0", available: [] }), { action: "unknown" });
+  assert.deepEqual(planVersionUpdate(), { action: "unknown" });
+});
+
+/**
+ * 构造带 Marketplace 与已安装声明的交互依赖。
+ *
+ * @param {object} fixture 交互测试依赖
+ * @param {string} declaredVersion plugins.json 中的版本约束
+ * @param {string[]} marketplaceVersions Marketplace 可用版本
+ * @returns {object} 注入依赖
+ */
+function installedDeps(fixture, declaredVersion, marketplaceVersions) {
+  return {
+    store: {
+      readPlugins: () => ({
+        schemaVersion: 1,
+        plugins: [{ id: "rd-guide/review", source: "rd-guide", version: declaredVersion }],
+      }),
+      readLock: () => ({
+        schemaVersion: 1,
+        roots: ["rd-guide/review"],
+        plugins: [{ id: "rd-guide/review", version: "0.3.0", source: { type: "gitlab" } }],
+      }),
+      readState: () => ({
+        schemaVersion: 1,
+        plugins: [{ id: "rd-guide/review", platforms: ["claude"] }],
+      }),
+    },
+    searchPlugins: async () => [{
+      id: "rd-guide/review",
+      description: "代码评审规范",
+      versions: marketplaceVersions,
+      source: "rd-guide",
+    }],
+    authStatus: async () => ({ authorized: true, persistent: false }),
+  };
+}
+
+test("发现页把已安装 Plugin 标成可更新并直接进入管理动作", async (t) => {
+  const fixture = interactiveFixture(t);
+  const deps = installedDeps(fixture, "0.3.0", ["0.4.0"]);
+  const script = scriptedPrompts([
+    {
+      type: "manager",
+      value: managerResult("discover", "exit"),
+      check: (view) => {
+        const entry = view.itemsByTab.discover.find(({ title }) => title === "rd-guide/review");
+        assert.equal(entry.badge, "可更新");
+        assert.equal(entry.meta, "研发指南 · 0.3.0 → 0.4.0");
+        assert.match(entry.description, /已安装/);
+      },
+    },
+  ]);
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    runCommand: async () => 0,
+    ...deps,
+  });
+  script.assertDone();
+});
+
+test("发现页把已是最新的已安装 Plugin 标成已安装", async (t) => {
+  const fixture = interactiveFixture(t);
+  const deps = installedDeps(fixture, "^0.3.0", ["0.3.0"]);
+  const script = scriptedPrompts([
+    {
+      type: "manager",
+      value: managerResult("discover", "exit"),
+      check: (view) => {
+        const entry = view.itemsByTab.discover.find(({ title }) => title === "rd-guide/review");
+        assert.equal(entry.badge, "已安装");
+        assert.equal(entry.meta, "研发指南 · 0.3.0");
+      },
+    },
+  ]);
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    runCommand: async () => 0,
+    ...deps,
+  });
+  script.assertDone();
+});
+
+test("跨兼容边界更新一次放宽全部被阻塞声明", async (t) => {
+  const fixture = interactiveFixture(t);
+  const deps = installedDeps(fixture, "0.3.0", ["0.4.0"]);
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("installed", "installed:rd-guide/review") },
+    { type: "select", value: "update" },
+    {
+      type: "confirm",
+      value: true,
+      check: (question) => assert.match(question.message, /放宽 1 个声明并更新项目 Plugin/),
+    },
+    { type: "manager", value: managerResult("installed", "exit") },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    runCommand: async (args) => { commands.push(args); return 0; },
+    ...deps,
+  });
+  assert.deepEqual(commands, [
+    ["update", "--widen", "rd-guide/review=^0.4.0", "--dry-run"],
+    ["update", "--widen", "rd-guide/review=^0.4.0"],
+  ]);
+  assert.match(fixture.output.join("\n"), /rd-guide\/review\s+0\.3\.0 → \^0\.4\.0/);
+  script.assertDone();
+});
+
+test("多个声明同时越界时批量放宽，避免解析器互锁", async (t) => {
+  const fixture = interactiveFixture(t);
+  // alpha 与 beta 都是精确锁且都落后；只放宽其一会在另一个上撞「已锁定 Plugin 包不可重放」。
+  const store = {
+    readPlugins: () => ({
+      schemaVersion: 1,
+      plugins: [
+        { id: "rd-guide/alpha", source: "rd-guide", version: "0.3.0" },
+        { id: "rd-guide/beta", source: "rd-guide", version: "0.2.1" },
+        { id: "rd-guide/gamma", source: "rd-guide", version: "^0.4.0" },
+      ],
+    }),
+    readLock: () => ({
+      schemaVersion: 1,
+      roots: ["rd-guide/alpha", "rd-guide/beta", "rd-guide/gamma"],
+      plugins: [
+        { id: "rd-guide/alpha", version: "0.3.0", source: { type: "gitlab" } },
+        { id: "rd-guide/beta", version: "0.2.1", source: { type: "gitlab" } },
+        { id: "rd-guide/gamma", version: "0.4.0", source: { type: "gitlab" } },
+      ],
+    }),
+    readState: () => ({
+      schemaVersion: 1,
+      plugins: [{ id: "rd-guide/alpha", platforms: ["claude"] }],
+    }),
+  };
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("installed", "installed:rd-guide/alpha") },
+    { type: "select", value: "update" },
+    {
+      type: "confirm",
+      value: true,
+      check: (question) => assert.match(question.message, /放宽 2 个声明/),
+    },
+    { type: "manager", value: managerResult("installed", "exit") },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    store,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    searchPlugins: async () => [
+      { id: "rd-guide/alpha", description: "a", versions: ["0.4.0"], source: "rd-guide" },
+      { id: "rd-guide/beta", description: "b", versions: ["0.2.2"], source: "rd-guide" },
+      { id: "rd-guide/gamma", description: "g", versions: ["0.4.0"], source: "rd-guide" },
+    ],
+    authStatus: async () => ({ authorized: true, persistent: false }),
+    runCommand: async (args) => { commands.push(args); return 0; },
+  });
+  // 已在范围内的 gamma 不进放宽集合。
+  assert.deepEqual(commands, [
+    ["update", "--widen", "rd-guide/alpha=^0.4.0", "--widen", "rd-guide/beta=^0.2.2", "--dry-run"],
+    ["update", "--widen", "rd-guide/alpha=^0.4.0", "--widen", "rd-guide/beta=^0.2.2"],
+  ]);
+  script.assertDone();
+});
+
+test("检查全部更新在需要放宽时也能走到确认", async (t) => {
+  const fixture = interactiveFixture(t);
+  const deps = installedDeps(fixture, "0.3.0", ["0.4.0"]);
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("installed", "update:all") },
+    { type: "confirm", value: true },
+    { type: "manager", value: managerResult("installed", "exit") },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    runCommand: async (args) => { commands.push(args); return 0; },
+    ...deps,
+  });
+  // 旧实现会先跑未放宽的 ["update","--dry-run"]，在确认前就以退出码 3 提前返回。
+  assert.deepEqual(commands, [
+    ["update", "--widen", "rd-guide/review=^0.4.0", "--dry-run"],
+    ["update", "--widen", "rd-guide/review=^0.4.0"],
+  ]);
+  script.assertDone();
+});
+
+test("拒绝跨边界更新时只跑 dry-run，不执行任何写入", async (t) => {
+  const fixture = interactiveFixture(t);
+  const deps = installedDeps(fixture, "0.3.0", ["0.4.0"]);
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("installed", "installed:rd-guide/review") },
+    { type: "select", value: "update" },
+    { type: "confirm", value: false },
+    { type: "manager", value: managerResult("installed", "exit") },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    runCommand: async (args) => { commands.push(args); return 0; },
+    ...deps,
+  });
+  assert.deepEqual(commands, [["update", "--widen", "rd-guide/review=^0.4.0", "--dry-run"]]);
+  assert.match(fixture.output.join("\n"), /已取消更新/);
+  script.assertDone();
+});
+
+test("范围内更新不附加 --version，也不提示放宽", async (t) => {
+  const fixture = interactiveFixture(t);
+  const deps = installedDeps(fixture, "^0.3.0", ["0.3.5"]);
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("installed", "installed:rd-guide/review") },
+    { type: "select", value: "update" },
+    {
+      type: "confirm",
+      value: true,
+      check: (question) => assert.equal(question.message, "确认更新 rd-guide/review?"),
+    },
+    { type: "manager", value: managerResult("installed", "exit") },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    runCommand: async (args) => { commands.push(args); return 0; },
+    ...deps,
+  });
+  assert.deepEqual(commands, [
+    ["update", "rd-guide/review", "--dry-run"],
+    ["update", "rd-guide/review"],
+  ]);
+  assert.doesNotMatch(fixture.output.join("\n"), /放宽/);
+  script.assertDone();
+});
+
+test("项目已有平台证据时安装不再询问平台", async (t) => {
+  const fixture = interactiveFixture(t);
+  // 已有 state 平台即视为平台证据，服务层会据此投影。
+  const store = {
+    readPlugins: () => ({ schemaVersion: 1, plugins: [] }),
+    readLock: () => null,
+    readState: () => ({
+      schemaVersion: 1,
+      plugins: [{ id: "rd-guide/other", platforms: ["claude", "codex"] }],
+    }),
+  };
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("discover", "plugin:rd-guide:rd-guide/review") },
+    { type: "select", value: "install" },
+    { type: "confirm", value: true },
+    { type: "manager", value: managerResult("installed", "exit") },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    store,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    searchPlugins: async () => [{
+      id: "rd-guide/review",
+      description: "代码评审规范",
+      versions: ["1.0.0"],
+      source: "rd-guide",
+    }],
+    authStatus: async () => ({ authorized: true, persistent: false }),
+    runCommand: async (args) => { commands.push(args); return 0; },
+  });
+  assert.deepEqual(commands, [
+    ["add", "rd-guide/review", "--version", "^1.0.0", "--dry-run"],
+    ["add", "rd-guide/review", "--version", "^1.0.0"],
+  ]);
+  script.assertDone();
+});
+
+test("命令失败后先停下来让用户读完再回管理器", async (t) => {
+  const fixture = interactiveFixture(t);
+  const deps = installedDeps(fixture, "^0.3.0", ["0.3.0"]);
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("installed", "installed:rd-guide/review") },
+    { type: "select", value: "verify" },
+    {
+      type: "select",
+      value: "back",
+      check: (question) => assert.match(question.message, /校验失败，返回管理器/),
+    },
+    { type: "manager", value: managerResult("installed", "exit") },
+  ]);
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    runCommand: async () => 3,
+    ...deps,
+  });
+  script.assertDone();
+});
+
+test("登录态在同一轮管理器生命周期内只查询一次", async (t) => {
+  const fixture = interactiveFixture(t);
+  let authCalls = 0;
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("installed", "update:all") },
+    { type: "confirm", value: true },
+    { type: "manager", value: managerResult("sources", "exit") },
+  ]);
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    store: {
+      readPlugins: () => ({
+        schemaVersion: 1,
+        plugins: [{ id: "rd-guide/review", source: "rd-guide", version: "^1.0.0" }],
+      }),
+      readLock: () => null,
+      readState: () => null,
+    },
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    authStatus: async () => {
+      authCalls += 1;
+      return { authorized: false, persistent: false };
+    },
+    runCommand: async () => 0,
+  });
+  // 两轮管理器视图共用一次登录态查询；旧实现每轮都会重查。
+  assert.equal(authCalls, 1);
   script.assertDone();
 });
 

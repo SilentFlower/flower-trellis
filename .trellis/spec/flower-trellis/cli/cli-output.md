@@ -89,7 +89,14 @@
   stdin、光标和 Win32 Input Mode，再显式以退出码 0 结束 CLI；不能假设 ConPTY worker 的
   MessagePort / Socket 会随子进程自然退出而自动释放。
 - **内嵌 Plugin 输出默认精简**:`init` / `update` 重放 Skill Garden 时只展示 Plugin、版本与变化总数，
-  不逐行打印 `write` / `patch` / `remove` 路径；独立 `plugin` 命令与调试环境保留完整清单。
+  不逐行打印 `write` / `patch` / `remove` 路径；独立 `plugin` 命令保留逐条清单。
+- **生命周期清单只列真实改动**:生命周期命令会重新投影整图,未受影响的 Plugin 会产生大量前后字节
+  一致的幂等写入。独立 `plugin` 命令的逐条清单必须按 `result.transaction.changed` 过滤,把空操作
+  折叠成一行 `· 另有 N 项目标无变化`;`DEBUG` / `FLOWER_DEBUG` 置位时输出完整清单,`--json` 的
+  `changes` 始终保持全量不过滤。
+  **判定依据必须取事务层的 `changed` 清单,不能直接比较 `beforeHash !== afterHash`** ——
+  `ensure-directory` 的 `afterHash` 恒为 `null`,新建目录时 `beforeHash` 同样是 `null`,
+  朴素比较会把真实的新建目录误判成空操作而漏报。
 - **联网探测同样判 `-y` / 非 TTY**:版本检测(`update-check.js`)发现新版时,交互 TTY 才
   弹确认询问升级(`@inquirer/confirm`);`-y` / 非 TTY 仅打印一行升级提示,不弹确认、不阻塞(降级模式)。
 - **交互页必须有清晰出口**:二级选择页不能只列业务动作。Plugin 来源类型页这类中间页必须提供

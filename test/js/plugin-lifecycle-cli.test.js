@@ -50,11 +50,34 @@ test("Plugin parser 独立处理多级命令、重复平台与 dry-run", () => {
       pluginId: "local/demo",
       source: "plugins/demo",
       version: "^1.0.0",
+      widen: {},
       platforms: ["codex", "gemini", "zcode"],
       dryRun: true,
       json: true,
       help: false,
     },
+  );
+  // --widen 可重复；range 自身含 `=` 时按第一个 `=` 切分不受影响。
+  assert.deepEqual(
+    parsePluginArgs([
+      "update",
+      "--widen", "local/alpha=^0.4.0",
+      "--widen", "local/beta=>=0.2.2 <0.3.0",
+    ]).widen,
+    { "local/alpha": "^0.4.0", "local/beta": ">=0.2.2 <0.3.0" },
+  );
+});
+
+test("Plugin parser 校验 --widen 的取值与命令边界", () => {
+  const usage = (error) => error.code === "PLUGIN_USAGE_ERROR";
+  assert.throws(() => parsePluginArgs(["update", "--widen", "no-equals"]), usage);
+  assert.throws(() => parsePluginArgs(["update", "--widen", "local/a=not-a-range"]), usage);
+  assert.throws(() => parsePluginArgs(["update", "--widen", "local/a=^1.0.0", "--widen", "local/a=^2.0.0"]), usage);
+  assert.throws(() => parsePluginArgs(["remove", "local/a", "--widen", "local/a=^1.0.0"]), usage);
+  assert.throws(() => parsePluginArgs(["update", "local/a", "--widen", "local/a=^1.0.0"]), usage);
+  assert.throws(
+    () => parsePluginArgs(["update", "--version", "^1.0.0", "--widen", "local/a=^1.0.0"]),
+    usage,
   );
 });
 
@@ -309,6 +332,166 @@ test("Plugin parser 拒绝非法版本与命令不支持的 flag", () => {
     () => parsePluginArgs(["verify", "--platform", "codex"]),
     (error) => error.code === "PLUGIN_USAGE_ERROR",
   );
+  // --source 仍只属于 add；--version 放开到 update 以便放宽存量精确锁。
+  assert.throws(
+    () => parsePluginArgs(["update", "local/demo", "--source", "plugins/demo"]),
+    (error) => error.code === "PLUGIN_USAGE_ERROR",
+  );
+  assert.throws(
+    () => parsePluginArgs(["remove", "local/demo", "--version", "^1.0.0"]),
+    (error) => error.code === "PLUGIN_USAGE_ERROR",
+  );
+  assert.equal(parsePluginArgs(["update", "local/demo", "--version", "^1.1.0"]).version, "^1.1.0");
+});
+
+test("精确锁在 Marketplace 只保留新版时靠 update --version 放宽后继续更新", (t) => {
+  const project = createPluginTestRoot(t, "flower-cli-widen-");
+  const publish = (version) => writePluginPackage(project, "plugins/demo", pluginManifest({ version }), {
+    "skills/demo/SKILL.md": `# Demo ${version}\n`,
+  });
+  const declaration = () => JSON.parse(
+    fs.readFileSync(path.join(project, ".flower", "plugins.json"), "utf8"),
+  ).plugins[0].version;
+  const lockedVersion = () => JSON.parse(
+    fs.readFileSync(path.join(project, ".flower", "plugin-lock.json"), "utf8"),
+  ).plugins[0].version;
+
+  publish("1.0.0");
+  assert.equal(runPlugin(project, [
+    "add", "local/demo", "--source", "plugins/demo", "--version", "1.0.0", "--platform", "claude",
+  ]).status, 0);
+  assert.equal(declaration(), "1.0.0");
+
+  // Marketplace 发新版并移除旧版：精确锁筛不到任何候选，直接 update 必然冲突。
+  publish("1.1.0");
+  const blocked = runPlugin(project, ["update", "local/demo", "--dry-run"]);
+  assert.equal(blocked.status, 3);
+  assert.match(blocked.stderr, /版本约束无法同时满足/);
+  assert.equal(lockedVersion(), "1.0.0");
+
+  assert.equal(runPlugin(project, ["update", "local/demo", "--version", "^1.1.0"]).status, 0);
+  assert.equal(declaration(), "^1.1.0");
+  assert.equal(lockedVersion(), "1.1.0");
+
+  // 放宽后，落在范围内的后续版本无需再传 --version。
+  publish("1.1.3");
+  assert.equal(runPlugin(project, ["update", "local/demo"]).status, 0);
+  assert.equal(declaration(), "^1.1.0");
+  assert.equal(lockedVersion(), "1.1.3");
+});
+
+test("多个精确锁同时落后时，批量 --widen 解开解析器互锁", (t) => {
+  const project = createPluginTestRoot(t, "flower-cli-widen-multi-");
+  const publish = (id, version) => writePluginPackage(
+    project,
+    `plugins/${id}`,
+    pluginManifest({ id, version, content: { skills: [`skills/${id}`] } }),
+    { [`skills/${id}/SKILL.md`]: `# ${id} ${version}\n` },
+  );
+  const declarations = () => Object.fromEntries(JSON.parse(
+    fs.readFileSync(path.join(project, ".flower", "plugins.json"), "utf8"),
+  ).plugins.map(({ id, version }) => [id, version]));
+  const locked = () => Object.fromEntries(JSON.parse(
+    fs.readFileSync(path.join(project, ".flower", "plugin-lock.json"), "utf8"),
+  ).plugins.map(({ id, version }) => [id, version]));
+
+  for (const [id, version] of Object.entries({ alpha: "0.3.0", beta: "0.2.1", gamma: "0.4.2" })) {
+    publish(id, version);
+    assert.equal(runPlugin(project, [
+      "add", `local/${id}`, "--source", `plugins/${id}`, "--version", version, "--platform", "claude",
+    ]).status, 0);
+  }
+  // alpha 与 beta 都发新版并移除旧版；gamma 仍是 Marketplace 当前版。
+  publish("alpha", "0.4.0");
+  publish("beta", "0.2.2");
+
+  // 逐个放宽会被对方的不可重放锁定包挡住，两个方向都失败。
+  const single = runPlugin(project, ["update", "local/alpha", "--version", "^0.4.0", "--dry-run"]);
+  assert.equal(single.status, 3);
+  assert.match(single.stderr, /已锁定 Plugin 包不可重放:local\/beta@0\.2\.1/);
+
+  const args = ["update", "--widen", "local/alpha=^0.4.0", "--widen", "local/beta=^0.2.2"];
+  const preview = runPlugin(project, [...args, "--dry-run"]);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.deepEqual(declarations(), {
+    "local/alpha": "0.3.0",
+    "local/beta": "0.2.1",
+    "local/gamma": "0.4.2",
+  }, "dry-run 必须零写入");
+
+  assert.equal(runPlugin(project, args).status, 0);
+  assert.deepEqual(declarations(), {
+    "local/alpha": "^0.4.0",
+    "local/beta": "^0.2.2",
+    "local/gamma": "0.4.2",
+  }, "只放宽被阻塞的声明，未越界的 gamma 保持原样");
+  assert.deepEqual(locked(), {
+    "local/alpha": "0.4.0",
+    "local/beta": "0.2.2",
+    "local/gamma": "0.4.2",
+  });
+
+  // 放宽后，落在范围内的后续版本靠普通 update 自动跟进。
+  publish("alpha", "0.4.3");
+  assert.equal(runPlugin(project, ["update"]).status, 0);
+  assert.equal(locked()["local/alpha"], "0.4.3");
+});
+
+test("空项目下缺少 Plugin ID 的 update --version 返回用法错误", (t) => {
+  const project = createPluginTestRoot(t, "flower-cli-widen-usage-");
+  const result = runPlugin(project, ["update", "--version", "^1.0.0"]);
+  assert.equal(result.status, 2, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /必须指定 Plugin ID/);
+  assert.equal(fs.existsSync(path.join(project, ".flower")), false);
+});
+
+test("--widen 指向未声明 Plugin 时报用法错误", (t) => {
+  const project = createPluginTestRoot(t, "flower-cli-widen-unknown-");
+  writePluginPackage(project, "plugins/demo", pluginManifest());
+  assert.equal(runPlugin(project, [
+    "add", "local/demo", "--source", "plugins/demo", "--platform", "claude",
+  ]).status, 0);
+  const result = runPlugin(project, ["update", "--widen", "local/missing=^1.0.0"]);
+  assert.equal(result.status, 2, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /项目未声明 Plugin:local\/missing/);
+});
+
+test("生命周期输出默认只列真实改动，--json 仍返回全量 changes", (t) => {
+  const project = createPluginTestRoot(t, "flower-cli-noise-");
+  for (const id of ["alpha", "beta"]) {
+    writePluginPackage(project, `plugins/${id}`, pluginManifest({
+      id,
+      content: { skills: [`skills/${id}`] },
+    }), {
+      [`skills/${id}/SKILL.md`]: `# ${id}\n`,
+      [`skills/${id}/extra.md`]: `# ${id} extra\n`,
+    });
+    assert.equal(runPlugin(project, [
+      "add", `local/${id}`, "--source", `plugins/${id}`, "--platform", "claude",
+    ]).status, 0);
+  }
+
+  // 卸载 beta 会连带重新投影 alpha；alpha 的幂等重写不该出现在默认的改动清单里。
+  const human = runPlugin(project, ["remove", "local/beta", "--dry-run"]);
+  assert.equal(human.status, 0, human.stderr);
+  assert.match(human.stdout, /remove .claude\/skills\/beta\/SKILL\.md/);
+  assert.match(human.stdout, /· 另有 \d+ 项目标无变化/);
+  // 解析图摘要行仍应保留 alpha，被隐藏的只是它的逐文件幂等写入。
+  assert.match(human.stdout, /^local\/alpha@1\.0\.0 /m);
+  assert.doesNotMatch(human.stdout, /^\s+(?:write|ensure-directory) .*alpha/m);
+
+  const verbose = spawnSync(
+    process.execPath,
+    [CLI, "plugin", "remove", "local/beta", "--dry-run", "--target", project],
+    { cwd: project, encoding: "utf8", env: { ...process.env, FLOWER_DEBUG: "1" } },
+  );
+  assert.equal(verbose.status, 0, verbose.stderr);
+  assert.match(verbose.stdout, /write .claude\/skills\/alpha\/SKILL\.md/);
+
+  const json = JSON.parse(runPlugin(project, ["remove", "local/beta", "--dry-run", "--json"]).stdout);
+  const alphaChanges = json.changes.filter(({ target }) => target.includes("alpha"));
+  assert.ok(alphaChanges.length > 0, "--json 必须保留全量 changes");
+  assert.ok(json.transaction.changed.every((target) => !target.includes("alpha")));
 });
 
 test("Application Service 在 Resolver 前校验新声明 DTO", (t) => {

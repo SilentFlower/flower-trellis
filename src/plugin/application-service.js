@@ -1,6 +1,6 @@
 import path from "node:path";
 import { ProjectStore } from "./state/project-store.js";
-import { parseCanonicalPluginId } from "./schemas/shared.js";
+import { isSemVerRange, parseCanonicalPluginId } from "./schemas/shared.js";
 import { validatePluginsFile } from "./schemas/project-files.js";
 import {
   PLUGIN_RUNTIME_ERROR_CODES,
@@ -46,6 +46,27 @@ function reachableLockIds(lock) {
 function statePlatforms(state) {
   return [...new Set((state?.plugins || []).flatMap(({ platforms }) => platforms))]
     .sort(compareUtf8);
+}
+
+/**
+ * 归一化版本约束覆盖表，并拒绝非法 range。
+ *
+ * @param {Map<string,string>|Record<string,string>|null|undefined} value 覆盖表
+ * @returns {Map<string,string>} 稳定的 id → range 映射
+ */
+function normalizeVersionOverrides(value) {
+  const entries = value instanceof Map ? [...value] : Object.entries(value || {});
+  const overrides = new Map();
+  for (const [id, range] of entries) {
+    if (!isSemVerRange(range)) {
+      throw new PluginRuntimeError(`Plugin 版本约束不是合法 SemVer range:${id}=${range}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: id,
+      });
+    }
+    overrides.set(id, range);
+  }
+  return overrides;
 }
 
 /**
@@ -164,31 +185,55 @@ export class PluginApplicationService {
   /**
    * 更新一个或全部直接 Plugin，同时保持未请求节点的 lock-first 语义。
    *
-   * @param {{id?:string|null,version?:string,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,onPreflight?:(result:object)=>void}} [options] 更新选项
+   * `widen` 用于 Marketplace 只保留最新版的场景：此时旧的精确锁既筛不到候选，
+   * 其锁定包也已不可重放，逐个更新会在其它节点上撞 `已锁定 Plugin 包不可重放`。
+   * 传入 `widen` 时按 `update: "all"` 解析，让全部节点都允许升级，一次性解开这种死锁。
+   *
+   * @param {{id?:string|null,version?:string,widen?:Map<string,string>|Record<string,string>,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,onPreflight?:(result:object)=>void}} [options] 更新选项
    * @returns {object} 生命周期结果
    */
   update(options = {}) {
     const pluginsFile = this.store.readPlugins();
+    const widen = normalizeVersionOverrides(options.widen);
     if (options.id && !pluginsFile.plugins.some(({ id }) => id === options.id)) {
       throw new PluginRuntimeError(`项目未声明 Plugin:${options.id}`, {
         code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
         path: options.id,
       });
     }
-    if (!options.id && pluginsFile.plugins.length === 0) {
-      return unchangedLifecycleResult("update");
-    }
+    // 用法校验必须排在空项目短路之前，否则缺 Plugin ID 会被静默当成零变化。
     if (options.version && !options.id) {
       throw new PluginRuntimeError("更新 Plugin 版本约束时必须指定 Plugin ID", {
         code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
         path: "version",
       });
     }
-    const nextPlugins = options.version
+    if (widen.size > 0 && options.id) {
+      throw new PluginRuntimeError("放宽声明范围时不能同时指定单个 Plugin ID", {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: "widen",
+      });
+    }
+    const declaredIds = new Set(pluginsFile.plugins.map(({ id }) => id));
+    for (const id of [...widen.keys()].sort(compareUtf8)) {
+      if (!declaredIds.has(id)) {
+        throw new PluginRuntimeError(`项目未声明 Plugin:${id}`, {
+          code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+          path: id,
+        });
+      }
+    }
+    if (!options.id && pluginsFile.plugins.length === 0) {
+      return unchangedLifecycleResult("update");
+    }
+    const overrides = options.version && options.id
+      ? new Map([[options.id, options.version]])
+      : widen;
+    const nextPlugins = overrides.size > 0
       ? {
         ...pluginsFile,
         plugins: pluginsFile.plugins.map((plugin) => (
-          plugin.id === options.id ? { ...plugin, version: options.version } : plugin
+          overrides.has(plugin.id) ? { ...plugin, version: overrides.get(plugin.id) } : plugin
         )),
       }
       : pluginsFile;

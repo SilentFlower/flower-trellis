@@ -42,14 +42,18 @@ function issuePath(error) {
 /**
  * 创建附带稳定错误结构的 schema validator。
  *
+ * Ajv 编译一份 schema 需要数十毫秒，而单条命令通常只用到其中一两份。
+ * 这里把 `ajv.compile` 推迟到首次校验，让只读命令不必为用不到的 schema 付启动开销。
+ *
  * @param {object} schema JSON Schema
  * @param {string} label schema 展示名称
  * @param {(value:unknown)=>Array<{code:string,path:string,message:string}>} [semanticValidator] 结构校验后的语义校验
  * @returns {(value:unknown)=>unknown} validator
  */
 export function createSchemaValidator(schema, label, semanticValidator) {
-  const validate = ajv.compile(schema);
+  let validate = null;
   return (value) => {
+    if (!validate) validate = ajv.compile(schema);
     const valid = validate(value);
     const issues = valid
       ? []

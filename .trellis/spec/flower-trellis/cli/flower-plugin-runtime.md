@@ -45,14 +45,28 @@ TransactionWriter.apply(input) -> TransactionResult
 new PluginApplicationService(projectRoot, { registry, store?, writer?, platformDetector? })
 PluginApplicationService.list() -> { plugins, lock, state }
 PluginApplicationService.add(options) -> LifecycleResult
-PluginApplicationService.update(options?) -> LifecycleResult
+PluginApplicationService.update({
+  id?,          // 单个 Plugin；与 widen 互斥
+  version?,     // SemVer range，必须与 id 同时给出
+  widen?,       // Map<canonicalId, range> 或等价对象；命中时按 update="all" 解析
+  platforms?, dryRun?, approvals?, approvedDigests?, nonInteractive?, onPreflight?,
+}?) -> LifecycleResult
 PluginApplicationService.replay(options?) -> LifecycleResult
 PluginApplicationService.remove(options) -> LifecycleResult
 PluginApplicationService.verify(options?) -> { ok, diagnostics }
 
 parsePluginArgs(argv) -> PluginCommand
 plugin(ctx, options?) -> Promise<0 | 1 | 2 | 3>
+```
 
+`plugin update` 的命令行签名：
+
+```text
+flower-trellis plugin update [plugin] [--version <range>] [--widen <plugin>=<range>]... \
+  [--platform <id>] [--dry-run] [--json]
+```
+
+```js
 new PluginFormatRegistry(adapters?)
 PluginFormatRegistry.detect(snapshotRoot, { format? }?) -> DetectionResult[]
 PluginFormatRegistry.selectSingle(detections) -> DetectionResult
@@ -81,6 +95,12 @@ Source Provider 最小接口固定为：
 - Resolver 以 canonical Plugin ID 为唯一节点键，递归收集直接和传递依赖约束，并输出依赖优先的稳定拓扑。
 - 普通重放优先选择仍满足约束且摘要未漂移的旧 lock 候选；只有 `update` 指定的节点或 `update="all"` 才允许选择更高兼容版本。
 - `update({id,version})` 必须先把该直接声明改为请求的精确约束，再进入解析；未指定 ID 时禁止携带 version。builtin skill-garden 更新必须用当前 Flower 包版本刷新直接声明，不能只更新 Provider 候选而留下旧约束。
+- 用法校验先于空项目短路：`version` 缺 `id`、`widen` 与 `id` 并用、`widen` 指向未声明 Plugin 都必须抛 `PLUGIN_USAGE_ERROR`，不得因项目零声明而静默返回 `unchanged`。
+- **锁定包不可重放是可达状态，不是异常**。Marketplace 只保留最新版时（rd-guide 即此策略），旧的精确锁既筛不到候选，其锁定包也已消失。此时未列入 `update` 的节点走 lock-first 会抛 `PLUGIN_TARGET_DRIFT`（`已锁定 Plugin 包不可重放`），于是「只更新 A」被 B 挡住、「只更新 B」又被 A 挡住，形成互锁。
+- `update({widen})` 是解开该互锁的唯一入口：把全部越界声明一次性改写为请求的 range，并按 `update="all"` 解析，使每个节点都 `allowUpdate=true`，绕开 lock-first 抛错。调用方不得逐个 `update({id,version})` 循环放宽——第一条命令就会失败。
+- `widen` 只改写覆盖表中列出的声明；未越界的声明保持原样，不因整图放宽而被顺带升级约束。
+- `widen` 的每个 range 必须是合法 SemVer range，每个 key 必须是当前 `plugins.json` 中已声明的 canonical ID。
+- CLI `--widen <plugin>=<range>` 可重复，按**第一个** `=` 切分。range 自身含 `=`（如 `>=0.2.2 <0.3.0`）时落在右侧，不受影响；不得改用重复 `--version` 承载 `id=range`，裸 range 与 `id=range` 两种形态无法安全区分。
 - 候选、约束、roots、orphans 和 lock 输出必须按 UTF-8 稳定排序，不能依赖 Provider、对象或文件系统返回顺序。
 
 ### Platform And Install Plan
@@ -154,6 +174,9 @@ Source Provider 最小接口固定为：
 | source 未注册或候选来源歧义 | `PLUGIN_SOURCE_NOT_FOUND` / `PLUGIN_SOURCE_AMBIGUOUS` | 零写入 |
 | 仓库没有受支持入口或外部内容不可安全导入 | `PLUGIN_FORMAT_UNRECOGNIZED` / `PLUGIN_FORMAT_UNSUPPORTED` | source store、`.flower/` 与目标文件零写入 |
 | 依赖缺失、约束冲突、自依赖或循环 | `PLUGIN_DEPENDENCY_MISSING` / `PLUGIN_DEPENDENCY_CONFLICT` / `PLUGIN_DEPENDENCY_CYCLE` | 零写入，details 保留稳定约束或 cycle |
+| 精确锁声明越界且锁定包已从来源消失，节点未列入 `update` | `PLUGIN_TARGET_DRIFT`（`已锁定 Plugin 包不可重放`） | 零写入；须改用 `update({widen})` 一次覆盖全部越界声明 |
+| `version` 缺 `id` / `widen` 与 `id` 并用 / `widen` 指向未声明 Plugin | `PLUGIN_USAGE_ERROR`，退出码 `2` | 零写入，空项目也不得降级为 `unchanged` |
+| `--widen` 取值不是 `<plugin>=<range>`、range 非法或同一 Plugin 重复声明 | `PLUGIN_USAGE_ERROR`，退出码 `2` | 参数解析阶段失败，Runtime 未启动 |
 | 平台未知或未选择 | `PLUGIN_PLATFORM_UNKNOWN` / `PLUGIN_PLATFORM_SELECTION_REQUIRED` | 不创建 `.flower/` 和平台 root |
 | 同目标 ownership/内容或前缀冲突 | `PLUGIN_CONTENT_CONFLICT` | 事务目录尚未创建 |
 | 计划后 target、directory 或 payload 漂移 | `PLUGIN_TARGET_DRIFT` | project files 不写入 |
@@ -180,10 +203,12 @@ Source Provider 最小接口固定为：
   `claude-code/codex` 时，wrapper 显式传入 `claude/codex`，新 state 收窄到真实平台，且只清理纯旧
   check-all agent 目录。
 - P3 动态加载远程适配器、准备 GitLab Provider 后，把同一 `SourceRegistry` 交给 Application Service，远程包与 local/builtin 包走相同 Resolver 和事务。
+- Marketplace 只保留最新版且三个精确锁中有两个越界：一次 `update --widen a=^0.4.0 --widen b=^0.2.2` 即完成放宽与更新；未越界的第三个声明保持原样，lock 同步到两个新版本。
 
 ### Base
 
 - 空项目执行 `plugin list` 或无参数 `plugin update`：返回空视图或 `unchanged`，不创建 `.flower/`。
+- 空项目执行 `plugin update --version <range>`（无 Plugin ID）：仍返回 `PLUGIN_USAGE_ERROR` 退出码 `2`，不被空项目短路吞掉。
 - dry-run 计划包含目标变化和孤立依赖，但项目字节、mtime 和事务目录不变化。
 - GitHub 来源预览发现两个格式入口：交互模式展示候选并固定用户选择；同一输入在非 TTY 下返回结构化歧义错误。
 - 同一 lock 和平台选择重复应用：第二次目标与 plugins/lock/state 全部 changed-only。
@@ -197,6 +222,8 @@ Source Provider 最小接口固定为：
 - `flower-trellis update` 重放 `flower/skill-garden` 时不传 `--platform`，导致 Runtime 复用污染的旧
   `.flower/state.json.platforms` 并重新创建未启用平台目录。
 - 在 Provider 内按遍历顺序选择第一个外部 manifest，或让 Adapter 直接写 `.agents/skills`、`.claude/skills`、`.flower/`。
+- 交互层对多个越界声明逐个调用 `update <id> --version <range>`：第一条命令就会在另一个不可重放的锁定包上失败，越界越多越死锁。
+- 交互层先用未放宽的 `update --dry-run` 做预览再询问用户：预览必然以退出码 `3` 失败，用户只看到提示后直接中断。
 
 ## 6. Tests Required
 
@@ -207,7 +234,7 @@ Source Provider 最小接口固定为：
 - `plugin-transaction-writer.test.js`：before/payload 漂移、state 最后写、changed-only、dry-run、回滚和 retained evidence。
 - `plugin-format-adapters.test.js`：Flower/Codex/Claude/skill-only 检测、歧义、路径边界、commands 转换、主动组件仅诊断和标准包校验。
 - `plugin-interactive.test.js` 与 `plugin-remote-cli.test.js`：歧义选择、非 TTY 零 prompt、兼容预览、临时 cache 成功/失败清理和确认前零持久化。
-- `plugin-lifecycle-cli.test.js`：parser、真实 add/update/remove/verify、空项目 update、无平台零写入、JSON/人类输出、短 ID 和退出码。
+- `plugin-lifecycle-cli.test.js`：parser、真实 add/update/remove/verify、空项目 update、无平台零写入、JSON/人类输出、短 ID 和退出码。断言点还须覆盖：`--widen` 的重复取值与含 `=` range 的切分；多个精确锁同时越界时逐个 `--version` 失败于 `已锁定 Plugin 包不可重放` 而批量 `--widen` 成功；批量 dry-run 后 `plugins.json` 零写入；未越界声明保持原样；空项目 `update --version` 返回退出码 `2`。
 - `trellis-control.test.js`：disabled 项目真实 `plugin add` 后外部 Skill、声明和 state 保留，Trellis
   平台入口重新 detach，最终 `inspectTrellisControl().status === "disabled"`；同时覆盖 excluded spec
   精确快照恢复和外层补偿不完整时的 `repair-required` 持久化。
@@ -242,3 +269,28 @@ const result = service.add({ id: "rd-guide/demo", version: "^1.0.0", platforms: 
 Provider 只产出和复核固定包；Application Service 统一协调 Resolver、平台投影、InstallPlan 和 Transaction Writer。新增来源或 capability 只能接入这些公共边界，不能复制生命周期实现。
 
 外部格式的正确接入同样先调用 `PluginFormatRegistry.detect()/normalize()` 产生标准候选，再把候选交给既有 `SourceRegistry` 与 `PluginApplicationService`；禁止为 Claude Code/Codex 另建 Installer 或直接复制上游目录。
+
+放宽越界声明的 Wrong / Correct：
+
+#### Wrong
+
+```js
+// 逐个放宽：第一条命令就会在另一个不可重放的锁定包上抛 PLUGIN_TARGET_DRIFT
+for (const entry of widened) {
+  await runCommand(["update", entry.id, "--version", entry.nextRange]);
+}
+await runCommand(["update"]);
+```
+
+`update({id})` 只把该节点放进 `updateIds`，其余节点仍走 lock-first。当另一个精确锁的锁定包已从来源消失时立即抛 `已锁定 Plugin 包不可重放`，两个方向互为阻塞。
+
+#### Correct
+
+```js
+// 一次覆盖全部越界声明，并按 update="all" 解析
+const args = ["update", ...widened.flatMap(({ id, nextRange }) => ["--widen", `${id}=${nextRange}`])];
+if (await runCommand([...args, "--dry-run"]) !== 0) return;
+if (await confirm()) await runCommand(args);
+```
+
+预览与执行使用同一组参数，所以预览不会因为"还没放宽"而失败；`update="all"` 让每个节点都允许升级，互锁被一次解开。
