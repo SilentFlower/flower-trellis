@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "核对测试、幂等、不误伤和快照一致性"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "核对 worktree 状态、确认、registry 和错误矩阵"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "核对 route 偏好只接受合法字段且不继承 runtime"}
+{"file": ".trellis/tasks/08-06-improve-worktree-multirepo-handoff/research/current-worktree-contract.md", "reason": "核对实现是否覆盖已确认的现状缺口"}

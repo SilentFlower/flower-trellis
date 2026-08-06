@@ -1,0 +1,90 @@
+{
+  "id": "improve-worktree-multirepo-handoff",
+  "name": "improve-worktree-multirepo-handoff",
+  "title": "改进 Worktree 多仓基线确认与会话交接",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "cli",
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-06",
+  "completedAt": null,
+  "branch": "beta",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-06T04:16:48Z",
+      "contextKey": "codex_019fd53c-b70a-7f42-98bc-683e9418fae6",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "4deef3490f6d024de01fa5f63303aa0d88cb134d",
+        "status": [
+          {
+            "status": " M",
+            "path": "src/builtin-marketplaces/rd-guide.json"
+          },
+          {
+            "status": " M",
+            "path": "test/js/plugin-source-store.test.js"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "4deef3490f6d024de01fa5f63303aa0d88cb134d",
+            "status": [
+              {
+                "status": " M",
+                "path": "src/builtin-marketplaces/rd-guide.json"
+              },
+              {
+                "status": " M",
+                "path": "test/js/plugin-source-store.test.js"
+              }
+            ],
+            "worktreeDiffSha256": "bbd36f4b038949a4e4e7f3743148133b5e66144607e97928ce2c718847298d67",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "e209d2f126243877758e05760269ea84dcc90544d80b128a722a8f71a50c16fe"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "11ba49652bff38da5f3fe9366e8696d919908d87",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "f9f32f87c8e3f5cbe2f56e074c98e5af119a2ce42e57d64f0cf5a73b901b00b5"
+          }
+        ],
+        "fingerprint": "59af503402eaf10633b36fe56347f4236ec0beec8dbb6441f9473e9a9d906540"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-06T07:47:29Z",
+    "completedSteps": [
+      "实现并验证 worktree 两阶段预检、route 偏好继承与新会话交接",
+      "修复 CHK-001 并完成 full Check-All 复核"
+    ],
+    "partialStep": null,
+    "nextStep": "等待显式 trellis-finish-work 归档",
+    "notes": "CHK-002、CHK-003、CHK-004、FBK-001 已由用户接受风险。"
+  }
+}
