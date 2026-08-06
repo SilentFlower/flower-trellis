@@ -79,7 +79,7 @@ ProjectStore.writeState(value) -> {status, path}
 - resolved source 是判别式对象：`builtin.reference` 为包内稳定引用，`local.reference` 为安全 POSIX 相对路径，`gitlab.reference` 为 GitLab project path，`github.reference` 为规范化的 `owner/repository`。
 - GitLab 锁定项必须同时包含 Plugin `commit` 与 Marketplace `source.indexCommit`。
 - GitHub 锁定项必须固定 `format` 与 `entryPath`；通过 Marketplace 发现时还必须成对保存 `indexReference/indexCommit`，直连 Plugin 不得伪造索引字段。
-- 用户级 `plugin-sources.json` schemaVersion 2 以 `type=gitlab|github` 判别。schemaVersion 1 只允许旧 GitLab descriptor，读取后在下一次写入时原子升级为 v2；v1 中出现 GitHub 必须拒绝。
+- 用户级 `plugin-sources.json` schemaVersion 3 以 `type=gitlab|github` 判别自定义来源，并允许内置来源 `{id,enabled}` 偏好。schemaVersion 1/2 继续兼容旧 descriptor；与内置 ID 重名的旧完整记录只继承 `enabled`，下一次写入原子压缩为 v3 偏好，不能覆盖随包连接定义。v1 中出现 GitHub 必须拒绝。
 - GitHub 来源草稿可省略 `ref`，Provider 必须先解析仓库默认分支，再把实际 ref 写入持久化 descriptor；已保存 descriptor 的 `ref` 必填。`format=auto` 与 `entryPath` 互斥，确认格式后必须同时固定非 `auto` format 与安全 `entryPath`。
 - `state.json` 保存实际平台、路径 hash/ownership、Patch operation/target/result hash、事务版本和可选迁移来源。
 - 缺失 `plugins.json` 返回 `{schemaVersion: 1, plugins: []}`；缺失 lock/state 返回 `null`。损坏 JSON、未知版本或 schema 无效不能被当作缺失覆盖。

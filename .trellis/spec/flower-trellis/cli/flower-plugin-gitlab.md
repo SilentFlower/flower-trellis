@@ -86,10 +86,10 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 用户配置文件是 XDG 配置目录下的 `flower-trellis/plugin-sources.json`；Windows 有 `APPDATA` 时使用该目录。父目录权限为 `0700`，临时文件和配置文件权限为 `0600`，同目录 rename 提交。
 - GitLab source descriptor 固定字段为 `schemaVersion/id/type/name/enabled/baseUrl/project/ref/marketplacePath/oauth`。`oauth` 只允许 `applicationId/scopes`；固定 scopes 为排序后的 `read_api`、`read_repository`。
 - `baseUrl` 只允许无用户名密码的 `http:` 或 `https:`；`project` 是 GitLab project path，`marketplacePath` 是安全 POSIX 相对路径。
-- source 配置禁止 `accessToken/refreshToken/token/clientSecret/applicationSecret` 以及其它未知字段。内置 `rd-guide` 只是随包 descriptor；仅 `list/get` 不构造客户端、不登录、不访问网络。
+- source 配置禁止 `accessToken/refreshToken/token/clientSecret/applicationSecret` 以及其它未知字段。内置 `rd-guide` 的连接字段以随包 descriptor 为权威，用户层只允许保存 `enabled` 偏好；自定义连接必须使用新的 source ID。仅 `list/get` 不构造客户端、不登录、不访问网络。
 - Keyring service 固定为 `flower-trellis`，account 固定为 `<lowercase-host>[:port]/<source-id>`。凭据载荷固定包含 `schemaVersion/sourceId/baseUrl/tokenType/scope/accessToken/refreshToken/createdAt/expiresAt/redirectUri`。
 - `@napi-rs/keyring` 是 optional dependency。模块缺失或系统后端运行失败时只能切换到当前进程的 `MemoryCredentialStore`，并令 `persistent=false`；凭据 JSON 损坏或 scope 无效必须直接报错，不能静默降级。
-- 用户 source store schemaVersion 2 同时接受 GitLab 与 GitHub descriptor；schemaVersion 1 只兼容旧 GitLab。读取 v1 后下一次写入整体升级为 v2，v1 中出现 GitHub 必须报配置错误。
+- 用户 source store schemaVersion 3 同时接受 GitLab/GitHub descriptor 与内置来源 `{id,enabled}` 偏好；schemaVersion 1/2 继续兼容旧 descriptor。旧配置中与内置 ID 重名的完整 descriptor 只继承 `enabled`，不得覆盖随包连接字段；下一次写入原子压缩为 v3 偏好。schemaVersion 1 中出现 GitHub 必须报配置错误。
 - GitHub 持久化 descriptor 固定字段为 `schemaVersion/id/type/name/enabled/repository/ref/subdir?/format/entryPath?`。`repository` 只保存无凭据的 `owner/repository`；命令草稿可省略 ref，但 inspect 必须解析默认分支并补齐后才能写入。`format=auto` 时不得保存 `entryPath`，固定格式时必须保存安全入口路径。
 - `source update --clear-subdir` 显式删除旧 subdir；把 format 改回 `auto` 必须同时删除旧 entryPath，不能用 truthy fallback 让旧值复活。
 
@@ -102,8 +102,8 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - OAuth POST 与 `/oauth/token/info` 请求默认 30 秒超时；Device Flow 的外部 `AbortSignal` 必须同时取消等待和正在进行的请求，取消后不得再发起下一次 token 轮询。
 - token response 未携带完整 scope 时必须调用 `/oauth/token/info` 验证实际授权。缺少 `read_api` 或 `read_repository` 时拒绝凭据。
 - access token 在到期前 60 秒刷新；同一 source 并发刷新共享一个 Promise。refresh 失败必须尽力删除旧凭据，并统一返回 `PLUGIN_AUTH_REQUIRED`。
-- REST 请求只使用 `Authorization: Bearer`，project path 和仓库文件路径分别做 URL 编码；token 不得进入 URL、argv、项目文件、缓存元数据或普通输出。
-- REST 超时默认 30 秒；GET 网络错误或 5xx 最多重试一次，4xx 不重试。archive 默认最大 100 MiB，并同时检查 `content-length` 与实际响应字节。
+- REST 请求只使用 `Authorization: Bearer`，project path 和仓库文件路径分别做 URL 编码；token 不得进入 URL、argv、项目文件、缓存元数据或普通输出。携带凭据的请求必须禁用自动重定向，3xx 返回状态码、端点和目标 origin 的脱敏诊断；尤其不能让 HTTP→HTTPS 跳转静默剥离 Authorization 后再误报 404。
+- REST 超时默认 30 秒；GET 网络错误或 5xx 最多重试一次，4xx 不重试。archive 默认最大 100 MiB，并同时检查 `content-length` 与实际响应字节。只有 archive 对 OAuth 明确返回 406 时，Provider 才允许按同一固定 commit 和选中 subdir 递归读取 repository tree/raw 文件；其它 4xx 不回退。
 
 ### Marketplace And Cache
 
@@ -112,6 +112,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - archive 的全局危险路径必须一律拒绝：绝对路径、Windows 绝对路径、反斜杠、空片段、`.`、`..` 和条目总数超限都属于 `PLUGIN_REMOTE_ARCHIVE_INVALID`。总解压字节超限也必须失败，不能只跳过后续条目。
 - archive 普通包内容只允许普通目录和普通文件。软链、硬链、特殊文件或单文件超限位于调用方显式选中的 `subdir` 内时必须失败；位于全仓扫描阶段的未选中目录或仓库根无关位置时允许跳过，避免公开仓库根目录的 `AGENTS.md`、文档 symlink 等无关条目误阻断格式检测。
 - 解包后的规范化复制仍必须使用 ordinary-directory 边界：实际进入 Plugin/Skill 包根的软链、硬链和特殊文件一律拒绝。跳过无关 archive 条目不能放宽已选 Plugin 子树或目标写盘边界。
+- tree/raw 回退必须与 archive 共用 10,000 条目、25 MiB 单文件和 250 MiB 总字节上限，只接受 `040000` 目录与 `100644/100755` 普通文件，拒绝路径逃逸、重复路径、软链、submodule 和其它 mode；最终仍执行 manifest 与 canonical tree hash 校验。
 - 解包后的 Plugin 根必须通过 manifest 校验和 P1 canonical tree hash。缓存键绑定 `baseUrl/project/commit/subdir/integrity`；metadata 绑定 `sourceId/baseUrl/project/commit/subdir/integrity`，不得包含 token、header 或用户身份。
 - 缓存命中仍须复核 tree hash、manifest ID 和版本。损坏缓存只删除对应不可变缓存项并重新下载，不修改 lock。`prepareLocked()` 只能接受 lock 的 `indexCommit/version/commit/integrity/reference` 与锁定 Marketplace 完全一致的条目。
 - `prepareLocked()` 只表示旧 lock 的固定包已经可重放，可以向候选集合登记锁定版本，但不得把 canonical ID 标记为“最新 Marketplace 已准备”。显式远程 `plugin update` 必须在恢复旧 lock 后继续执行 `prepare()`，重新解析 source `ref`、读取当前索引并加载新版候选；Provider 应使用独立的 prepared 状态，不能用 `candidates.has(id)` 兼任索引准备标记。
@@ -144,6 +145,8 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 | OAuth 请求超时/取消，或 state、code、token、scope 校验失败 | `PLUGIN_AUTH_FAILED`，不得自动降级，关闭临时 callback 状态 |
 | refresh 失败 | 删除旧凭据并返回 `PLUGIN_AUTH_REQUIRED` |
 | REST 超时、网络错误、4xx/5xx 或无效 JSON | `PLUGIN_REMOTE_REQUEST_FAILED`；5xx/网络最多重试一次 |
+| GitLab REST 返回 3xx | 禁止跟随并返回 `PLUGIN_REMOTE_REQUEST_FAILED`，诊断提示检查 HTTPS baseUrl，且不泄露 token |
+| GitLab archive 对 OAuth 返回 406 | 仅对固定 commit/subdir 启用 repository tree/raw 回退，并继续执行同等资源上限与摘要校验 |
 | archive 超限、危险条目或顶层结构无效 | `PLUGIN_REMOTE_ARCHIVE_INVALID`，不发布缓存 |
 | 全仓扫描遇到未选中目录或仓库根的软链、硬链、特殊文件或单文件超限 | 跳过该条目继续检测；不得发布被跳过条目进入规范化包 |
 | 显式 `subdir` 或已选 Plugin/Skill 包根内出现软链、硬链、特殊文件或单文件超限 | `PLUGIN_REMOTE_ARCHIVE_INVALID` / `PLUGIN_UNSAFE_PATH`，不发布缓存 |
@@ -163,6 +166,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 ### Good
 
 - 用户执行 `plugin auth login rd-guide`，PKCE 获取的实际 scopes 同时包含 `read_api/read_repository`，凭据进入系统 Keyring；随后 `plugin search --source rd-guide` 使用 Bearer REST 读取固定索引。
+- 内置 `rd-guide` 随包从 HTTP 升级到 HTTPS 或切换 ref 后，即使用户目录仍有旧版完整 descriptor，运行时也使用新随包连接字段，仅保留用户原有启停选择。
 - 已锁定 Plugin 的 metadata、tree hash、manifest 身份全部匹配时，`prepareLocked()` 直接复用缓存，不访问 GitLab。
 - 项目先锁定 `rd-guide/demo@1.0.0`，Marketplace 当前索引随后发布 `1.1.0`；显式 `plugin update rd-guide/demo` 先恢复 1.0.0 固定包，再读取新索引并由 Resolver 选择 1.1.0。
 
@@ -178,6 +182,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 
 - 把 Application Secret 或 PAT 写入 source JSON、`.flower/plugin-lock.json`、命令参数或 cache metadata。
 - 用 `read_repository` scope 失败后绕过 `repository/tree`，或申请具有写权限的完整 `api` scope。
+- 让 fetch 自动跟随携带 Authorization 的跨 scheme 重定向，最终把匿名 404 当成项目不存在。
 - archive 解包后不校验 subdir、manifest 和 canonical tree hash就发布缓存。
 - Keyring 返回损坏 JSON 时吞掉错误并切换到内存，让调用方误以为只是“未登录”。
 - 把 `candidates.has(canonicalId)` 当作 `prepare()` 的幂等门禁；`prepareLocked()` 会先写入旧候选，导致显式远程 update 永远看不到新索引版本。
@@ -187,17 +192,17 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 
 ## 6. Tests Required
 
-- `plugin-source-store.test.js`：内置 `rd-guide`、XDG/权限、启停与恢复、secret/未知字段/损坏 JSON、读取零网络。
+- `plugin-source-store.test.js`：内置 `rd-guide`、XDG/权限、启停与恢复、旧完整覆盖只继承 enabled、v3 偏好压缩、secret/未知字段/损坏 JSON、读取零网络。
 - `plugin-credential-store.test.js`：版本化副本、Keyring 运行失败的内存降级、损坏 payload 不降级、递归脱敏。
 - `plugin-oauth.test.js`：PKCE S256/state/一次性 callback/公共客户端、环境失败降级与认证失败不降级、OAuth 请求超时、Device pending/slow_down/请求中取消且不继续轮询、scope 验证、redirect URI refresh、并发单飞与 refresh 清理。
-- `plugin-gitlab-rest-client.test.js`：Bearer、project/file 编码、commit/tree/files/archive、大小限制、超时和一次重试。
-- `plugin-gitlab-provider.test.js`：index commit、candidate/lock 字段、不可变缓存、损坏重下、archive 链接/路径/限额、subdir、digest、manifest 身份和 trust 上限。
+- `plugin-gitlab-rest-client.test.js`：Bearer、禁用重定向、project/file 编码、commit/tree 分页/files/archive、大小限制、超时和一次重试。
+- `plugin-gitlab-provider.test.js`：index commit、candidate/lock 字段、不可变缓存、损坏重下、archive 链接/路径/限额、OAuth 406 tree/raw 回退、subdir、digest、manifest 身份和 trust 上限。
 - `plugin-remote-cli.test.js`：source/auth/search 参数、非敏感 JSON、管理命令零网络、远程 add/update 复用 Application Service、自定义 local source ID 不误判为 GitLab。
 - `plugin-e2e-gitlab.test.js`：真实 CLI 跨进程覆盖 Device Flow、PKCE、search、v1 add、切换 Marketplace 后的 v2 update、禁用零网络，以及 stdout/stderr/项目文件敏感值扫描；必须断言旧 lock 候选不会阻止当前索引准备。
 - `plugin-github-rest-client.test.js`：默认分支、commit/date、允许的 redirect host、匿名限流、大小限制、超时和重试。
 - `plugin-github-provider.test.js`：Flower 索引懒加载与版本聚合、跨仓 Marketplace、多 Plugin 目录、固定/默认 ref、cache、locked replay、全仓扫描无关软链跳过、已选子树危险条目拒绝和稳定错误类型。
 - `plugin-format-adapters.test.js`：检测顺序、歧义、Codex/Claude/skill-only 规范化、Skill 路径 containment、主动组件只诊断和 YAML frontmatter 安全。
-- `plugin-remote-cli.test.js` 与 `plugin-interactive.test.js`：source v2、`--clear-subdir`、format 重置、JSON 字段、来源类型返回/退出、GitHub/GitLab 新增只问用户可识别 locator、检测进度、失败留在问题页、歧义选择和临时预览 cache 清理。
+- `plugin-remote-cli.test.js` 与 `plugin-interactive.test.js`：descriptor v2/store v3、`--clear-subdir`、format 重置、JSON 字段、来源类型返回/退出、GitHub/GitLab 新增只问用户可识别 locator、检测进度、失败留在问题页、歧义选择和临时预览 cache 清理。
 - 修改本契约后必须运行上述定向测试、完整 `npm test`、`npm pack --dry-run --json`、敏感字段扫描与 `git diff --check`。
 
 ## 7. Wrong vs Correct

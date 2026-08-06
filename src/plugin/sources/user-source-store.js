@@ -12,7 +12,8 @@ import {
 } from "../schemas/shared.js";
 import { compareUtf8 } from "../stable-order.js";
 
-const SOURCE_CONFIG_VERSION = 2;
+const SOURCE_CONFIG_VERSION = 3;
+const SOURCE_DESCRIPTOR_VERSION = 2;
 const LEGACY_SOURCE_CONFIG_VERSION = 1;
 const EXTERNAL_FORMATS = new Set(["auto", "flower", "codex", "claude-code", "skill-only"]);
 const BUILTIN_DESCRIPTOR_PATH = fileURLToPath(
@@ -79,7 +80,7 @@ export function validateGitLabSourceDescriptor(value) {
   const oauth = /** @type {Record<string,unknown>} */ (source?.oauth || {});
   const scopes = Array.isArray(oauth?.scopes) ? [...oauth.scopes].sort(compareUtf8) : [];
   if (
-    ![LEGACY_SOURCE_CONFIG_VERSION, SOURCE_CONFIG_VERSION].includes(source.schemaVersion) ||
+    ![LEGACY_SOURCE_CONFIG_VERSION, SOURCE_DESCRIPTOR_VERSION].includes(source.schemaVersion) ||
     !isPluginId(source.id) ||
     source.type !== "gitlab" ||
     typeof source.name !== "string" || !source.name ||
@@ -102,7 +103,7 @@ export function validateGitLabSourceDescriptor(value) {
   baseUrl.search = "";
   baseUrl.hash = "";
   return {
-    schemaVersion: SOURCE_CONFIG_VERSION,
+    schemaVersion: SOURCE_DESCRIPTOR_VERSION,
     id: source.id,
     type: "gitlab",
     name: source.name,
@@ -182,7 +183,7 @@ export function validateGitHubSourceDescriptor(value) {
   }
   const format = String(source?.format || "auto");
   if (
-    Number(source?.schemaVersion) !== SOURCE_CONFIG_VERSION ||
+    Number(source?.schemaVersion) !== SOURCE_DESCRIPTOR_VERSION ||
     !isPluginId(source?.id) ||
     source?.type !== "github" ||
     typeof source?.name !== "string" || !source.name ||
@@ -208,7 +209,7 @@ export function validateGitHubSourceDescriptor(value) {
     });
   }
   return {
-    schemaVersion: SOURCE_CONFIG_VERSION,
+    schemaVersion: SOURCE_DESCRIPTOR_VERSION,
     id: source.id,
     type: "github",
     name: source.name,
@@ -263,7 +264,13 @@ export class UserSourceStore {
       { ...validateSourceDescriptor(source), builtin: true },
     ]));
     for (const source of this.#readUserSources()) {
-      merged.set(source.id, { ...source, builtin: merged.has(source.id) });
+      const builtin = merged.get(source.id);
+      if (builtin) {
+        // 内置来源的远程连接定义随包升级，用户层只保留显式启停偏好。
+        merged.set(source.id, { ...builtin, enabled: source.enabled });
+      } else {
+        merged.set(source.id, { ...source, builtin: false });
+      }
     }
     return [...merged.values()].sort((left, right) => compareUtf8(left.id, right.id));
   }
@@ -293,7 +300,13 @@ export class UserSourceStore {
    * @returns {object} 保存后的来源
    */
   set(source) {
-    const normalized = validateSourceDescriptor({ schemaVersion: SOURCE_CONFIG_VERSION, ...source });
+    const normalized = validateSourceDescriptor({ schemaVersion: SOURCE_DESCRIPTOR_VERSION, ...source });
+    if (this.builtinDescriptors.some(({ id }) => id === normalized.id)) {
+      throw new PluginRuntimeError(`内置 Plugin source 仅支持启用或停用:${normalized.id}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+        path: normalized.id,
+      });
+    }
     const sources = this.#readUserSources().filter((entry) => entry.id !== normalized.id);
     sources.push(normalized);
     this.#writeUserSources(sources);
@@ -333,7 +346,15 @@ export class UserSourceStore {
    */
   setEnabled(id, enabled) {
     const source = this.get(id, { includeDisabled: true });
-    return this.set({ ...source, enabled, builtin: undefined });
+    const sources = this.#readUserSources().filter((entry) => entry.id !== id);
+    if (source.builtin) {
+      const builtin = validateSourceDescriptor(this.builtinDescriptors.find((entry) => entry.id === id));
+      if (enabled !== builtin.enabled) sources.push({ id, enabled, builtinPreference: true });
+    } else {
+      sources.push({ ...source, enabled, builtin: undefined });
+    }
+    this.#writeUserSources(sources);
+    return this.get(id, { includeDisabled: true });
   }
 
   /** @returns {object[]} 用户配置中的来源 */
@@ -341,16 +362,31 @@ export class UserSourceStore {
     if (!fs.existsSync(this.configFile)) return [];
     try {
       const raw = JSON.parse(fs.readFileSync(this.configFile, "utf8"));
-      if (![LEGACY_SOURCE_CONFIG_VERSION, SOURCE_CONFIG_VERSION].includes(raw.schemaVersion) || !Array.isArray(raw.sources)) {
+      if (![LEGACY_SOURCE_CONFIG_VERSION, SOURCE_DESCRIPTOR_VERSION, SOURCE_CONFIG_VERSION].includes(raw.schemaVersion) || !Array.isArray(raw.sources)) {
         throw new TypeError("用户 source 配置 schemaVersion 或 sources 无效");
       }
       if (raw.schemaVersion === LEGACY_SOURCE_CONFIG_VERSION && raw.sources.some(({ type }) => type !== "gitlab")) {
         throw new TypeError("schemaVersion 1 只允许旧 GitLab source");
       }
-      const sources = raw.sources.map((source) => validateSourceDescriptor({
-        ...source,
-        schemaVersion: source.schemaVersion || raw.schemaVersion,
-      }));
+      const builtinIds = new Set(this.builtinDescriptors.map(({ id }) => id));
+      const sources = raw.sources.map((source) => {
+        const fields = Object.keys(source || {});
+        if (
+          fields.length === 2 &&
+          fields.every((field) => ["id", "enabled"].includes(field)) &&
+          builtinIds.has(source.id) &&
+          typeof source.enabled === "boolean"
+        ) {
+          return { id: source.id, enabled: source.enabled, builtinPreference: true };
+        }
+        const normalized = validateSourceDescriptor({
+          ...source,
+          schemaVersion: source.schemaVersion || Math.min(raw.schemaVersion, SOURCE_DESCRIPTOR_VERSION),
+        });
+        return builtinIds.has(normalized.id)
+          ? { id: normalized.id, enabled: normalized.enabled, builtinPreference: true }
+          : normalized;
+      });
       if (new Set(sources.map(({ id }) => id)).size !== sources.length) {
         throw new TypeError("用户 source 配置包含重复 ID");
       }
@@ -375,9 +411,14 @@ export class UserSourceStore {
     const temporary = `${this.configFile}.${process.pid}.tmp`;
     try {
       fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
+      const serialized = sources.map((source) => (
+        source.builtinPreference
+          ? { id: source.id, enabled: source.enabled }
+          : source
+      ));
       fs.writeFileSync(temporary, `${JSON.stringify({
         schemaVersion: SOURCE_CONFIG_VERSION,
-        sources: [...sources].sort((left, right) => compareUtf8(left.id, right.id)),
+        sources: serialized.sort((left, right) => compareUtf8(left.id, right.id)),
       }, null, 2)}\n`, { mode: 0o600 });
       fs.renameSync(temporary, this.configFile);
     } catch (error) {

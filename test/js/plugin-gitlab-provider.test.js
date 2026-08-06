@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { create } from "tar";
 import { hashCanonicalTree } from "../../src/plugin/integrity/canonical-tree.js";
+import { PluginRuntimeError } from "../../src/plugin/runtime-errors.js";
 import { GitLabSourceProvider } from "../../src/plugin/sources/gitlab-provider.js";
 import {
   createPluginTestRoot,
@@ -145,6 +146,100 @@ test("GitLab Provider 删除损坏缓存后重新下载并恢复内容", async (
   await second.prepare("rd-guide/demo");
   assert.equal(downloads, 2);
   assert.equal(second.readPackage(second.listCandidates("rd-guide/demo")[0]).integrity, integrity);
+});
+
+test("GitLab Provider 在 OAuth archive 406 时通过固定 commit 的 tree/raw API 准备 Plugin", async (t) => {
+  const root = createPluginTestRoot(t, "flower-gitlab-provider-tree-fallback-");
+  const repositoryRoot = path.join(root, "repository");
+  const pluginRoot = writePluginPackage(repositoryRoot, "skills", pluginManifest());
+  fs.writeFileSync(path.join(pluginRoot, "binary.dat"), Buffer.from([0, 255, 1]));
+  const integrity = hashCanonicalTree(pluginRoot);
+  const marketplace = {
+    schemaVersion: 1,
+    id: "rd-guide",
+    name: "研发指南",
+    plugins: [{
+      id: "demo",
+      description: "示例 Plugin",
+      source: { type: "gitlab", project: "group/rd-guide", subdir: "skills" },
+      trust: { maxProfile: "standard" },
+      versions: [{ version: "1.0.0", ref: "v1.0.0", commit, integrity }],
+    }],
+  };
+  const entries = [];
+  function visit(directory, relative) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const entryPath = relative ? `${relative}/${entry.name}` : entry.name;
+      entries.push({ path: entryPath, type: entry.isDirectory() ? "tree" : "blob", mode: entry.isDirectory() ? "040000" : "100644" });
+      if (entry.isDirectory()) visit(path.join(directory, entry.name), entryPath);
+    }
+  }
+  visit(repositoryRoot, "");
+  const client = {
+    resolveCommit: async () => commit,
+    readRawFile: async () => JSON.stringify(marketplace),
+    downloadArchive: async () => {
+      throw new PluginRuntimeError("GitLab REST 请求失败:406", {
+        code: "PLUGIN_REMOTE_REQUEST_FAILED",
+        path: "rd-guide",
+        details: { status: 406, endpoint: "/repository/archive.tar.gz" },
+      });
+    },
+    readRepositoryTree: async (_project, options) => {
+      assert.equal(options.ref, commit);
+      assert.equal(options.path, "skills");
+      return entries.filter(({ path: entryPath }) => entryPath.startsWith("skills/"));
+    },
+    readRawBuffer: async (_project, filePath, ref) => {
+      assert.equal(ref, commit);
+      return fs.readFileSync(path.join(repositoryRoot, ...filePath.split("/")));
+    },
+  };
+  const provider = new GitLabSourceProvider({
+    source,
+    projectRoot: path.join(root, "project"),
+    client,
+  });
+  await provider.prepare("rd-guide/demo");
+  const candidate = provider.listCandidates("rd-guide/demo")[0];
+  assert.equal(provider.readPackage(candidate).integrity, integrity);
+});
+
+test("GitLab Provider 的 OAuth 406 tree 回退拒绝软链 mode", async (t) => {
+  const root = createPluginTestRoot(t, "flower-gitlab-provider-tree-link-");
+  const marketplace = {
+    schemaVersion: 1,
+    id: "rd-guide",
+    name: "研发指南",
+    plugins: [{
+      id: "demo",
+      description: "示例 Plugin",
+      source: { type: "gitlab", project: "group/rd-guide", subdir: "skills" },
+      trust: { maxProfile: "standard" },
+      versions: [{ version: "1.0.0", ref: "v1.0.0", commit, integrity: `sha256:${"0".repeat(64)}` }],
+    }],
+  };
+  const provider = new GitLabSourceProvider({
+    source,
+    projectRoot: path.join(root, "project"),
+    client: {
+      resolveCommit: async () => commit,
+      readRawFile: async () => JSON.stringify(marketplace),
+      downloadArchive: async () => {
+        throw new PluginRuntimeError("GitLab REST 请求失败:406", {
+          code: "PLUGIN_REMOTE_REQUEST_FAILED",
+          path: "rd-guide",
+          details: { status: 406 },
+        });
+      },
+      readRepositoryTree: async () => [{ path: "skills/link", type: "blob", mode: "120000" }],
+      readRawBuffer: async () => Buffer.from("target"),
+    },
+  });
+  await assert.rejects(
+    () => provider.prepare("rd-guide/demo"),
+    (error) => error.code === "PLUGIN_REMOTE_ARCHIVE_INVALID" && error.message.includes("不安全条目"),
+  );
 });
 
 for (const [name, entryPath, type] of [

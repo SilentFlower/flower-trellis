@@ -7,9 +7,13 @@ import { assertSafePosixRelativePath } from "../schemas/shared.js";
 import { compareUtf8 } from "../stable-order.js";
 
 const ALLOWED_ARCHIVE_TYPES = new Set(["File", "Directory"]);
-const MAX_ENTRY_BYTES = 25 * 1024 * 1024;
-const MAX_ARCHIVE_ENTRIES = 10_000;
-const MAX_EXTRACTED_BYTES = 250 * 1024 * 1024;
+
+/** 远程 Plugin 包在 archive 与 API tree 回退路径共用的资源上限。 */
+export const REMOTE_PACKAGE_LIMITS = Object.freeze({
+  maxEntryBytes: 25 * 1024 * 1024,
+  maxEntries: 10_000,
+  maxExtractedBytes: 250 * 1024 * 1024,
+});
 
 /**
  * 判断 archive 条目是否落在调用方明确选中的子目录内。
@@ -93,17 +97,17 @@ export async function extractRemoteArchive(options) {
         path.win32.isAbsolute(normalized) ||
         normalized.includes("\\") ||
         segments.some((segment) => !segment || segment === "." || segment === "..") ||
-        archiveEntries > MAX_ARCHIVE_ENTRIES
+        archiveEntries > REMOTE_PACKAGE_LIMITS.maxEntries
       ) {
         unsafeEntry ||= entryPath;
         return false;
       }
-      if (!ALLOWED_ARCHIVE_TYPES.has(entry.type) || entrySize > MAX_ENTRY_BYTES) {
+      if (!ALLOWED_ARCHIVE_TYPES.has(entry.type) || entrySize > REMOTE_PACKAGE_LIMITS.maxEntryBytes) {
         if (isInsideSelectedSubdir(normalized, options.subdir)) unsafeEntry ||= entryPath;
         return false;
       }
       extractedBytes += entrySize;
-      if (extractedBytes > MAX_EXTRACTED_BYTES) {
+      if (extractedBytes > REMOTE_PACKAGE_LIMITS.maxExtractedBytes) {
         unsafeEntry ||= entryPath;
         return false;
       }

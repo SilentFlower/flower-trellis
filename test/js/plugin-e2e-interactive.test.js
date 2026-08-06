@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import * as pty from "node-pty";
 import {
+  createFlowerCliCopy,
   createIsolatedFlowerEnv,
   runFlower,
   snapshotProjectFiles,
@@ -28,14 +29,15 @@ function stripAnsi(value) {
  * 在真实伪终端中打开 Plugin 首页并选择退出。
  *
  * @param {string} project 项目根
+ * @param {{cli?:string,env?:NodeJS.ProcessEnv}} [options] CLI 与隔离环境覆盖
  * @returns {Promise<{status:number,output:string}>} 退出状态和终端输出
  */
-async function openAndExitPluginManager(project) {
-  const terminal = pty.spawn(process.execPath, [SOURCE_CLI, "plugin", "--target", project], {
+async function openAndExitPluginManager(project, options = {}) {
+  const terminal = pty.spawn(process.execPath, [options.cli || SOURCE_CLI, "plugin", "--target", project], {
     cwd: project,
     cols: 120,
     rows: 36,
-    env: createIsolatedFlowerEnv(path.join(path.dirname(project), "interactive-env")),
+    env: createIsolatedFlowerEnv(path.join(path.dirname(project), "interactive-env"), options.env),
   });
   let output = "";
   let submitted = false;
@@ -61,8 +63,13 @@ async function openAndExitPluginManager(project) {
 
 test("真实 TTY 裸 plugin 打开管理首页并可零写入退出", async (t) => {
   const project = createPluginTestRoot(t, "flower-e2e-plugin-ui-");
+  const runtime = createPluginTestRoot(t, "flower-e2e-plugin-ui-runtime-");
+  const { cli, keyringFile } = createFlowerCliCopy(runtime);
   const before = snapshotProjectFiles(project);
-  const result = await openAndExitPluginManager(project);
+  const result = await openAndExitPluginManager(project, {
+    cli,
+    env: { FLOWER_E2E_KEYRING_FILE: keyringFile },
+  });
   const output = stripAnsi(result.output);
   assert.equal(result.status, 0, output);
   assert.match(output, /Flower Plugin/);

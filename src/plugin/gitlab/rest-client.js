@@ -17,7 +17,7 @@ export class GitLabRestClient {
   /**
    * 创建 REST 客户端。
    *
-   * @param {{source:object,credentialManager:object,fetch?:typeof fetch,timeoutMs?:number,maxArchiveBytes?:number}} options 依赖
+   * @param {{source:object,credentialManager:object,fetch?:typeof fetch,timeoutMs?:number,maxArchiveBytes?:number,maxFileBytes?:number,maxTreeEntries?:number}} options 依赖
    */
   constructor(options) {
     this.source = options.source;
@@ -25,6 +25,8 @@ export class GitLabRestClient {
     this.fetch = options.fetch || globalThis.fetch;
     this.timeoutMs = options.timeoutMs || 30_000;
     this.maxArchiveBytes = options.maxArchiveBytes || 100 * 1024 * 1024;
+    this.maxFileBytes = options.maxFileBytes || 25 * 1024 * 1024;
+    this.maxTreeEntries = options.maxTreeEntries || 10_000;
   }
 
   /**
@@ -53,11 +55,24 @@ export class GitLabRestClient {
    * @returns {Promise<string>} 文件内容
    */
   async readRawFile(project, filePath, ref) {
-    const buffer = await this.getBuffer(
+    const buffer = await this.readRawBuffer(project, filePath, ref);
+    return buffer.toString("utf8");
+  }
+
+  /**
+   * 读取仓库文件原始字节。
+   *
+   * @param {string} project GitLab project path
+   * @param {string} filePath 仓库内路径
+   * @param {string} ref 固定 ref
+   * @returns {Promise<Buffer>} 文件原始字节
+   */
+  async readRawBuffer(project, filePath, ref) {
+    return this.getBuffer(
       `/projects/${encodeGitLabProject(project)}/repository/files/${encodeURIComponent(filePath)}/raw`,
       { ref },
+      { maxBytes: this.maxFileBytes, limitLabel: "GitLab repository 文件超过大小限制" },
     );
-    return buffer.toString("utf8");
   }
 
   /**
@@ -74,6 +89,40 @@ export class GitLabRestClient {
     );
     if (!Array.isArray(payload)) throw this.#remoteError("GitLab tree 响应无效", project);
     return payload;
+  }
+
+  /**
+   * 递归读取固定 ref 下的完整 repository tree，并处理 GitLab 分页。
+   *
+   * @param {string} project GitLab project path
+   * @param {{path?:string,ref:string}} options 查询参数
+   * @returns {Promise<object[]>} 全部 tree 条目
+   */
+  async readRepositoryTree(project, options) {
+    const pathname = `/projects/${encodeGitLabProject(project)}/repository/tree`;
+    const entries = [];
+    let page = 1;
+    while (true) {
+      const response = await this.#request(pathname, {
+        ref: options.ref,
+        recursive: "true",
+        per_page: "100",
+        page: String(page),
+        ...(options.path ? { path: options.path } : {}),
+      });
+      const payload = await this.#readJsonResponse(response, project);
+      if (!Array.isArray(payload)) throw this.#remoteError("GitLab tree 响应无效", project);
+      entries.push(...payload);
+      if (entries.length > this.maxTreeEntries) {
+        throw this.#remoteError("GitLab repository tree 超过条目限制", project);
+      }
+      const nextPage = response.headers.get("x-next-page");
+      if (!nextPage) return entries;
+      if (!/^\d+$/.test(nextPage) || Number(nextPage) <= page) {
+        throw this.#remoteError("GitLab tree 分页响应无效", project);
+      }
+      page = Number(nextPage);
+    }
   }
 
   /**
@@ -100,10 +149,15 @@ export class GitLabRestClient {
    */
   async getJson(pathname, query = {}) {
     const response = await this.#request(pathname, query);
+    return this.#readJsonResponse(response, this.source.id);
+  }
+
+  /** @param {Response} response @param {string} diagnosticPath @returns {Promise<any>} */
+  async #readJsonResponse(response, diagnosticPath) {
     try {
       return await response.json();
     } catch (error) {
-      throw this.#remoteError("GitLab 返回了无效 JSON", this.source.id, error);
+      throw this.#remoteError("GitLab 返回了无效 JSON", diagnosticPath, error);
     }
   }
 
@@ -112,18 +166,20 @@ export class GitLabRestClient {
    *
    * @param {string} pathname API v4 相对路径
    * @param {Record<string,string>} [query] 查询参数
-   * @param {{archive?:boolean}} [options] 响应限制
+   * @param {{archive?:boolean,maxBytes?:number,limitLabel?:string}} [options] 响应限制
    * @returns {Promise<Buffer>} 响应字节
    */
   async getBuffer(pathname, query = {}, options = {}) {
     const response = await this.#request(pathname, query);
     const contentLength = Number(response.headers.get("content-length"));
-    if (options.archive && Number.isFinite(contentLength) && contentLength > this.maxArchiveBytes) {
-      throw this.#remoteError("GitLab archive 超过大小限制", this.source.id);
+    const maxBytes = options.maxBytes || (options.archive ? this.maxArchiveBytes : null);
+    const limitLabel = options.limitLabel || "GitLab archive 超过大小限制";
+    if (maxBytes && Number.isFinite(contentLength) && contentLength > maxBytes) {
+      throw this.#remoteError(limitLabel, this.source.id);
     }
     const buffer = Buffer.from(await response.arrayBuffer());
-    if (options.archive && buffer.length > this.maxArchiveBytes) {
-      throw this.#remoteError("GitLab archive 超过大小限制", this.source.id);
+    if (maxBytes && buffer.length > maxBytes) {
+      throw this.#remoteError(limitLabel, this.source.id);
     }
     return buffer;
   }
@@ -140,11 +196,30 @@ export class GitLabRestClient {
       try {
         const response = await this.fetch(url, {
           headers: { authorization: `Bearer ${token}` },
+          redirect: "manual",
           signal: controller.signal,
         });
         if (response.ok) return response;
         if (attempt === 0 && response.status >= 500) continue;
-        throw this.#remoteError(`GitLab REST 请求失败:${response.status}`, this.source.id);
+        const location = response.headers.get("location");
+        if (response.status >= 300 && response.status < 400) {
+          let locationOrigin = null;
+          try {
+            locationOrigin = location ? new URL(location, url).origin : null;
+          } catch {
+            // 非法 Location 仍按重定向错误报告，不能恢复携带凭据的自动跳转。
+          }
+          throw this.#remoteError(
+            `GitLab REST 请求发生重定向:${response.status}，请检查 source baseUrl 是否应使用 HTTPS`,
+            this.source.id,
+            undefined,
+            { status: response.status, endpoint: pathname, locationOrigin },
+          );
+        }
+        throw this.#remoteError(`GitLab REST 请求失败:${response.status}`, this.source.id, undefined, {
+          status: response.status,
+          endpoint: pathname,
+        });
       } catch (error) {
         lastError = error;
         if (error instanceof PluginRuntimeError || attempt > 0) break;
@@ -156,12 +231,13 @@ export class GitLabRestClient {
     throw this.#remoteError("GitLab REST 请求失败", this.source.id, lastError);
   }
 
-  /** @param {string} message @param {string} diagnosticPath @param {unknown} [cause] @returns {PluginRuntimeError} */
-  #remoteError(message, diagnosticPath, cause) {
+  /** @param {string} message @param {string} diagnosticPath @param {unknown} [cause] @param {object} [details] @returns {PluginRuntimeError} */
+  #remoteError(message, diagnosticPath, cause, details = {}) {
     return new PluginRuntimeError(message, {
       code: PLUGIN_RUNTIME_ERROR_CODES.REMOTE_REQUEST_FAILED,
       path: diagnosticPath,
       cause,
+      details,
     });
   }
 }

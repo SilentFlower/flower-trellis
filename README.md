@@ -168,7 +168,7 @@ flower-trellis plugin
 | `.flower/state.json` | 本机;记录实际平台、生成路径、ownership 与 Patch provenance |
 | `.flower/cache/`、`.flower/transactions/` | 本机;可清理缓存与事务恢复证据 |
 
-`rd-guide` 是随包预注册、默认启用但惰性访问的 GitLab Marketplace。打开管理器后，`发现` 页会在已有凭据时读取远程目录；未登录时只展示授权入口，不会尝试读取仓库内容。普通交互默认使用 Device Flow，PKCE 浏览器登录保留为来源详情中的高级选项。OAuth 只申请 `read_api read_repository`，Application Secret 和 token 都不会写入项目文件。
+`rd-guide` 是随包预注册、默认启用但惰性访问的 GitLab Marketplace。它的 GitLab 地址、项目和 ref 随 Flower 包升级，用户配置只保存启用或停用偏好，避免旧的用户级完整副本静默遮蔽包内修复；需要其它地址或分支时应新增独立 source ID。打开管理器后，`发现` 页会在已有凭据时读取远程目录；未登录时只展示授权入口，不会尝试读取仓库内容。普通交互默认使用 Device Flow，PKCE 浏览器登录保留为来源详情中的高级选项。OAuth 只申请 `read_api read_repository`，Application Secret 和 token 都不会写入项目文件。
 
 GitHub 首版只支持 `github.com` 公共仓库和匿名 REST，不保存 PAT 或其它凭据。来源会固定确认后的格式入口；安装 lock 固定完整 commit 与 canonical digest，通过 Marketplace 发现时还会固定索引仓库和索引 commit。匿名 API 可能受每小时 60 次/IP 的主要限额影响，限流会显示为 GitHub 诊断，不会转成登录提示。
 

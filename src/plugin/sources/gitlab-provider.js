@@ -6,10 +6,18 @@ import { hashCanonicalTree } from "../integrity/canonical-tree.js";
 import { PLUGIN_RUNTIME_ERROR_CODES, PluginRuntimeError } from "../runtime-errors.js";
 import { validateMarketplaceManifest } from "../schemas/marketplace-manifest.js";
 import { validatePluginManifest } from "../schemas/plugin-manifest.js";
-import { composeCanonicalPluginId, parseCanonicalPluginId } from "../schemas/shared.js";
+import {
+  assertSafePosixRelativePath,
+  composeCanonicalPluginId,
+  parseCanonicalPluginId,
+} from "../schemas/shared.js";
 import { compareUtf8 } from "../stable-order.js";
 import { verifyPluginPackage } from "./package-reader.js";
-import { copyOrdinaryDirectory, extractRemoteArchive } from "./remote-archive.js";
+import {
+  copyOrdinaryDirectory,
+  extractRemoteArchive,
+  REMOTE_PACKAGE_LIMITS,
+} from "./remote-archive.js";
 
 const PROFILE_RANK = Object.freeze({ standard: 0, integration: 1, system: 2 });
 
@@ -294,16 +302,21 @@ export class GitLabSourceProvider {
     const packageRoot = path.join(staging, "package");
     try {
       fs.mkdirSync(extractRoot);
-      fs.writeFileSync(archiveFile, await this.client.downloadArchive(project, commit));
-      const { selectedRoot } = await extractRemoteArchive({
-        archiveFile,
-        extractRoot,
-        subdir,
-        label: "GitLab Plugin",
-        sourceId: this.id,
-        extractArchive: this.extractArchive,
-      });
-      copyOrdinaryDirectory(selectedRoot, packageRoot, "GitLab Plugin");
+      try {
+        fs.writeFileSync(archiveFile, await this.client.downloadArchive(project, commit));
+        const { selectedRoot } = await extractRemoteArchive({
+          archiveFile,
+          extractRoot,
+          subdir,
+          label: "GitLab Plugin",
+          sourceId: this.id,
+          extractArchive: this.extractArchive,
+        });
+        copyOrdinaryDirectory(selectedRoot, packageRoot, "GitLab Plugin");
+      } catch (error) {
+        if (!this.#canFallbackToRepositoryTree(error)) throw error;
+        await this.#materializeRepositoryTree(project, commit, subdir, packageRoot);
+      }
       validatePluginManifest(JSON.parse(fs.readFileSync(path.join(packageRoot, "plugin.json"), "utf8")));
       const integrity = hashCanonicalTree(packageRoot);
       if (integrity !== version.integrity) {
@@ -334,6 +347,92 @@ export class GitLabSourceProvider {
       throw new PluginIoError(`无法准备 GitLab Plugin:${this.id}`, { path: this.id, cause: error });
     } finally {
       fs.rmSync(staging, { recursive: true, force: true });
+    }
+  }
+
+  /** @param {unknown} error @returns {boolean} */
+  #canFallbackToRepositoryTree(error) {
+    return (
+      error?.code === PLUGIN_RUNTIME_ERROR_CODES.REMOTE_REQUEST_FAILED &&
+      error?.details?.status === 406 &&
+      typeof this.client.readRepositoryTree === "function" &&
+      typeof this.client.readRawBuffer === "function"
+    );
+  }
+
+  /**
+   * 在 GitLab archive 对 OAuth 返回 406 时，用固定 commit 的 tree/raw API 重建选中目录。
+   *
+   * @param {string} project GitLab project path
+   * @param {string} commit 固定 commit
+   * @param {string|null} subdir 选中的仓库子目录
+   * @param {string} target 目标目录
+   * @returns {Promise<void>} 完成信号
+   */
+  async #materializeRepositoryTree(project, commit, subdir, target) {
+    const normalizedSubdir = subdir
+      ? assertSafePosixRelativePath(subdir, "GitLab Plugin subdir")
+      : null;
+    const entries = await this.client.readRepositoryTree(project, {
+      ref: commit,
+      ...(normalizedSubdir ? { path: normalizedSubdir } : {}),
+    });
+    if (!Array.isArray(entries) || entries.length === 0 || entries.length > REMOTE_PACKAGE_LIMITS.maxEntries) {
+      throw new PluginRuntimeError("GitLab Plugin repository tree 无效或超过条目限制", {
+        code: PLUGIN_RUNTIME_ERROR_CODES.REMOTE_ARCHIVE_INVALID,
+        path: this.id,
+      });
+    }
+    const prefix = normalizedSubdir ? `${normalizedSubdir}/` : "";
+    const paths = new Set();
+    let totalBytes = 0;
+    fs.mkdirSync(target, { recursive: true });
+    for (const entry of entries.sort((left, right) => compareUtf8(String(left.path), String(right.path)))) {
+      const repositoryPath = assertSafePosixRelativePath(entry?.path, "GitLab repository tree 路径");
+      if (prefix && !repositoryPath.startsWith(prefix)) {
+        throw new PluginRuntimeError(`GitLab Plugin tree 条目逃逸选中目录:${repositoryPath}`, {
+          code: PLUGIN_RUNTIME_ERROR_CODES.REMOTE_ARCHIVE_INVALID,
+          path: this.id,
+        });
+      }
+      const relativePath = assertSafePosixRelativePath(
+        prefix ? repositoryPath.slice(prefix.length) : repositoryPath,
+        "GitLab Plugin tree 路径",
+      );
+      if (paths.has(relativePath)) {
+        throw new PluginRuntimeError(`GitLab Plugin tree 包含重复路径:${relativePath}`, {
+          code: PLUGIN_RUNTIME_ERROR_CODES.REMOTE_ARCHIVE_INVALID,
+          path: this.id,
+        });
+      }
+      paths.add(relativePath);
+      const destination = path.join(target, ...relativePath.split("/"));
+      if (entry.type === "tree" && entry.mode === "040000") {
+        fs.mkdirSync(destination, { recursive: true });
+        continue;
+      }
+      if (entry.type !== "blob" || !["100644", "100755"].includes(entry.mode)) {
+        throw new PluginRuntimeError(`GitLab Plugin tree 包含不安全条目:${repositoryPath}`, {
+          code: PLUGIN_RUNTIME_ERROR_CODES.REMOTE_ARCHIVE_INVALID,
+          path: this.id,
+        });
+      }
+      const content = await this.client.readRawBuffer(project, repositoryPath, commit);
+      if (!Buffer.isBuffer(content) || content.length > REMOTE_PACKAGE_LIMITS.maxEntryBytes) {
+        throw new PluginRuntimeError(`GitLab Plugin 文件超过大小限制:${repositoryPath}`, {
+          code: PLUGIN_RUNTIME_ERROR_CODES.REMOTE_ARCHIVE_INVALID,
+          path: this.id,
+        });
+      }
+      totalBytes += content.length;
+      if (totalBytes > REMOTE_PACKAGE_LIMITS.maxExtractedBytes) {
+        throw new PluginRuntimeError("GitLab Plugin repository tree 超过总大小限制", {
+          code: PLUGIN_RUNTIME_ERROR_CODES.REMOTE_ARCHIVE_INVALID,
+          path: this.id,
+        });
+      }
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.writeFileSync(destination, content, { mode: entry.mode === "100755" ? 0o755 : 0o644 });
     }
   }
 

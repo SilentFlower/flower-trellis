@@ -957,7 +957,7 @@ async function manageSource(context, sourceId) {
     section: "来源设置",
     icon: source.enabled ? "○" : "●",
   });
-  choices.push({
+  if (!source.builtin) choices.push({
     name: "编辑来源",
     value: "edit",
     description: source.type === "github"
