@@ -18,7 +18,7 @@ description: "统一 Check-All 入口：确认范围与运行上下文，按 req
 4. 先按根因性质和可达证据把发现分为主路径 `CHK-*`、兜底 `FBK-*` 与文档漂移 `DOC-*`，再为 `CHK-*` 和 `FBK-*` 分配 P0/P1/P2。
 5. 在最终报告前处理允许自动修复的文档漂移，并把修复内容展示在报告里。
 6. 根据 interactive / validated auto-loop 边界输出下一步或完成 runner `record + next`。
-7. untracked helper 只保存流程游标：findings 或新编辑设回 `implement`；只有严格通过且 disposition 确认继续时才 `advance --stage spec`。
+7. untracked helper 只保存流程游标：未处置 findings 或新编辑设回 `implement`；严格通过或已接受风险通过且 disposition 确认继续时才 `advance --stage spec`。
 
 ---
 
@@ -42,7 +42,7 @@ description: "统一 Check-All 入口：确认范围与运行上下文，按 req
 1. **默认 audit-only collect-all**：可以读文件、搜索、运行无业务写入副作用的 lint、typecheck 和测试；普通代码、配置、测试、任务规格语义问题不得在检查阶段直接修复。
 2. **唯一自修例外**：低风险文档漂移进入 `DOC-*` 通道，按 `references/document-drift-auto-remediation.md` 的白名单、黑名单和写入时机处理。
 3. **分类先于严重度**：读取 `references/fallback-findings.md`；主路径错误和非兜底契约违背进入 `CHK-*`，fail-closed、异常输入、失败降级和防御性保护缺口进入 `FBK-*`。契约证据影响严重度，不改变兜底根因归属。
-4. **修改前只确认一次**：除 `DOC-*` 自动修复外，全部检查结束后通过统一报告让用户选择 `CHK-*` / `FBK-*` 修复范围；`修复全部` 默认覆盖两类问题。
+4. **处置只确认一次**：除 `DOC-*` 自动修复外，全部检查结束后通过统一报告让用户选择 `CHK-*` / `FBK-*` 修复范围或明确接受当前风险；`修复全部` 默认覆盖两类问题，接受风险不得隐藏发现。
 5. **委托规则不改变边界**：复用 `trellis-check` 时只复用检查清单、验证方法和命令发现，忽略其中任何“直接修复”“失败后先修复”的指令。
 6. **真正阻塞才中途暂停**：只有业务规划冲突、后续验证前提失效、生产或外部副作用、破坏性操作风险时提前停止。
 
@@ -114,6 +114,7 @@ check_profile:
 - 三个维度状态；
 - 自动修复的 `DOC-*` 内容；
 - 剩余 `CHK-*` 主路径问题与 `FBK-*` 兜底问题；
+- 每个剩余问题的未处置或已接受风险状态；
 - 已执行验证和未覆盖风险；
 - 与当前结论匹配的唯一下一步。
 

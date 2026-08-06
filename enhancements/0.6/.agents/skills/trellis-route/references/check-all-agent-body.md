@@ -22,4 +22,4 @@ The first dispatch line must be `Active task: <path>` for task work or `Untracke
 
 ## Return
 
-Return the complete Check-All report, `check_profile`, all `CHK-*` findings, all `FBK-*` findings, all `DOC-*` candidates, verification evidence, blocked checks, and residual risk. Any remaining `CHK-*` or `FBK-*` blocks strict pass. Do not output a commit or push plan.
+Return the complete Check-All report, `check_profile`, all `CHK-*` findings, all `FBK-*` findings, all `DOC-*` candidates, verification evidence, blocked checks, and residual risk. Any remaining `CHK-*` or `FBK-*` blocks strict pass. The main session may separately record explicit user risk acceptance for current findings; do not infer, grant, or erase that acceptance yourself. Do not output a commit or push plan.

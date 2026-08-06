@@ -6,7 +6,7 @@
 
 ## 统一问题模型
 
-先按 `references/fallback-findings.md` 判定 `CHK-*` / `FBK-*`，再为两类问题分配 P0/P1/P2。分类表达根因性质，严重度描述当前实际影响；两者都不改变问题必须进入修复和 strict pass 门禁的处置规则。
+先按 `references/fallback-findings.md` 判定 `CHK-*` / `FBK-*`，再为两类问题分配 P0/P1/P2。分类表达根因性质，严重度描述当前实际影响；两者都不决定问题必须修复还是可以由用户接受风险。
 
 ### `CHK-*` 主路径问题
 
@@ -42,7 +42,19 @@
 | 位置 | 同一根因的全部受影响位置 |
 | 验证 | 修复后的测试、故障注入、命令或手动验证步骤 |
 
-`CHK-*` 与 `FBK-*` 分开编号。同一根因的多个位置合并到一个问题；报告按严重度排序，但不得因此重排已经分配的 ID。新根因使用对应通道的下一个 ID。
+`CHK-*` 与 `FBK-*` 分开编号。同一根因的多个位置合并到一个问题；报告按严重度排序，但不得因此重排已经分配的 ID。新根因使用对应通道的下一个 ID。每个问题还必须标记 `未处置` 或 `已接受风险`；处置状态不改变 ID、通道和严重度。
+
+## 风险接受
+
+风险接受是用户对当前报告的显式处置，不是检查器对问题严重度的降级：
+
+1. 只有用户可以接受风险；主会话、subagent 和 validated auto-loop 都不得代替用户推断或授权。
+2. 接受必须唯一对应当前报告的问题 ID。用户可以写 `接受风险 CHK-001,FBK-002 并继续`；当前报告只有一个候选时，“这个问题”“不管这个”等明确指代可以解析为该 ID。P0 必须逐项写出精确 ID，不接受 `接受全部剩余风险`。
+3. 接受只绑定当前问题证据与实际 diff。受影响代码、契约、验证结果、问题内容或严重度变化后，原接受立即失效，问题恢复为 `未处置`。
+4. 已接受问题继续完整展示证据、影响、建议和验证，并标记 `处置：已接受风险`；不得删除、改列 `DOC-*` 或伪报已修复。
+5. `strict pass` 只用于剩余 `CHK-*` / `FBK-*` 均为 0。所有剩余问题均已被有效接受，且无 blocked、无部分验证、无未接受的实质剩余风险时，结论为 `通过·已接受风险`。
+6. blocked、部分验证和无法唯一对应到当前问题 ID 的实质剩余风险不是 `CHK-*` / `FBK-*` 处置状态，不能借风险接受绕过。
+7. `仅保留报告` 表示停止处置并等待，不等于接受风险；只有带明确接受语义的用户回复才改变问题处置状态。
 
 ---
 
@@ -53,7 +65,7 @@ interactive 模式完成所有可继续检查和允许的 `DOC-*` 自动修复�
 ```markdown
 ## Trellis Check-All 结果
 
-[<通过/未通过/阻塞>] <N> 个维度 · CHK <N> · FBK <N> · 自动修复 DOC <N> · P0 <N> / P1 <N> / P2 <N> · 验证 <通过>/<总数>
+[<通过/通过·已接受风险/未通过/阻塞>] <N> 个维度 · CHK <N>（接受 <N>）· FBK <N>（接受 <N>）· 自动修复 DOC <N> · P0 <N> / P1 <N> / P2 <N> · 验证 <通过>/<总数>
 
 工作：<任务名称 | Untracked work: work-id | 无活动工作>
 范围：<文件数与层级摘要；包含自动修复产生的文档 diff>
@@ -77,6 +89,7 @@ interactive 模式完成所有可继续检查和允许的 `DOC-*` 自动修复�
 ### 主路径问题
 
 - [ ] `CHK-001` `[P1]` <标题>
+  - 处置：<未处置/已接受风险>
   - 来源：<来源>
   - 证据：<file:line / 契约 / 命令结果>
   - 影响：<影响>
@@ -87,6 +100,7 @@ interactive 模式完成所有可继续检查和允许的 `DOC-*` 自动修复�
 ### 兜底问题
 
 - [ ] `FBK-001` `[P1]` <标题>
+  - 处置：<未处置/已接受风险>
   - 来源：<来源>
   - 证据：<file:line / 契约 / 命令结果>
   - 兜底场景：<可达异常或失败场景>
@@ -105,7 +119,7 @@ interactive 模式完成所有可继续检查和允许的 `DOC-*` 自动修复�
 批次 1：<CHK/FBK 问题 ID> · <修复目标>
 修复后：定向验证 -> Check-All 重检
 
-操作：`修复全部`、`修复 CHK-001,FBK-002`、`仅保留报告`
+操作：`修复全部`、`修复 CHK-001,FBK-002`、`接受风险 CHK-001,FBK-002 并继续`、`仅保留报告`
 
 ### 下一步
 
@@ -116,9 +130,10 @@ interactive 模式完成所有可继续检查和允许的 `DOC-*` 自动修复�
 
 - 没有 `DOC-*` 自动修复时省略“自动修复”区。
 - 没有 `CHK-*` 时省略“主路径问题”区；没有 `FBK-*` 时省略“兜底问题”区。
-- `CHK-*` 或 `FBK-*` 任一存在时展示“修复批次”，并只在报告末尾提供一次修复范围选择，不再逐项提问。
+- 存在未处置 `CHK-*` 或 `FBK-*` 时展示“修复批次”，并只在报告末尾提供一次处置选择，不再逐项提问。
 - `修复全部` 始终覆盖全部 `CHK-*` 与 `FBK-*`；精确修复可以混合两类 ID。
-- `仅保留报告` 只表示停止修复，不改变未通过结论或剩余风险。
+- 风险接受可以混合两类 ID；只有全部剩余问题都已有效接受时才形成“通过·已接受风险”。
+- `仅保留报告` 只表示停止处置，不改变未通过结论或剩余风险。
 - interactive 标准报告必须以“下一步”段结束；停止等待不等于省略引导。
 - 独立 `CHK-*` 或 `FBK-*` 不得因数量多而静默省略；先合并同根因重复项，再完整列出剩余项。
 - 报告不得包含 commit message、拟提交/暂存文件、commit-only 决策或提交确认。
@@ -160,9 +175,9 @@ interactive 模式完成所有可继续检查和允许的 `DOC-*` 自动修复�
 <按下方 `Interactive Post-Check Stop Gate` 输出一个明确、可执行的主动作>
 ```
 
-检查通过后的动作由下方 `Interactive Post-Check Stop Gate` 判断：普通交互停止等待，符合 direct Git 严格通过条件时同轮进入 Phase 3.3 `trellis-update-spec`，再到 Phase 3.4 `trellis-push`。仍有 `CHK-*` 或 `FBK-*` 时停留在修复/重检循环。
+检查通过后的动作由下方 `Interactive Post-Check Stop Gate` 判断：普通交互停止等待，符合 direct Git strict pass 或已接受风险通过条件时同轮进入 Phase 3.3 `trellis-update-spec`，再到 Phase 3.4 `trellis-push`。仍有未处置 `CHK-*` 或 `FBK-*` 时停留在处置/重检循环。
 
-untracked helper 不记录 Check-All 证据。普通严格通过但尚未继续时保持 `stage=check`；只有 direct Git 同轮继续或用户后续明确继续时才 `advance --stage spec`。有剩余 `CHK-*`、`FBK-*`、部分验证、阻塞或报告后的新编辑时，先 `advance --stage implement` 再返回实现。
+untracked helper 不记录 Check-All 证据或风险接受。普通 strict pass / 已接受风险通过但尚未继续时保持 `stage=check`；只有 direct Git 同轮继续或用户后续明确继续时才 `advance --stage spec`。有未处置 `CHK-*`、`FBK-*`、部分验证、阻塞或报告后的新编辑时，先 `advance --stage implement` 再返回实现。
 
 ---
 
@@ -171,7 +186,7 @@ untracked helper 不记录 Check-All 证据。普通严格通过但尚未继续�
 validated auto-loop 复用相同的画像、profile、`DOC-*` 通道和问题模型，但不展示普通模式的修复选择：
 
 - 有 `DOC-*` 且可自动修复：主会话先应用并验证；当前任务 `implement.md` / `brief.md` 的每个实际变化都追加精确 `--doc-remediation-file`，再决定最终 `ok|failed|blocked`。
-- 有剩余 `CHK-*` 或 `FBK-*`：向 runner `record --result failed --effective-check-depth <light|full> --check-depth-reason <summary>`，摘要包含最高严重度、两类问题 ID、根因、受影响文件和已自动修复的 `DOC-*`。
+- 有剩余 `CHK-*` 或 `FBK-*`：向 runner `record --result failed --effective-check-depth <light|full> --check-depth-reason <summary>`，摘要包含最高严重度、两类问题 ID、根因、受影响文件和已自动修复的 `DOC-*`。validated auto-loop 不创建也不复用 interactive 风险接受。
 - 真正需要用户产品决策、越权、生产副作用或破坏性安全决策：使用同样深度字段 `record --result blocked`，随后按 runner 状态停止。
 - 无剩余 `CHK-*` 且无剩余 `FBK-*`：`record --result ok --effective-check-depth <light|full> --check-depth-reason <summary>`，摘要包含自动修复数量；只有两类问题都为 0 才能进入通过路径。
 - record 成功后立即 `next`；若返回 `status=retryable reason=artifact-drift`，不得 `next`，先按 runner 指令在同一 outstanding action 内自纠并重录。validated auto-loop 不渲染交互式下一步段、不提示用户回复“继续”、不等待普通修复范围选择。
@@ -185,19 +200,19 @@ subagent 只返回结构化 `CHK-*`、`FBK-*`、`DOC-*` 候选、报告和 `chec
 
 非 validated auto-loop 先输出完整标准报告，再在本 Gate 内按以下顺序分流：
 
-1. 只从触发本轮完成链的最新用户消息识别 direct Git intent：明确请求普通 push，或用户主动 `commit-only`。不得从历史消息、任务标题、摘要、dirty 状态或 auto-loop 内部 action 推断。
-2. direct Git 只有在 Check-All 整体结论通过、剩余 `CHK-*` 和 `FBK-*` 均为 0、无阻塞、无部分验证、无待用户接受的实质剩余风险时才算严格通过。允许存在已成功验证的 `DOC-*` 自动修复；标准报告输出后，同一轮进入 Phase 3.3 `trellis-update-spec`；`no-op|written` 再由其加载 `trellis-push`，`needs-review` 停止。
-3. 剩余 `CHK-*`、`FBK-*`、blocked、部分验证或实质剩余风险均不满足条件：输出标准报告并停止，不运行 Update-Spec，也不生成 Git 计划。原始 Git 请求不授权自动修复普通问题、忽略问题或扩大 Git 权限。
+1. 只从当前完成链证据识别 direct Git intent：触发检查的最新用户消息明确请求普通 push 或用户主动 `commit-only`；或者 Check-All 已因该 Git 请求报告并停止后，用户在当前报告上明确接受风险并要求继续。不得从任务标题、摘要、dirty 状态、无关历史或 auto-loop 内部 action 推断。
+2. direct Git 在以下任一条件成立时可以继续：Check-All strict pass；或全部剩余 `CHK-*` / `FBK-*` 都有当前有效的用户风险接受。两条路径还必须无阻塞、无部分验证、无未接受的实质剩余风险。允许存在已成功验证的 `DOC-*` 自动修复；标准报告输出后，同一轮进入 Phase 3.3 `trellis-update-spec`；`no-op|written` 再由其加载 `trellis-push`，`needs-review` 停止。
+3. 未处置 `CHK-*` / `FBK-*`、blocked、部分验证或未接受的实质剩余风险均不满足条件：输出标准报告并停止，不运行 Update-Spec，也不生成 Git 计划。原始 Git 请求不授权自动修复普通问题或替用户接受风险。
 4. 没有匹配 direct Git intent 的普通 interactive 检查保持原行为：报告后立即停止并等待用户选择。
 
 ### 交互式下一步引导
 
 所有 interactive 标准报告都必须在末尾输出 `### 下一步`，并按以下首个命中分支给出一个明确主动作：
 
-1. 有剩余 `CHK-*` 或 `FBK-*`：提示用户回复 `修复全部`、混合精确问题 ID 或 `仅保留报告`；不得重复提出逐项确认。
+1. 有未处置 `CHK-*` 或 `FBK-*`：提示用户回复 `修复全部`、混合精确问题 ID、`接受风险 <问题 ID> 并继续` 或 `仅保留报告`；不得重复提出逐项确认。
 2. 有 blocked、部分验证或实质剩余风险：指出解除阻塞所需的精确决策、授权或验证，以及完成后重新运行 Check-All；涉及生产、外部系统或破坏性副作用时只引导用户授权，不自行执行。
-3. direct Git 严格通过：说明本轮正在进入 `trellis-update-spec`，不要求用户再次回复“继续”或确认 Git 计划。
-4. 无 direct Git intent 且严格通过：提示用户回复 `继续`，下一轮进入 `trellis-update-spec`，再由 `trellis-push` 生成提交计划。
+3. direct Git strict pass 或已接受风险通过：说明本轮正在进入 `trellis-update-spec`，不要求用户再次回复“继续”或确认 Git 计划。
+4. 无 direct Git intent 且 strict pass / 已接受风险通过：提示用户回复 `继续`，下一轮进入 `trellis-update-spec`，再由 `trellis-push` 生成提交计划。
 
 停止边界只控制是否自动推进，不能让报告在没有下一步提示的情况下结束。
 
@@ -209,6 +224,6 @@ subagent 只返回结构化 `CHK-*`、`FBK-*`、`DOC-*` 候选、报告和 `chec
 - 已执行验证及结果；
 - 未覆盖验证和剩余风险；
 - 总体结论；
-- 与当前结论匹配的唯一主动作引导；有 `CHK-*` 或 `FBK-*` 时是一次修复范围选择，部分验证/阻塞时是补充决策或验证，通过时是 Phase 3.3 / Phase 3.4 指向。
+- 与当前结论匹配的唯一主动作引导；有未处置 `CHK-*` 或 `FBK-*` 时是一次修复或风险接受选择，部分验证/阻塞时是补充决策或验证，通过时是 Phase 3.3 / Phase 3.4 指向。
 
 Check-All 不新增 direct Git 专用摘要，也不得自行生成提交计划、commit message、拟提交文件或要求用户确认提交；strict pass 后的 Git 计划仍由 Update-Spec disposition 和 `trellis-push` owner 生成。

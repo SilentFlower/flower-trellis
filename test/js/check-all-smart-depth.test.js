@@ -59,12 +59,12 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   assert.doesNotMatch(autoLoopGate, /提示用户回复 `继续`/);
   assert.match(interactiveGate, /非 validated auto-loop 先输出完整标准报告/);
   assert.match(interactiveGate, /提示用户回复 `继续`/);
-  assert.match(reporting, /最新用户消息识别 direct Git intent/);
-  assert.match(reporting, /剩余 `CHK-\*`、`FBK-\*`、blocked、部分验证或实质剩余风险/);
+  assert.match(reporting, /只从当前完成链证据识别 direct Git intent/);
+  assert.match(reporting, /未处置 `CHK-\*` \/ `FBK-\*`、blocked、部分验证或未接受的实质剩余风险/);
   assert.match(reporting, /普通 interactive 检查保持原行为/);
   assert.match(reporting, /所有 interactive 标准报告都必须在末尾输出 `### 下一步`/);
   assert.match(reporting, /有 blocked、部分验证或实质剩余风险：指出解除阻塞所需的精确决策、授权或验证/);
-  assert.match(reporting, /无 direct Git intent 且严格通过：提示用户回复 `继续`/);
+  assert.match(reporting, /无 direct Git intent 且 strict pass \/ 已接受风险通过：提示用户回复 `继续`/);
   assert.match(reporting, /停止边界只控制是否自动推进，不能让报告在没有下一步提示的情况下结束/);
   assert.match(reporting, /不新增 direct Git 专用摘要/);
 });

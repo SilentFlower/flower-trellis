@@ -33,7 +33,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 除 auto-loop 内部 `commit-only` 外，普通 push 或用户 `commit-only` 已经构成明确 Git 意图。本 skill 在读取 Git 提交计划前只记录当前可用的完成链证据，不补跑、不切换阶段，也不新增确认：
 
-- Check-All：根据当前标准报告与实际 diff 标记为 `通过`、`未运行`、`已失效`、`存在阻断 findings`、`blocked` 或 `部分验证`。只有剩余 `CHK-*` 与 `FBK-*` 均为 0 才能标记为 `通过`；没有可验证的当前报告时使用 `未运行`，不得从历史消息、摘要或 dirty 状态猜测通过。
+- Check-All：根据当前标准报告与实际 diff 标记为 `通过`、`通过（已接受风险）`、`未运行`、`已失效`、`存在未处置 findings`、`blocked` 或 `部分验证`。剩余 `CHK-*` 与 `FBK-*` 均为 0 时标记为 `通过`；所有剩余问题都有当前有效的用户风险接受时标记为 `通过（已接受风险）`，并保留问题 ID 与严重度。没有可验证的当前报告时使用 `未运行`，不得从历史消息、摘要或 dirty 状态猜测通过或风险接受。
 - Update-Spec：根据当前 `spec_update_result` 与实际 diff 标记为 `no-op`、`written`、`needs-review`、`未运行` 或 `已失效`。结果缺失或无法证明仍适用于当前 diff 时使用 `未运行` / `已失效`。
 
 上述状态只进入 Step 3 的完成链证据与风险展示，不会阻止读取 Git 状态或生成提交计划。本步骤不得返回 Phase 2.2，不得加载 `trellis-check-all` 或 `trellis-update-spec`，也不得要求用户改写成“跳过检查后 push”。正常 workflow 的 Check-All -> Update-Spec -> Push 顺序仍由 Phase 2.2、Phase 3.3 和各自 owner 推进；`trellis-push` 不反向补做上游阶段。
@@ -136,7 +136,7 @@ auto-loop 内部 `commit-only` 也允许 retained dirty 存在，但每个生成
 顺序：<repo-a> [-> `<local generation command>`] -> <repo-b> [-> task progress]
 
 ### 完成链证据
-- Check-All：<通过 / 未运行 / 已失效 / 存在阻断 findings / blocked / 部分验证>
+- Check-All：<通过 / 通过（已接受风险：CHK-001,FBK-002） / 未运行 / 已失效 / 存在未处置 findings / blocked / 部分验证>
 - Update-Spec：<no-op / written / needs-review / 未运行 / 已失效>
 
 ### 1. <repository-name>
@@ -176,7 +176,7 @@ Push：<执行 / 跳过（commit-only）>
 - 超过 8 个时按目录归组，最多 12 行；用户要求展开时展示同一 exact set。
 - 顶部仓库/commit/file 总数包含独立任务记录提交所在 Git root、该提交及其 exact files；任务记录文件使用相同的 8 文件展示阈值和展开规则。
 - 保留未提交的变更始终逐项标注 Git 状态；真正风险在独立“风险”区逐项展示。
-- 完成链证据始终显示当前状态，但不重复 Check-All 报告或 Spec review 正文；`未运行`、`已失效`、任一剩余 `CHK-*` / `FBK-*`、blocked、部分验证或 `needs-review` 同时计入风险区。
+- 完成链证据始终显示当前状态，但不重复 Check-All 报告或 Spec review 正文；`未运行`、`已失效`、任一未处置 `CHK-*` / `FBK-*`、blocked、部分验证或 `needs-review` 同时计入风险区。已接受风险的问题也必须按 ID、严重度和影响进入风险区，但不得改标为阻断 finding。
 - 无活动 task、untracked 或 `commit-only` 时省略进度动作。
 - 不重复展示检查结果、规范复核、归档或其他阶段的详细信息。
 - 生成前无法确定的内容和增删行写“生成后计算”，不得填预测值。
