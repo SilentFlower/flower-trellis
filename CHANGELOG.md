@@ -4,6 +4,18 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.0-beta.7](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.6...v0.6.0-beta.7) (2026-08-06)
+
+
+### ✨ 新功能 Features
+
+* **trellis:** 支持接受 Check-All 检查风险 ([589dd9a](https://github.com/SilentFlower/flower-trellis/commit/589dd9ad14e0755ea47da46345f14567b1632285))
+
+
+### 🐛 修复 Bug Fixes
+
+* **plugin:** 修复 GitLab 私有来源安装 ([4ba3cf6](https://github.com/SilentFlower/flower-trellis/commit/4ba3cf610f8fef99ef0297654d1859510be8f07e))
+
 ## [0.6.0-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.5...v0.6.0-beta.6) (2026-08-05)
 
 

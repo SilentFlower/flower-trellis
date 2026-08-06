@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.0-beta.6",
+  "version": "0.6.0-beta.7",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -68,9 +68,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.0-beta.6",
+    "version": "0.6.0-beta.7",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **skill-garden:** 将 DMS、SLS、MSE/Nacos 整合为阿里云运维查询 Skill ([44ba195](https://github.com/SilentFlower/flower-trellis/commit/44ba195a5cbc8943fe0f38bbcff94ae4d940791e))\n* **skill:** 集成阿里云 DMS 查询 Skill ([a582d1c](https://github.com/SilentFlower/flower-trellis/commit/a582d1cc45ea38b8288b75bd4511f378eb5997a2))\n* **trellis:** 将 Check-All 可选问题收敛为统一兜底分类 ([eda90ec](https://github.com/SilentFlower/flower-trellis/commit/eda90ecc3fd3e92317cb15f054f837900fb2467e))\n* **trellis:** 新增 Check-All 可选问题分类 ([839904e](https://github.com/SilentFlower/flower-trellis/commit/839904e3d584f3f71190d95fb623612673f9b210))\n* **trellis:** 新增 Trellis 项目级关闭与恢复能力 ([a27b5c2](https://github.com/SilentFlower/flower-trellis/commit/a27b5c2966a29f394d1dc98341e4c3be5ac7a030))\n* **worktree:** 让 Trellis worktree 状态按分支隔离 ([dde2fbb](https://github.com/SilentFlower/flower-trellis/commit/dde2fbb792714f326d9f48a85e055229eb4bd4bb))",
+    "body": "### ✨ 新功能 Features\n\n* **trellis:** 支持接受 Check-All 检查风险 ([589dd9a](https://github.com/SilentFlower/flower-trellis/commit/589dd9ad14e0755ea47da46345f14567b1632285))\n\n\n### 🐛 修复 Bug Fixes\n\n* **plugin:** 修复 GitLab 私有来源安装 ([4ba3cf6](https://github.com/SilentFlower/flower-trellis/commit/4ba3cf610f8fef99ef0297654d1859510be8f07e))",
     "truncated": false
   },
   "optionalDependencies": {
