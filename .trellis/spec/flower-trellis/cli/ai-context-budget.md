@@ -123,13 +123,34 @@ ceiling 才由 strict 阻断。
 
 ## Change Review
 
-新增高频内容前依次检查：
+体量优化先做能力守恒，不以删除审计维度、风险门禁或失败关闭语义换取字节下降。修改前必须列出
+受保护能力及其现有断言，再按固定顺序压缩：
 
-1. 能否通过 Patch `replace/remove` 删除旧规则，而不是追加？
-2. 能否只放在 skill/helper，由 hub/state 保留一句指向？
-3. Phase summary 和 SessionStart 是否都会携带它，造成重复成本？
-4. 能否删除同义旧规则抵消增长？
-5. 最终文件的 actual/delta/status 和 `control-context-total` 是什么？
+```text
+protected capabilities:
+  审计维度与 finding 分类
+  行为性 hard-full 与未知影响 fallback-full
+  light -> full 单向升级
+  strict pass 的阻断语义
+
+optimization order:
+  replace/remove 重复规则
+  用行为契约信号替换载体或主题域判据
+  将低频细则改为候选命中后条件加载
+  下游消费者收敛为一跳摘要和权威入口
+```
+
+新增或压缩高频内容前依次检查：
+
+1. 哪些能力必须保持，分别由哪个正向和反向断言证明？
+2. 能否通过 Patch `replace/remove` 删除旧规则，而不是追加？
+3. 能否把低频类型矩阵、证据细则或例外说明改为条件加载？
+4. 能否只放在 skill/helper，由 hub/state 保留一句指向？
+5. Phase summary 和 SessionStart 是否都会携带它，造成重复成本？
+6. 最终文件的 actual/delta/status、专项默认必读集合和 `control-context-total` 是什么？
+
+若只有删除 hard-full、fallback-full、finding 分类、升级门禁或 strict-pass 阻断才能满足预算，停止修改并重新设计；
+light 命中增加只能来自载体误判消除和范围可闭合，不能来自真实行为风险门禁减少。
 
 典型职责边界：
 
@@ -154,6 +175,11 @@ ceiling 才由 strict 阻断。
 | 项目存在自定义 workflow-state | 动态计入 state 与 states-total |
 | 新规则复制到 hub/state/skill | 评审阻断，先去重 |
 | 只提高 ceiling 以消除 warning | 评审阻断 |
+| 默认必读字节不增且受保护能力断言全部通过 | 通过；体量控制没有削弱能力 |
+| 字节下降但删除了行为性 full、fallback-full 或 strict-pass 反向断言 | 评审阻断；不能证明能力守恒 |
+| 低频细则只在候选命中后加载 | 通过；单独计量该文件，不加入默认集合 |
+| light 增加来自移除载体型 hard-full，行为性 hard-full 仍覆盖 | 通过 |
+| light 增加来自未知影响不再 fallback-full 或风险门禁减少 | 失败 |
 
 ## Tests Required
 
@@ -172,6 +198,9 @@ node scripts/check-ai-context-budget.mjs --strict
 - state 从最终 workflow 动态枚举，不写死文件数量。
 - Update-Spec/Finish-Work 从 compiled final 平台入口测量，不读取 Patch content；Auto-Loop 从直接铺设的 canonical variant skill 测量。
 - control-context-total 使用固定公式和最大平台入口。
+- 专项 skill 测试同时固定默认必读字节基线与受保护能力断言；不能只测文件变小。
+- 条件加载 reference 单独计量，并断言主入口没有复制其低频类型矩阵或证据细则。
+- 深度路由必须有反向用例：载体名称不触发 full，真实行为契约和未知影响仍触发 full/fallback-full。
 
 ## Wrong vs Correct
 
@@ -186,3 +215,8 @@ node scripts/check-ai-context-budget.mjs --strict
 **Wrong**：预算 warning 出现后直接提高 review ceiling。
 
 **Correct**：先看最终 delta 和总量，删除或替换重复正文；确有不可压缩的新门禁时再记录理由和新基线。
+
+**Wrong**：为让 Skill 变短，删除 hard-full、FBK 证据或 strict-pass 约束，只保留“按风险判断”的概括句。
+
+**Correct**：保留高频决策所需的行为门禁，把低频矩阵条件加载；同时用字节基线和正反场景测试证明
+入口更小、light 更稳定，但 full、fallback 和 strict pass 能力没有减少。
