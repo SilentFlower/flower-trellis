@@ -53,13 +53,13 @@ flower-trellis init -u <your-name> -y
 flower-trellis update
 
 # 真正关闭整个项目中全部平台的 Trellis 集成
-flower-trellis trellis disable --target .
+flower-trellis disable --target .
 
 # 查看项目级开关和入口漂移状态
-flower-trellis trellis status --target .
+flower-trellis status --target .
 
 # 恢复 Trellis，并规范化到当前 Flower/Trellis 版本
-flower-trellis trellis enable --target .
+flower-trellis enable --target .
 
 # 临时保留最近 5 份升级备份；传 0 可关闭本次自动清理
 flower-trellis update --backup-retention 5
@@ -119,27 +119,27 @@ flower-trellis -v
 
 ## 项目级关闭与恢复
 
-`flower-trellis trellis disable` 是整个项目的真正关闭，不是只跳过一次 Hook。它会在一次事务中移除全部已配置平台可发现的 Trellis Skills、Agents、Commands、Workflows、Hooks、Extensions、平台配置入口，以及 `AGENTS.md` 中的 Trellis 管理块。开关始终作用于整个项目，不提供平台级参数，也不会留下不同平台一开一关的混合状态。
+`flower-trellis disable` 是整个项目的真正关闭，不是只跳过一次 Hook。它会在一次事务中移除全部已配置平台可发现的 Trellis Skills、Agents、Commands、Workflows、Hooks、Extensions、平台配置入口，以及 `AGENTS.md` 中的 Trellis 管理块。开关始终作用于整个项目，不提供平台级参数，也不会留下不同平台一开一关的混合状态。
 
 关闭不会删除 `.trellis/tasks/`、`.trellis/spec/`、`.trellis/workspace/`、当前任务或 `.flower/plugins.json` / `plugin-lock.json` / `state.json`。恢复材料保存在 gitignored 的 `.flower/trellis-control.json` 和 `.flower/trellis-detached/`；它们记录原始字节、文件 mode、所有权和关闭前后摘要。当前会话已经加载的上下文无法被命令撤回，因此 disable 或 enable 完成后都需要重启 AI 会话。
 
 ```bash
 # 只读预演，显示将 detach 的全部入口
-flower-trellis trellis disable --dry-run --json --target .
+flower-trellis disable --dry-run --json --target .
 
 # 真正关闭；修改过的独占受管文件默认会在写盘前阻断
-flower-trellis trellis disable --target .
+flower-trellis disable --target .
 
 # 查看 enabled / disabled / drifted / repair-required / not-initialized
-flower-trellis trellis status --json --target .
+flower-trellis status --json --target .
 
 # 精确恢复关闭前现场，再运行当前版本的 update 和 Plugin replay
-flower-trellis trellis enable --target .
+flower-trellis enable --target .
 ```
 
 共享 JSON 与 `AGENTS.md` 采用结构化恢复，关闭期间新增的无关用户配置会保留。无法安全拆分的修改默认冲突并保持零写入；`--force` 只处理恢复证据完整时的独占文件冲突、共享 JSON 恢复冲突或 drifted 重收敛，用户现场会先保存到 detached 恢复证据中。`repair-required` 表示控制状态或恢复材料已经不可信，disable/enable 即使带 `--force` 也会拒绝覆盖，必须先依据诊断修复证据。
 
-项目处于 disabled 时，`flower-trellis update`、`self-update` 的项目更新链，以及 `plugin add/update/remove/replay` 会临时恢复必要入口，完成写操作后再次 detach，并校验最终仍为 disabled；外部 Plugin 内容不会被当作 Trellis 入口删除。直接运行上游 `trellis update` 不经过这一控制面，可能重新生成入口，此时 `flower-trellis trellis status` 会报告 `drifted`。`disable` 也不等同于 `uninstall`：历史数据和恢复能力会继续保留。
+项目处于 disabled 时，`flower-trellis update`、`self-update` 的项目更新链，以及 `plugin add/update/remove/replay` 会临时恢复必要入口，完成写操作后再次 detach，并校验最终仍为 disabled；外部 Plugin 内容不会被当作 Trellis 入口删除。直接运行上游 `trellis update` 不经过这一控制面，可能重新生成入口，此时 `flower-trellis status` 会报告 `drifted`。`disable` 也不等同于 `uninstall`：历史数据和恢复能力会继续保留。
 
 ## Flower Plugin
 

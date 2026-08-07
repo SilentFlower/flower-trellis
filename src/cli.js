@@ -17,6 +17,9 @@ import { installWindowsTerminalInputRecovery } from "./lib/terminal-state.js";
  * - 其它子命令 → 兜底透传给 trellis(覆盖现有及未来命令)。
  */
 
+/** 项目级 Trellis 开关的顶层命令名;`trellis <子命令>` 保留为兼容别名。 */
+const TRELLIS_CONTROL_COMMANDS = new Set(["status", "enable", "disable"]);
+
 /**
  * 格式化版本行。
  * @param {string} label 版本标签
@@ -77,7 +80,9 @@ function printHelp() {
   flower-trellis update-check <get|set|disable|enable|snooze|skip|reset>
                                                         管理启动更新策略
   flower-trellis telemetry <status|enable|disable>       管理匿名安装遥测
-  flower-trellis trellis <disable|enable|status>         项目级关闭、恢复或检查 Trellis
+  flower-trellis status                                 检查项目级 Trellis 开关状态
+  flower-trellis disable                                项目级关闭 Trellis
+  flower-trellis enable                                 项目级恢复 Trellis
   flower-trellis plugin                                 交互管理 Plugin、来源与 GitLab 授权
   flower-trellis worktree <status|prepare|migrate|create|remove>
                                                         管理分支本地化 Git worktree
@@ -110,6 +115,8 @@ Worktree:
                                       可显式继承同仓同开发者的个人 route 偏好
 
 命令别名:flower-trellis 可简写为 ftl 或 ft(三者完全等价)。
+项目级开关:status / disable / enable 支持 [--dry-run] [--force] [--target <dir>] [--json];
+旧写法 flower-trellis trellis <status|enable|disable> 继续等价保留。
 init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联网、带超时,失败静默)。
 通用技能管理已整合到 Plugin 管理器的 Flower 内置 Skill Garden 入口；
 原 flower-trellis skill 命令继续保留为高级兼容入口。
@@ -168,9 +175,13 @@ async function main() {
     } else if (cmd === "telemetry") {
       const { telemetry } = await import("./commands/telemetry.js");
       await telemetry(ctx);
-    } else if (cmd === "trellis") {
+    } else if (cmd === "trellis" || TRELLIS_CONTROL_COMMANDS.has(cmd)) {
       const { trellis } = await import("./commands/trellis.js");
-      const code = await trellis(ctx);
+      // 顶层 status/enable/disable 与 `trellis <子命令>` 等价:把子命令补回透传参数首位。
+      const controlCtx = cmd === "trellis"
+        ? ctx
+        : { ...ctx, passthrough: [cmd, ...ctx.passthrough] };
+      const code = await trellis(controlCtx);
       if (code !== 0) process.exitCode = code;
     } else if (cmd === "skill") {
       const { skill } = await import("./commands/skill.js");

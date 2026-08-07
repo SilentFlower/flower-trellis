@@ -344,9 +344,9 @@ if (shouldUseUpdateSandbox({
 ### 2. Signatures And State
 
 ```bash
-flower-trellis trellis disable [--dry-run] [--force] [--target <dir>] [--json]
-flower-trellis trellis enable  [--dry-run] [--force] [--target <dir>] [--json]
-flower-trellis trellis status  [--target <dir>] [--json]
+flower-trellis disable [--dry-run] [--force] [--target <dir>] [--json]
+flower-trellis enable  [--dry-run] [--force] [--target <dir>] [--json]
+flower-trellis status  [--target <dir>] [--json]
 ```
 
 ```text
@@ -367,6 +367,8 @@ runWithTrellisIntegrationEnabled(projectRoot, operation)
 
 ### 3. Contracts
 
+- 命令面以 `flower-trellis status|enable|disable` 为一等命令；`flower-trellis trellis <子命令>`
+  保留为等价别名。两种写法必须走同一份参数解析、退出码和 JSON 契约，不得出现行为分叉。
 - `disable` 的目标真源只允许来自 Trellis `.template-hashes.json`、
   `getConfiguredPlatforms()` + `collectPlatformTemplates()` 和 `flower/skill-garden` Plugin state；
   不得按目录名猜测 ownership。重复物理路径必须稳定去重并保留全部 owner provenance。

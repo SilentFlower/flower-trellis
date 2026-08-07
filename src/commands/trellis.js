@@ -25,7 +25,10 @@ const CONFLICT_CODES = new Set([
 /**
  * 解析 Trellis 项目级控制子命令。
  *
- * @param {string[]} argv `trellis` 后的参数
+ * 顶层写法 `flower-trellis <status|enable|disable>` 与兼容别名
+ * `flower-trellis trellis <子命令>` 在 cli.js 归一为同一份 argv 后进入这里。
+ *
+ * @param {string[]} argv 以控制子命令开头的参数
  * @returns {{command:"disable"|"enable"|"status",dryRun:boolean,force:boolean,json:boolean,help:boolean}} 解析结果
  */
 export function parseTrellisControlArgs(argv) {
@@ -54,7 +57,7 @@ export function parseTrellisControlArgs(argv) {
     }
   }
   if (command === "status" && (dryRun || force)) {
-    throw new TrellisControlError("trellis status 不支持 --dry-run 或 --force", {
+    throw new TrellisControlError("status 不支持 --dry-run 或 --force", {
       code: TRELLIS_CONTROL_ERROR_CODES.USAGE_ERROR,
       path: command,
     });
@@ -64,12 +67,13 @@ export function parseTrellisControlArgs(argv) {
 
 function printHelp(output) {
   output.log(`用法:
-  flower-trellis trellis disable [--dry-run] [--force] [--target <dir>] [--json]
-  flower-trellis trellis enable  [--dry-run] [--force] [--target <dir>] [--json]
-  flower-trellis trellis status  [--target <dir>] [--json]
+  flower-trellis disable [--dry-run] [--force] [--target <dir>] [--json]
+  flower-trellis enable  [--dry-run] [--force] [--target <dir>] [--json]
+  flower-trellis status  [--target <dir>] [--json]
 
 开关始终作用于整个项目和全部已配置平台；操作完成后需要重启 AI 会话。`);
   output.log("--force 仅处理恢复证据完整时的目标冲突；repair-required 必须先修复证据。");
+  output.log("旧写法 flower-trellis trellis <status|enable|disable> 继续等价保留。");
 }
 
 function printStatus(result, output) {

@@ -424,6 +424,50 @@ test("真实 CLI status 和 disable dry-run 保持零写入", (t) => {
   assert.equal(JSON.parse(status.stdout).status, "enabled");
 });
 
+test("顶层 status/disable/enable 与 trellis 子命令写法完全等价", (t) => {
+  const { project } = createProject(t);
+  const run = (args) => spawnSync(
+    process.execPath,
+    [CLI, ...args, "--target", project],
+    { cwd: project, encoding: "utf8" },
+  );
+
+  const status = run(["status", "--json"]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.equal(JSON.parse(status.stdout).status, "enabled");
+
+  const before = fs.statSync(path.join(project, ".codex/config.toml"), { bigint: true }).mtimeNs;
+  const preview = run(["disable", "--dry-run", "--json"]);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.equal(JSON.parse(preview.stdout).status, "dry-run");
+  assert.equal(fs.statSync(path.join(project, ".codex/config.toml"), { bigint: true }).mtimeNs, before);
+  assert.equal(fs.existsSync(path.join(project, ".flower")), false);
+
+  const disabled = run(["disable", "--json"]);
+  assert.equal(disabled.status, 0, disabled.stderr);
+  assert.equal(JSON.parse(disabled.stdout).status, "disabled");
+  assert.equal(fs.existsSync(path.join(project, ".codex/config.toml")), false);
+
+  // 旧写法必须继续等价：同一项目上读到同一状态。
+  const legacy = run(["trellis", "status", "--json"]);
+  assert.equal(legacy.status, 0, legacy.stderr);
+  assert.deepEqual(JSON.parse(legacy.stdout), JSON.parse(run(["status", "--json"]).stdout));
+
+  const enablePreview = run(["enable", "--dry-run", "--json"]);
+  assert.equal(enablePreview.status, 0, enablePreview.stderr);
+  assert.equal(JSON.parse(enablePreview.stdout).status, "dry-run");
+  assert.equal(inspectTrellisControl(project).status, "disabled");
+
+  // 顶层写法沿用同一套用法校验与退出码。
+  const usage = run(["status", "--force", "--json"]);
+  assert.equal(usage.status, 2, usage.stderr);
+  assert.equal(JSON.parse(usage.stdout).diagnostics[0].code, "TRELLIS_CONTROL_USAGE_ERROR");
+
+  const help = spawnSync(process.execPath, [CLI, "disable", "--help"], { cwd: project, encoding: "utf8" });
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /flower-trellis disable \[--dry-run\]/);
+});
+
 test("漂移后的 force disable 保留完整旧证据并恢复全部入口", (t) => {
   const { project, config, agent } = createProject(t);
   const first = disableTrellis(project);
