@@ -40,7 +40,9 @@
     "postinstall": "node scripts/sync-global-trellis.mjs",
     "prepublishOnly": "node scripts/sync-enhancements.mjs",
     "release": "node scripts/check-snapshot.mjs && commit-and-tag-version",
-    "release:dry": "commit-and-tag-version --dry-run"
+    "release:dry": "commit-and-tag-version --dry-run",
+    "release:stable": "node scripts/check-snapshot.mjs && commit-and-tag-version --config .versionrc.stable.cjs",
+    "release:stable:dry": "commit-and-tag-version --config .versionrc.stable.cjs --dry-run"
   },
   "commit-and-tag-version": {
     "scripts": {

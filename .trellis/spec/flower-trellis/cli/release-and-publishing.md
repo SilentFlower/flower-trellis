@@ -20,6 +20,8 @@ dist-tag;beta 预发布版发布到 npm `beta` dist-tag。
 |------|------|
 | `npm run release` | `node scripts/check-snapshot.mjs && commit-and-tag-version`;断言通过后 bump + 写 CHANGELOG + commit `chore(release): vX.Y.Z` + 打 tag。**不 push、不 publish** |
 | `npm run release:dry` | `commit-and-tag-version --dry-run`,预览版本号与 CHANGELOG,不落盘 |
+| `npm run release:stable` | 稳定版专用入口;从最近稳定标签聚合完整 beta 周期后 bump + 写 CHANGELOG + commit + tag |
+| `npm run release:stable:dry` | 与稳定版正式命令使用同一配置,预览跨 beta 周期聚合后的版本号与 CHANGELOG |
 | `scripts/check-snapshot.mjs` | 发布前断言 submodule/快照干净一致，再执行 pinned Trellis Patch 冲突门禁；失败 `exit(1)` |
 | `scripts/check-patch-conflicts.mjs` | 通过 `resolveTrellisBin()` + `process.execPath` 跨平台启动 pinned Trellis，全平台 fixture 覆盖全部声明 Patch/target/target kind 并运行共享 evaluator |
 | `scripts/extract-changelog.mjs <version\|tag> <outFile>` | 抽 CHANGELOG 指定版本段供 Release notes(标题正则兼容 h2/h3) |
@@ -28,14 +30,14 @@ dist-tag;beta 预发布版发布到 npm `beta` dist-tag。
 | `.github/workflows/release.yml` | 稳定版 tag `vX.Y.Z` 与 beta tag `vX.Y.Z-beta.N`;按 tag 选择 `npm publish` 到 `latest` 或 `npm publish --tag beta`(OIDC)+ 创建 GitHub Release/Prerelease |
 
 稳定版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` 快照 →
-`npm run release` → 检查 diff → `git push --follow-tags origin main`。
+`npm run release:stable` → 检查 diff → `git push --follow-tags origin main`。
 beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` 快照 →
 `npm run release -- --prerelease beta` 或 `npm run release -- --release-as X.Y.Z-beta.N`
 → 检查 diff → `git push --follow-tags origin <branch>`。
 
 ### 发版前 CHANGELOG 预览门禁
 - 正式执行 `npm run release...` 前,必须先执行对应的 dry-run 命令并展示将生成的版本号与 CHANGELOG 段落。
-- 稳定版预览:`npm run release:dry`;beta 预览:`npm run release:dry -- --prerelease beta` 或与正式命令一致的 `--release-as X.Y.Z-beta.N`。
+- 稳定版预览:`npm run release:stable:dry`;beta 预览:`npm run release:dry -- --prerelease beta` 或与正式命令一致的 `--release-as X.Y.Z-beta.N`。
 - 预览后必须等待用户明确确认,才能执行真实 `npm run release...`。用户未确认时,不得修改 `package.json`、`package-lock.json`、`CHANGELOG.md`,不得 commit/tag。
 - 用户确认后,真实 release 命令必须使用与 dry-run 相同的版本策略参数,避免预览的 CHANGELOG 与实际生成内容不一致。
 - 用户确认后,真实 release 前必须先跑 `npm run sync`。如果该命令产生 `enhancements/` diff,先展示新增审核项并提交快照;不要把 `check-snapshot` 失败当作正常 release 步骤的一部分。
@@ -84,6 +86,8 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 - 标题格式:minor/major `## [x.y.z](compare) (date)`,patch `### [x.y.z]...`。
 - beta 标题必须保留完整 prerelease 版本,例如 `## [0.3.0-beta.1]...`;`extract-changelog.mjs`
   会按 tag 精确抽取对应段落。
+- 稳定版必须从当前 HEAD 可达的最近稳定标签开始汇总,忽略中间 prerelease 标签的分段边界,
+  使正式版 CHANGELOG、GitHub Release 与 npm metadata 覆盖完整 beta 周期。
 - **0.x 阶段 `feat` 默认 bump patch(非 minor)**;要升 minor 用 `npm run release -- --release-as minor`。
 - 中文 description 原样进条目(解析只看英文 `type`/`scope`)。
 - AI 拟写会进入 CHANGELOG 的 commit description / release notes 时,必须使用中文说明用户可见变更;技术 token 可保留英文,例如 `CHANGELOG.md`、`npm run sync`、`route_state.py`、`vX.Y.Z-beta.N`。
