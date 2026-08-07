@@ -4,6 +4,22 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.0-beta.9](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.8...v0.6.0-beta.9) (2026-08-07)
+
+
+### ✨ 新功能 Features
+
+* **auto-loop:** 打通本地提交到归档的生命周期断链 ([3abbd94](https://github.com/SilentFlower/flower-trellis/commit/3abbd9410edc4bff7997e2f06e6406b0adb19c1f))
+* **cli:** status/enable/disable 提升为顶层命令 ([5b74c62](https://github.com/SilentFlower/flower-trellis/commit/5b74c62a296c2d962a61d68e3b67508f9f9b4964))
+* **guard:** 新增输出模板渲染契约守卫并修复 hook 测试环境隔离 ([49865c1](https://github.com/SilentFlower/flower-trellis/commit/49865c1cad14977d3aed45d81a8aeca4cb53f244))
+* **guard:** 输出模板守卫补齐语义级检测并同步渲染契约 spec ([4877436](https://github.com/SilentFlower/flower-trellis/commit/48774369718911b708be2c8eaf4462ca03a0d996))
+
+
+### 🐛 修复 Bug Fixes
+
+* **plugin:** 受管目录漂移判定与内容投影忽略运行时字节码缓存 ([29c5e76](https://github.com/SilentFlower/flower-trellis/commit/29c5e762040cb1eea18781d85dc153bf1fa1ac27))
+* **workflow:** 恢复内置 Plan Mode 禁令并加防回归断言 ([6da9021](https://github.com/SilentFlower/flower-trellis/commit/6da9021a4e36d7fc5913e52259094037080b704b))
+
 ## [0.6.0-beta.8](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0-beta.7...v0.6.0-beta.8) (2026-08-06)
 
 
