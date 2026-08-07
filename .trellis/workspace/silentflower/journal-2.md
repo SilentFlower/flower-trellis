@@ -939,3 +939,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 86: 优化 Check-All 判定与上下文体量
+
+**Date**: 2026-08-07
+**Task**: 优化 Check-All 判定与上下文体量
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+完成 Check-All 行为契约深度路由、FBK 分类解耦、源码注释事实自动修复及上下文预算控制；同步 canonical、compiled targets、发布快照和 dogfood，并通过 Full Check-All 与完整回归。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e6ec6a5` | (see git log) |
+| `f930148` | (see git log) |
+
+### Status
+
+[OK] **Completed**
