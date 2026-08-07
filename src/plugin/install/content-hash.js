@@ -35,6 +35,10 @@ export function hashFileIfExists(target) {
 /**
  * 读取目录 canonical tree 摘要；缺失返回 null，软链或非目录直接失败。
  *
+ * 这是「安装态漂移判定」而非「包完整性校验」：受管目录里的 Python 脚本被执行后
+ * 会就地生成 `__pycache__/*.pyc`，这类运行时产物不计入摘要，
+ * 否则会把未经用户修改的目录误判为漂移。包来源的 `integrity` 仍走严格 canonical tree。
+ *
  * @param {string} target 目录绝对路径
  * @returns {string|null} 当前目录摘要
  */
@@ -43,7 +47,7 @@ export function hashDirectoryIfExists(target) {
     const stat = fs.lstatSync(target);
     if (stat.isSymbolicLink()) throw new PluginPathError(`Plugin 目录不能是软链:${target}`, { path: target });
     if (!stat.isDirectory()) throw new PluginPathError(`Plugin 路径必须是目录:${target}`, { path: target });
-    return hashCanonicalTree(target);
+    return hashCanonicalTree(target, { ignoreVolatile: true });
   } catch (error) {
     if (error?.code === "ENOENT") return null;
     if (error instanceof PluginPathError) throw error;

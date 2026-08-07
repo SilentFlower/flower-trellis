@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { applyEnhancements } from "../../src/lib/apply-enhancements.js";
+import { ENHANCEMENTS_ROOT } from "../../src/lib/paths.js";
 import { flowerVersion } from "../../src/lib/versions.js";
 import {
   SKILL_GARDEN_PLUGIN_ID,
@@ -106,6 +107,37 @@ test("builtin update 可刷新旧精确声明到当前 Flower 版本", (t) => {
     version: provider.manifest.version,
   });
   assert.equal(store.readPlugins().plugins[0].version, flowerVersion());
+});
+
+test("源码树里的字节码缓存不会被投影进目标项目或 state", (t) => {
+  // 从源码检出运行时(开发树、npm link)，跑过 Python 的 enhancements 目录会留下
+  // `__pycache__`。发布包靠 package.json 的 files 排除它，源码树没有这层保护，
+  // 一旦被当作 skill-garden 内容投影出去，就会污染目标项目的安装态与 lock。
+  const sourceScripts = path.join(
+    ENHANCEMENTS_ROOT,
+    "0.6/.agents/skills/trellis-route/scripts/__pycache__",
+  );
+  const injected = path.join(sourceScripts, "route_state.cpython-312.pyc");
+  const preExisting = fs.existsSync(sourceScripts);
+  fs.mkdirSync(sourceScripts, { recursive: true });
+  fs.writeFileSync(injected, "bytecode");
+  t.after(() => {
+    if (preExisting) fs.rmSync(injected, { force: true });
+    else fs.rmSync(sourceScripts, { recursive: true, force: true });
+  });
+
+  const target = createTarget(t, "0.6.12");
+  quietApply(target, { variant: "0.6", skills: ["trellis-route"] });
+
+  const skillRoot = path.join(target, ".claude/skills/trellis-route");
+  assert.equal(fs.existsSync(path.join(skillRoot, "scripts/__pycache__")), false);
+  const state = new ProjectStore(target).readState();
+  const polluted = state.plugins.flatMap(({ paths }) => paths
+    .filter(({ path: managed }) => managed.endsWith(".pyc") || managed.includes("__pycache__")));
+  assert.deepEqual(polluted, []);
+  // 真实内容仍然正常安装。
+  assert.equal(fs.existsSync(path.join(skillRoot, "SKILL.md")), true);
+  assert.equal(fs.existsSync(path.join(skillRoot, "scripts/route_state.py")), true);
 });
 
 test("Pi 强化 Skill 从旧私有 root 安全迁移到共享 agents root", (t) => {

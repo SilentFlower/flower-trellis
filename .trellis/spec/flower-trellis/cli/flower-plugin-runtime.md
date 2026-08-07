@@ -125,6 +125,10 @@ Source Provider 最小接口固定为：
 
 - 所有目标、声明、lock 和 state 在任何写入前完成解析、包摘要、平台、payload 和冲突 preflight。
 - `TransactionWriter` 写前复核 target/directory before hash 和 payload after hash；任一漂移时不得创建成功 state。
+- 安装态目录摘要与包来源 `integrity` 是两套口径：包摘要走严格 canonical tree，任何多余文件都改变摘要；
+  受管目录的 ownership / drift 判定必须忽略解释器就地生成的 `__pycache__` 与 `.pyc`，否则执行过受管
+  Python 脚本的项目会被误判为「目录已被用户修改」，硬阻断 replay、update 与 Trellis enable。
+  既然摘要忽略这类产物，`directoryRemovals` 删除受管目录前也必须先清掉它们，避免非递归 `rmdir` 报 `ENOTEMPTY`。
 - 写入顺序固定为目标 mutation、`plugins.json`、`plugin-lock.json`、最后 `state.json`。失败时逆序恢复；恢复不完整时保留 `.flower/transactions/<id>/` 证据并返回 repair blocker。
 - `dryRun` 返回同一 graph、plan、changes 和 diagnostics，但不创建 `.flower/`、事务目录或目标文件。
 - changed-only：before/after hash 相同的目标不重写；空项目 `plugin update` 返回 `unchanged`，且不初始化 Runtime。
@@ -156,6 +160,9 @@ Source Provider 最小接口固定为：
 
 - `flower/skill-garden` 是显式 builtin system Plugin。完整 `init` 默认声明它；独立 `plugin add` 不得隐式声明。
 - Provider digest 稳定绑定 Flower 版本、variant、去除 `syncedAt` 的快照 manifest，以及当前 variant、`enhancements/common`、`src/assets`、`src/lib`、`src/patches` 和 builtin Plugin 目录的 canonical 内容；不得包含绝对路径、mtime、同步时间、`__pycache__` 或 `.pyc`。
+- skill-garden 的内容投影必须和 digest 同口径忽略 `__pycache__` / `.pyc`。发布包靠 `package.json`
+  的 `files` 排除它们，源码检出(开发树、`npm link`)没有这层保护；一旦把源码树的字节码缓存投影出去，
+  就会写进目标项目并登记进 state，使该项目的安装态只有那棵源码树能重放。
 - 0.6 的 skill-garden/flower catalog 必须进入同一个 Patch preflight；内容与 Patch 同目标仅在同 owner、可信 system 且最终 hash 完全相同时合并，否则按内容冲突失败。
 - old/0.5 后处理必须在临时镜像中计算最终字节，再作为普通 mutation 进入事务；不得直接对目标调用 legacy 写函数。
 - common skill 刷新记录为 `shared` ownership，Plugin 更新可刷新，卸载和 orphan 清理不得删除。

@@ -15,6 +15,7 @@ import {
 } from "./update-transaction.js";
 import { PluginError, PluginPathError } from "../plugin/errors.js";
 import { stringifyCanonicalJson } from "../plugin/integrity/canonical-json.js";
+import { isVolatileTreeArtifact } from "../plugin/integrity/canonical-tree.js";
 import {
   hashContent,
   hashDirectoryIfExists,
@@ -273,6 +274,8 @@ function listOrdinaryFiles(projectRoot, relativeDirectory) {
     }
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })
       .sort((left, right) => compareUtf8(left.name, right.name))) {
+      // 与安装态目录摘要保持同一口径:运行时字节码缓存不是 Trellis 集成入口，不参与 detach。
+      if (isVolatileTreeArtifact(entry.name)) continue;
       const childRelative = path.posix.join(relative, entry.name);
       const child = path.join(directory, entry.name);
       if (entry.isSymbolicLink()) {

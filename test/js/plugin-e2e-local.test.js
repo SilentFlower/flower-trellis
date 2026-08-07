@@ -50,8 +50,46 @@ test("真实 bin 在无 Trellis 项目安装 standard Plugin 并保持重放幂�
   assert.deepEqual(snapshotProjectFiles(project), beforeReplay);
 });
 
-test("显式依赖 skill-garden 但缺少 Trellis 时在写盘前阻断", (t) => {
-  const workspace = createPluginTestRoot(t, "flower-e2e-dependent-");
+test("受管目录里的 Python 字节码缓存不阻断重放，也不写进 state", (t) => {
+  const workspace = createPluginTestRoot(t, "flower-e2e-pycache-");
+  const project = path.join(workspace, "project");
+  fs.mkdirSync(project);
+  writePluginPackage(project, "plugins/demo", pluginManifest(), {
+    "skills/demo/SKILL.md": "# Demo\n",
+    "skills/demo/scripts/self_check.py": "print(1)\n",
+  });
+
+  const added = runFlower(project, [
+    "plugin", "add", "local/demo",
+    "--source", "plugins/demo",
+    "--platform", "codex",
+    "--json",
+  ]);
+  assert.equal(added.status, 0, `${added.stdout}\n${added.stderr}`);
+  const cleanState = JSON.parse(fs.readFileSync(path.join(project, ".flower/state.json"), "utf8"));
+
+  // 模拟解释器执行受管脚本后就地生成字节码缓存。
+  const scripts = path.join(project, ".agents/skills/demo/scripts");
+  fs.mkdirSync(path.join(scripts, "__pycache__"));
+  fs.writeFileSync(path.join(scripts, "__pycache__/self_check.cpython-312.pyc"), "cache");
+
+  const replay = runFlower(project, ["plugin", "replay", "--platform", "codex", "--json"]);
+  assert.equal(replay.status, 0, `${replay.stdout}\n${replay.stderr}`);
+  assert.equal(parseFlowerJson(replay).transaction.status, "unchanged");
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.join(project, ".flower/state.json"), "utf8")),
+    cleanState,
+  );
+  // 缓存既不被当作用户改动，也不被写链顺手删除。
+  assert.equal(fs.existsSync(path.join(scripts, "__pycache__/self_check.cpython-312.pyc")), true);
+
+  // 移除 Plugin 时非递归 rmdir 必须先清掉缓存，否则整笔事务因 ENOTEMPTY 失败。
+  const removed = runFlower(project, ["plugin", "remove", "local/demo", "--json"]);
+  assert.equal(removed.status, 0, `${removed.stdout}\n${removed.stderr}`);
+  assert.equal(fs.existsSync(path.join(project, ".agents/skills/demo")), false);
+});
+
+test("显式依赖 skill-garden 但缺少 Trellis 时在写盘前阻断", (t) => {  const workspace = createPluginTestRoot(t, "flower-e2e-dependent-");
   const project = path.join(workspace, "project");
   fs.mkdirSync(project);
   writePluginPackage(project, "plugins/dependent", pluginManifest({

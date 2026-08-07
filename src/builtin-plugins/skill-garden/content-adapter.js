@@ -4,7 +4,7 @@ import path from "node:path";
 import { ENHANCEMENT_SKILL_TARGETS } from "../../constants.js";
 import { readLegacyManifestStatus } from "../../lib/manifest.js";
 import { shouldInstallName } from "../../lib/skill-filter.js";
-import { listCanonicalTreeFiles } from "../../plugin/integrity/canonical-tree.js";
+import { listCanonicalTreeFiles, isVolatileTreeArtifact } from "../../plugin/integrity/canonical-tree.js";
 import {
   PluginIntegrityError,
   PluginIoError,
@@ -198,6 +198,8 @@ export function validateDispatchCatalog(catalog, catalogPath = DISPATCH_CATALOG_
  *
  * 只有 builtin common skill 明确登记的旧运行时路径可以跳过；遍历在读取条目
  * 类型前先匹配排除项，确保不会跟随旧软链。其它路径继续使用 canonical 规则。
+ * 运行时字节码缓存与安装态目录摘要同口径忽略：它们不是受管内容，不能被当作
+ * 待清理的 stale 目标，也不能挡住合法的父目录清理。
  *
  * @param {string} directory 目标目录
  * @param {string[]} [excludedPaths] 允许跳过的精确相对路径及其子树
@@ -205,7 +207,7 @@ export function validateDispatchCatalog(catalog, catalogPath = DISPATCH_CATALOG_
  */
 function listExistingFiles(directory, excludedPaths = []) {
   if (!fs.existsSync(directory)) return [];
-  if (excludedPaths.length === 0) return listCanonicalTreeFiles(directory);
+  if (excludedPaths.length === 0) return listCanonicalTreeFiles(directory, { ignoreVolatile: true });
 
   const excluded = new Set(excludedPaths);
   const absoluteRoot = path.resolve(directory);
@@ -256,7 +258,7 @@ function listExistingFiles(directory, excludedPaths = []) {
         ? `${relativeDirectory}/${entry.name}`
         : entry.name;
       assertSafePosixRelativePath(relativePath, "Plugin tree 路径");
-      if (isExcluded(relativePath)) continue;
+      if (isExcluded(relativePath) || isVolatileTreeArtifact(relativePath)) continue;
 
       const absolutePath = path.join(current, entry.name);
       let stat;
@@ -402,7 +404,9 @@ export function projectSkillGardenContent(options) {
     runtimeExcludes = [],
   ) {
     const desired = new Set();
-    for (const file of listCanonicalTreeFiles(sourceRoot)) {
+    // 源码树跑过 Python 后会留下 `__pycache__`;它不属于 skill-garden 内容，
+    // 一旦投影出去就会被装进目标项目并登记进 state，污染只有发布包才干净的安装态。
+    for (const file of listCanonicalTreeFiles(sourceRoot, { ignoreVolatile: true })) {
       const target = `${targetRoot}/${file.path}`;
       desired.add(file.path);
       addFile(
@@ -812,7 +816,7 @@ export function projectSkillGardenContent(options) {
           );
           continue;
         }
-        for (const file of listCanonicalTreeFiles(simulated)) {
+        for (const file of listCanonicalTreeFiles(simulated, { ignoreVolatile: true })) {
           addFile(
             `${relative}/${file.path}`,
             fs.readFileSync(file.absolutePath),

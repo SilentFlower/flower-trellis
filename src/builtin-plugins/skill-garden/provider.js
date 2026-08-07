@@ -26,8 +26,7 @@ function stablePayloadDigest(roots, metadata) {
   const hash = crypto.createHash("sha256");
   hash.update(JSON.stringify(metadata));
   for (const { label, root } of roots) {
-    for (const file of listCanonicalTreeFiles(root)) {
-      if (file.path.split("/").includes("__pycache__") || file.path.endsWith(".pyc")) continue;
+    for (const file of listCanonicalTreeFiles(root, { ignoreVolatile: true })) {
       const content = fs.readFileSync(file.absolutePath);
       hash.update(label);
       hash.update("\0");

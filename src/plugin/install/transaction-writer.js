@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { PluginError, PluginIoError, PluginPathError } from "../errors.js";
 import { stringifyCanonicalJson } from "../integrity/canonical-json.js";
+import { listVolatileTreeEntries } from "../integrity/canonical-tree.js";
 import {
   validatePluginLock,
   validatePluginsFile,
@@ -242,6 +243,11 @@ export class TransactionWriter {
       for (const removal of [...directoryRemovals].sort((left, right) => right.path.length - left.path.length)) {
         const absoluteTarget = this.#resolveTarget(realRoot, removal.path);
         this.onOperation({ phase: "before-write", kind: "directory", path: removal.path, index: 0 });
+        // 目录摘要已忽略运行时字节码缓存，删除前必须同步清场，否则非递归 rmdir 报 ENOTEMPTY。
+        // 这类缓存由解释器随时重建，回滚不还原它们不会丢失任何用户内容。
+        for (const volatilePath of listVolatileTreeEntries(absoluteTarget)) {
+          this.fileSystem.rmSync(volatilePath, { recursive: true, force: true });
+        }
         this.fileSystem.rmdirSync(absoluteTarget);
         removedDirectories.push(absoluteTarget);
         completed.push({ kind: "directory", path: removal.path });

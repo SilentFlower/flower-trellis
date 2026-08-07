@@ -6,7 +6,12 @@ import path from "node:path";
 import test from "node:test";
 import { PluginPathError, PluginSchemaError } from "../../src/plugin/errors.js";
 import { stringifyCanonicalJson } from "../../src/plugin/integrity/canonical-json.js";
-import { hashCanonicalTree, listCanonicalTreeFiles } from "../../src/plugin/integrity/canonical-tree.js";
+import {
+  hashCanonicalTree,
+  listCanonicalTreeFiles,
+  listVolatileTreeEntries,
+} from "../../src/plugin/integrity/canonical-tree.js";
+import { hashDirectoryIfExists } from "../../src/plugin/install/content-hash.js";
 
 function createTree(t, entries) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "flower-plugin-tree-"));
@@ -79,4 +84,35 @@ test("Canonical tree 拒绝特殊文件", { skip: process.platform === "win32" }
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("包完整性严格计入字节码缓存，安装态目录摘要忽略它", (t) => {
+  const clean = createTree(t, [["scripts/self_check.py", "print(1)\n"]]);
+  const cached = createTree(t, [["scripts/self_check.py", "print(1)\n"]]);
+  const cleanIntegrity = hashCanonicalTree(clean);
+  assert.equal(hashDirectoryIfExists(cached), cleanIntegrity);
+
+  fs.mkdirSync(path.join(cached, "scripts", "__pycache__"));
+  fs.writeFileSync(path.join(cached, "scripts/__pycache__/self_check.cpython-312.pyc"), "cache");
+  fs.writeFileSync(path.join(cached, "scripts/stray.pyc"), "cache");
+
+  // 供应链完整性必须保持严格：多出的文件仍然改变包摘要。
+  assert.notEqual(hashCanonicalTree(cached), cleanIntegrity);
+  // 安装态漂移判定忽略运行时产物，未被用户修改的目录不得被判成漂移。
+  assert.equal(hashDirectoryIfExists(cached), cleanIntegrity);
+  assert.deepEqual(
+    listCanonicalTreeFiles(cached, { ignoreVolatile: true }).map((entry) => entry.path),
+    ["scripts/self_check.py"],
+  );
+  assert.deepEqual(
+    listVolatileTreeEntries(cached),
+    [
+      path.join(cached, "scripts", "__pycache__"),
+      path.join(cached, "scripts", "stray.pyc"),
+    ].sort(),
+  );
+
+  // 真实内容变化仍然必须被安装态摘要捕获。
+  fs.writeFileSync(path.join(cached, "scripts/self_check.py"), "print(2)\n");
+  assert.notEqual(hashDirectoryIfExists(cached), cleanIntegrity);
 });
