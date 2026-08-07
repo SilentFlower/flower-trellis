@@ -137,8 +137,8 @@ auto-loop 内部 `commit-only` 也允许 retained dirty 存在，但每个生成
 - **顺序**：<repo-a> [-> `<local generation command>`] -> <repo-b> [-> task progress]
 
 ### 完成链证据
-- Check-All：<通过 / 通过（已接受风险：CHK-001,FBK-002） / 未运行 / 已失效 / 存在未处置 findings / blocked / 部分验证>
-- Update-Spec：<no-op / written / needs-review / 未运行 / 已失效>
+- **Check-All**：<通过 / 通过（已接受风险：CHK-001,FBK-002） / 未运行 / 已失效 / 存在未处置 findings / blocked / 部分验证>
+- **Update-Spec**：<no-op / written / needs-review / 未运行 / 已失效>
 
 ### 1. <repository-name>
 

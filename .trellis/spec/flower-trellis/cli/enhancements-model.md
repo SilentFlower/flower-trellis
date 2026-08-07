@@ -1639,7 +1639,7 @@ check-subagent -> check-all-subagent
 ```text
 ID: CHK-001, CHK-002, ...
 严重度: P0 | P1 | P2
-标题 / 来源 / 证据 / 影响 / 建议 / 位置 / 验证
+标题 / 来源 / 证据 / 影响 / 建议 / 验证
 ```
 
 兜底问题使用独立编号，并按当前实际影响分配 P0/P1/P2:
@@ -1647,8 +1647,23 @@ ID: CHK-001, CHK-002, ...
 ```text
 ID: FBK-001, FBK-002, ...
 严重度: P0 | P1 | P2
-标题 / 来源 / 证据 / 兜底场景 / 影响 / 保护收益 / 建议 / 位置 / 验证
+标题 / 来源 / 证据 / 兜底场景 / 影响 / 保护收益 / 建议 / 验证
 ```
+
+受影响位置合并进 `证据`,不再单列「位置」字段;`证据` 必须给出全部受影响 `file:line`。
+
+两类问题的呈现形态是硬契约,由 `scripts/check-output-templates.mjs` 的
+`list-borne-finding` 检测静态守卫:
+
+```text
+条目承载: #### `<ID>` `<严重度>` `<来源>` <标题>   —— 必须是标题,不得用列表项
+处置标签: 仅已接受风险时在标题行末尾追加 `[已接受风险]`,不使用 checkbox
+字段呈现: - **<字段>**：<值>                      —— 标签必须加粗
+证据子项: - **证据** 后接子项列表,一个 file:line 一条,不得用「；」堆进一行
+```
+
+终端渲染器会把松散列表压平,列表项承载的相邻条目会糊成一段无法分辨;标题是块级元素,
+渲染器会稳定给出加粗与上下留白。该约束对 `CHK-*` 与 `FBK-*` 同时生效。
 
 低风险文档漂移记录必须使用独立 `DOC-*` 编号,并允许以下类型:
 
@@ -2882,6 +2897,96 @@ finish-work -> validate completed -> decision/release audit -> archive without l
 
 原因:业务完成与会话收尾是两个可恢复边界；`completed` 必须在归档前可被 workflow-state、continue
 和 session 恢复观察，archive 只负责最终移动与 bookkeeping。
+
+---
+
+## Scenario: Skill Output Template Rendering Contract
+
+### 1. Scope / Trigger
+
+Trigger:改动任何 skill 文档里的 ```markdown 输出模板,或改动守卫脚本本身。
+
+skill 的 ```markdown 块定义的是**要渲染给用户看**的形态,不是产物文件内容。此类缺陷在源码
+中完全看不出来 —— 语法全部合法、review 时逐行都对 —— 只有渲染后才暴露,因此必须静态守卫。
+
+### 2. Signatures
+
+```text
+scripts/check-output-templates.mjs           # 入口,npm test 最后一环
+  export scanDocument(filePath, relPath)     -> Finding[]
+  export collectOutputTemplateFindings()     -> {root, findings, scanned}
+
+Finding = {file: string, line: number, kind: string, lines: string[]}
+```
+
+### 3. Contracts
+
+扫描边界:
+
+```text
+守卫变体: 仅 0.6(GUARDED_VARIANT)。0.5 与 old 是冻结历史包,纳入只会长期红灯
+源优先级: vendor/skill-garden/.trellis/0.6 -> enhancements/0.6(CI 未拉 submodule 时回退)
+扫描范围: <root>/.claude/skills/**/*.md 的 ```markdown 块;.agents 副本由 sync 保证一致,不重复扫
+排除:     模板块内的嵌套代码块(如 ```yaml)原样渲染,不参与判定
+豁免:     ALLOWLIST 按「文件后缀 + 首行前缀」定位,用于产物文件模板(非对话输出)
+```
+
+### 4. Validation & Error Matrix
+
+| kind | 触发条件 | 渲染后果 | 修法 |
+| --- | --- | --- | --- |
+| `bare-paragraph` | 模板内连续 >= 2 行裸段落 | 软换行折叠成一段 | 改用 `- **字段**：值` |
+| `bullet-char` | 用 `•` 冒充列表项 | 整块折叠 | 改用 `- ` |
+| `yaml-block` | YAML 结构未包进代码块 | 缩进塌陷 | 包进 ```yaml |
+| `list-borne-finding` | 编号条目用列表项承载且下挂嵌套字段 | 松散列表被压平,相邻条目糊成一段 | 改用 `#### ` 标题承载 |
+
+前三类是**语法级**,第四类是**语义级**:写法完全合法,前三类一律放行,只有语义规则能拦住。
+
+### 5. Good / Base / Bad Cases
+
+- Good:重复条目用 `#### ` 标题承载,字段 `- **<字段>**：<值>`,证据拆子项。
+- Base:单例结构化摘要(如 `### 验证状态` 下两行)可用列表项,字段标签仍需加粗。
+- Bad:用 `` - [ ] `CHK-001` `` 加嵌套 `` - 证据：... `` 承载,渲染后两条问题无法分辨 —— 这是
+  0.6 之前 check-all 报告的真实形态,守卫全绿却直接暴露给用户。
+
+### 6. Tests Required
+
+`test/js/output-template-contract.test.js` 断言点:
+
+```text
+1. 列表承载的编号条目被判定为 list-borne-finding,且命中行号精确
+2. 标题承载的等价内容返回空 findings
+3. 无嵌套字段的编号列表项不误判(单行「已修复」清单)
+4. 等价写法全部被拦:- **`ID`**、1. `ID`、- ID(无反引号)、* `ID`
+5. 近似形状不误伤:- **Check-All**：、- **批次 1**：、- [untracked] <path>
+6. collectOutputTemplateFindings() 对 0.6 全量 skill 返回空
+```
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+守卫只匹配当前这一种历史写法:
+
+```javascript
+// 只认「短横 + 可选 checkbox + 裸反引号 ID」
+/^(\s*)-\s*(?:\[[ x]\]\s*)?`([A-Z][A-Z0-9]*-\d+)`/
+```
+
+实测 5 种等价写法 2 拦 3 漏 —— 换成加粗包裹、有序列表或去掉反引号即可绕过,契约实际没锁住,
+反而提供虚假信心。
+
+#### Correct
+
+匹配面覆盖全部等价写法:
+
+```javascript
+// 无序/有序列表标记 + 可选 checkbox + 可选加粗包裹 + 反引号可选
+/^(\s*)(?:[-*+]|\d+[.)])\s*(?:\[[ x]\]\s*)?(?:\*\*)?`?([A-Z][A-Z0-9]*-\d+)`?/
+```
+
+通则:**守卫的匹配面必须覆盖被禁写法的全部等价形态**。只覆盖首次发现的那一种,等于把
+regression 入口留着,而且因为 CI 全绿更难被发现。
 
 ---
 
