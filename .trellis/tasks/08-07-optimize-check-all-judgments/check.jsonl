@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"核对 CLI 项目的整体质量门禁和适用测试入口。"}
+{"file":".trellis/tasks/08-07-optimize-check-all-judgments/research/current-check-all-contracts.md","reason":"检查当前判定基线、runner 边界以及 canonical/snapshot/compiled/dogfood 一致性。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查 Check-All 专项字节预算与全局默认/strict 上下文预算。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"检查幂等、无误伤、测试覆盖和生成产物门禁。"}

@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"提供 CLI 开发入口、质量命令和源码分层总约束。"}
+{"file":".trellis/tasks/08-07-optimize-check-all-judgments/research/current-check-all-contracts.md","reason":"提供当前 Check-All 判定、runner、canonical/snapshot/compiled/dogfood 同步和专项预算基线。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"要求替换旧规则、按最终产物计量并禁止通过提高阈值掩盖上下文增长。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"提供幂等、同步、测试和 diff 检查要求。"}

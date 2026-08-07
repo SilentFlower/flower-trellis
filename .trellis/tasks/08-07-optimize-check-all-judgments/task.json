@@ -1,0 +1,39 @@
+{
+  "id": "optimize-check-all-judgments",
+  "name": "optimize-check-all-judgments",
+  "title": "优化 Check-All 判定与上下文体量",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-07",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-08-07T05:42:04Z",
+    "completedSteps": [
+      "优化 Check-All light/full 行为契约判定",
+      "解耦 FBK 分类与验证完备度",
+      "增加源码注释事实自动修复",
+      "同步 canonical、compiled target、发布快照与 dogfood",
+      "完成 Full Check-All、完整回归与规范更新"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档任务",
+    "notes": ""
+  }
+}
