@@ -32,10 +32,13 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   assert.equal(agents, claude);
   assert.match(agents, /本 skill 是 \*\*薄入口\*\*/);
   assert.match(agents, /不要提前读取未命中的 profile/);
-  assert.match(agents, /低风险文档漂移进入 `DOC-\*` 通道/);
+  assert.match(agents, /低风险事实漂移进入 `DOC-\*` 通道/);
   assert.match(depthRouting, /requested_depth: auto \| light \| full/);
   assert.match(depthRouting, /effective_depth: light \| full/);
   assert.match(depthRouting, /hard-full 信号/);
+  assert.match(depthRouting, /hard-full 只看行为契约变化和影响面是否闭合/);
+  assert.match(depthRouting, /文件载体或主题域本身不构成 hard-full/);
+  assert.match(depthRouting, /同一真实源的多个机械投影仍算一个语义范围/);
   assert.match(depthRouting, /简单检查.*轻量检查.*light check.*表示 light/);
   assert.match(depthRouting, /全面检查.*最终检查.*提交前检查.*full check.*表示 full/);
   assert.match(depthRouting, /以最后一次明确表达为准/);
@@ -67,6 +70,36 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   assert.match(reporting, /无 direct Git intent 且 strict pass \/ 已接受风险通过：提示用户回复 `继续`/);
   assert.match(reporting, /停止边界只控制是否自动推进，不能让报告在没有下一步提示的情况下结束/);
   assert.match(reporting, /不新增 direct Git 专用摘要/);
+});
+
+test("Check-All 深度由行为影响决定而不是文件载体", () => {
+  const depthRouting = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/depth-routing.md",
+  );
+  const light = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/light-profile.md",
+  );
+
+  assert.match(depthRouting, /公共 API、CLI、schema、持久化状态、协议字段/);
+  assert.match(depthRouting, /权限、安全、资金、并发、时序、状态机/);
+  assert.match(depthRouting, /发布或 Git 控制门禁/);
+  assert.match(depthRouting, /直接引用点、状态传播或回归路径无法完整列出/);
+  assert.match(depthRouting, /无法确认是否改变行为契约.*fallback-full/s);
+  assert.doesNotMatch(depthRouting, /^- workflow、skill、command、hook 注入或生成快照；$/m);
+  assert.doesNotMatch(depthRouting, /^- 安装、升级、发布、push\/commit 工作流控制面；$/m);
+
+  assert.match(
+    depthRouting,
+    /局部行为修改时，直接引用点和回归路径可穷举，并有可运行的定向验证；无行为变化时，仅涉及注释、错别字、排版、解释文字、示例或机械投影同步/,
+  );
+  assert.doesNotMatch(
+    depthRouting,
+    /^- 有定向验证，或仅涉及无行为变化的注释.*\n- 局部行为修改/m,
+  );
+  assert.match(light, /闭合的语义范围/);
+  assert.match(light, /载体名称不得单独触发升级/);
 });
 
 test("route 只决定 Check-All 执行位置", () => {
@@ -121,6 +154,7 @@ test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {
   const docRemediation = read(
     sourceRoot,
     ".agents/skills/trellis-check-all/references/document-drift-auto-remediation.md",
+    ".agents/skills/trellis-check-all/references/code-comment-auto-remediation.md",
   );
   const reporting = read(
     sourceRoot,
@@ -158,6 +192,7 @@ test("0.6 发布快照与智能检查源保持一致", () => {
     ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
     ".claude/skills/trellis-check-all/references/depth-routing.md",
     ".claude/skills/trellis-check-all/references/document-drift-auto-remediation.md",
+    ".claude/skills/trellis-check-all/references/code-comment-auto-remediation.md",
     ".claude/skills/trellis-check-all/references/full-profile.md",
     ".claude/skills/trellis-check-all/references/light-profile.md",
     ".claude/skills/trellis-check-all/references/fallback-findings.md",

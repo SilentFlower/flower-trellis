@@ -1572,17 +1572,18 @@ cleanly or reported findings; latest user intent and validated auto-loop overrid
 
 原因:默认流程完整,高频反馈成本低,压缩可恢复,同时不会把暂缓偏好固化成长期锁。
 
-## Scenario: Audit-Only Check-All
+## Scenario: Audit-First Check-All
 
 ### 1. Scope / Trigger
 
 - Trigger: 0.6 强化包需要让普通、轻量、全面、最终、提交前和 auto-loop 检查都进入
-  Check-All,由真实任务、diff、风险和运行上下文智能选择 light/full 深度,同时保持
-  audit-only collect-all、稳定 `CHK-*` / `FBK-*` / `DOC-*` 问题模型和统一修复循环。
+  Check-All,由真实任务、diff、行为契约影响和运行上下文智能选择 light/full 深度,同时保持
+  audit-first collect-all、稳定 `CHK-*` / `FBK-*` / `DOC-*` 问题模型和统一修复循环。
 - Scope: `trellis-check-all/SKILL.md` 定义深度策略、检查、报告、修复和 disposition;
   `trellis-route/SKILL.md`、`references/platform-dispatch.json` 与 `route_state.py` 只决定
   inline/subagent 执行位置和平台启动目标;`trellis-check` 是 workspace-write 自修角色，不能成为
-  顶层轻量逃生口、Check-All fallback 或统一检查意图的接收者。
+  顶层轻量逃生口、Check-All fallback 或统一检查意图的接收者。普通代码、配置和测试保持
+  audit-only;只有 Check-All 主会话可在报告前应用证据唯一的低风险 `DOC-*` 事实漂移修复。
 
 ### 2. Signatures
 
@@ -1668,7 +1669,7 @@ ID: FBK-001, FBK-002, ...
 低风险文档漂移记录必须使用独立 `DOC-*` 编号,并允许以下类型:
 
 ```text
-DOC type: task-status | brief-stale | implementation-note | check-record | mechanical-link | fact-status
+DOC type: task-status | brief-stale | implementation-note | check-record | mechanical-link | fact-status | code-comment-fact
 ```
 
 普通模式的统一修复选择只允许在完整报告末尾出现一次:
@@ -1682,13 +1683,19 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 
 ### 3. Contracts
 
-- 检查阶段必须只读。允许读取文件、搜索和运行无业务写入副作用的 lint、typecheck、
-  测试;禁止编辑代码、配置、测试或任务规格。
-- 唯一写入例外是 Check-All 主会话在最终报告前处理低风险 `DOC-*` 文档漂移。`fact-status`
+- 检查收集阶段必须只读。允许读取文件、搜索和运行无业务写入副作用的 lint、typecheck、
+  测试;禁止编辑普通代码、配置、测试或任务规格。
+- 唯一写入例外是 Check-All 主会话在最终报告前处理低风险 `DOC-*` 事实漂移。`fact-status`
   不按文档类别授权,而按片段语义和证据唯一性授权:任务、规范、运行手册、接入说明、
   Markdown、HTML 或本地上下文摘要中,只有仅记录已验证事实状态的片段可自动修复。
 - `fact-status` 修复只允许同步状态、URL、版本号、配置键、命令结果、验证结论或时间点。
   不得改操作步骤、责任边界、安全提示、协议字段、上线承诺、验收口径或其它产品语义。
+- `code-comment-fact` 只允许同步源码注释中的机械引用或局部实现事实。机械引用必须由当前
+  真实定义唯一证明;局部实现事实还必须由本轮 diff 与任务规划、测试结果或其它已读取权威证据
+  共同证明为有意变化。修复只能替换目标事实片段,不得整句润色、删除注释或修改可执行代码。
+- 公共 API Javadoc/docstring、对外契约、Why、业务/安全语义、工具指令、TODO/FIXME/HACK、
+  doctest 和可执行示例不得自动修复。subagent 只返回候选;源码注释修复不得传
+  `--doc-remediation-file`,写入后必须重读最终 diff、重算范围、复核 `check_profile` 并重跑定向验证。
 - 所有用户可见 check 入口都调用 Check-All。`trellis-route(target=check)` 只决定执行位置,
   用户说 light/full 不创建新的 route mode。
 - requested depth 优先使用当前请求内最后一次明确表达:`简单检查` / `轻量检查` /
@@ -1698,19 +1705,24 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - effective depth 决策顺序固定:requested full -> full;命中 hard-full -> full;
   requested light 且无 hard-full -> light;requested auto 且高置信满足 light eligibility -> light;
   其它情况 fallback full,不得机械询问用户。
-- hard-full 至少包括复杂三件套完整映射、跨层/跨仓/submodule、公共 API/CLI、schema/
-  持久化/缓存、迁移/历史数据、权限/安全/资金、并发/状态机/回滚、workflow/skill/hook
-  注入、安装/升级/发布/push 控制面、已有 full `CHK-*` / `FBK-*` 重检和未知影响面。
-- light 只有在变更可完整归属、单一局部行为、无 hard-full、引用与回归路径可穷举、
-  有定向验证且不在 full 修复链时成立。执行中发现强风险只允许单向升级 full。
+- hard-full 只由行为契约变化或无法闭合的影响面触发,文件载体和主题域本身不得触发升级。
+  公共 API/CLI/schema/持久化状态/协议/缓存/迁移/历史兼容,权限/安全/资金/并发/时序/
+  状态机/回滚/发布或 Git 控制门禁,跨独立行为边界,已有 full `CHK-*` / `FBK-*` 重检和未知影响面继续 full。
+  workflow、skill、command、hook、快照或安装材料若只改解释文字或机械投影,继续判断 light eligibility。
+- light 必须满足闭合的单一语义范围、无行为性 hard-full、规划条目与直接引用/状态传播/回归路径
+  可穷举且不在 full 修复链。局部行为修改分支还必须有可运行的定向验证;无行为变化分支只允许
+  注释、错别字、排版、解释文字、示例或机械投影同步,两分支是择一关系,不得写成同时满足。
+  执行中发现行为影响扩大或关键验证缺口时只允许单向升级 full。
 - 高置信 light 通过正式满足 Phase 2.2 门禁;未执行维度必须标记 `N/A`,不得伪装成 full。
 - 执行顺序固定为三件套实现 -> 实现假设 -> 完整性与规范。每个发现先按根因性质和可达证据
   判定为主路径 `CHK-*` 或兜底 `FBK-*`,再为两类问题分配 P0/P1/P2；严重度不能反向决定通道。
 - 主路径逻辑、非兜底需求/契约违背、失败验证、缺失必需测试、真实数据流断点、兼容性和发布集成问题进入 `CHK-*`。
   fail-closed、异常输入、失败路径降级、防御性权限或数据保护、容错与故障可观测性保护缺口进入 `FBK-*`。
   即使 PRD/design/implement/spec 或公开契约已经声明该兜底行为，仍保持 `FBK-*`；契约证据只影响影响和严重度。
-- `FBK-*` 必须有具体位置、可达异常或失败场景、问题证据、保护收益和验证方式。纯代码风格偏好、
-  主观重构建议或没有具体场景与可验证收益的“更健壮”建议不报告。证据不足时使用部分验证、剩余风险或阻塞。
+- `FBK-*` 分类只要求具体位置、代码或契约可证明的可达异常场景和当前保护缺失/错误/可绕过的
+  问题证据。保护收益与验证方式仍是报告完整度字段,但不决定分类;缺少环境、工具或权限时保留
+  `FBK-*` ID 并标记部分验证,部分验证继续阻断 strict pass。纯代码风格偏好、主观重构建议或
+  没有具体触发路径的泛化“更健壮”建议不报告。
 - 只有业务/规划冲突导致无法判断、已知问题使后续前提失效、或验证可能产生破坏性/
   外部副作用时,才允许提前阻塞。阻塞结果仍须报告已完成范围和统一问题 ID。
 - 局部文案、普通配置值、局部样式或单点条件修改可以走快速路径;未命中 API、组件上下文、
@@ -1765,15 +1777,20 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 | requested light 命中 hard-full | effective full,confidence escalated,记录升级原因 |
 | 无法高置信判断 | fallback full,不询问深度 |
 | light 执行中发现影响面扩大 | 单向升级 full,补齐所有适用维度 |
+| workflow/skill/hook 只改解释文字或机械投影 | 载体中性;范围闭合且无行为性 hard-full 时可进入 light |
+| 局部行为修改且引用/回归路径可穷举并有定向验证 | 可进入 light;不得因文件属于 workflow/skill 自动升级 |
 | 历史 runtime mode 为 `check-inline` | 归一为 `check-all-inline`,可复用但不直达 trellis-check |
 | 某个 lint/typecheck/test 失败 | 记录命令、退出状态和关键错误,继续其它独立验证 |
 | 兜底行为同时写入需求或公开契约 | 仍按保护路径根因记录为 `FBK-*`；契约证据用于严重度和影响 |
-| 候选缺少具体场景、证据、保护收益或验证方式 | 不生成 `FBK-*`；按证据使用部分验证、剩余风险、阻塞或不报告 |
-| 缺少历史数据或运行环境证据 | 标记 `部分验证` 或 `阻塞`,不得标记通过 |
+| 候选缺少具体位置、可达场景或问题证据 | 不生成 `FBK-*`;按证据使用部分验证、剩余风险、阻塞或不报告 |
+| 已满足 FBK 分类准入但缺少验证环境 | 保留 `FBK-*` ID,验证标记部分验证并写明缺失条件,不得 strict pass |
 | 规划冲突导致无法判断正确行为 | 输出统一阻塞报告,只询问解除阻塞所需的业务决策 |
 | 验证可能修改生产数据或调用有副作用外部系统 | 不执行,标记阻塞或未覆盖风险 |
 | 文档片段仍写旧状态且发布记录/环境回读/测试输出唯一证明新状态 | 记录 `DOC-*` `fact-status`,主会话自动修复并在报告展示验证 |
 | 文档片段需要改操作路径、接口协议、安全边界、上线承诺或验收口径 | 不得自动修复,按根因转为 `CHK-*`、`FBK-*`、剩余风险或阻塞 |
+| 源码注释中的符号/路径/版本可由当前定义唯一证明 | 记录 `DOC-*` `code-comment-fact`,只替换机械事实片段 |
+| 源码注释中的局部实现事实只有代码不一致证据 | 不得假定代码正确;缺少本轮 diff 与规划/测试双重证据时转普通 finding 或剩余风险 |
+| 源码注释属于公共 API、Why、业务/安全语义、工具指令或可执行示例 | audit-only,不得自动写入 |
 | 用户选择部分 `CHK-*` / `FBK-*` | 只批量修复选中 ID,未选问题保留在重检结果 |
 | 用户明确接受当前 `CHK-*` / `FBK-*` | 保留问题与严重度并标记已接受风险；全部剩余问题均有效接受后按“通过·已接受风险”继续 |
 | 用户只说 `仅保留报告` | 停止处置，不记录风险接受，不进入通过路径 |
@@ -1792,6 +1809,8 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 ### 5. Good/Base/Bad Cases
 
 - Good: 用户先说轻量检查、后改为最终检查;以最后一次表达选择 full,完成三个适用维度。
+- Good: skill 只修正错别字并同步多个机械投影;影响范围闭合且没有行为契约变化,auto 选择 light,
+  不因载体名称直接 full。
 - Good: 两个验证命令和一个规划对照分别发现问题;Check-All 完成其余安全检查后输出
   `CHK-001` 至 `CHK-003`,用户回复“修复全部”,实现阶段一次修复并统一重检。
 - Good: 阿里云迁移声明要求无效范围必须失败关闭,实现却继续放行；根因是 fail-closed 保护失效，
@@ -1800,12 +1819,16 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   `N/A`,定向验证通过后正式满足检查门禁。
 - Base: 接入说明 HTML 仍写“待回读”,但已读取 Nacos 回读输出唯一证明固定回调已生效;
   Check-All 将该片段作为 `DOC-* fact-status` 自动改为已回读状态,不改联调步骤或协议字段。
+- Base: 私有函数注释仍引用旧符号名,当前定义可唯一证明新名称;主会话只替换该符号片段,
+  重读 diff、复核画像并重跑定向测试,subagent 仍只返回候选。
 - Base: 旧 runtime 保存 `check-subagent`;helper 输出 canonical `check-all-subagent`,
   后续仍执行 audit-only Check-All。
 - Base: subagent 返回包含 `CHK-*` / `FBK-*` / `DOC-*` 的标准只读报告;主会话负责展示清单并询问一次统一修复范围,subagent 不修改文件。
 - Base: 项目只启用 Codex 和 Claude;投影只新增两个原生专用 agent 与 channel `check-all`,不创建
   Gemini/Kiro 等未启用 root。
 - Bad: 第一个测试失败后立即问“要不要修”,导致后续 lint、规划和跨层问题未被发现。
+- Bad: 看到修改了 workflow/skill 就直接 full,没有检查实际行为契约和影响面是否闭合。
+- Bad: 因代码与注释不一致就整句重写公共 API Javadoc,没有本轮有意变化证据。
 - Bad: 用户明确轻量检查后 route 直接 dispatch `trellis-check`,绕过 hard-full 升级和画像。
 - Bad: auto-loop 检查结束后套用 interactive stop gate,等待用户说“继续”。
 - Bad: `trellis-route` 找不到专用 check-all agent 时改用带自修复语义的 `trellis-check` agent。
@@ -1815,8 +1838,8 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 ### 6. Tests Required
 
 - 静态检查 `trellis-check-all` 的 `.agents` / `.claude` 源副本一致,并确认包含
-  requested/effective profile、hard-full、light eligibility、稳定 `CHK-*` / `FBK-*`、Auto-Loop Return Gate
-  先于 Interactive Post-Check Stop Gate。
+  requested/effective profile、行为性 hard-full、载体中性规则、两个互斥 light eligibility 分支、
+  稳定 `CHK-*` / `FBK-*`、Auto-Loop Return Gate 先于 Interactive Post-Check Stop Gate。
 - 静态检查 `trellis-route` 不再把 `check-all-subagent` fallback 到
   `Agent({subagent_type: "trellis-check"})`,且 dispatch prompt 第一行包含当前任务路径。
 - catalog 测试必须断言 schema、21 个稳定平台 ID、eligible target 唯一性、inline-only reason、
@@ -1832,15 +1855,20 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - `npm run sync` 后用 `cmp -s` 确认 vendor 源、`enhancements/0.6` 快照和当前 dogfood
   `.agents` / `.claude` 副本一致;确认 `old` / `0.5` 无漂移。
 - `DOC-*` 测试覆盖 `fact-status`:允许任意项目文档中的已验证事实状态片段自动修复,并拒绝
-  操作路径、接口协议、安全边界、上线承诺和验收口径改写。
+  操作路径、接口协议、安全边界、上线承诺和验收口径改写。`code-comment-fact` 测试覆盖机械引用、
+  有双重证据的局部实现事实、全部禁止类别、subagent 只返回候选以及修复后 diff/profile/定向验证。
 - 快速路径场景断言未命中 Trigger 的维度为 `N/A`,不会展开无关检查。
 - collect-all 场景断言多个独立失败被完整收集,报告只出现一次修复范围选择,检查阶段文件无变化。
-- fallback 场景断言分类先于严重度、明确兜底契约不改变 `FBK-*` 归属、严格准入完整、纯偏好不报告、
+- fallback 场景断言分类先于严重度、明确兜底契约不改变 `FBK-*` 归属、三项分类准入完整、
+  缺少运行环境时保留 ID 并标记部分验证、纯偏好不报告、
   `修复全部` 覆盖 `CHK-*` 与 `FBK-*`,未处置 finding 阻断交互完成链,当前有效风险接受允许继续但不隐藏问题,
   validated auto-loop 仍要求两类问题均为 0。
 - 修复/重检场景断言原问题 ID 保持稳定,修复复用 implement route,重检复用 check route。
 - 深度场景覆盖 auto light、显式 full、显式 light 命中 hard-full、fallback full、执行中升级,
-  以及 full 修复/blocked retry 不降级。
+  full 修复/blocked retry 不降级,以及 workflow/skill 解释文字、机械投影和有定向验证的局部行为
+  不因载体名称升级。必须有反向断言防止“无行为变化分支”和“局部行为分支”被拆成两个必选条件。
+- 专项预算测试固定 Check-All 主入口和默认必读 reference 的任务基线;低频源码注释细则条件加载,
+  不计入默认集合但单独计量,且不得通过提高全局 target/review ceiling 放行增长。
 - disposition 静态/行为测试覆盖 interactive stop 和 validated auto-loop `record + next`。
 - subagent 场景至少做静态契约检查;平台有兼容 audit-only subagent 时再执行真实 dispatch 冒烟。
 

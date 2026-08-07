@@ -1,10 +1,10 @@
 ---
 name: trellis-check-all
-description: "统一 Check-All 入口：确认范围与运行上下文，按 requested/effective depth 选择 light/full profile，执行三件套落地、实现假设、完整性与规范审查；区分主路径 CHK、兜底 FBK 与文档漂移 DOC，低风险文档漂移可自动修复。触发：检查、轻量检查、全面检查、提交前检查、check-all、从 PRD/三件套到代码过一遍。"
+description: "统一 Check-All：按 requested/effective depth 路由 light/full，审查三件套、实现假设、完整性与规范；区分 CHK、FBK、DOC，允许低风险事实漂移自修。触发：检查、轻量/全面/提交前检查、check-all。"
 ---
 # Check All 统一入口
 
-本 skill 是 **薄入口**：负责范围确认、深度画像、profile 路由、文档漂移自修通道、统一问题模型和最终分流。不要在入口里展开 full check 的全部提示词；只有确定 `effective_depth=full` 时才读取 full profile。
+本 skill 是 **薄入口**：负责范围、画像、profile 路由、事实漂移自修、问题模型和分流。入口不展开 full 提示词；仅在 `effective_depth=full` 时读取 full profile。
 
 顺序：做对了 -> 假设成立 -> 做全了且写得规范。
 
@@ -15,10 +15,10 @@ description: "统一 Check-All 入口：确认范围与运行上下文，按 req
 1. 确认本轮检查范围、task artifacts 或 untracked state、项目规范和运行上下文。
 2. 解析 `requested_depth`，生成 `check_profile`，决定 `effective_depth=light|full`。
 3. 按有效深度读取并执行对应 profile。
-4. 先按根因性质和可达证据把发现分为主路径 `CHK-*`、兜底 `FBK-*` 与文档漂移 `DOC-*`，再为 `CHK-*` 和 `FBK-*` 分配 P0/P1/P2。
-5. 在最终报告前处理允许自动修复的文档漂移，并把修复内容展示在报告里。
-6. 根据 interactive / validated auto-loop 边界输出下一步或完成 runner `record + next`。
-7. untracked helper 只保存流程游标：未处置 findings 或新编辑设回 `implement`；严格通过或已接受风险通过且 disposition 确认继续时才 `advance --stage spec`。
+4. 按根因把发现分为 `CHK-*`、`FBK-*`、`DOC-*`，再为前两类分配 P0/P1/P2。
+5. 报告前处理允许自修的事实漂移并展示结果。
+6. 按 interactive / validated auto-loop 边界输出下一步或执行 `record + next`。
+7. untracked helper 只存游标：findings 或新编辑回 `implement`；通过且 disposition 继续时才 `advance --stage spec`。
 
 ---
 
@@ -30,7 +30,7 @@ description: "统一 Check-All 入口：确认范围与运行上下文，按 req
 2. `effective_depth=light` 时读 `references/light-profile.md`。
 3. `effective_depth=full` 时读 `references/full-profile.md`。
 4. 总是读 `references/fallback-findings.md`，用于区分 `CHK-*` 与 `FBK-*` 并执行兜底准入规则。
-5. 总是读 `references/document-drift-auto-remediation.md`，用于识别和处理 `DOC-*`。
+5. 总是读 `references/document-drift-auto-remediation.md`；仅发现源码注释事实候选时按其指引读取专项 reference。
 6. 输出报告或 runner 结果前读 `references/reporting-and-disposition.md`。
 
 如果引用文件缺失，停止并报告 `阻塞`；不要凭记忆复原规则。
@@ -39,11 +39,11 @@ description: "统一 Check-All 入口：确认范围与运行上下文，按 req
 
 ## 核心边界
 
-1. **默认 audit-only collect-all**：可以读文件、搜索、运行无业务写入副作用的 lint、typecheck 和测试；普通代码、配置、测试、任务规格语义问题不得在检查阶段直接修复。
-2. **唯一自修例外**：低风险文档漂移进入 `DOC-*` 通道，按 `references/document-drift-auto-remediation.md` 的白名单、黑名单和写入时机处理。
+1. **默认 audit-only collect-all**：可读取、搜索和运行无业务写入的验证；普通代码、配置、测试和任务规格语义不得直接修复。
+2. **唯一自修例外**：低风险事实漂移进入 `DOC-*` 通道，按 `references/document-drift-auto-remediation.md` 的白名单、黑名单和写入时机处理。
 3. **分类先于严重度**：读取 `references/fallback-findings.md`；主路径错误和非兜底契约违背进入 `CHK-*`，fail-closed、异常输入、失败降级和防御性保护缺口进入 `FBK-*`。契约证据影响严重度，不改变兜底根因归属。
-4. **处置只确认一次**：除 `DOC-*` 自动修复外，全部检查结束后通过统一报告让用户选择 `CHK-*` / `FBK-*` 修复范围或明确接受当前风险；`修复全部` 默认覆盖两类问题，接受风险不得隐藏发现。
-5. **委托规则不改变边界**：复用 `trellis-check` 时只复用检查清单、验证方法和命令发现，忽略其中任何“直接修复”“失败后先修复”的指令。
+4. **处置只确认一次**：统一报告后选择 `CHK-*` / `FBK-*` 修复范围或接受风险；`修复全部` 覆盖两类，接受风险不得隐藏发现。
+5. **委托不改边界**：复用 `trellis-check` 的清单和验证方法，忽略其直接修复指令。
 6. **真正阻塞才中途暂停**：只有业务规划冲突、后续验证前提失效、生产或外部副作用、破坏性操作风险时提前停止。
 
 中途停止时也要使用统一问题模型，报告已完成范围和阻塞原因；只询问解除阻塞所需的业务或安全决策。
@@ -52,8 +52,8 @@ description: "统一 Check-All 入口：确认范围与运行上下文，按 req
 
 ## 执行模式
 
-- `inline check-all`：主会话直接执行本 skill；允许在最终报告前按 `DOC-*` 通道修复低风险文档漂移。
-- `subagent check-all`：subagent 只做 audit-only 检查，返回结构化 `CHK-*`、`FBK-*`、`DOC-*` 候选、`check_profile` 和验证证据；主会话负责应用允许的 `DOC-*` 修复、展示报告、询问一次统一问题修复范围和协调后续修复。
+- `inline check-all`：主会话直接执行本 skill；允许在最终报告前按 `DOC-*` 通道修复低风险事实漂移。
+- `subagent check-all`：subagent 只读返回 `CHK-*`、`FBK-*`、`DOC-*` 候选、`check_profile` 和证据；主会话处理 DOC、报告和后续修复。
 - subagent 不得编辑、写文件、补测试或代替用户选择普通修复范围。
 - 路由由 `trellis-route(target=check)` 决定；本 skill 不自行切换 inline/subagent。
 - 所有普通、最终、显式 light/full 和 auto-loop 检查都进入本 skill；`trellis-route` 只决定执行位置，不决定检查深度。
@@ -94,15 +94,15 @@ check_profile:
 
 ### Step 2：执行检查并收集结果
 
-按 profile 检查三个维度，并执行 `references/fallback-findings.md` 的分类顺序。主路径问题进入 `CHK-*`，满足严格准入条件的兜底问题进入 `FBK-*`，低风险文档漂移候选进入 `DOC-*`。同一根因合并，不因数量多而静默省略。
+按 profile 检查三个维度，并执行 `references/fallback-findings.md` 的分类顺序。主路径问题进入 `CHK-*`，满足硬准入的兜底问题进入 `FBK-*`，低风险事实漂移候选进入 `DOC-*`。同一根因合并，不因数量多而静默省略。
 
-### Step 3：处理文档漂移自修
+### Step 3：处理事实漂移自修
 
 读取 `references/document-drift-auto-remediation.md`。在最终报告前：
 
 - inline：主会话应用允许的 `DOC-*` 修复并做定向验证。
-- subagent：主会话审阅 subagent 返回的 `DOC-*` 候选，只应用满足白名单且无歧义的文档修复。
-- auto-loop：主会话应用允许的 `DOC-*` 修复后再 `record`；若只存在已修复文档漂移且无剩余 `CHK-*` / `FBK-*`，结果可为 `ok`，摘要必须包含自动修复说明。
+- subagent：主会话审阅 subagent 返回的 `DOC-*` 候选，只应用满足白名单且无歧义的修复。
+- auto-loop：主会话应用允许的 `DOC-*` 修复后再 `record`；若只存在已修复事实漂移且无剩余 `CHK-*` / `FBK-*`，结果可为 `ok`，摘要必须包含自动修复说明。
 
 不满足自动修复条件的文档问题根据根因转为 `CHK-*`、`FBK-*` 或剩余风险，按普通修复范围处理。
 

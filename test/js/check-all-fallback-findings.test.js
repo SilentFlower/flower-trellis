@@ -40,6 +40,11 @@ test("Check-All 按根因区分 CHK 与 FBK，并为两类问题分配严重度"
   assert.match(agents, /问题证据/);
   assert.match(agents, /保护收益/);
   assert.match(agents, /验证方式/);
+  assert.match(agents, /硬准入（缺一不可）/);
+  assert.match(agents, /不要求异常已经在生产、测试或当前运行中实际发生/);
+  assert.match(agents, /保护收益和验证方式继续作为报告完整度要求，不决定 `FBK-\*` 分类/);
+  assert.match(agents, /缺少环境、工具或权限时仍保留 `FBK-\*` ID/);
+  assert.doesNotMatch(agents, /每个 `FBK-\*` 必须同时具备：[\s\S]*4\. \*\*保护收益\*\*[\s\S]*5\. \*\*验证方式\*\*/);
   assert.match(agents, /泛化“更健壮”表述.*不报告/s);
   assert.match(agents, /`修复全部` 覆盖/);
   assert.match(agents, /用户可以明确接受当前报告中任一 `CHK-\*` 或 `FBK-\*` 的风险而不修复/);
@@ -118,6 +123,8 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
   assert.match(routeAgents, /泛化建议不报告/);
   assert.match(agentBody, /Classify findings by root-cause nature before severity/);
   assert.match(agentBody, /Assign P0\/P1\/P2 to both `CHK-\*` and `FBK-\*`/);
+  assert.match(agentBody, /keep the `FBK-\*` ID when verification is partial/);
+  assert.match(agentBody, /low-risk factual drift as `DOC-\*` candidates/);
   assert.match(agentBody, /Any remaining `CHK-\*` or `FBK-\*` blocks strict pass/);
   assert.match(agentBody, /do not infer, grant, or erase that acceptance yourself/);
   assert.match(workflow, /every remaining finding has current explicit user risk acceptance/);
@@ -134,6 +141,7 @@ test("0.6 源与发布快照只保留 fallback findings 模型", () => {
     ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
     ".agents/skills/trellis-check-all/references/light-profile.md",
     ".agents/skills/trellis-check-all/references/full-profile.md",
+    ".agents/skills/trellis-check-all/references/code-comment-auto-remediation.md",
     ".agents/skills/trellis-route/SKILL.md",
     ".agents/skills/trellis-route/references/check-all-agent-body.md",
     ".agents/skills/trellis-push/SKILL.md",
@@ -142,6 +150,7 @@ test("0.6 源与发布快照只保留 fallback findings 模型", () => {
     ".claude/skills/trellis-check-all/references/reporting-and-disposition.md",
     ".claude/skills/trellis-check-all/references/light-profile.md",
     ".claude/skills/trellis-check-all/references/full-profile.md",
+    ".claude/skills/trellis-check-all/references/code-comment-auto-remediation.md",
     ".claude/skills/trellis-route/SKILL.md",
     ".claude/skills/trellis-push/SKILL.md",
     "overrides/patches/workflow/phase-ownership/phase-2-check-content.md",
@@ -174,12 +183,14 @@ test("当前 dogfood 已投影 FBK 问题模型和风险接受门禁", () => {
     ".agents/skills/trellis-check-all/SKILL.md",
     ".agents/skills/trellis-check-all/references/fallback-findings.md",
     ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
+    ".agents/skills/trellis-check-all/references/code-comment-auto-remediation.md",
     ".agents/skills/trellis-route/SKILL.md",
     ".agents/skills/trellis-route/references/check-all-agent-body.md",
     ".agents/skills/trellis-push/SKILL.md",
     ".claude/skills/trellis-check-all/SKILL.md",
     ".claude/skills/trellis-check-all/references/fallback-findings.md",
     ".claude/skills/trellis-check-all/references/reporting-and-disposition.md",
+    ".claude/skills/trellis-check-all/references/code-comment-auto-remediation.md",
     ".claude/skills/trellis-route/SKILL.md",
     ".claude/skills/trellis-push/SKILL.md",
   ];
