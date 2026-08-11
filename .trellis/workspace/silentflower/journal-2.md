@@ -962,3 +962,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 87: 拆分 Trellis Push 输出模板
+
+**Date**: 2026-08-11
+**Task**: 拆分 Trellis Push 输出模板
+**Package**: flower-trellis
+**Branch**: `beta`
+
+### Summary
+
+在 beta 分支将 trellis-push 的交互计划与结果模板拆到按需 reference，保持 auto-loop commit-only 语义，完成多层同步、全量验证和规范固化。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f7e8f3d` | (see git log) |
+| `b340825` | (see git log) |
+
+### Status
+
+[OK] **Completed**
