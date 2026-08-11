@@ -115,9 +115,18 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
   );
   const pushAgents = read(sourceRoot, ".agents/skills/trellis-push/SKILL.md");
   const pushClaude = read(sourceRoot, ".claude/skills/trellis-push/SKILL.md");
+  const pushTemplatesAgents = read(
+    sourceRoot,
+    ".agents/skills/trellis-push/references/output-templates.md",
+  );
+  const pushTemplatesClaude = read(
+    sourceRoot,
+    ".claude/skills/trellis-push/references/output-templates.md",
+  );
 
   assert.equal(routeAgents, routeClaude);
   assert.equal(pushAgents, pushClaude);
+  assert.equal(pushTemplatesAgents, pushTemplatesClaude);
   assert.match(routeAgents, /`CHK-\*` \/ `FBK-\*` \/ `DOC-\*`/);
   assert.match(routeAgents, /已声明的兜底契约只影响证据和严重度，不改变 `FBK-\*` 归属/);
   assert.match(routeAgents, /泛化建议不报告/);
@@ -130,8 +139,8 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
   assert.match(workflow, /every remaining finding has current explicit user risk acceptance/);
   assert.match(workflow, /Any unaccepted finding.*reports and stops/);
   assert.match(pushAgents, /所有剩余问题都有当前有效的用户风险接受时标记为 `通过（已接受风险）`/);
-  assert.match(pushAgents, /任一未处置 `CHK-\*` \/ `FBK-\*`.*计入风险区/);
-  assert.match(pushAgents, /已接受风险的问题也必须按 ID、严重度和影响进入风险区/);
+  assert.match(pushTemplatesAgents, /任一未处置 `CHK-\*` \/ `FBK-\*`.*计入风险区/);
+  assert.match(pushTemplatesAgents, /已接受风险的问题也必须按 ID、严重度和影响进入风险区/);
 });
 
 test("0.6 源与发布快照只保留 fallback findings 模型", () => {
@@ -145,6 +154,7 @@ test("0.6 源与发布快照只保留 fallback findings 模型", () => {
     ".agents/skills/trellis-route/SKILL.md",
     ".agents/skills/trellis-route/references/check-all-agent-body.md",
     ".agents/skills/trellis-push/SKILL.md",
+    ".agents/skills/trellis-push/references/output-templates.md",
     ".claude/skills/trellis-check-all/SKILL.md",
     ".claude/skills/trellis-check-all/references/fallback-findings.md",
     ".claude/skills/trellis-check-all/references/reporting-and-disposition.md",
@@ -153,6 +163,7 @@ test("0.6 源与发布快照只保留 fallback findings 模型", () => {
     ".claude/skills/trellis-check-all/references/code-comment-auto-remediation.md",
     ".claude/skills/trellis-route/SKILL.md",
     ".claude/skills/trellis-push/SKILL.md",
+    ".claude/skills/trellis-push/references/output-templates.md",
     "overrides/patches/workflow/phase-ownership/phase-2-check-content.md",
   ];
 
@@ -187,12 +198,14 @@ test("当前 dogfood 已投影 FBK 问题模型和风险接受门禁", () => {
     ".agents/skills/trellis-route/SKILL.md",
     ".agents/skills/trellis-route/references/check-all-agent-body.md",
     ".agents/skills/trellis-push/SKILL.md",
+    ".agents/skills/trellis-push/references/output-templates.md",
     ".claude/skills/trellis-check-all/SKILL.md",
     ".claude/skills/trellis-check-all/references/fallback-findings.md",
     ".claude/skills/trellis-check-all/references/reporting-and-disposition.md",
     ".claude/skills/trellis-check-all/references/code-comment-auto-remediation.md",
     ".claude/skills/trellis-route/SKILL.md",
     ".claude/skills/trellis-push/SKILL.md",
+    ".claude/skills/trellis-push/references/output-templates.md",
   ];
 
   for (const relativePath of exactPaths) {

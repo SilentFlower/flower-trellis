@@ -97,10 +97,17 @@ test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算"
   const autoLoopClaude = readSource(".claude/skills/trellis-auto-loop/SKILL.md");
   const push = readSource(".agents/skills/trellis-push/SKILL.md");
   const pushClaude = readSource(".claude/skills/trellis-push/SKILL.md");
+  const pushTemplates = readSource(
+    ".agents/skills/trellis-push/references/output-templates.md",
+  );
+  const pushTemplatesClaude = readSource(
+    ".claude/skills/trellis-push/references/output-templates.md",
+  );
   const runner = readSource("scripts/auto_loop.py");
 
   assert.equal(autoLoop, autoLoopClaude);
   assert.equal(push, pushClaude);
+  assert.equal(pushTemplates, pushTemplatesClaude);
   assert.match(autoLoop, /commit -> generate -> commit/);
   assert.match(autoLoop, /不得仅因多个仓库、submodule pin 或证据充分的本地生成命令返回 `multi-repo-commit-boundary`/);
   assert.match(autoLoop, /--repo-commit <repository>::<hash>/);
@@ -115,6 +122,11 @@ test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算"
   assert.match(push, /Auto-Loop runner 仍按自己的状态契约写入本地 `task\.json\.progress`/);
   assert.match(push, /本 skill 跳过 Step 5/);
   assert.match(push, /不得 reset、rebase、revert、amend 或撤销成功提交/);
+  assert.match(push, /auto-loop 内部 `commit-only` 不渲染交互式计划或结果/);
+  assert.match(push, /不得为了内部执行读取 `references\/output-templates\.md`/);
+  assert.match(push, /auto-loop 内部 `commit-only` 不读取或渲染该交互式结果模板/);
+  assert.match(pushTemplates, /## Trellis Push 计划/);
+  assert.match(pushTemplates, /## Trellis Push 结果/);
   assert.doesNotMatch(push, /本 skill 只执行该提交/);
   assert.match(runner, /MAX_COMMIT_REPAIR = MAX_FIX_RECHECK/);
   assert.match(runner, /record\.add_argument\("--repo-commit", action="append", default=\[\]\)/);
@@ -277,6 +289,9 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   );
   const route = readSource(".agents/skills/trellis-route/SKILL.md");
   const push = readSource(".agents/skills/trellis-push/SKILL.md");
+  const pushTemplates = readSource(
+    ".agents/skills/trellis-push/references/output-templates.md",
+  );
   const autoLoop = readSource(".agents/skills/trellis-auto-loop/SKILL.md");
 
   const noTaskPath = `${requestTriage}\n${noTask}`;
@@ -368,9 +383,9 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   );
   assert.match(push, /普通 push 或用户 `commit-only` 已经构成明确 Git 意图/);
   assert.match(push, /不会阻止读取 Git 状态或生成提交计划/);
-  assert.match(push, /### 完成链证据/);
-  assert.match(push, /\*\*Check-All\*\*：<通过 \/ 通过（已接受风险：CHK-001,FBK-002） \/ 未运行 \/ 已失效 \/ 存在未处置 findings \/ blocked \/ 部分验证>/);
-  assert.match(push, /\*\*Update-Spec\*\*：<no-op \/ written \/ needs-review \/ 未运行 \/ 已失效>/);
+  assert.match(pushTemplates, /### 完成链证据/);
+  assert.match(pushTemplates, /\*\*Check-All\*\*：<通过 \/ 通过（已接受风险：CHK-001,FBK-002） \/ 未运行 \/ 已失效 \/ 存在未处置 findings \/ blocked \/ 部分验证>/);
+  assert.match(pushTemplates, /\*\*Update-Spec\*\*：<no-op \/ written \/ needs-review \/ 未运行 \/ 已失效>/);
   assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);
   assertOrdered(
     push,

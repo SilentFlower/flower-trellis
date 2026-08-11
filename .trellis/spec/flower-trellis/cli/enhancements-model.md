@@ -2493,6 +2493,8 @@ explicit Trellis Push entry -> Push owner records available completion evidence
 - Scope:Phase 2.2 / in-progress state 负责 post-check 一跳边界，Phase 3.4 进入 `trellis-push`；
   Hub 只登记 owner 和跨阶段顺序。`trellis-check-all` 负责纯检查汇总；`trellis-push` 负责只读完成链
   证据、exact plan、一次确认、业务 Git 动作和普通 push 后的 task progress trigger；
+  `trellis-push/SKILL.md` 是唯一执行契约，同目录 `references/output-templates.md` 只负责用户可见
+  计划、结果模板和展示规则；
   `task_progress.py` 只负责窄 schema 读写;
   `trellis-auto-loop` 仍只使用本地 commit-only 预授权。
 
@@ -2521,6 +2523,13 @@ explicit trellis-push | push confirmation
 ```
 
 普通多仓计划可以在仓库间展示一个本地生成命令；命令成功且生成后的 dirty paths 未超出预计 exact files 时沿用同一次确认。
+
+交互输出事件:
+
+```text
+plan data converged -> read output-templates plan/common sections -> render plan -> confirm once
+git actions finished -> reread output-templates common/result sections -> render result
+```
 
 auto-loop 状态序列保持不变:
 
@@ -2568,6 +2577,13 @@ risk_items          ->始终逐项展示,不折叠
 - Phase 3.4 必须加载 `trellis-push`;在该 skill 外草拟提交计划不能作为等价替代。
 - workflow hub 只声明 Phase 3.4 门禁和格式所有权:详细计划/结果格式完全由 `trellis-push`
   管理。hub 不复制模板、字段顺序、仓库显示名、retained 用户标签或 8/12 文件阈值。
+- 用户可见计划只能在计划数据收敛后即时读取 `references/output-templates.md` 的计划模板与共用
+  展示规则再渲染；用户可见结果必须再次读取共用展示规则、结果模板与结果补充规则，不得依赖
+  计划阶段的上下文仍然存在。reference 缺失、不可读或缺少目标章节时失败关闭，不得凭记忆重建、
+  缩写或自制替代模板。
+- auto-loop 内部 `commit-only` 不产生交互式计划或结果，因此不得为了内部执行读取该 reference，
+  也不新增确认；它仍由主 Skill 形成 exact files、message、retained、已完成 commits 和失败位置，
+  再由 `trellis-auto-loop` 执行 `record + next`。
 - Phase 3.4 Patch 必须直接替换与 `trellis-push` 冲突的上游 `Proposed commits`、本地直接 commit
   和 `Never push` walkthrough；不得保留旧正文后再依赖 Hub 声明其 inactive。
 - 普通 `trellis-push` 默认 commit + push 当前分支;commit-only 只来自用户明确意图或已经由
@@ -2650,9 +2666,11 @@ risk_items          ->始终逐项展示,不折叠
 | Check-All / Update-Spec 均有效 | 展示实际状态，继续 Git 预检与计划 |
 | 计划存在冲突、无法归属 exact files 或其它 Git 安全阻塞 | 停止并报告确定性 Git 问题 |
 | Phase 3.4 未加载 `trellis-push` 却准备 commit | 阻断;进入本 skill 重新生成计划 |
+| 交互计划/结果输出前 reference 缺失、不可读或缺少目标章节 | 阻断;不得凭记忆生成近似模板 |
 | 旧 Phase 3.4 `Proposed commits` / `Never push` 正文仍存在 | conflict assertion 失败，禁止依赖 Hub 优先级继续 |
 | 普通 `trellis-push` 未收到 commit-only 意图 | mode 必须是 commit + push |
 | auto-loop outstanding action/profile/task 不匹配 | auto-loop 不得调用内部 commit-only,写回 failed/blocked |
+| auto-loop 内部 commit-only 到达交互模板读取或确认路径 | 契约回归;停止并修复 Push 分层，不修改 runner 适配错误 UI |
 | 单仓 planned files = 8 | 逐项完整展示 |
 | 单仓 planned files > 8 | 按目录归组,文件摘要最多 12 行,提供“展开文件” |
 | 存在 retained dirty | 在“保留未提交的变更（dirty）”中逐项标注 Git 状态,不作为默认阻塞 |
@@ -2699,6 +2717,8 @@ risk_items          ->始终逐项展示,不折叠
   completed，当前 session 继续指向该待归档任务。
 - Good:`skill-garden` push 后按计划运行 `npm run sync`;生成后没有计划外 dirty path,直接继续
   `flower-trellis` commit/push,不要求第二次确认。
+- Good:计划和结果分别在实际输出前读取同一 output reference；两次输出之间即使发生上下文压缩，
+  结果仍按 canonical 模板渲染。auto-loop 内部 commit-only 不读取该 reference。
 - Good:当前任务有 2 个业务 planned files 和 6 个 untracked 任务产物,另一个规划任务有
   untracked 文件且 index 中有 1 个无关 staged 文件;业务 commit 只提交 2 个 planned files,
   随后的任务记录 commit 提交 6 个任务产物与更新后的 `task.json`,另一个任务和 staged 文件
@@ -2711,6 +2731,8 @@ risk_items          ->始终逐项展示,不折叠
 - Bad:`trellis-push` 因 Update-Spec 缺失/过期自动加载 Phase 3.3，而不是在计划中披露状态。
 - Bad:为了缩短输出把 staged/conflict 文件折叠成“其他 12 个文件”;风险范围不可审计。
 - Bad:普通计划沿用 auto-loop 的 commit-only 文案;auto-loop 预授权不能泄漏到普通流程。
+- Bad:Skill 入口提前读取模板，结果阶段依赖旧上下文凭记忆输出；或让 auto-loop 为不可见模板增加
+  reference I/O 和交互确认。
 - Bad:为减少一次确认增加独立中间步骤流程、验证协议或新状态;现有计划和提交前预检已经足够。
 - Bad:生成后出现预计列表外文件仍沿用旧确认,或仅因预计文件的 hash/统计变化重复询问用户。
 - Bad:progress 记录 business commit hash 或 push mode,再让 finish-work 根据它决定是否 push。
@@ -2734,6 +2756,11 @@ risk_items          ->始终逐项展示,不折叠
   明确用户意图或合法 auto-loop 预授权。
 - 静态扫描最终 Phase 3.4，确认旧 `Proposed commits`、local-only、no-push walkthrough 已被
   `replace/remove` 消除，而不是依赖 Hub 优先级声明。
+- 静态断言主 `trellis-push/SKILL.md` 在计划和结果输出点分别即时读取
+  `references/output-templates.md`，reference 缺失时失败关闭；模板字段从 reference 校验，执行、
+  确认和恢复语义继续从主 Skill 校验。
+- 静态断言 auto-loop 内部 commit-only 不读取或渲染交互模板、不重新确认，并继续返回逐仓执行数据；
+  canonical、发布快照与 dogfood 的双平台主 Skill/reference 必须字节一致。
 - 静态扫描 Hub，确认只登记 `trellis-push` owner 和必要跨阶段顺序，不重复 Skill 的展示细节。
 - 用 8 个、9 个和超过 12 个目录分组行的模拟计划验证展示阈值;风险文件始终逐项显示。
 - 模拟单仓、多仓、无活动任务、用户展开文件、计划漂移、部分仓库失败六类输出。
@@ -2777,6 +2804,12 @@ Proposed commits:
 
 问题:Push owner 把审计状态升级成新的交互门禁，导致显式 Push 多一次确认。
 
+```markdown
+已在进入 Skill 时读取过模板。现在根据记忆生成简化版结果。
+```
+
+问题:结果输出依赖可能已被压缩的旧上下文，无法保证 canonical 字段、顺序和风险展示。
+
 #### Correct
 
 ```markdown
@@ -2810,8 +2843,15 @@ Push：执行
 确认执行请回复 `确认`。
 ```
 
+```text
+即将输出计划 -> 读取 output-templates 的计划/共用章节
+即将输出结果 -> 再次读取 output-templates 的共用/结果章节
+auto-loop internal commit-only -> 不读取、不渲染、不确认
+```
+
 原因:check 报告与 Git 计划职责分离，正常完成链仍在用户继续后进入 Phase 3.3；显式 Push
-进入 Phase 3.4 后只披露上游证据，不反向补门禁。默认 push、文件范围和一次确认都由唯一入口负责。
+进入 Phase 3.4 后只披露上游证据，不反向补门禁。默认 push、文件范围和一次确认都由唯一入口负责；
+展示 reference 只在实际输出事件前进入上下文，不成为第二份执行契约。
 
 ---
 

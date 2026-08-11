@@ -137,9 +137,14 @@ test("非编号条目的加粗字段行不误判", () => {
 
 
 test("0.6 强化包全部 skill 输出模板满足渲染契约", () => {
-  const { findings, scanned } = collectOutputTemplateFindings();
+  const { root, findings, scanned } = collectOutputTemplateFindings();
+  const pushTemplates = path.join(
+    root,
+    ".claude/skills/trellis-push/references/output-templates.md",
+  );
 
   assert.ok(scanned > 0, "应至少扫描到一个 skill 文档");
+  assert.ok(fs.existsSync(pushTemplates), "trellis-push 输出 reference 应进入递归扫描目录");
   assert.deepEqual(
     findings.map((item) => `${item.file}:${item.line} ${item.kind}`),
     [],

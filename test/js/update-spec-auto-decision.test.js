@@ -67,6 +67,10 @@ test("交互 Check-All 默认停止，direct Git 通过或风险接受后同轮�
     ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
   );
   const push = read(sourceRoot, ".agents/skills/trellis-push/SKILL.md");
+  const pushTemplates = read(
+    sourceRoot,
+    ".agents/skills/trellis-push/references/output-templates.md",
+  );
   const updateSpec = read(
     sourceRoot,
     "overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md",
@@ -115,8 +119,12 @@ test("交互 Check-All 默认停止，direct Git 通过或风险接受后同轮�
   assert.match(push, /本步骤不得返回 Phase 2\.2/);
   assert.match(push, /不得加载 `trellis-check-all` 或 `trellis-update-spec`/);
   assert.match(push, /不会阻止读取 Git 状态或生成提交计划/);
-  assert.match(push, /### 完成链证据/);
-  assert.match(push, /`未运行`、`已失效`、任一未处置 `CHK-\*` \/ `FBK-\*`、blocked、部分验证或 `needs-review` 同时计入风险区/);
+  assert.match(push, /即将展示用户可见计划时，必须即时读取 `references\/output-templates\.md`/);
+  assert.match(push, /即将展示用户可见结果时，必须再次即时读取 `references\/output-templates\.md`/);
+  assert.match(push, /“共用展示规则”、“结果模板”和“结果补充规则”/);
+  assert.match(push, /不得凭记忆重建、缩写或自制替代模板/);
+  assert.match(pushTemplates, /### 完成链证据/);
+  assert.match(pushTemplates, /`未运行`、`已失效`、任一未处置 `CHK-\*` \/ `FBK-\*`、blocked、部分验证或 `needs-review` 同时计入风险区/);
   assert.match(push, /所有剩余问题都有当前有效的用户风险接受时标记为 `通过（已接受风险）`/);
   assert.match(push, /auto-loop 内部 `commit-only` 已由 runner/);
   assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);
