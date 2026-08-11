@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"执行 Node/Python、语法、上下文预算、dogfood、快照和 diff 的完整质量门禁。"}
+{"file":".trellis/spec/flower-trellis/cli/release-and-publishing.md","reason":"检查快照与 submodule pin、npm tarball 和发布前生成产物一致性。"}
+{"file":".trellis/tasks/08-11-upgrade-trellis-0-6-14/research/upgrade-assessment.md","reason":"逐项核对已识别的直接冲突、隐性语义风险和隔离测试结果。"}
+{"file":".trellis/tasks/archive/2026-08/08-02-assess-trellis-0-6-12-upgrade/research/upgrade-conflict-inventory.md","reason":"检查既有 Flower/Trellis 所有权决策没有因上游升级发生回退。"}
