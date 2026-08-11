@@ -1,6 +1,7 @@
 import figlet from "figlet";
 import chalk from "chalk";
-import { execFileSync } from "node:child_process";
+
+export { getDeveloper } from "./developer.js";
 
 /**
  * 打印 flower-trellis 品牌头部 —— ASCII logo + 副标题 + 开发者身份,
@@ -24,31 +25,5 @@ export function printBanner(developer) {
     console.log(
       `👤 ${chalk.magentaBright("Developer")}: ${chalk.bold(developer)}\n`,
     );
-  }
-}
-
-/**
- * 解析开发者名:优先 `-u/--user` 的取值,否则回退到目标目录可见的 Git 配置。
- *
- * @param {string[]} passthrough Trellis 透传参数
- * @param {string} target 目标项目根目录
- * @returns {string|null} 开发者名，无法识别时返回 null
- */
-export function getDeveloper(passthrough, target) {
-  const i = passthrough.findIndex((a) => a === "-u" || a === "--user");
-  if (i >= 0) {
-    const v = passthrough[i + 1];
-    if (v && !v.startsWith("-")) return v;
-  }
-  const inline = passthrough.find((arg) => arg.startsWith("--user="));
-  if (inline) return inline.slice("--user=".length) || null;
-  try {
-    return (
-      execFileSync("git", ["-C", target, "config", "user.name"], {
-        encoding: "utf8",
-      }).trim() || null
-    );
-  } catch {
-    return null;
   }
 }

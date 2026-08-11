@@ -1053,15 +1053,16 @@ FLOWER_NO_TELEMETRY=1
 POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
 ```
 
-状态字段固定为 `schemaVersion`、`deviceId`、`enabled`、`lastAttemptAt`、`lastSuccessAt`。事件固定为 `version_check`、`init_completed`、`update_completed`。
+状态字段固定为 `schemaVersion`、`deviceId`、`developerName`、`enabled`、`lastAttemptAt`、`lastSuccessAt`；旧状态缺少 `developerName` 时只读兼容为 `null`，下一次真实上报自动补齐。事件固定为 `version_check`、`init_completed`、`update_completed`。
 
 ### 3. Contracts
 
-- 状态缺失时视为启用，首次真实上报生成用户级随机 UUID；npm 重装和不同项目复用同一 ID。
+- 状态缺失时视为启用，首次真实上报生成用户级随机 UUID；npm 重装和不同项目复用同一 ID。每次真实上报同时缓存本次有效 `developerName`，供后续项目上下文不完整时回退。
 - 配置目录权限 0700、文件 0600，同目录临时文件 + `fsync` + rename 原子替换；软链接或非普通文件拒绝覆盖。
 - 损坏的普通 JSON 状态在后台上报中静默跳过并保留证据，只有显式 `telemetry enable|disable` 可重建；软链接或非普通文件始终拒绝覆盖。
-- payload 只含随机设备 ID、事件、Flower/Trellis 当前与项目版本、`.trellis/.developer` 的 `name=`、platform、arch、client_time。
-- 禁止采集 MAC、主机名、系统用户名、项目路径、仓库地址、Git 身份、IP 或 User-Agent。
+- `developer_name` 按目标项目 `.trellis/.developer` 的有效 `name=`、目标目录可见的 Git `user.name`、用户级状态缓存的顺序解析；项目自报名称优先，Git 只读取名称，不读取邮箱或远端。
+- payload 只含随机设备 ID、事件、Flower/Trellis 当前与项目版本、解析后的 `developer_name`、platform、arch、client_time；三种身份来源都缺失时整条事件不发送，且不创建或更新时间戳状态。
+- 禁止采集 Git 邮箱、MAC、主机名、系统用户名、项目路径、仓库地址、IP 或 User-Agent。
 - 普通 `version_check` 复用 updateCheck `intervalHours` 节流；init/update 成功事件强制上报，update dry-run 不上报。
 - init/update 的 registry 请求与遥测并行；self-check 只有缓存未命中并真实请求 registry 时触发，stdout 始终只有原 JSON。
 - `FLOWER_NO_TELEMETRY` 只临时停用且零写入；持久开关独立于 updateCheck。
@@ -1078,6 +1079,9 @@ POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
 | `FLOWER_NO_TELEMETRY` 非空 | 不发送且不创建状态文件 |
 | 状态 JSON 损坏 | 普通路径跳过；显式 enable/disable 生成新 UUID 并原子重建 |
 | 状态为软链接或非普通文件 | 普通路径跳过；显式命令也拒绝覆盖 |
+| `.trellis/.developer` 缺失或没有有效 `name=`，Git `user.name` 有效 | 使用 Git 名称发送，并与设备 ID 一起缓存 |
+| 项目名称与 Git 名称都缺失，状态缓存有效 | 使用缓存名称发送，设备 ID 保持不变 |
+| 项目、Git、缓存三种身份来源都缺失 | 返回 `missing_developer`，不发送且不创建或更新遥测状态 |
 | version_check 尚在 interval 内 | 返回 throttled，不联网 |
 | init/update 成功 | 绕过 interval 发送完成事件 |
 | update `--dry-run` | 不发送完成事件 |
@@ -1088,6 +1092,7 @@ POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
 ### 5. Good / Base / Bad Cases
 
 - Good：同一用户在多个项目运行，服务端看到同一随机设备 ID 与不同开发者别名/项目版本，但看不到路径和仓库。
+- Good：目标项目缺少 `.trellis/.developer`，但本地 Git 配置为 `silentflower`；事件使用 `silentflower` 并写入用户级缓存，后续无项目上下文的版本检查仍关联同一名称和设备 ID。
 - Good：真实 init E2E 使用隔离 XDG/config 目录并默认设置 `FLOWER_NO_TELEMETRY=1`，命令行为照常完成且无遥测状态文件。
 - Base：离线环境上报超时后静默返回，init/update 完成页和 self-check JSON 不受影响。
 - Bad：使用 MAC/hostname 生成稳定指纹，或把遥测状态写进项目仓库。
@@ -1096,7 +1101,8 @@ POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
 
 ### 6. Tests Required
 
-- 缺失状态默认开启、UUID 稳定、0700/0600、enable/disable 和环境变量零写入。
+- 缺失状态默认开启、UUID 稳定、旧状态兼容、`developerName` 缓存、0700/0600、enable/disable 和环境变量零写入。
+- 开发者名称覆盖项目优先于 Git、Git 优先于缓存、缓存兜底，以及三种来源都缺失时零上报。
 - 损坏 JSON、软链接、网络失败、显式短超时、默认 10 秒预算内的秒级响应、节流和强制事件。
 - payload 精确白名单及明确不存在 MAC、hostname、username、path、repository。
 - self-check 缓存命中不触发、真实远程检查触发、stdout 可直接 `JSON.parse`。
@@ -1136,3 +1142,17 @@ const env = { ...process.env, FLOWER_NO_TELEMETRY: '1', ...overrides }
 ```
 
 原因：普通 E2E 的目标是验证 CLI 主流程，不应污染生产安装统计；显式覆盖保留了遥测专项测试验证真实触发路径的能力。
+
+```javascript
+// 错误：项目文件缺失时立即放弃，丢失本机已有的有效开发者身份
+const developerName = readProjectDeveloper(target)
+if (!developerName) return { status: "missing_developer" }
+
+// 正确：按明确优先级解析，并把有效名称与设备状态一起缓存
+const developerName = readProjectDeveloper(target) ||
+  readGitDeveloper(target) ||
+  state.developerName
+state = writeTelemetryState({ ...state, developerName })
+```
+
+原因：`.trellis/.developer` 仍是项目身份真源，但 Git `user.name` 和用户级缓存可以在项目文件缺失或 SessionStart 上下文不完整时保持名称与随机设备 ID 的稳定关联；三者都不可用时才停止上报，避免伪造身份。

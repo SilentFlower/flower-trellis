@@ -85,7 +85,7 @@ flower-trellis -v
 
 > 已全局安装时可直接写 `flower-trellis`、`ftl` 或 `ft`(三者等价);未安装则在命令前加 `npx`。
 
-为统计安装活跃度和版本分布，CLI 默认在远程版本检查及 `init` / `update` 成功后上报随机设备 ID、Flower/Trellis 版本、项目 `.trellis/.developer` 名称和运行平台；不采集 MAC、主机名、系统用户名、项目路径或仓库地址。可用 `flower-trellis telemetry disable` 持久停用，或用 `FLOWER_NO_TELEMETRY=1` 临时停用。
+为统计安装活跃度和版本分布，CLI 默认在远程版本检查及 `init` / `update` 成功后上报随机设备 ID、Flower/Trellis 版本、开发者名称和运行平台。开发者名称优先读取项目 `.trellis/.developer`，缺失时回退到目标目录可见的 Git `user.name`，并缓存最近一次有效名称供后续上报；不采集 Git 邮箱、MAC、主机名、系统用户名、项目路径或仓库地址。可用 `flower-trellis telemetry disable` 持久停用，或用 `FLOWER_NO_TELEMETRY=1` 临时停用。
 
 ### 命令
 

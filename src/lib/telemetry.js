@@ -4,6 +4,7 @@ import path from "node:path";
 import { flowerConfigDirectory } from "../plugin/sources/user-source-store.js";
 import { ProjectStore } from "../plugin/state/project-store.js";
 import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
+import { readGitDeveloper } from "./developer.js";
 import { readManifest, readUpdateCheck } from "./manifest.js";
 import { flowerVersion, trellisVersion } from "./versions.js";
 
@@ -16,6 +17,18 @@ const DEFAULT_TIMEOUT_MS = 10000;
 const VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EVENTS = new Set(["version_check", "init_completed", "update_completed"]);
+
+/**
+ * 规范化可上报的开发者名称。
+ *
+ * @param {unknown} value 原始名称
+ * @returns {string|null} 有效名称，无法使用时返回 null
+ */
+function normalizeDeveloperName(value) {
+  if (typeof value !== "string") return null;
+  const name = value.trim();
+  return name && name.length <= 100 ? name : null;
+}
 
 /**
  * 返回 Flower 用户级遥测状态文件路径。
@@ -46,6 +59,10 @@ function normalizeTelemetryState(value) {
   if (typeof value.enabled !== "boolean") {
     throw new TypeError("遥测 enabled 无效");
   }
+  const developerName = normalizeDeveloperName(value.developerName);
+  if (value.developerName !== undefined && value.developerName !== null && !developerName) {
+    throw new TypeError("遥测 developerName 无效");
+  }
   for (const field of ["lastAttemptAt", "lastSuccessAt"]) {
     if (value[field] !== null && (
       typeof value[field] !== "string" || Number.isNaN(Date.parse(value[field]))
@@ -56,6 +73,7 @@ function normalizeTelemetryState(value) {
   return {
     schemaVersion: TELEMETRY_SCHEMA_VERSION,
     deviceId: value.deviceId,
+    developerName,
     enabled: value.enabled,
     lastAttemptAt: value.lastAttemptAt,
     lastSuccessAt: value.lastSuccessAt,
@@ -157,6 +175,7 @@ function createTelemetryState(options = {}) {
   return {
     schemaVersion: TELEMETRY_SCHEMA_VERSION,
     deviceId: randomUUID(),
+    developerName: null,
     enabled: true,
     lastAttemptAt: null,
     lastSuccessAt: null,
@@ -190,11 +209,23 @@ function readProjectDeveloper(target) {
   try {
     const content = fs.readFileSync(path.join(target, ".trellis", ".developer"), "utf8");
     const line = content.split(/\r?\n/).find((entry) => entry.startsWith("name="));
-    const name = line?.slice("name=".length).trim() || "";
-    return name && name.length <= 100 ? name : null;
+    return normalizeDeveloperName(line?.slice("name=".length));
   } catch {
     return null;
   }
+}
+
+/**
+ * 按项目自报、Git 配置、用户级缓存的顺序解析开发者名称。
+ *
+ * @param {string} target 项目根目录
+ * @param {{developerName?:string|null,env?:NodeJS.ProcessEnv}} [options] 回退选项
+ * @returns {string|null} 开发者名称
+ */
+function resolveDeveloperName(target, options = {}) {
+  return readProjectDeveloper(target) ||
+    normalizeDeveloperName(readGitDeveloper(target, { env: options.env })) ||
+    normalizeDeveloperName(options.developerName);
 }
 
 /**
@@ -229,8 +260,8 @@ function readProjectVersions(target) {
  *
  * @param {string} target 项目根目录
  * @param {string} event 遥测事件
- * @param {{deviceId:string,now?:Date}} options 设备与时间参数
- * @returns {object} 可上报载荷
+ * @param {{deviceId:string,developerName?:string|null,env?:NodeJS.ProcessEnv,now?:Date}} options 设备、身份与时间参数
+ * @returns {object|null} 可上报载荷；全部身份来源缺失时返回 null
  */
 export function buildTelemetryPayload(target, event, options) {
   if (!EVENTS.has(event)) throw new TypeError(`未知遥测事件:${event}`);
@@ -238,7 +269,11 @@ export function buildTelemetryPayload(target, event, options) {
     throw new TypeError("遥测设备 ID 无效");
   }
   const now = options.now instanceof Date ? options.now : new Date();
-  const project = readProjectVersions(path.resolve(target));
+  const resolvedTarget = path.resolve(target);
+  const developerName = resolveDeveloperName(resolvedTarget, options);
+  // 三种可信身份来源都缺失时无法诚实构造开发者名称，保留静默降级作为最后边界。
+  if (!developerName) return null;
+  const project = readProjectVersions(resolvedTarget);
   const bundledTrellis = trellisVersion();
   return {
     schema_version: TELEMETRY_SCHEMA_VERSION,
@@ -248,7 +283,7 @@ export function buildTelemetryPayload(target, event, options) {
     bundled_trellis_version: VERSION_PATTERN.test(bundledTrellis) ? bundledTrellis : null,
     project_flower_version: project.flower,
     project_trellis_version: project.trellis,
-    developer_name: readProjectDeveloper(path.resolve(target)),
+    developer_name: developerName,
     platform: process.platform,
     arch: process.arch,
     client_time: now.toISOString(),
@@ -293,13 +328,23 @@ export async function reportTelemetry(target, event, options = {}) {
     if (!state.enabled) return { status: "disabled" };
 
     const now = options.now instanceof Date ? options.now : new Date();
+    const payload = buildTelemetryPayload(target, event, {
+      deviceId: state.deviceId,
+      developerName: state.developerName,
+      env,
+      now,
+    });
+    if (!payload) return { status: "missing_developer" };
     const intervalHours = readUpdateCheck(path.resolve(target)).intervalHours;
     if (!options.force && isWithinInterval(state, now, intervalHours)) {
       return { status: "throttled" };
     }
 
-    state = writeTelemetryState({ ...state, lastAttemptAt: now.toISOString() }, options);
-    const payload = buildTelemetryPayload(target, event, { deviceId: state.deviceId, now });
+    state = writeTelemetryState({
+      ...state,
+      developerName: payload.developer_name,
+      lastAttemptAt: now.toISOString(),
+    }, options);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     try {

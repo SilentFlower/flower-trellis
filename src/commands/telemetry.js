@@ -29,6 +29,7 @@ function printStatus(env) {
   console.log(`Flower Telemetry:${enabled ? "已启用" : "已停用"}`);
   console.log(`  环境变量临时停用:${env.FLOWER_NO_TELEMETRY ? "是" : "否"}`);
   console.log(`  设备 ID:${state?.deviceId || "首次上报时生成"}`);
+  console.log(`  开发者名称:${state?.developerName || "首次有效上报时识别"}`);
   console.log(`  最近尝试:${formatTime(state?.lastAttemptAt || null)}`);
   console.log(`  最近成功:${formatTime(state?.lastSuccessAt || null)}`);
 }
@@ -50,6 +51,7 @@ export async function telemetry(ctx) {
     const state = setTelemetryEnabled(enabled);
     console.log(`Flower Telemetry:${enabled ? "已启用" : "已停用"}`);
     console.log(`  设备 ID:${state.deviceId}`);
+    console.log(`  开发者名称:${state.developerName || "首次有效上报时识别"}`);
     return;
   }
   throw new Error("用法:flower-trellis telemetry <status|enable|disable>");
