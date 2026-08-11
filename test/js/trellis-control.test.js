@@ -37,7 +37,7 @@ function createProject(t) {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), "flower-trellis-control-"));
   t.after(() => fs.rmSync(project, { recursive: true, force: true }));
   fs.mkdirSync(path.join(project, ".trellis/tasks"), { recursive: true });
-  fs.writeFileSync(path.join(project, ".trellis/.version"), "0.6.12\n");
+  fs.writeFileSync(path.join(project, ".trellis/.version"), "0.6.14\n");
   fs.writeFileSync(path.join(project, ".trellis/tasks/keep.md"), "keep\n");
 
   const templates = collectPlatformTemplates("codex");
@@ -72,7 +72,7 @@ function createMultiPlatformProject(t) {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), "flower-trellis-control-multi-"));
   t.after(() => fs.rmSync(project, { recursive: true, force: true }));
   fs.mkdirSync(path.join(project, ".trellis/tasks"), { recursive: true });
-  fs.writeFileSync(path.join(project, ".trellis/.version"), "0.6.12\n");
+  fs.writeFileSync(path.join(project, ".trellis/.version"), "0.6.14\n");
   fs.writeFileSync(path.join(project, ".trellis/tasks/keep.md"), "keep\n");
   const templates = new Map();
   for (const platform of ["claude-code", "codex"]) {

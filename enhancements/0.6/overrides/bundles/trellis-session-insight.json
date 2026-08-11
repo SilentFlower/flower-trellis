@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "id": "trellis-session-insight",
+  "aliases": ["session-insight"],
+  "installMode": "full-or-selected",
+  "patches": ["skills/trellis-session-insight/grok-memory-support"]
+}

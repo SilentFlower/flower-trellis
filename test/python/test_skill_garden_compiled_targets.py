@@ -63,7 +63,7 @@ class CompiledTargetPathTest(unittest.TestCase):
 
 
 class CompiledTargetProfileTest(unittest.TestCase):
-    """验证 canonical fixture 覆盖 0.6.12 全平台矩阵。"""
+    """验证 canonical fixture 覆盖 0.6.14 全平台矩阵。"""
 
     def test_canonical_init_uses_all_current_platforms(self) -> None:
         """生成器必须启用新增平台并排除已废弃的 Windsurf 别名。"""
@@ -87,12 +87,12 @@ class CompiledTargetProfileTest(unittest.TestCase):
             "results": [],
         }
         report = {
-            "version": {"value": "0.6.12", "status": "tested"},
+            "version": {"value": "0.6.14", "status": "tested"},
             "summary": {"errors": 0, "warnings": 0, "info": 0},
             "diagnostics": [],
         }
 
-        profile = generator._serialize_plan("0.6.12", plan, report)["profile"]
+        profile = generator._serialize_plan("0.6.14", plan, report)["profile"]
 
         self.assertEqual(profile["id"], "all-platforms")
         self.assertIn("pi", profile["platforms"])

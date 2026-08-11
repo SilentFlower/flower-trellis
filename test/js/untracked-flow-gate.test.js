@@ -125,7 +125,7 @@ test("untracked agent Patch 覆盖 Markdown、OMP、Codex 与 Kiro 合同", () =
 test("untracked agent Patch 对完整平台真实模板重复应用幂等", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-untracked-agents-"));
   fs.mkdirSync(path.join(target, ".trellis"), { recursive: true });
-  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.12\n");
+  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.14\n");
   const targets = [];
   for (const [sourcePlatform, sourceDirectory, targetPattern] of [
     ["claude", "agents", ".claude/agents/{role}.md"],

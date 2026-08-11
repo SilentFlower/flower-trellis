@@ -15,7 +15,38 @@ ROOT = Path(__file__).resolve().parents[2]
 RUNNER = ROOT / "vendor/skill-garden/scripts/apply-trellis-patches.py"
 OVERRIDES = ROOT / "vendor/skill-garden/.trellis/0.6/overrides"
 SHARED_CORE_FIXTURE = ROOT / "test/fixtures/patch-engine/core"
-COMPILED_TARGETS = ROOT / "vendor/skill-garden/compiled-targets/0.6.12/full/targets"
+COMPILED_TARGETS = ROOT / "vendor/skill-garden/compiled-targets/0.6.14/full/targets"
+SESSION_START_TARGETS = (
+    ".claude/hooks/session-start.py",
+    ".codebuddy/hooks/session-start.py",
+    ".cursor/hooks/session-start.py",
+    ".factory/hooks/session-start.py",
+    ".gemini/hooks/session-start.py",
+    ".kiro/hooks/session-start.py",
+    ".qoder/hooks/session-start.py",
+    ".trae/hooks/session-start.py",
+    ".zcode/hooks/session-start.py",
+)
+SESSION_INSIGHT_ROOTS = (
+    ".agent/skills",
+    ".agents/skills",
+    ".claude/skills",
+    ".codebuddy/skills",
+    ".cursor/skills",
+    ".devin/skills",
+    ".factory/skills",
+    ".github/skills",
+    ".grok/skills",
+    ".kilocode/skills",
+    ".kiro/skills",
+    ".omp/skills",
+    ".opencode/skills",
+    ".qoder/skills",
+    ".reasonix/skills",
+    ".snow/skills",
+    ".trae/skills",
+    ".zcode/skills",
+)
 META_PATCHES = {
     "trellis-meta-managed-mode-precedence",
     "trellis-meta-managed-architecture-and-ownership",
@@ -138,9 +169,9 @@ class PatchConsumerTest(unittest.TestCase):
         )
 
     def load_compiled_targets(self) -> None:
-        """把 0.6.12 全平台 canonical 最终产物复制到临时目标。"""
+        """把 0.6.14 全平台 canonical 最终产物复制到临时目标。"""
         shutil.copytree(COMPILED_TARGETS, self.target, dirs_exist_ok=True)
-        _write(self.target, ".trellis/.version", "0.6.12\n")
+        _write(self.target, ".trellis/.version", "0.6.14\n")
 
     def use_real_conflicts(self) -> None:
         """把生产 conflicts policy 写入当前临时 overrides。"""
@@ -1052,11 +1083,11 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("# Finish", (self.target / "finish.md").read_text())
         self.assertEqual((self.target / "hook.py").read_text(), "PATCHED\n")
 
-    def test_real_catalog_preflight_matches_compiled_0612_target(self) -> None:
+    def test_real_catalog_preflight_matches_compiled_0614_target(self) -> None:
         self.load_compiled_targets()
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, self.target)
-        self.assertEqual(len(plan["patches"]), 39)
+        self.assertEqual(len(plan["patches"]), 41)
         self.assertGreaterEqual(len(plan["files"]), 300)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
@@ -1071,7 +1102,14 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("claude-session-start-pre-check-hold", operation_ids)
         self.assertIn("runtime-state-integrity", set(plan["patches"]))
         self.assertIn("session-context-update-boundary", set(plan["patches"]))
+        self.assertIn("session-context-update-docstring", operation_ids)
         self.assertIn("session-context-update-output", operation_ids)
+        self.assertIn("session-start-update-notice-builder", operation_ids)
+        self.assertIn("session-start-update-hint-resolver", operation_ids)
+        self.assertIn("session-start-update-notice-output", operation_ids)
+        self.assertIn("session-insight-grok-overview", operation_ids)
+        self.assertIn("session-insight-grok-cli-flags", operation_ids)
+        self.assertIn("session-insight-grok-cli-caveats", operation_ids)
         self.assertIn("before-dev-project-knowledge-discovery", operation_ids)
         self.assertIn("trellis-continue-task-progress-recovery", operation_ids)
         self.assertIn("workflow-state-untracked", operation_ids)
@@ -1101,8 +1139,15 @@ class PatchConsumerTest(unittest.TestCase):
             "paths-clear-current-result",
             "session-context-update-imports",
             "session-context-update-constants",
+            "session-context-update-docstring",
             "session-context-update-helpers",
             "session-context-update-output",
+            "session-start-update-notice-builder",
+            "session-start-update-hint-resolver",
+            "session-start-update-notice-output",
+            "session-insight-grok-overview",
+            "session-insight-grok-cli-flags",
+            "session-insight-grok-cli-caveats",
             "workflow-state-codex-session-start-guard",
             "workflow-state-stale-task-status",
             "workflow-state-untracked-helper",
@@ -1110,6 +1155,68 @@ class PatchConsumerTest(unittest.TestCase):
             "workflow-state-main-subject-routing",
         }.issubset(covered))
         self.assertTrue(META_OPERATIONS.issubset(covered))
+
+    def test_real_catalog_preserves_notice_and_removes_upstream_update_relay(self) -> None:
+        """最终 SessionStart 保留首答提示，但不再暴露 Trellis 原生更新入口。"""
+        self.load_compiled_targets()
+
+        session_context = (self.target / ".trellis/scripts/common/session_context.py").read_text(
+            encoding="utf-8",
+        )
+        self.assertNotIn("get_update_hint", session_context)
+        self.assertNotIn("trellis --version", session_context)
+
+        for relative in SESSION_START_TARGETS:
+            with self.subTest(relative=relative):
+                value = self.target.joinpath(*relative.split("/")).read_text(encoding="utf-8")
+                self.assertIn("<first-reply-notice>", value)
+                self.assertIn("session-start-update-notice-builder", value)
+                self.assertIn("session-start-update-notice-output", value)
+                self.assertNotIn("_resolve_update_hint", value)
+                self.assertNotIn("get_update_hint", value)
+                self.assertNotIn("Also relay this Trellis maintenance notice", value)
+
+    def test_real_catalog_projects_grok_memory_guidance_to_all_skill_roots(self) -> None:
+        """全部物理 Skill root 必须获得与 0.6.14 runtime 一致的 Grok 说明。"""
+        self.load_compiled_targets()
+
+        for root in SESSION_INSIGHT_ROOTS:
+            with self.subTest(root=root):
+                skill = self.target.joinpath(
+                    *root.split("/"),
+                    "trellis-session-insight",
+                    "SKILL.md",
+                ).read_text(encoding="utf-8")
+                reference = self.target.joinpath(
+                    *root.split("/"),
+                    "trellis-session-insight",
+                    "references",
+                    "cli-quick-reference.md",
+                ).read_text(encoding="utf-8")
+                self.assertIn("Grok Build", skill)
+                self.assertIn("~/.grok/sessions/", skill)
+                self.assertIn(
+                    "claude\\|codex\\|grok\\|opencode\\|pi\\|zcode\\|all",
+                    reference,
+                )
+                self.assertIn("OpenCode conversation reading is still unavailable", reference)
+
+    def test_real_catalog_session_insight_alias_selects_only_grok_patch(self) -> None:
+        """精细安装 session-insight 时只选择 Grok memory 文档 Patch。"""
+        self.load_compiled_targets()
+        runner = _load_runner()
+        plan = runner.prepare_patches(OVERRIDES, self.target, ["trellis-session-insight"])
+
+        self.assertEqual(plan["bundles"], ["trellis-session-insight"])
+        self.assertEqual(set(plan["patches"]), {"trellis-session-insight-grok-memory-support"})
+        self.assertEqual(
+            {item["id"] for item in plan["results"]},
+            {
+                "session-insight-grok-overview",
+                "session-insight-grok-cli-flags",
+                "session-insight-grok-cli-caveats",
+            },
+        )
 
     def test_real_catalog_trellis_meta_aliases_select_only_meta_patches(self) -> None:
         """验证 meta 与 create-command 入口只选择依赖的四个 Patch。"""

@@ -126,7 +126,7 @@ test("源码树里的字节码缓存不会被投影进目标项目或 state", (t
     else fs.rmSync(sourceScripts, { recursive: true, force: true });
   });
 
-  const target = createTarget(t, "0.6.12");
+  const target = createTarget(t, "0.6.14");
   quietApply(target, { variant: "0.6", skills: ["trellis-route"] });
 
   const skillRoot = path.join(target, ".claude/skills/trellis-route");
@@ -141,7 +141,7 @@ test("源码树里的字节码缓存不会被投影进目标项目或 state", (t
 });
 
 test("Pi 强化 Skill 从旧私有 root 安全迁移到共享 agents root", (t) => {
-  const target = createTarget(t, "0.6.12");
+  const target = createTarget(t, "0.6.14");
   fs.rmSync(path.join(target, ".claude"), { recursive: true, force: true });
   fs.mkdirSync(path.join(target, ".agents/skills"), { recursive: true });
   quietApply(target, { variant: "0.6", skills: ["trellis-route"] });
@@ -154,7 +154,7 @@ test("Pi 强化 Skill 从旧私有 root 安全迁移到共享 agents root", (t) 
 });
 
 test("Pi 旧私有 Skill 被用户修改时拒绝迁移删除", (t) => {
-  const target = createTarget(t, "0.6.12");
+  const target = createTarget(t, "0.6.14");
   fs.rmSync(path.join(target, ".claude"), { recursive: true, force: true });
   fs.mkdirSync(path.join(target, ".agents/skills"), { recursive: true });
   quietApply(target, { variant: "0.6", skills: ["trellis-route"] });

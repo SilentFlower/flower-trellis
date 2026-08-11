@@ -6,6 +6,7 @@
   "patches": [
     "scripts/task-store-write-integrity",
     "scripts/runtime-state-integrity",
-    "scripts/session-context-update-boundary"
+    "scripts/session-context-update-boundary",
+    "hooks/session-start/update-boundary"
   ]
 }

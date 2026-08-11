@@ -20,6 +20,12 @@ const UPSTREAM_BRAINSTORM = path.resolve(
 const UPSTREAM_SHARED_HOOK = path.resolve(
   "node_modules/@mindfoldhq/trellis/dist/templates/shared-hooks/inject-workflow-state.py",
 );
+const UPSTREAM_SHARED_SESSION_START = path.resolve(
+  "node_modules/@mindfoldhq/trellis/dist/templates/shared-hooks/session-start.py",
+);
+const UPSTREAM_CODEX_SESSION_START = path.resolve(
+  "node_modules/@mindfoldhq/trellis/dist/templates/codex/hooks/session-start.py",
+);
 const SHARED_HOOK_TARGETS = [
   ".codex/hooks/inject-workflow-state.py",
   ".claude/hooks/inject-workflow-state.py",
@@ -416,22 +422,12 @@ function writeIntentTargets(target) {
   write(
     target,
     ".codex/hooks/session-start.py",
-    [
-      patchSource("hooks/codex-session-start/no-task-routing", "selector.py"),
-      patchSource("hooks/codex-session-start/missing-task-routing", "selector.py"),
-      patchSource("hooks/session-start/pre-check-hold", "codex-selector.py"),
-      "",
-    ].join("\n\n"),
+    fs.readFileSync(UPSTREAM_CODEX_SESSION_START, "utf8"),
   );
   write(
     target,
     ".claude/hooks/session-start.py",
-    [
-      patchSource("hooks/claude-session-start/no-task-routing", "selector.py"),
-      patchSource("hooks/claude-session-start/missing-task-routing", "selector.py"),
-      patchSource("hooks/session-start/pre-check-hold", "claude-selector.py"),
-      "",
-    ].join("\n\n"),
+    fs.readFileSync(UPSTREAM_SHARED_SESSION_START, "utf8"),
   );
   const hookBaseline = fs.readFileSync(UPSTREAM_SHARED_HOOK, "utf8").trimEnd();
   for (const relativePath of SHARED_HOOK_TARGETS) {
@@ -503,7 +499,7 @@ function captureApply(target, options, onLog) {
 
 test("required Patch 漂移时强化流水线零写入且 manifest 不更新", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-apply-drift-"));
-  write(target, ".trellis/.version", "0.6.12\n");
+  write(target, ".trellis/.version", "0.6.14\n");
   const workflow = write(target, ".trellis/workflow.md", "upstream drift\n");
   const before = snapshotTree(target);
 
@@ -517,7 +513,7 @@ test("required Patch 漂移时强化流水线零写入且 manifest 不更新", (
 
 test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不变", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-apply-fresh-"));
-  write(target, ".trellis/.version", "0.6.12\n");
+  write(target, ".trellis/.version", "0.6.14\n");
   const workflow = write(target, ".trellis/workflow.md", minimalWorkflow());
   writeIntentTargets(target);
   writeMetaTargets(target);
@@ -725,10 +721,10 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.deepEqual(snapshotTree(target), first);
 });
 
-test("Windows Python 命令渲染后的 0.6.12 目标可完整强化且重复运行幂等", () => {
+test("Windows Python 命令渲染后的 0.6.14 目标可完整强化且重复运行幂等", () => {
   for (const command of ["python", "py -3"]) {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-apply-python-command-"));
-    write(target, ".trellis/.version", "0.6.12\n");
+    write(target, ".trellis/.version", "0.6.14\n");
     write(target, ".trellis/workflow.md", minimalWorkflow());
     writeIntentTargets(target);
     writeMetaTargets(target);
@@ -842,7 +838,7 @@ test("0.5/old legacy 变体不加载 0.6 compatibility policy", () => {
 test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", () => {
   for (const alias of ["task-intent", "intent-routing"]) {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-alias-${alias}-`));
-    write(target, ".trellis/.version", "0.6.12\n");
+    write(target, ".trellis/.version", "0.6.14\n");
     const workflow = write(target, ".trellis/workflow.md", minimalWorkflow());
     writeIntentTargets(target);
 
@@ -918,7 +914,7 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
 test("Auto-Loop 与 Finish-Work 精细安装同时携带决策归档硬门禁", () => {
   for (const alias of ["trellis-auto-loop", "auto-loop", "trellis-finish-work", "finish-work"]) {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-decision-audit-bundle-"));
-    write(target, ".trellis/.version", "0.6.12\n");
+    write(target, ".trellis/.version", "0.6.14\n");
     writeControlPlaneTargets(target);
     fs.mkdirSync(path.join(target, ".agents/skills"), { recursive: true });
 
@@ -946,7 +942,7 @@ test("trellis-continue 精细安装同时恢复入口与 task_progress helper", 
     "progress-recovery",
   ]) {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-continue-${alias}-`));
-    write(target, ".trellis/.version", "0.6.12\n");
+    write(target, ".trellis/.version", "0.6.14\n");
     const continueTargets = writeContinueTargets(target);
 
     const result = quietApply(target, { variant: "0.6", skills: [alias] });
@@ -974,7 +970,7 @@ test("trellis-continue 精细安装同时恢复入口与 task_progress helper", 
 
 test("trellis-continue Patch 覆盖全部平台入口且保持 Phase 前恢复顺序", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-continue-platforms-"));
-  write(target, ".trellis/.version", "0.6.12\n");
+  write(target, ".trellis/.version", "0.6.14\n");
   const continueTargets = writeAllContinueTargets(target);
 
   quietApply(target, { variant: "0.6", skills: ["trellis-continue"] });
@@ -990,9 +986,9 @@ test("trellis-continue Patch 覆盖全部平台入口且保持 Phase 前恢复�
   }
 });
 
-test("0.6.12 shared Hook 通过局部 Patch 保留上游结构", () => {
+test("0.6.14 shared Hook 通过局部 Patch 保留上游结构", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-hook-local-patch-"));
-  write(target, ".trellis/.version", "0.6.12\n");
+  write(target, ".trellis/.version", "0.6.14\n");
   write(target, ".trellis/workflow.md", minimalWorkflow());
   writeActiveTaskTarget(target);
   writeTaskScriptTarget(target);
@@ -1022,7 +1018,7 @@ test("0.6.12 shared Hook 通过局部 Patch 保留上游结构", () => {
 test("Update-Spec 三个精细安装别名都替换现有入口且不创建缺失平台", () => {
   for (const alias of ["trellis-update-spec", "update-spec", "update-spec-enhancement"]) {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-update-spec-${alias}-`));
-    write(target, ".trellis/.version", "0.6.12\n");
+    write(target, ".trellis/.version", "0.6.14\n");
     const targets = writeUpdateSpecTargets(target);
 
     quietApply(target, { variant: "0.6", skills: [alias] });
@@ -1039,7 +1035,7 @@ test("Update-Spec 三个精细安装别名都替换现有入口且不创建缺�
   }
 
   const missing = fs.mkdtempSync(path.join(os.tmpdir(), "flower-update-spec-missing-"));
-  write(missing, ".trellis/.version", "0.6.12\n");
+  write(missing, ".trellis/.version", "0.6.14\n");
   quietApply(missing, { variant: "0.6", skills: ["update-spec-enhancement"] });
   assert.equal(fs.existsSync(path.join(missing, ".agents/skills/trellis-update-spec/SKILL.md")), false);
   assert.equal(fs.existsSync(path.join(missing, ".claude/skills/trellis-update-spec/SKILL.md")), false);
@@ -1047,7 +1043,7 @@ test("Update-Spec 三个精细安装别名都替换现有入口且不创建缺�
 
 test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持幂等", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-native-gate-matrix-"));
-  write(target, ".trellis/.version", "0.6.12\n");
+  write(target, ".trellis/.version", "0.6.14\n");
   writeControlPlaneTargets(target);
   const updateTargets = writeAllUpdateSpecTargets(target);
   const finishTargets = writeAllFinishTargets(target);

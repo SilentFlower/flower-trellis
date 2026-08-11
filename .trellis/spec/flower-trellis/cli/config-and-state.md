@@ -185,7 +185,7 @@ checkForUpdate(ctx, label)
 | `flower-trellis update --yes --force` | Flower 识别非交互；Trellis 仅收到 `update --force` |
 | `flower-trellis init -y` | `-y` 继续透传给 Trellis init，并默认 codex + claude |
 | `flower-trellis update --backup-retention 5 --dry-run` | backup-retention 被消费；Trellis 收到 `--dry-run` |
-| 目标 `0.6.5`、捆绑 `0.6.12`、普通 `update --dry-run` | 项目外沙箱真实升级到 `0.6.12` 并执行 Skill-Garden dry-run；来源树零写入 |
+| 目标 `0.6.12`、捆绑 `0.6.14`、普通 `update --dry-run` | 项目外沙箱真实升级到 `0.6.14` 并执行 Skill-Garden dry-run；来源树零写入 |
 | 目标版本等于捆绑版本、普通 `update --dry-run` | Trellis 与 Skill-Garden Plugin 均执行预演 |
 | 跨版本 `--enhance-only --dry-run` | 不跳过；对当前模板执行严格 Skill-Garden preflight |
 | 跨版本 `--no-enhance --dry-run` | 沙箱升级模板；Skill-Garden 保持冻结，外部 Plugin replay 继续预演 |
@@ -201,7 +201,7 @@ checkForUpdate(ctx, label)
 
 - Good: 提交前 dogfood 使用 `flower-trellis update --target ./test-target -y --dry-run`，
   Flower 不弹自身更新确认，上游 Trellis 不收到不支持的 `-y`。
-- Good: 旧 `0.6.5` 项目用新版 Flower 执行普通 dry-run，在项目外沙箱看到 `0.6.12` Trellis
+- Good: 旧 `0.6.12` 项目用新版 Flower 执行普通 dry-run，在项目外沙箱看到 `0.6.14` Trellis
   与新版 Skill-Garden 的组合结果，目标目录前后逐字节一致。
 - Good: 真实 update 的 Plugin conflict 失败后，旧 workflow/skill/hook、Plugin-owned path 和 mode
   全部恢复，新增上游 `.backup-*` 仍保留用于人工审计。
@@ -232,7 +232,7 @@ checkForUpdate(ctx, label)
   同时 `trellisUpdatePassthroughArgs()` 返回只含真实上游参数的集合。
 - `shouldUseUpdateSandbox()` 必须覆盖跨版本普通 dry-run、同版本 dry-run、
   `--enhance-only` 和真实写入四种分支。
-- 真实 CLI 回归必须用最小 `0.6.5` 项目运行到捆绑 `0.6.12` 的普通 dry-run，断言退出码为
+- 真实 CLI 回归必须用最小 `0.6.12` 项目运行到捆绑 `0.6.14` 的普通 dry-run，断言退出码为
   `0`、出现项目外沙箱提示和 Plugin update 预览，并比较完整来源树保持零写入。
 - 故障注入必须覆盖 Plugin replay 失败后的旧内容/mode/Plugin-owned path 恢复、新增受管路径移除、
   `.trellis/tasks` / `.trellis/spec` / `.backup-*` 保留，以及补偿不完整的结构化错误和 manifest。
@@ -304,7 +304,7 @@ if (shouldUseUpdateSandbox({
 }
 ```
 
-不得根据 `variant` 名称判断版本变化；同属 `0.6` 变体的 `0.6.5` 与 `0.6.12` 仍是跨版本。
+不得根据 `variant` 名称判断版本变化；同属 `0.6` 变体的 `0.6.12` 与 `0.6.14` 仍是跨版本。
 
 ---
 
@@ -315,7 +315,7 @@ if (shouldUseUpdateSandbox({
 - 规则(逐字符移植 skill-garden `install.sh` 263-274):主版本 ≥1 或次版本 ≥6 → `0.6`;
   次版本 ≥5 → `0.5`;文件缺失/解析失败/更低 → `old`。次版本会先剥掉 `-beta.x` 后缀。
 - 改这条规则前先确认上游 install.sh 的对应逻辑,保持一致。
-- 映射到 `0.6` 不等于语义兼容：`0.6.12` 是当前已登记版本，同线未登记版本 warning，0.7+/1.x 由 Patch policy 阻断并提示 `--no-enhance`。
+- 映射到 `0.6` 不等于语义兼容：`0.6.14` 是当前已登记版本，同线未登记版本 warning，0.7+/1.x 由 Patch policy 阻断并提示 `--no-enhance`。
 
 ---
 

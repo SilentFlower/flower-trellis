@@ -67,7 +67,7 @@ class WorktreeSetupTest(unittest.TestCase):
             ".developer\n.runtime/\n**/__pycache__/\n**/*.pyc\n",
             encoding="utf-8",
         )
-        (self.main / ".trellis/.version").write_text("0.6.12\n", encoding="utf-8")
+        (self.main / ".trellis/.version").write_text("0.6.14\n", encoding="utf-8")
         (self.main / ".trellis/workflow.md").write_text("workflow=main\n", encoding="utf-8")
         (self.main / ".trellis/.template-hashes.json").write_text(
             json.dumps({"__version": 2, "hashes": {".codex/hooks.json": "hash", ".claude/settings.json": "hash"}}),
@@ -308,7 +308,7 @@ class WorktreeSetupTest(unittest.TestCase):
                             "branch": status["branch"],
                             "head": status["head"],
                             "task": None,
-                            "trellisVersion": "0.6.12",
+                            "trellisVersion": "0.6.14",
                             "updatedAt": "2026-08-05T00:00:00Z",
                         }
                     },
@@ -666,7 +666,7 @@ class WorktreeSetupTest(unittest.TestCase):
                             "branch": status["branch"],
                             "head": status["head"],
                             "task": task_relative,
-                            "trellisVersion": "0.6.12",
+                            "trellisVersion": "0.6.14",
                             "updatedAt": "2026-08-05T00:00:00Z",
                         }
                     },

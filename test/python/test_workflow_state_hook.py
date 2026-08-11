@@ -17,7 +17,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 HOOK_SOURCE = (
     ROOT
-    / "vendor/skill-garden/compiled-targets/0.6.12/full/targets/"
+    / "vendor/skill-garden/compiled-targets/0.6.14/full/targets/"
     ".codex/hooks/inject-workflow-state.py"
 )
 STALE_STATE_SOURCE = (
@@ -168,7 +168,7 @@ class WorkflowStateHookTest(unittest.TestCase):
                 )
 
     def test_shared_platform_hooks_are_byte_identical(self) -> None:
-        """共享 Hook 副本必须保留局部 Patch 与 0.6.12 上游能力。"""
+        """共享 Hook 副本必须保留局部 Patch 与 0.6.14 上游能力。"""
         target_root = HOOK_SOURCE.parents[2]
         relatives = (
             ".codex/hooks/inject-workflow-state.py",

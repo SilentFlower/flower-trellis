@@ -234,7 +234,7 @@ test("真实 CLI status 返回 branch-local 状态", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "flower-worktree-cli-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, ".trellis/.runtime/sessions"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".trellis/.version"), "0.6.12\n");
+  fs.writeFileSync(path.join(root, ".trellis/.version"), "0.6.14\n");
   fs.writeFileSync(path.join(root, ".trellis/.developer"), "name=tester\n");
   const git = spawnSync("git", ["init"], { cwd: root, encoding: "utf8" });
   assert.equal(git.status, 0, git.stderr);

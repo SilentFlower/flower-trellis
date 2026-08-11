@@ -164,17 +164,17 @@ test("只有跨版本普通 dry-run 进入项目外升级沙箱", () => {
 
 test("Update 重放 Skill-Garden 时按 Trellis 配置收窄污染平台 state", async (t) => {
   const target = createTarget(t, "flower-update-platform-state-");
-  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.12\n");
+  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.14\n");
   fs.mkdirSync(path.join(target, ".claude/agents"), { recursive: true });
   fs.mkdirSync(path.join(target, ".claude/skills"), { recursive: true });
   fs.mkdirSync(path.join(target, ".agents/skills"), { recursive: true });
   fs.mkdirSync(path.join(target, ".codex/agents"), { recursive: true });
   fs.copyFileSync(
-    path.resolve("vendor/skill-garden/compiled-targets/0.6.12/full/targets/.claude/agents/trellis-implement.md"),
+    path.resolve("vendor/skill-garden/compiled-targets/0.6.14/full/targets/.claude/agents/trellis-implement.md"),
     path.join(target, ".claude/agents/trellis-implement.md"),
   );
   fs.copyFileSync(
-    path.resolve("vendor/skill-garden/compiled-targets/0.6.12/full/targets/.codex/agents/trellis-implement.toml"),
+    path.resolve("vendor/skill-garden/compiled-targets/0.6.14/full/targets/.codex/agents/trellis-implement.toml"),
     path.join(target, ".codex/agents/trellis-implement.toml"),
   );
   writeTemplateHashes(target, [
@@ -225,9 +225,9 @@ test("Update 重放 Skill-Garden 时按 Trellis 配置收窄污染平台 state",
   assert.equal(fs.existsSync(path.join(target, ".zcode")), false);
 });
 
-test("0.6.5 最小项目可零写入预览升级到捆绑版本", (t) => {
-  const target = createTarget(t, "flower-update-dry-run-065-");
-  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.5\n");
+test("0.6.12 最小项目可零写入预览升级到 0.6.14 并重放 Plugin", (t) => {
+  const target = createTarget(t, "flower-update-dry-run-0612-");
+  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.12\n");
   fs.writeFileSync(path.join(target, ".trellis/.developer"), "tester\n");
   fs.writeFileSync(path.join(target, ".trellis/config.yaml"), "# Trellis Configuration\n");
   const before = snapshotTree(target);
@@ -237,7 +237,6 @@ test("0.6.5 最小项目可零写入预览升级到捆绑版本", (t) => {
     path.resolve("bin/flower-trellis.js"),
     "update",
     "--dry-run",
-    "--no-enhance",
     "--no-update-check",
     "--target",
     target,
@@ -253,8 +252,8 @@ test("0.6.5 最小项目可零写入预览升级到捆绑版本", (t) => {
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /跨版本 dry-run:在项目外沙箱预演 Trellis \+ Plugin \(0\.6\.5 → 0\.6\.12\)/);
-  assert.match(result.stdout, /--no-enhance:跳过 Skill-Garden/);
+  assert.match(result.stdout, /跨版本 dry-run:在项目外沙箱预演 Trellis \+ Plugin \(0\.6\.12 → 0\.6\.14\)/);
+  assert.match(result.stdout, /flower\/skill-garden/);
   assert.deepEqual(snapshotTree(target), before);
 });
 

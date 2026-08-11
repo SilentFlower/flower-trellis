@@ -106,7 +106,7 @@ test("dispatch catalog 为已启用平台投影专用 audit-only Check-All agent
     ),
     "utf8",
   ));
-  const compiledRoot = path.resolve("vendor/skill-garden/compiled-targets/0.6.12/full/targets");
+  const compiledRoot = path.resolve("vendor/skill-garden/compiled-targets/0.6.14/full/targets");
   const runtimePlatforms = catalog.platforms.flatMap((entry) => entry.runtimePlatforms || [entry.id]);
   const checkAllTargets = catalog.platforms
     .filter(({ checkAll }) => checkAll.eligible)
@@ -181,7 +181,7 @@ test("共享 agents Skill root 不会创建未启用平台的 Check-All 目录",
   fs.mkdirSync(path.join(target, ".codex/agents"), { recursive: true });
   fs.copyFileSync(
     path.resolve(
-      "vendor/skill-garden/compiled-targets/0.6.12/full/targets/.codex/agents/trellis-implement.toml",
+      "vendor/skill-garden/compiled-targets/0.6.14/full/targets/.codex/agents/trellis-implement.toml",
     ),
     path.join(target, ".codex/agents/trellis-implement.toml"),
   );

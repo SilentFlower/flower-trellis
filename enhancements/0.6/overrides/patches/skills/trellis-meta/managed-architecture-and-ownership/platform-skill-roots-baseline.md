@@ -1,26 +1,38 @@
 ## Where Bundled Skills Land Per Platform
 
-Each platform configurator calls `writeSkills(<root>, <workflowSkills>, resolveBundledSkills(ctx))` during `trellis init`. `resolveBundledSkills` reads every directory under `templates/common/bundled-skills/`, resolves placeholders, and returns a flat list of `{relativePath, content}` entries. `writeSkills` then mirrors them under the platform's skill root.
+A platform's whole file set — commands, workflow skills, agents, hooks, bundled skills — is described exactly once, by `collect<Platform>Templates()` in `packages/cli/src/configurators/<platform>.ts`. For bundled skills that description is two calls: `resolveBundledSkills(ctx)` reads every directory under `templates/common/bundled-skills/`, resolves placeholders, and returns a flat list of `{relativePath, content}` entries; `collectSkillTemplates(<skillsRoot>, <workflowSkills>, <bundledSkills>)` folds them into the platform's `Map<filePath, content>` under `<skillsRoot>/<skill>/<relativePath>`.
 
-| Platform | Bundled skill root | Notes |
-| --- | --- | --- |
-| Claude Code | `.claude/skills/<skill>/` | `configureClaude` |
-| Cursor | `.cursor/skills/<skill>/` | `configureCursor` |
-| Codex | `.agents/skills/<skill>/` | `configureCodex` writes the shared `.agents/skills/` root, which Gemini CLI 0.40+ also reads |
-| Gemini CLI | `.agents/skills/<skill>/` | Same shared root as Codex; the two configurators are required to produce byte-identical output |
-| Kiro | `.kiro/skills/<skill>/` | `configureKiro` (skills-based platform — no commands) |
-| Qoder | `.qoder/skills/<skill>/` | `configureQoder` |
-| Codebuddy | `.codebuddy/skills/<skill>/` | `configureCodebuddy` |
-| Copilot | `.github/skills/<skill>/` | `configureCopilot` |
-| Droid | `.factory/skills/<skill>/` | `configureDroid` |
-| Antigravity | `.agent/skills/<skill>/` | `configureAntigravity` |
-| Devin | `.devin/skills/<skill>/` | `configureDevin` |
-| Kilo | `.kilocode/skills/<skill>/` | `configureKilo` |
-| ZCode | `.zcode/skills/<skill>/` | `configureZcode` |
-| OpenCode | (handled by `collectOpenCodeTemplates`) | Uses the same `resolveBundledSkills(ctx)` output |
-| Pi, Reasonix | (their own collectors) | Same `resolveBundledSkills(ctx)` output |
+All 21 platforms receive the full bundled-skill set:
 
-Two paths exercise the same data:
+| Platform | Bundled skill root |
+| --- | --- |
+| Claude Code | `.claude/skills/<skill>/` |
+| Cursor | `.cursor/skills/<skill>/` |
+| OpenCode | `.opencode/skills/<skill>/` |
+| Codex | `.agents/skills/<skill>/` |
+| Gemini CLI | `.agents/skills/<skill>/` |
+| Pi | `.agents/skills/<skill>/` |
+| Kimi | `.agents/skills/<skill>/` |
+| Kilo | `.kilocode/skills/<skill>/` |
+| Kiro | `.kiro/skills/<skill>/` |
+| Antigravity | `.agent/skills/<skill>/` |
+| Devin | `.devin/skills/<skill>/` |
+| Qoder | `.qoder/skills/<skill>/` |
+| Codebuddy | `.codebuddy/skills/<skill>/` |
+| Copilot | `.github/skills/<skill>/` |
+| Droid | `.factory/skills/<skill>/` |
+| Reasonix | `.reasonix/skills/<skill>/` |
+| ZCode | `.zcode/skills/<skill>/` |
+| Trae | `.trae/skills/<skill>/` |
+| OMP | `.omp/skills/<skill>/` |
+| Grok | `.grok/skills/<skill>/` |
+| Snow | `.snow/skills/<skill>/` |
 
-1. `configureX(cwd)` writes files during `trellis init`.
-2. `collectPlatformTemplates(platformId)` (in `configurators/index.ts`) returns a `Map<filePath, content>` that `trellis update` uses to detect drift and to populate `.trellis/.template-hashes.json`. Both must produce byte-identical output, so they both call `resolveBundledSkills(ctx)` and `collectSkillTemplates(root, …, resolveBundledSkills(ctx))`.
+Codex, Gemini CLI, Pi and Kimi share the `.agents/skills/` root (the upstream Agent Skills workspace alias). Their collectors are required to emit byte-identical content for every file more than one of them writes there.
+
+One description, two consumers:
+
+1. `trellis init` → `configurePlatform(platformId, cwd)` → `writeTemplateMap(cwd, collect<Platform>Templates())`. For 18 of the 21 platforms the registry entry in `configurators/index.ts` is literally `fromTemplates(collect<Platform>Templates)`, which *is* that composition. Claude Code, Codex and ZCode spell out a `configure` of their own, each for work a `Map<path, content>` cannot express (an opt-in `--with-statusline` flag, an intentionally empty `.codex/skills/` directory, a one-shot console notice) — none of them restates the file list.
+2. `trellis update` → `collectPlatformTemplates(platformId)` (in `configurators/index.ts`) → the same map, used to detect drift and to populate `.trellis/.template-hashes.json`.
+
+Because both consumers read the one description, init and update cannot disagree about which files a bundled skill produces.

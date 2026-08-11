@@ -326,7 +326,7 @@
         ]
       },
       "owner": "workflow-state",
-      "reason": "局部 Patch 必须同时保留 Flower subject 分支与 0.6.12 的 no-trellis、ZCode 和 Codex auto 能力。"
+      "reason": "局部 Patch 必须同时保留 Flower subject 分支与 0.6.14 的 no-trellis、ZCode 和 Codex auto 能力。"
     },
     {
       "id": "paths-required-clear-result",
@@ -1464,6 +1464,7 @@
       "whenOperations": [
         "session-context-update-imports",
         "session-context-update-constants",
+        "session-context-update-docstring",
         "session-context-update-helpers",
         "session-context-update-output"
       ],
@@ -1471,13 +1472,94 @@
         "type": "absent-literal",
         "values": [
           "def _get_update_hint(",
+          "def get_update_hint(",
           "def _mark_update_check_attempted(",
           "def _update_marker_path(",
+          "get_update_hint           - Once-per-session",
           "[\"trellis\", \"--version\"]"
         ]
       },
       "owner": "flower-update-hook",
       "reason": "默认 Session Context 只负责项目上下文；更新检查必须统一由 Flower SessionStart Hook 进入。"
+    },
+    {
+      "id": "session-start-required-flower-update-boundary-claude",
+      "severity": "error",
+      "target": ".claude/hooks/session-start.py",
+      "whenOperations": [
+        "session-start-update-notice-builder",
+        "session-start-update-hint-resolver",
+        "session-start-update-notice-output"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch session-start-update-notice-builder v0.6",
+          "Return the first-reply notice without adding a second update channel.",
+          "# BEGIN skill-garden patch session-start-update-notice-output v0.6",
+          "output.write(_build_first_reply_notice())",
+          "<first-reply-notice>"
+        ]
+      },
+      "owner": "flower-update-hook",
+      "reason": "共享 SessionStart 必须保留首轮提示，但不能重新引入 Trellis 原生更新入口。"
+    },
+    {
+      "id": "session-start-no-upstream-update-relay-zcode",
+      "severity": "error",
+      "target": ".zcode/hooks/session-start.py",
+      "whenOperations": [
+        "session-start-update-notice-builder",
+        "session-start-update-hint-resolver",
+        "session-start-update-notice-output"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "def _resolve_update_hint(",
+          "from common.session_context import get_update_hint",
+          "Also relay this Trellis maintenance notice",
+          "_resolve_update_hint(trellis_dir, context_key)"
+        ]
+      },
+      "owner": "flower-update-hook",
+      "reason": "ZCode 代表共享 Hook 输出，必须证明上游 update relay 已从最终产物移除。"
+    },
+    {
+      "id": "session-insight-required-grok-memory-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-session-insight/SKILL.md",
+      "whenOperations": ["session-insight-grok-overview"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "Claude Code, Codex, Grok Build, Pi Agent, and ZCode",
+          "`~/.grok/sessions/`",
+          "OpenCode logs are not yet indexable"
+        ]
+      },
+      "owner": "trellis-session-insight",
+      "reason": "Session Insight 说明必须与 0.6.14 的 Grok reader 和 OpenCode 限制一致。"
+    },
+    {
+      "id": "session-insight-required-grok-cli-claude",
+      "severity": "error",
+      "target": ".claude/skills/trellis-session-insight/references/cli-quick-reference.md",
+      "whenOperations": [
+        "session-insight-grok-cli-flags",
+        "session-insight-grok-cli-caveats"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "`--platform claude\\|codex\\|grok\\|opencode\\|pi\\|zcode\\|all`",
+          "Claude, Codex, Grok, Pi, and ZCode support native boundaries",
+          "Grok may only retain a rendered transcript",
+          "`~/.grok/sessions/`"
+        ]
+      },
+      "owner": "trellis-session-insight",
+      "reason": "Claude 副本的 CLI reference 必须跟随 0.6.14 runtime help 和压缩恢复边界。"
     },
     {
       "id": "codex-check-required-check-all-intent-guard",

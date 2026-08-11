@@ -19,7 +19,7 @@ const UPSTREAM_META_ROOT = path.resolve(
   "node_modules/@mindfoldhq/trellis/dist/templates/common/bundled-skills/trellis-meta",
 );
 const COMPILED_TARGET_ROOT = path.resolve(
-  "vendor/skill-garden/compiled-targets/0.6.12/full/targets",
+  "vendor/skill-garden/compiled-targets/0.6.14/full/targets",
 );
 const ENHANCEMENTS_MODEL_SPEC = path.resolve(
   ".trellis/spec/flower-trellis/cli/enhancements-model.md",
@@ -82,7 +82,7 @@ const META_ASSERTION_FILES = [
 function makeTarget(prefix) {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   fs.mkdirSync(path.join(target, ".trellis"), { recursive: true });
-  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.12\n");
+  fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.14\n");
   return target;
 }
 
@@ -165,6 +165,9 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(architecture, /npm run sync.*enhancements\/0\.6/);
   assert.match(generated, /Plugin ownership, Patch provenance, transaction checks/);
   assert.match(bundled, /selectors and full baselines fail closed on upstream drift/);
+  assert.match(bundled, /collect<Platform>Templates\(\)/);
+  assert.match(bundled, /writeTemplateMap/);
+  assert.match(bundled, /collectPlatformTemplates\(platformId\)/);
   assert.match(bundled, /\| Oh My Pi \| `\.omp\/skills\/<skill>\/` \|/);
   assert.match(bundled, /\| Grok Build \| `\.grok\/skills\/<skill>\/` \|/);
   assert.match(bundled, /\| Snow CLI \| `\.snow\/skills\/<skill>\/` \|/);
@@ -205,6 +208,7 @@ function assertManagedMeta(target, skillRoot) {
 
   assert.doesNotMatch(bundled, /Not managed by Trellis at all/);
   assert.doesNotMatch(bundled, /Edit the local file directly/);
+  assert.doesNotMatch(bundled, /configure\w+\(cwd\) writes files/);
   assert.doesNotMatch(skillRoute, /Created by the user \(or another skill\) and never moved/);
   assert.doesNotMatch(workflow, /dispatch `trellis-implement` by default/);
   assert.doesNotMatch(workflow, /edit these state blocks and the routing table above them/);

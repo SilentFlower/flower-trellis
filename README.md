@@ -350,7 +350,7 @@ flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo 
   npm i -g flower-trellis@latest && flower-trellis update
   ```
 
-- **0.6 兼容门禁**:当前强化快照已登记 Trellis `0.6.12`。未登记的同一 `0.6.x` 会显示 `untested-upstream` 警告，并在完整 Patch/冲突检查通过后继续；`0.7+` / `1.x` 不会自动复用 0.6 baseline。遇到未支持的新版本时，先升级 flower-trellis，或使用 `--no-enhance` 只运行纯上游 Trellis。
+- **0.6 兼容门禁**:当前强化快照已登记 Trellis `0.6.14`。未登记的同一 `0.6.x` 会显示 `untested-upstream` 警告，并在完整 Patch/冲突检查通过后继续；`0.7+` / `1.x` 不会自动复用 0.6 baseline。遇到未支持的新版本时，先升级 flower-trellis，或使用 `--no-enhance` 只运行纯上游 Trellis。
 
 - **通用技能**:`flower-trellis update` 会用新版快照覆盖仓库中已经启用的 common skill,
   未启用项不会自动安装;若某个已安装 common skill 已从新版快照移除,更新会精确删除其

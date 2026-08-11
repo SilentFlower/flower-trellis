@@ -139,7 +139,7 @@ test("Flower 发布包排除 Skill-Garden compiled targets 与维护 fixture", (
 test("Skill-Garden diff sidecar 保留补丁空白且不触发仓库 whitespace 检查", () => {
   const sidecar = path.join(
     "compiled-targets",
-    "0.6.12",
+    "0.6.14",
     "full",
     "targets",
     ".trellis",

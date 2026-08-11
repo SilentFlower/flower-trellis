@@ -209,7 +209,7 @@ validate migration declaration
 
 ---
 
-## Scenario: Trellis 0.6.12 Platform Skill Projection
+## Scenario: Trellis 0.6.14 Platform Skill Projection
 
 ### 1. Scope / Trigger
 
@@ -309,6 +309,108 @@ projectSkillGardenContent(options) -> ContentProjection
 
 ---
 
+## Scenario: Trellis Session Insight Memory Capability
+
+### 1. Scope / Trigger
+
+- Trigger: 上游 `trellis mem` 新增或移除平台 reader、改变压缩历史语义，或 bundled
+  `trellis-session-insight` 文档落后于 runtime。
+- Scope: `@mindfoldhq/trellis-core` 拥有 session reader 与压缩恢复；Flower 只用窄 Patch
+  修正 bundled Skill 的平台说明、CLI flags 和 caveat，不 fork memory runtime。
+
+### 2. Signatures
+
+```text
+trellis mem <list|search|context|extract|projects>
+  [--platform claude|codex|grok|opencode|pi|zcode|all]
+```
+
+```typescript
+collectCodexTurnsAndEvents(
+  session: MemSessionInfo,
+  warnings?: MemWarning[],
+): { turns: DialogueTurn[]; events: TaskPyEvent[] }
+
+collectGrokTurnsAndEvents(
+  session: MemSessionInfo,
+  warnings?: MemWarning[],
+): { turns: DialogueTurn[]; events: TaskPyEvent[] }
+```
+
+`MemSessionInfo.platform` 的可选值为
+`claude | codex | grok | opencode | pi | zcode`；`DialogueTurn.kind="marker"` 表示压缩边界，
+不是用户或助手发言。
+
+### 3. Contracts
+
+- Trellis `0.6.14` 的可发现平台固定为 Claude、Codex、Grok、OpenCode、Pi、ZCode；OpenCode
+  仍只报告 reader unavailable，文档不得承诺可读取 OpenCode 历史。
+- Codex reader 必须从 `compacted.payload.replacement_history` 合并仅存在于压缩历史中的 turn，
+  使用按出现次数去重保留真实重复发言，并保留 compaction boundary；没有可恢复的旧 assistant
+  回复时追加 `codex-compaction-assistant-dropped` warning。
+- Grok reader 必须读取 `~/.grok/sessions/<url-encoded-cwd>/<session-id>/chat_history.jsonl`，
+  把 `synthetic_reason="compaction_meta"` 标为不可恢复边界，追加
+  `grok-compaction-unrecoverable` warning 并指向 session 下的 `compaction/` rendered transcript；
+  不得假装早期对话已恢复。
+- `trellis-session-insight` Bundle 使用 `full-or-selected`；全量安装或按该 Skill ID/alias 精细安装时，
+  只选择 Grok memory 文档 Patch，不得连带扩大到无关 workflow/control-plane Patch。
+- 文档 Patch 必须投影到全部实际存在的物理 Skill root，保持 `~/.grok/sessions/`、平台 flag、
+  phase 支持范围和 OpenCode caveat 一致；缺失 root 继续 `missing=skip`。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| Codex `replacement_history` 含当前 turn pool 已有发言 | 按出现次数去重，不吞掉用户真实重复发送的 `继续`、`ok` 等短 turn |
+| Codex 压缩历史只恢复 user turn | 保留恢复结果和 marker，同时追加 `codex-compaction-assistant-dropped` |
+| Grok 出现 `compaction_meta` | 保留 marker 和压缩后 turn，追加 `grok-compaction-unrecoverable`，不声称历史完整 |
+| `--platform opencode` 或 `all` 包含 OpenCode | 输出 reader unavailable 说明；文档不得把 OpenCode 列为可读取平台 |
+| 目标项目缺少某个 Skill root | 对该 root 返回 `missing-target`，不创建不存在的平台目录 |
+| flags/caveats/overview selector 或 baseline 漂移 | required Patch preflight 失败且目标零写入，不放宽 selector 绕过 |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Codex fixture 的早期 user turn 只存在于 `replacement_history`，reader 恢复该 turn、保留
+  marker，并对缺失的早期 assistant 回复输出明确 warning。
+- Base: Grok session 没有 `compaction_meta`，reader 返回清洗后的 user/assistant turn 和
+  `task.py create|start` events，不生成不可恢复 warning。
+- Bad: 从 Grok `compaction_checkpoints` 猜测丢失对话，或把 rendered transcript 宣称为已恢复的
+  结构化 turn；这会让 `trellis mem` 对会话完整性作出错误保证。
+- Bad: 为补齐文档能力 fork `@mindfoldhq/trellis-core` memory runtime，形成 Flower 的第二套 reader
+  owner；Flower 只能维护窄文档 Patch 和最终产物断言。
+
+### 6. Tests Required
+
+- 直接用 `@mindfoldhq/trellis-core@0.6.14` adapter fixture 断言 Codex 压缩前 turn 被恢复、Grok
+  compaction boundary、`codex-compaction-assistant-dropped` 与
+  `grok-compaction-unrecoverable` warning 存在。
+- `trellis mem help` smoke test 必须包含 Grok/ZCode 平台 flag、Grok phase 支持和 OpenCode warning。
+- compiled target 测试覆盖 18 个物理 `trellis-session-insight` 副本；精细安装测试断言只选择
+  `trellis-session-insight-grok-memory-support` 的三个 operation。
+- required preflight 与 conflict 测试必须断言三个 operation 均被选择、全部进入冲突覆盖，并且
+  最终 Skill 副本不再保留旧 OpenCode-only caveat。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+Flower 自行解析 ~/.grok/sessions/，并在没有原始 turn 时把压缩摘要当作完整历史返回。
+```
+
+#### Correct
+
+```text
+@mindfoldhq/trellis-core owns persisted session readers and compaction semantics.
+Flower owns only the narrow trellis-session-insight documentation Patch,
+required preflight, conflicts, compiled targets, and final projection tests.
+```
+
+这样能让 reader 行为随精确依赖版本升级，同时由 Flower 的 fail-closed Patch 门禁阻止文档与
+runtime 能力漂移。
+
+---
+
 ## Scenario: Codex Capability Config And Route Ownership
 
 ### 1. Scope / Trigger
@@ -354,7 +456,7 @@ resolve_breadcrumb_key(status: str, platform: str | None, config: dict) -> str
   上游兼容 breadcrumb 变体，不能作为 route evidence 或选项过滤器。
 - `trellis-route` 不读取 banner 作为决策，只接受合法 runtime、个人 prefs、当前紧邻选择或已校验
   auto-loop 授权。subagent 被选中后才按 platform dispatch catalog 启动对应角色。
-- Codex hook Patch 使用 `0.6.12` 上游完整函数块作为 exact selector；替换内容必须保留其它
+- Codex hook Patch 使用 `0.6.14` 上游完整函数块作为 exact selector；替换内容必须保留其它
   Skill-Garden conflict policy 需要的函数签名/规范化说明，组合 preflight 通过后才写盘。
 - config 与 hook 的 route-capability 最终断言属于 Flower catalog，统一放在
   `src/patches/conflicts.json`；config policy 要求真实 `codex` 配置块为 `dispatch_mode: auto`，不能由
@@ -1243,7 +1345,7 @@ bundles/intent-routing.json
   不为其它平台创建 SessionStart 文件。
 - `intent-routing` Bundle 必须同时包含 `missing_task` workflow state、shared runtime 和 Codex/Claude
   SessionStart Patch,保证全装及 `task-intent` / `intent-routing` 精细安装都完整生效。
-- 共享 Hook 不再使用 whole-file desired content。局部 replace/insert 必须以 Trellis `0.6.12`
+- 共享 Hook 不再使用 whole-file desired content。局部 replace/insert 必须以 Trellis `0.6.14`
   目标片段和已知旧 marker 为精确 baseline；未知用户改动继续返回 selector/baseline drift，
   不得用宽松覆盖换取升级成功。
 
@@ -1256,7 +1358,7 @@ bundles/intent-routing.json
 | `task.py finish` 失败 | 报告失败并停止,不执行后续编辑或任务动作 |
 | 清理成功 | 当前请求同轮按 `no_task` 分类,不再次机械询问用户下一步 |
 | 平台 per-turn Hook 不存在 | `missing-target`,不创建目录或文件 |
-| 目标是 `0.6.12` 上游片段或已知旧 marker | 局部 Patch 按稳定顺序收敛到当前 managed content |
+| 目标是 `0.6.14` 上游片段或已知旧 marker | 局部 Patch 按稳定顺序收敛到当前 managed content |
 | 目标含未知用户修改 | required selector/baseline drift,全量 preflight 零写入 |
 
 ### 5. Good/Base/Bad Cases
@@ -1265,7 +1367,7 @@ bundles/intent-routing.json
   `task.py finish`,成功后同轮把当前用户请求按 `no_task` 意图重新分类。
 - Base:目标项目没有某个平台的 per-turn Hook 文件,Patch 返回 `missing-target`,不创建平台目录,
   其它已存在平台仍正常升级。
-- Base:目标 Hook 等于 Trellis `0.6.12` 上游结构,各局部 Patch 依次命中并保留未触及的 ZCode、
+- Base:目标 Hook 等于 Trellis `0.6.14` 上游结构,各局部 Patch 依次命中并保留未触及的 ZCode、
   `no-trellis`、异常边界和其它上游能力。
 - Bad:把 stale 来源拼成 `stale_session-fallback` workflow-state,导致 workflow 找不到正文并退化为
   `Refer to workflow.md for current step.`。
@@ -1740,7 +1842,7 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   Update-Spec 与 Push 的继续路径。`仅保留报告` 不构成风险接受。
 - 用户确认 `修复全部`、混合精确问题 ID 或其它明确修复范围后,批量修复所选项并复用当前任务合法 implement route;不存在时重新进入
   `trellis-route(target=implement)`。定向验证后复用当前 check route 执行 Check-All 重检。
-- `references/platform-dispatch.json` 是平台启动契约唯一事实源，必须覆盖上游 `0.6.12` 的 21 个
+- `references/platform-dispatch.json` 是平台启动契约唯一事实源，必须覆盖上游 `0.6.14` 的 21 个
   稳定平台 ID。route skill 不维护第二张 Markdown 平台表；内容投影和闭包测试必须读取同一目录。
 - route 只选择 inline/subagent 逻辑模式，不在展示选项、解析偏好或执行 inline 前读取 catalog，
   也不根据 host 能力预先删除 subagent 选项。subagent 被选中后才确定当前平台 ID 并读取唯一条目。
@@ -1845,7 +1947,7 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - catalog 测试必须断言 schema、21 个稳定平台 ID、eligible target 唯一性、inline-only reason、
   runtime alias 和 17 个专用 Check-All target 的闭包；不得只断言静态数组长度。
 - 对所有 eligible 平台生成并解析对应 agent 格式，断言目标只读、正文一致、引用存在；再与
-  `0.6.12` full compiled target 的原生 platform roots 做闭包校验。
+  `0.6.14` full compiled target 的原生 platform roots 做闭包校验。
 - 投影测试覆盖显式 platform selection、已有 root 探测、无 root Claude fallback、Reasonix/Kimi
   skill-as-agent 覆盖，以及未启用平台零创建。
 - conflict/最终产物测试至少断言 Codex、一个 Markdown 平台和 channel 的 workspace-write

@@ -104,7 +104,7 @@ test("Project Store 保留自定义 ignore 并读写三类状态", (t) => {
     transactionId: "a".repeat(24),
     disabledAt: "2026-08-05T00:00:00.000Z",
     configuredPlatforms: ["codex"],
-    trellisVersion: "0.6.12",
+    trellisVersion: "0.6.14",
     flowerVersion: "0.6.0-beta.5",
     manifestPath: `.flower/trellis-detached/${"a".repeat(24)}/manifest.json`,
     expectedDisabled: [],

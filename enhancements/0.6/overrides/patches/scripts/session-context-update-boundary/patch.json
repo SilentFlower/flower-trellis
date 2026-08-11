@@ -16,6 +16,17 @@
       "content": { "source": "imports-content.py" }
     },
     {
+      "id": "session-context-update-docstring",
+      "operation": "remove",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/session_context.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "docstring-selector.py" }
+    },
+    {
       "id": "session-context-update-constants",
       "operation": "remove",
       "targets": [{

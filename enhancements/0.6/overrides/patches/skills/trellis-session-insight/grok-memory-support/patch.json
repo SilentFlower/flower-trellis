@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 2,
+  "id": "trellis-session-insight-grok-memory-support",
+  "purpose": "managed_memory_capability",
+  "operations": [
+    {
+      "id": "session-insight-grok-overview",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".agents/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".claude/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".devin/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".factory/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".github/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".grok/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".omp/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".snow/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".trae/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" },
+        { "kind": "skill", "path": ".zcode/skills/trellis-session-insight/SKILL.md", "missing": "skip", "markerStyle": "html" }
+      ],
+      "selector": { "type": "literal", "source": "overview-selector.md" },
+      "content": { "source": "overview-content.md" }
+    },
+    {
+      "id": "session-insight-grok-cli-flags",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".agents/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".claude/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".devin/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".factory/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".github/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".grok/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".omp/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".snow/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".trae/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".zcode/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" }
+      ],
+      "selector": { "type": "markdown-section", "heading": "## Flags (apply where meaningful)" },
+      "baselines": ["flags-baseline.md"],
+      "content": { "source": "flags-content.md" }
+    },
+    {
+      "id": "session-insight-grok-cli-caveats",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "skill", "path": ".agent/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".agents/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".claude/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".codebuddy/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".cursor/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".devin/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".factory/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".github/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".grok/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kilocode/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".kiro/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".omp/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".opencode/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".qoder/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".reasonix/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".snow/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".trae/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" },
+        { "kind": "skill", "path": ".zcode/skills/trellis-session-insight/references/cli-quick-reference.md", "missing": "skip" }
+      ],
+      "selector": { "type": "markdown-section", "heading": "## Caveats" },
+      "baselines": ["caveats-baseline.md"],
+      "content": { "source": "caveats-content.md" }
+    }
+  ]
+}
