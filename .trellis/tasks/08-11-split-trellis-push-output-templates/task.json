@@ -1,0 +1,74 @@
+{
+  "id": "split-trellis-push-output-templates",
+  "name": "split-trellis-push-output-templates",
+  "title": "拆分 Trellis Push 输出模板",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-11",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-11T04:25:04Z",
+      "contextKey": "codex_019feeff-c9f6-7952-b5a9-7bddfc4e26fc",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "f5f48944df7e66d5e62c5f47a69f63d7ef489c11",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "f5f48944df7e66d5e62c5f47a69f63d7ef489c11",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "e4ef4784533f5614b4b5858743cae158a07f8e7ee270936e56a5b9b0183564fa"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "e6ec6a543b53cba27ae373373cf7fce1afc9a3d8",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "e56702cd02c775a16e26fb41a8a1c8401bd0db98f4e2641aab7a19ace56d2027"
+          }
+        ],
+        "fingerprint": "df6598e801856adb3c87a67e09468132e82a90a4166bce92a2ded55a969fc55e"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-11T05:30:33Z",
+    "completedSteps": [
+      "已将父仓 beta fast-forward 到任务确认时的 main 基线",
+      "拆分 trellis-push 计划与结果输出模板并保持执行契约",
+      "同步 Skill Garden canonical、Flower 快照与 dogfood 副本",
+      "完成 Check-All、全量测试与规范更新"
+    ],
+    "partialStep": null,
+    "nextStep": "显式运行 trellis-finish-work 完成归档",
+    "notes": ""
+  }
+}
