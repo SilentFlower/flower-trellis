@@ -1022,3 +1022,38 @@
 ### Next Steps
 
 - 发布下一个 beta 版本并验证发布流水线
+
+
+## Session 89: 归档 Trellis 0.6.14 升级任务
+
+**Date**: 2026-08-12
+**Task**: 归档 Trellis 0.6.14 升级任务
+**Branch**: `beta`
+
+### Summary
+
+Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本次完成决策与上线事项审计，将任务归档并记录会话。
+
+### Main Changes
+
+- 归档 08-11-upgrade-trellis-0-6-14 任务材料
+- 确认无额外 SQL、配置、部署或外部系统上线操作
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a44be04` | (see git log) |
+| `556285b` | (see git log) |
+
+### Testing
+
+- [OK] 任务状态 completed、任务目录 clean、beta 与 origin/beta 初始同步
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 按独立发布流程决定后续 npm 发布与 tag
