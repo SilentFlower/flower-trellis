@@ -4,6 +4,23 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.1-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0...v0.6.1-beta.0) (2026-08-12)
+
+
+### ✨ 新功能 Features
+
+* **trellis:** 升级上游至 0.6.14 ([556285b](https://github.com/SilentFlower/flower-trellis/commit/556285b68c5723e13f7d55f4c801022c82e3b011))
+
+
+### 🐛 修复 Bug Fixes
+
+* **telemetry:** 补全开发者身份回退 ([1f95dfe](https://github.com/SilentFlower/flower-trellis/commit/1f95dfea26ce8117e437d973369ad6140fa17843))
+
+
+### ♻️ 重构 Refactor
+
+* **flower:** 同步 Push 输出模板分层 ([b340825](https://github.com/SilentFlower/flower-trellis/commit/b340825036a782679e14f74f8064664966f0a1bf))
+
 ## [0.6.0](https://github.com/SilentFlower/flower-trellis/compare/v0.5.5...v0.6.0) (2026-08-07)
 
 
