@@ -985,3 +985,40 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 88: 优化任务完成提交并准备 Beta 发布
+
+**Date**: 2026-08-12
+**Task**: 优化任务完成提交并准备 Beta 发布
+**Branch**: `beta`
+
+### Summary
+
+优化普通 Push 的完成态提交与恢复，固定 Check-All CHK 到 FBK 展示顺序；全量检查与规范同步通过，任务已完成并归档。
+
+### Main Changes
+
+- 普通 Push 现在提交并推送最终 completed 任务记录，成功后当前任务目录保持 clean
+- completed 恢复矩阵按需加载，Continue 与 Finish Work 仅保留单一职责
+- Check-All 报告固定先 CHK 后 FBK，分类顺序保持不变
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `51d880f` | (see git log) |
+| `bb364bc` | (see git log) |
+| `eb7896a` | (see git log) |
+
+### Testing
+
+- [OK] npm test、patch targets、Patch conflict、输出模板和 strict context budget 全部通过
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 发布下一个 beta 版本并验证发布流水线

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 87
-- **Last Active**: 2026-08-11
+- **Total Sessions**: 88
+- **Last Active**: 2026-08-12
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~987 | Active |
+| `journal-2.md` | ~1024 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 88 | 2026-08-12 | 优化任务完成提交并准备 Beta 发布 | `51d880f`, `bb364bc`, `eb7896a` | `beta` |
 | 87 | 2026-08-11 | 拆分 Trellis Push 输出模板 | `f7e8f3d`, `b340825` | `beta` |
 | 86 | 2026-08-07 | 优化 Check-All 判定与上下文体量 | `e6ec6a5`, `f930148` | `beta` |
 | 85 | 2026-08-06 | 修复 Flower Plugin 管理器加载、预览噪音与更新链路 | `ee45d43` `8d5b886` | `beta` |
