@@ -554,7 +554,14 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /trellis-route\(target=implement\)/);
   assert.match(workflowText, /trellis-route\(target=check\)/);
   assert.match(workflowText, /Load `trellis-push`/);
-  assert.match(workflowText, /Business push and task progress are complete/);
+  assert.match(
+    workflowText,
+    /`status=completed` alone does not prove that a normal task-record commit was pushed/,
+  );
+  assert.match(
+    workflowText,
+    /Enter the `trellis-push` completed-task preflight for the single next hop/,
+  );
   assert.match(workflowText, /task_progress\.py reopen --task <task-name> --json/);
   assert.match(workflowText, /task_intent\.py create --title/);
   assert.match(workflowText, /skill-garden patch workflow-phase-1-activate/);

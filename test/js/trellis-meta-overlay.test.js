@@ -188,7 +188,10 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(taskSystem, /\| `brief\.md` \| Generated planning handoff/);
   assert.match(taskSystem, /Saved progress is advisory recovery evidence only/);
   assert.match(taskSystem, /## Active Task And Lifecycle/);
-  assert.match(taskSystem, /in_progress -> trellis-push final progress commit\/push -> local completed/);
+  assert.match(
+    taskSystem,
+    /in_progress -> business push -> atomic final progress \+ completed -> task-record commit\/push/,
+  );
   assert.match(taskSystem, /never bind a session automatically/);
   assert.match(skillRoute, /Do not classify every non-bundled name as project-local/);
   assert.match(skillRoute, /\| Oh My Pi \| `\.omp\/skills\/`, `\.omp\/commands\/` \|/);
@@ -197,11 +200,21 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(skillRoute, /Codex, Gemini CLI, Pi Agent, Kimi Code/);
   assert.match(workflowChange, /## `\/trellis:continue` Recovery Ownership/);
   assert.match(workflowChange, /Implement\/check execution goes through `trellis-route`/);
-  assert.match(workflowChange, /A `completed` task points only to explicit `trellis-finish-work` and archive/);
+  assert.match(
+    workflowChange,
+    /A `completed` task enters the `trellis-push` completed-task preflight/,
+  );
+  assert.match(
+    workflowChange,
+    /either prepares publication recovery, points to explicit `trellis-finish-work`, or blocks/,
+  );
   assert.match(workflowChange, /Direct edits are valid only for unowned local sections/);
   assert.match(lifecycleChange, /Change normal completion activation/);
   assert.match(lifecycleChange, /Change interruption recovery or candidate rebinding \| `trellis-continue` owns the user decision, `task_progress\.py` owns candidate evidence, and `task\.py start` with `\.trellis\/scripts\/common\/active_task\.py` owns the explicit session bind/);
-  assert.match(lifecycleChange, /final progress synchronization before local completion/);
+  assert.match(
+    lifecycleChange,
+    /normal final progress and completion written atomically before the task-record commit\/push/,
+  );
   assert.match(lifecycleChange, /change the canonical Patch\/skill\/helper source/);
   assert.match(agentChange, /Unified Check-All commands must run during checking/);
   assert.match(agentChange, /self-fixing reviewer-only commands remain in `trellis-check`/);

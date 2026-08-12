@@ -606,10 +606,10 @@
           "<!-- BEGIN skill-garden patch trellis-continue-task-progress-recovery v0.6 -->\n## Step 1.5: Recover Saved Task Progress",
           "python3 ./.trellis/scripts/task_progress.py status --json",
           "Never rebind the session or task automatically.",
-          "Progress never overrides the task `status`, planning artifacts, or workflow ordering.",
+          "Progress never overrides the task `status`, planning artifacts, workflow ordering, auto-loop runtime, or Git publication evidence.",
           "taskStatus=completed",
           "task_progress.py reopen --task <task-name> --json",
-          "`status=completed` (observable after successful final-progress sync)",
+          "Enter the `trellis-push` completed-task preflight",
           "### Planning Resume Gate",
           "enter `trellis-brainstorm` before using artifact presence",
           "wait for a current explicit user confirmation before `task.py start`"
@@ -631,10 +631,10 @@
         "values": [
           "<!-- BEGIN skill-garden patch trellis-continue-task-progress-recovery v0.6 -->\n## Step 1.5: Recover Saved Task Progress",
           "python3 ./.trellis/scripts/task_progress.py status --json",
-          "Do not infer a Phase from progress",
+          "Do not inspect or classify completed Git recovery here",
           "taskStatus=completed",
           "task_progress.py reopen --task <task-name> --json",
-          "`status=completed` (observable after successful final-progress sync)",
+          "Enter the `trellis-push` completed-task preflight",
           "### Planning Resume Gate",
           "enter `trellis-brainstorm` before using artifact presence",
           "wait for a current explicit user confirmation before `task.py start`"
@@ -896,7 +896,7 @@
           "Do not add a parallel workflow injector",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-continue-recovery v0.6 -->\n## `/trellis:continue` Recovery Ownership",
           "never bind a session automatically",
-          "A `completed` task points only to explicit `trellis-finish-work` and archive",
+          "A `completed` task enters the `trellis-push` completed-task preflight",
           "Direct edits are valid only for unowned local sections"
         ]
       },
@@ -922,7 +922,7 @@
           "Do not add a parallel workflow injector",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-continue-recovery v0.6 -->\n## `/trellis:continue` Recovery Ownership",
           "never bind a session automatically",
-          "A `completed` task points only to explicit `trellis-finish-work` and archive",
+          "A `completed` task enters the `trellis-push` completed-task preflight",
           "Direct edits are valid only for unowned local sections"
         ]
       },
@@ -946,7 +946,7 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-task-readiness v0.6 -->",
           "Saved progress is advisory recovery evidence only.",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-active-task-lifecycle v0.6 -->\n## Active Task And Lifecycle",
-          "in_progress -> trellis-push final progress commit/push -> local completed",
+          "in_progress -> business push -> atomic final progress + completed -> task-record commit/push",
           "never bind a session automatically"
         ]
       },
@@ -970,7 +970,7 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-task-readiness v0.6 -->",
           "Saved progress is advisory recovery evidence only.",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-active-task-lifecycle v0.6 -->\n## Active Task And Lifecycle",
-          "in_progress -> trellis-push final progress commit/push -> local completed",
+          "in_progress -> business push -> atomic final progress + completed -> task-record commit/push",
           "never bind a session automatically"
         ]
       },
@@ -992,7 +992,7 @@
           "Change normal completion activation",
           "| Change interruption recovery or candidate rebinding | `trellis-continue` owns the user decision, `task_progress.py` owns candidate evidence, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the explicit session bind; never bind a candidate automatically. |",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-lifecycle-modification-steps v0.6 -->\n## Modification Steps",
-          "final progress synchronization before local completion",
+          "normal final progress and completion written atomically before the task-record commit/push",
           "change the canonical Patch/skill/helper source"
         ]
       },
@@ -1014,7 +1014,7 @@
           "Change normal completion activation",
           "| Change interruption recovery or candidate rebinding | `trellis-continue` owns the user decision, `task_progress.py` owns candidate evidence, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the explicit session bind; never bind a candidate automatically. |",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-lifecycle-modification-steps v0.6 -->\n## Modification Steps",
-          "final progress synchronization before local completion",
+          "normal final progress and completion written atomically before the task-record commit/push",
           "change the canonical Patch/skill/helper source"
         ]
       },
@@ -1604,8 +1604,8 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch workflow-state-completed v0.6 -->",
-          "Business push and task progress are complete.",
-          "Do not resume implementation, Update-Spec, or trellis-push automatically.",
+          "Business work and final task progress are complete",
+          "Enter the `trellis-push` completed-task preflight for the single next hop",
           "task_progress.py reopen --task <task-name> --json"
         ]
       },
@@ -1621,7 +1621,7 @@
         "type": "required-literal",
         "values": [
           "Skill-Garden-managed project",
-          "After successful task-progress push, before explicit archive",
+          "After completion write, before Push-owned recovery preflight or archive",
           "Do not run upstream `trellis update` expecting a direct edit to managed output to persist."
         ]
       },

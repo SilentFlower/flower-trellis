@@ -31,6 +31,9 @@ test("Check-All 按根因区分 CHK 与 FBK，并为两类问题分配严重度"
 
   assert.equal(agents, claude);
   assert.match(agents, /分类发生在严重度评估之前/);
+  assert.match(agents, /1\. 符合 `DOC-\*` 自动修复白名单/);
+  assert.match(agents, /2\. 根因位于 fail-closed、异常输入、失败路径降级/);
+  assert.match(agents, /3\. 根因位于主路径逻辑、非兜底需求或契约/);
   assert.match(agents, /两类问题都根据当前实际影响分配 P0\/P1\/P2/);
   assert.match(agents, /fail-closed、异常输入、失败路径降级/);
   assert.match(agents, /即使 PRD、design、implement、spec 或公开契约已经要求某个兜底行为/);
@@ -87,6 +90,16 @@ test("统一报告分别展示 CHK 与 FBK，并支持显式风险接受", () =>
   assert.match(agents, /\| 维度 \| 状态 \| CHK \| FBK \| 验证 \|/);
   assert.match(agents, /### 主路径问题/);
   assert.match(agents, /### 兜底问题/);
+  assert.ok(
+    agents.indexOf("### 主路径问题") < agents.indexOf("### 兜底问题"),
+    "统一报告模板必须先展示 CHK 主路径区块，再展示 FBK 兜底区块",
+  );
+  assert.match(agents, /严重度排序只在各自通道内部生效/);
+  assert.match(agents, /每个通道内部按 `P0 -> P1 -> P2` 展示/);
+  assert.match(agents, /跨通道报告顺序固定为完整 `CHK-\*` 区块在前、完整 `FBK-\*` 区块在后/);
+  assert.match(agents, /禁止因 FBK 严重度更高、分类时先判断 FBK、发现先后或 ID 分配时机而 FBK-first/);
+  assert.match(agents, /不得按全局严重度排序反转或交错两个区块/);
+  assert.doesNotMatch(agents, /报告按严重度排序，但不得因此/);
   assert.match(agents, /兜底场景/);
   assert.match(agents, /保护收益/);
   assert.match(agents, /操作：`修复全部`、`修复 CHK-001,FBK-002`、`接受风险 CHK-001,FBK-002 并继续`、`仅保留报告`/);

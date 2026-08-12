@@ -18,7 +18,7 @@ All tag blocks live in the `## Phase Index` section above, immediately after eac
 | Codex inline Phase 1 | `[workflow-state:planning-inline]` |
 | Phase 2 + Phase 3.2–3.4 (implementation + check + wrap-up) | `[workflow-state:in_progress]` (after Phase 2 summary) |
 | Codex inline Phase 2 + Phase 3.2–3.4 | `[workflow-state:in_progress-inline]` |
-| After successful task-progress push, before explicit archive | `[workflow-state:completed]` (observable active lifecycle state) |
+| After completion write, before Push-owned recovery preflight or archive | `[workflow-state:completed]` (observable active lifecycle state) |
 
 ### Changing the per-turn prompt text
 

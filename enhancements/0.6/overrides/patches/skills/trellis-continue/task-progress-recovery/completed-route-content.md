@@ -1,1 +1,1 @@
-- `status=completed` (observable after successful final-progress sync) → explicit `trellis-finish-work` archive flow; do not resume Phase 2 or Phase 3.3/3.4
+- `status=completed` -> enter the `trellis-push` completed-task preflight. It either prepares publication recovery, points to explicit `trellis-finish-work`, or blocks on ambiguous evidence. Do not resume Phase 2 or Phase 3.3.

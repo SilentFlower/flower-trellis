@@ -1321,7 +1321,11 @@ class PatchConsumerTest(unittest.TestCase):
                     "bind; never bind a candidate automatically. |",
                     lifecycle_change,
                 )
-                self.assertIn("final progress synchronization before local completion", lifecycle_change)
+                self.assertIn(
+                    "normal final progress and completion written atomically before "
+                    "the task-record commit/push",
+                    lifecycle_change,
+                )
                 self.assertIn(".omp/skills/<skill>/", bundled)
                 self.assertIn(".grok/skills/<skill>/", bundled)
                 self.assertIn(".snow/skills/<skill>/", bundled)

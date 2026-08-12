@@ -67,6 +67,8 @@ python3 ./.trellis/scripts/task_progress.py status --json || true
 git status --short --untracked-files=all -- <task-dir>
 ```
 
+若 `task_progress.py status` 返回 `taskStatus=completed`，立即按需读取 `references/completed-task-recovery.md`，由该 reference 完成只读 preflight 并返回“恢复计划 / 显式 finish-work / 阻断”之一。在得到结果前不得进入普通业务规划，也不得重复已经成功的业务 Git 动作。reference 缺失、不可读或证据无法闭合时失败关闭；`task.json.progress` 只作诊断，不能单独选择恢复动作。
+
 不得把默认 `git status --short` 可能返回的 `?? <task-dir>/` 折叠目录当成 exact file、展示条目或 pathspec。无活动 task 时仍可提交相关代码，但不生成任务进度。untracked 命中时，结合当前请求、work summary 和实际 diff 判断业务 `planned` 文件归属，计划同时显示 work id；无法明确归属的文件只能保留或作为风险。存在活动 task 时，结合 `brief.md`、`implement.md`、当前 diff 与本轮执行范围生成一行语义进度；同时识别当前任务目录中已存在且可归属的 dirty/untracked 产物，供 Step 5 生成任务记录 exact files。不得从旧进度推断 Git 动作。
 
 ## Step 2：预检与文件归属
@@ -196,7 +198,7 @@ auto-loop 内部链失败时向调用方返回全部已完成仓库提交和失�
 
 ## Step 5：同步任务进度
 
-仅普通模式且存在活动 task 时由本 skill 执行。untracked、用户 `commit-only` 与 auto-loop 内部 `commit-only` 都跳过本 Step；Auto-Loop runner 在 action record/next 后按自身契约写入本地 `task.json.progress`，不属于这里的任务进度提交或推送。全部业务仓库成功后先写完整进度并保持 `in_progress`，只在任务进度 commit/push 成功后原子请求 `in_progress -> completed`；已有仓库成功而后续仓库失败时只写 partial 进度，明确 completed、失败位置、next 和 notes，状态保持 `in_progress`。尚未发生成功 Git 动作就失败时，不记录虚假的 completed steps；只有父仓仍可安全提交并推送时才允许记录 failure notes。
+仅普通模式且存在活动 task 时由本 skill 执行。untracked、用户 `commit-only` 与 auto-loop 内部 `commit-only` 都跳过本 Step；Auto-Loop runner 在 action record/next 后按自身契约写入本地 `task.json.progress`，不属于这里的任务记录提交或推送。全部业务仓库成功后一次原子写入最终 progress 与完成态，再提交并推送任务记录；已有仓库成功而后续仓库失败时只写 partial 进度，明确 completed、失败位置、next 和 notes，状态保持 `in_progress`。尚未发生成功 Git 动作就失败时，不记录虚假的 completed steps；只有父仓仍可安全提交并推送时才允许记录 failure notes。
 
 新进度固定为：
 
@@ -218,18 +220,19 @@ auto-loop 内部链失败时向调用方返回全部已完成仓库提交和失�
 - 父仓分支、upstream 和冲突状态安全。
 - 推送不会携带无法归属的历史 ahead commits。
 
-全部业务 commit/push 成功时先通过 helper 写入最终 progress，但不得携带 `--complete`：
+全部业务 commit/push 成功时，通过 helper 用同一份最终 progress 原子写入 `progress`、`status=completed` 与 `completedAt`：
 
 ```bash
 python3 ./.trellis/scripts/task_progress.py write \
   --task <task-dir> \
   --progress-json '<progress-json>' \
+  --complete \
   --json
 ```
 
-部分成功时调用同一 helper，并写入精确恢复位置。用户 `commit-only`、auto-loop 内部 `commit-only` 和尚未发生任何成功业务 Git 动作的失败都不得由本 skill 请求 complete；auto-loop 的本地完成态由 Auto-Loop runner 自己写入，不经过本步骤。helper 写入失败时任务保持原状态，不得继续任务进度提交或报告完成。
+部分成功时调用同一 helper，但不得携带 `--complete`，并写入精确恢复位置。用户 `commit-only`、auto-loop 内部 `commit-only` 和尚未发生任何成功业务 Git 动作的失败都不得由本 skill 请求 complete；auto-loop 的本地完成态由 Auto-Loop runner 自己写入，不经过本步骤。helper 写入失败时任务保持原状态，不得继续任务记录提交或报告完成。
 
-然后只提交并推送首次确认的当前任务 exact files；该集合包含 helper 更新后的 `task.json`，以及首次计划时已存在且可归属的当前任务 dirty/untracked 产物：
+helper 成功后，只提交并推送首次确认的当前任务 exact files；该集合包含完成态 `task.json`，以及首次计划时已存在且可归属的当前任务 dirty/untracked 产物：
 
 ```bash
 git add -- <current-task-exact-files>
@@ -237,19 +240,16 @@ git commit --only -m "chore(task): update <task-name> progress" -- <current-task
 git push origin <current-branch>
 ```
 
-该动作属于用户已确认的普通 push 计划，不增加第二次确认。提交后必须验证 commit 只包含首次确认的当前任务 exact files；其他任务和无关 dirty/staged 文件保持原状。如果写入、提交或推送失败，不回滚已成功的业务 Git 动作，并单独报告进度同步失败；任务必须保持 `in_progress`，不得进入完成态。
+该动作属于用户已确认的普通 push 计划，不增加第二次确认。提交后必须验证 commit 只包含首次确认的当前任务 exact files，且 `task.json` 已包含同一份最终 progress、`status=completed` 与 `completedAt`；其他任务和无关 dirty/staged 文件保持原状。
 
-只有进度 commit 和 push 都成功后，才用同一份最终 progress 原子写入本地 `status=completed` 和 `completedAt`：
+失败时保留真实现场，不 reset、amend、revert 或制造 dirty 回滚：
 
-```bash
-python3 ./.trellis/scripts/task_progress.py write \
-  --task <task-dir> \
-  --progress-json '<same-final-progress-json>' \
-  --complete \
-  --json
-```
+- helper 失败：任务保持 `in_progress`，不得创建任务记录 commit。
+- helper 成功但任务记录 commit 失败：保留本地 `completed` 与当前任务 exact dirty，后续按 Step 1 的任务记录 commit 恢复路径重新验证和确认；不得重复业务提交或 helper 写入。
+- 任务记录 commit 成功但 push 失败：任务目录应为 clean，并保留可归属的 ahead commit；后续只重试该 commit 的 push，不重复业务提交、helper 写入或任务记录 commit。
+- 任务记录 push 成功：本任务产生的当前任务目录变更必须 clean；不得再写入第二份预归档完成态。
 
-该完成态写入不再创建第二个 progress commit；它作为活动任务的预归档生命周期变化保留，由显式 `trellis-finish-work` 的 archive bookkeeping commit 承接。如果完成态写入失败，远端最终 progress 已同步，但任务仍为 `in_progress`；报告完成态激活失败并允许精确重试该 helper，禁止重新执行已成功的业务 push 或 progress push。
+任何恢复都必须验证当前分支、upstream、HEAD、`@{u}..HEAD`、任务记录 commit message 与 exact file set，以及 `task.json` 的最终完成态。无法证明归属时停止，不把未知 ahead 或 dirty 当作可恢复任务记录。
 
 ## Step 6：结果
 

@@ -43,7 +43,7 @@
 - **仓库**：<repository-name> · 分支：`<branch>` -> `<upstream>`
 - **计划提交**：<当前任务 exact files 或分组摘要>
 - **进度**：completed=<...> | partial=<...> | next=<...>
-- **执行**：<commit -> push -> progress commit -> progress push>
+- **执行**：<business commit/push -> `task_progress.py write --complete` -> task-record commit -> task-record push>
 
 确认执行请回复 `确认`。可调整：`只提交`、`修改 message`、`展开文件`。
 ```
@@ -79,7 +79,7 @@
 
 ### 任务进度
 
-- **状态**：<✓ 已同步并进入 completed · `<progress-hash>` / ✓ partial 已同步且保持 in_progress / · 已跳过 / ❌ 同步失败，不得报告完成>
+- **状态**：<✓ completed 已提交并推送 · `<task-record-hash>` / ✓ partial 已同步且保持 in_progress / · 已跳过 / ❌ 任务记录 commit 待恢复 / ❌ 任务记录 push 待恢复 / ❌ 同步失败，不得报告完成>
 - **记录**：<N> 个当前任务文件
 - **进度**：completed=<...> | partial=<...> | next=<...>
 - **失败原因**：<原因和恢复动作>（仅失败时显示）
@@ -94,3 +94,6 @@
 
 - untracked 结果用“无任务状态”替代“任务进度”，展示 work id 与 `<已清理/保留待恢复>`；不生成或暗示 task progress commit。
 - 部分完成时必须明确列出已成功仓库、失败仓库/步骤、当前分支和下一恢复动作。业务结果与 progress sync 状态不得合并成一个模糊结论。
+- 普通成功结果必须确认本任务产生的当前任务目录变更 clean；其它 retained dirty 仍按原状态逐项展示。
+- helper 成功但任务记录 commit 失败时，结果写“任务记录 commit 待恢复”，说明本地 `completed` 与 exact task dirty 已保留；任务记录 commit 成功但 push 失败时写“任务记录 push 待恢复”，说明 clean ahead commit 已保留。两种情况都不得暗示需要重复业务提交或 helper 写入。
+- validated auto-loop local completion 不渲染本模板，也不得被普通结果文案描述为任务记录 push 待恢复。

@@ -103,11 +103,31 @@ test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算"
   const pushTemplatesClaude = readSource(
     ".claude/skills/trellis-push/references/output-templates.md",
   );
+  const completedRecovery = readSource(
+    ".agents/skills/trellis-push/references/completed-task-recovery.md",
+  );
+  const completedRecoveryClaude = readSource(
+    ".claude/skills/trellis-push/references/completed-task-recovery.md",
+  );
   const runner = readSource("scripts/auto_loop.py");
 
   assert.equal(autoLoop, autoLoopClaude);
   assert.equal(push, pushClaude);
   assert.equal(pushTemplates, pushTemplatesClaude);
+  assert.equal(completedRecovery, completedRecoveryClaude);
+  assert.equal(
+    completedRecovery,
+    readRoot("enhancements/0.6/.agents/skills/trellis-push/references/completed-task-recovery.md"),
+  );
+  assert.equal(
+    completedRecovery,
+    readRoot(".agents/skills/trellis-push/references/completed-task-recovery.md"),
+  );
+  assert.equal(
+    completedRecovery,
+    readRoot(".claude/skills/trellis-push/references/completed-task-recovery.md"),
+  );
+  assert.ok(Buffer.byteLength(completedRecovery) <= 4096);
   assert.match(autoLoop, /commit -> generate -> commit/);
   assert.match(autoLoop, /不得仅因多个仓库、submodule pin 或证据充分的本地生成命令返回 `multi-repo-commit-boundary`/);
   assert.match(autoLoop, /--repo-commit <repository>::<hash>/);
@@ -171,6 +191,9 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
     ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
   );
   const push = readSource(".agents/skills/trellis-push/SKILL.md");
+  const completedRecovery = readSource(
+    ".agents/skills/trellis-push/references/completed-task-recovery.md",
+  );
   const autoLoop = readSource(".agents/skills/trellis-auto-loop/SKILL.md");
   const finish = readSource(
     "overrides/patches/skills/trellis-finish-work/exact-bookkeeping/content.md",
@@ -241,10 +264,27 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(push, /auto-loop 内部 `commit-only`/);
   assert.match(push, /git commit --only/);
   assert.match(push, /--complete/);
-  assert.match(push, /先通过 helper 写入最终 progress，但不得携带 `--complete`/);
-  assert.match(push, /只有进度 commit 和 push 都成功后.*`status=completed`/);
-  assert.match(push, /进度同步失败；任务必须保持 `in_progress`/);
-  assert.match(push, /archive bookkeeping commit 承接/);
+  assert.match(push, /原子写入 `progress`、`status=completed` 与 `completedAt`/);
+  assertOrdered(
+    push,
+    "通过 helper 用同一份最终 progress 原子写入",
+    "helper 成功后，只提交并推送首次确认的当前任务 exact files",
+    "普通任务完成先写 complete 再提交任务记录",
+  );
+  assert.match(push, /helper 成功但任务记录 commit 失败/);
+  assert.match(push, /任务记录 commit 成功但 push 失败/);
+  assert.match(push, /后续只重试该 commit 的 push/);
+  assert.match(push, /任务记录 push 成功：本任务产生的当前任务目录变更必须 clean/);
+  assert.match(push, /按需读取 `references\/completed-task-recovery\.md`/);
+  assert.doesNotMatch(push, /pending_archive\.tasks_awaiting_archive/);
+  assert.match(completedRecovery, /pending_archive\.tasks_awaiting_archive/);
+  assert.match(completedRecovery, /不得把该本地完成态改成普通远端 push/);
+  assert.match(completedRecovery, /任务记录 commit \+ push 恢复计划/);
+  assert.match(completedRecovery, /任务记录 push-only 恢复计划/);
+  assert.match(completedRecovery, /显式 finish-work，普通已同步/);
+  assert.match(completedRecovery, /未知 ahead 修改任务/);
+  assert.doesNotMatch(push, /只有进度 commit 和 push 都成功后/);
+  assert.doesNotMatch(push, /archive bookkeeping commit 承接/);
   assert.match(autoLoop, /## Commit-Only/);
   assert.match(autoLoop, /`review_planning_readiness`/);
   assert.match(autoLoop, /`resolve_open_questions`/);
@@ -255,15 +295,26 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(finish, /### 1\. Completion State Gate/);
   assert.match(finish, /taskStatus=completed/);
   assert.match(finish, /finish-work must not manufacture completion/);
+  assert.match(finish, /auto_loop\.py status --verbose/);
+  assert.match(finish, /pending_archive\.tasks_awaiting_archive/);
+  assert.match(finish, /does not classify the normal task record into commit recovery versus push recovery/);
+  assert.match(finish, /enter `trellis-push` completed-task preflight/);
+  assert.doesNotMatch(finish, /Normal task-record commit pending/);
+  assert.doesNotMatch(finish, /Normal task-record push pending/);
+  assert.match(finish, /must not recommit or push the normal task record itself/);
   assert.match(finish, /### 2\. Decision Audit/);
   assert.match(finish, /decision_log\.py status --task <task-name> --json/);
   assert.match(finish, /preserves the existing `completedAt` and performs no lifecycle status write/);
   assert.match(continueRecovery, /task_progress\.py status --json/);
   assert.match(continueRecovery, /Never rebind the session or task automatically/);
   assert.match(continueRecovery, /taskStatus=completed/);
+  assert.match(continueRecovery, /Enter the `trellis-push` completed-task preflight/);
+  assert.doesNotMatch(continueRecovery, /auto_loop\.py status|@\{u\}\.\.HEAD|pending_archive\.tasks_awaiting_archive/);
   assert.match(continueRecovery, /task_progress\.py reopen --task <task-name> --json/);
-  assert.match(completedState, /Business push and task progress are complete/);
-  assert.match(completedState, /Do not resume implementation, Update-Spec, or trellis-push automatically/);
+  assert.match(completedState, /Business work and final task progress are complete/);
+  assert.match(completedState, /Enter the `trellis-push` completed-task preflight/);
+  assert.match(completedState, /does not inspect Git or auto-loop details itself/);
+  assert.doesNotMatch(completedState, /pending_archive|@\{u\}\.\.HEAD/);
   assert.match(progress, /def _validate_progress/);
   assert.match(progress, /os\.replace\(temp_path, path\)/);
   assert.match(progress, /def cmd_reopen/);
@@ -360,9 +411,9 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.match(continueRecovery, /status=candidates/);
   assert.match(continueRecovery, /suggest an explicit rebind/);
   assert.match(continueRecovery, /Never rebind the session or task automatically/);
-  assert.match(continueRecovery, /A completed candidate points to finish-work\/archive/);
-  assert.match(continueRecovery, /Do not infer a Phase from progress/);
-  assert.match(continueRecovery, /or resume Git\/commit orchestration from it/);
+  assert.match(continueRecovery, /a completed candidate uses the same Push preflight/);
+  assert.match(continueRecovery, /Do not inspect or classify completed Git recovery here/);
+  assert.match(continueRecovery, /or resume Git\/commit orchestration from progress text/);
   assert.match(continueRecovery, /### Planning Resume Gate/);
   assert.match(continueRecovery, /enter `trellis-brainstorm` before using artifact presence/);
   assert.match(continueRecovery, /files exist; they do not prove that acceptance criteria are testable/);
