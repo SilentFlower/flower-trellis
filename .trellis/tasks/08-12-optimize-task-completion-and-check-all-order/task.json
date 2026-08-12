@@ -1,0 +1,84 @@
+{
+  "id": "optimize-task-completion-and-check-all-order",
+  "name": "optimize-task-completion-and-check-all-order",
+  "title": "优化任务完成提交与 Check-All 展示顺序",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-12",
+  "completedAt": "2026-08-12",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-12T02:02:44Z",
+      "contextKey": "codex_019ff39c-1c31-7a72-8646-db8856499e71",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "998fe051ae639e95e318f0b304a110b6b021f13f",
+        "status": [
+          {
+            "status": " M",
+            "path": ".trellis/tasks/08-11-upgrade-trellis-0-6-14/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "998fe051ae639e95e318f0b304a110b6b021f13f",
+            "status": [
+              {
+                "status": " M",
+                "path": ".trellis/tasks/08-11-upgrade-trellis-0-6-14/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "85e809ecbb89701a00707b7db620b1d4a94b5181d95c65f2c29feb2a163dce04",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "c8fa14fc66787532665749868deee43c5d69a32ae22124835ba4632c34498ed1"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "a44be043f3e00a74a430bfbaf17ca3ad0249a7a4",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "6b206e67122648945c8167c2af88d5f2457e11b83bd50d3ffd4db85975d85c8e"
+          }
+        ],
+        "fingerprint": "574b1f9e7867f0f7ca58db7abdd8817bc111707f3931c59883410f3ee78b515a"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-12T00:00:00Z",
+    "completedSteps": [
+      "优化普通 Push 完成态提交与恢复",
+      "固定 Check-All CHK 到 FBK 展示顺序",
+      "同步 Skill-Garden、compiled targets 与 dogfood 投影",
+      "完成全量 Check-All 与规范更新"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档任务",
+    "notes": "Full Check-All 通过；context budget strict、全量测试、Patch conflict、输出模板和投影一致性检查均通过。"
+  }
+}
