@@ -1057,3 +1057,26 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Next Steps
 
 - 按独立发布流程决定后续 npm 发布与 tag
+
+
+## Session 90: 完成 Maven 验证 Skill 并归档任务
+
+**Date**: 2026-08-13
+**Task**: 完成 Maven 验证 Skill 并归档任务
+**Branch**: `beta`
+
+### Summary
+
+完成 trellis-maven-verify 的跨 Windows/Linux/WSL 同侧工具链选择、生命周期裁剪、并行策略与 evidence 复用；验证并推送 Skill-Garden 与 Flower 变更，随后完成任务归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `61ab2f3` | (see git log) |
+| `7d656af` | (see git log) |
+| `59bd52b` | (see git log) |
+
+### Status
+
+[OK] **Completed**
