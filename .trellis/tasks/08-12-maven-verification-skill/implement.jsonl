@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"约束 builtin Skill-Garden 平台选择、内容投影、事务和 ownership。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-authoring.md","reason":"约束新 Skill authoring、校验、forward-test 与发布前验证。"}
+{"file":".trellis/tasks/08-12-maven-verification-skill/research/owner-contract.md","reason":"提供本任务所需的 implement、Check-All、Skill-Garden owner 边界短索引，避免大规范注入截断。"}
+{"file":".trellis/tasks/08-12-maven-verification-skill/research/srm-maven-case.md","reason":"提供真实 Maven 多模块慢构建、生命周期绑定和环境放大证据。"}

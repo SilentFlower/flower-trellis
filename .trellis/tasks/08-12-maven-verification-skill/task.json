@@ -1,0 +1,74 @@
+{
+  "id": "maven-verification-skill",
+  "name": "maven-verification-skill",
+  "title": "新增 Maven 分层验证与证据复用 Skill",
+  "description": "新增 trellis-maven-verify Skill 和确定性 Maven 助手，为 implement 提供分层验证，为 Check-All 提供可审计证据复用，避免多模块 reactor 与昂贵生命周期重复执行。",
+  "status": "completed",
+  "dev_type": "backend",
+  "scope": "skill-garden/maven-verification",
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-12",
+  "completedAt": "2026-08-13",
+  "branch": null,
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-12T09:17:47Z",
+      "contextKey": "codex_019ff529-919e-7991-a30b-b2a525d19b32",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "6ca73e6797b76dc55a4fa3dae22a44f13b1f3344",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "6ca73e6797b76dc55a4fa3dae22a44f13b1f3344",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "599bd482067a017aa51a6321b80c8a7be436a58eaf6481aa0c4eb3822944af22"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "51d880f77b9caa0cf5602ecf889903b7adf71b23",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "6cd9b84bdeea91982583d39821fb372765acef7086fc6443ae6b87ec8ffd2630"
+          }
+        ],
+        "fingerprint": "1db0aaab7e0ccc22a04a4c71ee93888e6e51b7a5787736920db1abb4f4f0d3fe"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-13T01:56:48.384Z",
+    "completedSteps": [
+      "完成 trellis-maven-verify Skill、maven_verify.py 与分发集成",
+      "完成 SRM Java 8 Maven 性能实测和证据复用验证",
+      "完成全量 Check-All 与 Update-Spec 复核",
+      "完成 skill-garden 与 flower-trellis 业务提交并推送"
+    ],
+    "partialStep": null,
+    "nextStep": "任务完成，等待显式 finish-work 归档",
+    "notes": "Maven 分层验证、生命周期裁剪、evidence 复用及 trellis-continue 文案同步均已发布到 beta。"
+  }
+}

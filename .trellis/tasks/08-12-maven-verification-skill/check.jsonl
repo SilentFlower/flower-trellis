@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"检查全量/选择性安装、平台投影和 Plugin state ownership。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-authoring.md","reason":"检查 Skill 结构、quick validation、forward-test 和发布验证完整性。"}
+{"file":".trellis/tasks/08-12-maven-verification-skill/research/owner-contract.md","reason":"检查 implement/Check-All 证据复用集成没有破坏 audit-only 与 owner 边界。"}
+{"file":".trellis/tasks/08-12-maven-verification-skill/research/srm-maven-case.md","reason":"反向验证实现没有遗漏真实慢构建根因或硬编码 SRM 特例。"}
