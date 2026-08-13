@@ -49,6 +49,7 @@ const localizedSubjects = new Map([
   ["839904e", "新增 Check-All 可选问题分类"],
   ["44ba195", "将 DMS、SLS、MSE/Nacos 整合为阿里云运维查询 Skill"],
   ["eda90ec", "将 Check-All 可选问题收敛为统一兜底分类"],
+  ["update development journal", "更新开发日志"],
 ]);
 
 const detailedReleaseSubjects = new Map([
