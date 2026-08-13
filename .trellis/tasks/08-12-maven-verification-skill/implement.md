@@ -12,13 +12,16 @@
 1. 新增 `vendor/skill-garden/.trellis/0.6/scripts/maven_verify.py`。
 2. 实现 Maven/Git 根定位、diff 指纹、untracked 内容指纹和稳定 JSON 工具。
 3. 实现 Maven 本地仓库文件系统诊断和 `--local-repository` 显式覆盖，贯穿 effective POM、执行 argv、POM 指纹和 evidence 新鲜度。
-4. 实现 reactor/POM 模块扫描、坐标解析、本地依赖与反向依赖图；不可靠时输出 confidence/warning。
-5. 实现根 effective POM 获取与 plugin execution phase/goal 分析，覆盖外部父 POM继承。
-6. 实现昂贵 goal 分类和受支持 skip 参数判定。
-7. 实现 `plan` 的 quick/final 命令生成：quick 默认 `-am` 并在 compiler plugin 兼容时使用 source-stale；final 默认 conservative，显式低风险场景才允许 source-stale。
-8. 实现 `--threads` 显式并行参数校验；默认不启用并行，不猜测线程数。
-9. 实现 `run` 的 argv 执行、实时日志、测试统计解析和原子证据写入。
-10. 实现 `check` 的只读证据校验、生命周期/模块/测试覆盖判断和明确失效原因。
+4. 实现项目文件系统构建侧识别：原生 Windows/Linux 使用本侧工具链，WSL Windows 挂载项目使用 Windows Maven/JDK/仓库，WSL ext4 项目使用 Linux 工具链。
+5. 实现 Maven 自动选择与同侧校验：优先同侧项目 wrapper，其次同侧 PATH Maven；显式 `--maven-executable` 不得跨侧，不下载或升级 Maven。
+6. 实现 Windows/WSL 路径双表示、固定 `cmd.exe` 执行包装、Windows 环境/settings/本地仓库读取，并让 plan/effective POM/run/precondition 复用同一工具链描述。
+7. 实现 reactor/POM 模块扫描、坐标解析、本地依赖与反向依赖图；不可靠时输出 confidence/warning。
+8. 实现根 effective POM 获取与 plugin execution phase/goal 分析，覆盖外部父 POM继承。
+9. 实现昂贵 goal 分类和受支持 skip 参数判定。
+10. 实现 `plan` 的 quick/final 命令生成：quick 默认 `-am` 并在 compiler plugin 兼容时使用 source-stale；final 默认 conservative，显式低风险场景才允许 source-stale。
+11. 实现 `--threads` 并行参数校验；Skill 让模型结合 reactor、插件线程安全、共享资源和机器资源自行选择，并禁止为了选择并行度额外重复构建。
+12. 实现 `run` 的 argv 执行、实时日志、测试统计解析和原子证据写入。
+13. 实现 `check` 的只读证据校验、生命周期/模块/测试覆盖判断和明确失效原因。
 
 ## 3. Trellis Owner 集成
 
@@ -44,6 +47,9 @@
    - compile 阶段 source jar；
    - prepare-package copy-dependencies；
    - quick/final argv、compile strategy 与显式 threads；
+   - 原生 Windows/Linux、WSL Windows 挂载与 WSL ext4 的构建侧判断；
+   - 同侧 wrapper/PATH Maven 自动选择、显式跨侧混搭阻断、Windows cmd 参数引用和带空格路径；
+   - Windows 与 POSIX 环境、settings、本地仓库路径双表示及 precondition 一致性；
    - exact argv 执行与日志；
    - 成功、失败、中断证据；
    - 源码/POM/范围/生命周期/JDK变化后的失效；
@@ -71,7 +77,8 @@
    - 为当前 changed modules 生成不进入 package 的计划；
    - 不执行真实 Maven reactor，不修改业务仓文件。
 3. 在 `/root/project/srm/srm-server` 使用 Linux Java 8、Linux Maven、ext4 本地仓库验证 quick source-stale：无变化构建、单个 class 过期构建与 conservative final 对照；只允许写 `target/` 和临时 evidence，不修改业务源码或 POM。
-4. 根据 forward-test 输出修正 Skill 文案或脚本，避免把 SRM 特例硬编码成通用规则。
+4. 在 Windows 文件系统上的隔离多模块 fixture 复用已安装的 Windows Maven/JDK，验证 WSL 发起时仍由 Windows 工具链完成 effective POM 与 run；在 WSL ext4 fixture 使用已安装 Linux Maven做对照。
+5. 根据 forward-test 输出修正 Skill 文案或脚本，避免把 SRM 或本机路径特例硬编码成通用规则。
 
 ## 8. 验证命令
 

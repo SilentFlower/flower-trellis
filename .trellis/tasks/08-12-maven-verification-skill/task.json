@@ -60,15 +60,16 @@
     }
   },
   "progress": {
-    "updatedAt": "2026-08-13T01:56:48.384Z",
+    "updatedAt": "2026-08-13T13:00:00+08:00",
     "completedSteps": [
       "完成 trellis-maven-verify Skill、maven_verify.py 与分发集成",
-      "完成 SRM Java 8 Maven 性能实测和证据复用验证",
-      "完成全量 Check-All 与 Update-Spec 复核",
+      "修复 Windows、Linux、WSL 同侧 Maven/JDK/本地仓库选择与 audit-only evidence 复用",
+      "移除性能基准要求，改由模型按 reactor、插件线程安全和机器资源决定并行度",
+      "完成 Skill、Python、Node、Patch、compiled targets 与全仓测试",
       "完成 skill-garden 与 flower-trellis 业务提交并推送"
     ],
     "partialStep": null,
     "nextStep": "任务完成，等待显式 finish-work 归档",
-    "notes": "Maven 分层验证、生命周期裁剪、evidence 复用及 trellis-continue 文案同步均已发布到 beta。"
+    "notes": "Maven 验证 Skill 已同步到 canonical、snapshot 与 dogfood；常规 implement 不执行并行度对比，Check-All 只读复用 evidence。"
   }
 }

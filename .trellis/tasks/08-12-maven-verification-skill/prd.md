@@ -29,6 +29,9 @@
 
 - 提供项目运行时脚本 `.trellis/scripts/maven_verify.py`，至少包含 `plan`、`run`、`check` 子命令。
 - `plan` 必须基于真实 Git diff、Maven reactor/POM、目标阶段和用户或任务给出的消费者范围生成计划，不得猜测模块名、测试类或 JDK 路径。
+- `plan` 默认自动复用现有 Maven：优先选择 Maven 根目录同侧的项目 wrapper，其次选择同侧 `PATH` 中的 Maven；不得自动下载、安装或升级 Maven。显式 `--maven-executable` 只能选择与项目构建侧一致的 Maven。
+- 构建侧由 Maven 根目录所在的原生文件系统决定：原生 Windows 项目使用 Windows Maven/JDK/本地仓库，原生 Linux 项目使用 Linux 工具链；WSL 中位于 Windows drvfs/9p 挂载盘的项目使用 Windows 工具链，WSL ext4 项目使用 Linux 工具链。
+- `plan`、effective POM、`run`、执行前后工具链复核和 evidence 必须使用同一构建侧。Windows 侧路径与 WSL 可见路径可以双表示，但 Maven executable、JDK、`MAVEN_ARGS`/`MAVEN_OPTS`、settings 和本地仓库不得跨侧混搭。
 - `plan` 必须识别 Maven 本地仓库所在文件系统；命中 WSL `9p` / `drvfs`、CIFS/NFS 等高延迟小文件文件系统时输出明确性能警告，并支持 `--local-repository` 把同一路径冻结进 effective POM、执行 argv 与 evidence。
 - `plan` 必须识别生命周期中的额外 goal，至少覆盖：
   - `maven-source-plugin` 的 `jar` / `jar-no-fork`；
@@ -39,7 +42,7 @@
 - `run` 必须执行计划中的精确 argv，保留 Maven 实时输出，记录退出码、耗时、环境和结构化结果；不得默认加入 `clean`、`package`、`install`、`deploy` 或并行参数。
 - `plan` 必须支持 `--compile-strategy auto|conservative|source-stale`：`auto` 在 quick compile 且确认 `maven-compiler-plugin` 兼容时选择 `source-stale`，在 final 中选择 `conservative`；显式 `source-stale` 不得用于 compile 之外的 lifecycle。
 - `source-stale` 只能在 effective model 确认 `maven-compiler-plugin >= 3.1` 时添加 `-Dmaven.compiler.useIncrementalCompilation=false`。兼容性未知时，quick auto 降级为 conservative 并报告原因；显式请求必须失败关闭。
-- `plan` 可以接受显式 `--threads <count|multiplierC>` 并生成 Maven `-T` 参数，但不得自动猜测线程数或默认开启并行；调用方必须已经从项目规则、插件线程安全证据或用户授权确认可并行。
+- `plan` 可以接受显式 `--threads <count|multiplierC>` 并生成 Maven `-T` 参数。模型结合 reactor 范围与依赖拓扑、插件线程安全、测试共享资源和机器资源自行决定是否传入并行度；不得为此额外重复运行 Maven 构建。
 - `check` 必须只读校验证据，不触发 Maven 构建、不修改源码或构建缓存。
 
 ### R3. 生命周期裁剪规则
@@ -86,9 +89,10 @@
 - 不修改用户 Maven `settings.xml`、POM、JDK 配置或本地仓库位置；性能建议只作为计划诊断输出。
 - 不自动删除 `target/`、本地 Maven 仓库或历史证据。
 - 不自动复制、迁移或同步 Maven 本地仓库，不修改 `settings.xml`；离线模式使用显式仓库时，目录必须已经存在。
-- 不擅自启用 Maven 并行构建；只有项目明确支持线程安全且用户或项目配置允许时，调用方才可显式传入 `--threads`。
+- Maven 并行度由模型按当前项目和验证目标判断；常规 implement 只执行选定的一份计划，Check-All 只读复用 evidence，不运行并行度对比。
 - 脚本使用 Python 标准库实现，不新增运行时第三方依赖。
 - 路径、命令和 JSON 输出必须支持包含空格的工作目录，不通过 shell 字符串拼接执行 Maven。
+- WSL 调用 Windows `.cmd` wrapper 或 Maven 时允许使用固定 `cmd.exe` 包装，但所有动态参数必须逐项安全编码；不得把未校验的 Maven 参数拼成任意 shell 语句。
 
 ## Acceptance Criteria
 
@@ -97,7 +101,9 @@
 - [ ] fixture 中父 POM把 `maven-source-plugin:jar` 绑定到 `compile` 时，计划能识别该额外 goal，并在确认插件参数后为非 sources 验证建议 `-Dmaven.source.skip=true`。
 - [ ] fixture 中 `maven-compiler-plugin >= 3.1` 时，quick compile 的 auto 策略生成 `-am` 与 `-Dmaven.compiler.useIncrementalCompilation=false`；插件版本缺失或过旧时自动降级并报告，显式 source-stale 失败关闭。
 - [ ] final 默认不添加 source-stale 参数；任务材料确认低风险后显式选择时进入计划、argv、指纹和 evidence，并与 conservative final 严格区分。
-- [ ] `--threads` 只在显式请求且格式合法时生成 Maven `-T`，非法值失败关闭，默认计划不启用并行。
+- [ ] `--threads` 只在格式合法时生成 Maven `-T`，非法值失败关闭；Skill 说明模型如何结合 reactor、插件线程安全、共享资源和机器资源自行选择，且不会为了选值额外重复构建。
+- [ ] 自动工具链选择能区分原生 Windows、原生 Linux、WSL Windows 挂载项目和 WSL ext4 项目；优先同侧 wrapper，再复用同侧 PATH Maven，显式跨侧 Maven/JDK/本地仓库混搭失败关闭。
+- [ ] WSL Windows 挂载项目的 effective POM、plan、run 和 evidence 通过 Windows Maven/JDK 执行，路径含空格时仍保持精确 argv；同一脚本在 WSL ext4 项目继续使用 Linux Maven/JDK。
 - [ ] fixture 中应用模块把 `copy-dependencies` 绑定到 `prepare-package` 时，`compile` 计划不进入该阶段，`package` 计划明确报告该额外成本。
 - [ ] `run` 使用 argv 数组执行伪 Maven 或隔离 fixture，实时输出且生成 schema 化证据；失败命令也生成失败证据且返回非零。
 - [ ] `check` 在完全相同的 Git/POM/命令/模块/工具链要求下返回可复用；修改源码、POM、消费者范围或提高生命周期后返回明确失效原因。
@@ -116,3 +122,4 @@
 - 代替任务 PRD/spec 决定需要哪些业务测试、消费者或发布验收。
 - 自动执行 `deploy`、发布制品、上传仓库、清理本地缓存或写外部系统。
 - 构建通用远程缓存、Maven daemon 或分布式构建系统。
+- 自动下载安装 Maven 3.9+，或为使用新特性强制替换项目现有 Maven。

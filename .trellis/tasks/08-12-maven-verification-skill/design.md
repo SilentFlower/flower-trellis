@@ -103,7 +103,7 @@ python3 ./.trellis/scripts/maven_verify.py plan
 6. 识别本地仓库文件系统；高延迟挂载输出诊断，显式仓库同时作用于 effective model 和最终命令。
 7. 只有插件描述或内置兼容表确认参数时添加 skip 参数。
 8. quick compile 的 auto 策略仅在 effective model 确认 `maven-compiler-plugin >= 3.1` 时选择 source-stale；final auto 固定为 conservative。
-9. 只有显式 `--threads` 且格式合法时生成 `-T`；调用方负责先确认项目线程安全。
+9. 只有合法 `--threads` 才生成 `-T`；模型结合 reactor 范围与依赖拓扑、插件线程安全、测试共享资源和机器资源自行决定是否传入，不为选值额外重复构建。
 10. 输出 argv、覆盖、风险和原因，不执行命令。
 
 ### 3.2 `run`
@@ -152,7 +152,7 @@ python3 ./.trellis/scripts/maven_verify.py check
 - `failed`：原验证命令失败。
 - `blocked`：无法读取 Git、POM、工具链或证据。
 
-`check` 不运行 Maven goal，不创建文件；允许读取 Git 状态、POM、证据和 `java -version` / `mvn -version`。
+`check` 不运行 Maven goal，不创建文件；允许读取 Git 状态、POM、证据和只读工具链信息。普通已安装 Maven 可做版本探测；项目 wrapper 使用冻结版本并校验 wrapper 文件与配置指纹，不执行可能下载 Maven 发行包的 wrapper。
 
 ## 4. 证据 Schema
 
@@ -231,7 +231,16 @@ validate < compile < test < package < verify < install < deploy
 - final 的 `compileStrategy=auto` 固定为 conservative。只有任务材料确认模块内部低风险变化时，调用方才可显式传入 `source-stale`；公共 API/DTO/常量、注解处理器、POM、资源契约或跨模块协议变化继续使用 conservative。
 - 自动反向依赖结果只在所有相关坐标可解析时作为建议；解析不完整时不得声称消费者闭合。
 - 根 POM、dependencyManagement、公共 DTO/API 或跨模块协议变化默认要求更高覆盖，由调用方/Check-All决定是否扩大消费者。
-- 并行不自动启用。项目规则、插件线程安全证据或用户授权确认后，调用方可显式传入 `--threads`；参数和结果必须进入计划指纹与 evidence。
+- 是否启用并行由模型按当前 reactor、插件和运行环境判断；常规 implement 只执行一份计划。显式 `--threads` 继续进入计划指纹与 evidence，Check-All 只校验证据，不执行 Maven goal。
+
+## 6.1 构建侧与工具链选择
+
+- 以 Maven 根目录所在的原生文件系统作为 `buildSide`：原生 Windows 为 `windows`，原生 Linux 为 `posix`；WSL 的 drvfs/9p Windows 盘为 `windows`，WSL ext4 为 `posix`。
+- 自动选择顺序固定为“同侧项目 wrapper -> 同侧 PATH Maven”。Windows 侧识别 `mvnw.cmd` / `mvn.cmd`，POSIX 侧识别可执行 `mvnw` / `mvn`；不在 Skill 内下载或升级 Maven。
+- 计划保存逻辑 Maven argv 与宿主执行包装。WSL 或原生 Windows 调用 Windows Maven 时，逻辑 argv 仍以 Windows Maven executable 开头，执行层使用固定 `cmd.exe /d /c call` 包装；动态参数逐项传递，命中会被 `cmd.exe` 二次解释的控制字符或元字符时失败关闭。
+- Windows 构建侧读取 Windows 的 `JAVA_HOME`、`MAVEN_ARGS`、`MAVEN_OPTS`、`MAVEN_CONFIG`、`USERPROFILE` 和 settings；POSIX 构建侧读取当前 POSIX 环境。路径证据同时记录构建侧路径和当前 Python 宿主可访问路径，用宿主路径完成 POM/仓库指纹。
+- 显式 Maven、JDK 或本地仓库无法映射到项目构建侧时返回稳定的 side-mismatch blocker；同侧工具缺失返回 command-unavailable，不静默回退到另一操作系统。
+- `plan`、effective POM、`run` 和执行前后 precondition 共享同一工具链解析器，避免计划使用 Windows Maven、执行却回到 Linux Maven。
 
 ## 7. Trellis 集成方式
 
