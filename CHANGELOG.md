@@ -4,6 +4,23 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.1-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.1-beta.1...v0.6.1-beta.2) (2026-08-13)
+
+
+### ✨ 新功能 Features
+
+* **flower:** 接入 Maven 验证并同步 continue 文案 ([3819d75](https://github.com/SilentFlower/flower-trellis/commit/3819d759ecdd3bf067d02c8eac48d38b787ba037))
+
+
+### 🐛 修复 Bug Fixes
+
+* **flower:** 同步 Maven 验证修复 ([7d656af](https://github.com/SilentFlower/flower-trellis/commit/7d656af2a7975f7f1ffd5cff307f72cc482e9062))
+
+
+### 📝 文档 Docs
+
+* 更新开发日志 ([29cdbc0](https://github.com/SilentFlower/flower-trellis/commit/29cdbc0dd0f7cf323f714f08270d08ef5dd8a107))
+
 ## [0.6.1-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.6.1-beta.0...v0.6.1-beta.1) (2026-08-12)
 
 
