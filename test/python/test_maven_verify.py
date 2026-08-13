@@ -2,19 +2,34 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 HELPER = PROJECT_ROOT / "vendor/skill-garden/.trellis/0.6/scripts/maven_verify.py"
+
+
+def _load_helper_module():
+    """加载 helper 模块，供纯函数和平台判断回归测试使用。"""
+    module_name = "flower_trellis_maven_verify_test"
+    spec = importlib.util.spec_from_file_location(module_name, HELPER)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"无法加载 helper：{HELPER}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 ROOT_POM = """
@@ -204,6 +219,9 @@ class MavenVerifyTest(unittest.TestCase):
                 """\
                 #!/bin/sh
                 if [ "$1" = "-version" ]; then
+                  if [ -n "${FAKE_MAVEN_VERSION_MARKER:-}" ]; then
+                    : > "$FAKE_MAVEN_VERSION_MARKER"
+                  fi
                   echo "Apache Maven ${FAKE_MAVEN_VERSION:-3.9.9}"
                   exit 0
                 fi
@@ -533,6 +551,91 @@ class MavenVerifyTest(unittest.TestCase):
         self.assertEqual(plan["status"], "planned")
         self.assertTrue(plan["toolchain"]["maven"]["version"].startswith("Apache Maven"))
         self.assertIn("-Dmaven.source.skip=true", plan["argv"])
+
+    def test_default_maven_reuses_same_side_path(self) -> None:
+        """未显式指定 Maven 时复用 POSIX 构建侧 PATH，不固定版本。"""
+        self.write("core/src/main/java/Core.java", "class Core { int value; }")
+        path_maven = self.fake_maven.parent / "mvn"
+        path_maven.symlink_to(self.fake_maven.name)
+        env = {**self.env, "PATH": f"{self.fake_maven.parent}{os.pathsep}{self.env['PATH']}"}
+
+        _, plan = self.helper(
+            "plan",
+            "--mode",
+            "quick",
+            "--goal",
+            "compile",
+            "--module",
+            "core",
+            "--effective-pom",
+            "effective-pom.xml",
+            env=env,
+        )
+
+        self.assertEqual(plan["toolchain"]["maven"]["buildSide"], "posix")
+        self.assertEqual(plan["toolchain"]["maven"]["source"], "path")
+        self.assertEqual(plan["toolchain"]["maven"]["runner"], "direct")
+        self.assertEqual(plan["argv"][0], str(path_maven.resolve()))
+
+    def test_windows_arguments_preserve_backslashes_and_quoted_spaces(self) -> None:
+        """Windows Maven 参数解析不能吞掉本地仓库路径中的反斜杠。"""
+        helper_module = _load_helper_module()
+
+        tokens = helper_module._split_maven_arguments(
+            r'-Dmaven.repo.local=C:\Users\SilentFlower\.m2\repository -Dlabel="hello world"',
+            "MAVEN_OPTS",
+            "windows",
+        )
+
+        self.assertEqual(
+            tokens,
+            [
+                r"-Dmaven.repo.local=C:\Users\SilentFlower\.m2\repository",
+                "-Dlabel=hello world",
+            ],
+        )
+
+    def test_wsl_custom_windows_mount_uses_mount_source(self) -> None:
+        """WSL 自定义 automount root 仍应按 Windows 文件系统选择构建侧。"""
+        helper_module = _load_helper_module()
+        filesystem = {
+            "type": "9p",
+            "mountPoint": "/windows/d",
+            "source": "D:\\",
+            "ioRisk": True,
+        }
+
+        with mock.patch.object(helper_module, "_is_wsl", return_value=True), mock.patch.object(
+            helper_module,
+            "_filesystem_info",
+            return_value=filesystem,
+        ):
+            build_side, actual_filesystem = helper_module._project_build_side(self.root)
+
+        self.assertEqual(build_side, "windows")
+        self.assertEqual(actual_filesystem, filesystem)
+
+    def test_posix_project_rejects_windows_maven(self) -> None:
+        """POSIX 项目显式传入 Windows Maven 时失败关闭。"""
+        self.write("core/src/main/java/Core.java", "class Core { int value; }")
+
+        _, payload = self.helper(
+            "plan",
+            "--mode",
+            "quick",
+            "--goal",
+            "compile",
+            "--module",
+            "core",
+            "--effective-pom",
+            "effective-pom.xml",
+            "--maven-executable",
+            "C:\\tools\\apache-maven\\bin\\mvn.cmd",
+            expected_code=5,
+        )
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertEqual(payload["reasons"][0]["code"], "maven-toolchain-side-mismatch")
 
     def test_toolchain_uses_java_home_instead_of_path_java(self) -> None:
         """Java 证据必须与 Maven 优先采用的 JAVA_HOME 保持一致。"""
@@ -968,6 +1071,92 @@ class MavenVerifyTest(unittest.TestCase):
         self.assertEqual(checked["status"], "reusable")
         self.assertEqual(checked["coverage"], "full")
 
+    def test_check_does_not_execute_project_wrapper(self) -> None:
+        """audit-only check 只校验 wrapper 指纹，不执行可能下载发行包的 wrapper。"""
+        wrapper = self.root / "mvnw"
+        shutil.copyfile(self.fake_maven, wrapper)
+        wrapper.chmod(wrapper.stat().st_mode | stat.S_IXUSR)
+        self.write("core/src/main/java/Core.java", "class Core { int value; }")
+        marker = Path(self.temp.name) / "wrapper-version-called.txt"
+        env = {**self.env, "FAKE_MAVEN_VERSION_MARKER": str(marker)}
+        plan_path = self.root / ".trellis/.runtime/maven-verification/wrapper.json"
+        _, plan = self.helper(
+            "plan",
+            "--mode",
+            "quick",
+            "--goal",
+            "compile",
+            "--effective-pom",
+            "effective-pom.xml",
+            "--output",
+            str(plan_path),
+            "--json",
+            env=env,
+        )
+        self.assertEqual(plan["toolchain"]["maven"]["source"], "project-wrapper")
+        self.helper("run", "--plan-json", str(plan_path), env=env)
+        self.assertTrue(marker.is_file())
+        marker.unlink()
+
+        _, checked = self.helper(
+            "check",
+            "--latest",
+            "--require-plan",
+            str(plan_path),
+            env=env,
+        )
+
+        self.assertEqual(checked["status"], "reusable")
+        self.assertFalse(marker.exists())
+
+        wrapper.write_text(wrapper.read_text(encoding="utf-8") + "# changed\n", encoding="utf-8")
+        _, stale = self.helper("check", "--latest", env=env, expected_code=3)
+        self.assertEqual(stale["status"], "stale")
+        self.assertTrue(
+            any(item["code"] == "maven-executable-changed" for item in stale["reasons"])
+        )
+        self.assertFalse(marker.exists())
+
+    def test_check_does_not_execute_explicit_project_wrapper(self) -> None:
+        """显式指定当前项目 wrapper 时，audit-only check 仍不得执行它。"""
+        wrapper = self.root / "mvnw"
+        shutil.copyfile(self.fake_maven, wrapper)
+        wrapper.chmod(wrapper.stat().st_mode | stat.S_IXUSR)
+        self.write("core/src/main/java/Core.java", "class Core { int value; }")
+        marker = Path(self.temp.name) / "explicit-wrapper-version-called.txt"
+        env = {**self.env, "FAKE_MAVEN_VERSION_MARKER": str(marker)}
+        plan_path = self.root / ".trellis/.runtime/maven-verification/explicit-wrapper.json"
+        _, plan = self.helper(
+            "plan",
+            "--mode",
+            "quick",
+            "--goal",
+            "compile",
+            "--effective-pom",
+            "effective-pom.xml",
+            "--maven-executable",
+            str(wrapper),
+            "--output",
+            str(plan_path),
+            "--json",
+            env=env,
+        )
+        self.assertEqual(plan["toolchain"]["maven"]["source"], "explicit")
+        self.helper("run", "--plan-json", str(plan_path), env=env)
+        self.assertTrue(marker.is_file())
+        marker.unlink()
+
+        _, checked = self.helper(
+            "check",
+            "--latest",
+            "--require-plan",
+            str(plan_path),
+            env=env,
+        )
+
+        self.assertEqual(checked["status"], "reusable")
+        self.assertFalse(marker.exists())
+
     def test_run_rejects_tampered_plan_semantics(self) -> None:
         """run 必须在执行前重算计划指纹，阻断 argv 篡改。"""
         self.write("core/src/main/java/Core.java", "class Core { int value; }")
@@ -1274,6 +1463,156 @@ class MavenVerifyTest(unittest.TestCase):
 
         self.assertEqual(payload["status"], "blocked")
         self.assertEqual(payload["reasons"][0]["code"], "artifact-binding-missing")
+
+
+@unittest.skipUnless(
+    Path("/proc/sys/kernel/osrelease").is_file()
+    and "microsoft" in Path("/proc/sys/kernel/osrelease").read_text(encoding="utf-8").lower()
+    and shutil.which("cmd.exe")
+    and shutil.which("wslpath"),
+    "仅在可调用 Windows 工具链的 WSL 中运行",
+)
+class WslWindowsMavenVerifyTest(unittest.TestCase):
+    """验证 WSL 中 Windows 文件系统项目始终使用 Windows 工具链。"""
+
+    def setUp(self) -> None:
+        """在 Windows 临时目录创建带空格的 Git/Maven fixture。"""
+        temp_result = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "[System.IO.Path]::GetTempPath()",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        windows_temp = temp_result.stdout.decode("utf-8-sig", errors="replace").strip()
+        host_temp = subprocess.run(
+            ["wslpath", "-u", windows_temp],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.root = Path(host_temp) / f"flower maven windows {os.getpid()}"
+        self.root.mkdir()
+        self.write("pom.xml", ROOT_POM)
+        self.write("core/pom.xml", CORE_POM)
+        self.write("core/src/main/java/Core.java", "class Core {}")
+        self.write("app/pom.xml", APP_POM)
+        self.write("app/src/main/java/App.java", "class App {}")
+        self.write("effective-pom.xml", EFFECTIVE_POM)
+        self.write(
+            "mvnw.cmd",
+            """
+            @echo off
+            if "%~1"=="-version" goto version
+            if not exist .trellis\\.runtime mkdir .trellis\\.runtime
+            > .trellis\\.runtime\\fake-windows-maven-argv.txt echo %~1
+            shift
+            :write_args
+            if "%~1"=="" goto done
+            >> .trellis\\.runtime\\fake-windows-maven-argv.txt echo %~1
+            shift
+            goto write_args
+            :version
+            echo Apache Maven 3.8.3
+            echo Maven home: E:\\apache-maven-3.8.3
+            echo Java version: 1.8.0_432, vendor: Test, runtime: C:\\Java\\jdk8\\jre
+            :done
+            exit /b 0
+            """,
+        )
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.name", "Tester"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.email", "tester@example.com"], cwd=self.root, check=True)
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=self.root, check=True)
+
+    def tearDown(self) -> None:
+        """删除 Windows 临时 fixture。"""
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def write(self, relative: str, content: str) -> None:
+        """写入 Windows fixture 文件。"""
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(textwrap.dedent(content).strip() + "\n", encoding="utf-8")
+
+    def helper(self, *args: str, expected_code: int = 0) -> dict:
+        """执行 helper 并返回 JSON。"""
+        result = subprocess.run(
+            ["python3", str(HELPER), *args],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        payload = json.loads(result.stdout)
+        self.assertEqual(result.returncode, expected_code, result.stderr or payload)
+        return payload
+
+    def test_windows_mount_uses_wrapper_java_and_repository(self) -> None:
+        """Windows 挂载项目从 plan 到 run 保持 Windows Maven/JDK/仓库。"""
+        self.write("core/src/main/java/Core.java", "class Core { int value; }")
+        plan_path = self.root / ".trellis/.runtime/maven-verification/windows.json"
+        plan = self.helper(
+            "plan",
+            "--mode",
+            "quick",
+            "--goal",
+            "compile",
+            "--module",
+            "core",
+            "--effective-pom",
+            "effective-pom.xml",
+            "--output",
+            str(plan_path),
+        )
+
+        self.assertEqual(plan["toolchain"]["maven"]["buildSide"], "windows")
+        self.assertEqual(plan["toolchain"]["maven"]["source"], "project-wrapper")
+        self.assertEqual(plan["toolchain"]["maven"]["runner"], "windows-cmd")
+        self.assertTrue(plan["argv"][0].lower().endswith("mvnw.cmd"))
+        self.assertEqual(plan["toolchain"]["java"]["major"], 8)
+        self.assertRegex(plan["toolchain"]["maven"]["localRepositoryBuildPath"], r"^[A-Za-z]:\\")
+        self.assertTrue(plan["toolchain"]["maven"]["localRepository"].startswith("/mnt/"))
+        self.assertFalse(
+            any(
+                item["id"] == "user-settings" and item["path"].startswith("/root/")
+                for item in plan["rawPom"]["modelInputs"]
+            )
+        )
+
+        result = self.helper("run", "--plan-json", str(plan_path))
+
+        self.assertEqual(result["status"], "success")
+        evidence = json.loads((self.root / result["evidence"]).read_text(encoding="utf-8"))
+        self.assertEqual(evidence["toolchain"]["maven"]["buildSide"], "windows")
+        self.assertEqual(evidence["execution"]["hostArgv"][:4], ["cmd.exe", "/d", "/c", "call"])
+
+    def test_windows_mount_rejects_wsl_ext4_repository(self) -> None:
+        """Windows Maven 不得显式混用 WSL ext4 本地仓库。"""
+        self.write("core/src/main/java/Core.java", "class Core { int value; }")
+
+        payload = self.helper(
+            "plan",
+            "--mode",
+            "quick",
+            "--goal",
+            "compile",
+            "--module",
+            "core",
+            "--effective-pom",
+            "effective-pom.xml",
+            "--local-repository",
+            "/tmp/wsl-only-maven-repository",
+            expected_code=5,
+        )
+
+        self.assertEqual(payload["status"], "blocked")
+        self.assertEqual(payload["reasons"][0]["code"], "path-side-mismatch")
 
 
 if __name__ == "__main__":

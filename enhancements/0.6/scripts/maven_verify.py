@@ -6,9 +6,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import ntpath
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -69,6 +71,8 @@ COMPILER_SOURCE_STALE_MIN_VERSION = (3, 1, 0)
 THREADS_PATTERN = re.compile(
     r"^(?:[1-9]\d*|(?:[1-9]\d*(?:\.\d+)?|0\.\d*[1-9]\d*)C)$"
 )
+WINDOWS_PATH_PATTERN = re.compile(r"^[A-Za-z]:[\\/]")
+WINDOWS_MAVEN_SUFFIXES = (".cmd", ".bat", ".exe")
 DEFAULT_GOAL_PHASES = {
     ("org.apache.maven.plugins:maven-source-plugin", "jar"): "package",
     ("org.apache.maven.plugins:maven-source-plugin", "jar-no-fork"): "package",
@@ -113,6 +117,27 @@ class MavenModule:
     def coordinate(self) -> str:
         """返回稳定的 groupId:artifactId 坐标。"""
         return f"{self.group_id or ''}:{self.artifact_id}"
+
+
+@dataclass(frozen=True)
+class MavenCommand:
+    """描述 Maven 的构建侧、逻辑可执行文件与宿主启动方式。"""
+
+    build_side: str
+    executable: str
+    source: str
+    runner: str
+    project_filesystem: dict[str, Any] | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        """返回可冻结进 plan/evidence 的 Maven 命令描述。"""
+        return {
+            "buildSide": self.build_side,
+            "executable": self.executable,
+            "source": self.source,
+            "runner": self.runner,
+            "projectFilesystem": self.project_filesystem,
+        }
 
 
 def _utc_now() -> str:
@@ -221,6 +246,172 @@ def _run(
         ) from error
 
 
+def _is_wsl() -> bool:
+    """判断当前 Python 是否运行在 WSL。"""
+    if os.name == "nt":
+        return False
+    release = Path("/proc/sys/kernel/osrelease")
+    try:
+        return "microsoft" in release.read_text(encoding="utf-8").lower()
+    except OSError:
+        return False
+
+
+def _is_windows_path(value: str) -> bool:
+    """判断字符串是否为 Windows drive 或 UNC 路径。"""
+    return bool(WINDOWS_PATH_PATTERN.match(value)) or value.startswith(("\\\\", "//"))
+
+
+def _is_wsl_windows_filesystem(filesystem: dict[str, Any] | None) -> bool:
+    """根据 mount source 识别 WSL 中的 Windows 文件系统。"""
+    if not _is_wsl() or not filesystem:
+        return False
+    filesystem_type = str(filesystem.get("type") or "").lower()
+    source = str(filesystem.get("source") or "")
+    return filesystem_type in {"9p", "drvfs"} and (
+        _is_windows_path(source) or bool(re.fullmatch(r"[A-Za-z]:", source))
+    )
+
+
+def _decode_command_output(payload: bytes, build_side: str) -> str:
+    """按构建侧解码命令输出，并对 Windows 本地代码页降级。"""
+    encodings = ("utf-8", "gb18030") if build_side == "windows" else ("utf-8",)
+    for encoding in encodings:
+        try:
+            return payload.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return payload.decode(encodings[-1], errors="replace")
+
+
+def _host_to_windows_path(path: Path) -> str:
+    """把 WSL 可见路径转换为 Windows 路径。"""
+    resolved = path.resolve()
+    if os.name == "nt":
+        return str(resolved)
+    if not _is_wsl():
+        raise MavenVerifyError(
+            "path-side-mismatch",
+            "当前宿主无法把 POSIX 路径映射到 Windows 构建侧",
+            path=str(resolved),
+        )
+    result = _run(["wslpath", "-w", str(resolved)], cwd=resolved if resolved.is_dir() else resolved.parent)
+    value = _decode_command_output(result.stdout, "windows").strip()
+    if result.returncode != 0 or not value:
+        raise MavenVerifyError("path-conversion-failed", "无法转换 Windows 构建路径", path=str(resolved))
+    return value
+
+
+def _windows_to_host_path(value: str, cwd: Path) -> Path:
+    """把 Windows 构建路径转换为当前 Python 可访问路径。"""
+    if os.name == "nt":
+        return Path(value).resolve()
+    if not _is_wsl():
+        raise MavenVerifyError(
+            "path-side-mismatch",
+            "当前宿主无法访问 Windows 构建路径",
+            path=value,
+        )
+    result = _run(["wslpath", "-u", value], cwd=cwd)
+    converted = _decode_command_output(result.stdout, "windows").strip()
+    if result.returncode != 0 or not converted:
+        raise MavenVerifyError("path-conversion-failed", "无法转换 WSL 宿主路径", path=value)
+    return Path(converted).resolve()
+
+
+def _project_build_side(cwd: Path) -> tuple[str, dict[str, Any] | None]:
+    """根据 Maven 根目录所在的原生文件系统决定构建侧。"""
+    filesystem = _filesystem_info(str(cwd))
+    if os.name == "nt":
+        return "windows", filesystem
+    if _is_wsl_windows_filesystem(filesystem):
+        return "windows", filesystem
+    return "posix", filesystem
+
+
+def _windows_environment(cwd: Path) -> dict[str, str]:
+    """读取 Windows 构建侧环境，避免混用 WSL 的 Maven/JDK 配置。"""
+    if os.name == "nt":
+        return {key.upper(): value for key, value in os.environ.items()}
+    result = _run(["cmd.exe", "/u", "/d", "/c", "set"], cwd=cwd)
+    output = result.stdout.decode("utf-16le", errors="replace")
+    if result.returncode != 0:
+        raise MavenVerifyError("windows-environment-unreadable", "无法读取 Windows 构建环境")
+    environment: dict[str, str] = {}
+    for line in output.splitlines():
+        if "=" not in line or line.startswith("="):
+            continue
+        key, value = line.split("=", 1)
+        environment[key.upper()] = value
+    return environment
+
+
+def _build_environment(build_side: str, cwd: Path) -> dict[str, str]:
+    """返回与 Maven 构建侧一致的环境变量视图。"""
+    if build_side == "windows":
+        return _windows_environment(cwd)
+    return dict(os.environ)
+
+
+def _maven_process_argv(command: MavenCommand, arguments: Iterable[str]) -> list[str]:
+    """把逻辑 Maven argv 转换为当前 Python 宿主可启动的 argv。"""
+    logical = [command.executable, *[str(value) for value in arguments]]
+    if command.runner == "windows-cmd":
+        unsafe = [value for value in logical if any(character in value for character in "&|<>^%\r\n\x00")]
+        if unsafe:
+            raise MavenVerifyError(
+                "command-argument-invalid",
+                "Windows Maven argv 含 cmd.exe 会二次解释的字符",
+                arguments=unsafe,
+            )
+        return ["cmd.exe", "/d", "/c", "call", *logical]
+    return logical
+
+
+def _maven_command_from_toolchain(toolchain: dict[str, Any]) -> MavenCommand:
+    """从冻结工具链恢复 Maven 命令描述。"""
+    maven = toolchain.get("maven", {})
+    executable = maven.get("executable")
+    build_side = maven.get("buildSide")
+    runner = maven.get("runner")
+    if not all(isinstance(value, str) and value for value in (executable, build_side, runner)):
+        raise MavenVerifyError("plan-toolchain-invalid", "计划缺少 Maven 构建侧或执行包装")
+    return MavenCommand(
+        build_side=build_side,
+        executable=executable,
+        source=str(maven.get("source") or "frozen"),
+        runner=runner,
+        project_filesystem=maven.get("projectFilesystem"),
+    )
+
+
+def _is_project_wrapper_command(command: MavenCommand, cwd: Path) -> bool:
+    """判断冻结命令是否实际指向当前 Maven 根的项目 wrapper。"""
+    if command.source == "project-wrapper":
+        return True
+    wrapper = cwd / ("mvnw.cmd" if command.build_side == "windows" else "mvnw")
+    if not wrapper.is_file():
+        return False
+    executable = (
+        _windows_to_host_path(command.executable, cwd)
+        if command.build_side == "windows"
+        else Path(command.executable)
+    )
+    return executable.resolve() == wrapper.resolve()
+
+
+def _run_maven(
+    command: MavenCommand,
+    arguments: Iterable[str],
+    *,
+    cwd: Path,
+    timeout: float | None = None,
+) -> tuple[subprocess.CompletedProcess[bytes], list[str]]:
+    """使用冻结构建侧执行 Maven，并返回真实宿主 argv。"""
+    host_argv = _maven_process_argv(command, arguments)
+    return _run(host_argv, cwd=cwd, timeout=timeout), host_argv
+
+
 def _git_root(path: Path) -> Path:
     """解析 Git 工作树根目录。"""
     result = _run(["git", "rev-parse", "--show-toplevel"], cwd=path, text=True)
@@ -297,6 +488,23 @@ def _file_digest(path: Path) -> str:
     except OSError:
         return "unreadable"
     return "missing"
+
+
+def _side_executable_digest(value: str | None, cwd: Path, build_side: str) -> str | None:
+    """计算构建侧可执行文件摘要，不运行目标程序。"""
+    if not value:
+        return None
+    if build_side == "windows":
+        return _file_digest(_windows_to_host_path(value, cwd))
+    candidate = Path(value)
+    if not candidate.is_absolute() and candidate.parent == Path("."):
+        resolved = shutil.which(value)
+        if not resolved:
+            return "missing"
+        candidate = Path(resolved)
+    elif not candidate.is_absolute():
+        candidate = cwd / candidate
+    return _file_digest(candidate.resolve())
 
 
 def _workspace_evidence(repo_root: Path, maven_root: Path) -> dict[str, Any]:
@@ -615,9 +823,17 @@ def _external_parent_fingerprints(
     return sorted(result, key=lambda item: item["id"])
 
 
-def _maven_model_inputs(maven_root: Path) -> list[dict[str, str]]:
+def _maven_model_inputs(
+    maven_root: Path,
+    toolchain: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
     """指纹化会影响 effective model 的用户和项目 Maven 配置。"""
-    config_home = Path(os.environ.get("MAVEN_CONFIG", str(Path.home() / ".m2"))).expanduser()
+    config_home_value = (toolchain or {}).get("maven", {}).get("configHome")
+    config_home = (
+        Path(config_home_value)
+        if isinstance(config_home_value, str) and config_home_value
+        else Path(os.environ.get("MAVEN_CONFIG", str(Path.home() / ".m2"))).expanduser()
+    )
     candidates = [
         ("user-settings", config_home / "settings.xml"),
         ("project-maven-config", maven_root / ".mvn/maven.config"),
@@ -644,6 +860,7 @@ def _pom_fingerprint(
     modules: list[MavenModule],
     effective_pom: Path,
     local_repository: str | None,
+    toolchain: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """计算 reactor POM 与 effective model 的内容指纹。"""
     root_dir = modules[0].pom.parent if modules else effective_pom.parent
@@ -654,7 +871,7 @@ def _pom_fingerprint(
     evidence = {
         "files": files,
         "externalParents": _external_parent_fingerprints(modules, local_repository),
-        "modelInputs": _maven_model_inputs(root_dir),
+        "modelInputs": _maven_model_inputs(root_dir, toolchain),
         "effectivePomSha256": _file_digest(effective_pom),
     }
     evidence["fingerprint"] = _semantic_fingerprint(
@@ -671,6 +888,7 @@ def _pom_fingerprint(
 def _raw_pom_fingerprint(
     modules: list[MavenModule],
     local_repository: str | None = None,
+    toolchain: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """计算无需执行 Maven 即可复核的 reactor POM 指纹。"""
     root_dir = modules[0].pom.parent if modules else Path.cwd()
@@ -682,7 +900,7 @@ def _raw_pom_fingerprint(
     payload = {
         "files": files,
         "externalParents": external_parents,
-        "modelInputs": _maven_model_inputs(root_dir),
+        "modelInputs": _maven_model_inputs(root_dir, toolchain),
     }
     payload["fingerprint"] = _semantic_fingerprint(
         {
@@ -696,9 +914,9 @@ def _raw_pom_fingerprint(
 
 def _effective_pom(
     maven_root: Path,
-    maven_executable: str,
+    command: MavenCommand,
     supplied: Path | None,
-    local_repository: str | None = None,
+    local_repository_build_path: str | None = None,
     offline: str = "auto",
 ) -> tuple[Path, tempfile.TemporaryDirectory[str] | None, list[str]]:
     """读取冻结 effective POM，或通过 Maven 生成临时文件。"""
@@ -707,24 +925,28 @@ def _effective_pom(
         if not resolved.is_file():
             raise MavenVerifyError("effective-pom-missing", f"effective POM 不存在：{resolved}")
         return resolved, None, []
-    temporary = tempfile.TemporaryDirectory(prefix="trellis-maven-effective-")
+    temporary = tempfile.TemporaryDirectory(prefix=".trellis-maven-effective-", dir=maven_root)
     output = Path(temporary.name) / "effective-pom.xml"
+    output_build_path = (
+        _host_to_windows_path(output) if command.build_side == "windows" else str(output)
+    )
     argv = [
-        maven_executable,
+        command.executable,
         *_offline_args(offline),
-        *([f"-Dmaven.repo.local={local_repository}"] if local_repository else []),
+        *([f"-Dmaven.repo.local={local_repository_build_path}"] if local_repository_build_path else []),
         "-q",
         "help:effective-pom",
-        f"-Doutput={output}",
+        f"-Doutput={output_build_path}",
     ]
-    result = _run(argv, cwd=maven_root, text=True)
+    result, host_argv = _run_maven(command, argv[1:], cwd=maven_root)
     if result.returncode != 0 or not output.is_file():
         temporary.cleanup()
         raise MavenVerifyError(
             "effective-pom-failed",
             "无法生成 effective POM，不能确认外部父 POM生命周期绑定",
             argv=argv,
-            stderr=result.stderr.strip(),
+            hostArgv=host_argv,
+            stderr=_decode_command_output(result.stderr, command.build_side).strip(),
         )
     return output, temporary, argv
 
@@ -1040,6 +1262,116 @@ def _tool_version(argv: list[str], cwd: Path) -> dict[str, Any]:
     return {"version": combined.splitlines()[0], "details": combined}
 
 
+def _windows_where(executable: str, cwd: Path) -> str | None:
+    """从 Windows PATH 查询可执行文件，不回退到 WSL PATH。"""
+    result = _run(["where.exe", executable], cwd=cwd)
+    output = _decode_command_output(result.stdout, "windows")
+    if result.returncode != 0:
+        return None
+    return next((line.strip() for line in output.splitlines() if line.strip()), None)
+
+
+def _posix_maven_executable(value: str, cwd: Path) -> str:
+    """解析 POSIX 构建侧 Maven，并拒绝 Windows 路径。"""
+    if _is_windows_path(value) or value.lower().endswith(WINDOWS_MAVEN_SUFFIXES):
+        raise MavenVerifyError(
+            "maven-toolchain-side-mismatch",
+            "POSIX 项目不能使用 Windows Maven",
+            executable=value,
+            buildSide="posix",
+        )
+    candidate = Path(value).expanduser()
+    if candidate.is_absolute() or candidate.parent != Path("."):
+        resolved = candidate if candidate.is_absolute() else cwd / candidate
+        resolved = resolved.resolve()
+        if not resolved.is_file() or not os.access(resolved, os.X_OK):
+            raise MavenVerifyError("command-unavailable", f"Maven 不可执行：{resolved}")
+        return str(resolved)
+    found = shutil.which(value)
+    if not found:
+        raise MavenVerifyError("command-unavailable", f"当前 POSIX PATH 中没有 Maven：{value}")
+    return str(Path(found).resolve())
+
+
+def _windows_maven_executable(value: str, cwd: Path) -> str:
+    """解析 Windows 构建侧 Maven，并拒绝 WSL ext4 可执行文件。"""
+    if _is_windows_path(value):
+        executable = ntpath.normpath(value)
+    else:
+        candidate = Path(value).expanduser()
+        if candidate.is_absolute() or candidate.parent != Path("."):
+            resolved = candidate if candidate.is_absolute() else cwd / candidate
+            resolved = resolved.resolve()
+            filesystem = _filesystem_info(str(resolved))
+            if os.name != "nt" and not _is_wsl_windows_filesystem(filesystem):
+                raise MavenVerifyError(
+                    "maven-toolchain-side-mismatch",
+                    "Windows 项目不能使用 WSL/Linux Maven",
+                    executable=str(resolved),
+                    buildSide="windows",
+                )
+            executable = _host_to_windows_path(resolved)
+        else:
+            executable = _windows_where(value, cwd) or ""
+            if not executable and value.lower() == "mvn":
+                executable = _windows_where("mvn.cmd", cwd) or ""
+            if not executable:
+                raise MavenVerifyError("command-unavailable", f"当前 Windows PATH 中没有 Maven：{value}")
+    if not executable.lower().endswith(WINDOWS_MAVEN_SUFFIXES):
+        raise MavenVerifyError(
+            "maven-toolchain-side-mismatch",
+            "Windows 构建侧 Maven 必须是 .cmd、.bat 或 .exe",
+            executable=executable,
+        )
+    if os.name != "nt":
+        host_executable = _windows_to_host_path(executable, cwd)
+        if not host_executable.is_file():
+            raise MavenVerifyError("command-unavailable", f"Windows Maven 不存在：{executable}")
+    return executable
+
+
+def _resolve_maven_command(requested: str | None, cwd: Path) -> MavenCommand:
+    """按项目构建侧选择现有 Maven，不跨操作系统回退。"""
+    build_side, filesystem = _project_build_side(cwd)
+    if build_side == "windows":
+        wrapper = cwd / "mvnw.cmd"
+        if requested is None and wrapper.is_file():
+            executable = _host_to_windows_path(wrapper)
+            source = "project-wrapper"
+        else:
+            executable = _windows_maven_executable(requested or "mvn.cmd", cwd)
+            source = "explicit" if requested is not None else "path"
+        return MavenCommand(build_side, executable, source, "windows-cmd", filesystem)
+    wrapper = cwd / "mvnw"
+    if requested is None and wrapper.is_file() and os.access(wrapper, os.X_OK):
+        executable = str(wrapper.resolve())
+        source = "project-wrapper"
+    else:
+        executable = _posix_maven_executable(requested or "mvn", cwd)
+        source = "explicit" if requested is not None else "path"
+    return MavenCommand(build_side, executable, source, "direct", filesystem)
+
+
+def _maven_tool_version(command: MavenCommand, cwd: Path) -> dict[str, Any]:
+    """使用冻结构建侧探测 Maven 版本与 Maven 实际使用的 Java。"""
+    result, host_argv = _run_maven(command, ["-version"], cwd=cwd, timeout=20)
+    combined = "\n".join(
+        value
+        for value in (
+            _decode_command_output(result.stdout, command.build_side).strip(),
+            _decode_command_output(result.stderr, command.build_side).strip(),
+        )
+        if value
+    )
+    if result.returncode != 0 or not combined:
+        raise MavenVerifyError(
+            "toolchain-unreadable",
+            f"无法读取 Maven 版本：{command.executable}",
+            argv=host_argv,
+        )
+    return {"version": combined.splitlines()[0], "details": combined, "hostArgv": host_argv}
+
+
 def _java_executable(cwd: Path) -> tuple[str, str | None]:
     """返回 Maven 实际优先使用的 Java 可执行文件与 JAVA_HOME。"""
     java_home = os.environ.get("JAVA_HOME")
@@ -1052,6 +1384,30 @@ def _java_executable(cwd: Path) -> tuple[str, str | None]:
         home = home.resolve()
     executable = home / "bin" / ("java.exe" if os.name == "nt" else "java")
     return str(executable), str(home)
+
+
+def _maven_java_version(details: str) -> str | None:
+    """从 `mvn -version` 输出读取 Maven 实际使用的 Java 版本。"""
+    match = re.search(r"^Java version:\s*([^,\r\n]+)", details, flags=re.MULTILINE | re.IGNORECASE)
+    return match.group(1).strip() if match else None
+
+
+def _maven_java_runtime(details: str) -> str | None:
+    """从 `mvn -version` 输出读取 Maven 实际 Java runtime。"""
+    match = re.search(r"runtime:\s*([^\r\n]+)", details, flags=re.IGNORECASE)
+    return match.group(1).strip() if match else None
+
+
+def _java_major_from_value(value: str | None) -> int | None:
+    """从 Java 版本值解析主版本。"""
+    if not value:
+        return None
+    normalized = value.strip().strip('"')
+    match = re.match(r"(\d+)(?:\.(\d+))?", normalized)
+    if not match:
+        return None
+    first, second = match.groups()
+    return int(second) if first == "1" and second else int(first)
 
 
 def _java_major(details: str) -> int | None:
@@ -1094,46 +1450,136 @@ def _maven_property_value(tokens: Iterable[str], name: str) -> str | None:
     return value
 
 
+def _expand_windows_environment(value: str, environment: dict[str, str]) -> str:
+    """展开 Windows `%VAR%`、`${user.home}` 与前导 `~`。"""
+    expanded = re.sub(
+        r"%([^%]+)%",
+        lambda match: environment.get(match.group(1).upper(), match.group(0)),
+        value,
+    )
+    user_profile = environment.get("USERPROFILE")
+    if user_profile:
+        expanded = expanded.replace("${user.home}", user_profile)
+        if expanded == "~" or expanded.startswith(("~/", "~\\")):
+            expanded = ntpath.join(user_profile, expanded[2:]) if len(expanded) > 1 else user_profile
+    return expanded
+
+
+def _resolve_side_path(
+    value: str,
+    cwd: Path,
+    build_side: str,
+    environment: dict[str, str],
+) -> tuple[str, str]:
+    """把路径解析为构建侧绝对路径与当前宿主可访问路径。"""
+    if build_side == "windows":
+        expanded = _expand_windows_environment(value, environment)
+        if _is_windows_path(expanded):
+            build_path = ntpath.normpath(expanded)
+            if build_path.lower().startswith(("\\\\wsl$\\", "\\\\wsl.localhost\\")):
+                raise MavenVerifyError(
+                    "path-side-mismatch",
+                    "Windows 构建侧不能使用 WSL Linux 文件系统路径",
+                    path=value,
+                )
+        else:
+            host_candidate = Path(expanded).expanduser()
+            if host_candidate.is_absolute():
+                filesystem = _filesystem_info(str(host_candidate))
+                if not _is_wsl_windows_filesystem(filesystem):
+                    raise MavenVerifyError(
+                        "path-side-mismatch",
+                        "Windows 构建侧不能使用 WSL/Linux 本地路径",
+                        path=value,
+                    )
+                build_path = _host_to_windows_path(host_candidate)
+            else:
+                build_path = ntpath.normpath(ntpath.join(_host_to_windows_path(cwd), expanded))
+        host_path = _windows_to_host_path(build_path, cwd)
+        return build_path, str(host_path)
+    if _is_windows_path(value):
+        raise MavenVerifyError(
+            "path-side-mismatch",
+            "POSIX 构建侧不能使用 Windows 路径",
+            path=value,
+        )
+    repository = Path(value).expanduser()
+    host_path = repository.resolve() if repository.is_absolute() else (cwd / repository).resolve()
+    return str(host_path), str(host_path)
+
+
 def _local_repository(
-    maven_version: str | None = None,
-    jvm_config: Iterable[str] = (),
-    maven_config: Iterable[str] = (),
-    cwd: Path | None = None,
-) -> str | None:
-    """从环境或用户 settings.xml 读取可确认的 Maven 本地仓库位置。"""
+    *,
+    maven_version: str | None,
+    jvm_config: Iterable[str],
+    maven_config: Iterable[str],
+    cwd: Path,
+    build_side: str,
+    environment: dict[str, str],
+) -> tuple[str, str]:
+    """从同侧环境或用户 settings.xml 读取 Maven 本地仓库。"""
     maven_args = (
-        _split_maven_arguments(os.environ.get("MAVEN_ARGS") or "", "MAVEN_ARGS")
+        _split_maven_arguments(
+            environment.get("MAVEN_ARGS") or "",
+            "MAVEN_ARGS",
+            build_side,
+        )
         if _maven_args_supported(maven_version)
         else []
     )
     tokens = [
         *jvm_config,
-        *_split_maven_arguments(os.environ.get("MAVEN_OPTS") or "", "MAVEN_OPTS"),
+        *_split_maven_arguments(
+            environment.get("MAVEN_OPTS") or "",
+            "MAVEN_OPTS",
+            build_side,
+        ),
         *maven_config,
         *maven_args,
     ]
     configured = _maven_property_value(tokens, "maven.repo.local")
     if configured:
-        repository = Path(configured).expanduser()
-        return str(repository.resolve() if repository.is_absolute() else ((cwd or Path.cwd()) / repository).resolve())
-    config_home = Path(os.environ.get("MAVEN_CONFIG", str(Path.home() / ".m2"))).expanduser()
-    settings = config_home / "settings.xml"
+        return _resolve_side_path(configured, cwd, build_side, environment)
+    if build_side == "windows":
+        user_profile = environment.get("USERPROFILE")
+        if not user_profile:
+            raise MavenVerifyError("windows-home-unreadable", "Windows 构建环境缺少 USERPROFILE")
+        config_home_value = environment.get("MAVEN_CONFIG") or ntpath.join(user_profile, ".m2")
+    else:
+        config_home_value = environment.get("MAVEN_CONFIG") or str(Path.home() / ".m2")
+    config_build_path, config_host_path = _resolve_side_path(
+        config_home_value,
+        cwd,
+        build_side,
+        environment,
+    )
+    settings = Path(config_host_path) / "settings.xml"
     if settings.is_file():
         try:
             value = _text(_child(_parse_xml(settings), "localRepository"))
         except MavenVerifyError:
             value = None
         if value:
-            return str(Path(value).expanduser())
-    return str(config_home / "repository")
+            return _resolve_side_path(value, cwd, build_side, environment)
+    build_repository = (
+        ntpath.join(config_build_path, "repository")
+        if build_side == "windows"
+        else str(Path(config_build_path) / "repository")
+    )
+    host_repository = str(Path(config_host_path) / "repository")
+    return build_repository, host_repository
 
 
-def _resolve_local_repository(value: str | None, cwd: Path) -> str | None:
-    """把显式本地仓库解析为 Maven cwd 下的绝对路径。"""
+def _resolve_local_repository(
+    value: str | None,
+    cwd: Path,
+    build_side: str,
+    environment: dict[str, str],
+) -> tuple[str, str] | None:
+    """把显式本地仓库解析为同侧构建路径与宿主路径。"""
     if value is None:
         return None
-    repository = Path(value).expanduser()
-    return str(repository.resolve() if repository.is_absolute() else (cwd / repository).resolve())
+    return _resolve_side_path(value, cwd, build_side, environment)
 
 
 def _decode_mount_field(value: str) -> str:
@@ -1185,50 +1631,171 @@ def _filesystem_info(path: str | None) -> dict[str, Any] | None:
     return max(matches, key=lambda item: item[0])[1] if matches else None
 
 
+def _repository_filesystem_info(path: str | None, build_side: str) -> dict[str, Any] | None:
+    """按 Maven 实际访问侧解释本地仓库文件系统风险。"""
+    filesystem = _filesystem_info(path)
+    if not filesystem or build_side != "windows":
+        return filesystem
+    if filesystem.get("type") not in {"9p", "drvfs"}:
+        return filesystem
+    return {
+        **filesystem,
+        "hostViewType": filesystem.get("type"),
+        "type": "windows-native",
+        "accessSide": "windows",
+        "ioRisk": False,
+    }
+
+
 def _toolchain(
-    maven_executable: str,
+    command: MavenCommand,
     cwd: Path,
     local_repository_override: str | None = None,
+    *,
+    frozen_toolchain: dict[str, Any] | None = None,
+    probe_maven: bool = True,
 ) -> dict[str, Any]:
     """探测 Java、Maven 和可确认本地仓库。"""
-    java_executable, java_home = _java_executable(cwd)
-    java = _tool_version([java_executable, "-version"], cwd)
-    maven = _tool_version([maven_executable, "-version"], cwd)
+    current_side, current_filesystem = _project_build_side(cwd)
+    if current_side != command.build_side:
+        raise MavenVerifyError(
+            "maven-toolchain-side-mismatch",
+            "冻结 Maven 构建侧与当前项目文件系统不一致",
+            expected=command.build_side,
+            actual=current_side,
+        )
+    if command.project_filesystem is None and current_filesystem is not None:
+        command = MavenCommand(
+            command.build_side,
+            command.executable,
+            command.source,
+            command.runner,
+            current_filesystem,
+        )
+    environment = _build_environment(command.build_side, cwd)
+    if probe_maven:
+        maven = _maven_tool_version(command, cwd)
+    else:
+        frozen_maven = (frozen_toolchain or {}).get("maven", {})
+        if not isinstance(frozen_maven.get("version"), str):
+            raise MavenVerifyError(
+                "toolchain-unreadable",
+                "只读检查缺少可复用的冻结 Maven 版本证据",
+            )
+        maven = {
+            "version": frozen_maven["version"],
+            "details": "",
+            "hostArgv": frozen_maven.get("hostArgv", []),
+        }
     maven_config = cwd / ".mvn/maven.config"
     jvm_config = cwd / ".mvn/jvm.config"
     maven_config_arguments = _split_maven_arguments(
         maven_config.read_text(encoding="utf-8") if maven_config.is_file() else "",
         str(maven_config),
+        command.build_side,
     )
     jvm_config_arguments = _split_maven_arguments(
         jvm_config.read_text(encoding="utf-8") if jvm_config.is_file() else "",
         str(jvm_config),
+        command.build_side,
     )
-    maven_args = os.environ.get("MAVEN_ARGS")
+    maven_args = environment.get("MAVEN_ARGS")
     supports_maven_args = _maven_args_supported(maven["version"])
-    explicit_repository = _resolve_local_repository(local_repository_override, cwd)
-    local_repository = explicit_repository or _local_repository(
-        maven["version"],
-        jvm_config_arguments,
-        maven_config_arguments,
+    if command.build_side == "windows":
+        user_profile = environment.get("USERPROFILE")
+        if not user_profile:
+            raise MavenVerifyError("windows-home-unreadable", "Windows 构建环境缺少 USERPROFILE")
+        config_home_value = environment.get("MAVEN_CONFIG") or ntpath.join(user_profile, ".m2")
+    else:
+        config_home_value = environment.get("MAVEN_CONFIG") or str(Path.home() / ".m2")
+    config_home_build, config_home_host = _resolve_side_path(
+        config_home_value,
         cwd,
+        command.build_side,
+        environment,
     )
-    return {
-        "java": {
-            "version": java["version"],
-            "major": _java_major(java["details"]),
+    explicit_repository = _resolve_local_repository(
+        local_repository_override,
+        cwd,
+        command.build_side,
+        environment,
+    )
+    local_repository_build, local_repository_host = explicit_repository or _local_repository(
+        maven_version=maven["version"],
+        jvm_config=jvm_config_arguments,
+        maven_config=maven_config_arguments,
+        cwd=cwd,
+        build_side=command.build_side,
+        environment=environment,
+    )
+    if command.build_side == "windows" and probe_maven:
+        java_version = _maven_java_version(maven["details"])
+        java_runtime = _maven_java_runtime(maven["details"])
+        java_home = environment.get("JAVA_HOME")
+        java_executable = ntpath.join(java_home, "bin", "java.exe") if java_home else None
+        java = {
+            "version": f'java version "{java_version}"' if java_version else None,
+            "major": _java_major_from_value(java_version),
+            "home": java_home,
+            "runtime": java_runtime,
+            "executable": java_executable,
+        }
+    elif command.build_side == "windows":
+        frozen_java = (frozen_toolchain or {}).get("java", {})
+        java_home = environment.get("JAVA_HOME")
+        java = {
+            **frozen_java,
+            "home": java_home,
+            "executable": ntpath.join(java_home, "bin", "java.exe") if java_home else None,
+        }
+    elif probe_maven:
+        java_executable, java_home = _java_executable(cwd)
+        java_probe = _tool_version([java_executable, "-version"], cwd)
+        java = {
+            "version": java_probe["version"],
+            "major": _java_major(java_probe["details"]),
+            "home": java_home,
+            "runtime": None,
+            "executable": java_executable,
+        }
+    else:
+        frozen_java = (frozen_toolchain or {}).get("java", {})
+        java_executable, java_home = _java_executable(cwd)
+        java = {
+            **frozen_java,
             "home": java_home,
             "executable": java_executable,
-        },
+        }
+    java["executableSha256"] = _side_executable_digest(
+        java.get("executable"),
+        cwd,
+        command.build_side,
+    )
+    return {
+        "java": java,
         "maven": {
             "version": maven["version"],
-            "executable": maven_executable,
-            "localRepository": local_repository,
-            "localRepositoryOverride": explicit_repository,
-            "localRepositoryFilesystem": _filesystem_info(local_repository),
+            **command.to_json(),
+            "hostArgv": maven["hostArgv"],
+            "executableSha256": _side_executable_digest(
+                command.executable,
+                cwd,
+                command.build_side,
+            ),
+            "localRepository": local_repository_host,
+            "localRepositoryBuildPath": local_repository_build,
+            "configHome": config_home_host,
+            "configHomeBuildPath": config_home_build,
+            "settingsPath": str(Path(config_home_host) / "settings.xml"),
+            "localRepositoryOverride": explicit_repository[1] if explicit_repository else None,
+            "localRepositoryOverrideBuildPath": explicit_repository[0] if explicit_repository else None,
+            "localRepositoryFilesystem": _repository_filesystem_info(
+                local_repository_host,
+                command.build_side,
+            ),
             "arguments": {
                 "MAVEN_ARGS": maven_args if supports_maven_args else None,
-                "MAVEN_OPTS": os.environ.get("MAVEN_OPTS"),
+                "MAVEN_OPTS": environment.get("MAVEN_OPTS"),
                 "jvmConfig": jvm_config_arguments,
                 "mavenConfig": maven_config_arguments,
             },
@@ -1241,8 +1808,58 @@ def _toolchain(
     }
 
 
-def _split_maven_arguments(value: str, source: str) -> list[str]:
-    """按 shell quoting 规则解析 Maven 配置参数，但不执行任何字符串。"""
+def _split_windows_arguments(value: str, source: str) -> list[str]:
+    """按 Windows 命令行引用规则拆分参数，并保留路径反斜杠。"""
+    arguments: list[str] = []
+    index = 0
+    length = len(value)
+    while index < length:
+        while index < length and value[index].isspace():
+            index += 1
+        if index >= length:
+            break
+        argument: list[str] = []
+        in_quotes = False
+        started = False
+        while index < length and (in_quotes or not value[index].isspace()):
+            started = True
+            if value[index] == "\\":
+                start = index
+                while index < length and value[index] == "\\":
+                    index += 1
+                backslashes = index - start
+                if index < length and value[index] == '"':
+                    argument.extend("\\" * (backslashes // 2))
+                    if backslashes % 2:
+                        argument.append('"')
+                        index += 1
+                    else:
+                        in_quotes = not in_quotes
+                        index += 1
+                else:
+                    argument.extend("\\" * backslashes)
+                continue
+            if value[index] == '"':
+                in_quotes = not in_quotes
+                index += 1
+                continue
+            argument.append(value[index])
+            index += 1
+        if in_quotes:
+            raise MavenVerifyError(
+                "maven-arguments-invalid",
+                f"无法解析 Maven 参数：{source}",
+                source=source,
+            )
+        if started:
+            arguments.append("".join(argument))
+    return arguments
+
+
+def _split_maven_arguments(value: str, source: str, build_side: str = "posix") -> list[str]:
+    """按 Maven 构建侧的引用规则解析参数，但不执行任何字符串。"""
+    if build_side == "windows":
+        return _split_windows_arguments(value, source)
     try:
         return shlex.split(value, comments=True, posix=True)
     except ValueError as error:
@@ -1255,12 +1872,14 @@ def _split_maven_arguments(value: str, source: str) -> list[str]:
 
 def _effective_maven_argument_tokens(plan_argv: list[str], toolchain: dict[str, Any]) -> list[str]:
     """按低到高优先级汇总会影响 Maven 行为的参数 token。"""
-    arguments = toolchain.get("maven", {}).get("arguments", {})
+    maven = toolchain.get("maven", {})
+    arguments = maven.get("arguments", {})
+    build_side = str(maven.get("buildSide") or "posix")
     tokens = [
         *arguments.get("jvmConfig", []),
-        *_split_maven_arguments(arguments.get("MAVEN_OPTS") or "", "MAVEN_OPTS"),
+        *_split_maven_arguments(arguments.get("MAVEN_OPTS") or "", "MAVEN_OPTS", build_side),
         *arguments.get("mavenConfig", []),
-        *_split_maven_arguments(arguments.get("MAVEN_ARGS") or "", "MAVEN_ARGS"),
+        *_split_maven_arguments(arguments.get("MAVEN_ARGS") or "", "MAVEN_ARGS", build_side),
         *plan_argv[1:],
     ]
     return [str(token) for token in tokens]
@@ -1356,13 +1975,14 @@ def _blocked_payload(error: MavenVerifyError, command: str) -> dict[str, Any]:
 def _stable_plan_argv(
     argv: Any,
     local_repository_override: str | None,
+    local_repository_override_build_path: str | None = None,
 ) -> Any:
     """移除 Maven 可执行文件，并规范化仅用于本机定位的仓库绝对路径。"""
     if not isinstance(argv, list):
         return argv
     repository_argument = (
-        f"-Dmaven.repo.local={local_repository_override}"
-        if local_repository_override
+        f"-Dmaven.repo.local={local_repository_override_build_path or local_repository_override}"
+        if local_repository_override or local_repository_override_build_path
         else None
     )
     return [
@@ -1393,11 +2013,15 @@ def _stable_plan_warnings(warnings: Any) -> Any:
     return result
 
 
-def _stable_maven_argument_tokens(value: Any) -> Any:
+def _stable_maven_argument_tokens(value: Any, build_side: str) -> Any:
     """规范化 Maven 参数中的本机仓库路径，同时保留其它执行语义。"""
     if value is None:
         return None
-    tokens = value if isinstance(value, list) else shlex.split(value, comments=True, posix=True)
+    tokens = (
+        value
+        if isinstance(value, list)
+        else _split_maven_arguments(value, "plan-fingerprint", build_side)
+    )
     return [
         "-Dmaven.repo.local=<configured>"
         if token.startswith("-Dmaven.repo.local=")
@@ -1406,12 +2030,12 @@ def _stable_maven_argument_tokens(value: Any) -> Any:
     ]
 
 
-def _stable_maven_arguments(arguments: Any) -> Any:
+def _stable_maven_arguments(arguments: Any, build_side: str) -> Any:
     """返回不含本机仓库绝对路径的 Maven 配置参数。"""
     if not isinstance(arguments, dict):
         return arguments
     return {
-        key: _stable_maven_argument_tokens(value)
+        key: _stable_maven_argument_tokens(value, build_side)
         for key, value in arguments.items()
     }
 
@@ -1419,6 +2043,8 @@ def _stable_maven_arguments(arguments: Any) -> Any:
 def _plan_fingerprint(plan: dict[str, Any]) -> str:
     """根据计划的执行语义和输入证据重新计算指纹。"""
     local_repository_override = plan.get("localRepositoryOverride")
+    local_repository_override_build_path = plan.get("localRepositoryOverrideBuildPath")
+    build_side = str(plan.get("toolchain", {}).get("maven", {}).get("buildSide") or "posix")
     return _semantic_fingerprint(
         {
             "schemaVersion": plan.get("schemaVersion"),
@@ -1436,10 +2062,15 @@ def _plan_fingerprint(plan: dict[str, Any]) -> str:
             "goal": plan.get("goal"),
             "compileStrategy": plan.get("compileStrategy"),
             "threads": plan.get("threads"),
-            "argv": _stable_plan_argv(plan.get("argv"), local_repository_override),
+            "argv": _stable_plan_argv(
+                plan.get("argv"),
+                local_repository_override,
+                local_repository_override_build_path,
+            ),
             "fallbackArgv": _stable_plan_argv(
                 plan.get("fallbackArgv"),
                 local_repository_override,
+                local_repository_override_build_path,
             ),
             "offline": plan.get("offline"),
             "localRepositoryOverride": bool(local_repository_override),
@@ -1455,9 +2086,18 @@ def _plan_fingerprint(plan: dict[str, Any]) -> str:
             },
             "toolchain": {
                 "javaMajor": plan.get("toolchain", {}).get("java", {}).get("major"),
+                "javaExecutableSha256": plan.get("toolchain", {}).get("java", {}).get(
+                    "executableSha256"
+                ),
                 "mavenVersion": plan.get("toolchain", {}).get("maven", {}).get("version"),
+                "mavenExecutableSha256": plan.get("toolchain", {}).get("maven", {}).get(
+                    "executableSha256"
+                ),
+                "buildSide": plan.get("toolchain", {}).get("maven", {}).get("buildSide"),
+                "runner": plan.get("toolchain", {}).get("maven", {}).get("runner"),
                 "mavenArguments": _stable_maven_arguments(
-                    plan.get("toolchain", {}).get("maven", {}).get("arguments")
+                    plan.get("toolchain", {}).get("maven", {}).get("arguments"),
+                    build_side,
                 ),
             },
             "javaTargets": plan.get("javaTargets"),
@@ -1585,7 +2225,16 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
         execution_modules.update(_transitive_upstreams(selected, dependencies))
     threads = _normalize_threads(args.threads)
 
-    explicit_repository = _resolve_local_repository(args.local_repository, maven_root)
+    command = _resolve_maven_command(args.maven_executable, maven_root)
+    build_environment = _build_environment(command.build_side, maven_root)
+    explicit_repository_paths = _resolve_local_repository(
+        args.local_repository,
+        maven_root,
+        command.build_side,
+        build_environment,
+    )
+    explicit_repository_build = explicit_repository_paths[0] if explicit_repository_paths else None
+    explicit_repository = explicit_repository_paths[1] if explicit_repository_paths else None
     if explicit_repository:
         repository_path = Path(explicit_repository)
         if repository_path.exists() and not repository_path.is_dir():
@@ -1600,22 +2249,22 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
                 "离线计划要求显式 Maven 本地仓库已完整准备",
                 path=explicit_repository,
             )
-    toolchain = _toolchain(args.maven_executable, maven_root, explicit_repository)
+    toolchain = _toolchain(command, maven_root, explicit_repository_build)
     local_repository = toolchain["maven"].get("localRepository")
     effective_path: Path
     temporary: tempfile.TemporaryDirectory[str] | None
     supplied_effective = Path(args.effective_pom).resolve() if args.effective_pom else None
     effective_path, temporary, effective_argv = _effective_pom(
         maven_root,
-        args.maven_executable,
+        command,
         supplied_effective,
-        explicit_repository,
+        explicit_repository_build,
         args.offline,
     )
     try:
         bindings = _all_bindings(modules, effective_path, execution_modules)
-        pom = _pom_fingerprint(modules, effective_path, local_repository)
-        raw_pom = _raw_pom_fingerprint(modules, local_repository)
+        pom = _pom_fingerprint(modules, effective_path, local_repository, toolchain)
+        raw_pom = _raw_pom_fingerprint(modules, local_repository, toolchain)
         effective_model = {
             "origin": "supplied" if supplied_effective is not None else "generated",
             "path": str(effective_path) if supplied_effective is not None else None,
@@ -1697,10 +2346,10 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
 
     selectors = [value for value in selected if value != "."]
     argv = [
-        args.maven_executable,
+        command.executable,
         *(["-T", threads] if threads else []),
         *_offline_args(args.offline),
-        *([f"-Dmaven.repo.local={explicit_repository}"] if explicit_repository else []),
+        *([f"-Dmaven.repo.local={explicit_repository_build}"] if explicit_repository_build else []),
     ]
     if not select_all and selectors:
         argv.extend(["-pl", ",".join(selectors)])
@@ -1851,6 +2500,7 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
         "fallbackArgv": fallback_argv,
         "offline": args.offline,
         "localRepositoryOverride": explicit_repository,
+        "localRepositoryOverrideBuildPath": explicit_repository_build,
         "tests": args.test,
         "artifacts": sorted(requested_artifacts),
         "lifecycle": {
@@ -1888,19 +2538,27 @@ def _resolve_runtime_dir(project_root: Path, value: str | None) -> Path:
     return path.resolve() if path.is_absolute() else (project_root / path).resolve()
 
 
-def _current_preconditions(plan: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def _current_preconditions(
+    plan: dict[str, Any],
+    *,
+    audit_only: bool = False,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """读取计划执行前的 Git、POM 与工具链状态。"""
     repo_root, maven_root = _validate_plan_paths(plan)
     modules = _reactor_modules(maven_root / "pom.xml")
     local_repository = plan["toolchain"]["maven"].get("localRepository")
-    local_repository_override = plan.get("localRepositoryOverride")
+    local_repository_override = plan.get("localRepositoryOverrideBuildPath")
+    command = _maven_command_from_toolchain(plan["toolchain"])
+    probe_maven = not (audit_only and _is_project_wrapper_command(command, maven_root))
     return (
         _workspace_evidence(repo_root, maven_root),
-        _raw_pom_fingerprint(modules, local_repository),
+        _raw_pom_fingerprint(modules, local_repository, plan["toolchain"]),
         _toolchain(
-            plan["toolchain"]["maven"]["executable"],
+            command,
             maven_root,
             local_repository_override,
+            frozen_toolchain=plan["toolchain"],
+            probe_maven=probe_maven,
         ),
     )
 
@@ -1916,7 +2574,19 @@ def _precondition_reasons(
         ("workspace-changed", plan["repository"]["fingerprint"], workspace["fingerprint"]),
         ("pom-changed", plan["rawPom"]["fingerprint"], raw_pom["fingerprint"]),
         ("java-major-changed", plan["toolchain"]["java"].get("major"), toolchain["java"].get("major")),
+        (
+            "java-executable-changed",
+            plan["toolchain"]["java"].get("executableSha256"),
+            toolchain["java"].get("executableSha256"),
+        ),
         ("maven-version-changed", plan["toolchain"]["maven"].get("version"), toolchain["maven"].get("version")),
+        (
+            "maven-executable-changed",
+            plan["toolchain"]["maven"].get("executableSha256"),
+            toolchain["maven"].get("executableSha256"),
+        ),
+        ("maven-build-side-changed", plan["toolchain"]["maven"].get("buildSide"), toolchain["maven"].get("buildSide")),
+        ("maven-runner-changed", plan["toolchain"]["maven"].get("runner"), toolchain["maven"].get("runner")),
         (
             "local-repository-changed",
             plan["toolchain"]["maven"].get("localRepository"),
@@ -1947,9 +2617,29 @@ def _execution_drift_reasons(
             after_toolchain["java"].get("major"),
         ),
         (
+            "java-executable-changed-during-run",
+            before_toolchain["java"].get("executableSha256"),
+            after_toolchain["java"].get("executableSha256"),
+        ),
+        (
             "maven-version-changed-during-run",
             before_toolchain["maven"].get("version"),
             after_toolchain["maven"].get("version"),
+        ),
+        (
+            "maven-executable-changed-during-run",
+            before_toolchain["maven"].get("executableSha256"),
+            after_toolchain["maven"].get("executableSha256"),
+        ),
+        (
+            "maven-build-side-changed-during-run",
+            before_toolchain["maven"].get("buildSide"),
+            after_toolchain["maven"].get("buildSide"),
+        ),
+        (
+            "maven-runner-changed-during-run",
+            before_toolchain["maven"].get("runner"),
+            after_toolchain["maven"].get("runner"),
         ),
         (
             "local-repository-changed-during-run",
@@ -2022,6 +2712,10 @@ def run_plan(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         isinstance(item, str) and item for item in argv
     ):
         raise MavenVerifyError("plan-invalid", "计划缺少可执行 cwd 或 argv")
+    command = _maven_command_from_toolchain(plan["toolchain"])
+    if argv[0] != command.executable:
+        raise MavenVerifyError("plan-toolchain-invalid", "计划 argv 与冻结 Maven executable 不一致")
+    host_argv = _maven_process_argv(command, argv[1:])
     execution_inputs = _current_preconditions(plan)
     drift = _precondition_reasons(plan, execution_inputs)
     if drift:
@@ -2049,17 +2743,15 @@ def run_plan(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     with log_path.open("w", encoding="utf-8", newline="\n") as log:
         try:
             process = subprocess.Popen(
-                argv,
+                host_argv,
                 cwd=cwd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                bufsize=1,
+                bufsize=0,
             )
             assert process.stdout is not None
-            for line in process.stdout:
+            for raw_line in iter(process.stdout.readline, b""):
+                line = _decode_command_output(raw_line, command.build_side)
                 sys.stderr.write(line)
                 sys.stderr.flush()
                 log.write(line)
@@ -2114,6 +2806,7 @@ def run_plan(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "exitCode": exit_code,
             "interrupted": interrupted,
             "argv": argv,
+            "hostArgv": host_argv,
             "cwd": str(cwd),
             "log": _path_from_root(project_root, log_path),
             "logSha256": _file_digest(log_path),
@@ -2198,13 +2891,25 @@ def _freshness_reasons(evidence: dict[str, Any]) -> list[dict[str, Any]]:
             evidence=evidence.get("planFingerprint"),
             plan=plan.get("planFingerprint"),
         )
-    workspace, raw_pom, toolchain = _current_preconditions(plan)
+    workspace, raw_pom, toolchain = _current_preconditions(plan, audit_only=True)
     reasons: list[dict[str, Any]] = []
     checks = (
         ("workspace-changed", evidence.get("repository", {}).get("fingerprint"), workspace["fingerprint"]),
         ("pom-changed", evidence.get("rawPom", {}).get("fingerprint"), raw_pom["fingerprint"]),
         ("java-major-changed", evidence.get("toolchain", {}).get("java", {}).get("major"), toolchain["java"].get("major")),
+        (
+            "java-executable-changed",
+            evidence.get("toolchain", {}).get("java", {}).get("executableSha256"),
+            toolchain["java"].get("executableSha256"),
+        ),
         ("maven-version-changed", evidence.get("toolchain", {}).get("maven", {}).get("version"), toolchain["maven"].get("version")),
+        (
+            "maven-executable-changed",
+            evidence.get("toolchain", {}).get("maven", {}).get("executableSha256"),
+            toolchain["maven"].get("executableSha256"),
+        ),
+        ("maven-build-side-changed", evidence.get("toolchain", {}).get("maven", {}).get("buildSide"), toolchain["maven"].get("buildSide")),
+        ("maven-runner-changed", evidence.get("toolchain", {}).get("maven", {}).get("runner"), toolchain["maven"].get("runner")),
         (
             "local-repository-changed",
             evidence.get("toolchain", {}).get("maven", {}).get("localRepository"),
@@ -2364,7 +3069,10 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--offline", choices=("auto", "yes", "no"), default="auto")
     plan.add_argument("--local-repository")
     plan.add_argument("--effective-pom")
-    plan.add_argument("--maven-executable", default="mvn")
+    plan.add_argument(
+        "--maven-executable",
+        help="显式同侧 Maven；默认优先项目 wrapper，再复用项目构建侧 PATH 中的 Maven",
+    )
     _add_common_output(plan)
 
     run = subparsers.add_parser("run", help="执行冻结计划并写 evidence")

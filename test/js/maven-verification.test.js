@@ -107,7 +107,8 @@ test("Maven owner 契约区分 implement 产证与 Check-All 只读复用", () =
   assert.match(implement, /load `trellis-maven-verify`/);
   assert.match(implement, /successful `final` plan\/evidence/);
   assert.match(implement, /Final defaults to conservative compilation/);
-  assert.match(implement, /Enable `--threads` only/);
+  assert.match(implement, /Decide whether to pass `--threads`/);
+  assert.match(implement, /do not run extra Maven builds merely to compare thread counts/);
   assert.match(implement, /Do not broaden to `clean`, `package`, `install`, `deploy`/);
   for (const profile of [lightAgents, lightClaude, fullAgents, fullClaude]) {
     assert.match(profile, /maven_verify\.py check --latest --require-plan/);

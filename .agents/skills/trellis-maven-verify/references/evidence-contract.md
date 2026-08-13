@@ -23,7 +23,7 @@
 - reactor 全部 POM 与使用的 effective POM内容指纹；
 - 完整 argv、工作目录、module/consumer/test/artifact 选择；
 - `.mvn/jvm.config`、`.mvn/maven.config`、`MAVEN_ARGS`、`MAVEN_OPTS` 中影响覆盖的参数，包括测试跳过属性；
-- Java 主版本、Maven 版本与可确认的本地仓库位置；
+- Java 主版本、Maven 版本、项目 `buildSide`、执行 runner 与可确认的本地仓库构建侧/宿主路径；
 - 退出码、耗时、日志路径与内容摘要、测试统计。
 
 runtime evidence 位于 `.trellis/.runtime/maven-verification/`，不得提交。证据损坏时不要删除或覆盖；报告 `blocked` 并保留现场。
@@ -32,6 +32,7 @@ runtime evidence 位于 `.trellis/.runtime/maven-verification/`，不得提交�
 - Maven 模型输入中的绝对路径仅用于诊断；跨工作区语义指纹只绑定稳定输入 ID 与内容摘要，不能因用户名或 checkout 路径不同而漂移。
 - evidence 必须有完整内容指纹，`check` 在读取状态或覆盖前先校验，不能信任被修改的顶层 coverage。
 - quick/final mode、compile strategy 和显式 threads 都属于计划语义；任一变化必须改变 plan fingerprint。Check-All 使用 `--require-plan` 时，source-stale quick 不得冒充 conservative final。
+- `buildSide`、runner、Maven executable 和本地仓库侧是本机完整性与新鲜度条件。计划生成、effective POM、run 或 check 任一步发生跨侧切换时 evidence 必须 `stale` 或 `blocked`。
 - 命令日志必须记录内容摘要；日志缺失、截断或被改写时 evidence 为 `stale`，不能只检查路径存在。
 - `run` 分别捕获执行前和执行后输入；源码、POM或工具链在 Maven 执行窗口内变化时，保留日志但把 evidence 标为 `stale`。
 - `check --latest` 以 evidence 文件命名顺序选择最新候选；最新文件损坏时直接 `blocked`，不得静默回退旧成功 evidence。
@@ -53,7 +54,7 @@ Check-All 调用：
 python3 ./.trellis/scripts/maven_verify.py check --latest --require-plan <plan.json>
 ```
 
-`check` 只读取 Git、POM、evidence，并探测 `java -version` / `mvn -version`。它不执行 Maven goal、不创建 target、不下载依赖、不写本地仓库。
+`check` 只读取 Git、POM、evidence 和工具链指纹。普通已安装 Maven 可做只读版本探测；项目 wrapper 只复用冻结版本并校验 wrapper 文件与配置指纹，不执行可能下载发行包的 wrapper。它不执行 Maven goal、不创建 target、不下载依赖、不写本地仓库。
 
 当结果不是 `reusable` 时：
 
