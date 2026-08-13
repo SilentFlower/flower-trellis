@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "maven-verification",
+  "aliases": [
+    "maven-verify",
+    "java-maven",
+    "trellis-maven-verify"
+  ],
+  "installMode": "full-or-selected",
+  "patches": ["workflow/phase-ownership"]
+}

@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ENHANCEMENT_SKILL_TARGETS } from "../../constants.js";
+import {
+  ENHANCEMENT_SKILL_ALIASES,
+  ENHANCEMENT_SKILL_TARGETS,
+} from "../../constants.js";
 import { readLegacyManifestStatus } from "../../lib/manifest.js";
 import { shouldInstallName } from "../../lib/skill-filter.js";
 import { listCanonicalTreeFiles, isVolatileTreeArtifact } from "../../plugin/integrity/canonical-tree.js";
@@ -59,6 +62,10 @@ const SCRIPT_ALIASES = Object.freeze({
   pre_check_state: [
     "pre-check", "pre-check-state", "workflow-enhancement", "task-intent",
     "intent-routing", "auto-loop", "auto-loop-runner", "trellis-auto-loop",
+    "trellis-check-all", "check-all",
+  ],
+  maven_verify: [
+    "maven-verify", "java-maven", "trellis-maven-verify",
     "trellis-check-all", "check-all",
   ],
 });
@@ -595,7 +602,11 @@ export function projectSkillGardenContent(options) {
     for (const entry of fs.readdirSync(sourceRoot, { withFileTypes: true })
       .filter((item) => item.isDirectory())
       .sort((left, right) => compareUtf8(left.name, right.name))) {
-      if (!shouldInstallName(entry.name, skills)) continue;
+      if (!shouldInstallName(
+        entry.name,
+        skills,
+        ENHANCEMENT_SKILL_ALIASES[entry.name] || [],
+      )) continue;
       const entrySourceRoot = entry.name === "trellis-route"
         ? path.join(fallback, entry.name)
         : path.join(sourceRoot, entry.name);

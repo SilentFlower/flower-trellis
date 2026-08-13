@@ -3207,6 +3207,67 @@ regression 入口留着,而且因为 CI 全绿更难被发现。
 
 ---
 
+## Scenario: Maven Verification Evidence Reuse
+
+### 1. Scope / Trigger
+
+- Trigger:Treillis implement/check 处理 Maven reactor，且编译、测试或制品生命周期可能重复执行大量 module、sources jar、依赖复制或其它附属 goal。
+- Scope:只生成/执行 Maven 验证计划和 runtime evidence；不修改业务 POM、settings、JDK、本地仓库配置或发布制品。
+
+### 2. Signatures
+
+```text
+trellis-maven-verify
+  -> .trellis/scripts/maven_verify.py plan --mode quick|final
+  -> .trellis/scripts/maven_verify.py run --plan-json <path>
+  -> .trellis/.runtime/maven-verification/<id>.json + <id>.log
+
+trellis-check-all (audit-only)
+  -> .trellis/scripts/maven_verify.py check --latest --require-plan <path>
+  -> reusable | partial | stale | failed | blocked
+```
+
+计划与 evidence 均使用 `schemaVersion: 1`；计划 kind 为
+`trellis-maven-verification-plan`，evidence kind 为 `trellis-maven-verification`。
+
+### 3. Contracts
+
+- `plan` 以真实 Git diff、reactor POM、effective POM、显式 module/consumer/test/artifact 和工具链为依据；无法生成 effective model 时失败关闭，不能排除外部父 POM插件绑定。
+- `quick` 选择变更 module 并用 `-am` 带上必要上游，避免读取陈旧本地 SNAPSHOT；compile 且 effective model 确认 `maven-compiler-plugin >= 3.1` 时，auto 策略加入 `-Dmaven.compiler.useIncrementalCompilation=false`，按源文件/class stale 判断。无法确认时降级 conservative；显式 source-stale 失败关闭。
+- `final` 覆盖显式消费者并用 `-am` 带上必要上游，auto 默认 conservative。只有任务/spec/用户证据确认模块内部低风险变化，且无公共 API/DTO/常量、注解处理器、POM、资源契约或跨模块协议影响时，调用方才可显式选择 source-stale。反向依赖结果只提供建议，不静默扩大范围，也不默认使用 `-amd`。
+- Maven 并行只通过显式 `--threads <count|multiplierC>` 启用；调用方必须已从项目规则、插件线程安全证据或用户授权确认，计划器不猜测线程数。
+- 普通编译停在 `compile`，测试进入 `test`，制品验收才进入 `package` 或更后阶段。`sources`、`javadoc`、`assembly`、`shade`、`repackage`、`copy-dependencies` 分别记录，不从普通 lifecycle 自动推出。
+- 只有已确认参数的 `maven-source-plugin:jar*` 可在非 sources 验证中加入 `-Dmaven.source.skip=true`；其它插件不得猜测 skip 参数。
+- evidence 指纹覆盖 Maven 范围 Git HEAD/diff/untracked、reactor POM、外部父 POM、`.mvn`/settings model input、argv、模块、生命周期和 Java/Maven 工具链；排除 `.trellis/.runtime/**` 与 `**/target/**`，避免日志和构建产物让证据自我失效。
+- implement 可以运行 `plan` / `run`，交付时报告 evidence 路径、覆盖和剩余风险。Check-All light/full 与 dedicated audit-only subagent 只能运行 `check`，不得运行 Maven goal 或写 target/本地仓库/cache。
+- `trellis-maven-verify`、`maven-verify`、`java-maven` 精细安装必须同时投影 Skill、`maven_verify.py` 与 Phase 2 owner Patch；只选择 `trellis-check-all` / `check-all` 时只补 evidence helper，不额外触发 Maven workflow Bundle。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| 没有 `pom.xml` 或 Maven 范围无变更 | `not-applicable`，返回原项目验证流程 |
+| 多个 Maven 根且未显式选择 | `blocked:maven-root-ambiguous` |
+| effective POM生成失败 | `blocked:effective-pom-failed`，不执行计划 |
+| quick auto 无法确认 compiler plugin >= 3.1 | 降级 conservative，并报告 `compiler-source-stale-unsupported` |
+| 显式 source-stale 版本不兼容或 goal 高于 compile | `blocked:compiler-source-stale-unsupported` / `blocked:source-stale-goal-unsupported` |
+| `--threads` 不是正整数或正数 CPU 倍数 | `blocked:threads-invalid` |
+| quick module 的本地 SNAPSHOT 缺失 | 可展示带 `-am` 的 fallback argv；结果仍不能升级为 final 消费者覆盖 |
+| compile 绑定 source jar且不验收 sources | 记录 binding，并加入已确认的 source skip 参数 |
+| package 命中 copy-dependencies/repackage/shade 等 | 明示额外成本；只有对应验收才进入该阶段 |
+| Git/POM/外部父/model input/JDK/Maven 参数变化 | evidence `stale` |
+| lifecycle、module、consumer、test 或 artifact 覆盖不足 | evidence `partial`，返回精确缺口 |
+| Maven 命令失败或中断 | 保留日志与 failed evidence，Check-All 不重跑 |
+| evidence JSON/log 损坏或缺失 | `blocked`，保留现场，不自动删除 |
+
+### 5. Tests Required
+
+- Python fixture 覆盖 multi-module diff 映射、root POM、consumer graph、compile sources、prepare-package copy-dependencies、exact argv、空格路径、成功/失败 evidence、lifecycle/artifact 覆盖和源码/外部父失效。
+- Node 测试覆盖 canonical/snapshot 一致性、全平台投影、legacy/Plugin selective install、Bundle 别名、Check-All helper 闭包和 audit-only agent 禁止直接运行 Maven。
+- SRM forward-test 只运行 `plan` 或使用冻结 effective POM；不得执行完整 reactor，也不得修改业务仓。
+
+---
+
 ## Faithful Porting (溯源)
 
 大量逻辑是从 skill-garden `install.sh` **逐字符移植**而来(`fs-utils` 的 `install_one`、

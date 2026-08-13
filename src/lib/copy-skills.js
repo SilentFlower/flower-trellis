@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ENHANCEMENT_SKILL_TARGETS } from "../constants.js";
+import {
+  ENHANCEMENT_SKILL_ALIASES,
+  ENHANCEMENT_SKILL_TARGETS,
+} from "../constants.js";
 import { copyPath, listDirs, listFiles, ensureDir } from "./fs-utils.js";
 import { shouldInstallName } from "./skill-filter.js";
 
@@ -40,7 +43,7 @@ export function copySkills(target, variantDir, variant, skills) {
     const preferredSource = targetConfig.source === "claude" ? claudeSrc : agentsSrc;
     const source = listDirs(preferredSource).length > 0 ? preferredSource : agentsSrc;
     for (const name of listDirs(source)) {
-      if (!shouldInstallName(name, skills)) continue;
+      if (!shouldInstallName(name, skills, ENHANCEMENT_SKILL_ALIASES[name] || [])) continue;
       copyPath(
         path.join(source, name),
         path.join(targetRoot, name),

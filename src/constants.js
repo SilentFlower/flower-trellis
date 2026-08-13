@@ -86,6 +86,16 @@ export const ENHANCEMENT_SKILL_TARGETS = [
 ];
 
 /**
+ * 强化 Skill 的选择性安装别名。
+ *
+ * Bundle 别名只控制 Patch 选择；Skill 目录投影必须复用本表，才能让 legacy 与
+ * Plugin 两条安装路径对同一用户输入保持一致。
+ */
+export const ENHANCEMENT_SKILL_ALIASES = Object.freeze({
+  "trellis-maven-verify": Object.freeze(["java-maven"]),
+});
+
+/**
  * flower-trellis 自有 flag —— 这些不能透传给 trellis,需在解析时剔除。
  *
  * 值含义:

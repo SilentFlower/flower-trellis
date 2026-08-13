@@ -57,6 +57,7 @@ const SKILL_DESCRIPTION_OVERRIDES = {
   "trellis-draw-uml": "绘制 UML 活动图梳理业务流程",
   "trellis-extract-prd": "从需求文档提取任务 PRD",
   "trellis-flower-update": "手动追平已安装 Flower 强化包",
+  "trellis-maven-verify": "裁剪 Maven 生命周期并复用验证证据",
   "trellis-migrate-skill": "迁移旧命令为 Trellis skill",
   "trellis-plan-version": "规划版本任务、波次和分工",
   "trellis-push": "提交、推送并同步任务进度",

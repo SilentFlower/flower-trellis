@@ -99,6 +99,14 @@ export function copyScriptAssets(target, variantDir, skills = []) {
         "trellis-check-all",
         "check-all",
       ];
+    } else if (name === "maven_verify") {
+      aliases = [
+        "maven-verify",
+        "java-maven",
+        "trellis-maven-verify",
+        "trellis-check-all",
+        "check-all",
+      ];
     }
     if (!shouldInstallName(name, skills, aliases)) continue;
 

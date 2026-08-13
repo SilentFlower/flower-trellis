@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-08-12T04:29:06.144Z",
+  "syncedAt": "2026-08-13T01:54:57.977Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "51d880f77b9caa0cf5602ecf889903b7adf71b23",
+  "sourceCommit": "fab009da4fd4f93c52a2119ca2bfc59aeb1f069d",
   "common": {
     "codexSkills": [
       "aliyun-ops",
@@ -118,6 +118,7 @@
         "trellis-diff-brief",
         "trellis-extract-prd",
         "trellis-flower-update",
+        "trellis-maven-verify",
         "trellis-plan-version",
         "trellis-push",
         "trellis-release",
@@ -135,6 +136,7 @@
         "trellis-diff-brief",
         "trellis-extract-prd",
         "trellis-flower-update",
+        "trellis-maven-verify",
         "trellis-plan-version",
         "trellis-push",
         "trellis-release",
@@ -446,6 +448,7 @@
         "control-plane-integrity.json",
         "finish-work.json",
         "intent-routing.json",
+        "maven-verification.json",
         "shared-hook-runtime.json",
         "task-progress-recovery.json",
         "trellis-meta.json",
@@ -461,6 +464,7 @@
         "auto_loop.py",
         "decision_log.py",
         "git_evidence.py",
+        "maven_verify.py",
         "pre_check_state.py",
         "spec_router.py",
         "task_intent.py",
