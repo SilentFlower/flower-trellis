@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.1-beta.2",
+  "version": "0.6.1-beta.3",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -70,9 +70,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.1-beta.2",
+    "version": "0.6.1-beta.3",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **flower:** 接入 Maven 验证并同步 continue 文案 ([3819d75](https://github.com/SilentFlower/flower-trellis/commit/3819d759ecdd3bf067d02c8eac48d38b787ba037))\n\n\n### 🐛 修复 Bug Fixes\n\n* **flower:** 同步 Maven 验证修复 ([7d656af](https://github.com/SilentFlower/flower-trellis/commit/7d656af2a7975f7f1ffd5cff307f72cc482e9062))\n\n\n### 📝 文档 Docs\n\n* 更新开发日志 ([29cdbc0](https://github.com/SilentFlower/flower-trellis/commit/29cdbc0dd0f7cf323f714f08270d08ef5dd8a107))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **flower:** 同步实现后检查交接规则 ([6ff3e48](https://github.com/SilentFlower/flower-trellis/commit/6ff3e48821c1b5f2bd679440a045fa7fa9a16295))",
     "truncated": false
   },
   "optionalDependencies": {
