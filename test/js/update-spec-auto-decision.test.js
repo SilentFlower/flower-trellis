@@ -90,15 +90,15 @@ test("交互 Check-All 默认停止，direct Git 通过或风险接受后同轮�
   assert.match(autoLoopReturn, /不得 `next`/);
   assert.doesNotMatch(autoLoopReturn, /提示用户回复 `继续`/);
   assert.match(postCheck, /只从当前完成链证据识别 direct Git intent/);
-  assert.match(postCheck, /全部剩余 `CHK-\*` \/ `FBK-\*` 都有当前有效的用户风险接受/);
+  assert.match(postCheck, /全部 findings 已有效接受/);
   assert.match(postCheck, /用户在当前报告上明确接受风险并要求继续/);
-  assert.match(postCheck, /标准报告输出后，同一轮进入 Phase 3\.3 `trellis-update-spec`/);
+  assert.match(postCheck, /报告后同轮进入 Update-Spec/);
   assert.match(postCheck, /普通 interactive 检查保持原行为：报告后立即停止并等待用户选择/);
   assert.match(postCheck, /### 交互式下一步引导/);
   assert.match(postCheck, /direct Git strict pass 或已接受风险通过：说明本轮正在进入 `trellis-update-spec`/);
   assert.match(postCheck, /无 direct Git intent 且 strict pass \/ 已接受风险通过：提示用户回复 `继续`/);
-  assert.match(postCheck, /完成后重新运行 Check-All/);
-  assert.match(postCheck, /不新增 direct Git 专用摘要/);
+  assert.match(postCheck, /完成后重跑 Check-All/);
+  assert.match(postCheck, /不新增 direct Git 摘要或 Git 计划/);
   assert.match(workflow, /Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`/);
   assert.doesNotMatch(postCheck, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.match(state, /next\/continue.*runs `trellis-update-spec`/);
@@ -125,6 +125,8 @@ test("交互 Check-All 默认停止，direct Git 通过或风险接受后同轮�
   assert.match(push, /不得凭记忆重建、缩写或自制替代模板/);
   assert.match(pushTemplates, /### 完成链证据/);
   assert.match(pushTemplates, /`未运行`、`已失效`、任一未处置 `CHK-\*` \/ `FBK-\*`、blocked、部分验证或 `needs-review` 同时计入风险区/);
+  assert.match(pushTemplates, /`\[上线后验证\]` 作为非阻断风险逐项保留/);
+  assert.match(pushTemplates, /既有 `trellis-release` \/ `release\.md` 流程承接/);
   assert.match(push, /所有剩余问题都有当前有效的用户风险接受时标记为 `通过（已接受风险）`/);
   assert.match(push, /auto-loop 内部 `commit-only` 已由 runner/);
   assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);

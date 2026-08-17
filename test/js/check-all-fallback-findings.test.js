@@ -46,15 +46,19 @@ test("Check-All 按根因区分 CHK 与 FBK，并为两类问题分配严重度"
   assert.match(agents, /硬准入（缺一不可）/);
   assert.match(agents, /不要求异常已经在生产、测试或当前运行中实际发生/);
   assert.match(agents, /保护收益和验证方式继续作为报告完整度要求，不决定 `FBK-\*` 分类/);
-  assert.match(agents, /缺少环境、工具或权限时仍保留 `FBK-\*` ID/);
+  assert.match(agents, /环境、工具或权限不足仍保留 `FBK-\*` ID/);
   assert.doesNotMatch(agents, /每个 `FBK-\*` 必须同时具备：[\s\S]*4\. \*\*保护收益\*\*[\s\S]*5\. \*\*验证方式\*\*/);
   assert.match(agents, /泛化“更健壮”表述.*不报告/s);
   assert.match(agents, /`修复全部` 覆盖/);
   assert.match(agents, /用户可以明确接受当前报告中任一 `CHK-\*` 或 `FBK-\*` 的风险而不修复/);
-  assert.match(agents, /P0 必须逐项写出精确 ID/);
+  assert.match(agents, /接受当前报告全部风险.*包括 P0/s);
+  assert.match(agents, /部分接受须唯一定位/);
+  assert.match(agents, /报告或范围不清才追问/);
+  assert.match(agents, /证据、diff、内容或严重度变化后失效/);
+  assert.doesNotMatch(agents, /P0 必须逐项写出精确 ID/);
   assert.match(agents, /`strict pass` 仍要求剩余 `CHK-\*` 与 `FBK-\*` 均为 0/);
-  assert.match(agents, /只有未处置的 `CHK-\*` 或 `FBK-\*` 阻断交互完成链/);
-  assert.match(agents, /validated auto-loop 不能代表用户接受风险/);
+  assert.match(agents, /未处置 `CHK-\*` \/ `FBK-\*`、阻断型部分验证或阻塞会阻断/);
+  assert.match(agents, /auto-loop 不得接受风险/);
 });
 
 test("统一报告分别展示 CHK 与 FBK，并支持显式风险接受", () => {
@@ -102,12 +106,21 @@ test("统一报告分别展示 CHK 与 FBK，并支持显式风险接受", () =>
   assert.doesNotMatch(agents, /报告按严重度排序，但不得因此/);
   assert.match(agents, /兜底场景/);
   assert.match(agents, /保护收益/);
-  assert.match(agents, /操作：`修复全部`、`修复 CHK-001,FBK-002`、`接受风险 CHK-001,FBK-002 并继续`、`仅保留报告`/);
+  assert.match(agents, /操作：`修复全部`、`修复 CHK-001,FBK-002`、`接受当前报告全部风险并继续`、`接受风险 CHK-001,FBK-002 并继续`、`仅保留报告`/);
   assert.match(agents, /`修复全部` 始终覆盖全部 `CHK-\*` 与 `FBK-\*`/);
+  assert.match(agents, /“接受当前报告全部风险”.*覆盖全部 `CHK-\*` \/ `FBK-\*`，包括 P0/s);
+  assert.match(agents, /无固定句式/);
+  assert.match(agents, /受影响代码、契约、验证结果、问题内容或严重度变化后，原接受立即失效/);
+  assert.match(agents, /`\[上线后验证\]`：仅部署后、生产或外部系统可安全验收/);
+  assert.match(agents, /它不属于维度状态/);
+  assert.match(agents, /不阻断 strict pass、Update-Spec 或 direct Git/);
+  assert.match(agents, /本地 fixture、测试环境、静态契约或无副作用命令可完成的检查不得延期为 `\[上线后验证\]`/);
+  assert.match(agents, /Check-All 不得执行生产或外部系统操作/);
   assert.match(agents, /仍有未处置 `CHK-\*` 或 `FBK-\*` 时停留在处置\/重检循环/);
-  assert.match(agents, /有未处置 `CHK-\*`、`FBK-\*`、部分验证、阻塞或报告后的新编辑/);
+  assert.match(agents, /未处置 `CHK-\*` \/ `FBK-\*`、阻断型部分验证、阻塞或新编辑先 `advance --stage implement`/);
   assert.match(agents, /有剩余 `CHK-\*` 或 `FBK-\*`：向 runner `record --result failed/);
   assert.match(agents, /validated auto-loop 不创建也不复用 interactive 风险接受/);
+  assert.match(agents, /摘要包含自动修复和全部 `\[上线后验证\]`/);
   assert.match(agents, /结论为 `通过·已接受风险`/);
   assert.match(light, /已接受风险通过：所有剩余 `CHK-\*` \/ `FBK-\*` 都有当前有效的用户风险接受/);
   assert.match(full, /已接受风险通过：所有剩余 `CHK-\*` \/ `FBK-\*` 都有当前有效的用户风险接受/);
@@ -146,14 +159,21 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
   assert.match(agentBody, /Classify findings by root-cause nature before severity/);
   assert.match(agentBody, /Assign P0\/P1\/P2 to both `CHK-\*` and `FBK-\*`/);
   assert.match(agentBody, /keep the `FBK-\*` ID when verification is partial/);
+  assert.match(agentBody, /post-release verification/);
+  assert.match(agentBody, /must not block strict pass/);
+  assert.match(agentBody, /Never execute production or external-system operations/);
   assert.match(agentBody, /low-risk factual drift as `DOC-\*` candidates/);
-  assert.match(agentBody, /Any remaining `CHK-\*` or `FBK-\*` blocks strict pass/);
+  assert.match(agentBody, /Any remaining `CHK-\*` or `FBK-\*`, blocker, or blocking partial verification blocks strict pass/);
   assert.match(agentBody, /do not infer, grant, or erase that acceptance yourself/);
   assert.match(workflow, /every remaining finding has current explicit user risk acceptance/);
-  assert.match(workflow, /Any unaccepted finding.*reports and stops/);
+  assert.match(workflow, /any unaccepted finding.*reports and stops/);
+  assert.match(workflow, /`\[上线后验证\]` items remain visible but do not block/);
+  assert.match(workflow, /does not itself force another Full/);
   assert.match(pushAgents, /所有剩余问题都有当前有效的用户风险接受时标记为 `通过（已接受风险）`/);
+  assert.match(pushAgents, /`\[上线后验证\]` 不改变 Check-All 的通过状态/);
   assert.match(pushTemplatesAgents, /任一未处置 `CHK-\*` \/ `FBK-\*`.*计入风险区/);
   assert.match(pushTemplatesAgents, /已接受风险的问题也必须按 ID、严重度和影响进入风险区/);
+  assert.match(pushTemplatesAgents, /`\[上线后验证\]`.*非阻断风险.*`trellis-release`/s);
 });
 
 test("0.6 源与发布快照只保留 fallback findings 模型", () => {
@@ -247,5 +267,7 @@ test("当前 dogfood 已投影 FBK 问题模型和风险接受门禁", () => {
 
   const workflow = read(projectRoot, ".trellis/workflow.md");
   assert.match(workflow, /every remaining finding has current explicit user risk acceptance/);
+  assert.match(workflow, /`\[上线后验证\]` items remain visible but do not block/);
+  assert.doesNotMatch(workflow, /The final pre-commit pass must cover the whole task and cannot be downgraded to light/);
   assert.doesNotMatch(workflow, /Eligible `OPT-\*` items do not block this path/);
 });

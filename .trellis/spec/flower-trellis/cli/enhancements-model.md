@@ -1779,6 +1779,7 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 ```text
 修复全部
 修复 CHK-001,FBK-002
+接受当前报告全部风险并继续
 接受风险 CHK-001,FBK-002 并继续
 仅保留报告
 ```
@@ -1801,31 +1802,43 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - 所有用户可见 check 入口都调用 Check-All。`trellis-route(target=check)` 只决定执行位置,
   用户说 light/full 不创建新的 route mode。
 - requested depth 优先使用当前请求内最后一次明确表达:`简单检查` / `轻量检查` /
-  `light check` 表示 light;`全面检查` / `全量检查` / `最终检查` / `提交前检查` /
-  `full check` 表示 full;其次读取 validated auto-loop action,否则为 auto。单独说
-  `check` / `check-all` 只表示进入统一入口。
+  `light check` 表示 light;`全面检查` / `全量检查` / `full check` 表示 full;其次读取
+  validated auto-loop action,否则为 auto。单独说 `check` / `check-all` / `最终检查` /
+  `提交前检查` 只表示进入统一入口,完成任务或准备提交本身不强制 full。
 - effective depth 决策顺序固定:requested full -> full;命中 hard-full -> full;
   requested light 且无 hard-full -> light;requested auto 且高置信满足 light eligibility -> light;
   其它情况 fallback full,不得机械询问用户。
 - hard-full 只由行为契约变化或无法闭合的影响面触发,文件载体和主题域本身不得触发升级。
   公共 API/CLI/schema/持久化状态/协议/缓存/迁移/历史兼容,权限/安全/资金/并发/时序/
-  状态机/回滚/发布或 Git 控制门禁,跨独立行为边界,已有 full `CHK-*` / `FBK-*` 重检和未知影响面继续 full。
+  状态机/回滚/发布或 Git 控制门禁,跨独立行为边界,未知影响面,以及计划基线、相关契约或原验证证据
+  变化导致既有 full 证据失效时继续 full。
   workflow、skill、command、hook、快照或安装材料若只改解释文字或机械投影,继续判断 light eligibility。
 - light 必须满足闭合的单一语义范围、无行为性 hard-full、规划条目与直接引用/状态传播/回归路径
-  可穷举且不在 full 修复链。局部行为修改分支还必须有可运行的定向验证;无行为变化分支只允许
+  可穷举。跨轮局部修复可重新选择 light,但必须能穷举原 finding、实际修复路径、直接引用点和回归路径,
+  且定向验证足以覆盖后续 diff。局部行为修改分支还必须有可运行的定向验证;无行为变化分支只允许
   注释、错别字、排版、解释文字、示例或机械投影同步,两分支是择一关系,不得写成同时满足。
-  执行中发现行为影响扩大或关键验证缺口时只允许单向升级 full。
+  同一次 Check-All 执行中发现行为影响扩大或关键验证缺口时只允许单向升级 full,升级后不得降级。
+- Phase 2.2 结束或进入提交链不触发无条件 Full。既有 full 证据仍覆盖当前 diff,且后续修改已被完整
+  定向重检时复用证据完成检查;用户显式要求 full、出现 hard-full、范围无法闭合、未知 dirty、基线/
+  契约变化或证据失效时才重新 full。
 - 高置信 light 通过正式满足 Phase 2.2 门禁;未执行维度必须标记 `N/A`,不得伪装成 full。
 - 执行顺序固定为三件套实现 -> 实现假设 -> 完整性与规范。每个发现先按根因性质和可达证据
   判定为主路径 `CHK-*` 或兜底 `FBK-*`,再为两类问题分配 P0/P1/P2；严重度不能反向决定通道。
-- 主路径逻辑、非兜底需求/契约违背、失败验证、缺失必需测试、真实数据流断点、兼容性和发布集成问题进入 `CHK-*`。
+- 主路径逻辑、非兜底需求/契约违背、失败验证、缺少结论所必需的充分验证证据、真实数据流断点、兼容性和发布集成问题进入 `CHK-*`。
   fail-closed、异常输入、失败路径降级、防御性权限或数据保护、容错与故障可观测性保护缺口进入 `FBK-*`。
   即使 PRD/design/implement/spec 或公开契约已经声明该兜底行为，仍保持 `FBK-*`；契约证据只影响影响和严重度。
 - `FBK-*` 分类只要求具体位置、代码或契约可证明的可达异常场景和当前保护缺失/错误/可绕过的
   问题证据。保护收益与验证方式仍是报告完整度字段,但不决定分类;缺少环境、工具或权限时保留
-  `FBK-*` ID 并标记部分验证,部分验证继续阻断 strict pass。纯代码风格偏好、主观重构建议或
+  `FBK-*` ID 并按验证阶段判断。提交前原则上可完成但证据不足时标记阻断型部分验证;本质依赖
+  部署后、生产环境或外部系统的验收登记 `[上线后验证]`,不阻断当前完成链。纯代码风格偏好、主观重构建议或
   没有具体触发路径的泛化“更健壮”建议不报告。
-- 只有业务/规划冲突导致无法判断、已知问题使后续前提失效、或验证可能产生破坏性/
+- `部分验证` 只用于当前代码结论所必需、提交前原则上可完成但证据缺失的验证,继续阻断 strict pass。
+  `[上线后验证]` 只用于部署后或真实生产/外部状态中的验收,必须在“未覆盖与风险”写明动作、环境/
+  责任边界和预期结果,不得伪报执行,不得自动执行生产或外部操作,且不阻断 Update-Spec、commit 或 push。
+  可由本地 fixture、测试环境、静态契约或无副作用命令完成的检查不得借该标签延期。
+- 自动化测试优先,但可重复的手动步骤、静态检查和定向命令都可构成充分证据。仅缺少自动化测试文件
+  不生成 `CHK-*`;项目 spec、风险等级或回归概率明确要求自动化覆盖,或当前结论缺少充分证据时仍记录问题。
+- 只有业务/规划冲突导致无法判断、已知问题使后续前提失效、或当前结论所必需的验证可能产生破坏性/
   外部副作用时,才允许提前阻塞。阻塞结果仍须报告已完成范围和统一问题 ID。
 - 局部文案、普通配置值、局部样式或单点条件修改可以走快速路径;未命中 API、组件上下文、
   历史数据、跨层数据流等 Trigger 的维度必须标记 `N/A`,不得展开无关检查。
@@ -1834,12 +1847,15 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - 报告顺序固定为总体摘要、维度结果、`DOC-*` 自动修复、`CHK-*` 主路径问题、`FBK-*` 兜底问题、
   未覆盖与风险、统一处置批次。没有对应通道时省略该区；任一通道有问题时总体不得 strict pass，
   只在末尾询问一次修复或风险接受范围，不得附带 commit/push 计划。
-- 用户可以明确接受当前报告中的 `CHK-*` 或 `FBK-*` 而不修复。接受必须唯一对应当前 ID；只有一个候选时允许
-  “这个问题”“不管这个”等明确指代。P0 必须逐项写出精确 ID。接受不改变分类、严重度、证据和建议，
-  也不能从报告中删除问题；受影响代码、契约、验证结果或问题证据变化后自动失效。
-- `strict pass` 只表示两类问题均为 0。若全部剩余问题都有当前有效的用户风险接受，且无阻塞、无部分验证、
-  无未接受的实质剩余风险，则结论为“通过·已接受风险”，可进入 interactive、untracked、direct Git、
-  Update-Spec 与 Push 的继续路径。`仅保留报告` 不构成风险接受。
+- 用户可以明确接受当前报告中的 `CHK-*` 或 `FBK-*` 而不修复。语义明确的“接受当前报告全部风险”覆盖
+  全部当前 findings,包括 P0,不要求固定句式或逐项输入 ID;部分接受仍必须唯一定位子集。只有报告版本或
+  指向范围不清时才追问。接受不改变分类、严重度、证据和建议,也不能从报告中删除问题；受影响代码、
+  契约、验证结果、问题内容或严重度变化后自动失效。
+- `strict pass` 只表示两类问题均为 0。若全部剩余问题都有当前有效的用户风险接受，且无阻塞、无阻断型
+  部分验证、无未接受且未登记 `[上线后验证]` 的实质剩余风险，则结论为“通过·已接受风险”，可进入
+  interactive、untracked、direct Git、Update-Spec 与 Push 的继续路径。strict pass 可以与完整登记的
+  `[上线后验证]` 并存；后者由 Push 保持可见并交给既有 `trellis-release` / `release.md` 承接。
+  `仅保留报告` 不构成风险接受。
 - 用户确认 `修复全部`、混合精确问题 ID 或其它明确修复范围后,批量修复所选项并复用当前任务合法 implement route;不存在时重新进入
   `trellis-route(target=implement)`。定向验证后复用当前 check route 执行 Check-All 重检。
 - `references/platform-dispatch.json` 是平台启动契约唯一事实源，必须覆盖上游 `0.6.14` 的 21 个
@@ -1861,11 +1877,13 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - Check-All 开始时默认 interactive;只有 runner `status` / `next` 验证 running、task 和
   outstanding check action 后才使用 auto-loop context,不得相信摘要或 raw runtime。
 - interactive 默认在标准报告后停止。当前完成链已有普通 push / 用户主动 `commit-only` 意图时，
-  strict pass 或全部剩余 `CHK-*` / `FBK-*` 已被用户有效接受，且无阻塞、无部分验证、无未接受的实质风险，
+  strict pass 或全部剩余 `CHK-*` / `FBK-*` 已被用户有效接受，且无阻塞、无阻断型部分验证、无未接受且
+  未登记 `[上线后验证]` 的实质风险，
   都可在报告后同轮进入 Update-Spec。Check-All 因 findings 停止后，用户对当前报告明确接受风险并要求继续，
   可以恢复该 pending direct Git 完成链；不得从无关历史、摘要或 dirty 状态推断。
-  validated auto-loop 不展示普通修复选择:有剩余 `CHK-*` 或 `FBK-*` 时 `record failed`,真正产品/权限/生产副作用/
-  破坏性边界 `record blocked`,两类问题均为 0 时 `record ok`。auto-loop 不创建或复用 interactive 风险接受。
+  validated auto-loop 不展示普通修复选择:有剩余 `CHK-*` 或 `FBK-*` 时 `record failed`,真正产品/权限/提交前
+  生产副作用/破坏性边界 `record blocked`,两类问题均为 0 且无阻断型部分验证时 `record ok`,摘要保留
+  `[上线后验证]` 且不执行。auto-loop 不创建或复用 interactive 风险接受。
   随后立即 `next`。subagent 返回三类候选、报告和 profile,
   主会话负责分流或 `record + next`。
 
@@ -1879,22 +1897,29 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 | requested light 命中 hard-full | effective full,confidence escalated,记录升级原因 |
 | 无法高置信判断 | fallback full,不询问深度 |
 | light 执行中发现影响面扩大 | 单向升级 full,补齐所有适用维度 |
+| full 报告后的闭合局部修复 | 原 finding、修复路径、引用点、回归路径和定向证据可穷举时,下一次 Check-All 可 light |
+| 准备结束任务或进入提交链 | 不单独触发 full;既有 full 证据有效且后续定向重检完整时复用 |
+| 基线/契约变化、未知 dirty 或既有证据失效 | 重新执行 full |
 | workflow/skill/hook 只改解释文字或机械投影 | 载体中性;范围闭合且无行为性 hard-full 时可进入 light |
 | 局部行为修改且引用/回归路径可穷举并有定向验证 | 可进入 light;不得因文件属于 workflow/skill 自动升级 |
 | 历史 runtime mode 为 `check-inline` | 归一为 `check-all-inline`,可复用但不直达 trellis-check |
 | 某个 lint/typecheck/test 失败 | 记录命令、退出状态和关键错误,继续其它独立验证 |
 | 兜底行为同时写入需求或公开契约 | 仍按保护路径根因记录为 `FBK-*`；契约证据用于严重度和影响 |
 | 候选缺少具体位置、可达场景或问题证据 | 不生成 `FBK-*`;按证据使用部分验证、剩余风险、阻塞或不报告 |
-| 已满足 FBK 分类准入但缺少验证环境 | 保留 `FBK-*` ID,验证标记部分验证并写明缺失条件,不得 strict pass |
+| 已满足 FBK 分类准入且缺少提交前必需验证环境 | 保留 `FBK-*` ID,验证标记部分验证并写明缺失条件,不得 strict pass |
+| 验收本质依赖部署后、生产或外部系统 | 不执行;登记 `[上线后验证]` 动作、责任边界和预期结果,不阻断提交链 |
+| 只有自动化测试文件缺失,但已有充分可重复证据 | 不因此生成 `CHK-*` |
+| 当前结论缺少充分证据,或项目明确要求自动化覆盖 | 记录 `CHK-*` |
 | 规划冲突导致无法判断正确行为 | 输出统一阻塞报告,只询问解除阻塞所需的业务决策 |
-| 验证可能修改生产数据或调用有副作用外部系统 | 不执行,标记阻塞或未覆盖风险 |
+| 验证可能修改生产数据或调用有副作用外部系统 | 不执行;提交前结论必需时阻塞,本质属于发布后验收时登记 `[上线后验证]` |
 | 文档片段仍写旧状态且发布记录/环境回读/测试输出唯一证明新状态 | 记录 `DOC-*` `fact-status`,主会话自动修复并在报告展示验证 |
 | 文档片段需要改操作路径、接口协议、安全边界、上线承诺或验收口径 | 不得自动修复,按根因转为 `CHK-*`、`FBK-*`、剩余风险或阻塞 |
 | 源码注释中的符号/路径/版本可由当前定义唯一证明 | 记录 `DOC-*` `code-comment-fact`,只替换机械事实片段 |
 | 源码注释中的局部实现事实只有代码不一致证据 | 不得假定代码正确;缺少本轮 diff 与规划/测试双重证据时转普通 finding 或剩余风险 |
 | 源码注释属于公共 API、Why、业务/安全语义、工具指令或可执行示例 | audit-only,不得自动写入 |
 | 用户选择部分 `CHK-*` / `FBK-*` | 只批量修复选中 ID,未选问题保留在重检结果 |
-| 用户明确接受当前 `CHK-*` / `FBK-*` | 保留问题与严重度并标记已接受风险；全部剩余问题均有效接受后按“通过·已接受风险”继续 |
+| 用户明确接受当前报告全部风险 | 保留全部问题与严重度并标记已接受风险,包括 P0;不要求二次固定口令确认 |
+| 用户只接受部分 `CHK-*` / `FBK-*` | 只有能唯一定位当前报告子集时生效 |
 | 用户只说 `仅保留报告` | 停止处置，不记录风险接受，不进入通过路径 |
 | 受影响代码、契约、验证结果或问题证据变化 | 原风险接受失效，问题恢复为未处置并重新检查 |
 | subagent 只有自修复型 `trellis-check` agent | 禁止 dispatch,让用户改选 `check-all-inline` |
@@ -1904,17 +1929,22 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 | 普通 interactive Check-All 无问题 | 报告画像、通过和剩余风险,指向 Phase 3.3/3.4,停止等待 |
 | direct Git + Check-All 严格通过 | 展示同一标准报告,同轮进入 Update-Spec;不生成专用摘要或 Git 计划 |
 | direct Git + 全部剩余 `CHK-*`/`FBK-*` 已接受风险 | 展示保留 findings 的标准报告,同轮进入 Update-Spec |
-| direct Git + 未处置 `CHK-*`/`FBK-*`/blocked/部分验证/未接受实质风险 | 展示标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
+| direct Git + 未处置 `CHK-*`/`FBK-*`/blocked/阻断型部分验证/未接受实质风险 | 展示标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
+| direct Git + 仅有完整登记的 `[上线后验证]` | 保持通过结论并继续,Push 风险摘要保留交接事项 |
 | validated auto-loop 存在 `CHK-*` 或 `FBK-*` | `record failed`,进入 fix/recheck |
 | validated auto-loop Check-All 完成 | 写回 effective depth/result/reason 并立即 next |
 
 ### 5. Good/Base/Bad Cases
 
-- Good: 用户先说轻量检查、后改为最终检查;以最后一次表达选择 full,完成三个适用维度。
+- Good: 用户先说轻量检查、后改为全面检查;以最后一次表达选择 full,完成三个适用维度。
+- Good: 用户只要求“提交前检查”;进入统一入口并按实际风险选择 auto,不会因准备提交机械升级 full。
 - Good: skill 只修正错别字并同步多个机械投影;影响范围闭合且没有行为契约变化,auto 选择 light,
   不因载体名称直接 full。
 - Good: 两个验证命令和一个规划对照分别发现问题;Check-All 完成其余安全检查后输出
   `CHK-001` 至 `CHK-003`,用户回复“修复全部”,实现阶段一次修复并统一重检。
+- Good: full 报告后的单点修复范围、原 finding、引用点和回归路径均闭合,下一轮用 light 定向重检并复用仍有效的 full 证据。
+- Good: 用户回复“这些风险都接受”,当前报告中的 P0/P1 findings 一次进入已接受状态,无需再输入固定口令。
+- Good: 网关生产回读只有部署后才能执行,报告登记 `[上线后验证]` 并继续提交链,Push 与 release 流程保持可见。
 - Good: 阿里云迁移声明要求无效范围必须失败关闭,实现却继续放行；根因是 fail-closed 保护失效，
   记录为 `FBK-001 [P1]`,契约证据用于确认影响与严重度，不改列为 `CHK-*`。
 - Base: 只改一处 UI 文案且可穷举引用;auto 选择 light,API/历史数据/跨层维度标记
@@ -1936,6 +1966,8 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - Bad: `trellis-route` 找不到专用 check-all agent 时改用带自修复语义的 `trellis-check` agent。
 - Bad: route skill 和内容投影各维护一张平台表,新增平台后 target/launch/format 只更新一侧。
 - Bad: 报告问题后直接生成 commit message、暂存范围或 push 确认。
+- Bad: 仅因上次 effective depth 为 full 或准备提交,再次强制完整 Full。
+- Bad: 把本地可运行但尚未执行的测试包装成 `[上线后验证]` 绕过阻断。
 
 ### 6. Tests Required
 
@@ -1962,13 +1994,15 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - 快速路径场景断言未命中 Trigger 的维度为 `N/A`,不会展开无关检查。
 - collect-all 场景断言多个独立失败被完整收集,报告只出现一次修复范围选择,检查阶段文件无变化。
 - fallback 场景断言分类先于严重度、明确兜底契约不改变 `FBK-*` 归属、三项分类准入完整、
-  缺少运行环境时保留 ID 并标记部分验证、纯偏好不报告、
+  缺少提交前验证环境时保留 ID 并标记部分验证、生产/外部验收登记 `[上线后验证]` 且非阻断、纯偏好不报告、
   `修复全部` 覆盖 `CHK-*` 与 `FBK-*`,未处置 finding 阻断交互完成链,当前有效风险接受允许继续但不隐藏问题,
   validated auto-loop 仍要求两类问题均为 0。
 - 修复/重检场景断言原问题 ID 保持稳定,修复复用 implement route,重检复用 check route。
 - 深度场景覆盖 auto light、显式 full、显式 light 命中 hard-full、fallback full、执行中升级,
-  full 修复/blocked retry 不降级,以及 workflow/skill 解释文字、机械投影和有定向验证的局部行为
+  单次执行升级后不降级、跨轮闭合局部修复可 light、进入提交链不强制 full、证据失效后 full,以及 workflow/skill 解释文字、机械投影和有定向验证的局部行为
   不因载体名称升级。必须有反向断言防止“无行为变化分支”和“局部行为分支”被拆成两个必选条件。
+- 验证证据场景同时覆盖自动化测试、可重复手动/静态/定向命令、仅缺少自动化文件不报问题,
+  以及缺少充分证据或项目明确要求自动化时仍生成 `CHK-*`。
 - 专项预算测试固定 Check-All 主入口和默认必读 reference 的任务基线;低频源码注释细则条件加载,
   不计入默认集合但单独计量,且不得通过提高全局 target/review ceiling 放行增长。
 - disposition 静态/行为测试覆盖 interactive stop 和 validated auto-loop `record + next`。

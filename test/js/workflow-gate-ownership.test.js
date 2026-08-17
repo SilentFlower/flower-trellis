@@ -253,7 +253,7 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   );
   assert.equal((checkAllReporting.match(/## Interactive Post-Check Stop Gate/g) || []).length, 1);
   assert.match(checkAll, /本 skill 是 \*\*薄入口\*\*/);
-  assert.match(checkAllReporting, /不新增 direct Git 专用摘要/);
+  assert.match(checkAllReporting, /不新增 direct Git 摘要或 Git 计划/);
   assert.match(activeState, /follow the `Interactive Post-Check Stop Gate`/);
   assert.doesNotMatch(activeState, /no-op.*written|partial verification|material residual risk/);
   assert.match(push, /Phase 3\.4 唯一的代码提交入口/);
@@ -437,6 +437,7 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.match(pushTemplates, /### 完成链证据/);
   assert.match(pushTemplates, /\*\*Check-All\*\*：<通过 \/ 通过（已接受风险：CHK-001,FBK-002） \/ 未运行 \/ 已失效 \/ 存在未处置 findings \/ blocked \/ 部分验证>/);
   assert.match(pushTemplates, /\*\*Update-Spec\*\*：<no-op \/ written \/ needs-review \/ 未运行 \/ 已失效>/);
+  assert.match(pushTemplates, /`\[上线后验证\]` 作为非阻断风险逐项保留/);
   assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);
   assertOrdered(
     push,

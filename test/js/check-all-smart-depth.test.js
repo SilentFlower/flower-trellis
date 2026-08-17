@@ -39,11 +39,19 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   assert.match(depthRouting, /hard-full 只看行为契约变化和影响面是否闭合/);
   assert.match(depthRouting, /文件载体或主题域本身不构成 hard-full/);
   assert.match(depthRouting, /同一真实源的多个机械投影仍算一个语义范围/);
-  assert.match(depthRouting, /简单检查.*轻量检查.*light check.*表示 light/);
-  assert.match(depthRouting, /全面检查.*最终检查.*提交前检查.*full check.*表示 full/);
-  assert.match(depthRouting, /以最后一次明确表达为准/);
-  assert.match(depthRouting, /正在重检既有 full `CHK-\*` \/ `FBK-\*` 修复结果/);
-  assert.match(spec, /已有 full `CHK-\*` \/ `FBK-\*` 重检/);
+  assert.match(depthRouting, /简单检查.*轻量检查.*light check.*为 light/);
+  assert.match(depthRouting, /全面检查.*全量检查.*full check.*为 full/);
+  assert.match(depthRouting, /最终检查.*提交前检查.*只调用统一入口.*requested_depth=auto/s);
+  assert.match(depthRouting, /深度按最后一次明确表达/);
+  assert.match(depthRouting, /跨轮局部修复可重新选择 light/);
+  assert.match(depthRouting, /原 finding、修复路径、引用\/回归和定向证据可闭合/);
+  assert.match(depthRouting, /同一次 Check-All 执行中.*不得降回 light/s);
+  assert.match(depthRouting, /结束任务、提交或已有 full 报告不触发 full/);
+  assert.match(depthRouting, /既有 full 证据仍覆盖当前 diff.*后续修改已定向重检.*可复用/s);
+  assert.doesNotMatch(depthRouting, /正在重检既有 full `CHK-\*` \/ `FBK-\*` 修复结果/);
+  assert.doesNotMatch(depthRouting, /不在既有 full 修复\/重检链中/);
+  assert.match(spec, /跨轮局部修复可重新选择 light/);
+  assert.doesNotMatch(spec, /已有 full `CHK-\*` \/ `FBK-\*` 重检和未知影响面继续 full/);
   assert.match(reporting, /light 通过正式满足 Phase 2\.2 检查门禁/);
   assert.ok(
     reporting.indexOf("## Auto-Loop Return Gate")
@@ -63,13 +71,13 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   assert.match(interactiveGate, /非 validated auto-loop 先输出完整标准报告/);
   assert.match(interactiveGate, /提示用户回复 `继续`/);
   assert.match(reporting, /只从当前完成链证据识别 direct Git intent/);
-  assert.match(reporting, /未处置 `CHK-\*` \/ `FBK-\*`、blocked、部分验证或未接受的实质剩余风险/);
+  assert.match(reporting, /未处置 `CHK-\*` \/ `FBK-\*`、blocked、阻断型部分验证或其它未接受实质风险/);
   assert.match(reporting, /普通 interactive 检查保持原行为/);
   assert.match(reporting, /所有 interactive 标准报告都必须在末尾输出 `### 下一步`/);
-  assert.match(reporting, /有 blocked、部分验证或实质剩余风险：指出解除阻塞所需的精确决策、授权或验证/);
+  assert.match(reporting, /有 blocked、阻断型部分验证或未标记 `\[上线后验证\]` 的实质风险：指出所需决策、授权或验证/);
   assert.match(reporting, /无 direct Git intent 且 strict pass \/ 已接受风险通过：提示用户回复 `继续`/);
   assert.match(reporting, /停止边界只控制是否自动推进，不能让报告在没有下一步提示的情况下结束/);
-  assert.match(reporting, /不新增 direct Git 专用摘要/);
+  assert.match(reporting, /不新增 direct Git 摘要或 Git 计划/);
 });
 
 test("Check-All 深度由行为影响决定而不是文件载体", () => {
@@ -100,6 +108,34 @@ test("Check-All 深度由行为影响决定而不是文件载体", () => {
   );
   assert.match(light, /闭合的语义范围/);
   assert.match(light, /载体名称不得单独触发升级/);
+  assert.match(light, /承接既有 full 报告的局部修复/);
+});
+
+test("Light 与 Full 统一按充分验证证据判断，不把自动化文件当成绝对门槛", () => {
+  const light = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/light-profile.md",
+  );
+  const full = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/full-profile.md",
+  );
+  const reporting = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
+  );
+
+  for (const profile of [light, full]) {
+    assert.match(profile, /自动化测试优先/);
+    assert.match(profile, /可重复的手动步骤、静态检查或定向命令/);
+    assert.match(profile, /仅缺少自动化测试文件不得生成 `CHK-\*`/);
+    assert.match(profile, /项目 spec、风险等级或回归概率明确要求自动化覆盖/);
+    assert.match(profile, /缺少完成当前结论所必需的充分证据.*`CHK-\*`/s);
+  }
+
+  assert.match(reporting, /`部分验证`：当前结论必需、提交前可完成但证据不足/);
+  assert.match(reporting, /`\[上线后验证\]`：仅部署后、生产或外部系统可安全验收/);
+  assert.match(reporting, /不阻断 strict pass.*strict pass 可以与其并存/s);
 });
 
 test("route 只决定 Check-All 执行位置", () => {
