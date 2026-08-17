@@ -160,6 +160,47 @@ class TaskStoreIntegrityTest(unittest.TestCase):
         self.assertTrue(task_dir.is_dir())
         self.assertEqual(json.loads(task_json.read_text(encoding="utf-8"))["status"], "in_progress")
 
+    def test_archive_completed_task_without_timestamp_backfills_before_move(self) -> None:
+        """已完成任务缺少 completedAt 时补写日期并继续归档。"""
+        task_dir = self.root / ".trellis/tasks/task"
+        task_dir.mkdir()
+        (task_dir / "task.json").write_text(
+            json.dumps({"status": "completed", "children": []}),
+            encoding="utf-8",
+        )
+
+        with self.loaded_store() as module:
+            with mock.patch.object(module, "datetime") as patched_datetime:
+                patched_datetime.now.return_value.strftime.return_value = "2026-08-17"
+                result = module.cmd_archive(Namespace(name="task", no_commit=True))
+
+        archived = list((self.root / ".trellis/tasks/archive").glob("*/task"))
+        self.assertEqual(result, 0)
+        self.assertEqual(len(archived), 1)
+        archived_data = json.loads((archived[0] / "task.json").read_text(encoding="utf-8"))
+        self.assertEqual(archived_data["status"], "completed")
+        self.assertEqual(archived_data["completedAt"], "2026-08-17")
+
+    def test_archive_completed_at_backfill_failure_stops_before_move(self) -> None:
+        """completedAt 补写失败时保留原任务并返回失败。"""
+        task_dir = self.root / ".trellis/tasks/task"
+        task_dir.mkdir()
+        task_json = task_dir / "task.json"
+        task_json.write_text(
+            json.dumps({"status": "completed", "children": []}),
+            encoding="utf-8",
+        )
+
+        with self.loaded_store() as module:
+            with mock.patch.object(module, "write_json", return_value=False):
+                with mock.patch.object(module, "archive_task_complete") as archive:
+                    result = module.cmd_archive(Namespace(name="task", no_commit=True))
+
+        self.assertEqual(result, 1)
+        archive.assert_not_called()
+        self.assertTrue(task_dir.is_dir())
+        self.assertNotIn("completedAt", json.loads(task_json.read_text(encoding="utf-8")))
+
     def test_archive_unreviewed_decision_stops_before_status_write(self) -> None:
         """存在未审 AI 决策时不得写状态、清 session 或移动目录。"""
         task_dir = self.root / ".trellis/tasks/task"

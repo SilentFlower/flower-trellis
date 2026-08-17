@@ -287,8 +287,10 @@
           "Failed to write initial task.json",
           "Relationship rollback incomplete",
           "task.json not found or invalid:",
-          "only completed tasks with completedAt can be archived",
+          "only completed tasks can be archived",
           "complete the normal trellis-push progress sync before finish-work archive",
+          "completedAt was missing and has been set to",
+          "Failed to persist completedAt before archive",
           "Failed to persist branch",
           "Failed to persist base branch",
           "Failed to persist scope",
@@ -1639,7 +1641,8 @@
           "### 1. Completion State Gate",
           "taskStatus=completed",
           "finish-work must not manufacture completion",
-          "preserves the existing `completedAt` and performs no lifecycle status write"
+          "backfills a missing value after those guards pass",
+          "performs no lifecycle status transition"
         ]
       },
       "owner": "trellis-finish-work",

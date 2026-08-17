@@ -3043,8 +3043,9 @@ completed -> explicit reopen -> in_progress
 
 ### 3. Contracts
 
-- finish-work 必须先读取权威 `task.json` 生命周期；只有 `status=completed` 且 `completedAt` 存在
-  才能进入 decision/release/archive。progress 文本不能替代状态。`in_progress` 返回 Phase 3.4，
+- finish-work 必须先读取权威 `task.json` 生命周期；只有 `status=completed` 才能进入
+  decision/release/archive。缺失 `completedAt` 属于可恢复的归档审计元数据，由 `task.py archive`
+  在 decision guard 通过后补写；progress 文本不能替代状态。`in_progress` 返回 Phase 3.4，
   损坏/未知状态 fail closed；finish-work 不制造 completed。
 - finish-work 必须独立验证 archive eligibility，但不分类普通 task-record 的 commit 恢复与 push 恢复：
   普通完成态只在当前任务目录 clean、upstream 存在且 `@{u}..HEAD` 没有提交修改当前任务时可继续；
@@ -3077,9 +3078,10 @@ completed -> explicit reopen -> in_progress
 - finish-work 开始时已有 ahead、分支 behind/diverged、无 upstream,或执行期间出现并发 commit /
   branch/upstream 变化时,完成本地 bookkeeping commits 但不自动 push。不得读取 progress 或
   legacy task 字段决定 Git 行为。
-- `task.py archive` 重复 completion-state 与 decision guard，只接受 completed + completedAt；归档
-  只移动目录、清理指针和维护 parent/child 关系，不重写 status/completedAt。归档 completed 父任务
-  时只清活动子任务的 `parent`，不得改变子任务 status/progress。
+- `task.py archive` 重复 completion-state 与 decision guard，只接受 completed。已有 `completedAt`
+  必须原样保留；字段缺失时在 guard 通过后补为归档当天，补写失败必须在目录移动前停止。归档不改变
+  status，只移动目录、清理指针和维护 parent/child 关系。归档 completed 父任务时只清活动子任务的
+  `parent`，不得改变子任务 status/progress。
 
 ### 4. Validation & Error Matrix
 
@@ -3092,7 +3094,9 @@ completed -> explicit reopen -> in_progress
 | completed、普通任务目录 clean、upstream 存在且没有 ahead commit 修改任务 | 保留活动指针进入 decision/release/archive |
 | completed、健康 auto-loop handoff 且仅 runner-owned task.json dirty | 允许进入 decision/release/archive，不推送普通 task record |
 | completed 但任务 dirty、存在可归属 task-record ahead commit或证据不完整 | release audit 前停止，进入 Push completed preflight |
-| completedAt 缺失、task.json 损坏或未知状态 | fail closed，不运行 release/archive/journal |
+| completedAt 缺失且 status=completed | 继续资格检查；decision guard 通过后由 archive 补为当天 |
+| completedAt 补写失败 | fail closed，任务目录保持原位，不清理 session |
+| task.json 损坏或未知状态 | fail closed，不运行 release/archive/journal |
 | audit-current 高置信无上线事项 | status=no-op,不创建 release.md,继续 finish-work |
 | audit-current 高置信有上线事项 | 写/更新当前任务 release.md,由 archive 自然纳入 |
 | audit-current 证据不确定 | 写 Needs human review,继续并在最终结果保留风险 |
@@ -3108,6 +3112,8 @@ completed -> explicit reopen -> in_progress
   指针才被清理。
 - Good:auto-loop runtime 精确记录当前任务待归档，关联本地提交仍可验证且仅 runner-owned task.json
   bookkeeping dirty；finish-work 允许归档，但不把该本地完成态误判为普通 task-record push。
+- Good:旧任务已是 completed 但缺少 completedAt；decision guard 通过后 archive 补写当天日期并移动，
+  不要求重复 progress helper 或任务记录 push。
 - Base:completed 父任务有一个 in_progress 子任务；归档父任务只把子任务 parent 置空，子任务继续活动。
 - Bad:finish-work 看到 progress.nextStep=archive 就替 in_progress 任务写 completed 并移动目录。
 - Bad:finish-work 看到 completed dirty 或 task-record ahead commit 后自行决定 commit/push，而不是回到
@@ -3122,8 +3128,8 @@ completed -> explicit reopen -> in_progress
 - 验证 `audit-current` 的 `no-op` / `written` / `needs-review` 三种结果,并回归普通批次模式仍需确认。
 - 验证工作区 dirty 但开始 `HEAD == upstream HEAD` 时允许 push;验证开始已有 ahead、无 upstream、
   behind/diverged 时只生成本地 bookkeeping commits。
-- 验证 archive 拒绝 in_progress/缺 completedAt，接受 completed 并保留 completedAt；覆盖 decision
-  失败零写入、completed parent/child 解除关系和归档后 session pointer 清理。
+- 验证 archive 拒绝 in_progress，接受 completed；已有 completedAt 原样保留，缺失时补写当天，补写失败
+  不移动任务。覆盖 decision 失败零写入、completed parent/child 解除关系和归档后 session pointer 清理。
 - 覆盖普通已同步、validated auto-loop handoff、completed dirty、task-record ahead commit 与矛盾 runtime
   五类 archive eligibility；确认后两类及歧义状态在 release audit 前进入 Push preflight，且 Finish Work
   不包含 commit + push / push-only 详细恢复矩阵。
@@ -3143,11 +3149,11 @@ finish-work -> task.py archive writes completed -> move task -> clear pointer
 ```text
 trellis-push -> business push -> atomic completed + completedAt -> task-record commit/push
 finish-work -> independently validate archive eligibility -> decision/release audit
-  -> archive without lifecycle rewrite
+  -> archive without status transition; backfill only missing completion metadata
 ```
 
 原因:业务完成与会话收尾是两个可恢复边界；`completed` 必须在归档前可被 workflow-state、continue
-和 session 恢复观察，archive 只负责最终移动与 bookkeeping。
+和 session 恢复观察，archive 只负责最终移动与 bookkeeping；`completedAt` 缺失不应伪装成未完成状态。
 
 ---
 

@@ -3,9 +3,9 @@
     if not task_data:
         print(colored(f"Error: task.json not found or invalid: {task_json_path}", Colors.RED), file=sys.stderr)
         return 1
-    if task_data.get("status") != "completed" or not task_data.get("completedAt"):
+    if task_data.get("status") != "completed":
         print(
-            colored("Error: only completed tasks with completedAt can be archived", Colors.RED),
+            colored("Error: only completed tasks can be archived", Colors.RED),
             file=sys.stderr,
         )
         print(

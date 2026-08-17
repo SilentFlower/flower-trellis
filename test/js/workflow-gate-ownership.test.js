@@ -282,6 +282,8 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(completedRecovery, /任务记录 commit \+ push 恢复计划/);
   assert.match(completedRecovery, /任务记录 push-only 恢复计划/);
   assert.match(completedRecovery, /显式 finish-work，普通已同步/);
+  assert.match(completedRecovery, /缺失 `completedAt` 只记为待归档补写的审计元数据/);
+  assert.match(completedRecovery, /由后续 archive 补写/);
   assert.match(completedRecovery, /未知 ahead 修改任务/);
   assert.doesNotMatch(push, /只有进度 commit 和 push 都成功后/);
   assert.doesNotMatch(push, /archive bookkeeping commit 承接/);
@@ -304,7 +306,8 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(finish, /must not recommit or push the normal task record itself/);
   assert.match(finish, /### 2\. Decision Audit/);
   assert.match(finish, /decision_log\.py status --task <task-name> --json/);
-  assert.match(finish, /preserves the existing `completedAt` and performs no lifecycle status write/);
+  assert.match(finish, /backfills a missing value after those guards pass/);
+  assert.match(finish, /performs no lifecycle status transition/);
   assert.match(continueRecovery, /task_progress\.py status --json/);
   assert.match(continueRecovery, /Never rebind the session or task automatically/);
   assert.match(continueRecovery, /taskStatus=completed/);
