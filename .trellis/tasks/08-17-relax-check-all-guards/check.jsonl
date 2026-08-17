@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "验证 Check-All 与 workflow 上下文预算不通过提高阈值掩盖变化"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "执行项目级测试、dogfood、快照和 diff 质量门禁"}
+{"file": ".trellis/tasks/08-17-relax-check-all-guards/design.md", "reason": "检查四项规则的正反边界和下游一致性"}

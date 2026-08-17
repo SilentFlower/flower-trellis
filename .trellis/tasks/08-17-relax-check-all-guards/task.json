@@ -1,0 +1,74 @@
+{
+  "id": "relax-check-all-guards",
+  "name": "relax-check-all-guards",
+  "title": "放宽 Check-All 机械门禁",
+  "description": "调整风险接受、生产延期验证、Full 修复重检和 Light 验证规则，减少无信息增量的重复确认与全量检查。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-17",
+  "completedAt": "2026-08-17",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-17T06:56:50Z",
+      "contextKey": "codex_01a00e77-39cc-7c73-9346-e28090973e8e",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "c250c31863e98ea82e7ca30327fe4ffaabbdf30b",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "c250c31863e98ea82e7ca30327fe4ffaabbdf30b",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "1218edb8aa6f5df55d8773a6bde2e0ddfdda47b9ff118670b1ff515dc29e4140"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "97b63de39f00837c9f63e2c08f884e667b0d5524",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "3c99abbed7d6665df7149e87c632dd90a44da2c9bb761746e71ffc97f6e9fc2d"
+          }
+        ],
+        "fingerprint": "2c675726a2cd2d72b47e4d9aab8f28a1b64fbc10924703c921e40b871d739cd4"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-17T08:41:07Z",
+    "completedSteps": [
+      "放宽 Check-All 风险接受、验证阶段、重检深度与验证证据合同",
+      "同步 Skill-Garden canonical、compiled targets、Flower snapshot 与 dogfood",
+      "完成定向测试、全量测试和 Check-All",
+      "提交并推送 vendor 与 Flower 业务改动"
+    ],
+    "partialStep": null,
+    "nextStep": "归档已完成任务",
+    "notes": "Check-All 通过；Update-Spec no-op。"
+  }
+}
