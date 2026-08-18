@@ -1050,7 +1050,7 @@ pruneUpdateBackups(target, { retention, beforeSnapshot, dryRun });
 <flowerConfigDirectory>/telemetry.json
 flower-trellis telemetry status|enable|disable
 FLOWER_NO_TELEMETRY=1
-POST https://ai-api.flower-cli.com/api/flower-trellis/telemetry
+POST https://ai-api.hub.flower-cli.com/
 ```
 
 状态字段固定为 `schemaVersion`、`deviceId`、`developerName`、`enabled`、`lastAttemptAt`、`lastSuccessAt`；旧状态缺少 `developerName` 时只读兼容为 `null`，下一次真实上报自动补齐。事件固定为 `version_check`、`init_completed`、`update_completed`。

@@ -9,7 +9,7 @@ import { readManifest, readUpdateCheck } from "./manifest.js";
 import { flowerVersion, trellisVersion } from "./versions.js";
 
 /** Flower 遥测接收地址。 */
-export const FLOWER_TELEMETRY_ENDPOINT = "https://ai-api.flower-cli.com/api/flower-trellis/telemetry";
+export const FLOWER_TELEMETRY_ENDPOINT = "https://ai-api.hub.flower-cli.com/";
 
 const TELEMETRY_SCHEMA_VERSION = 1;
 /** 遥测请求保留 10 秒公网预算，避免慢速 TLS 建连或服务端响应被过早中止。 */
