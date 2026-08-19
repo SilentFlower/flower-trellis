@@ -1080,3 +1080,25 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 91: 归档放宽 Check-All 机械门禁任务
+
+**Date**: 2026-08-19
+**Task**: 归档放宽 Check-All 机械门禁任务
+**Branch**: `beta`
+
+### Summary
+
+完成 relax-check-all-guards 任务的完成态、决策与上线事项审计，并将任务归档至 2026-08。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1a813e0` | (see git log) |
+| `739a07e` | (see git log) |
+
+### Status
+
+[OK] **Completed**

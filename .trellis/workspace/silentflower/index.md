@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 90
-- **Last Active**: 2026-08-13
+- **Total Sessions**: 91
+- **Last Active**: 2026-08-19
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~1082 | Active |
+| `journal-2.md` | ~1104 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 91 | 2026-08-19 | 归档放宽 Check-All 机械门禁任务 | `1a813e0`,  `739a07e` | `beta` |
 | 90 | 2026-08-13 | 完成 Maven 验证 Skill 并归档任务 | `61ab2f3`, `7d656af`, `59bd52b` | `beta` |
 | 89 | 2026-08-12 | 归档 Trellis 0.6.14 升级任务 | `a44be04`, `556285b` | `beta` |
 | 88 | 2026-08-12 | 优化任务完成提交并准备 Beta 发布 | `51d880f`, `bb364bc`, `eb7896a` | `beta` |
