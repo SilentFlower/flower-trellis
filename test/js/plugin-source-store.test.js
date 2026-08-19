@@ -18,7 +18,7 @@ test("用户 source store 默认内置 rd-guide 且读取不触发网络", (t) =
     enabled: true,
     baseUrl: "https://gitlab.xhgjdev.com",
     project: "digital-rd-governance/rd-guide",
-    ref: "feat/flower-plugin-distribution",
+    ref: "main",
     marketplacePath: ".flower-marketplace/marketplace.json",
     oauth: {
       applicationId: "0f73e53d745450b6ab9596960b10a2ac1654d67c0941bae381f6dbbf6839ec04",
@@ -121,7 +121,7 @@ test("用户 source store 不让旧用户记录覆盖内置连接定义，并在
       enabled: false,
       baseUrl: "http://gitlab.xhgjdev.com",
       project: "legacy/rd-guide",
-      ref: "main",
+      ref: "legacy-branch",
       marketplacePath: "legacy-marketplace.json",
       oauth: { applicationId: "legacy-client", scopes: ["read_api", "read_repository"] },
     }],
@@ -131,7 +131,7 @@ test("用户 source store 不让旧用户记录覆盖内置连接定义，并在
   assert.equal(source.enabled, false);
   assert.equal(source.baseUrl, "https://gitlab.xhgjdev.com");
   assert.equal(source.project, "digital-rd-governance/rd-guide");
-  assert.equal(source.ref, "feat/flower-plugin-distribution");
+  assert.equal(source.ref, "main");
   assert.throws(
     () => store.set({ ...source, ref: "other", builtin: undefined }),
     (error) => error.code === "PLUGIN_SOURCE_CONFIG_INVALID" && error.message.includes("内置"),
