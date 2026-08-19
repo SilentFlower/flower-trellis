@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md", "reason": "复核 ref 改动是否符合 GitLab source 契约，以及 marketplace.id 与 source.id 的一致性要求"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "复核 R3 的测试改动：fixture 与 builtin 值重合会让断言退化为恒真，需按测试有效性要求核验"}

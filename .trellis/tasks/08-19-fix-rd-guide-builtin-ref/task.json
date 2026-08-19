@@ -1,0 +1,38 @@
+{
+  "id": "fix-rd-guide-builtin-ref",
+  "name": "fix-rd-guide-builtin-ref",
+  "title": "修复 rd-guide 内置来源 ref 失效",
+  "description": "rd-guide 内置来源的 ref 自 2026-08-06 起指向 feat/flower-plugin-distribution，该分支已随 rd-guide MR !97 合并被自动删除，导致该来源对所有客户端不可解析。改回 main（2026-07-28 引入时的原始值），同步受影响测试断言与 fixture，并提交推送到 beta。beta 发版与升级回读作为后续独立发布流程执行。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-19",
+  "completedAt": "2026-08-19",
+  "branch": "beta",
+  "base_branch": "beta",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-08-19T08:32:08.019Z",
+    "completedSteps": [
+      "恢复 rd-guide 内置来源 ref 并更新防回归测试",
+      "完成定向、反套套、全量测试与 Check-All",
+      "完成 Update-Spec no-op 判定",
+      "提交并推送 beta"
+    ],
+    "partialStep": null,
+    "nextStep": "进入独立 beta 发布流程",
+    "notes": "真实 release 需在 dry-run 展示后由 owner 单独确认；端到端安装回读依赖 rd-guide MR-2 合入 main。"
+  }
+}
