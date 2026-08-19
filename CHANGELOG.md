@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.1-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.6.1-beta.4...v0.6.1-beta.5) (2026-08-19)
+
+
+### 🐛 修复 Bug Fixes
+
+* **plugin:** 恢复 rd-guide 内置来源 ref ([c399f86](https://github.com/SilentFlower/flower-trellis/commit/c399f868a6ea96bf1beca616dc9548ef9a86bfb0))
+* **telemetry:** 更新安装监控上报地址 ([53d8b79](https://github.com/SilentFlower/flower-trellis/commit/53d8b79b374db095094f0fe8b107d54719d1c94f))
+
 ## [0.6.1-beta.4](https://github.com/SilentFlower/flower-trellis/compare/v0.6.1-beta.3...v0.6.1-beta.4) (2026-08-17)
 
 
