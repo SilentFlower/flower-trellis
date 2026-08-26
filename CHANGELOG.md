@@ -4,6 +4,36 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.1](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0...v0.6.1) (2026-08-26)
+
+
+### ✨ 新功能 Features
+
+* **flower:** 同步 Check-All 门禁规则 ([739a07e](https://github.com/SilentFlower/flower-trellis/commit/739a07ee05211ab74a565892d277afb34dc3abdd))
+* **flower:** 同步任务完成态与检查报告优化 ([bb364bc](https://github.com/SilentFlower/flower-trellis/commit/bb364bc6af341ec23368ab94b798e677cc9580bb))
+* **flower:** 接入 Maven 验证并同步 continue 文案 ([3819d75](https://github.com/SilentFlower/flower-trellis/commit/3819d759ecdd3bf067d02c8eac48d38b787ba037))
+* **trellis:** 升级上游至 0.6.14 ([556285b](https://github.com/SilentFlower/flower-trellis/commit/556285b68c5723e13f7d55f4c801022c82e3b011))
+
+
+### 🐛 修复 Bug Fixes
+
+* **flower:** 同步 completedAt 归档兼容 ([78f715f](https://github.com/SilentFlower/flower-trellis/commit/78f715f3a0f2a9eaf9d0fde07b1f906a6b4548f7))
+* **flower:** 同步 Maven 验证修复 ([7d656af](https://github.com/SilentFlower/flower-trellis/commit/7d656af2a7975f7f1ffd5cff307f72cc482e9062))
+* **flower:** 同步实现后检查交接规则 ([6ff3e48](https://github.com/SilentFlower/flower-trellis/commit/6ff3e48821c1b5f2bd679440a045fa7fa9a16295))
+* **plugin:** 恢复 rd-guide 内置来源 ref ([c399f86](https://github.com/SilentFlower/flower-trellis/commit/c399f868a6ea96bf1beca616dc9548ef9a86bfb0))
+* **telemetry:** 更新安装监控上报地址 ([53d8b79](https://github.com/SilentFlower/flower-trellis/commit/53d8b79b374db095094f0fe8b107d54719d1c94f))
+* **telemetry:** 补全开发者身份回退 ([1f95dfe](https://github.com/SilentFlower/flower-trellis/commit/1f95dfea26ce8117e437d973369ad6140fa17843))
+
+
+### ♻️ 重构 Refactor
+
+* **flower:** 同步 Push 输出模板分层 ([b340825](https://github.com/SilentFlower/flower-trellis/commit/b340825036a782679e14f74f8064664966f0a1bf))
+
+
+### 📝 文档 Docs
+
+* 更新开发日志 ([29cdbc0](https://github.com/SilentFlower/flower-trellis/commit/29cdbc0dd0f7cf323f714f08270d08ef5dd8a107))
+
 ## [0.6.1-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.6.1-beta.4...v0.6.1-beta.5) (2026-08-19)
 
 
