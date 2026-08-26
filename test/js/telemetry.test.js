@@ -90,7 +90,10 @@ test("遥测首次上报默认启用并持久化稳定设备 ID", async (t) => {
 
   assert.equal(result.status, "reported");
   assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, "https://ai-api.hub.flower-cli.com/");
+  assert.equal(
+    requests[0].url,
+    "https://ai-api.hub.flower-cli.com/api/flower-trellis/telemetry",
+  );
   assert.equal(requests[0].url, FLOWER_TELEMETRY_ENDPOINT);
   const stateResult = readTelemetryState({ env: fixture.env });
   assert.equal(stateResult.status, "valid");
