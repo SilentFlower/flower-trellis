@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.1...v0.6.2) (2026-08-26)
+
+
+### 🐛 修复 Bug Fixes
+
+* **flower:** 修正遥测上报地址并忽略上游 npm 升级提示 ([3030472](https://github.com/SilentFlower/flower-trellis/commit/303047282032270267cf3b26ffc20c13f9892324))
+
 ## [0.6.1](https://github.com/SilentFlower/flower-trellis/compare/v0.6.0...v0.6.1) (2026-08-26)
 
 
