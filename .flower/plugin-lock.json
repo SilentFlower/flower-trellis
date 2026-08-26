@@ -22,13 +22,13 @@
       },
       "dependencies": {},
       "id": "flower/skill-garden",
-      "integrity": "sha256:1ee8a2e79be2becf90b331caef0cf53f14ef2a68e272f450486f2397e0da6bd0",
+      "integrity": "sha256:ca4a5e18e133ab05cf9d232f36bc1dcce0740550d31c8d9d9a3a0becd4ec9f7c",
       "source": {
         "id": "flower",
         "reference": "package:skill-garden:0.6",
         "type": "builtin"
       },
-      "version": "0.6.1-beta.5"
+      "version": "0.6.1"
     },
     {
       "capabilities": {
