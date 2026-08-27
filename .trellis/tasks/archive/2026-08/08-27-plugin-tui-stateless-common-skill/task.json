@@ -3,7 +3,7 @@
   "name": "plugin-tui-stateless-common-skill",
   "title": "Plugin TUI 无状态管理 common skill",
   "description": "让 Plugin TUI 在无 Trellis、无 .flower 项目中保持现有交互并可管理 Flower common skill，内部不写 Plugin lock/state。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "silentflower",
   "assignee": "silentflower",
   "createdAt": "2026-08-27",
-  "completedAt": null,
+  "completedAt": "2026-08-27",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -22,5 +22,14 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-08-27T07:19:42Z",
+    "completedSteps": [
+      "auto-loop: 本地提交完成 .:0a9cd62"
+    ],
+    "partialStep": null,
+    "nextStep": "auto-loop 已本地提交并置为本地完成态；需要用户显式运行 finish-work/archive 完成归档",
+    "notes": "run_id=auto-20260827064539; task=.trellis/tasks/08-27-plugin-tui-stateless-common-skill; commit=0a9cd62ff3cd37971f5d65ea8500e4f51ed3a280; commits=.:0a9cd62ff3cd37971f5d65ea8500e4f51ed3a280; status=completed"
+  }
 }
