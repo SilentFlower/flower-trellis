@@ -1144,3 +1144,25 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 94: 归档修复 rd-guide 内置来源 ref 失效
+
+**Date**: 2026-08-27
+**Task**: 归档修复 rd-guide 内置来源 ref 失效
+**Branch**: `main`
+
+### Summary
+
+补充 rd-guide 内置来源 ref 修复任务的 release handoff 记录，并归档已完成任务。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c399f86` | (see git log) |
+| `06c05d` | (see git log) |
+
+### Status
+
+[OK] **Completed**
