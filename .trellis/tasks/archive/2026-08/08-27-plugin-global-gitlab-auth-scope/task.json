@@ -3,7 +3,7 @@
   "name": "plugin-global-gitlab-auth-scope",
   "title": "Plugin 复用全局 GitLab 凭据与新 OAuth scope",
   "description": "让 Flower Plugin 的 rd-guide/GitLab source 复用全局 glab 或 PAT 凭据，并把 Flower OAuth 主动请求 scope 调整为新公共 Application scope，同时保持 TUI 登录体验不区分凭据来源。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "silentflower",
   "assignee": "silentflower",
   "createdAt": "2026-08-27",
-  "completedAt": null,
+  "completedAt": "2026-08-27",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -22,5 +22,14 @@
   "parent": null,
   "relatedFiles": [],
   "notes": "",
-  "meta": {}
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-08-27T07:19:42Z",
+    "completedSteps": [
+      "auto-loop: 本地提交完成 .:a3c6b16"
+    ],
+    "partialStep": null,
+    "nextStep": "auto-loop 已本地提交并置为本地完成态；需要用户显式运行 finish-work/archive 完成归档",
+    "notes": "run_id=auto-20260827064539; task=.trellis/tasks/08-27-plugin-global-gitlab-auth-scope; commit=a3c6b1616b123ff0f7328ce5b2eace5eb631ae5b; commits=.:a3c6b1616b123ff0f7328ce5b2eace5eb631ae5b; status=completed"
+  }
 }
