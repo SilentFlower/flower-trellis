@@ -73,7 +73,8 @@ test("真实 TTY 裸 plugin 打开管理首页并可零写入退出", async (t) 
   const output = stripAnsi(result.output);
   assert.equal(result.status, 0, output);
   assert.match(output, /Flower Plugin/);
-  assert.match(output, /发现 0.*已安装 0.*来源 1.*问题/);
+  assert.match(output, /发现 1.*已安装 0.*来源 1.*问题/);
+  assert.match(output, /flower\/skill-garden/);
   assert.match(output, /已退出 Plugin 管理/);
   assert.deepEqual(snapshotProjectFiles(project), before);
 });

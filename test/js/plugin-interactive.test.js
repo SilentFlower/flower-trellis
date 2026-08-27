@@ -150,6 +150,46 @@ test("发现页的内置 Skill Garden 入口复用 skill 管理器", async (t) =
   script.assertDone();
 });
 
+test("无 Trellis 项目发现页仍可打开内置 Skill 管理且不读取 Provider 候选", async (t) => {
+  const fixture = interactiveFixture(t);
+  fs.mkdirSync(path.join(fixture.project, ".codex"), { recursive: true });
+  const script = scriptedPrompts([
+    {
+      type: "manager",
+      value: managerResult("discover", "builtin:flower/skill-garden"),
+      check: (view) => {
+        const builtin = view.itemsByTab.discover.find(({ value }) => value === "builtin:flower/skill-garden");
+        assert.equal(builtin.title, "flower/skill-garden");
+        assert.match(builtin.meta, /Flower 内置 · .+/);
+        assert.equal(view.tabs.find(({ id }) => id === "discover").count, 1);
+        assert.equal(view.tabs.find(({ id }) => id === "issues").count, 0);
+      },
+    },
+    { type: "manager", value: managerResult("discover", "exit") },
+  ]);
+  let opened = 0;
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    store: fixture.store,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    skillGardenProvider: {
+      listCandidates: () => {
+        throw new Error("无 Trellis common-only 不应读取 Provider 候选");
+      },
+    },
+    openSkillManager: async () => { opened += 1; },
+    authStatus: async () => ({ authorized: false, persistent: false }),
+    runCommand: () => { throw new Error("内置 Skill 管理入口不应执行 Plugin 生命周期命令"); },
+  });
+  assert.equal(opened, 1);
+  assert.equal(fs.existsSync(path.join(fixture.project, ".flower")), false);
+  assert.equal(fs.existsSync(path.join(fixture.project, ".trellis")), false);
+  assert.doesNotMatch(fixture.output.join("\n"), /目标不是 Trellis/);
+  script.assertDone();
+});
+
 test("旧版 Skill Garden 计入已安装并保持只读", async (t) => {
   const fixture = interactiveFixture(t);
   const trellisDir = path.join(fixture.project, ".trellis");
@@ -238,7 +278,10 @@ test("未登录来源按 Enter 直接设备码授权并返回原发现页", asyn
     {
       type: "manager",
       value: managerResult("discover", "auth:rd-guide"),
-      check: (view) => assert.match(view.itemsByTab.discover[0].description, /获取 GitLab 授权码/),
+      check: (view) => {
+        const auth = view.itemsByTab.discover.find(({ value }) => value === "auth:rd-guide");
+        assert.match(auth.description, /获取 GitLab 授权码/);
+      },
     },
     { type: "manager", value: managerResult("discover", "plugin:rd-guide:rd-guide/review") },
     { type: "select", value: "install" },

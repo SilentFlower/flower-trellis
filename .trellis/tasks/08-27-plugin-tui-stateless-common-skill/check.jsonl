@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md", "reason": "验证 Plugin TUI 与 Runtime 边界未混淆"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "验证交互菜单文案、退出与非 TTY 行为"}
+{"file": ".trellis/tasks/08-27-plugin-tui-stateless-common-skill/research/current-behavior.md", "reason": "验证 no .trellis/no .flower 行为与当前证据一致"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-contracts.md", "reason": "验证 .flower Project Store 契约未被 common skill 绕错"}

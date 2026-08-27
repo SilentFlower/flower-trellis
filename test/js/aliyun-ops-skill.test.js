@@ -105,13 +105,16 @@ function assertSkillTreesEqual(left, right) {
  *
  * @param {import("node:test").TestContext} t 测试上下文
  * @param {string[]} platforms 平台名称
+ * @param {{trellis?: boolean}} [options] 测试项目选项
  * @returns {string} 临时项目根目录
  */
-function createTarget(t, platforms) {
+function createTarget(t, platforms, options = {}) {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-aliyun-ops-"));
   t.after(() => fs.rmSync(target, { recursive: true, force: true }));
-  fs.mkdirSync(path.join(target, ".trellis"), { recursive: true });
-  fs.writeFileSync(path.join(target, ".trellis", ".version"), "0.6.5\n");
+  if (options.trellis !== false) {
+    fs.mkdirSync(path.join(target, ".trellis"), { recursive: true });
+    fs.writeFileSync(path.join(target, ".trellis", ".version"), "0.6.5\n");
+  }
   for (const platform of platforms) {
     fs.mkdirSync(path.join(target, `.${platform}`), { recursive: true });
   }
@@ -400,6 +403,36 @@ test("Trellis workflow skill 菜单显示中文短说明", (t) => {
   );
   assert.equal(descriptions["trellis-worktree"], "管理分支本地化 Trellis worktree");
   assert.equal(descriptions["trellis-flower-update"], "手动追平已安装 Flower 强化包");
+});
+
+test("无 Trellis 项目可列出、启停 common Skill 且不创建项目状态", (t) => {
+  const target = createTarget(t, ["codex"], { trellis: false });
+
+  const catalog = listSkillCatalog(target, "0.6");
+  const item = catalog.commonSkills.find(({ name }) => name === SKILL_NAME);
+  assert.equal(catalog.variant, "0.6");
+  assert.equal(catalog.version, "");
+  assert.deepEqual(catalog.enhancementSkills, []);
+  assert.ok(item);
+  assert.equal(item.installed, false);
+
+  const installed = installCommonSkills(target, [SKILL_NAME]);
+  assert.deepEqual(installed.installed, [SKILL_NAME]);
+  assert.deepEqual(installed.paths, [`.codex/skills/${SKILL_NAME}`]);
+  assert.equal(fs.existsSync(path.join(target, ".codex/skills", SKILL_NAME, "SKILL.md")), true);
+
+  seedSkill(target, ".agents/skills", SKILL_NAME);
+  const userSkill = seedSkill(target, ".codex/skills", "user-skill");
+  const removed = removeCommonSkills(target, "0.6", [SKILL_NAME]);
+
+  assert.ok(removed.removed.includes(`.codex/skills/${SKILL_NAME}`));
+  assert.ok(removed.removed.includes(`.agents/skills/${SKILL_NAME}`));
+  assert.deepEqual(removed.skipped, []);
+  assert.equal(fs.existsSync(path.join(target, ".codex/skills", SKILL_NAME)), false);
+  assert.equal(fs.existsSync(path.join(target, ".agents/skills", SKILL_NAME)), false);
+  assert.equal(fs.readFileSync(userSkill, "utf8"), "stale:user-skill\n");
+  assert.equal(fs.existsSync(path.join(target, ".flower")), false);
+  assert.equal(fs.existsSync(path.join(target, ".trellis")), false);
 });
 
 for (const platforms of [["codex"], ["claude"], ["codex", "claude"]]) {

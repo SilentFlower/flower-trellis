@@ -59,6 +59,17 @@ parsePluginArgs(argv) -> PluginCommand
 plugin(ctx, options?) -> Promise<0 | 1 | 2 | 3>
 ```
 
+Common skill 管理入口固定为：
+
+```js
+listSkillCatalog(target, variantOverride?)
+  -> { variant, version, commonSkills, enhancementSkills }
+installCommonSkills(target, names)
+  -> { installed, paths, skipped }
+removeCommonSkills(target, variantOverride, names)
+  -> { removed, skipped }
+```
+
 `plugin update` 的命令行签名：
 
 ```text
@@ -159,6 +170,17 @@ Source Provider 最小接口固定为：
 ### Builtin Skill-Garden
 
 - `flower/skill-garden` 是显式 builtin system Plugin。完整 `init` 默认声明它；独立 `plugin add` 不得隐式声明。
+- 目标缺少 `.trellis/` 时，`flower-trellis plugin` 仍可在发现页展示 `flower/skill-garden`
+  入口，但该入口只能生成既有 `skill-manager` action 并打开 `flower-trellis skill` 菜单；
+  不得调用 `SkillGardenBuiltinProvider.listCandidates()`、`PluginApplicationService`、
+  `TransactionWriter.apply()` 或 `runWithTrellisIntegrationEnabled()`，也不得创建 `.flower/`、
+  `.trellis/`、lock/state 或 trellis-control 状态。入口版本用当前 `flowerVersion()` 展示。
+- `listSkillCatalog(target, variantOverride)` 在目标缺少 `.trellis/` 时只读取随包
+  `enhancements/common/.common`，返回 common skill 清单与空 `enhancementSkills`；只有目标已有
+  `.trellis/`、需要展示工作流强化 skill 时，才调用 `resolveEnhancementSnapshot()`。
+- `removeCommonSkills(target, variantOverride, names)` 的删除安全性来自当前 common snapshot 名称、
+  迁移/tombstone 规则和 `allCommonSkillDirs()` 精确目标约束；目标缺少 `.trellis/` 时不得为了停用
+  common skill 强制解析增强快照。
 - Provider digest 稳定绑定 Flower 版本、variant、去除 `syncedAt` 的快照 manifest，以及当前 variant、`enhancements/common`、`src/assets`、`src/lib`、`src/patches` 和 builtin Plugin 目录的 canonical 内容；不得包含绝对路径、mtime、同步时间、`__pycache__` 或 `.pyc`。
 - skill-garden 的内容投影必须和 digest 同口径忽略 `__pycache__` / `.pyc`。发布包靠 `package.json`
   的 `files` 排除它们，源码检出(开发树、`npm link`)没有这层保护；一旦把源码树的字节码缓存投影出去，
@@ -185,6 +207,9 @@ Source Provider 最小接口固定为：
 | `version` 缺 `id` / `widen` 与 `id` 并用 / `widen` 指向未声明 Plugin | `PLUGIN_USAGE_ERROR`，退出码 `2` | 零写入，空项目也不得降级为 `unchanged` |
 | `--widen` 取值不是 `<plugin>=<range>`、range 非法或同一 Plugin 重复声明 | `PLUGIN_USAGE_ERROR`，退出码 `2` | 参数解析阶段失败，Runtime 未启动 |
 | 平台未知或未选择 | `PLUGIN_PLATFORM_UNKNOWN` / `PLUGIN_PLATFORM_SELECTION_REQUIRED` | 不创建 `.flower/` 和平台 root |
+| 目标缺少 `.trellis/` 且打开 Plugin TUI | 展示 `flower/skill-garden` skill-manager 入口 | 不调用 builtin Provider 候选解析，不创建 `.flower/` 或 `.trellis/` |
+| 目标缺少 `.trellis/` 且打开 `flower-trellis skill` | common skill 可管理，工作流强化列表为空 | 不抛 `目标不是 Trellis 项目`，不写 Plugin state |
+| 目标缺少 `.trellis/` 且停用 common skill | 只删除当前 common snapshot 声明的精确 skill 目录 | 保留用户自建同 root skill，不创建 `.flower/` |
 | 同目标 ownership/内容或前缀冲突 | `PLUGIN_CONTENT_CONFLICT` | 事务目录尚未创建 |
 | 计划后 target、directory 或 payload 漂移 | `PLUGIN_TARGET_DRIFT` | project files 不写入 |
 | 事务中途失败且恢复成功 | `PLUGIN_TRANSACTION_FAILED` | 目标和三类 project files 恢复 |
@@ -215,6 +240,8 @@ Source Provider 最小接口固定为：
 ### Base
 
 - 空项目执行 `plugin list` 或无参数 `plugin update`：返回空视图或 `unchanged`，不创建 `.flower/`。
+- 普通代码仓只有 `.codex/` 或 `.claude/`，没有 `.trellis/`、`.flower/`：交互式 `plugin`
+  首页可显示 `flower/skill-garden` 入口并零写入退出；选择该入口只进入 skill 管理菜单。
 - 空项目执行 `plugin update --version <range>`（无 Plugin ID）：仍返回 `PLUGIN_USAGE_ERROR` 退出码 `2`，不被空项目短路吞掉。
 - dry-run 计划包含目标变化和孤立依赖，但项目字节、mtime 和事务目录不变化。
 - GitHub 来源预览发现两个格式入口：交互模式展示候选并固定用户选择；同一输入在非 TTY 下返回结构化歧义错误。
@@ -226,6 +253,8 @@ Source Provider 最小接口固定为：
 - local Plugin 在无平台项目中隐式创建 `.claude/skills`。
 - Provider 返回绝对缓存路径进入 lock/JSON，或 Resolver 直接访问网络和目标文件系统。
 - 为 GitLab 或 Patch capability 复制一套依赖求解、InstallPlan 或事务 writer。
+- 无 `.trellis/` 目标中用 `SkillGardenBuiltinProvider.listCandidates()` 加载发现页入口，导致
+  common-only 场景被 `resolveEnhancementSnapshot()` 挡住并写入问题页签。
 - `flower-trellis update` 重放 `flower/skill-garden` 时不传 `--platform`，导致 Runtime 复用污染的旧
   `.flower/state.json.platforms` 并重新创建未启用平台目录。
 - 在 Provider 内按遍历顺序选择第一个外部 manifest，或让 Adapter 直接写 `.agents/skills`、`.claude/skills`、`.flower/`。
@@ -241,6 +270,10 @@ Source Provider 最小接口固定为：
 - `plugin-transaction-writer.test.js`：before/payload 漂移、state 最后写、changed-only、dry-run、回滚和 retained evidence。
 - `plugin-format-adapters.test.js`：Flower/Codex/Claude/skill-only 检测、歧义、路径边界、commands 转换、主动组件仅诊断和标准包校验。
 - `plugin-interactive.test.js` 与 `plugin-remote-cli.test.js`：歧义选择、非 TTY 零 prompt、兼容预览、临时 cache 成功/失败清理和确认前零持久化。
+- no `.trellis` common-only 回归必须覆盖：`aliyun-ops-skill.test.js` 断言 `listSkillCatalog()` 返回
+  common 清单、空 `enhancementSkills`、安装/停用不创建 `.flower`；`plugin-interactive.test.js`
+  断言发现页内置入口不读取 Provider 候选且只调用 `openSkillManager()`；`plugin-e2e-interactive.test.js`
+  断言真实 TTY 裸 `plugin` 首页显示内置入口并零写入退出。
 - `plugin-lifecycle-cli.test.js`：parser、真实 add/update/remove/verify、空项目 update、无平台零写入、JSON/人类输出、短 ID 和退出码。断言点还须覆盖：`--widen` 的重复取值与含 `=` range 的切分；多个精确锁同时越界时逐个 `--version` 失败于 `已锁定 Plugin 包不可重放` 而批量 `--widen` 成功；批量 dry-run 后 `plugins.json` 零写入；未越界声明保持原样；空项目 `update --version` 返回退出码 `2`。
 - `trellis-control.test.js`：disabled 项目真实 `plugin add` 后外部 Skill、声明和 state 保留，Trellis
   平台入口重新 detach，最终 `inspectTrellisControl().status === "disabled"`；同时覆盖 excluded spec
@@ -301,3 +334,27 @@ if (await confirm()) await runCommand(args);
 ```
 
 预览与执行使用同一组参数，所以预览不会因为"还没放宽"而失败；`update="all"` 让每个节点都允许升级，互锁被一次解开。
+
+无 Trellis common-only 入口的 Wrong / Correct：
+
+#### Wrong
+
+```js
+if (!fs.existsSync(path.join(target, ".trellis"))) {
+  const candidate = provider.listCandidates(SKILL_GARDEN_PLUGIN_ID)[0];
+  return [{ kind: "builtin", id: candidate.id, version: candidate.version }];
+}
+```
+
+`provider.listCandidates()` 会解析增强快照，目标没有 `.trellis/` 时会抛错并把 common skill 管理路径误升级成正式 Plugin Runtime。
+
+#### Correct
+
+```js
+if (!fs.existsSync(path.join(target, ".trellis"))) {
+  return [{ kind: "builtin", id: SKILL_GARDEN_PLUGIN_ID, version: flowerVersion() }];
+}
+```
+
+无 `.trellis/` 分支只负责把用户带到既有 `skill-manager` action；common skill 的启停继续由
+`listSkillCatalog()`、`installCommonSkills()` 和 `removeCommonSkills()` 按平台目录事实处理。

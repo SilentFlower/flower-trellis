@@ -7,6 +7,7 @@ import {
   SkillGardenBuiltinProvider,
 } from "../builtin-plugins/skill-garden/provider.js";
 import { readLegacyManifestStatus } from "../lib/manifest.js";
+import { flowerVersion } from "../lib/versions.js";
 import { createCredentialStore } from "../plugin/auth/keyring-credential-store.js";
 import {
   detectPluginPlatforms,
@@ -547,7 +548,9 @@ function invalidateDiscovery(state) {
  * @returns {object[]} 内置 entry
  */
 function buildBuiltinDiscoverEntries(context) {
-  if (!fs.existsSync(path.join(context.ctx.target, ".trellis"))) return [];
+  if (!fs.existsSync(path.join(context.ctx.target, ".trellis"))) {
+    return [{ kind: "builtin", id: SKILL_GARDEN_PLUGIN_ID, version: flowerVersion() }];
+  }
   try {
     const candidate = context.skillGardenProvider.listCandidates(SKILL_GARDEN_PLUGIN_ID)[0];
     if (!candidate) return [];

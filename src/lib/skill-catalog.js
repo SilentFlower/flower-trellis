@@ -445,6 +445,16 @@ function isCommonSkillInstalled(target, name) {
 }
 
 /**
+ * 判断目标是否已经初始化为 Trellis 项目。
+ *
+ * @param {string} target 目标项目根目录
+ * @returns {boolean} 是否存在 `.trellis` 入口
+ */
+function hasTrellisProject(target) {
+  return fs.existsSync(path.join(target, ".trellis"));
+}
+
+/**
  * 读取当前可管理的通用技能元数据。
  *
  * @param {string} target 目标项目根目录
@@ -502,6 +512,15 @@ function listWorkflowEnhancementSkills(target, variantDir) {
  * @returns {{variant: string, version: string, commonSkills: object[], enhancementSkills: object[]}} 菜单清单
  */
 export function listSkillCatalog(target, variantOverride) {
+  if (!hasTrellisProject(target)) {
+    return {
+      variant: variantOverride || "common",
+      version: "",
+      commonSkills: listCommonSkills(target),
+      enhancementSkills: [],
+    };
+  }
+
   const { variant, version, variantDir } = resolveEnhancementSnapshot(
     target,
     variantOverride,
@@ -625,7 +644,7 @@ export function syncInstalledCommonSkills(target) {
  * @returns {{removed: string[], skipped: string[]}} 已删除与未发现的路径
  */
 export function removeCommonSkills(target, variantOverride, names) {
-  resolveEnhancementSnapshot(target, variantOverride);
+  if (hasTrellisProject(target)) resolveEnhancementSnapshot(target, variantOverride);
   const available = new Set(listCommonSnapshotNames());
   const removed = [];
   const skipped = [];
