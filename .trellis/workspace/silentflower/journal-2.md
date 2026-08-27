@@ -1102,3 +1102,24 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 92: 归档 Plugin TUI 无状态管理 common skill
+
+**Date**: 2026-08-27
+**Task**: 归档 Plugin TUI 无状态管理 common skill
+**Branch**: `main`
+
+### Summary
+
+完成 Plugin TUI 在无 Trellis、无 .flower 项目中通过内置入口管理 common skill，并归档任务。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0a9cd62` | (see git log) |
+
+### Status
+
+[OK] **Completed**
