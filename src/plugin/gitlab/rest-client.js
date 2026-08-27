@@ -216,6 +216,18 @@ export class GitLabRestClient {
             { status: response.status, endpoint: pathname, locationOrigin },
           );
         }
+        if (response.status === 401) {
+          throw this.#authError(`GitLab REST 认证失败，请重新登录:${this.source.id}`, PLUGIN_RUNTIME_ERROR_CODES.AUTH_REQUIRED, {
+            status: response.status,
+            endpoint: pathname,
+          });
+        }
+        if (response.status === 403) {
+          throw this.#authError(`GitLab REST scope 不足或访问被拒绝:${this.source.id}`, PLUGIN_RUNTIME_ERROR_CODES.AUTH_SCOPE_INVALID, {
+            status: response.status,
+            endpoint: pathname,
+          });
+        }
         throw this.#remoteError(`GitLab REST 请求失败:${response.status}`, this.source.id, undefined, {
           status: response.status,
           endpoint: pathname,
@@ -237,6 +249,15 @@ export class GitLabRestClient {
       code: PLUGIN_RUNTIME_ERROR_CODES.REMOTE_REQUEST_FAILED,
       path: diagnosticPath,
       cause,
+      details,
+    });
+  }
+
+  /** @param {string} message @param {string} code @param {object} details @returns {PluginRuntimeError} */
+  #authError(message, code, details) {
+    return new PluginRuntimeError(message, {
+      code,
+      path: this.source.id,
       details,
     });
   }

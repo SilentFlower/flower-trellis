@@ -5,8 +5,13 @@ import {
   GitLabCredentialManager,
   GitLabOAuthClient,
   authorizationOpenCommand,
+  credentialFromToken,
   createPkceParameters,
 } from "../../src/plugin/auth/gitlab-oauth.js";
+import {
+  parseGlabAuthStatusToken,
+  resolveGitLabEnvironmentCredential,
+} from "../../src/plugin/auth/gitlab-credential-resolver.js";
 
 const source = {
   id: "rd-guide",
@@ -41,6 +46,7 @@ test("PKCE loopback 校验 state、只接受一次回调并交换公共客户端
       const authorization = new URL(authorizationUrl);
       const redirectUri = authorization.searchParams.get("redirect_uri");
       const state = authorization.searchParams.get("state");
+      assert.equal(authorization.searchParams.get("scope"), "openid profile read_user write_repository api");
       callbacks.push(await fetch(`${redirectUri}?code=code-value&state=${state}`));
       callbacks.push(await fetch(`${redirectUri}?code=second-code&state=${state}`));
     },
@@ -127,8 +133,20 @@ test("Device Flow 处理 pending 与 slow_down 后保存固定 scopes", async ()
   assert.equal(verification.userCode, "ABCD-1234");
   assert.deepEqual(credential.scope, ["read_api", "read_repository"]);
   assert.equal(calls[0].url, "http://gitlab.example.test/oauth/authorize_device");
+  assert.match(calls[0].body, /scope=openid\+profile\+read_user\+write_repository\+api/);
   assert.match(calls[1].body, /device_code=device-code/);
   assert.equal(currentTime, 8000);
+});
+
+test("OAuth 凭据转换接受新 api scope 并保留实际授权结果", () => {
+  const credential = credentialFromToken({
+    access_token: "access",
+    refresh_token: "refresh",
+    token_type: "Bearer",
+    scope: "api profile",
+    expires_in: 3600,
+  }, source, 1000);
+  assert.deepEqual(credential.scope, ["api", "profile"]);
 });
 
 for (const [name, oauthError] of [
@@ -250,6 +268,41 @@ test("CredentialManager 对并发过期凭据只刷新一次", async () => {
     manager.getAccessToken(source),
   ]), ["fresh", "fresh", "fresh"]);
   assert.equal(refreshes, 1);
+});
+
+test("CredentialManager 在无 Flower 凭据时复用同 host glab token", async () => {
+  const store = new MemoryCredentialStore();
+  const calls = [];
+  const manager = new GitLabCredentialManager({
+    store,
+    oauth: {},
+    runGlab: async (args) => {
+      calls.push(args);
+      return {
+        stdout: "gitlab.example.test\n  ✓ Logged in to gitlab.example.test\n  ✓ Token: glab-token\n",
+        stderr: "",
+      };
+    },
+  });
+  assert.equal(await manager.getAccessToken(source), "glab-token");
+  assert.deepEqual(calls[0], ["auth", "status", "--hostname", "gitlab.example.test", "--show-token"]);
+  assert.equal(await store.get(source), null);
+});
+
+test("CredentialManager 只接受同 host 绑定的环境 token fallback", async () => {
+  const store = new MemoryCredentialStore();
+  const manager = new GitLabCredentialManager({
+    store,
+    oauth: {},
+    env: { GITLAB_TOKEN: "env-token", GITLAB_HOST: "https://gitlab.example.test/group/project" },
+    runGlab: async () => { throw new Error("glab unavailable"); },
+  });
+  assert.equal(await manager.getAccessToken(source), "env-token");
+  assert.equal(resolveGitLabEnvironmentCredential(source, {
+    GITLAB_TOKEN: "wrong-token",
+    GITLAB_HOST: "gitlab.other.test",
+  }), null);
+  assert.equal(parseGlabAuthStatusToken("gitlab.other.test\n  ✓ Token: leaked\n", source), null);
 });
 
 test("PKCE refresh 复用首次授权 redirect_uri", async () => {

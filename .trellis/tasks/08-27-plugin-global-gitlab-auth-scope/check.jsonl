@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md", "reason": "验证 OAuth scope、glab/PAT fallback、REST 错误与敏感信息边界"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "验证 TUI/CLI 不泄露 token 且不区分凭据来源"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md", "reason": "验证 search/lifecycle 共用远程 source 和 resolver"}
+{"file": ".trellis/tasks/08-27-plugin-global-gitlab-auth-scope/research/current-auth-behavior.md", "reason": "验证实现没有偏离当前证据与已确认决策"}

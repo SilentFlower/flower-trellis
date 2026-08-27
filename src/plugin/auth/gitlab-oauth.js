@@ -1,7 +1,13 @@
 import crypto from "node:crypto";
 import http from "node:http";
 import { spawn } from "node:child_process";
-import { CREDENTIAL_SCHEMA_VERSION, GITLAB_OAUTH_SCOPES, validateCredential } from "./credential-store.js";
+import { GitLabCredentialResolver } from "./gitlab-credential-resolver.js";
+import {
+  CREDENTIAL_SCHEMA_VERSION,
+  GITLAB_OAUTH_REQUEST_SCOPES,
+  isGitLabCredentialScopeSufficient,
+  validateCredential,
+} from "./credential-store.js";
 import { PLUGIN_RUNTIME_ERROR_CODES, PluginRuntimeError } from "../runtime-errors.js";
 
 const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
@@ -131,7 +137,7 @@ export class GitLabOAuthClient {
         redirect_uri: callback.redirectUri,
         response_type: "code",
         state: pkce.state,
-        scope: GITLAB_OAUTH_SCOPES.join(" "),
+        scope: GITLAB_OAUTH_REQUEST_SCOPES.join(" "),
         code_challenge: pkce.challenge,
         code_challenge_method: "S256",
       }).toString();
@@ -167,7 +173,7 @@ export class GitLabOAuthClient {
   async loginWithDevice(source, options = {}) {
     const device = await this.#postForm(source, "/oauth/authorize_device", {
       client_id: source.oauth.applicationId,
-      scope: GITLAB_OAUTH_SCOPES.join(" "),
+      scope: GITLAB_OAUTH_REQUEST_SCOPES.join(" "),
     }, { signal: options.signal });
     if (
       typeof device.device_code !== "string" ||
@@ -253,7 +259,7 @@ export class GitLabOAuthClient {
         ? payload.scope.split(/[ ,]+/).filter(Boolean)
         : [];
     let tokenPayload = payload;
-    if (!GITLAB_OAUTH_SCOPES.every((scope) => responseScopes.includes(scope))) {
+    if (!isGitLabCredentialScopeSufficient(responseScopes)) {
       const tokenInfo = await this.#readTokenInfo(source, payload.access_token);
       tokenPayload = { ...payload, scope: tokenInfo.scope || tokenInfo.scopes || [] };
     }
@@ -395,12 +401,19 @@ export class GitLabCredentialManager {
   /**
    * 创建凭据管理器。
    *
-   * @param {{store:import("./credential-store.js").CredentialStore,oauth:GitLabOAuthClient,now?:()=>number}} options 依赖
+   * @param {{store:import("./credential-store.js").CredentialStore,oauth:GitLabOAuthClient,now?:()=>number,persistent?:boolean,credentialResolver?:GitLabCredentialResolver,env?:NodeJS.ProcessEnv|Record<string,string|undefined>,runGlab?:(args:string[],options?:object)=>Promise<{stdout?:string,stderr?:string}>,glabCommand?:string}} options 依赖
    */
   constructor(options) {
     this.store = options.store;
     this.oauth = options.oauth;
     this.now = options.now || Date.now;
+    this.resolver = options.credentialResolver || new GitLabCredentialResolver({
+      store: options.store,
+      persistent: options.persistent,
+      env: options.env,
+      runGlab: options.runGlab,
+      glabCommand: options.glabCommand,
+    });
     this.refreshes = new Map();
   }
 
@@ -413,6 +426,8 @@ export class GitLabCredentialManager {
   async getAccessToken(source) {
     const credential = await this.store.get(source);
     if (!credential) {
+      const external = await this.resolver.resolveExternal(source);
+      if (external) return external.accessToken;
       throw new PluginRuntimeError(`GitLab source 尚未登录:${source.id}`, {
         code: PLUGIN_RUNTIME_ERROR_CODES.AUTH_REQUIRED,
         path: source.id,

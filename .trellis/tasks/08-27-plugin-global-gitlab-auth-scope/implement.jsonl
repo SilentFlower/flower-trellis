@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "ESM、显式导入、JSDoc 与命令层分层约定"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "认证输出、TUI 状态与敏感信息脱敏边界"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md", "reason": "GitLab source、OAuth、Keyring、REST、远程缓存和安全契约"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md", "reason": "远程 source 注册、lifecycle 与 Runtime 边界"}
+{"file": ".trellis/tasks/08-27-plugin-global-gitlab-auth-scope/research/current-auth-behavior.md", "reason": "当前认证行为和用户决策证据"}

@@ -22,7 +22,7 @@ test("用户 source store 默认内置 rd-guide 且读取不触发网络", (t) =
     marketplacePath: ".flower-marketplace/marketplace.json",
     oauth: {
       applicationId: "0f73e53d745450b6ab9596960b10a2ac1654d67c0941bae381f6dbbf6839ec04",
-      scopes: ["read_api", "read_repository"],
+      scopes: ["api", "openid", "profile", "read_user", "write_repository"],
     },
     builtin: true,
   });

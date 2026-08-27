@@ -2,6 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  GITLAB_OAUTH_LEGACY_SCOPES,
+  GITLAB_OAUTH_REQUEST_SCOPES,
+} from "../auth/credential-store.js";
 import { PluginIoError } from "../errors.js";
 import { PLUGIN_RUNTIME_ERROR_CODES, PluginRuntimeError } from "../runtime-errors.js";
 import {
@@ -26,6 +30,18 @@ const SECRET_FIELDS = new Set([
   "clientSecret",
   "applicationSecret",
 ]);
+
+/**
+ * 判断 GitLab source descriptor 的 OAuth scopes 是否属于兼容集合。
+ *
+ * @param {string[]} scopes 已排序 scope
+ * @returns {boolean} 是否支持
+ */
+function isSupportedGitLabSourceScopes(scopes) {
+  const serialized = scopes.join(" ");
+  return serialized === [...GITLAB_OAUTH_LEGACY_SCOPES].sort(compareUtf8).join(" ") ||
+    serialized === [...GITLAB_OAUTH_REQUEST_SCOPES].sort(compareUtf8).join(" ");
+}
 
 /**
  * 返回当前平台的 Flower 用户配置目录。
@@ -91,7 +107,7 @@ export function validateGitLabSourceDescriptor(value) {
     typeof source.ref !== "string" || !source.ref ||
     typeof source.marketplacePath !== "string" || !source.marketplacePath ||
     typeof oauth?.applicationId !== "string" || !oauth.applicationId ||
-    scopes.join(" ") !== "read_api read_repository"
+    !isSupportedGitLabSourceScopes(scopes)
   ) {
     throw new PluginRuntimeError(`GitLab source 配置无效:${String(source?.id || "")}`, {
       code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,

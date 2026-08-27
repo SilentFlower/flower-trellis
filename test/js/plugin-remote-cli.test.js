@@ -300,7 +300,9 @@ test("source list 与 auth status 保持零网络并输出非敏感 JSON", async
     sourceStore,
     output: statusOutput.output,
     credentialBundle: { store: new MemoryCredentialStore(), persistent: false },
+    env: {},
     fetch: async () => { networkCalls += 1; throw new Error("unexpected network"); },
+    runGlab: async () => { throw new Error("glab unavailable"); },
   }), 0);
   const status = JSON.parse(statusOutput.stdout[0]);
   assert.equal(status.authorized, false);
@@ -325,6 +327,65 @@ test("source list 与 auth status 保持零网络并输出非敏感 JSON", async
     credentialBundle: { store: credentialStore, persistent: false },
   }), 0);
   assert.equal(await credentialStore.get(descriptor), null);
+});
+
+test("auth status、search 与 logout 复用同 host 全局凭据且不持久化 token", async (t) => {
+  const root = createPluginTestRoot(t, "flower-remote-cli-global-auth-");
+  const sourceStore = new UserSourceStore({
+    configFile: path.join(root, "config.json"),
+    builtinDescriptors: [descriptor],
+  });
+  const credentialStore = new MemoryCredentialStore();
+  const statusOutput = outputCollector();
+  assert.equal(await plugin({ target: root, passthrough: ["auth", "status", "rd-guide", "--json"] }, {
+    sourceStore,
+    output: statusOutput.output,
+    credentialBundle: { store: credentialStore, persistent: false },
+    env: {},
+    runGlab: async () => ({
+      stdout: "gitlab.example.test\n  ✓ Logged in to gitlab.example.test\n  ✓ Token: glab-status-token\n",
+      stderr: "",
+    }),
+  }), 0);
+  const status = JSON.parse(statusOutput.stdout[0]);
+  assert.equal(status.authorized, true);
+  assert.equal(status.persistent, false);
+  assert.equal("accessToken" in status, false);
+  assert.equal(await credentialStore.get(descriptor), null);
+
+  let tokenUsed = null;
+  const searchOutput = outputCollector();
+  assert.equal(await plugin({ target: root, passthrough: ["search", "规范", "--source", "rd-guide", "--json"] }, {
+    sourceStore,
+    output: searchOutput.output,
+    credentialBundle: { store: credentialStore, persistent: false },
+    env: { GITLAB_TOKEN: "env-search-token", GITLAB_HOST: "gitlab.example.test" },
+    runGlab: async () => { throw new Error("glab unavailable"); },
+    gitlabProviderFactory: ({ source, credentialManager }) => ({
+      search: async () => {
+        tokenUsed = await credentialManager.getAccessToken(source);
+        return [{ id: "rd-guide/review", description: "规范", versions: ["1.0.0"], source: "rd-guide" }];
+      },
+    }),
+  }), 0);
+  assert.equal(tokenUsed, "env-search-token");
+  assert.equal(JSON.parse(searchOutput.stdout[0]).results[0].id, "rd-guide/review");
+
+  const logoutOutput = outputCollector();
+  assert.equal(await plugin({ target: root, passthrough: ["auth", "logout", "rd-guide", "--json"] }, {
+    sourceStore,
+    output: logoutOutput.output,
+    credentialBundle: { store: credentialStore, persistent: false },
+  }), 0);
+  const afterLogoutOutput = outputCollector();
+  assert.equal(await plugin({ target: root, passthrough: ["auth", "status", "rd-guide", "--json"] }, {
+    sourceStore,
+    output: afterLogoutOutput.output,
+    credentialBundle: { store: credentialStore, persistent: false },
+    env: { GITLAB_TOKEN: "env-search-token", GITLAB_HOST: "gitlab.example.test" },
+    runGlab: async () => { throw new Error("glab unavailable"); },
+  }), 0);
+  assert.equal(JSON.parse(afterLogoutOutput.stdout[0]).authorized, true);
 });
 
 test("auth login 只在 PKCE 环境不可用时降级 Device Flow", async (t) => {

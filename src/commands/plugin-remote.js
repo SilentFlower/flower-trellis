@@ -7,6 +7,8 @@ import {
   PluginRuntimeError,
 } from "../plugin/runtime-errors.js";
 import { parseCanonicalPluginId } from "../plugin/schemas/shared.js";
+import { GITLAB_OAUTH_REQUEST_SCOPES } from "../plugin/auth/credential-store.js";
+import { GitLabCredentialResolver } from "../plugin/auth/gitlab-credential-resolver.js";
 import { createCredentialStore } from "../plugin/auth/keyring-credential-store.js";
 import { GitLabCredentialManager, GitLabOAuthClient } from "../plugin/auth/gitlab-oauth.js";
 import { GitLabRestClient } from "../plugin/gitlab/rest-client.js";
@@ -53,8 +55,9 @@ function printManagementResult(result, json, output) {
     return;
   }
   if (result.subcommand === "status") {
+    const scopeSuffix = result.scopes?.length ? `，scope=${result.scopes.join(",")}` : "";
     output.log(result.authorized
-      ? `GitLab 已登录:${result.sourceId}，scope=${result.scopes.join(",")}`
+      ? `GitLab 已登录:${result.sourceId}${scopeSuffix}`
       : `GitLab 未登录:${result.sourceId}`);
   } else output.log(`GitLab auth ${result.subcommand} 完成:${result.sourceId}`);
   if (result.persistent === false) output.log("系统 Keyring 不可用，凭据仅在当前进程内有效");
@@ -134,16 +137,23 @@ export async function getPluginAuthStatus(sourceId, options = {}) {
     };
   }
   const credentialBundle = options.credentialBundle || await createCredentialStore(options.credentialStoreOptions);
-  const credential = await credentialBundle.store.get(source);
+  const resolver = options.credentialResolver || new GitLabCredentialResolver({
+    store: credentialBundle.store,
+    persistent: credentialBundle.persistent,
+    env: options.env,
+    runGlab: options.runGlab,
+    glabCommand: options.glabCommand,
+  });
+  const status = await resolver.status(source);
   return {
     ok: true,
     command: "auth",
     subcommand: "status",
     sourceId: source.id,
-    authorized: Boolean(credential),
-    scopes: credential?.scope || [],
-    expiresAt: credential?.expiresAt || null,
-    persistent: credentialBundle.persistent,
+    authorized: status.authorized,
+    scopes: status.scopes,
+    expiresAt: status.expiresAt,
+    persistent: status.persistent,
   };
 }
 
@@ -167,7 +177,16 @@ export async function searchPluginMarketplaces(parsed, ctx, options = {}) {
       sleep: options.sleep,
       now: options.now,
     });
-    manager = new GitLabCredentialManager({ store: credentialBundle.store, oauth, now: options.now });
+    manager = new GitLabCredentialManager({
+      store: credentialBundle.store,
+      oauth,
+      now: options.now,
+      persistent: credentialBundle.persistent,
+      credentialResolver: options.credentialResolver,
+      env: options.env,
+      runGlab: options.runGlab,
+      glabCommand: options.glabCommand,
+    });
   }
   const results = [];
   const diagnostics = [];
@@ -312,7 +331,7 @@ export async function runPluginManagementCommand(parsed, ctx, options, output) {
         marketplacePath: parsed.marketplacePath || base.marketplacePath || ".flower-marketplace/marketplace.json",
         oauth: {
           applicationId: parsed.applicationId || base.oauth?.applicationId,
-          scopes: ["read_api", "read_repository"],
+          scopes: GITLAB_OAUTH_REQUEST_SCOPES,
         },
       };
       if (sourceType === "github") {
@@ -470,7 +489,16 @@ export async function registerRemotePluginSources({ parsed, projectRoot, options
       sleep: options.sleep,
       now: options.now,
     });
-    manager = new GitLabCredentialManager({ store: credentialBundle.store, oauth, now: options.now });
+    manager = new GitLabCredentialManager({
+      store: credentialBundle.store,
+      oauth,
+      now: options.now,
+      persistent: credentialBundle.persistent,
+      credentialResolver: options.credentialResolver,
+      env: options.env,
+      runGlab: options.runGlab,
+      glabCommand: options.glabCommand,
+    });
   }
   // 依赖闭包可能跨 source，因此登记全部可用来源，而不是只登记入口来源。
   for (const source of sources) {

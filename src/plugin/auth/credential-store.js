@@ -3,8 +3,20 @@ import { PLUGIN_RUNTIME_ERROR_CODES, PluginRuntimeError } from "../runtime-error
 /** 凭据载荷 schema 版本。 */
 export const CREDENTIAL_SCHEMA_VERSION = 1;
 
-/** Flower GitLab OAuth 固定 scope。 */
-export const GITLAB_OAUTH_SCOPES = Object.freeze(["read_api", "read_repository"]);
+/** Flower GitLab OAuth 主动请求 scope。 */
+export const GITLAB_OAUTH_REQUEST_SCOPES = Object.freeze([
+  "openid",
+  "profile",
+  "read_user",
+  "write_repository",
+  "api",
+]);
+
+/** 旧版 GitLab OAuth 读取能力 scope。 */
+export const GITLAB_OAUTH_LEGACY_SCOPES = Object.freeze(["read_api", "read_repository"]);
+
+/** 兼容旧内部导入名；新代码应使用 GITLAB_OAUTH_REQUEST_SCOPES。 */
+export const GITLAB_OAUTH_SCOPES = GITLAB_OAUTH_REQUEST_SCOPES;
 
 /**
  * 规范化 GitLab 来源凭据账户名。
@@ -16,6 +28,16 @@ export function credentialAccount(source) {
   const url = new URL(source.baseUrl);
   const port = url.port ? `:${url.port}` : "";
   return `${url.hostname.toLowerCase()}${port}/${source.id}`;
+}
+
+/**
+ * 判断 GitLab OAuth scope 是否具备当前 REST 读取能力。
+ *
+ * @param {string[]} scopes 实际授权 scope
+ * @returns {boolean} 是否满足读取 Marketplace 所需能力
+ */
+export function isGitLabCredentialScopeSufficient(scopes) {
+  return scopes.includes("api") || GITLAB_OAUTH_LEGACY_SCOPES.every((scope) => scopes.includes(scope));
 }
 
 /**
@@ -38,7 +60,7 @@ export function validateCredential(value, source) {
     typeof credential.accessToken !== "string" ||
     credential.accessToken.length === 0 ||
     typeof credential.tokenType !== "string" ||
-    !GITLAB_OAUTH_SCOPES.every((scope) => scopes.includes(scope)) ||
+    !isGitLabCredentialScopeSufficient(scopes) ||
     !(credential.refreshToken === null || typeof credential.refreshToken === "string") ||
     !(credential.createdAt === undefined || credential.createdAt === null || Number.isFinite(credential.createdAt)) ||
     !(credential.expiresAt === null || Number.isFinite(credential.expiresAt)) ||

@@ -632,7 +632,7 @@ async function loadDiscoverEntries(context, statuses) {
         });
       }
     } catch (error) {
-      if (error?.code === PLUGIN_RUNTIME_ERROR_CODES.AUTH_REQUIRED) {
+      if ([PLUGIN_RUNTIME_ERROR_CODES.AUTH_REQUIRED, PLUGIN_RUNTIME_ERROR_CODES.AUTH_SCOPE_INVALID].includes(error?.code)) {
         entries.push({ kind: "auth", source, invalid: true });
       } else {
         recordIssue(context.state, `${source.name} Marketplace 加载失败`, error);

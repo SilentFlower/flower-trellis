@@ -108,7 +108,7 @@ test("GitLab REST client 对 4xx 不重试，超时网络错误只重试一次",
     credentialManager: { getAccessToken: async () => "token" },
     fetch: async () => {
       clientErrors += 1;
-      return new Response("forbidden", { status: 403 });
+      return new Response("not found", { status: 404 });
     },
   });
   await assert.rejects(
@@ -132,6 +132,32 @@ test("GitLab REST client 对 4xx 不重试，超时网络错误只重试一次",
     (error) => error.code === "PLUGIN_REMOTE_REQUEST_FAILED",
   );
   assert.equal(timeouts, 2);
+});
+
+test("GitLab REST client 将 401/403 映射为认证类稳定错误", async () => {
+  const unauthorized = new GitLabRestClient({
+    source,
+    credentialManager: { getAccessToken: async () => "token" },
+    fetch: async () => new Response("unauthorized", { status: 401 }),
+  });
+  await assert.rejects(
+    () => unauthorized.resolveCommit("group/project", "main"),
+    (error) => error.code === "PLUGIN_AUTH_REQUIRED" &&
+      error.details.status === 401 &&
+      !JSON.stringify(error.details).includes("token"),
+  );
+
+  const forbidden = new GitLabRestClient({
+    source,
+    credentialManager: { getAccessToken: async () => "token" },
+    fetch: async () => new Response("forbidden", { status: 403 }),
+  });
+  await assert.rejects(
+    () => forbidden.resolveCommit("group/project", "main"),
+    (error) => error.code === "PLUGIN_AUTH_SCOPE_INVALID" &&
+      error.details.status === 403 &&
+      !JSON.stringify(error.details).includes("token"),
+  );
 });
 
 test("GitLab REST client 同时限制 archive 响应头和实际字节", async () => {

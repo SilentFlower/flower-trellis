@@ -50,6 +50,19 @@ CredentialStore.get(source) -> Promise<Credential|null>
 CredentialStore.set(source, credential) -> Promise<void>
 CredentialStore.delete(source) -> Promise<void>
 
+GITLAB_OAUTH_REQUEST_SCOPES -> ["openid", "profile", "read_user", "write_repository", "api"]
+GITLAB_OAUTH_LEGACY_SCOPES -> ["read_api", "read_repository"]
+isGitLabCredentialScopeSufficient(scopes) -> boolean
+gitLabCredentialHost(source) -> string
+parseGlabAuthStatusToken(output, source) -> string|null
+resolveGitLabEnvironmentCredential(source, env?) -> ExternalCredential|null
+new GitLabCredentialResolver({
+  store, persistent?, env?, runGlab?, glabCommand?, glabTimeoutMs?,
+})
+GitLabCredentialResolver.resolve(source)
+  -> Promise<{authorized,scopes,expiresAt,persistent,accessToken?,credentialSource?,credential?}>
+GitLabCredentialResolver.resolveExternal(source) -> Promise<ExternalCredential|null>
+GitLabCredentialResolver.status(source) -> Promise<{authorized,scopes,expiresAt,persistent}>
 GitLabOAuthClient.loginWithPkce(source) -> Promise<Credential>
 GitLabOAuthClient.loginWithDevice(source, { onVerification?, signal? }?) -> Promise<Credential>
 GitLabOAuthClient.refresh(source, credential) -> Promise<Credential>
@@ -84,25 +97,28 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 ### Source And Credential
 
 - 用户配置文件是 XDG 配置目录下的 `flower-trellis/plugin-sources.json`；Windows 有 `APPDATA` 时使用该目录。父目录权限为 `0700`，临时文件和配置文件权限为 `0600`，同目录 rename 提交。
-- GitLab source descriptor 固定字段为 `schemaVersion/id/type/name/enabled/baseUrl/project/ref/marketplacePath/oauth`。`oauth` 只允许 `applicationId/scopes`；固定 scopes 为排序后的 `read_api`、`read_repository`。
+- GitLab source descriptor 固定字段为 `schemaVersion/id/type/name/enabled/baseUrl/project/ref/marketplacePath/oauth`。`oauth` 只允许 `applicationId/scopes`；随包和新建 descriptor 的请求 scopes 为 `openid profile read_user write_repository api`，读取旧配置时继续接受排序后的 `read_api read_repository`。
 - `baseUrl` 只允许无用户名密码的 `http:` 或 `https:`；`project` 是 GitLab project path，`marketplacePath` 是安全 POSIX 相对路径。
 - source 配置禁止 `accessToken/refreshToken/token/clientSecret/applicationSecret` 以及其它未知字段。内置 `rd-guide` 的连接字段以随包 descriptor 为权威，用户层只允许保存 `enabled` 偏好；自定义连接必须使用新的 source ID。仅 `list/get` 不构造客户端、不登录、不访问网络。
-- Keyring service 固定为 `flower-trellis`，account 固定为 `<lowercase-host>[:port]/<source-id>`。凭据载荷固定包含 `schemaVersion/sourceId/baseUrl/tokenType/scope/accessToken/refreshToken/createdAt/expiresAt/redirectUri`。
+- Keyring service 固定为 `flower-trellis`，account 固定为 `<lowercase-host>[:port]/<source-id>`。凭据载荷固定包含 `schemaVersion/sourceId/baseUrl/tokenType/scope/accessToken/refreshToken/createdAt/expiresAt/redirectUri`；凭据 scope 只要包含 `api`，或同时包含旧 `read_api` 与 `read_repository`，就满足当前 GitLab REST 读取能力。
 - `@napi-rs/keyring` 是 optional dependency。模块缺失或系统后端运行失败时只能切换到当前进程的 `MemoryCredentialStore`，并令 `persistent=false`；凭据 JSON 损坏或 scope 无效必须直接报错，不能静默降级。
+- GitLab 凭据解析链固定为 Flower Keyring OAuth、同 host `glab`、host 绑定环境/PAT fallback。`glab` 只能通过 `glab auth status --hostname <host> --show-token` 读取；捕获 stdout/stderr 后只提取同 host token，原始输出不得进入普通输出、诊断或持久化文件。环境 fallback 只接受 host 专属变量名如 `GITLAB_TOKEN_<HOST_KEY>` / `GLAB_TOKEN_<HOST_KEY>`，或 `GITLAB_TOKEN`、`GLAB_TOKEN`、`FLOWER_GITLAB_TOKEN` 与 `GITLAB_HOST`、`GLAB_HOST`、`FLOWER_GITLAB_HOST`、`CI_SERVER_HOST`、`CI_SERVER_URL` 中任一同 host 绑定值配对。未能证明同 host 时必须当作无凭据，不得猜测当前 Git remote。
+- 外部 GitLab token 只允许在当前进程内交给 REST client 使用，`persistent=false`，`scopes=[]`，`expiresAt=null`；不得写入 Keyring、用户 source store、`.flower/`、lock、state、cache metadata、任务文件或普通输出。`plugin auth logout` 只删除 Flower Keyring 凭据，不能删除 `glab` 配置或环境变量；fallback 仍存在时后续 status 可以继续显示已登录。
 - 用户 source store schemaVersion 3 同时接受 GitLab/GitHub descriptor 与内置来源 `{id,enabled}` 偏好；schemaVersion 1/2 继续兼容旧 descriptor。旧配置中与内置 ID 重名的完整 descriptor 只继承 `enabled`，不得覆盖随包连接字段；下一次写入原子压缩为 v3 偏好。schemaVersion 1 中出现 GitHub 必须报配置错误。
 - GitHub 持久化 descriptor 固定字段为 `schemaVersion/id/type/name/enabled/repository/ref/subdir?/format/entryPath?`。`repository` 只保存无凭据的 `owner/repository`；命令草稿可省略 ref，但 inspect 必须解析默认分支并补齐后才能写入。`format=auto` 时不得保存 `entryPath`，固定格式时必须保存安全入口路径。
 - `source update --clear-subdir` 显式删除旧 subdir；把 format 改回 `auto` 必须同时删除旧 entryPath，不能用 truthy fallback 让旧值复活。
 
 ### OAuth And REST
 
-- GitLab OAuth 是无 Application Secret 的公共客户端。浏览器登录使用 Authorization Code + PKCE S256、随机 state/verifier、`127.0.0.1` 随机端口和 `/oauth/callback`；Windows 直接调用 `explorer.exe`，不得经过 shell。
+- GitLab OAuth 是无 Application Secret 的公共客户端。浏览器登录使用 Authorization Code + PKCE S256、随机 state/verifier、`127.0.0.1` 随机端口和 `/oauth/callback`；Windows 直接调用 `explorer.exe`，不得经过 shell。主动请求 scope 固定为 `openid profile read_user write_repository api`，不再请求旧的 `read_api read_repository`。
 - PKCE callback 只接受一次预期路径的 GET，并同时校验 state 和 code。浏览器打开失败、callback 超时或无效回调必须关闭 server；返回页面不得显示 code 或 token。
 - PKCE 仅在浏览器无法打开、callback server 无法监听或 callback 超时时允许降级到 Device Flow；state/code/token/scope 校验失败属于终止性认证错误，调用方不得静默降级。
 - Device Flow 使用 `/oauth/authorize_device` 和 device-code grant；`authorization_pending` 保持轮询，`slow_down` 每次增加 5 秒，拒绝、过期和 `AbortSignal` 取消均终止。
 - OAuth POST 与 `/oauth/token/info` 请求默认 30 秒超时；Device Flow 的外部 `AbortSignal` 必须同时取消等待和正在进行的请求，取消后不得再发起下一次 token 轮询。
-- token response 未携带完整 scope 时必须调用 `/oauth/token/info` 验证实际授权。缺少 `read_api` 或 `read_repository` 时拒绝凭据。
+- token response 未携带可接受读取能力时必须调用 `/oauth/token/info` 验证实际授权。实际授权包含 `api`，或同时包含旧 `read_api` 与 `read_repository` 时接受；仍不足时拒绝凭据。
 - access token 在到期前 60 秒刷新；同一 source 并发刷新共享一个 Promise。refresh 失败必须尽力删除旧凭据，并统一返回 `PLUGIN_AUTH_REQUIRED`。
 - REST 请求只使用 `Authorization: Bearer`，project path 和仓库文件路径分别做 URL 编码；token 不得进入 URL、argv、项目文件、缓存元数据或普通输出。携带凭据的请求必须禁用自动重定向，3xx 返回状态码、端点和目标 origin 的脱敏诊断；尤其不能让 HTTP→HTTPS 跳转静默剥离 Authorization 后再误报 404。
+- REST 401 必须映射为 `PLUGIN_AUTH_REQUIRED`，REST 403 必须映射为 `PLUGIN_AUTH_SCOPE_INVALID`；TUI 和 CLI 管理视图据此展示未登录、重新登录或已登录语义，不得把认证失败包装成普通 Marketplace 加载失败。
 - REST 超时默认 30 秒；GET 网络错误或 5xx 最多重试一次，4xx 不重试。archive 默认最大 100 MiB，并同时检查 `content-length` 与实际响应字节。只有 archive 对 OAuth 明确返回 406 时，Provider 才允许按同一固定 commit 和选中 subdir 递归读取 repository tree/raw 文件；其它 4xx 不回退。
 
 ### Marketplace And Cache
@@ -139,12 +155,16 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 | source 含 secret、未知字段、非法 URL/project/path 或错误 scopes | `PLUGIN_SOURCE_CONFIG_INVALID`，不覆盖原配置 |
 | source 配置 JSON 损坏、版本错误或 ID 重复 | `PLUGIN_SOURCE_CONFIG_INVALID`，原文件保持不变 |
 | source 不存在或已禁用 | `PLUGIN_SOURCE_NOT_FOUND`，不触发认证或网络 |
-| 没有凭据 | `PLUGIN_AUTH_REQUIRED` |
-| scope 缺失、Keyring payload 损坏或来源身份不匹配 | `PLUGIN_AUTH_SCOPE_INVALID`，不得退回内存掩盖损坏 |
+| Flower Keyring、同 host `glab` 和 host 绑定环境 fallback 都没有凭据 | `PLUGIN_AUTH_REQUIRED` |
+| `glab` 不存在、未登录目标 host、输出不可解析、token 被遮蔽或 host 不匹配 | 当作无外部凭据；status 返回未登录，REST 路径继续尝试后续 fallback |
+| `GITLAB_TOKEN` / `GLAB_TOKEN` 存在但没有同 host 环境证据 | 当作无外部凭据，不得跨 host 误用 |
+| scope 缺失、Keyring payload 损坏或来源身份不匹配 | `PLUGIN_AUTH_SCOPE_INVALID`，不得退回内存或外部 fallback 掩盖损坏 |
 | 浏览器打开、callback 监听或 callback 超时失败 | `PLUGIN_AUTH_FAILED` 且标记允许 Device Flow 降级，关闭临时 callback 状态 |
 | OAuth 请求超时/取消，或 state、code、token、scope 校验失败 | `PLUGIN_AUTH_FAILED`，不得自动降级，关闭临时 callback 状态 |
 | refresh 失败 | 删除旧凭据并返回 `PLUGIN_AUTH_REQUIRED` |
 | REST 超时、网络错误、4xx/5xx 或无效 JSON | `PLUGIN_REMOTE_REQUEST_FAILED`；5xx/网络最多重试一次 |
+| GitLab REST 返回 401 | `PLUGIN_AUTH_REQUIRED`，诊断不得包含 token 或 header |
+| GitLab REST 返回 403 | `PLUGIN_AUTH_SCOPE_INVALID`，诊断不得包含 token 或 header |
 | GitLab REST 返回 3xx | 禁止跟随并返回 `PLUGIN_REMOTE_REQUEST_FAILED`，诊断提示检查 HTTPS baseUrl，且不泄露 token |
 | GitLab archive 对 OAuth 返回 406 | 仅对固定 commit/subdir 启用 repository tree/raw 回退，并继续执行同等资源上限与摘要校验 |
 | archive 超限、危险条目或顶层结构无效 | `PLUGIN_REMOTE_ARCHIVE_INVALID`，不发布缓存 |
@@ -165,14 +185,17 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 
 ### Good
 
-- 用户执行 `plugin auth login rd-guide`，PKCE 获取的实际 scopes 同时包含 `read_api/read_repository`，凭据进入系统 Keyring；随后 `plugin search --source rd-guide` 使用 Bearer REST 读取固定索引。
+- 用户执行 `plugin auth login rd-guide`，PKCE 主动请求 `openid profile read_user write_repository api`，实际授权包含 `api` 后凭据进入系统 Keyring；随后 `plugin search --source rd-guide` 使用 Bearer REST 读取固定索引。
+- 用户没有 Flower Keyring 凭据，但 `glab auth status --hostname gitlab.xhgjdev.com --show-token` 能证明同 host 并返回 token；`plugin auth status rd-guide --json` 返回 `authorized:true` 且不包含 token，`plugin search --source rd-guide` 使用同一 manager 读取 Marketplace。
+- 用户设置 `GITLAB_TOKEN` 与 `GITLAB_HOST=gitlab.xhgjdev.com`；无 `glab` 时 resolver 仍可在当前进程内提供 token，logout 后该 fallback 不受影响。
 - 内置 `rd-guide` 随包从 HTTP 升级到 HTTPS 或切换 ref 后，即使用户目录仍有旧版完整 descriptor，运行时也使用新随包连接字段，仅保留用户原有启停选择。
 - 已锁定 Plugin 的 metadata、tree hash、manifest 身份全部匹配时，`prepareLocked()` 直接复用缓存，不访问 GitLab。
 - 项目先锁定 `rd-guide/demo@1.0.0`，Marketplace 当前索引随后发布 `1.1.0`；显式 `plugin update rd-guide/demo` 先恢复 1.0.0 固定包，再读取新索引并由 Resolver 选择 1.1.0。
 
 ### Base
 
-- 系统没有 Keyring：登录只在当前进程有效，`auth status --json` 输出 `persistent:false`，不生成 token 文件。
+- 系统没有 Keyring：Flower OAuth 登录只在当前进程有效，`auth status --json` 输出 `persistent:false`，不生成 token 文件。
+- 外部凭据无法离线获得 scope：status JSON 固定返回 `scopes:[]`，人类输出只在实际 scope 非空时显示 scope，不暴露凭据来源。
 - 用户只执行本地 Plugin 命令或禁用 `rd-guide`：GitLab 请求数为 0。
 - GitHub source 省略 ref：Provider 读取默认分支，持久化实际 ref/format/entryPath，并在 JSON 中返回固定 commit 与兼容性摘要。
 - 交互新增 GitHub source：用户只输入 `https://github.com/obra/superpowers`，检测返回多个入口，用户选择 `.claude-plugin/plugin.json` 后预览 `superpowers/superpowers@6.2.0`，14 个 skills 导入，hooks 仅展示为不会安装，确认后才保存 `format/entryPath`。
@@ -181,7 +204,8 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 ### Bad
 
 - 把 Application Secret 或 PAT 写入 source JSON、`.flower/plugin-lock.json`、命令参数或 cache metadata。
-- 用 `read_repository` scope 失败后绕过 `repository/tree`，或申请具有写权限的完整 `api` scope。
+- 用 `read_repository` scope 失败后绕过 `repository/tree`，或仍主动请求旧 `read_api read_repository` 而不匹配公共 Application。
+- 把 `GITLAB_TOKEN` 在没有同 host 证据时用于任意 GitLab source，或把 `glab --show-token` 原始输出写进错误、日志或任务记录。
 - 让 fetch 自动跟随携带 Authorization 的跨 scheme 重定向，最终把匿名 404 当成项目不存在。
 - archive 解包后不校验 subdir、manifest 和 canonical tree hash就发布缓存。
 - Keyring 返回损坏 JSON 时吞掉错误并切换到内存，让调用方误以为只是“未登录”。
@@ -192,12 +216,12 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 
 ## 6. Tests Required
 
-- `plugin-source-store.test.js`：内置 `rd-guide`、XDG/权限、启停与恢复、旧完整覆盖只继承 enabled、v3 偏好压缩、secret/未知字段/损坏 JSON、读取零网络。
-- `plugin-credential-store.test.js`：版本化副本、Keyring 运行失败的内存降级、损坏 payload 不降级、递归脱敏。
-- `plugin-oauth.test.js`：PKCE S256/state/一次性 callback/公共客户端、环境失败降级与认证失败不降级、OAuth 请求超时、Device pending/slow_down/请求中取消且不继续轮询、scope 验证、redirect URI refresh、并发单飞与 refresh 清理。
-- `plugin-gitlab-rest-client.test.js`：Bearer、禁用重定向、project/file 编码、commit/tree 分页/files/archive、大小限制、超时和一次重试。
+- `plugin-source-store.test.js`：内置 `rd-guide` 新请求 scope、XDG/权限、启停与恢复、旧完整覆盖只继承 enabled、v3 偏好压缩、secret/未知字段/损坏 JSON、读取零网络、旧 descriptor scope 兼容。
+- `plugin-credential-store.test.js`：版本化副本、Keyring 运行失败的内存降级、损坏 payload 不降级、递归脱敏、`api` 与旧 `read_api + read_repository` scope 兼容。
+- `plugin-oauth.test.js`：PKCE S256/state/一次性 callback/公共客户端、新请求 scope、环境失败降级与认证失败不降级、OAuth 请求超时、Device pending/slow_down/请求中取消且不继续轮询、scope 验证、redirect URI refresh、并发单飞与 refresh 清理、同 host `glab` 与 host 绑定环境 fallback。
+- `plugin-gitlab-rest-client.test.js`：Bearer、禁用重定向、project/file 编码、commit/tree 分页/files/archive、大小限制、超时和一次重试、401/403 认证类错误映射与脱敏。
 - `plugin-gitlab-provider.test.js`：index commit、candidate/lock 字段、不可变缓存、损坏重下、archive 链接/路径/限额、OAuth 406 tree/raw 回退、subdir、digest、manifest 身份和 trust 上限。
-- `plugin-remote-cli.test.js`：source/auth/search 参数、非敏感 JSON、管理命令零网络、远程 add/update 复用 Application Service、自定义 local source ID 不误判为 GitLab。
+- `plugin-remote-cli.test.js`：source/auth/search 参数、非敏感 JSON、管理命令零网络、status/search 复用 resolver、logout 不删除 fallback、远程 add/update 复用 Application Service、自定义 local source ID 不误判为 GitLab。
 - `plugin-e2e-gitlab.test.js`：真实 CLI 跨进程覆盖 Device Flow、PKCE、search、v1 add、切换 Marketplace 后的 v2 update、禁用零网络，以及 stdout/stderr/项目文件敏感值扫描；必须断言旧 lock 候选不会阻止当前索引准备。
 - `plugin-github-rest-client.test.js`：默认分支、commit/date、允许的 redirect host、匿名限流、大小限制、超时和重试。
 - `plugin-github-provider.test.js`：Flower 索引懒加载与版本聚合、跨仓 Marketplace、多 Plugin 目录、固定/默认 ref、cache、locked replay、全仓扫描无关软链跳过、已选子树危险条目拒绝和稳定错误类型。
@@ -228,6 +252,28 @@ await provider.prepare("rd-guide/code-review");
 ```
 
 认证、只读请求和固定包准备分别由现有公共入口负责；Provider 产出 P1 DTO，项目写盘继续交给 Runtime/Application Service。
+
+### Wrong: 在调用点直接读取通用环境 token
+
+```js
+const token = process.env.GITLAB_TOKEN;
+const client = new GitLabRestClient({ source, credentialManager: { getAccessToken: async () => token } });
+```
+
+这种写法无法证明 token 属于当前 source host，也会让 status、search、lifecycle 三条路径重新分叉。
+
+### Correct: 只通过统一 resolver 接入外部凭据
+
+```js
+const manager = new GitLabCredentialManager({
+  store,
+  oauth,
+  env: process.env,
+});
+const client = new GitLabRestClient({ source, credentialManager: manager });
+```
+
+resolver 负责按 Flower Keyring、同 host `glab`、host 绑定环境 fallback 的顺序解析；REST client 仍只知道 `getAccessToken(source)`。
 
 ### Wrong: 用候选集合代替索引准备状态
 

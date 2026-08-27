@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { redactSensitive } from "../../src/plugin/auth/credential-store.js";
+import {
+  isGitLabCredentialScopeSufficient,
+  redactSensitive,
+  validateCredential,
+} from "../../src/plugin/auth/credential-store.js";
 import { createCredentialStore } from "../../src/plugin/auth/keyring-credential-store.js";
 import { MemoryCredentialStore } from "../../src/plugin/auth/memory-credential-store.js";
 
@@ -24,6 +28,21 @@ test("Memory CredentialStore 版本化读写且返回副本", async () => {
   assert.deepEqual((await store.get(source)).scope, ["read_api", "read_repository"]);
   await store.delete(source);
   assert.equal(await store.get(source), null);
+});
+
+test("GitLab 凭据校验同时接受旧读取 scope 与新 api scope", () => {
+  assert.equal(isGitLabCredentialScopeSufficient(["read_api", "read_repository"]), true);
+  assert.equal(isGitLabCredentialScopeSufficient(["api"]), true);
+  assert.equal(isGitLabCredentialScopeSufficient(["read_api"]), false);
+  assert.deepEqual(validateCredential({
+    ...credential,
+    scope: ["api", "openid", "profile"],
+    accessToken: "api-token",
+  }, source).scope, ["api", "openid", "profile"]);
+  assert.throws(
+    () => validateCredential({ ...credential, scope: ["read_api"] }, source),
+    (error) => error.code === "PLUGIN_AUTH_SCOPE_INVALID",
+  );
 });
 
 test("Keyring 后端运行时不可用时只退回内存", async () => {
