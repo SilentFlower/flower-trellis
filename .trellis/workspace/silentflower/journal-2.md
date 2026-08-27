@@ -1123,3 +1123,24 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 93: 归档 Plugin 复用全局 GitLab 凭据与新 OAuth scope
+
+**Date**: 2026-08-27
+**Task**: 归档 Plugin 复用全局 GitLab 凭据与新 OAuth scope
+**Branch**: `main`
+
+### Summary
+
+完成 GitLab Plugin source 复用 Flower Keyring、glab 与安全 env/PAT fallback 的认证链，并把 OAuth 请求 scope 调整为公共 Application scope；本次归档任务。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a3c6b16` | (see git log) |
+
+### Status
+
+[OK] **Completed**
