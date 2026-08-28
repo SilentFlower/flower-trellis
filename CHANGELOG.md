@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.4](https://github.com/SilentFlower/flower-trellis/compare/v0.6.3...v0.6.4) (2026-08-28)
+
+
+### 🐛 修复 Bug Fixes
+
+* **plugin:** 支持离线冻结未更新的外部 Plugin ([6210cfa](https://github.com/SilentFlower/flower-trellis/commit/6210cfae8d459a3e7b105043e4ecbc23d1b5bed9))
+
 ## [0.6.3](https://github.com/SilentFlower/flower-trellis/compare/v0.6.2...v0.6.3) (2026-08-28)
 
 
