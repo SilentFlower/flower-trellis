@@ -40,7 +40,7 @@ jobs:
             exit 1
           else
             echo "name=latest" >> "$GITHUB_OUTPUT"
-            echo "publish_args=" >> "$GITHUB_OUTPUT"
+            echo "publish_args=--tag latest" >> "$GITHUB_OUTPUT"
             echo "release_flags=" >> "$GITHUB_OUTPUT"
           fi
 
@@ -58,6 +58,7 @@ jobs:
       # 不跑 npm ci:publish 只需源码 + prepublishOnly 的 sync(仅用项目内 src/lib + node 内置,
       # 无外部依赖),省去 node-pty 等原生模块在 CI 的编译,更快更稳。
       # OIDC 模式自动带 provenance,无需 --provenance,也无需 NODE_AUTH_TOKEN。
+      # 稳定版也显式指定 latest,允许纠偏发布低于误发版本的新版本。
       # beta 必须显式指定 dist-tag,避免 prerelease 污染默认 latest 通道。
       - name: 发布到 npm ${{ steps.channel.outputs.name }}
         run: npm publish ${{ steps.channel.outputs.publish_args }}
