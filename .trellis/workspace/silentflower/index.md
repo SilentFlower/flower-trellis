@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 94
-- **Last Active**: 2026-08-27
+- **Total Sessions**: 95
+- **Last Active**: 2026-08-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~1168 | Active |
+| `journal-2.md` | ~1189 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 95 | 2026-08-28 | 优化 RD Guide 技能清单读取 | `8bd1eac` | `main` |
 | 94 | 2026-08-27 | 归档修复 rd-guide 内置来源 ref 失效 | `c399f86`, 06c05d | `main` |
 | 93 | 2026-08-27 | 归档 Plugin 复用全局 GitLab 凭据与新 OAuth scope | `a3c6b16` | `main` |
 | 92 | 2026-08-27 | 归档 Plugin TUI 无状态管理 common skill | `0a9cd62` | `main` |

@@ -1166,3 +1166,24 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 95: 优化 RD Guide 技能清单读取
+
+**Date**: 2026-08-28
+**Task**: 优化 RD Guide 技能清单读取
+**Branch**: `main`
+
+### Summary
+
+为 GitLab Provider 增加 manifest-only inspection，RD Guide TUI 技能清单读取只读索引与固定 manifest，并复用当前进程内 glab token 查询；完成测试、提交、推送和任务归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8bd1eac` | (see git log) |
+
+### Status
+
+[OK] **Completed**
