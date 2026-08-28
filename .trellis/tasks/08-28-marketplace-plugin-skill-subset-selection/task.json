@@ -1,0 +1,41 @@
+{
+  "id": "marketplace-plugin-skill-subset-selection",
+  "name": "marketplace-plugin-skill-subset-selection",
+  "title": "Marketplace Plugin 支持按 content.skills 子集选择安装",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-28",
+  "completedAt": "2026-08-28",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-08-28T08:28:54+08:00",
+    "completedSteps": [
+      "实现 PluginContentSelection DTO 与 .flower schema",
+      "打通 CLI --content-skill 到 add/update 生命周期",
+      "按 selection 过滤 content.skills 并写入 lock/state",
+      "扩展 verify 检查 selection 不一致和 manifest 缺失",
+      "扩展 TUI 发现页安装与已安装页 Skill 管理",
+      "补充相关 code-spec 与测试",
+      "完成业务提交并推送远程"
+    ],
+    "partialStep": null,
+    "nextStep": "等待 finish-work 归档任务",
+    "notes": "Full Check-All 通过；npm test、npm pack --dry-run --json、git diff --check 和定向 JS 测试均通过。"
+  }
+}

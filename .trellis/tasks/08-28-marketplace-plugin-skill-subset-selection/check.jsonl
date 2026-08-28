@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-contracts.md", "reason": "检查新增持久字段是否同步 DTO/schema/canonical JSON/Project Store 语义。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md", "reason": "检查生命周期、dry-run、update/replay/verify 与事务边界是否一致。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md", "reason": "检查 TUI inspection 与远程 Provider 是否遵守按需准备、认证和敏感信息边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "检查模块风格、导出、JSDoc、显式 import 和 prompt 约定。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "检查 selection 从 CLI/TUI 到 project files 再到投影/verify 的往返一致性。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "检查新增解析/校验 helper 是否复用或抽象得当。"}

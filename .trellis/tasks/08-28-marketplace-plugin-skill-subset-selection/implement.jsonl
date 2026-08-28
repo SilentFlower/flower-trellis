@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-contracts.md", "reason": "新增 .flower/plugins.json、plugin-lock.json、state.json 字段前必须遵守的公共 DTO、schema 与 Project Store 契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md", "reason": "Plugin 生命周期、Resolver、投影、事务、CLI 行为的所有权边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md", "reason": "普通 Marketplace/GitLab/GitHub Provider 准备、缓存与 TUI 来源读取边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "ESM、显式 import、中文 JSDoc 和命令层/逻辑层分层规范。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "本任务跨 schema、service、投影、CLI、TUI、测试多层，需要跟踪数据流。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "新增 selection 解析和校验时避免复制平台列表等既有模式。"}
