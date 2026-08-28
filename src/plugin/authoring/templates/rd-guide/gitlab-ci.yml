@@ -2,8 +2,8 @@ flower-plugin-validate:
   image: node:22
   script:
     - npm install --global flower-trellis
-    - flower-trellis plugin validate .flower-marketplace/marketplace.json --subject marketplace --checkout-map .flower-marketplace/checkouts.json --ci --json > flower-plugin-validation.json
-    - node .flower-marketplace/verify-integration-review.mjs flower-plugin-validation.json .flower-marketplace/integration-review.json
+    - flower-trellis plugin validate .flower-plugin/marketplace.json --subject marketplace --checkout-map .flower-plugin/checkouts.json --ci --json > flower-plugin-validation.json
+    - node .flower-plugin/verify-integration-review.mjs flower-plugin-validation.json .flower-plugin/integration-review.json
   artifacts:
     when: always
     paths:

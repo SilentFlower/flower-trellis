@@ -15,11 +15,19 @@
 
 /**
  * @typedef {object} PluginContent
- * @property {string[]} [skills] Skill 内容路径
+ * @property {PluginContentSkillEntry[]} [skills] Skill 内容条目
  * @property {string[]} [specs] 规范内容路径
  * @property {string[]} [assets] 资源内容路径
  * @property {string[]} [scripts] 被动脚本资源路径
  * @property {string[]} [tests] 测试资源路径
+ */
+
+/**
+ * @typedef {object} PluginContentSkillEntry
+ * @property {string} name Skill 选择名
+ * @property {string} path Skill 内容路径
+ * @property {string} version Skill 版本
+ * @property {string} [description] Skill 描述
  */
 
 /**
@@ -43,7 +51,8 @@
 /**
  * @typedef {object} MarketplacePathSource
  * @property {"path"} type 共仓来源
- * @property {string} path Marketplace 内 POSIX 相对路径
+ * @property {string} [path] Marketplace 内 POSIX 相对目录；缺省表示仓库根
+ * @property {string} [manifestPath] Plugin manifest 相对包根路径
  */
 
 /**
@@ -51,6 +60,7 @@
  * @property {"gitlab"} type GitLab 来源
  * @property {string} project GitLab project path
  * @property {string} [subdir] 仓库内 POSIX 相对目录
+ * @property {string} [manifestPath] Plugin manifest 相对包根路径
  */
 
 /**
@@ -58,6 +68,7 @@
  * @property {"github"} type GitHub 来源
  * @property {string} repository GitHub `owner/repository`
  * @property {string} [subdir] 仓库内 POSIX 相对目录
+ * @property {string} [manifestPath] Plugin manifest 相对包根路径
  */
 
 /** @typedef {MarketplacePathSource|MarketplaceGitLabSource|MarketplaceGitHubSource} MarketplaceSource */

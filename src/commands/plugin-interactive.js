@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import readline from "node:readline";
 import chalk from "chalk";
 import semver from "semver";
 import {
@@ -7,6 +8,7 @@ import {
   SkillGardenBuiltinProvider,
 } from "../builtin-plugins/skill-garden/provider.js";
 import { readLegacyManifestStatus } from "../lib/manifest.js";
+import { summarizeSkillDescription } from "../lib/skill-catalog.js";
 import { flowerVersion } from "../lib/versions.js";
 import { createCredentialStore } from "../plugin/auth/keyring-credential-store.js";
 import {
@@ -20,6 +22,7 @@ import {
 } from "../plugin/sources/user-source-store.js";
 import { ProjectStore } from "../plugin/state/project-store.js";
 import {
+  contentSelectionsEqual,
   contentSelectionArgs,
   contentSelectionFromSkillNames,
   normalizeContentSelection,
@@ -148,6 +151,70 @@ function withPlatforms(args, platforms) {
 }
 
 /**
+ * 计算纯文本宽度，用于对齐 Skill 名称。
+ *
+ * @param {string[]} values 文本列表
+ * @returns {number} 最大宽度
+ */
+function maxTextWidth(values) {
+  return Math.max(0, ...values.map((value) => String(value).length));
+}
+
+/**
+ * 判断 canonical Plugin 是否来自 rd-guide Marketplace。
+ *
+ * @param {string} pluginId canonical Plugin ID
+ * @param {string|null|undefined} source 显式来源 ID
+ * @returns {boolean} 是否 rd-guide 来源
+ */
+function isRdGuideMarketplacePlugin(pluginId, source) {
+  const sourceId = source || parseCanonicalPluginId(pluginId).sourceId;
+  return sourceId === "rd-guide";
+}
+
+/**
+ * 从多份 Project 记录中读取第一份显式 Skill 选择。
+ *
+ * @param {...object|null|undefined} entries Project plugin 记录
+ * @returns {import("../plugin/contracts.js").PluginContentSelection|undefined} 归一化后的选择
+ */
+function firstContentSelection(...entries) {
+  for (const entry of entries) {
+    const selection = normalizeContentSelection(entry?.contentSelection);
+    if (selection) return selection;
+  }
+  return undefined;
+}
+
+/**
+ * 生成 rd-guide 来源级 Skill 入口的元信息。
+ *
+ * @param {string} sourceName 来源展示名
+ * @param {object|null|undefined} selection 当前 Skill 选择
+ * @returns {string} 不暴露底层 Plugin 包版本的元信息
+ */
+function rdGuideSkillMeta(sourceName, selection) {
+  const normalized = normalizeContentSelection(selection);
+  const count = normalized?.skills?.length || 0;
+  return count > 0 ? `${sourceName} · 已启用 ${count} 个技能` : sourceName;
+}
+
+/**
+ * 为一次 Skill 清单 inspection 构造会话缓存键。
+ *
+ * @param {{pluginId:string,version?:string,source?:string|null,lockedPlugin?:object|null}} input 选择输入
+ * @returns {string|null} 缓存键
+ */
+function skillInspectionCacheKey(input) {
+  const pluginId = input.pluginId || input.lockedPlugin?.id;
+  if (!pluginId) return null;
+  const sourceId = input.source || input.lockedPlugin?.source?.id || parseCanonicalPluginId(pluginId).sourceId;
+  const version = input.version || input.lockedPlugin?.version || "";
+  const integrity = input.lockedPlugin?.integrity || "";
+  return [sourceId, pluginId, version, integrity].join("\u0000");
+}
+
+/**
  * 生成 Marketplace Skill 管理标题。
  *
  * @param {string} pluginId canonical Plugin ID
@@ -156,6 +223,141 @@ function withPlatforms(args, platforms) {
 function skillSelectionTitle(pluginId) {
   const { sourceId } = parseCanonicalPluginId(pluginId);
   return sourceId === "rd-guide" ? "RD Guide 技能管理" : `${pluginId} Skill 管理`;
+}
+
+/**
+ * 生成普通 Marketplace Skill 选择页文案。
+ *
+ * @param {{pluginId:string,source?:string|null}} input 选择输入
+ * @param {{version?:string,name?:string}} inspection inspection 结果
+ * @returns {{title:string,meta:string,section:string,hint:string,message:string,empty:string}} 文案集合
+ */
+function skillSelectionLabels(input, inspection) {
+  if (isRdGuideMarketplacePlugin(input.pluginId, input.source)) {
+    return {
+      title: "RD Guide 技能管理",
+      meta: "来源 rd-guide",
+      section: "可选研发技能",
+      hint: "勾选表示启用，取消勾选表示停用；未勾选项仍保留在清单中，可重新启用。",
+      message: "选择要启用的 RD Guide 技能",
+      empty: "未选择 RD Guide 技能，已取消安装",
+    };
+  }
+  return {
+    title: skillSelectionTitle(input.pluginId),
+    meta: [inspection.name || input.pluginId, inspection.version ? `版本 ${inspection.version}` : ""]
+      .filter(Boolean)
+      .join(" · "),
+    section: "可选 Plugin 技能",
+    hint: "勾选表示启用，取消勾选表示停用。",
+    message: "选择要启用的 Plugin 技能",
+    empty: "未选择 Plugin 技能，已取消",
+  };
+}
+
+/**
+ * 打印普通 Marketplace Skill 选择页头部。
+ *
+ * @param {object} context 交互上下文
+ * @param {{title:string,meta:string,section:string,hint:string}} labels 文案集合
+ * @returns {void}
+ */
+function printMarketplaceSkillHeader(context, labels) {
+  context.output.log("");
+  context.output.log(chalk.hex(TITLE_COLOR).bold(labels.title));
+  if (labels.meta) context.output.log(chalk.gray(`  ${labels.meta}`));
+  context.output.log("");
+  context.output.log(chalk.bold(labels.section));
+  context.output.log(chalk.gray(`  ${labels.hint}`));
+}
+
+/**
+ * 构造 Marketplace Skill checkbox 选项。
+ *
+ * @param {Array<{name:string,path:string,description?:string,version?:string}>} skills Skill 清单
+ * @param {Set<string>} defaults 默认勾选项
+ * @returns {Array<object>} checkbox choices
+ */
+function buildMarketplaceSkillChoices(skills, defaults) {
+  const width = maxTextWidth(skills.map(({ name }) => name));
+  const versionWidth = maxTextWidth(skills.map(({ version }) => version ? `v${version}` : ""));
+  return skills.map((skill) => {
+    const description = skill.description
+      ? summarizeSkillDescription(skill.description, 34)
+      : summarizeSkillDescription(skill.path, 34);
+    const version = skill.version ? `v${skill.version}` : "";
+    const detail = versionWidth > 0
+      ? `${version.padEnd(versionWidth)}  ${description}`
+      : description;
+    const label = `${skill.name.padEnd(width)}  ${chalk.gray(detail)}`;
+    return {
+      name: label,
+      short: skill.name,
+      checkedName: label,
+      value: skill.name,
+      checked: defaults.has(skill.name),
+    };
+  });
+}
+
+/**
+ * 创建与内置 skill 管理一致的中文 checkbox 主题。
+ *
+ * @returns {object} Inquirer theme
+ */
+function marketplaceSkillCheckboxTheme() {
+  return {
+    style: {
+      description: (text) => chalk.gray(text),
+      keysHelpTip: (keys) =>
+        keys
+          .map(([key, action]) => {
+            const keyLabels = {
+              escape: "Esc",
+              space: "空格",
+              "⏎": "回车",
+            };
+            const labels = {
+              navigate: "移动",
+              select: "选择",
+              submit: "确认",
+            };
+            return `${chalk.bold(keyLabels[key] || key)} ${chalk.gray(labels[action] || action)}`;
+          })
+          .concat(`${chalk.bold("ESC")} ${chalk.gray("退出")}`)
+          .join(chalk.gray(" · ")),
+      renderSelectedChoices: (selectedChoices) =>
+        selectedChoices.map((choice) => choice.short).join(", "),
+    },
+  };
+}
+
+/**
+ * 创建 Esc 取消控制器。
+ *
+ * @returns {{signal?:AbortSignal,dispose:Function,isEscAbort:Function}} prompt signal 与清理函数
+ */
+function createEscAbortController() {
+  if (!process.stdin?.isTTY) {
+    return { dispose: () => {}, isEscAbort: () => false };
+  }
+  const controller = new AbortController();
+  let abortedByEsc = false;
+  readline.emitKeypressEvents(process.stdin);
+
+  const onKeypress = (_value, key) => {
+    if (key && key.name === "escape") {
+      abortedByEsc = true;
+      controller.abort();
+    }
+  };
+  process.stdin.on("keypress", onKeypress);
+
+  return {
+    signal: controller.signal,
+    dispose: () => process.stdin.off("keypress", onKeypress),
+    isEscAbort: () => abortedByEsc,
+  };
 }
 
 /**
@@ -175,13 +377,21 @@ function supportsMarketplaceSkillSelection(pluginId, declaration) {
  * 读取并提示用户选择普通 Marketplace Plugin 的 Skill 子集。
  *
  * @param {object} context 交互上下文
- * @param {{pluginId:string,version?:string,source?:string|null,currentSelection?:object|null,lockedPlugin?:object|null}} input 选择输入
- * @returns {Promise<{ok:boolean,selection:object|null}>} 选择结果；无 Skill 时 selection 为 null
+ * @param {{pluginId:string,version?:string,source?:string|null,currentSelection?:object|null,lockedPlugin?:object|null,emptySelectionAction?:"cancel"|"return",defaultSelected?:boolean}} input 选择输入
+ * @returns {Promise<{ok:boolean,selection:object|null,emptySelection?:boolean}>} 选择结果；无 Skill 时 selection 为 null
  */
 async function promptMarketplaceSkillSelection(context, input) {
   let inspection;
+  const cacheKey = skillInspectionCacheKey(input);
   try {
-    inspection = await context.inspectPluginContentSkills(input);
+    inspection = cacheKey ? context.state.skillInspections.get(cacheKey) : null;
+    if (!inspection) {
+      if (isRdGuideMarketplacePlugin(input.pluginId, input.source)) {
+        context.output.log("\n正在读取 RD Guide 技能清单...");
+      }
+      inspection = await context.inspectPluginContentSkills(input);
+      if (cacheKey) context.state.skillInspections.set(cacheKey, inspection);
+    }
   } catch (error) {
     recordIssue(context.state, `${input.pluginId} Skill 清单读取失败`, error);
     context.state.lastFailure = `${input.pluginId} Skill 清单读取失败`;
@@ -189,22 +399,46 @@ async function promptMarketplaceSkillSelection(context, input) {
   }
   const skills = inspection.skills || [];
   if (skills.length === 0) return { ok: true, selection: null };
+  const currentSelection = normalizeContentSelection(input.currentSelection);
+  const initialDefaultSkills = input.defaultSelected === false
+    ? []
+    : skills.map(({ name }) => name);
   const defaults = new Set(
-    normalizeContentSelection(input.currentSelection)?.skills ||
-    skills.map(({ name }) => name),
+    currentSelection?.skills || initialDefaultSkills,
   );
-  const selected = await context.prompts.checkbox({
-    message: skillSelectionTitle(input.pluginId),
-    choices: skills.map((skill) => ({
-      name: skill.name,
-      value: skill.name,
-      checked: defaults.has(skill.name),
-      description: skill.path,
-    })),
-    required: true,
-    loop: false,
-    pageSize: 12,
-  });
+  const labels = skillSelectionLabels(input, inspection);
+  printMarketplaceSkillHeader(context, labels);
+  let selected;
+  const escAbort = createEscAbortController();
+  try {
+    selected = await context.prompts.checkbox({
+      message: labels.message,
+      choices: buildMarketplaceSkillChoices(skills, defaults),
+      required: false,
+      loop: false,
+      pageSize: Math.min(skills.length, 12),
+      shortcuts: { all: null, invert: null },
+      theme: marketplaceSkillCheckboxTheme(),
+    }, escAbort.signal ? { signal: escAbort.signal } : undefined);
+  } catch (err) {
+    if (err && err.name === "AbortPromptError" && escAbort.isEscAbort()) {
+      context.output.log("  · 已取消 Skill 选择");
+      return { ok: false, selection: null };
+    }
+    if (err && err.name === "ExitPromptError") {
+      throw new Error("已取消 Skill 管理");
+    }
+    throw err;
+  } finally {
+    escAbort.dispose();
+  }
+  if (selected.length === 0) {
+    if (input.emptySelectionAction === "return") {
+      return { ok: true, selection: null, emptySelection: true };
+    }
+    context.output.log(`  · ${labels.empty}`);
+    return { ok: false, selection: null, emptySelection: true };
+  }
   return {
     ok: true,
     selection: contentSelectionFromSkillNames(selected, {
@@ -400,7 +634,7 @@ async function promptGitLabSource(prompts, current, existingIds, sourceStore) {
     values.id = uniqueSourceId(sourceIdBaseName(values.project), existingIds);
     values.name = defaultSourceName(values.id);
     values.ref = "main";
-    values.marketplacePath = ".flower-marketplace/marketplace.json";
+    values.marketplacePath = ".flower-plugin/marketplace.json";
     values.applicationId = defaults?.oauth?.applicationId || await prompts.input({
       message: "OAuth 应用 ID（Application ID）",
       required: true,
@@ -425,7 +659,7 @@ async function promptGitLabSource(prompts, current, existingIds, sourceStore) {
   values.ref = await prompts.input({ message: "索引 ref（branch/tag/commit）", default: current?.ref || "main", required: true });
   values.marketplacePath = await prompts.input({
     message: "Marketplace 文件路径",
-    default: current?.marketplacePath || ".flower-marketplace/marketplace.json",
+    default: current?.marketplacePath || ".flower-plugin/marketplace.json",
     required: true,
   });
   values.applicationId = await prompts.input({
@@ -612,6 +846,7 @@ function recordIssue(state, title, error) {
 function invalidateDiscovery(state) {
   state.discovery = null;
   state.authStatuses.clear();
+  state.skillInspections?.clear();
 }
 
 /**
@@ -724,7 +959,7 @@ async function loadDiscoverEntries(context, statuses) {
  * 计算一个 Marketplace Plugin 相对当前项目的安装状态。
  *
  * @param {object} plugin Marketplace Plugin 记录
- * @param {{declared:Map<string,object>,locked:Map<string,object>}} project 项目视图索引
+ * @param {{declared:Map<string,object>,locked:Map<string,object>,applied?:Map<string,object>}} project 项目视图索引
  * @returns {{installed:boolean,current:string|null,latest:string,outdated:boolean}} 安装状态
  */
 function installedStatus(plugin, project) {
@@ -742,7 +977,7 @@ function installedStatus(plugin, project) {
  * 把发现页 entry 渲染成当前项目视角下的条目。
  *
  * @param {object[]} entries 发现页 entry
- * @param {{declared:Map<string,object>,locked:Map<string,object>}} project 项目视图索引
+ * @param {{declared:Map<string,object>,locked:Map<string,object>,applied?:Map<string,object>}} project 项目视图索引
  * @param {Map<string,object>} actions 动作索引
  * @returns {object[]} 发现页条目
  */
@@ -781,19 +1016,37 @@ function renderDiscoverItems(entries, project, actions) {
       const { plugin, source } = entry;
       const status = installedStatus(plugin, project);
       const key = `plugin:${source.id}:${plugin.id}`;
+      const declaration = project.declared.get(plugin.id);
+      const lock = project.locked.get(plugin.id);
+      const state = project.applied?.get(plugin.id);
+      const isRdGuide = isRdGuideMarketplacePlugin(plugin.id, source.id);
+      const selection = firstContentSelection(declaration, state, lock);
+      const meta = isRdGuide
+        ? rdGuideSkillMeta(source.name, selection)
+        : status.outdated
+          ? `${source.name} · ${status.current} → ${status.latest}`
+          : `${source.name} · ${status.current || status.latest}`;
+      const badge = isRdGuide
+        ? status.installed ? "已安装" : source.id
+        : status.outdated ? "可更新" : status.installed ? "已安装" : source.id;
+      const tone = isRdGuide
+        ? status.installed ? "success" : "info"
+        : status.outdated ? "warning" : status.installed ? "success" : "info";
       actions.set(key, status.installed
-        ? { type: "installed", pluginId: plugin.id }
+        ? { type: isRdGuide && selection ? "marketplace-skills" : "installed", pluginId: plugin.id }
         : { type: "plugin", plugin });
       items.push({
-        title: plugin.id,
-        meta: status.outdated
-          ? `${source.name} · ${status.current} → ${status.latest}`
-          : `${source.name} · ${status.current || status.latest}`,
-        description: status.installed
-          ? `${plugin.description || "暂无描述"}（已安装，按 Enter 校验、更新或卸载）`
-          : plugin.description || "暂无描述",
-        badge: status.outdated ? "可更新" : status.installed ? "已安装" : source.id,
-        tone: status.outdated ? "warning" : status.installed ? "success" : "info",
+        title: isRdGuide ? "RD Guide 技能" : plugin.id,
+        meta,
+        description: isRdGuide
+          ? status.installed
+            ? "已安装，按 Enter 管理当前启用的 RD Guide 技能。"
+            : "按 Enter 选择要启用的 RD Guide 技能。"
+          : status.installed
+            ? `${plugin.description || "暂无描述"}（已安装，按 Enter 校验、更新或卸载）`
+            : plugin.description || "暂无描述",
+        badge,
+        tone,
         value: key,
       });
       continue;
@@ -858,18 +1111,26 @@ async function buildManagerModel(context) {
   const applied = new Map((view.state?.plugins || []).map((plugin) => [plugin.id, plugin]));
   const declared = new Map(view.plugins.plugins.map((plugin) => [plugin.id, plugin]));
   const discoverEntries = await loadDiscoverEntries(context, statuses);
-  const discover = renderDiscoverItems(discoverEntries, { declared, locked }, actions);
+  const discover = renderDiscoverItems(discoverEntries, { declared, locked, applied }, actions);
+  const sourceNames = new Map(sources.map(({ id, name }) => [id, name]));
   const installed = view.plugins.plugins.map((declaration) => {
     const lock = locked.get(declaration.id);
     const state = applied.get(declaration.id);
     const version = lock?.version || declaration.version;
     const platforms = state?.platforms?.join(", ") || "未应用";
     const key = `installed:${declaration.id}`;
-    actions.set(key, { type: "installed", pluginId: declaration.id });
+    const isRdGuide = isRdGuideMarketplacePlugin(declaration.id, declaration.source);
+    const selection = firstContentSelection(declaration, state, lock);
+    const directSkillManager = isRdGuide && Boolean(selection);
+    actions.set(key, { type: directSkillManager ? "marketplace-skills" : "installed", pluginId: declaration.id });
     return {
-      title: declaration.id,
-      meta: `${version} · ${platforms}`,
-      description: `来源 ${declaration.source}，按 Enter 校验、更新或卸载。`,
+      title: directSkillManager ? "RD Guide 技能" : declaration.id,
+      meta: directSkillManager
+        ? rdGuideSkillMeta(sourceNames.get(declaration.source) || declaration.source, selection)
+        : `${version} · ${platforms}`,
+      description: directSkillManager
+        ? "按 Enter 管理当前启用的 RD Guide 技能。"
+        : `来源 ${declaration.source}，按 Enter 校验、更新或卸载。`,
       badge: state ? "已应用" : "未应用",
       tone: state ? "success" : "warning",
       value: key,
@@ -980,27 +1241,13 @@ async function buildManagerModel(context) {
 }
 
 /**
- * 展示远程 Plugin 详情并执行安装。
+ * 执行 Marketplace Plugin 安装计划。
  *
  * @param {object} context 交互上下文
  * @param {object} plugin Plugin 搜索结果
  * @returns {Promise<void>} 完成信号
  */
-async function installPlugin(context, plugin) {
-  context.output.log("");
-  context.output.log(chalk.hex(TITLE_COLOR).bold(plugin.id));
-  context.output.log(`  ${plugin.description || "暂无描述"}`);
-  context.output.log(chalk.gray(`  来源 ${plugin.source} · 版本 ${plugin.versions.join(", ")}`));
-  const action = await context.prompts.select({
-    message: "Plugin 详情",
-    choices: [
-      { name: "安装到当前项目", value: "install" },
-      { name: "返回发现", value: "back" },
-    ],
-    loop: false,
-  });
-  if (action === "back") return;
-
+async function installSelectedPlugin(context, plugin) {
   const versions = [...plugin.versions].sort(semver.rcompare);
   // Marketplace 只发一个版本时没有可选项，多问一步只是噪音。
   const version = versions.length === 1
@@ -1050,6 +1297,110 @@ async function installPlugin(context, plugin) {
   if (await runChecked(context, args, `${plugin.id} 安装失败`) === 0) {
     context.state.activeTab = "installed";
   }
+}
+
+/**
+ * 读取 Marketplace 返回的最新版本。
+ *
+ * @param {object} plugin Plugin 搜索结果
+ * @returns {string|null} 最新 SemVer 版本
+ */
+function latestMarketplaceVersion(plugin) {
+  const versions = (plugin.versions || []).filter((value) => semver.valid(value));
+  if (versions.length === 0) return null;
+  return [...versions].sort(semver.rcompare)[0];
+}
+
+/**
+ * 直接应用 rd-guide Skill 选择。
+ *
+ * rd-guide 在 TUI 中按来源级 Skill 管理呈现；平台缺失时沿用普通安装页的默认平台推断，
+ * 但不把底层平台选择、dry-run 预览和确认流暴露给用户。
+ *
+ * @param {object} context 交互上下文
+ * @param {object} plugin Plugin 搜索结果
+ * @returns {Promise<void>} 完成信号
+ */
+async function installRdGuideSkills(context, plugin) {
+  const version = latestMarketplaceVersion(plugin);
+  if (!version) {
+    recordIssue(context.state, `${plugin.id} 安装失败`, new Error("Marketplace 没有可安装版本"));
+    context.state.lastFailure = `${plugin.id} 安装失败`;
+    return;
+  }
+  const skillSelection = await promptMarketplaceSkillSelection(context, {
+    pluginId: plugin.id,
+    version,
+    source: plugin.source,
+    defaultSelected: false,
+  });
+  if (!skillSelection.ok || !skillSelection.selection) return;
+  let args = [
+    "add",
+    plugin.id,
+    "--version",
+    `^${version}`,
+    ...contentSelectionArgs(skillSelection.selection),
+  ];
+  const current = readProjectView(context.store, context.ctx.target);
+  if (inferPlatforms(context.ctx.target, current.state).length === 0) {
+    args = withPlatforms(args, defaultPlatforms(context.ctx.target, current.state));
+  }
+  context.output.log("\n正在应用 RD Guide 技能选择...");
+  if (await runChecked(context, args, `${plugin.id} 安装失败`) === 0) {
+    context.output.log("  · RD Guide 技能已应用");
+    context.state.activeTab = "installed";
+  }
+}
+
+/**
+ * 停用全部 RD Guide 技能。
+ *
+ * 当前 contentSelection.skills 不允许为空；当用户在已安装的 rd-guide 技能管理中取消全部勾选时，
+ * 最接近内置 Skill 管理语义的项目状态是移除这个 rd-guide Plugin 声明与投影文件。
+ *
+ * @param {object} context 交互上下文
+ * @param {string} pluginId canonical Plugin ID
+ * @returns {Promise<void>} 完成信号
+ */
+async function removeRdGuideSkills(context, pluginId) {
+  context.output.log("\n正在停用全部 RD Guide 技能...");
+  if (await runChecked(context, ["remove", pluginId], `${pluginId} 停用失败`) === 0) {
+    context.output.log("  · RD Guide 技能已全部停用");
+    context.state.activeTab = "discover";
+  }
+}
+
+/**
+ * 展示远程 Plugin 详情并执行安装。
+ *
+ * rd-guide 是来源级 Skill 管理体验，用户选中后直接进入技能列表；普通 Marketplace
+ * Plugin 仍保留详情页，避免把已有插件安装流程全部改成 Skill 管理模型。
+ *
+ * @param {object} context 交互上下文
+ * @param {object} plugin Plugin 搜索结果
+ * @returns {Promise<void>} 完成信号
+ */
+async function installPlugin(context, plugin) {
+  if (isRdGuideMarketplacePlugin(plugin.id, plugin.source)) {
+    await installRdGuideSkills(context, plugin);
+    return;
+  }
+
+  context.output.log("");
+  context.output.log(chalk.hex(TITLE_COLOR).bold(plugin.id));
+  context.output.log(`  ${plugin.description || "暂无描述"}`);
+  context.output.log(chalk.gray(`  来源 ${plugin.source} · 版本 ${plugin.versions.join(", ")}`));
+  const action = await context.prompts.select({
+    message: "Plugin 详情",
+    choices: [
+      { name: "安装到当前项目", value: "install" },
+      { name: "返回发现", value: "back" },
+    ],
+    loop: false,
+  });
+  if (action === "back") return;
+  await installSelectedPlugin(context, plugin);
 }
 
 /**
@@ -1133,16 +1484,34 @@ async function managePluginSkillSelection(context, pluginId) {
     context.state.lastFailure = `${pluginId} Skill 选择失败`;
     return;
   }
+  const rdGuide = isRdGuideMarketplacePlugin(pluginId, declaration.source);
   const version = lockedPlugin?.version || marketplaceVersions(context.state, pluginId)[0] || null;
   const skillSelection = await promptMarketplaceSkillSelection(context, {
     pluginId,
     version,
     source: declaration.source,
     currentSelection,
+    emptySelectionAction: rdGuide ? "return" : "cancel",
     ...(lockedPlugin ? { lockedPlugin } : {}),
   });
-  if (!skillSelection.ok || !skillSelection.selection) return;
+  if (!skillSelection.ok) return;
+  if (skillSelection.emptySelection) {
+    if (rdGuide) await removeRdGuideSkills(context, pluginId);
+    return;
+  }
+  if (!skillSelection.selection) return;
+  if (contentSelectionsEqual(currentSelection, skillSelection.selection)) {
+    context.output.log("  · Skill 选择没有修改");
+    return;
+  }
   const args = ["update", pluginId, ...contentSelectionArgs(skillSelection.selection)];
+  if (rdGuide) {
+    context.output.log("\n正在应用 RD Guide 技能选择...");
+    if (await runChecked(context, args, `${pluginId} Skill 选择更新失败`) === 0) {
+      context.output.log("  · RD Guide 技能选择已应用");
+    }
+    return;
+  }
   context.output.log("\n更新 Skill 选择预览:");
   if (await runChecked(context, [...args, "--dry-run"], `${pluginId} Skill 选择预览失败`) !== 0) return;
   const confirmed = await context.prompts.confirm({
@@ -1548,6 +1917,8 @@ async function handleAction(context, actionKey, actions) {
     await installPlugin(context, action.plugin);
   } else if (action.type === "skill-manager") {
     await context.openSkillManager();
+  } else if (action.type === "marketplace-skills") {
+    await managePluginSkillSelection(context, action.pluginId);
   } else if (action.type === "installed") {
     await manageInstalledPlugin(context, action.pluginId);
   } else if (action.type === "source") {
@@ -1639,6 +2010,7 @@ export async function runPluginInteractive(ctx, options) {
     selectedByTab: Object.fromEntries(TAB_IDS.map((id) => [id, null])),
     discovery: null,
     authStatuses: new Map(),
+    skillInspections: new Map(),
     issues: [],
     lastFailure: null,
     exitRequested: false,

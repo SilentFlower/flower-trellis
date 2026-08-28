@@ -27,6 +27,105 @@ const OMITTED_COMPONENTS = Object.freeze([
 ]);
 
 /**
+ * 列出原生 Flower manifest 声明的包内容路径。
+ *
+ * @param {import("../contracts.js").PluginManifest} manifest Flower manifest
+ * @returns {string[]} 需要进入规范化包的相对路径
+ */
+function declaredPackagePaths(manifest) {
+  const content = manifest.content || {};
+  const skills = (content.skills || []).map(({ path: skillPath }) => skillPath);
+  const passive = ["specs", "assets", "scripts", "tests"].flatMap((kind) => content[kind] || []);
+  const patches = [
+    manifest.patches?.catalog,
+    manifest.patches?.bundles,
+  ].filter(Boolean);
+  return [...new Set([...skills, ...passive, ...patches])].sort(compareUtf8);
+}
+
+/**
+ * 复制 manifest 显式声明的文件或目录。
+ *
+ * @param {string} sourceRoot 源仓库根
+ * @param {string} targetRoot 规范化包根
+ * @param {string} relative POSIX 相对路径
+ * @returns {void}
+ */
+function copyDeclaredPath(sourceRoot, targetRoot, relative) {
+  const safeRelative = assertSafePosixRelativePath(relative, "Flower Plugin content 路径");
+  const source = path.join(sourceRoot, ...safeRelative.split("/"));
+  const target = path.join(targetRoot, ...safeRelative.split("/"));
+  let stat;
+  try {
+    stat = fs.lstatSync(source);
+  } catch (error) {
+    throw new PluginRuntimeError(`Flower Plugin 声明内容不存在:${safeRelative}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.FORMAT_UNSUPPORTED,
+      path: safeRelative,
+      cause: error,
+    });
+  }
+  if (stat.isSymbolicLink()) {
+    throw new PluginRuntimeError(`Flower Plugin 声明内容不能是软链:${safeRelative}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.FORMAT_UNSUPPORTED,
+      path: safeRelative,
+    });
+  }
+  if (stat.isDirectory()) {
+    for (const file of listCanonicalTreeFiles(source)) {
+      const destination = path.join(target, ...file.path.split("/"));
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.copyFileSync(file.absolutePath, destination);
+    }
+    return;
+  }
+  if (!stat.isFile()) {
+    throw new PluginRuntimeError(`Flower Plugin 声明内容必须是普通文件或目录:${safeRelative}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.FORMAT_UNSUPPORTED,
+      path: safeRelative,
+    });
+  }
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.copyFileSync(source, target);
+}
+
+/**
+ * 复制与声明内容匹配的平台覆盖。
+ *
+ * @param {string} sourceRoot 源仓库根
+ * @param {string} targetRoot 规范化包根
+ * @param {import("../contracts.js").PluginManifest} manifest Flower manifest
+ * @returns {void}
+ */
+function copyPlatformOverrides(sourceRoot, targetRoot, manifest) {
+  const platformsRoot = path.join(sourceRoot, "platforms");
+  if (!fs.existsSync(platformsRoot)) return;
+  for (const platform of fs.readdirSync(platformsRoot, { withFileTypes: true }).sort((left, right) => compareUtf8(left.name, right.name))) {
+    if (!platform.isDirectory()) continue;
+    for (const relative of declaredPackagePaths(manifest)) {
+      const override = `platforms/${platform.name}/${relative}`;
+      if (fs.existsSync(path.join(sourceRoot, ...override.split("/")))) {
+        copyDeclaredPath(sourceRoot, targetRoot, override);
+      }
+    }
+  }
+}
+
+/**
+ * 展开 Flower manifest 声明内容为兼容性报告条目。
+ *
+ * @param {import("../contracts.js").PluginManifest} manifest Flower manifest
+ * @returns {Array<{kind:string,path:string,name?:string}>} 内容条目
+ */
+function manifestContentItems(manifest) {
+  return Object.entries(manifest.content).flatMap(([kind, entries]) => (
+    kind === "skills"
+      ? entries.map((entry) => ({ kind, name: entry.name, path: entry.path }))
+      : entries.map((entry) => ({ kind, path: entry }))
+  )).sort((left, right) => compareUtf8(left.path, right.path));
+}
+
+/**
  * 生成外部 Plugin 缺省内部版本。
  *
  * @param {string} commit 完整 commit
@@ -92,11 +191,15 @@ function copySkill(source, target, name, description) {
 /**
  * 复制并复核原生 Flower Plugin 包。
  *
- * @param {{pluginRoot:string,outputRoot:string}} options 规范化参数
+ * @param {{pluginRoot:string,outputRoot:string,manifestPath?:string}} options 规范化参数
  * @returns {{root:string,manifest:import("../contracts.js").PluginManifest,integrity:string,compatibilityReport:object,externalVersion:string,description:string}} 标准包
  */
 export function normalizeFlowerPlugin(options) {
   const packageRoot = path.resolve(options.outputRoot);
+  const manifestPath = assertSafePosixRelativePath(
+    options.manifestPath || "plugin.json",
+    "Flower Plugin manifest 路径",
+  );
   if (fs.existsSync(packageRoot)) {
     throw new PluginRuntimeError(`规范化包目标已存在:${packageRoot}`, {
       code: PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
@@ -105,14 +208,23 @@ export function normalizeFlowerPlugin(options) {
   }
   fs.mkdirSync(packageRoot, { recursive: true });
   try {
-    for (const file of listCanonicalTreeFiles(options.pluginRoot)) {
-      const destination = path.join(packageRoot, ...file.path.split("/"));
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      fs.copyFileSync(file.absolutePath, destination);
-    }
+    const raw = fs.readFileSync(path.join(options.pluginRoot, ...manifestPath.split("/")), "utf8");
     const manifest = validatePluginManifest(JSON.parse(
-      fs.readFileSync(path.join(packageRoot, "plugin.json"), "utf8"),
+      raw,
     ));
+    if (manifestPath === "plugin.json") {
+      for (const file of listCanonicalTreeFiles(options.pluginRoot)) {
+        const destination = path.join(packageRoot, ...file.path.split("/"));
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.copyFileSync(file.absolutePath, destination);
+      }
+    } else {
+      fs.writeFileSync(path.join(packageRoot, "plugin.json"), raw);
+      for (const relative of declaredPackagePaths(manifest)) {
+        copyDeclaredPath(options.pluginRoot, packageRoot, relative);
+      }
+      copyPlatformOverrides(options.pluginRoot, packageRoot, manifest);
+    }
     return {
       root: packageRoot,
       manifest,
@@ -120,9 +232,7 @@ export function normalizeFlowerPlugin(options) {
       compatibilityReport: {
         status: "compatible",
         format: "flower",
-        imported: Object.entries(manifest.content).flatMap(([kind, paths]) => (
-          paths.map((value) => ({ kind, path: value }))
-        )).sort((left, right) => compareUtf8(left.path, right.path)),
+        imported: manifestContentItems(manifest),
         omitted: [],
         diagnostics: [],
       },
@@ -206,12 +316,12 @@ export function normalizeExternalPlugin(options) {
         if (!fs.existsSync(path.join(source, "SKILL.md"))) continue;
         const name = registerName(directory, "Skill");
         copySkill(source, path.join(packageRoot, "skills", name), name, `${pluginName} 的 ${name} 工作流`);
-        imported.push({ kind: "skills", path: `skills/${name}` });
+        imported.push({ kind: "skills", name, path: `skills/${name}` });
       }
     } else if (fs.existsSync(path.join(root, "SKILL.md"))) {
       const name = registerName(path.basename(root), "Skill");
       copySkill(root, path.join(packageRoot, "skills", name), name, `${pluginName} 的 ${name} 工作流`);
-      imported.push({ kind: "skills", path: `skills/${name}` });
+      imported.push({ kind: "skills", name, path: `skills/${name}` });
     }
   }
 
@@ -226,7 +336,7 @@ export function normalizeExternalPlugin(options) {
         path.join(packageRoot, "skills", name, "SKILL.md"),
         normalizedSkillContent(content, name, `${pluginName} 的 ${name} 命令工作流`),
       );
-      imported.push({ kind: "commands", path: `skills/${name}` });
+      imported.push({ kind: "commands", name, path: `skills/${name}` });
       diagnostics.push({
         code: "external.command-converted",
         path: `commands/${file}`,
@@ -260,7 +370,9 @@ export function normalizeExternalPlugin(options) {
     dependencies: {},
     capabilities: { profile: "standard", required: ["content.skills"] },
     content: {
-      skills: imported.map(({ path: value }) => value).sort(compareUtf8),
+      skills: imported
+        .map(({ name, path: value }) => ({ name, path: value, version }))
+        .sort((left, right) => compareUtf8(left.name, right.name)),
     },
   });
   fs.writeFileSync(path.join(packageRoot, "plugin.json"), `${JSON.stringify(manifest, null, 2)}\n`);

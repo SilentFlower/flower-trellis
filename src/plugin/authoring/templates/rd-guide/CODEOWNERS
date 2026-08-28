@@ -1,2 +1,2 @@
 # integration 审核材料必须由受保护 owner 审批。
-/.flower-marketplace/integration-review.json @digital-rd-governance/plugin-integration-owners
+/.flower-plugin/integration-review.json @digital-rd-governance/plugin-integration-owners

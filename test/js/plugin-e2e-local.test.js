@@ -95,7 +95,7 @@ test("显式依赖 skill-garden 但缺少 Trellis 时在写盘前阻断", (t) =>
   writePluginPackage(project, "plugins/dependent", pluginManifest({
     id: "dependent",
     dependencies: { "flower/skill-garden": "*" },
-    content: { skills: ["skills/dependent"] },
+    content: { skills: [{ name: "dependent", path: "skills/dependent", version: "1.0.0" }] },
   }), { "skills/dependent/SKILL.md": "# Dependent\n" });
   const before = snapshotProjectFiles(project);
 

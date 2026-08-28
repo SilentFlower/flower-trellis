@@ -56,8 +56,9 @@ ProjectStore.writeState(value) -> {status, path}
 
 - Plugin Manifest v1 必含 `schemaVersion`、`id`、`name`、`version`、`compatibility`、`capabilities`、`content`。
 - `content` 只允许 `skills/specs/assets/scripts/tests`；`scripts` 是被动资源，v1 没有 lifecycle hook。
+- `content.skills` 固定为 `{name,path,version,description?}` 对象数组：`name` 是 TUI/selection 使用的单段 Skill 名称，`path` 是包内来源路径，`version` 是该 Skill 自己的严格 SemVer。字符串路径数组不合法，不做旧 manifest 兼容。
 - `patches` 只声明 `catalog` 与可选 `bundles`；schema 请求不等于最终能力授权。
-- Marketplace v1 source 允许共仓 `path`、远程 `gitlab` 或公开 `github`；GitHub source 固定使用规范化的 `owner/repository` 与可选安全 `subdir`。
+- Marketplace v1 source 允许共仓 `path`、远程 `gitlab` 或公开 `github`；GitHub source 固定使用规范化的 `owner/repository` 与可选安全 `subdir`。source 可声明安全相对 `manifestPath` 指向非包根 manifest，例如仓库根 `.flower-plugin/plugin.json`；共仓 `type:"path"` 可省略 `path` 表示从当前仓库根按 manifest 声明构建运行时包。
 - 每个 Marketplace 版本必须同时包含 SemVer、`ref`、不可变 `commit` 和 canonical tree `integrity`。
 - Marketplace `trust.maxProfile` 只能是 `standard` 或 `integration`，不能授予 `system`。
 - Marketplace Plugin ID 和同一 Plugin 内的版本号必须唯一。
@@ -75,7 +76,7 @@ ProjectStore.writeState(value) -> {status, path}
 ```
 
 - `plugins.json` 只保存直接 Plugin、source ID、版本约束和可选显式平台限制。
-- 直接 Plugin 可选 `contentSelection.skills`，表示按 manifest `content.skills` 的 basename 选择要安装的 Skill 子集；名称必须是非空单段安全名，不能含 `/`、`\`、`.` 或 `..`。该字段只属于直接声明，不由依赖继承。
+- 直接 Plugin 可选 `contentSelection.skills`，表示按 manifest `content.skills[].name` 选择要安装的 Skill 子集；名称必须是非空单段安全名，不能含 `/`、`\`、`.` 或 `..`。该字段只属于直接声明，不由依赖继承。
 - `plugin-lock.json` 保存完整图、source descriptor、commit、integrity、兼容范围和 capability grant；不得保存 token、用户身份、本机绝对路径或检测平台。
 - `plugin-lock.json` 和 `state.json` 必须原样记录解析后实际生效的 `contentSelection`，用于 verify 检测声明、lock 和本机投影是否一致。
 - resolved source 是判别式对象：`builtin.reference` 为包内稳定引用，`local.reference` 为安全 POSIX 相对路径，`gitlab.reference` 为 GitLab project path，`github.reference` 为规范化的 `owner/repository`。
@@ -146,8 +147,8 @@ GitLab resolved source 使用 `id=rd-guide`、`type=gitlab`、project path `refe
 
 ## 6. Tests Required
 
-- `plugin-manifest-schema.test.js`：有效 manifest；未知字段；严格 SemVer/range；canonical dependency；POSIX/Windows 不安全路径；未知 schema version。
-- `plugin-marketplace-schema.test.js`：path/gitlab/github source、安全 subdir、重复 Plugin/版本、未知来源、`system` 上限和 commit/digest 格式。
+- `plugin-manifest-schema.test.js`：有效 manifest；`content.skills` 对象 entry；旧字符串 Skill 条目拒绝；重复 Skill name/path；未知字段；严格 SemVer/range；canonical dependency；POSIX/Windows 不安全路径；未知 schema version。
+- `plugin-marketplace-schema.test.js`：path/gitlab/github source、安全 subdir/manifestPath、共仓 path 省略、重复 Plugin/版本、未知来源、`system` 上限和 commit/digest 格式。
 - `plugin-project-files-schema.test.js`：空声明；重复 ID；source mismatch；不安全 local reference；非法 capability；未知依赖；GitLab commit/index commit；state ownership/provenance。
 - `plugin-source-store.test.js`：v1 GitLab 读取/写入升级、v1 GitHub 拒绝、GitHub URL 规范化、format/entryPath 联动和安全 subdir。
 - `plugin-integrity.test.js`：对象键/数组顺序；非法 JSON 值；不同根和创建顺序同 hash；内容变化异 hash；根/内部软链和特殊文件失败。

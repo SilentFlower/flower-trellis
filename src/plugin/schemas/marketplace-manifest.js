@@ -6,10 +6,11 @@ const sourceSchema = {
     {
       type: "object",
       additionalProperties: false,
-      required: ["type", "path"],
+      required: ["type"],
       properties: {
         type: { const: "path" },
         path: SAFE_PATH_SCHEMA,
+        manifestPath: SAFE_PATH_SCHEMA,
       },
     },
     {
@@ -20,6 +21,7 @@ const sourceSchema = {
         type: { const: "gitlab" },
         project: { type: "string", format: "gitlab-project" },
         subdir: SAFE_PATH_SCHEMA,
+        manifestPath: SAFE_PATH_SCHEMA,
       },
     },
     {
@@ -30,6 +32,7 @@ const sourceSchema = {
         type: { const: "github" },
         repository: { type: "string", format: "github-repository" },
         subdir: SAFE_PATH_SCHEMA,
+        manifestPath: SAFE_PATH_SCHEMA,
       },
     },
   ],

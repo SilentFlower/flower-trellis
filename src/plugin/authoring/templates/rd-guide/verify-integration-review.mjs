@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
 const validationPath = process.argv[2] || "flower-plugin-validation.json";
-const reviewPath = process.argv[3] || ".flower-marketplace/integration-review.json";
+const reviewPath = process.argv[3] || ".flower-plugin/integration-review.json";
 const validation = JSON.parse(fs.readFileSync(validationPath, "utf8"));
 
 if (!validation.ok) {

@@ -433,7 +433,7 @@ export class GitHubSourceProvider {
         committedAt: resolved.committedAt,
         subdir,
         format: "flower",
-        entryPath: null,
+        entryPath: entry.source.manifestPath || null,
       });
       if (prepared.packages.length !== 1) {
         throw new PluginRuntimeError(`Flower Marketplace 条目不是单一 Plugin:${entry.id}`, {

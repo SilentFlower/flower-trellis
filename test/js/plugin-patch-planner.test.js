@@ -85,7 +85,7 @@ function fixture(t, options = {}) {
       version: options.version || "1.0.0",
       compatibility: { flower: ">=0.5.0" },
       capabilities: { profile: "integration", required: ["patch.insert"] },
-      content: { skills: ["skills/example"] },
+      content: { skills: [{ name: "example", path: "skills/example", version: options.version || "1.0.0" }] },
       patches: { catalog: "patches", bundles: "patches/bundles" },
     },
     marketplaceMaxProfile: "integration",

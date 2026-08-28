@@ -44,7 +44,7 @@ validateAuthorMarketplace(marketplace, options) -> AuthorValidationResult
 
 ### Scaffold And Ownership
 
-- 默认输出 `.flower-plugin/plugin.json`、`skills/<plugin>/SKILL.md` 和 `tests/plugin.test.js`；`--marketplace` 额外输出根目录 `marketplace-entry.json`。
+- 默认输出 `.flower-plugin/plugin.json`、`skills/<plugin>/SKILL.md` 和 `tests/plugin.test.js`；manifest 的 `content.skills` 使用 `{name,path,version,description?}` 对象 entry，`name` 为目标 Skill 名称，`path` 指向 `skills/<plugin>`，`version` 默认等于本次 Plugin 版本。`--marketplace` 额外输出根目录 `marketplace-entry.json`。
 - 默认 profile 为 `standard` 且无 Patch。只有 `integration --patches` 生成声明式 insert 示例；不得生成 system、hook、adapter 或 lifecycle script。
 - ID、SemVer、Marketplace source/ref/commit 必须先通过公共 validator。`name` 必须是单行文本，防止破坏 Skill YAML frontmatter。
 - 相同输入 changed-only；生成内容不得包含时间戳、用户名或绝对路径。
@@ -63,7 +63,7 @@ validateAuthorMarketplace(marketplace, options) -> AuthorValidationResult
 ### Integration Review Gate
 
 - `review.required=true` 时，rd-guide CI 必须运行 `verify-integration-review.mjs`。
-- `.flower-marketplace/integration-review.json` 固定为：
+- `.flower-plugin/integration-review.json` 固定为：
 
 ```json
 {

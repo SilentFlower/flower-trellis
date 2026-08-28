@@ -1,5 +1,6 @@
 import {
   CAPABILITY_NAME_SCHEMA,
+  CONTENT_SKILL_NAME_SCHEMA,
   PLUGIN_SCHEMA_VERSION,
   SAFE_PATH_SCHEMA,
   parseCanonicalPluginId,
@@ -69,12 +70,6 @@ const capabilityGrantSchema = {
   },
 };
 
-const contentSelectionNameSchema = {
-  type: "string",
-  minLength: 1,
-  pattern: "^(?!\\.{1,2}$)[^/\\\\]+$",
-};
-
 const contentSelectionSchema = {
   type: "object",
   additionalProperties: false,
@@ -83,7 +78,7 @@ const contentSelectionSchema = {
     skills: {
       type: "array",
       minItems: 1,
-      items: contentSelectionNameSchema,
+      items: CONTENT_SKILL_NAME_SCHEMA,
       uniqueItems: true,
     },
   },

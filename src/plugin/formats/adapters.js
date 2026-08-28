@@ -15,9 +15,27 @@ function detection(values) {
     kind: values.kind,
     entryPath: values.entryPath,
     pluginRoot: values.pluginRoot,
+    manifestPath: values.manifestPath,
     displayName: values.displayName,
     manifest: values.manifest || null,
   };
+}
+
+/**
+ * 判断 manifest 声明的内容路径是否在指定根目录下存在。
+ *
+ * @param {string} root 检测根
+ * @param {object} manifest Flower manifest
+ * @returns {boolean} 是否存在声明内容
+ */
+function hasDeclaredContent(root, manifest) {
+  const content = manifest?.content || {};
+  const skillPaths = (content.skills || []).map((entry) => entry?.path).filter(Boolean);
+  const passivePaths = ["specs", "assets", "scripts", "tests"]
+    .flatMap((kind) => content[kind] || []);
+  return [...skillPaths, ...passivePaths].some((entry) => (
+    fs.existsSync(path.join(root, ...String(entry).split("/")))
+  ));
 }
 
 /** Flower 原生格式 Adapter。 */
@@ -26,7 +44,7 @@ export const flowerFormatAdapter = Object.freeze({
   /** @param {string} root 检测根 @returns {object[]} 检测结果 */
   detect(root) {
     const results = [];
-    const marketplace = path.join(root, ".flower-marketplace", "marketplace.json");
+    const marketplace = path.join(root, ".flower-plugin", "marketplace.json");
     if (fs.existsSync(marketplace)) {
       const manifest = readFormatJson(marketplace, "Flower Marketplace");
       results.push(detection({
@@ -42,11 +60,16 @@ export const flowerFormatAdapter = Object.freeze({
       const manifestFile = path.join(pluginRoot, "plugin.json");
       if (!fs.existsSync(manifestFile)) continue;
       const manifest = readFormatJson(manifestFile, "Flower Plugin");
+      const metadataRoot = path.join(root, ".flower-plugin");
+      const rootLevelMetadata = pluginRoot === metadataRoot &&
+        hasDeclaredContent(root, manifest) &&
+        !hasDeclaredContent(metadataRoot, manifest);
       results.push(detection({
         format: "flower",
         kind: "plugin",
         entryPath: relativeEntryPath(root, manifestFile),
-        pluginRoot,
+        pluginRoot: rootLevelMetadata ? root : pluginRoot,
+        manifestPath: rootLevelMetadata ? ".flower-plugin/plugin.json" : "plugin.json",
         displayName: manifest.name || manifest.id || path.basename(pluginRoot),
         manifest,
       }));
@@ -58,6 +81,7 @@ export const flowerFormatAdapter = Object.freeze({
     return normalizeFlowerPlugin({
       ...context,
       pluginRoot: selected.pluginRoot,
+      manifestPath: selected.manifestPath,
     });
   },
 });
@@ -159,7 +183,7 @@ export const skillOnlyFormatAdapter = Object.freeze({
   /** @param {string} root 检测根 @returns {object[]} 检测结果 */
   detect(root) {
     const knownEntries = [
-      ".flower-marketplace/marketplace.json",
+      ".flower-plugin/marketplace.json",
       ".flower-plugin/plugin.json",
       "plugin.json",
       ".agents/plugins/marketplace.json",

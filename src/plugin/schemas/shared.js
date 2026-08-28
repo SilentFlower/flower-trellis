@@ -12,6 +12,9 @@ export const PLUGIN_ID_PATTERN = "^[a-z0-9]+(?:-[a-z0-9]+)*$";
 export const CANONICAL_PLUGIN_ID_PATTERN =
   "^[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$";
 
+/** contentSelection.skills 与 manifest Skill 条目名称的正则源。 */
+export const CONTENT_SKILL_NAME_PATTERN = "^(?!\\.{1,2}$)[^/\\\\]+$";
+
 /** SHA-256 摘要的正则源。 */
 export const SHA256_DIGEST_PATTERN = "^sha256:[a-f0-9]{64}$";
 
@@ -179,6 +182,13 @@ export function isGitHubRepository(value) {
 
 /** 可复用的安全相对路径 JSON Schema。 */
 export const SAFE_PATH_SCHEMA = Object.freeze({ type: "string", format: "posix-relative-path" });
+
+/** 可复用的内容 Skill 名称 JSON Schema。 */
+export const CONTENT_SKILL_NAME_SCHEMA = Object.freeze({
+  type: "string",
+  minLength: 1,
+  pattern: CONTENT_SKILL_NAME_PATTERN,
+});
 
 /** 可复用的 capability 名称 JSON Schema。 */
 export const CAPABILITY_NAME_SCHEMA = Object.freeze({

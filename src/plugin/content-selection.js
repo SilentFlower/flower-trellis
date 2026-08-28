@@ -1,9 +1,14 @@
-import path from "node:path";
 import {
   PLUGIN_RUNTIME_ERROR_CODES,
   PluginRuntimeError,
 } from "./runtime-errors.js";
+import {
+  CONTENT_SKILL_NAME_PATTERN,
+  assertSafePosixRelativePath,
+} from "./schemas/shared.js";
 import { compareUtf8 } from "./stable-order.js";
+
+const CONTENT_SKILL_NAME_RE = new RegExp(CONTENT_SKILL_NAME_PATTERN);
 
 /**
  * 判断 Skill 选择名是否是单段安全名称。
@@ -12,12 +17,7 @@ import { compareUtf8 } from "./stable-order.js";
  * @returns {boolean} 是否安全
  */
 export function isContentSkillSelectionName(value) {
-  return typeof value === "string" &&
-    value.length > 0 &&
-    value !== "." &&
-    value !== ".." &&
-    !value.includes("/") &&
-    !value.includes("\\");
+  return typeof value === "string" && CONTENT_SKILL_NAME_RE.test(value);
 }
 
 /**
@@ -98,31 +98,53 @@ export function contentSelectionsEqual(left, right) {
 /**
  * 列出 manifest `content.skills` 的可选 Skill。
  *
- * @param {string[]} entries manifest 中的 Skill 内容路径
+ * @param {import("./contracts.js").PluginContentSkillEntry[]} entries manifest 中的 Skill 内容条目
  * @param {string} owner 诊断中的 Plugin ID
- * @returns {Array<{name:string,path:string}>} 稳定 Skill 清单
+ * @returns {Array<import("./contracts.js").PluginContentSkillEntry>} 稳定 Skill 清单
  */
 export function listContentSkillChoices(entries, owner) {
   const choices = [];
   const byName = new Map();
-  for (const entry of [...(entries || [])].sort(compareUtf8)) {
-    const name = path.posix.basename(entry);
+  const byPath = new Map();
+  const sorted = [...(entries || [])]
+    .sort((left, right) => (
+      compareUtf8(String(left?.name || ""), String(right?.name || "")) ||
+      compareUtf8(String(left?.path || ""), String(right?.path || ""))
+    ));
+  for (const entry of sorted) {
+    const name = entry?.name;
+    const skillPath = entry?.path;
     if (!isContentSkillSelectionName(name)) {
       throw new PluginRuntimeError(`Content Skill 名称非法:${name}`, {
         code: PLUGIN_RUNTIME_ERROR_CODES.CONTENT_SELECTION_INVALID,
-        path: `${owner}:${entry}`,
+        path: `${owner}:${String(skillPath || name || "")}`,
       });
     }
+    assertSafePosixRelativePath(skillPath, "Content Skill 路径");
     const previous = byName.get(name);
     if (previous) {
-      throw new PluginRuntimeError(`Plugin content.skills basename 重复:${name}`, {
+      throw new PluginRuntimeError(`Plugin content.skills 名称重复:${name}`, {
         code: PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
         path: owner,
-        details: { entries: [previous, entry].sort(compareUtf8) },
+        details: { entries: [previous, skillPath].sort(compareUtf8) },
       });
     }
-    byName.set(name, entry);
-    choices.push({ name, path: entry });
+    const previousPath = byPath.get(skillPath);
+    if (previousPath) {
+      throw new PluginRuntimeError(`Plugin content.skills 路径重复:${skillPath}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
+        path: owner,
+        details: { names: [previousPath, name].sort(compareUtf8) },
+      });
+    }
+    byName.set(name, skillPath);
+    byPath.set(skillPath, name);
+    choices.push({
+      name,
+      path: skillPath,
+      version: entry.version,
+      ...(entry.description ? { description: entry.description } : {}),
+    });
   }
   return choices.sort((left, right) => compareUtf8(left.name, right.name));
 }
@@ -130,16 +152,16 @@ export function listContentSkillChoices(entries, owner) {
 /**
  * 根据内容选择过滤 manifest `content.skills`。
  *
- * @param {string[]} entries manifest 中的 Skill 内容路径
+ * @param {import("./contracts.js").PluginContentSkillEntry[]} entries manifest 中的 Skill 内容条目
  * @param {import("./contracts.js").PluginContentSelection|null|undefined} selection 内容选择
  * @param {string} owner 诊断中的 Plugin ID
- * @returns {string[]} 应投影的 Skill 内容路径
+ * @returns {Array<import("./contracts.js").PluginContentSkillEntry>} 应投影的 Skill 内容条目
  */
 export function selectContentSkillEntries(entries, selection, owner) {
   const choices = listContentSkillChoices(entries, owner);
   const normalized = normalizeContentSelection(selection);
-  if (!normalized) return choices.map(({ path: entry }) => entry).sort(compareUtf8);
-  const byName = new Map(choices.map((choice) => [choice.name, choice.path]));
+  if (!normalized) return choices;
+  const byName = new Map(choices.map((choice) => [choice.name, choice]));
   const missing = normalized.skills.filter((name) => !byName.has(name));
   if (missing.length > 0) {
     throw new PluginRuntimeError(`Content Skill 选择不存在:${missing.join(",")}`, {
@@ -151,7 +173,7 @@ export function selectContentSkillEntries(entries, selection, owner) {
       },
     });
   }
-  return normalized.skills.map((name) => byName.get(name)).sort(compareUtf8);
+  return normalized.skills.map((name) => byName.get(name));
 }
 
 /**

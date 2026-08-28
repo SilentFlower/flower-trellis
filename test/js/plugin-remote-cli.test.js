@@ -26,7 +26,7 @@ const descriptor = {
   baseUrl: "http://gitlab.example.test",
   project: "group/rd-guide",
   ref: "main",
-  marketplacePath: ".flower-marketplace/marketplace.json",
+  marketplacePath: ".flower-plugin/marketplace.json",
   oauth: { applicationId: "public-client", scopes: ["read_api", "read_repository"] },
 };
 
@@ -287,7 +287,20 @@ test("TUI inspection 只从 manifest content.skills 返回 Skill 清单", async 
   const root = createPluginTestRoot(t, "flower-remote-cli-content-skills-");
   const manifest = pluginManifest({
     content: {
-      skills: ["skills/xhgj-humanize-writing", "skills/xhgj-gitlab-collaboration"],
+      skills: [
+        {
+          name: "xhgj-humanize-writing",
+          path: "skills/xhgj-humanize-writing",
+          version: "0.2.0",
+          description: "润色中文文案。",
+        },
+        {
+          name: "xhgj-gitlab-collaboration",
+          path: "skills/xhgj-gitlab-collaboration",
+          version: "0.1.0",
+          description: "GitLab 协作执行。",
+        },
+      ],
       scripts: ["scripts"],
       tests: ["tests"],
     },
@@ -307,11 +320,12 @@ test("TUI inspection 只从 manifest content.skills 返回 Skill 清单", async 
     integrity,
     manifest,
   };
-  let prepared = null;
+  let preparedVersion = null;
   const provider = {
     id: "rd-guide",
     type: "gitlab",
-    prepare: async (id) => { prepared = id; },
+    prepare: async () => { throw new Error("inspection 不应准备全部版本"); },
+    prepareVersion: async (id, version) => { preparedVersion = { id, version }; },
     listCandidates: () => [candidate],
     readPackage: () => ({ root: packageRoot, manifest, integrity }),
   };
@@ -329,10 +343,20 @@ test("TUI inspection 只从 manifest content.skills 返回 Skill 清单", async 
     credentialBundle: { store: new MemoryCredentialStore(), persistent: false },
   });
 
-  assert.equal(prepared, "rd-guide/demo");
+  assert.deepEqual(preparedVersion, { id: "rd-guide/demo", version: "1.0.0" });
   assert.deepEqual(inspection.skills, [
-    { name: "xhgj-gitlab-collaboration", path: "skills/xhgj-gitlab-collaboration" },
-    { name: "xhgj-humanize-writing", path: "skills/xhgj-humanize-writing" },
+    {
+      name: "xhgj-gitlab-collaboration",
+      path: "skills/xhgj-gitlab-collaboration",
+      description: "GitLab 协作执行。",
+      version: "0.1.0",
+    },
+    {
+      name: "xhgj-humanize-writing",
+      path: "skills/xhgj-humanize-writing",
+      description: "润色中文文案。",
+      version: "0.2.0",
+    },
   ]);
 });
 

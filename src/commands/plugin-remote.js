@@ -220,7 +220,7 @@ export async function searchPluginMarketplaces(parsed, ctx, options = {}) {
  * @param {{pluginId:string,version?:string,source?:string|null,lockedPlugin?:import("../plugin/contracts.js").ResolvedPlugin|null}} request 读取请求
  * @param {object} ctx CLI 上下文
  * @param {object} [options] Provider、凭据和测试注入
- * @returns {Promise<{ok:true,pluginId:string,version:string,name:string,skills:Array<{name:string,path:string}>}>} Skill 清单
+ * @returns {Promise<{ok:true,pluginId:string,version:string,name:string,skills:Array<{name:string,path:string,description?:string,version?:string}>}>} Skill 清单
  */
 export async function inspectPluginContentSkills(request, ctx, options = {}) {
   const canonicalId = request.pluginId || request.lockedPlugin?.id;
@@ -245,11 +245,12 @@ export async function inspectPluginContentSkills(request, ctx, options = {}) {
     registry,
     lock,
   });
-  await prepareRemotePluginCandidates({
+  await prepareRemotePluginForSkillInspection({
     parsed,
     canonicalId,
     registry,
     lock,
+    version: request.version,
   });
 
   let plugin = request.lockedPlugin || null;
@@ -272,6 +273,29 @@ export async function inspectPluginContentSkills(request, ctx, options = {}) {
     name: pluginPackage.manifest.name,
     skills: listContentSkillChoices(pluginPackage.manifest.content.skills || [], canonicalId),
   };
+}
+
+/**
+ * 为 TUI Skill inspection 准备远程包。
+ *
+ * inspection 只需要读取用户当前选择的一个包版本；Provider 支持单版本准备时不走完整依赖闭包，
+ * 避免为了展示 checkbox 下载同一 Plugin 的全部历史版本。
+ *
+ * @param {{parsed:object,canonicalId:string,registry:object,lock:object|null,version?:string|null}} context 准备上下文
+ * @returns {Promise<void>} 准备完成
+ */
+async function prepareRemotePluginForSkillInspection({ parsed, canonicalId, registry, lock, version }) {
+  if (lock) {
+    await prepareRemotePluginCandidates({ parsed, canonicalId, registry, lock });
+    return;
+  }
+  const { sourceId } = parseCanonicalPluginId(canonicalId);
+  const provider = registry.has(sourceId) ? registry.get(sourceId) : null;
+  if (version && typeof provider?.prepareVersion === "function") {
+    await provider.prepareVersion(canonicalId, version);
+    return;
+  }
+  await prepareRemotePluginCandidates({ parsed, canonicalId, registry, lock });
 }
 
 /**
@@ -390,7 +414,7 @@ export async function runPluginManagementCommand(parsed, ctx, options, output) {
         baseUrl: parsed.baseUrl || base.baseUrl,
         project: parsed.project || base.project,
         ref: parsed.ref || base.ref || "main",
-        marketplacePath: parsed.marketplacePath || base.marketplacePath || ".flower-marketplace/marketplace.json",
+        marketplacePath: parsed.marketplacePath || base.marketplacePath || ".flower-plugin/marketplace.json",
         oauth: {
           applicationId: parsed.applicationId || base.oauth?.applicationId,
           scopes: GITLAB_OAUTH_REQUEST_SCOPES,

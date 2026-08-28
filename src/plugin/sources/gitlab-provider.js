@@ -12,7 +12,7 @@ import {
   parseCanonicalPluginId,
 } from "../schemas/shared.js";
 import { compareUtf8 } from "../stable-order.js";
-import { verifyPluginPackage } from "./package-reader.js";
+import { PLUGIN_MANIFEST_FILE, verifyPluginPackage } from "./package-reader.js";
 import {
   copyOrdinaryDirectory,
   extractRemoteArchive,
@@ -100,44 +100,49 @@ export class GitLabSourceProvider {
       const candidates = [];
       for (const version of entry.versions) {
         const root = await this.#preparePackage(entry.source, version);
-        const manifest = validatePluginManifest(JSON.parse(fs.readFileSync(path.join(root, "plugin.json"), "utf8")));
-        const id = composeCanonicalPluginId(this.id, manifest.id);
-        if (id !== canonicalId || manifest.version !== version.version) {
-          throw new PluginRuntimeError(`远程 Plugin 身份与索引不一致:${canonicalId}@${version.version}`, {
-            code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
-            path: canonicalId,
-          });
-        }
-        if (PROFILE_RANK[manifest.capabilities.profile] > PROFILE_RANK[entry.trust.maxProfile]) {
-          throw new PluginRuntimeError(`远程 Plugin 超出 Marketplace trust 上限:${canonicalId}`, {
-            code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
-            path: canonicalId,
-          });
-        }
-        const candidate = {
-          id,
-          version: manifest.version,
-          source: {
-            id: this.id,
-            type: "gitlab",
-            reference: this.#sourceReference(entry.source),
-            indexCommit: this.indexCommit,
-          },
-          commit: version.commit.toLowerCase(),
-          integrity: version.integrity,
-          manifest,
-          marketplaceMaxProfile: entry.trust.maxProfile,
-        };
+        const manifest = this.#readPackageManifest(root);
+        const candidate = this.#candidateFromMarketplaceVersion(canonicalId, entry, version, manifest);
         candidates.push(candidate);
-        this.packageRoots.set(this.#key(candidate), root);
+        this.#registerCandidate(candidate, root);
       }
-      this.candidates.set(canonicalId, candidates);
       this.preparedIds.add(canonicalId);
       const dependencies = new Set(candidates.flatMap((candidate) => Object.keys(candidate.manifest.dependencies || {})));
       for (const dependency of [...dependencies].sort(compareUtf8)) await this.prepare(dependency);
     } finally {
       this.preparing.delete(canonicalId);
     }
+  }
+
+  /**
+   * 只准备指定版本的固定包。
+   *
+   * TUI 读取 Skill 清单只需要一个已选版本；完整 add/update 生命周期仍调用 `prepare()`，
+   * 继续准备全部候选和依赖闭包。
+   *
+   * @param {string} canonicalId canonical Plugin ID
+   * @param {string} requestedVersion 需要读取的 Plugin 版本
+   * @returns {Promise<void>} 准备完成
+   */
+  async prepareVersion(canonicalId, requestedVersion) {
+    const { sourceId, pluginId } = parseCanonicalPluginId(canonicalId);
+    if (sourceId !== this.id) return;
+    const existing = this.candidates.get(canonicalId)
+      ?.find((candidate) => candidate.version === requestedVersion);
+    if (existing && this.packageRoots.has(this.#key(existing))) return;
+
+    const marketplace = await this.prepareIndex();
+    const entry = marketplace.plugins.find((plugin) => plugin.id === pluginId);
+    const version = entry?.versions.find((candidate) => candidate.version === requestedVersion);
+    if (!entry || !version) {
+      throw new PluginRuntimeError(`Marketplace Plugin 版本不存在:${canonicalId}@${requestedVersion}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_NOT_FOUND,
+        path: canonicalId,
+      });
+    }
+    const root = await this.#preparePackage(entry.source, version);
+    const manifest = this.#readPackageManifest(root);
+    const candidate = this.#candidateFromMarketplaceVersion(canonicalId, entry, version, manifest);
+    this.#registerCandidate(candidate, root);
   }
 
   /**
@@ -187,7 +192,7 @@ export class GitLabSourceProvider {
         path: plugin.id,
       });
     }
-    const expectedProject = entry.source.type === "path" ? this.source.project : entry.source.project;
+    const expectedProject = this.#sourceProject(entry.source);
     if (plugin.source.reference !== expectedProject) {
       throw new PluginRuntimeError(`GitLab lock project 与 Marketplace 不一致:${plugin.id}`, {
         code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
@@ -197,7 +202,7 @@ export class GitLabSourceProvider {
     const root = await this.#preparePackage(entry.source, version);
     let manifest;
     try {
-      manifest = validatePluginManifest(JSON.parse(fs.readFileSync(path.join(root, "plugin.json"), "utf8")));
+      manifest = this.#readPackageManifest(root);
       if (composeCanonicalPluginId(this.id, manifest.id) !== plugin.id || manifest.version !== plugin.version) {
         throw new PluginIntegrityError("GitLab Plugin 缓存身份不匹配", { path: this.id });
       }
@@ -277,17 +282,18 @@ export class GitLabSourceProvider {
 
   /** @param {object} source @param {object} version @returns {Promise<string>} */
   async #preparePackage(source, version) {
-    const project = source.type === "path" ? this.source.project : source.project;
-    const subdir = source.type === "path" ? source.path : (source.subdir || null);
+    const project = this.#sourceProject(source);
+    const subdir = this.#sourceSubdir(source);
+    const manifestPath = this.#manifestPath(source);
     const commit = version.commit.toLowerCase();
-    const target = this.#cacheTarget(project, commit, subdir, version.integrity);
+    const target = this.#cacheTarget(project, commit, subdir, manifestPath, version.integrity);
     const key = path.basename(target);
     if (fs.existsSync(target)) {
       try {
         if (hashCanonicalTree(target) !== version.integrity) {
           throw new PluginIntegrityError("GitLab Plugin 缓存摘要不匹配", { path: this.id });
         }
-        this.#writeCacheMetadata(target, { project, commit, subdir, integrity: version.integrity });
+        this.#writeCacheMetadata(target, { project, commit, subdir, manifestPath, integrity: version.integrity });
         return target;
       } catch (error) {
         // 缓存只按不可变哈希键寻址，损坏后删除并重建不会影响 lock 或项目目标。
@@ -299,6 +305,7 @@ export class GitLabSourceProvider {
     const staging = fs.mkdtempSync(path.join(this.cacheRoot, `.staging-${key.slice(0, 12)}-`));
     const archiveFile = path.join(staging, "archive.tar.gz");
     const extractRoot = path.join(staging, "extract");
+    const snapshotRoot = path.join(staging, "snapshot");
     const packageRoot = path.join(staging, "package");
     try {
       fs.mkdirSync(extractRoot);
@@ -312,12 +319,12 @@ export class GitLabSourceProvider {
           sourceId: this.id,
           extractArchive: this.extractArchive,
         });
-        copyOrdinaryDirectory(selectedRoot, packageRoot, "GitLab Plugin");
+        copyOrdinaryDirectory(selectedRoot, snapshotRoot, "GitLab Plugin");
       } catch (error) {
         if (!this.#canFallbackToRepositoryTree(error)) throw error;
-        await this.#materializeRepositoryTree(project, commit, subdir, packageRoot);
+        await this.#materializeRepositoryTree(project, commit, subdir, snapshotRoot);
       }
-      validatePluginManifest(JSON.parse(fs.readFileSync(path.join(packageRoot, "plugin.json"), "utf8")));
+      this.#buildRuntimePackage(snapshotRoot, packageRoot, source);
       const integrity = hashCanonicalTree(packageRoot);
       if (integrity !== version.integrity) {
         throw new PluginIntegrityError(`GitLab Plugin 摘要不匹配:${version.version}`, { path: this.id });
@@ -333,7 +340,7 @@ export class GitLabSourceProvider {
           fs.renameSync(packageRoot, target);
         }
       }
-      this.#writeCacheMetadata(target, { project, commit, subdir, integrity: version.integrity });
+      this.#writeCacheMetadata(target, { project, commit, subdir, manifestPath, integrity: version.integrity });
       return target;
     } catch (error) {
       if (error instanceof PluginRuntimeError) throw error;
@@ -438,7 +445,151 @@ export class GitLabSourceProvider {
 
   /** @param {object} source @returns {string} */
   #sourceReference(source) {
-    return source.type === "path" ? this.source.project : source.project;
+    return this.#sourceProject(source);
+  }
+
+  /** @param {object} source @returns {string} */
+  #sourceProject(source) {
+    if (source.type === "path") return this.source.project;
+    if (source.type === "gitlab") return source.project;
+    throw new PluginRuntimeError(`GitLab Marketplace 暂不支持跨接来源:${source.type}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.FORMAT_UNSUPPORTED,
+      path: this.id,
+    });
+  }
+
+  /** @param {object} source @returns {string|null} */
+  #sourceSubdir(source) {
+    if (source.type === "path") return source.path || null;
+    return source.subdir || null;
+  }
+
+  /** @param {object} source @returns {string} */
+  #manifestPath(source) {
+    return assertSafePosixRelativePath(
+      source.manifestPath || PLUGIN_MANIFEST_FILE,
+      "GitLab Plugin manifest 路径",
+    );
+  }
+
+  /** @param {string} root @returns {import("../contracts.js").PluginManifest} */
+  #readPackageManifest(root) {
+    return validatePluginManifest(JSON.parse(fs.readFileSync(path.join(root, PLUGIN_MANIFEST_FILE), "utf8")));
+  }
+
+  /** @param {string} root @param {object} source @returns {{manifest:import("../contracts.js").PluginManifest,raw:string}} */
+  #readSourceManifest(root, source) {
+    const manifestPath = this.#manifestPath(source);
+    const raw = fs.readFileSync(path.join(root, ...manifestPath.split("/")), "utf8");
+    return { manifest: validatePluginManifest(JSON.parse(raw)), raw };
+  }
+
+  /** @param {import("../contracts.js").PluginManifest} manifest @returns {string[]} */
+  #declaredPackagePaths(manifest) {
+    const content = manifest.content || {};
+    const skills = (content.skills || []).map(({ path: skillPath }) => skillPath);
+    const passive = ["specs", "assets", "scripts", "tests"].flatMap((kind) => content[kind] || []);
+    const patches = [
+      manifest.patches?.catalog,
+      manifest.patches?.bundles,
+    ].filter(Boolean);
+    return [...new Set([...skills, ...passive, ...patches])].sort(compareUtf8);
+  }
+
+  /** @param {string} sourceRoot @param {string} targetRoot @param {string} relative @returns {void} */
+  #copyDeclaredPath(sourceRoot, targetRoot, relative) {
+    const safeRelative = assertSafePosixRelativePath(relative, "GitLab Plugin content 路径");
+    const source = path.join(sourceRoot, ...safeRelative.split("/"));
+    const target = path.join(targetRoot, ...safeRelative.split("/"));
+    let stat;
+    try {
+      stat = fs.lstatSync(source);
+    } catch (error) {
+      throw new PluginIoError(`GitLab Plugin 声明内容不存在:${safeRelative}`, {
+        path: safeRelative,
+        cause: error,
+      });
+    }
+    if (stat.isSymbolicLink()) {
+      throw new PluginPathError(`GitLab Plugin 声明内容不能是软链:${safeRelative}`, { path: safeRelative });
+    }
+    if (stat.isDirectory()) {
+      copyOrdinaryDirectory(source, target, "GitLab Plugin content");
+      return;
+    }
+    if (!stat.isFile()) {
+      throw new PluginPathError(`GitLab Plugin 声明内容必须是普通文件或目录:${safeRelative}`, {
+        path: safeRelative,
+      });
+    }
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(source, target);
+  }
+
+  /** @param {string} sourceRoot @param {string} targetRoot @param {import("../contracts.js").PluginManifest} manifest @returns {void} */
+  #copyPlatformOverrides(sourceRoot, targetRoot, manifest) {
+    const platformsRoot = path.join(sourceRoot, "platforms");
+    if (!fs.existsSync(platformsRoot)) return;
+    for (const platform of fs.readdirSync(platformsRoot, { withFileTypes: true }).sort((left, right) => compareUtf8(left.name, right.name))) {
+      if (!platform.isDirectory()) continue;
+      for (const relative of this.#declaredPackagePaths(manifest)) {
+        const override = `platforms/${platform.name}/${relative}`;
+        if (fs.existsSync(path.join(sourceRoot, ...override.split("/")))) {
+          this.#copyDeclaredPath(sourceRoot, targetRoot, override);
+        }
+      }
+    }
+  }
+
+  /** @param {string} sourceRoot @param {string} targetRoot @param {object} source @returns {import("../contracts.js").PluginManifest} */
+  #buildRuntimePackage(sourceRoot, targetRoot, source) {
+    const { manifest, raw } = this.#readSourceManifest(sourceRoot, source);
+    fs.mkdirSync(targetRoot, { recursive: true });
+    fs.writeFileSync(path.join(targetRoot, PLUGIN_MANIFEST_FILE), raw);
+    for (const relative of this.#declaredPackagePaths(manifest)) {
+      this.#copyDeclaredPath(sourceRoot, targetRoot, relative);
+    }
+    this.#copyPlatformOverrides(sourceRoot, targetRoot, manifest);
+    return manifest;
+  }
+
+  /**
+   * 从 Marketplace version 和固定包 manifest 构造候选。
+   *
+   * @param {string} canonicalId canonical Plugin ID
+   * @param {object} entry Marketplace Plugin 条目
+   * @param {object} version Marketplace 版本条目
+   * @param {object} manifest 已校验 Plugin manifest
+   * @returns {import("../contracts.js").PluginCandidate} Provider 候选
+   */
+  #candidateFromMarketplaceVersion(canonicalId, entry, version, manifest) {
+    const id = composeCanonicalPluginId(this.id, manifest.id);
+    if (id !== canonicalId || manifest.version !== version.version) {
+      throw new PluginRuntimeError(`远程 Plugin 身份与索引不一致:${canonicalId}@${version.version}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
+        path: canonicalId,
+      });
+    }
+    if (PROFILE_RANK[manifest.capabilities.profile] > PROFILE_RANK[entry.trust.maxProfile]) {
+      throw new PluginRuntimeError(`远程 Plugin 超出 Marketplace trust 上限:${canonicalId}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+        path: canonicalId,
+      });
+    }
+    return {
+      id,
+      version: manifest.version,
+      source: {
+        id: this.id,
+        type: "gitlab",
+        reference: this.#sourceReference(entry.source),
+        indexCommit: this.indexCommit,
+      },
+      commit: version.commit.toLowerCase(),
+      integrity: version.integrity,
+      manifest,
+      marketplaceMaxProfile: entry.trust.maxProfile,
+    };
   }
 
   /** @param {import("../contracts.js").ResolvedPlugin} plugin @returns {{root:string,manifest:object}|null} */
@@ -464,7 +615,7 @@ export class GitLabSourceProvider {
           metadata.integrity !== plugin.integrity
         ) continue;
         if (hashCanonicalTree(root) !== plugin.integrity) continue;
-        const manifest = validatePluginManifest(JSON.parse(fs.readFileSync(path.join(root, "plugin.json"), "utf8")));
+        const manifest = this.#readPackageManifest(root);
         if (composeCanonicalPluginId(this.id, manifest.id) === plugin.id && manifest.version === plugin.version) {
           return { root, manifest };
         }
@@ -480,7 +631,7 @@ export class GitLabSourceProvider {
     return `${target}.metadata.json`;
   }
 
-  /** @param {string} target @param {{project:string,commit:string,subdir:string|null,integrity:string}} metadata */
+  /** @param {string} target @param {{project:string,commit:string,subdir:string|null,manifestPath:string,integrity:string}} metadata */
   #writeCacheMetadata(target, metadata) {
     const metadataPath = this.#cacheMetadataPath(target);
     const temporary = `${metadataPath}.${process.pid}.tmp`;
@@ -492,6 +643,7 @@ export class GitLabSourceProvider {
         project: metadata.project,
         commit: metadata.commit,
         subdir: metadata.subdir,
+        manifestPath: metadata.manifestPath,
         integrity: metadata.integrity,
       }, null, 2)}\n`, { mode: 0o600 });
       fs.renameSync(temporary, metadataPath);
@@ -522,16 +674,33 @@ export class GitLabSourceProvider {
       manifest,
       marketplaceMaxProfile,
     };
-    this.packageRoots.set(this.#key(plugin), root);
-    const candidates = this.candidates.get(plugin.id) || [];
-    if (!candidates.some(({ version }) => version === plugin.version)) candidates.push(candidate);
-    this.candidates.set(plugin.id, candidates);
+    this.#registerCandidate(candidate, root);
   }
 
-  /** @param {string} project @param {string} commit @param {string|null} subdir @param {string} integrity @returns {string} */
-  #cacheTarget(project, commit, subdir, integrity) {
+  /**
+   * 登记已准备固定包候选。
+   *
+   * @param {import("../contracts.js").PluginCandidate} candidate Provider 候选
+   * @param {string} root 固定包根
+   * @returns {void}
+   */
+  #registerCandidate(candidate, root) {
+    this.packageRoots.set(this.#key(candidate), root);
+    const candidates = this.candidates.get(candidate.id) || [];
+    if (!candidates.some(({ version, commit }) => (
+      version === candidate.version &&
+      commit === candidate.commit
+    ))) {
+      candidates.push(candidate);
+      candidates.sort((left, right) => compareUtf8(left.version, right.version));
+    }
+    this.candidates.set(candidate.id, candidates);
+  }
+
+  /** @param {string} project @param {string} commit @param {string|null} subdir @param {string} manifestPath @param {string} integrity @returns {string} */
+  #cacheTarget(project, commit, subdir, manifestPath, integrity) {
     const key = crypto.createHash("sha256")
-      .update(`${this.source.baseUrl}\0${project}\0${commit}\0${subdir || ""}\0${integrity}`)
+      .update(`${this.source.baseUrl}\0${project}\0${commit}\0${subdir || ""}\0${manifestPath}\0${integrity}`)
       .digest("hex");
     return path.join(this.cacheRoot, key);
   }

@@ -133,7 +133,12 @@ function renderPackageFiles(options) {
     dependencies: {},
     capabilities: { profile: options.profile, required },
     content: {
-      skills: [`skills/${options.pluginId}`],
+      skills: [{
+        name: options.pluginId,
+        path: `skills/${options.pluginId}`,
+        version: options.version,
+        description: `${options.name}。用于执行该 Plugin 提供的专业工作流。`,
+      }],
       tests: ["tests"],
     },
     ...(options.includePatches ? {

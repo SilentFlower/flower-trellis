@@ -103,10 +103,11 @@ function resolvePlatformContent(packageRoot, platform, entry, relative, canonica
  * @param {string} kind 内容类型
  * @param {string} entry manifest 内容路径
  * @param {string|null} skillRoot 平台 Skill root
+ * @param {string} [entryName] 内容目标名称
  * @returns {string} 项目内目标前缀
  */
-function targetPrefix(owner, kind, entry, skillRoot) {
-  const name = path.posix.basename(entry);
+function targetPrefix(owner, kind, entry, skillRoot, entryName = path.posix.basename(entry)) {
+  const name = entryName;
   if (kind === "skills") return `${skillRoot}/${name}`;
   return `.flower/content/${owner}/${kind}/${name}`;
 }
@@ -193,10 +194,12 @@ export function projectPluginContent(options) {
         ? selectContentSkillEntries(pluginPackage.manifest.content.skills || [], contentSelection, resolved.id)
         : [...(pluginPackage.manifest.content[kind] || [])].sort(compareUtf8);
       for (const entry of entries) {
-        const expanded = expandContentEntry(pluginPackage.root, entry);
+        const contentPath = kind === "skills" ? entry.path : entry;
+        const contentName = kind === "skills" ? entry.name : undefined;
+        const expanded = expandContentEntry(pluginPackage.root, contentPath);
         const targets = kind === "skills" ? options.platformSelection.targets : [{ root: null }];
         for (const platformTarget of targets) {
-          const prefix = targetPrefix(resolved.id, kind, entry, platformTarget.root);
+          const prefix = targetPrefix(resolved.id, kind, contentPath, platformTarget.root, contentName);
           if (kind !== "skills") {
             addDirectoryClaims(directoryClaims, resolved.id, `.flower/content/${resolved.id}`, "");
             addDirectoryClaims(directoryClaims, resolved.id, `.flower/content/${resolved.id}/${kind}`, "");
@@ -220,9 +223,9 @@ export function projectPluginContent(options) {
             const canonical = fs.readFileSync(file.absolutePath);
             const platformContents = kind === "skills"
               ? platformTarget.platforms.map((platform) => (
-                resolvePlatformContent(pluginPackage.root, platform, entry, file.relative, canonical)
+                resolvePlatformContent(pluginPackage.root, platform, contentPath, file.relative, canonical)
               ))
-              : [{ content: canonical, source: `${entry}${file.relative ? `/${file.relative}` : ""}` }];
+              : [{ content: canonical, source: `${contentPath}${file.relative ? `/${file.relative}` : ""}` }];
             const contentHashes = new Set(platformContents.map(({ content }) => hashContent(content)));
             if (contentHashes.size > 1) {
               throw new PluginRuntimeError(`共享 Skill root 的 platform override 内容不一致:${target}`, {

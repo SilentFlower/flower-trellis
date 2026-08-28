@@ -96,6 +96,7 @@ Source Provider 最小接口固定为：
 ```
 
 远程 Provider 可额外实现异步 `prepare(canonicalId)`、`prepareLocked(plugin)` 和 `search(query)`，但这些方法由 P3 适配层调用，不进入 P2 `SourceRegistry` 的最小接口。
+TUI inspection 可额外使用远程 Provider 的 `prepareVersion(canonicalId, version)` 只准备一个已选版本；该能力只能用于读取展示 metadata，不替代完整生命周期的 `prepare()` 依赖闭包。
 
 ## 3. Contracts
 
@@ -113,7 +114,7 @@ Source Provider 最小接口固定为：
 - `widen` 的每个 range 必须是合法 SemVer range，每个 key 必须是当前 `plugins.json` 中已声明的 canonical ID。
 - CLI `--widen <plugin>=<range>` 可重复，按**第一个** `=` 切分。range 自身含 `=`（如 `>=0.2.2 <0.3.0`）时落在右侧，不受影响；不得改用重复 `--version` 承载 `id=range`，裸 range 与 `id=range` 两种形态无法安全区分。
 - CLI `--content-skill <name>` 可重复，也允许逗号列表；归一化后写入直接声明 `contentSelection.skills`。该参数只允许 `plugin add` 和带单个 Plugin ID 的 `plugin update`，不得与 `--widen` 并用。Resolver 只把直接声明的选择带入对应 root，依赖始终安装 manifest 声明的完整 Skill 内容。
-- Content projector 只用 `contentSelection.skills` 过滤 manifest `content.skills`；`specs/assets/scripts/tests` 仍按 manifest 全量投影为普通被动内容。过滤匹配使用每个 Skill entry 的 POSIX basename，并在 basename 重复或选择不存在时失败。
+- Content projector 只用 `contentSelection.skills` 过滤 manifest `content.skills`；`specs/assets/scripts/tests` 仍按 manifest 全量投影为普通被动内容。过滤匹配使用每个 Skill entry 的 `name`，来源内容从 `path` 读取，目标 Skill 目录也使用 `name`；`name/path` 重复或选择不存在时失败。
 - 候选、约束、roots、orphans 和 lock 输出必须按 UTF-8 稳定排序，不能依赖 Provider、对象或文件系统返回顺序。
 
 ### Platform And Install Plan
@@ -267,7 +268,7 @@ Source Provider 最小接口固定为：
 
 - `plugin-source-registry.test.js`：builtin/local 标准候选、重复 source、固定包漂移、路径去重和可选 capability 晚加载回补。
 - `plugin-dependency-resolver.test.js`：传递/共享依赖、稳定顺序、lock-first、显式 update、缺失、歧义、冲突、自依赖、循环和 orphan。
-- `plugin-content-projector.test.js`：显式/检测平台、共享物理 root、override、无平台阻断，以及 `contentSelection.skills` 过滤、缺失选择和 basename 重复。
+- `plugin-content-projector.test.js`：显式/检测平台、共享物理 root、override、无平台阻断，以及 `contentSelection.skills` 过滤、缺失选择和 `name/path` 重复。
 - `plugin-install-planner.test.js`：同目标、ownership、用户文件、文件目录前缀及普通内容/Patch 冲突。
 - `plugin-transaction-writer.test.js`：before/payload 漂移、state 最后写、changed-only、dry-run、回滚和 retained evidence。
 - `plugin-format-adapters.test.js`：Flower/Codex/Claude/skill-only 检测、歧义、路径边界、commands 转换、主动组件仅诊断和标准包校验。

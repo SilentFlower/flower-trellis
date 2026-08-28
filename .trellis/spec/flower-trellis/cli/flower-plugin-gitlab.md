@@ -75,6 +75,7 @@ GitLabRestClient.downloadArchive(project, commit) -> Promise<Buffer>
 
 GitLabSourceProvider.prepareIndex() -> Promise<MarketplaceManifest>
 GitLabSourceProvider.prepare(canonicalId) -> Promise<void>
+GitLabSourceProvider.prepareVersion(canonicalId, version) -> Promise<void>
 GitLabSourceProvider.prepareLocked(plugin) -> Promise<void>
 GitLabSourceProvider.search(query?) -> Promise<object[]>
 GitLabSourceProvider.listCandidates(canonicalId) -> PluginCandidate[]
@@ -98,7 +99,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 
 - 用户配置文件是 XDG 配置目录下的 `flower-trellis/plugin-sources.json`；Windows 有 `APPDATA` 时使用该目录。父目录权限为 `0700`，临时文件和配置文件权限为 `0600`，同目录 rename 提交。
 - GitLab source descriptor 固定字段为 `schemaVersion/id/type/name/enabled/baseUrl/project/ref/marketplacePath/oauth`。`oauth` 只允许 `applicationId/scopes`；随包和新建 descriptor 的请求 scopes 为 `openid profile read_user write_repository api`，读取旧配置时继续接受排序后的 `read_api read_repository`。
-- `baseUrl` 只允许无用户名密码的 `http:` 或 `https:`；`project` 是 GitLab project path，`marketplacePath` 是安全 POSIX 相对路径。
+- `baseUrl` 只允许无用户名密码的 `http:` 或 `https:`；`project` 是 GitLab project path，`marketplacePath` 是安全 POSIX 相对路径。内置 rd-guide 与交互新增 GitLab Marketplace 的默认索引路径是 `.flower-plugin/marketplace.json`。
 - source 配置禁止 `accessToken/refreshToken/token/clientSecret/applicationSecret` 以及其它未知字段。内置 `rd-guide` 的连接字段以随包 descriptor 为权威，用户层只允许保存 `enabled` 偏好；自定义连接必须使用新的 source ID。仅 `list/get` 不构造客户端、不登录、不访问网络。
 - Keyring service 固定为 `flower-trellis`，account 固定为 `<lowercase-host>[:port]/<source-id>`。凭据载荷固定包含 `schemaVersion/sourceId/baseUrl/tokenType/scope/accessToken/refreshToken/createdAt/expiresAt/redirectUri`；凭据 scope 只要包含 `api`，或同时包含旧 `read_api` 与 `read_repository`，就满足当前 GitLab REST 读取能力。
 - `@napi-rs/keyring` 是 optional dependency。模块缺失或系统后端运行失败时只能切换到当前进程的 `MemoryCredentialStore`，并令 `persistent=false`；凭据 JSON 损坏或 scope 无效必须直接报错，不能静默降级。
@@ -129,7 +130,9 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - archive 普通包内容只允许普通目录和普通文件。软链、硬链、特殊文件或单文件超限位于调用方显式选中的 `subdir` 内时必须失败；位于全仓扫描阶段的未选中目录或仓库根无关位置时允许跳过，避免公开仓库根目录的 `AGENTS.md`、文档 symlink 等无关条目误阻断格式检测。
 - 解包后的规范化复制仍必须使用 ordinary-directory 边界：实际进入 Plugin/Skill 包根的软链、硬链和特殊文件一律拒绝。跳过无关 archive 条目不能放宽已选 Plugin 子树或目标写盘边界。
 - tree/raw 回退必须与 archive 共用 10,000 条目、25 MiB 单文件和 250 MiB 总字节上限，只接受 `040000` 目录与 `100644/100755` 普通文件，拒绝路径逃逸、重复路径、软链、submodule 和其它 mode；最终仍执行 manifest 与 canonical tree hash 校验。
-- 解包后的 Plugin 根必须通过 manifest 校验和 P1 canonical tree hash。缓存键绑定 `baseUrl/project/commit/subdir/integrity`；metadata 绑定 `sourceId/baseUrl/project/commit/subdir/integrity`，不得包含 token、header 或用户身份。
+- 解包后的 Plugin 根必须通过 manifest 校验和 P1 canonical tree hash。Marketplace entry source 可声明 `manifestPath`，例如 rd-guide 仓库根 `.flower-plugin/plugin.json`；共仓 `type:"path"` 可省略 `path` 表示从索引所在仓库根构建包。
+- GitLab Provider 不得把带 Marketplace 索引的仓库根直接作为 Plugin 包哈希。准备固定包时必须先写出运行时包顶层 `plugin.json`，再只复制 manifest 声明的 `content`/`patches` 路径和匹配 platform override；`.flower-plugin/marketplace.json`、未声明验证脚本和未声明 Skill 不进入包。
+- 缓存键绑定 `baseUrl/project/commit/subdir/manifestPath/integrity`；metadata 绑定 `sourceId/baseUrl/project/commit/subdir/manifestPath/integrity`，不得包含 token、header 或用户身份。
 - 缓存命中仍须复核 tree hash、manifest ID 和版本。损坏缓存只删除对应不可变缓存项并重新下载，不修改 lock。`prepareLocked()` 只能接受 lock 的 `indexCommit/version/commit/integrity/reference` 与锁定 Marketplace 完全一致的条目。
 - `prepareLocked()` 只表示旧 lock 的固定包已经可重放，可以向候选集合登记锁定版本，但不得把 canonical ID 标记为“最新 Marketplace 已准备”。显式远程 `plugin update` 必须在恢复旧 lock 后继续执行 `prepare()`，重新解析 source `ref`、读取当前索引并加载新版候选；Provider 应使用独立的 prepared 状态，不能用 `candidates.has(id)` 兼任索引准备标记。
 - `plugin source list`、`plugin auth status` 和未引用远程 source 的本地生命周期保持零网络。远程 add/update 只负责异步准备 Provider，最终解析和写盘复用 `PluginApplicationService`。
@@ -143,7 +146,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 交互式新增来源类型页必须有明确的 `返回来源` 和 `退出管理` 动作。用户选择返回、退出、取消预览或确认前失败时不得调用 `source add/update`。
 - GitHub 交互检测必须在耗时动作前输出进度：初次检测、歧义选择后重试、保存来源都要给出可读状态。检测失败不退出到 shell，应记录到管理器问题页并保持 source store、项目 `.flower/` 和临时 cache 零持久化。
 - Flower Marketplace 搜索只读取并缓存索引快照，按 Plugin ID 聚合全部版本并按 SemVer 降序展示；只有 `prepare(canonicalId)` 才下载被选 Plugin 的版本，禁止发现页预取整个 Marketplace。
-- TUI 的普通 Marketplace Skill 选择只在用户选定具体 Plugin/版本或管理已安装 Plugin 时触发；inspection 复用 Provider prepare/readPackage，只从固定包 manifest `content.skills` 生成可选项，不把 `scripts/tests` 等验证资源展示为可安装 Skill。
+- TUI 的普通 Marketplace Skill 选择只在用户选定具体 Plugin/版本或管理已安装 Plugin 时触发；inspection 优先复用 Provider `prepareVersion/readPackage` 只读取当前版本，不支持单版本准备时才回退 `prepare/readPackage`；可选项只从固定包 manifest `content.skills` entry 生成，`description/version` 也只取自 entry，不把 `scripts/tests` 等验证资源展示为可安装 Skill。
 - Claude/Codex Marketplace 支持同仓相对路径、GitHub shorthand、GitHub HTTPS URL，以及 GitHub `git-subdir`。公开跨仓条目分别解析目标仓库默认分支或显式 ref；SSH、私有仓库、非 GitHub git-subdir、npm、通用 Git host 和远程 JSON 只产生 unsupported 诊断。
 - 没有 Marketplace 时允许把 `plugins/*` 中的多个可识别目录作为一个来源目录；每个目录独立归一化为候选。歧义只在单个选择边界内解决，不能因遍历顺序静默选中。
 - inspect/preview 的 cache root 必须由调用方放在操作系统临时目录并在 finally 清理。只有检测和兼容预览完成后才允许原子写 source store；失败、取消或未确认不得创建项目 `.flower/cache`。
@@ -192,6 +195,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 内置 `rd-guide` 随包从 HTTP 升级到 HTTPS 或切换 ref 后，即使用户目录仍有旧版完整 descriptor，运行时也使用新随包连接字段，仅保留用户原有启停选择。
 - 已锁定 Plugin 的 metadata、tree hash、manifest 身份全部匹配时，`prepareLocked()` 直接复用缓存，不访问 GitLab。
 - 项目先锁定 `rd-guide/demo@1.0.0`，Marketplace 当前索引随后发布 `1.1.0`；显式 `plugin update rd-guide/demo` 先恢复 1.0.0 固定包，再读取新索引并由 Resolver 选择 1.1.0。
+- rd-guide 在仓库根维护 `.flower-plugin/marketplace.json` 和 `.flower-plugin/plugin.json`，Marketplace 只发布 `rd-guide` 聚合包；用户进入 TUI 时只看到 manifest `content.skills` 中声明的具体 Skill 及其独立版本。
 
 ### Base
 
@@ -212,6 +216,8 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - Keyring 返回损坏 JSON 时吞掉错误并切换到内存，让调用方误以为只是“未登录”。
 - 把 `candidates.has(canonicalId)` 当作 `prepare()` 的幂等门禁；`prepareLocked()` 会先写入旧候选，导致显式远程 update 永远看不到新索引版本。
 - 在发现页下载 Marketplace 的每个 Plugin archive，或用项目 `.flower/cache` 承载尚未确认的来源预览。
+- 把 `.flower-plugin/marketplace.json` 或仓库根未声明文件纳入 Plugin 包哈希，导致发布索引自引用、每次索引更新都要求改 Plugin integrity。
+- 继续探测或生成旧 `.flower-marketplace/marketplace.json`，让新 rd-guide 发布路径和本地/GitHub Adapter 分叉。
 - 捕获 `PLUGIN_UNSAFE_PATH`、schema 或格式歧义后统一包装成 `PLUGIN_IO_ERROR`，导致调用方失去稳定诊断。
 - 交互新增来源时先问 `Source ID`、`format`、`entryPath` 等内部字段，或检测失败后直接退出管理器让用户回到 shell。
 
@@ -221,12 +227,12 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - `plugin-credential-store.test.js`：版本化副本、Keyring 运行失败的内存降级、损坏 payload 不降级、递归脱敏、`api` 与旧 `read_api + read_repository` scope 兼容。
 - `plugin-oauth.test.js`：PKCE S256/state/一次性 callback/公共客户端、新请求 scope、环境失败降级与认证失败不降级、OAuth 请求超时、Device pending/slow_down/请求中取消且不继续轮询、scope 验证、redirect URI refresh、并发单飞与 refresh 清理、同 host `glab` 与 host 绑定环境 fallback。
 - `plugin-gitlab-rest-client.test.js`：Bearer、禁用重定向、project/file 编码、commit/tree 分页/files/archive、大小限制、超时和一次重试、401/403 认证类错误映射与脱敏。
-- `plugin-gitlab-provider.test.js`：index commit、candidate/lock 字段、不可变缓存、损坏重下、archive 链接/路径/限额、OAuth 406 tree/raw 回退、subdir、digest、manifest 身份和 trust 上限。
+- `plugin-gitlab-provider.test.js`：index commit、candidate/lock 字段、不可变缓存、损坏重下、archive 链接/路径/限额、OAuth 406 tree/raw 回退、subdir、digest、manifest 身份、trust 上限，以及仓库根 `.flower-plugin` metadata 的声明式运行时包。
 - `plugin-remote-cli.test.js`：source/auth/search 参数、非敏感 JSON、管理命令零网络、status/search 复用 resolver、logout 不删除 fallback、远程 add/update 复用 Application Service、自定义 local source ID 不误判为 GitLab。
 - `plugin-e2e-gitlab.test.js`：真实 CLI 跨进程覆盖 Device Flow、PKCE、search、v1 add、切换 Marketplace 后的 v2 update、禁用零网络，以及 stdout/stderr/项目文件敏感值扫描；必须断言旧 lock 候选不会阻止当前索引准备。
 - `plugin-github-rest-client.test.js`：默认分支、commit/date、允许的 redirect host、匿名限流、大小限制、超时和重试。
 - `plugin-github-provider.test.js`：Flower 索引懒加载与版本聚合、跨仓 Marketplace、多 Plugin 目录、固定/默认 ref、cache、locked replay、全仓扫描无关软链跳过、已选子树危险条目拒绝和稳定错误类型。
-- `plugin-format-adapters.test.js`：检测顺序、歧义、Codex/Claude/skill-only 规范化、Skill 路径 containment、主动组件只诊断和 YAML frontmatter 安全。
+- `plugin-format-adapters.test.js`：检测顺序、歧义、Flower 根 `.flower-plugin` metadata 声明式规范化、Codex/Claude/skill-only 规范化、Skill 路径 containment、主动组件只诊断和 YAML frontmatter 安全。
 - `plugin-remote-cli.test.js` 与 `plugin-interactive.test.js`：descriptor v2/store v3、`--clear-subdir`、format 重置、JSON 字段、来源类型返回/退出、GitHub/GitLab 新增只问用户可识别 locator、检测进度、失败留在问题页、歧义选择和临时预览 cache 清理。
 - 修改本契约后必须运行上述定向测试、完整 `npm test`、`npm pack --dry-run --json`、敏感字段扫描与 `git diff --check`。
 

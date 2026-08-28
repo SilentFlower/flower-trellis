@@ -22,7 +22,7 @@ const source = {
   baseUrl: "http://gitlab.example.test",
   project: "group/rd-guide",
   ref: "main",
-  marketplacePath: ".flower-marketplace/marketplace.json",
+  marketplacePath: ".flower-plugin/marketplace.json",
   oauth: { applicationId: "public-client", scopes: ["read_api", "read_repository"] },
 };
 
@@ -109,6 +109,117 @@ test("GitLab Provider 固定索引 commit、验证 digest 并复用不可变缓�
   );
 });
 
+test("GitLab Provider prepareVersion 只准备指定版本", async (t) => {
+  const root = createPluginTestRoot(t, "flower-gitlab-provider-version-");
+  const container = path.join(root, "archive-source");
+  const oldCommit = "b".repeat(40);
+  const newCommit = "c".repeat(40);
+  const oldRepository = path.join(container, "repo-old");
+  const newRepository = path.join(container, "repo-new");
+  const oldPluginRoot = writePluginPackage(oldRepository, "plugins/demo", pluginManifest({ version: "1.0.0" }));
+  const newPluginRoot = writePluginPackage(newRepository, "plugins/demo", pluginManifest({ version: "1.1.0" }));
+  const oldIntegrity = hashCanonicalTree(oldPluginRoot);
+  const newIntegrity = hashCanonicalTree(newPluginRoot);
+  const oldArchive = await archiveDirectory(container, "repo-old", path.join(root, "old.tar.gz"));
+  const newArchive = await archiveDirectory(container, "repo-new", path.join(root, "new.tar.gz"));
+  const marketplace = {
+    schemaVersion: 1,
+    id: "rd-guide",
+    name: "研发指南",
+    plugins: [{
+      id: "demo",
+      description: "示例 Plugin",
+      source: { type: "path", path: "plugins/demo" },
+      trust: { maxProfile: "standard" },
+      versions: [
+        { version: "1.0.0", ref: "v1.0.0", commit: oldCommit, integrity: oldIntegrity },
+        { version: "1.1.0", ref: "v1.1.0", commit: newCommit, integrity: newIntegrity },
+      ],
+    }],
+  };
+  const downloadedCommits = [];
+  const client = {
+    resolveCommit: async () => commit,
+    readRawFile: async () => JSON.stringify(marketplace),
+    downloadArchive: async (_project, archiveCommit) => {
+      downloadedCommits.push(archiveCommit);
+      return archiveCommit === newCommit ? newArchive : oldArchive;
+    },
+  };
+  const provider = new GitLabSourceProvider({ source, projectRoot: path.join(root, "project"), client });
+
+  await provider.prepareVersion("rd-guide/demo", "1.1.0");
+
+  assert.deepEqual(downloadedCommits, [newCommit]);
+  const candidates = provider.listCandidates("rd-guide/demo");
+  assert.deepEqual(candidates.map(({ version }) => version), ["1.1.0"]);
+  assert.equal(provider.readPackage(candidates[0]).integrity, newIntegrity);
+});
+
+test("GitLab Provider 支持仓库根 .flower-plugin 元数据发布 rd-guide 聚合包", async (t) => {
+  const root = createPluginTestRoot(t, "flower-gitlab-provider-root-metadata-");
+  const container = path.join(root, "archive-source");
+  const repository = path.join(container, "repo-root");
+  const manifest = pluginManifest({
+    id: "rd-guide",
+    version: "0.8.0",
+    content: {
+      skills: [{
+        name: "xhgj-gitlab-collaboration",
+        path: "skills/xhgj-gitlab-collaboration",
+        version: "0.4.2",
+        description: "GitLab 协作执行。",
+      }],
+    },
+  });
+  fs.mkdirSync(path.join(repository, ".flower-plugin"), { recursive: true });
+  fs.mkdirSync(path.join(repository, "skills/xhgj-gitlab-collaboration"), { recursive: true });
+  fs.writeFileSync(path.join(repository, ".flower-plugin/plugin.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  fs.writeFileSync(path.join(repository, ".flower-plugin/marketplace.json"), "self reference must not enter package hash\n");
+  fs.writeFileSync(path.join(repository, "skills/xhgj-gitlab-collaboration/SKILL.md"), "# GitLab\n");
+
+  const runtimePackage = path.join(root, "runtime-package");
+  fs.mkdirSync(path.join(runtimePackage, "skills/xhgj-gitlab-collaboration"), { recursive: true });
+  fs.copyFileSync(path.join(repository, ".flower-plugin/plugin.json"), path.join(runtimePackage, "plugin.json"));
+  fs.copyFileSync(
+    path.join(repository, "skills/xhgj-gitlab-collaboration/SKILL.md"),
+    path.join(runtimePackage, "skills/xhgj-gitlab-collaboration/SKILL.md"),
+  );
+  const integrity = hashCanonicalTree(runtimePackage);
+  const marketplace = {
+    schemaVersion: 1,
+    id: "rd-guide",
+    name: "研发指南",
+    plugins: [{
+      id: "rd-guide",
+      description: "RD Guide 技能",
+      source: { type: "path", manifestPath: ".flower-plugin/plugin.json" },
+      trust: { maxProfile: "standard" },
+      versions: [{ version: "0.8.0", ref: "v0.8.0", commit, integrity }],
+    }],
+  };
+  const archive = await archiveDirectory(container, "repo-root", path.join(root, "repo.tar.gz"));
+  const provider = new GitLabSourceProvider({
+    source,
+    projectRoot: path.join(root, "project"),
+    client: {
+      resolveCommit: async () => commit,
+      readRawFile: async () => JSON.stringify(marketplace),
+      downloadArchive: async () => archive,
+    },
+  });
+
+  await provider.prepareVersion("rd-guide/rd-guide", "0.8.0");
+
+  const [candidate] = provider.listCandidates("rd-guide/rd-guide");
+  const pluginPackage = provider.readPackage(candidate);
+  assert.equal(candidate.id, "rd-guide/rd-guide");
+  assert.equal(candidate.source.reference, "group/rd-guide");
+  assert.equal(pluginPackage.integrity, integrity);
+  assert.equal(pluginPackage.manifest.content.skills[0].version, "0.4.2");
+  assert.equal(fs.existsSync(path.join(pluginPackage.root, ".flower-plugin/marketplace.json")), false);
+});
+
 test("GitLab Provider 删除损坏缓存后重新下载并恢复内容", async (t) => {
   const root = createPluginTestRoot(t, "flower-gitlab-provider-redownload-");
   const container = path.join(root, "archive-source");
@@ -151,7 +262,17 @@ test("GitLab Provider 删除损坏缓存后重新下载并恢复内容", async (
 test("GitLab Provider 在 OAuth archive 406 时通过固定 commit 的 tree/raw API 准备 Plugin", async (t) => {
   const root = createPluginTestRoot(t, "flower-gitlab-provider-tree-fallback-");
   const repositoryRoot = path.join(root, "repository");
-  const pluginRoot = writePluginPackage(repositoryRoot, "skills", pluginManifest());
+  const pluginRoot = writePluginPackage(repositoryRoot, "skills", pluginManifest({
+    content: {
+      skills: [{
+        name: "demo",
+        path: "skills/demo",
+        version: "1.0.0",
+        description: "Demo Skill",
+      }],
+      assets: ["binary.dat"],
+    },
+  }));
   fs.writeFileSync(path.join(pluginRoot, "binary.dat"), Buffer.from([0, 255, 1]));
   const integrity = hashCanonicalTree(pluginRoot);
   const marketplace = {

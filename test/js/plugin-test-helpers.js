@@ -18,7 +18,7 @@ export function createPluginTestRoot(t, prefix = "flower-plugin-") {
 /**
  * 创建合法 Plugin manifest。
  *
- * @param {{id?:string,version?:string,dependencies?:Record<string,string>,content?:Record<string,string[]>}} [overrides] 覆盖字段
+ * @param {{id?:string,version?:string,dependencies?:Record<string,string>,content?:Record<string,unknown[]>}} [overrides] 覆盖字段
  * @returns {object} manifest
  */
 export function pluginManifest(overrides = {}) {
@@ -30,7 +30,14 @@ export function pluginManifest(overrides = {}) {
     compatibility: { flower: ">=0.5.0 <1.0.0" },
     dependencies: overrides.dependencies || {},
     capabilities: { profile: "standard", required: ["content.skills"] },
-    content: overrides.content || { skills: ["skills/demo"] },
+    content: overrides.content || {
+      skills: [{
+        name: "demo",
+        path: "skills/demo",
+        version: overrides.version || "1.0.0",
+        description: "Demo Skill",
+      }],
+    },
   };
 }
 

@@ -382,7 +382,7 @@ test("本地 HTTP mock 覆盖 repository tree、raw file 与 archive", async (t)
   const commit = await client.resolveCommit(source.project, "main");
   assert.equal(commit, "c".repeat(40));
   assert.equal((await client.readTree(source.project, { ref: commit }))[0].name, "plugin.json");
-  assert.match(await client.readRawFile(source.project, ".flower-marketplace/marketplace.json", commit), /mock-guide/);
+  assert.match(await client.readRawFile(source.project, ".flower-plugin/marketplace.json", commit), /mock-guide/);
   assert.ok((await client.downloadArchive(source.project, "a".repeat(40))).length > 0);
   assert.equal(mock.requests.filter(({ authorized }) => authorized).length, 4);
 

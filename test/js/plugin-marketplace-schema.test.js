@@ -28,7 +28,7 @@ function validMarketplace() {
       {
         id: "local-guide",
         description: "共仓规范",
-        source: { type: "path", path: "plugins/local-guide" },
+        source: { type: "path", manifestPath: ".flower-plugin/plugin.json" },
         trust: { maxProfile: "standard" },
         versions: [
           { version: "2.0.0", ref: "v2.0.0", commit: COMMIT, integrity: DIGEST },

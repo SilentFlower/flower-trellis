@@ -19,7 +19,7 @@ test("用户 source store 默认内置 rd-guide 且读取不触发网络", (t) =
     baseUrl: "https://gitlab.xhgjdev.com",
     project: "digital-rd-governance/rd-guide",
     ref: "main",
-    marketplacePath: ".flower-marketplace/marketplace.json",
+    marketplacePath: ".flower-plugin/marketplace.json",
     oauth: {
       applicationId: "0f73e53d745450b6ab9596960b10a2ac1654d67c0941bae381f6dbbf6839ec04",
       scopes: ["api", "openid", "profile", "read_user", "write_repository"],
@@ -55,7 +55,7 @@ test("用户 source store 支持禁用内置来源、恢复默认与自定义来
     baseUrl: "http://gitlab.example.test",
     project: "group/team-guide",
     ref: "main",
-    marketplacePath: ".flower-marketplace/marketplace.json",
+    marketplacePath: ".flower-plugin/marketplace.json",
     oauth: { applicationId: "public-client", scopes: ["read_repository", "read_api"] },
   });
   assert.equal(store.get("team-guide").project, "group/team-guide");

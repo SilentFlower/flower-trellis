@@ -116,7 +116,10 @@ test("内容投影把 canonical Skill 一次写入共享物理 root", (t) => {
 test("内容投影按 contentSelection.skills 过滤 manifest Skill", (t) => {
   const project = createPluginTestRoot(t);
   writePluginPackage(project, "plugins/demo", pluginManifest({
-    content: { skills: ["skills/alpha", "skills/beta"] },
+    content: { skills: [
+      { name: "alpha", path: "skills/alpha", version: "1.0.0" },
+      { name: "beta", path: "skills/beta", version: "1.0.0" },
+    ] },
   }), {
     "skills/alpha/SKILL.md": "# Alpha\n",
     "skills/beta/SKILL.md": "# Beta\n",
@@ -144,10 +147,10 @@ test("内容投影按 contentSelection.skills 过滤 manifest Skill", (t) => {
   assert.equal([...projection.payloads.values()][0].toString(), "# Beta\n");
 });
 
-test("内容投影拒绝不存在或 basename 重复的 contentSelection Skill", (t) => {
+test("内容投影拒绝不存在的 contentSelection Skill", (t) => {
   const missingProject = createPluginTestRoot(t, "flower-content-selection-missing-");
   writePluginPackage(missingProject, "plugins/demo", pluginManifest({
-    content: { skills: ["skills/alpha"] },
+    content: { skills: [{ name: "alpha", path: "skills/alpha", version: "1.0.0" }] },
   }), {
     "skills/alpha/SKILL.md": "# Alpha\n",
   });
@@ -167,31 +170,6 @@ test("内容投影拒绝不存在或 basename 重复的 contentSelection Skill",
       platformSelection: detectPluginPlatforms(missingProject, ["codex"]),
     }),
     (error) => error.code === PLUGIN_RUNTIME_ERROR_CODES.CONTENT_SELECTION_INVALID,
-  );
-
-  const duplicateProject = createPluginTestRoot(t, "flower-content-selection-duplicate-");
-  writePluginPackage(duplicateProject, "plugins/demo", pluginManifest({
-    content: { skills: ["skills/demo", "other/demo"] },
-  }), {
-    "skills/demo/SKILL.md": "# Demo\n",
-    "other/demo/SKILL.md": "# Other\n",
-  });
-  const duplicateRegistry = new SourceRegistry([
-    new LocalSourceProvider({ id: "local", projectRoot: duplicateProject, references: ["plugins"] }),
-  ]);
-  const duplicateResolution = resolvePluginGraph(
-    [{ id: "local/demo", source: "local", version: "*" }],
-    duplicateRegistry,
-  );
-  assert.throws(
-    () => projectPluginContent({
-      projectRoot: duplicateProject,
-      graph: duplicateResolution.graph,
-      selected: duplicateResolution.selected,
-      registry: duplicateRegistry,
-      platformSelection: detectPluginPlatforms(duplicateProject, ["codex"]),
-    }),
-    (error) => error.code === PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
   );
 });
 

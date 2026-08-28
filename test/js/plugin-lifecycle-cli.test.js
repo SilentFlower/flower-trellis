@@ -368,7 +368,10 @@ test("Plugin parser 拒绝非法版本与命令不支持的 flag", () => {
 test("Plugin lifecycle 按 contentSelection.skills 投影并在 update 中保留选择", (t) => {
   const project = createPluginTestRoot(t, "flower-cli-content-selection-");
   const packageRoot = writePluginPackage(project, "plugins/demo", pluginManifest({
-    content: { skills: ["skills/gitlab", "skills/humanize"] },
+    content: { skills: [
+      { name: "gitlab", path: "skills/gitlab", version: "1.0.0" },
+      { name: "humanize", path: "skills/humanize", version: "1.0.0" },
+    ] },
   }), {
     "skills/gitlab/SKILL.md": "# GitLab 1.0\n",
     "skills/humanize/SKILL.md": "# Humanize 1.0\n",
@@ -395,7 +398,11 @@ test("Plugin lifecycle 按 contentSelection.skills 投影并在 update 中保留
 
   fs.writeFileSync(path.join(packageRoot, "plugin.json"), `${JSON.stringify(pluginManifest({
     version: "1.1.0",
-    content: { skills: ["skills/gitlab", "skills/humanize", "skills/release"] },
+    content: { skills: [
+      { name: "gitlab", path: "skills/gitlab", version: "1.1.0" },
+      { name: "humanize", path: "skills/humanize", version: "1.0.0" },
+      { name: "release", path: "skills/release", version: "1.1.0" },
+    ] },
   }), null, 2)}\n`);
   fs.writeFileSync(path.join(packageRoot, "skills/gitlab/SKILL.md"), "# GitLab 1.1\n");
   fs.mkdirSync(path.join(packageRoot, "skills/release"), { recursive: true });
@@ -444,7 +451,10 @@ test("Plugin verify 报告 contentSelection 不一致和 manifest 缺失选择",
     fs.writeFileSync(target, `${JSON.stringify(data, null, 2)}\n`);
   };
   writePluginPackage(project, "plugins/demo", pluginManifest({
-    content: { skills: ["skills/gitlab", "skills/humanize"] },
+    content: { skills: [
+      { name: "gitlab", path: "skills/gitlab", version: "1.0.0" },
+      { name: "humanize", path: "skills/humanize", version: "1.0.0" },
+    ] },
   }), {
     "skills/gitlab/SKILL.md": "# GitLab\n",
     "skills/humanize/SKILL.md": "# Humanize\n",
@@ -523,7 +533,11 @@ test("多个精确锁同时落后时，批量 --widen 解开解析器互锁", (t
   const publish = (id, version) => writePluginPackage(
     project,
     `plugins/${id}`,
-    pluginManifest({ id, version, content: { skills: [`skills/${id}`] } }),
+    pluginManifest({
+      id,
+      version,
+      content: { skills: [{ name: id, path: `skills/${id}`, version }] },
+    }),
     { [`skills/${id}/SKILL.md`]: `# ${id} ${version}\n` },
   );
   const declarations = () => Object.fromEntries(JSON.parse(
@@ -599,7 +613,7 @@ test("生命周期输出默认只列真实改动，--json 仍返回全量 change
   for (const id of ["alpha", "beta"]) {
     writePluginPackage(project, `plugins/${id}`, pluginManifest({
       id,
-      content: { skills: [`skills/${id}`] },
+      content: { skills: [{ name: id, path: `skills/${id}`, version: "1.0.0" }] },
     }), {
       [`skills/${id}/SKILL.md`]: `# ${id}\n`,
       [`skills/${id}/extra.md`]: `# ${id} extra\n`,
@@ -681,17 +695,17 @@ test("remove 保留共享依赖，并拒绝删除用户修改过的受管文件"
   const project = createPluginTestRoot(t, "flower-cli-shared-");
   writePluginPackage(project, "plugins/shared", pluginManifest({
     id: "shared",
-    content: { skills: ["skills/shared"] },
+    content: { skills: [{ name: "shared", path: "skills/shared", version: "1.0.0" }] },
   }), { "skills/shared/SKILL.md": "# Shared\n" });
   writePluginPackage(project, "plugins/a", pluginManifest({
     id: "a",
     dependencies: { "local/shared": "*" },
-    content: { skills: ["skills/a"] },
+    content: { skills: [{ name: "a", path: "skills/a", version: "1.0.0" }] },
   }), { "skills/a/SKILL.md": "# A\n" });
   writePluginPackage(project, "plugins/b", pluginManifest({
     id: "b",
     dependencies: { "local/shared": "*" },
-    content: { skills: ["skills/b"] },
+    content: { skills: [{ name: "b", path: "skills/b", version: "1.0.0" }] },
   }), { "skills/b/SKILL.md": "# B\n" });
 
   for (const pluginId of ["a", "b"]) {

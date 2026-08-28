@@ -163,7 +163,7 @@ test("GitHub Provider 支持 Flower Marketplace 的 commit 与 integrity 锁定"
   const repository = path.join(container, "repo-root");
   const pluginRoot = writePluginPackage(repository, "plugins/demo", pluginManifest());
   const integrity = hashCanonicalTree(pluginRoot);
-  write(repository, ".flower-marketplace/marketplace.json", JSON.stringify({
+  write(repository, ".flower-plugin/marketplace.json", JSON.stringify({
     schemaVersion: 1,
     id: "public-guides",
     name: "Public Guides",
@@ -202,7 +202,7 @@ test("GitHub Provider 搜索 Flower Marketplace 时聚合版本且不下载 Plug
   const root = createPluginTestRoot(t, "flower-github-native-search-");
   const container = path.join(root, "archive-source");
   const repository = path.join(container, "repo-root");
-  write(repository, ".flower-marketplace/marketplace.json", JSON.stringify({
+  write(repository, ".flower-plugin/marketplace.json", JSON.stringify({
     schemaVersion: 1,
     id: "public-guides",
     name: "Public Guides",

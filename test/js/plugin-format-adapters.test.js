@@ -73,7 +73,11 @@ test("skill-only 仓库可规范化，多个格式入口要求显式选择", (t)
     commit: COMMIT,
     committedAt: COMMITTED_AT,
   });
-  assert.equal(normalized.manifest.content.skills[0], "skills/guide");
+  assert.deepEqual(normalized.manifest.content.skills[0], {
+    name: "guide",
+    path: "skills/guide",
+    version: normalized.manifest.version,
+  });
 
   write(root, ".codex-plugin/plugin.json", JSON.stringify({ name: "guide-plugin", version: "1.0.0" }));
   write(root, ".claude-plugin/plugin.json", JSON.stringify({ name: "guide-plugin", version: "1.0.0" }));
@@ -136,4 +140,56 @@ test("外部 Skill 描述按 YAML 字符串转义", (t) => {
     fs.readFileSync(path.join(normalized.root, "skills/review/SKILL.md"), "utf8"),
     /description: "value: # literal"/,
   );
+});
+
+test("仓库根 .flower-plugin metadata 规范化为声明式运行时包", (t) => {
+  const root = createPluginTestRoot(t, "flower-format-flower-root-metadata-");
+  write(root, ".flower-plugin/plugin.json", JSON.stringify({
+    schemaVersion: 1,
+    id: "rd-guide",
+    name: "研发指南",
+    version: "0.8.0",
+    compatibility: { flower: ">=0.5.0 <1.0.0" },
+    dependencies: {},
+    capabilities: { profile: "standard", required: ["content.skills"] },
+    content: {
+      skills: [{
+        name: "xhgj-gitlab-collaboration",
+        path: "skills/xhgj-gitlab-collaboration",
+        version: "0.4.2",
+        description: "GitLab 协作执行。",
+      }],
+      tests: ["tests/self_check.js"],
+    },
+  }));
+  write(root, ".flower-plugin/marketplace.json", JSON.stringify({
+    schemaVersion: 1,
+    id: "rd-guide",
+    name: "研发指南",
+    plugins: [],
+  }));
+  write(root, "skills/xhgj-gitlab-collaboration/SKILL.md", "# GitLab\n");
+  write(root, "tests/self_check.js", "console.log('ok');\n");
+  write(root, "README.md", "# Not packaged\n");
+
+  const registry = new PluginFormatRegistry();
+  const selected = registry.detect(root).find((entry) => (
+    entry.format === "flower" &&
+    entry.kind === "plugin" &&
+    entry.entryPath === ".flower-plugin/plugin.json"
+  ));
+  assert.ok(selected);
+  const normalized = registry.normalize(selected, {
+    outputRoot: path.join(root, "normalized"),
+    sourceId: "github-guides",
+    commit: COMMIT,
+    committedAt: COMMITTED_AT,
+  });
+
+  assert.equal(normalized.manifest.content.skills[0].version, "0.4.2");
+  assert.equal(fs.existsSync(path.join(normalized.root, "plugin.json")), true);
+  assert.equal(fs.existsSync(path.join(normalized.root, "skills/xhgj-gitlab-collaboration/SKILL.md")), true);
+  assert.equal(fs.existsSync(path.join(normalized.root, "tests/self_check.js")), true);
+  assert.equal(fs.existsSync(path.join(normalized.root, ".flower-plugin/marketplace.json")), false);
+  assert.equal(fs.existsSync(path.join(normalized.root, "README.md")), false);
 });

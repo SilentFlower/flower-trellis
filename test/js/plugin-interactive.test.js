@@ -17,7 +17,7 @@ const descriptor = {
   baseUrl: "http://gitlab.example.test",
   project: "group/rd-guide",
   ref: "main",
-  marketplacePath: ".flower-marketplace/marketplace.json",
+  marketplacePath: ".flower-plugin/marketplace.json",
   oauth: { applicationId: "public-client", scopes: ["read_api", "read_repository"] },
 };
 
@@ -96,11 +96,16 @@ function interactiveFixture(t) {
  * @param {object} question checkbox prompt 入参
  */
 function assertRdGuideSkillQuestion(question) {
-  assert.equal(question.message, "RD Guide 技能管理");
+  assert.equal(question.message, "选择要启用的 RD Guide 技能");
+  assert.equal(question.required, false);
   assert.deepEqual(
     question.choices.map(({ value }) => value),
     ["xhgj-gitlab-collaboration"],
   );
+  assert.equal(question.choices[0].checked, false);
+  assert.match(question.choices[0].name, /v0\.1\.0/);
+  assert.equal(question.shortcuts.all, null);
+  assert.equal(question.shortcuts.invert, null);
 }
 
 /**
@@ -119,7 +124,12 @@ function rdGuideSkillInspector(expect = {}) {
       pluginId: request.pluginId,
       version: request.version || request.lockedPlugin?.version || "1.0.0",
       name: "研发指南",
-      skills: [{ name: "xhgj-gitlab-collaboration", path: "skills/xhgj-gitlab-collaboration" }],
+      skills: [{
+        name: "xhgj-gitlab-collaboration",
+        path: "skills/xhgj-gitlab-collaboration",
+        description: "GitLab 协作执行。",
+        version: "0.1.0",
+      }],
     };
   };
 }
@@ -271,15 +281,11 @@ test("旧版 Skill Garden 计入已安装并保持只读", async (t) => {
   script.assertDone();
 });
 
-test("发现页先展示详情，再执行 dry-run 和确认安装", async (t) => {
+test("rd-guide 发现页直接进入技能管理并直接应用选择", async (t) => {
   const fixture = interactiveFixture(t);
   const script = scriptedPrompts([
     { type: "manager", value: managerResult("discover", "plugin:rd-guide:rd-guide/review") },
-    { type: "select", value: "install" },
-    { type: "select", value: "1.2.0" },
     { type: "checkbox", value: ["xhgj-gitlab-collaboration"], check: assertRdGuideSkillQuestion },
-    { type: "checkbox", value: ["codex"] },
-    { type: "confirm", value: true },
     { type: "manager", value: managerResult("installed", "exit") },
   ]);
   const commands = [];
@@ -310,20 +316,43 @@ test("发现页先展示详情，再执行 dry-run 和确认安装", async (t) =
       "xhgj-gitlab-collaboration",
       "--platform",
       "codex",
-      "--dry-run",
-    ],
-    [
-      "add",
-      "rd-guide/review",
-      "--version",
-      "^1.2.0",
-      "--content-skill",
-      "xhgj-gitlab-collaboration",
       "--platform",
-      "codex",
+      "claude",
     ],
   ]);
-  assert.match(fixture.output.join("\n"), /代码评审规范/);
+  assert.match(fixture.output.join("\n"), /RD Guide 技能管理/);
+  assert.doesNotMatch(fixture.output.join("\n"), /Plugin 详情/);
+  assert.doesNotMatch(fixture.output.join("\n"), /安装预览/);
+  assert.doesNotMatch(fixture.output.join("\n"), /当前项目还没有可识别的平台/);
+  script.assertDone();
+});
+
+test("rd-guide Skill 空选择使用中文提示且不执行安装", async (t) => {
+  const fixture = interactiveFixture(t);
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("discover", "plugin:rd-guide:rd-guide/review") },
+    { type: "checkbox", value: [], check: assertRdGuideSkillQuestion },
+    { type: "manager", value: managerResult("discover", "exit") },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    store: fixture.store,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    searchPlugins: async () => [{
+      id: "rd-guide/review",
+      description: "代码评审规范",
+      versions: ["1.0.0"],
+      source: "rd-guide",
+    }],
+    authStatus: async () => ({ authorized: true, persistent: false }),
+    inspectPluginContentSkills: rdGuideSkillInspector({ version: "1.0.0" }),
+    runCommand: async (args) => { commands.push(args); return 0; },
+  });
+  assert.deepEqual(commands, []);
+  assert.match(fixture.output.join("\n"), /未选择 RD Guide 技能，已取消安装/);
   script.assertDone();
 });
 
@@ -339,10 +368,7 @@ test("未登录来源按 Enter 直接设备码授权并返回原发现页", asyn
       },
     },
     { type: "manager", value: managerResult("discover", "plugin:rd-guide:rd-guide/review") },
-    { type: "select", value: "install" },
     { type: "checkbox", value: ["xhgj-gitlab-collaboration"], check: assertRdGuideSkillQuestion },
-    { type: "checkbox", value: ["claude"] },
-    { type: "confirm", value: false },
     { type: "manager", value: managerResult("discover", "exit") },
   ]);
   let authorized = false;
@@ -382,11 +408,12 @@ test("未登录来源按 Enter 直接设备码授权并返回原发现页", asyn
       "--content-skill",
       "xhgj-gitlab-collaboration",
       "--platform",
+      "codex",
+      "--platform",
       "claude",
-      "--dry-run",
     ],
   ]);
-  assert.match(fixture.output.join("\n"), /已取消安装/);
+  assert.match(fixture.output.join("\n"), /RD Guide 技能已应用/);
   script.assertDone();
 });
 
@@ -512,7 +539,7 @@ function installedDeps(fixture, declaredVersion, marketplaceVersions) {
   };
 }
 
-test("发现页把已安装 Plugin 标成可更新并直接进入管理动作", async (t) => {
+test("发现页 rd-guide 聚合入口隐藏包版本并直接进入管理动作", async (t) => {
   const fixture = interactiveFixture(t);
   const deps = installedDeps(fixture, "0.3.0", ["0.4.0"]);
   const script = scriptedPrompts([
@@ -520,9 +547,9 @@ test("发现页把已安装 Plugin 标成可更新并直接进入管理动作", 
       type: "manager",
       value: managerResult("discover", "exit"),
       check: (view) => {
-        const entry = view.itemsByTab.discover.find(({ title }) => title === "rd-guide/review");
-        assert.equal(entry.badge, "可更新");
-        assert.equal(entry.meta, "研发指南 · 0.3.0 → 0.4.0");
+        const entry = view.itemsByTab.discover.find(({ title }) => title === "RD Guide 技能");
+        assert.equal(entry.badge, "已安装");
+        assert.equal(entry.meta, "研发指南");
         assert.match(entry.description, /已安装/);
       },
     },
@@ -546,9 +573,9 @@ test("发现页把已是最新的已安装 Plugin 标成已安装", async (t) =>
       type: "manager",
       value: managerResult("discover", "exit"),
       check: (view) => {
-        const entry = view.itemsByTab.discover.find(({ title }) => title === "rd-guide/review");
+        const entry = view.itemsByTab.discover.find(({ title }) => title === "RD Guide 技能");
         assert.equal(entry.badge, "已安装");
-        assert.equal(entry.meta, "研发指南 · 0.3.0");
+        assert.equal(entry.meta, "研发指南");
       },
     },
   ]);
@@ -743,9 +770,7 @@ test("项目已有平台证据时安装不再询问平台", async (t) => {
   };
   const script = scriptedPrompts([
     { type: "manager", value: managerResult("discover", "plugin:rd-guide:rd-guide/review") },
-    { type: "select", value: "install" },
     { type: "checkbox", value: ["xhgj-gitlab-collaboration"], check: assertRdGuideSkillQuestion },
-    { type: "confirm", value: true },
     { type: "manager", value: managerResult("installed", "exit") },
   ]);
   const commands = [];
@@ -766,15 +791,6 @@ test("项目已有平台证据时安装不再询问平台", async (t) => {
     runCommand: async (args) => { commands.push(args); return 0; },
   });
   assert.deepEqual(commands, [
-    [
-      "add",
-      "rd-guide/review",
-      "--version",
-      "^1.0.0",
-      "--content-skill",
-      "xhgj-gitlab-collaboration",
-      "--dry-run",
-    ],
     [
       "add",
       "rd-guide/review",
@@ -819,19 +835,20 @@ test("已安装页可按 manifest 管理 Marketplace Skill 选择", async (t) =>
     }),
   };
   const script = scriptedPrompts([
-    { type: "manager", value: managerResult("installed", "installed:rd-guide/review") },
     {
-      type: "select",
-      value: "skills",
-      check: (question) => {
-        assert.ok(question.choices.some(({ value }) => value === "skills"));
+      type: "manager",
+      value: managerResult("installed", "installed:rd-guide/review"),
+      check: (view) => {
+        const entry = view.itemsByTab.installed.find(({ value }) => value === "installed:rd-guide/review");
+        assert.equal(entry.title, "RD Guide 技能");
+        assert.equal(entry.meta, "研发指南 · 已启用 1 个技能");
       },
     },
     {
       type: "checkbox",
       value: ["xhgj-humanize-writing"],
       check: (question) => {
-        assert.equal(question.message, "RD Guide 技能管理");
+        assert.equal(question.message, "选择要启用的 RD Guide 技能");
         assert.deepEqual(
           question.choices.map(({ value }) => value),
           ["xhgj-gitlab-collaboration", "xhgj-humanize-writing"],
@@ -839,7 +856,6 @@ test("已安装页可按 manifest 管理 Marketplace Skill 选择", async (t) =>
         assert.equal(question.choices[0].checked, true);
       },
     },
-    { type: "confirm", value: true },
     { type: "manager", value: managerResult("installed", "exit") },
   ]);
   const commands = [];
@@ -867,9 +883,259 @@ test("已安装页可按 manifest 管理 Marketplace Skill 选择", async (t) =>
     runCommand: async (args) => { commands.push(args); return 0; },
   });
   assert.deepEqual(commands, [
-    ["update", "rd-guide/review", "--content-skill", "xhgj-humanize-writing", "--dry-run"],
     ["update", "rd-guide/review", "--content-skill", "xhgj-humanize-writing"],
   ]);
+  script.assertDone();
+});
+
+test("rd-guide 取消部分 Skill 会直接更新启用列表并保留可选清单", async (t) => {
+  const fixture = interactiveFixture(t);
+  const skillNames = [
+    "xhgj-dws-message-governance",
+    "xhgj-gitlab-collaboration",
+    "xhgj-humanize-writing",
+    "xhgj-rd-guide",
+  ];
+  const store = {
+    readPlugins: () => ({
+      schemaVersion: 1,
+      plugins: [{
+        id: "rd-guide/review",
+        source: "rd-guide",
+        version: "^1.0.0",
+        contentSelection: { skills: skillNames },
+      }],
+    }),
+    readLock: () => ({
+      schemaVersion: 1,
+      roots: ["rd-guide/review"],
+      plugins: [{
+        id: "rd-guide/review",
+        version: "1.0.0",
+        source: { id: "rd-guide", type: "gitlab", reference: "group/rd-guide" },
+      }],
+    }),
+    readState: () => ({
+      schemaVersion: 1,
+      plugins: [{
+        id: "rd-guide/review",
+        version: "1.0.0",
+        platforms: ["codex"],
+        contentSelection: { skills: skillNames },
+      }],
+    }),
+  };
+  const enabledAfter = [
+    "xhgj-dws-message-governance",
+    "xhgj-gitlab-collaboration",
+    "xhgj-rd-guide",
+  ];
+  const script = scriptedPrompts([
+    {
+      type: "manager",
+      value: managerResult("installed", "installed:rd-guide/review"),
+      check: (view) => {
+        const entry = view.itemsByTab.installed.find(({ value }) => value === "installed:rd-guide/review");
+        assert.equal(entry.title, "RD Guide 技能");
+        assert.equal(entry.meta, "研发指南 · 已启用 4 个技能");
+      },
+    },
+    {
+      type: "checkbox",
+      value: enabledAfter,
+      check: (question) => {
+        assert.equal(question.message, "选择要启用的 RD Guide 技能");
+        assert.deepEqual(question.choices.map(({ value }) => value), skillNames);
+        assert.deepEqual(question.choices.map(({ checked }) => checked), [true, true, true, true]);
+      },
+    },
+    { type: "manager", value: managerResult("installed", "exit") },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    store,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    authStatus: async () => ({ authorized: true, persistent: false }),
+    inspectPluginContentSkills: async (request) => {
+      assert.equal(request.pluginId, "rd-guide/review");
+      assert.ok(request.lockedPlugin);
+      return {
+        ok: true,
+        pluginId: request.pluginId,
+        version: "1.0.0",
+        name: "研发指南",
+        skills: skillNames.map((name) => ({ name, path: `skills/${name}` })),
+      };
+    },
+    runCommand: async (args) => { commands.push(args); return 0; },
+  });
+  assert.deepEqual(commands, [
+    [
+      "update",
+      "rd-guide/review",
+      "--content-skill",
+      "xhgj-dws-message-governance",
+      "--content-skill",
+      "xhgj-gitlab-collaboration",
+      "--content-skill",
+      "xhgj-rd-guide",
+    ],
+  ]);
+  assert.match(fixture.output.join("\n"), /RD Guide 技能选择已应用/);
+  script.assertDone();
+});
+
+test("rd-guide 已安装后全部取消勾选会停用整个 RD Guide 插件", async (t) => {
+  const fixture = interactiveFixture(t);
+  const skillNames = [
+    "xhgj-gitlab-collaboration",
+    "xhgj-humanize-writing",
+  ];
+  const store = {
+    readPlugins: () => ({
+      schemaVersion: 1,
+      plugins: [{
+        id: "rd-guide/review",
+        source: "rd-guide",
+        version: "^1.0.0",
+        contentSelection: { skills: skillNames },
+      }],
+    }),
+    readLock: () => ({
+      schemaVersion: 1,
+      roots: ["rd-guide/review"],
+      plugins: [{
+        id: "rd-guide/review",
+        version: "1.0.0",
+        source: { id: "rd-guide", type: "gitlab", reference: "group/rd-guide" },
+      }],
+    }),
+    readState: () => ({
+      schemaVersion: 1,
+      plugins: [{
+        id: "rd-guide/review",
+        version: "1.0.0",
+        platforms: ["codex"],
+        contentSelection: { skills: skillNames },
+      }],
+    }),
+  };
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("installed", "installed:rd-guide/review") },
+    {
+      type: "checkbox",
+      value: [],
+      check: (question) => {
+        assert.equal(question.message, "选择要启用的 RD Guide 技能");
+        assert.deepEqual(question.choices.map(({ value }) => value), skillNames);
+        assert.deepEqual(question.choices.map(({ checked }) => checked), [true, true]);
+      },
+    },
+    { type: "manager", value: managerResult("discover", "exit") },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    store,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    authStatus: async () => ({ authorized: true, persistent: false }),
+    inspectPluginContentSkills: async (request) => ({
+      ok: true,
+      pluginId: request.pluginId,
+      version: "1.0.0",
+      name: "研发指南",
+      skills: skillNames.map((name) => ({ name, path: `skills/${name}` })),
+    }),
+    runCommand: async (args) => { commands.push(args); return 0; },
+  });
+  assert.deepEqual(commands, [["remove", "rd-guide/review"]]);
+  assert.match(fixture.output.join("\n"), /RD Guide 技能已全部停用/);
+  assert.doesNotMatch(fixture.output.join("\n"), /未选择 RD Guide 技能，已取消安装/);
+  script.assertDone();
+});
+
+test("rd-guide 同一版本 Skill 清单在同一轮 TUI 中复用缓存", async (t) => {
+  const fixture = interactiveFixture(t);
+  const store = {
+    readPlugins: () => ({
+      schemaVersion: 1,
+      plugins: [{
+        id: "rd-guide/review",
+        source: "rd-guide",
+        version: "^1.0.0",
+        contentSelection: { skills: ["xhgj-gitlab-collaboration"] },
+      }],
+    }),
+    readLock: () => ({
+      schemaVersion: 1,
+      roots: ["rd-guide/review"],
+      plugins: [{
+        id: "rd-guide/review",
+        version: "1.0.0",
+        integrity: "sha256:" + "a".repeat(64),
+        source: { id: "rd-guide", type: "gitlab", reference: "group/rd-guide" },
+      }],
+    }),
+    readState: () => ({
+      schemaVersion: 1,
+      plugins: [{
+        id: "rd-guide/review",
+        version: "1.0.0",
+        platforms: ["codex"],
+        contentSelection: { skills: ["xhgj-gitlab-collaboration"] },
+      }],
+    }),
+  };
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("installed", "installed:rd-guide/review") },
+    {
+      type: "checkbox",
+      value: ["xhgj-gitlab-collaboration"],
+      check: (question) => assert.equal(question.choices[0].checked, true),
+    },
+    { type: "manager", value: managerResult("installed", "installed:rd-guide/review") },
+    {
+      type: "checkbox",
+      value: ["xhgj-gitlab-collaboration"],
+      check: (question) => assert.equal(question.choices[0].checked, true),
+    },
+    { type: "manager", value: managerResult("installed", "exit") },
+  ]);
+  let inspections = 0;
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    store,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    authStatus: async () => ({ authorized: true, persistent: false }),
+    inspectPluginContentSkills: async (request) => {
+      inspections += 1;
+      return {
+        ok: true,
+        pluginId: request.pluginId,
+        version: request.version,
+        name: "研发指南",
+        skills: [{
+          name: "xhgj-gitlab-collaboration",
+          path: "skills/xhgj-gitlab-collaboration",
+        }],
+      };
+    },
+    runCommand: async (args) => { commands.push(args); return 0; },
+  });
+  assert.equal(inspections, 1);
+  assert.deepEqual(commands, []);
+  assert.equal(
+    fixture.output.filter((line) => /正在读取 RD Guide 技能清单/.test(line)).length,
+    1,
+  );
   script.assertDone();
 });
 
@@ -962,7 +1228,7 @@ test("来源页可新增 GitLab Marketplace", async (t) => {
     "--url", "http://gitlab.example.test",
     "--project", "team/guide",
     "--ref", "main",
-    "--marketplace-path", ".flower-marketplace/marketplace.json",
+    "--marketplace-path", ".flower-plugin/marketplace.json",
     "--application-id", "public-client",
   ]]);
   assert.match(fixture.output.join("\n"), /正在保存 GitLab 来源:guide/);
