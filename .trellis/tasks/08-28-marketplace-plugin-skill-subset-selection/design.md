@@ -60,7 +60,8 @@
 - 发现页保持当前 Marketplace 搜索轻量结果；只有用户选中某个普通 Plugin 并选定版本后，才准备该 Plugin 包读取 manifest，仍不得在发现页批量下载包。
 - 新增 UI inspection 入口，默认由 `plugin-remote.js` 通过现有 Source Provider `prepare/readPackage` 获取 `{ skills: [{ name, path, description?, version }] }`；description/version 只来自 manifest `content.skills` entry，测试可注入该函数避免真实网络。
 - UI inspection 的 Skill metadata 必须包含 `version`，表示单个 Skill 自己声明的版本，不能由 rd-guide bundle / Plugin 包版本代填。
-- UI inspection 优先调用远程 Provider 的可选 `prepareVersion(canonicalId, version)` 只准备当前要展示的一个版本；Provider 不支持时回退完整 `prepare()`。同一轮 TUI 对相同 Plugin/version/lock integrity 复用内存缓存。
+- UI inspection 优先调用远程 Provider 的可选 `inspectContentManifest(canonicalId, { version?, lockedPlugin? })`，只读取 Marketplace 当前/锁定索引与固定 commit 上的 manifest；GitLab 路径不得下载 archive、不得读取 repository tree、不得写包缓存。Provider 不支持 manifest-only inspection 时才回退 `prepareVersion(canonicalId, version)` 准备当前要展示的一个版本；再不支持时回退完整 `prepare()`。同一轮 TUI 对相同 Plugin/version/lock integrity 复用内存缓存。
+- 同一 GitLab manager 内可复用已解析的外部凭据，避免一次 TUI inspection 的多次 REST 请求反复调用 `glab`；该缓存只存在于当前进程内，不能写入任何项目文件、用户 source store 或包缓存。
 - 对 source id 为 `rd-guide` 的 Plugin，发现页动作直接进入 `RD Guide 技能管理`，跳过普通 `Plugin 详情` / `安装到当前项目` 菜单；其它普通 Plugin 保持现有详情页。
 - 对 source id 为 `rd-guide` 的已安装条目，如果项目已经存在显式 `contentSelection`，按 Enter 直接进入 Skill 管理；旧的无 selection 安装仍保留普通管理菜单，避免丢失更新/卸载入口。
 - Skill 选择页使用 checkbox，choices 只来自 manifest `content.skills`。当前只有一个 Skill 时也展示一项；rd-guide 首次安装默认不勾选，已安装管理默认勾选当前 selection，空选择由交互层输出中文取消/提示，不透出 Inquirer 英文 required 文案。

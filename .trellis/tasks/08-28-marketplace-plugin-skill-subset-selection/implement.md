@@ -43,7 +43,7 @@
    - rd-guide 已安装管理中取消部分 Skill 时直接更新剩余 selection；取消全部 Skill 时执行 `plugin remove <id>` 停用整个 RD Guide 插件。
    - rd-guide 聚合入口不显示 Marketplace 包版本；已安装且有显式 selection 时显示已启用 Skill 数量。
    - `plugin-remote.js` 在 inspection 中只按 manifest `content.skills` entry 生成可选项，description 和 version 只来自 entry 字段，不读取 `SKILL.md` frontmatter。
-   - 为 GitLab Provider 增加单版本 inspection 准备入口，并在 TUI 中缓存同一 Plugin/version/lock integrity 的 Skill 清单。
+   - 为 GitLab Provider 增加 manifest-only inspection 入口，只读取当前/锁定 Marketplace 索引与固定 commit 上的 manifest，不下载 archive/tree、不写包缓存，并在 TUI 中缓存同一 Plugin/version/lock integrity 的 Skill 清单。
    - 保持 `flower/skill-garden` 的 `skill-manager` action 不变。
 
 6. 支持 rd-guide 新发布结构。
@@ -54,7 +54,7 @@
 
 7. 验证与回归。
    - 运行定向测试：`node --test test/js/plugin-project-files-schema.test.js test/js/plugin-content-projector.test.js test/js/plugin-lifecycle-cli.test.js test/js/plugin-interactive.test.js`。
-   - 运行相关远程测试：`node --test test/js/plugin-remote-cli.test.js test/js/plugin-gitlab-provider.test.js test/js/plugin-github-provider.test.js`。
+   - 运行相关远程测试：`node --test test/js/plugin-remote-cli.test.js test/js/plugin-gitlab-provider.test.js test/js/plugin-github-provider.test.js`；GitLab Provider 测试必须覆盖 manifest-only inspection 不下载 archive/tree、不写包缓存。
    - 运行全量 `npm test`、`npm pack --dry-run --json`、`git diff --check`。
 
 ## Expected Code Touches

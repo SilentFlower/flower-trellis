@@ -52,6 +52,7 @@
 - [x] TUI inspection 在不扫描目录的前提下，从 manifest `content.skills[].description` 读取用途描述用于列表展示；缺失时只展示名称。
 - [x] TUI inspection 可读取并展示 manifest `content.skills[].version` 中的单个 Skill 版本；rd-guide 首次安装默认未勾选，已安装管理默认勾选当前启用项。
 - [x] TUI inspection 优先只准备当前选择的 Plugin 版本，并在同一轮管理器中复用同一 Plugin/version/lock integrity 的 Skill 清单缓存，避免重复远程准备。
+- [x] GitLab TUI inspection 优先只读取 Marketplace 当前/锁定索引与固定 commit 上的 manifest，不下载 archive、不读取 repository tree、不写包缓存；Provider 不支持该能力时才回退准备包。
 
 ## Notes
 
