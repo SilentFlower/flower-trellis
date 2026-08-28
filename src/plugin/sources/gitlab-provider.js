@@ -146,6 +146,44 @@ export class GitLabSourceProvider {
   }
 
   /**
+   * 为 TUI inspection 只读取指定版本的 manifest。
+   *
+   * @param {string} canonicalId canonical Plugin ID
+   * @param {{version?:string|null,lockedPlugin?:import("../contracts.js").ResolvedPlugin|null}} [options] inspection 选项
+   * @returns {Promise<import("../contracts.js").PluginCandidate|null>} manifest 元数据候选
+   */
+  async inspectContentManifest(canonicalId, options = {}) {
+    const { sourceId, pluginId } = parseCanonicalPluginId(canonicalId);
+    if (sourceId !== this.id) return null;
+    const lockedPlugin = options.lockedPlugin || null;
+    const requestedVersion = options.version || lockedPlugin?.version;
+    if (!requestedVersion) {
+      throw new PluginRuntimeError(`读取 GitLab Plugin manifest 需要版本:${canonicalId}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: canonicalId,
+      });
+    }
+
+    const inspected = lockedPlugin
+      ? await this.#lockedMarketplaceVersionForInspection(pluginId, lockedPlugin)
+      : await this.#marketplaceVersionForInspection(pluginId, requestedVersion);
+    const manifest = await this.#readRepositoryManifest(
+      inspected.entry.source,
+      inspected.version.commit.toLowerCase(),
+      canonicalId,
+    );
+    const candidate = this.#candidateFromMarketplaceVersion(
+      canonicalId,
+      inspected.entry,
+      inspected.version,
+      manifest,
+      inspected.indexCommit,
+    );
+    if (lockedPlugin) this.#assertLockedInspectionMatches(lockedPlugin, candidate);
+    return candidate;
+  }
+
+  /**
    * 从 lock 恢复固定缓存；缓存缺失时再回退到远程准备。
    *
    * @param {import("../contracts.js").ResolvedPlugin} plugin 已锁定 Plugin
@@ -472,6 +510,14 @@ export class GitLabSourceProvider {
     );
   }
 
+  /** @param {object} source @returns {string} */
+  #repositoryManifestPath(source) {
+    const manifestPath = this.#manifestPath(source);
+    const subdir = this.#sourceSubdir(source);
+    if (!subdir) return manifestPath;
+    return `${assertSafePosixRelativePath(subdir, "GitLab Plugin subdir")}/${manifestPath}`;
+  }
+
   /** @param {string} root @returns {import("../contracts.js").PluginManifest} */
   #readPackageManifest(root) {
     return validatePluginManifest(JSON.parse(fs.readFileSync(path.join(root, PLUGIN_MANIFEST_FILE), "utf8")));
@@ -554,15 +600,126 @@ export class GitLabSourceProvider {
   }
 
   /**
+   * 读取固定 commit 上的原始 manifest，不准备运行时包。
+   *
+   * @param {object} source Marketplace source 条目
+   * @param {string} commit 固定 Plugin commit
+   * @param {string} canonicalId 诊断用 canonical Plugin ID
+   * @returns {Promise<import("../contracts.js").PluginManifest>} 已校验 manifest
+   */
+  async #readRepositoryManifest(source, commit, canonicalId) {
+    const project = this.#sourceProject(source);
+    const manifestPath = this.#repositoryManifestPath(source);
+    const raw = await this.client.readRawFile(project, manifestPath, commit);
+    try {
+      return validatePluginManifest(JSON.parse(raw));
+    } catch (error) {
+      throw new PluginRuntimeError(`GitLab Plugin manifest 无效:${canonicalId}`, {
+        code: error?.code || PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+        path: canonicalId,
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * 从当前 Marketplace 中定位 inspection 版本。
+   *
+   * @param {string} pluginId Plugin 本地 ID
+   * @param {string} requestedVersion 请求版本
+   * @returns {Promise<{entry:object,version:object,indexCommit:string}>} Marketplace 版本上下文
+   */
+  async #marketplaceVersionForInspection(pluginId, requestedVersion) {
+    const marketplace = await this.prepareIndex();
+    const entry = marketplace.plugins.find((plugin) => plugin.id === pluginId);
+    const version = entry?.versions.find((candidate) => candidate.version === requestedVersion);
+    if (!entry || !version) {
+      throw new PluginRuntimeError(`Marketplace Plugin 版本不存在:${this.id}/${pluginId}@${requestedVersion}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_NOT_FOUND,
+        path: `${this.id}/${pluginId}`,
+      });
+    }
+    return { entry, version, indexCommit: this.indexCommit };
+  }
+
+  /**
+   * 从锁定 Marketplace 中定位 inspection 版本。
+   *
+   * @param {string} pluginId Plugin 本地 ID
+   * @param {import("../contracts.js").ResolvedPlugin} plugin 已锁定 Plugin
+   * @returns {Promise<{entry:object,version:object,indexCommit:string}>} Marketplace 版本上下文
+   */
+  async #lockedMarketplaceVersionForInspection(pluginId, plugin) {
+    const raw = await this.client.readRawFile(
+      this.source.project,
+      this.source.marketplacePath,
+      plugin.source.indexCommit,
+    );
+    let marketplace;
+    try {
+      marketplace = validateMarketplaceManifest(JSON.parse(raw));
+    } catch (error) {
+      throw new PluginRuntimeError(`锁定 Marketplace index 无效:${plugin.id}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+        path: plugin.id,
+        cause: error,
+      });
+    }
+    if (marketplace.id !== this.id) {
+      throw new PluginRuntimeError(`锁定 Marketplace ID 与 source 不一致:${plugin.id}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_CONFIG_INVALID,
+        path: plugin.id,
+      });
+    }
+    const entry = marketplace.plugins.find((candidate) => candidate.id === pluginId);
+    const version = entry?.versions.find((candidate) => (
+      candidate.version === plugin.version &&
+      candidate.commit.toLowerCase() === plugin.commit.toLowerCase() &&
+      candidate.integrity === plugin.integrity
+    ));
+    if (!entry || !version) {
+      throw new PluginRuntimeError(`锁定 Marketplace index 不包含 Plugin:${plugin.id}@${plugin.version}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_NOT_FOUND,
+        path: plugin.id,
+      });
+    }
+    return { entry, version, indexCommit: plugin.source.indexCommit };
+  }
+
+  /**
+   * 确认 manifest-only 读取到的锁定身份没有漂移。
+   *
+   * @param {import("../contracts.js").ResolvedPlugin} lockedPlugin 已锁定 Plugin
+   * @param {import("../contracts.js").PluginCandidate} candidate inspection 候选
+   * @returns {void}
+   */
+  #assertLockedInspectionMatches(lockedPlugin, candidate) {
+    if (
+      lockedPlugin.id !== candidate.id ||
+      lockedPlugin.version !== candidate.version ||
+      lockedPlugin.commit.toLowerCase() !== candidate.commit ||
+      lockedPlugin.integrity !== candidate.integrity ||
+      lockedPlugin.source.reference !== candidate.source.reference ||
+      lockedPlugin.source.indexCommit !== candidate.source.indexCommit
+    ) {
+      throw new PluginRuntimeError(`GitLab lock 与 Marketplace 不一致:${lockedPlugin.id}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
+        path: lockedPlugin.id,
+      });
+    }
+  }
+
+  /**
    * 从 Marketplace version 和固定包 manifest 构造候选。
    *
    * @param {string} canonicalId canonical Plugin ID
    * @param {object} entry Marketplace Plugin 条目
    * @param {object} version Marketplace 版本条目
    * @param {object} manifest 已校验 Plugin manifest
+   * @param {string} [indexCommit] Marketplace index commit
    * @returns {import("../contracts.js").PluginCandidate} Provider 候选
    */
-  #candidateFromMarketplaceVersion(canonicalId, entry, version, manifest) {
+  #candidateFromMarketplaceVersion(canonicalId, entry, version, manifest, indexCommit = this.indexCommit) {
     const id = composeCanonicalPluginId(this.id, manifest.id);
     if (id !== canonicalId || manifest.version !== version.version) {
       throw new PluginRuntimeError(`远程 Plugin 身份与索引不一致:${canonicalId}@${version.version}`, {
@@ -583,7 +740,7 @@ export class GitLabSourceProvider {
         id: this.id,
         type: "gitlab",
         reference: this.#sourceReference(entry.source),
-        indexCommit: this.indexCommit,
+        indexCommit,
       },
       commit: version.commit.toLowerCase(),
       integrity: version.integrity,

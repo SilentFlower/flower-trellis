@@ -220,6 +220,141 @@ test("GitLab Provider 支持仓库根 .flower-plugin 元数据发布 rd-guide �
   assert.equal(fs.existsSync(path.join(pluginPackage.root, ".flower-plugin/marketplace.json")), false);
 });
 
+test("GitLab Provider manifest-only inspection 不下载固定包", async (t) => {
+  const root = createPluginTestRoot(t, "flower-gitlab-provider-manifest-inspection-");
+  const manifest = pluginManifest({
+    id: "rd-guide",
+    version: "0.8.0",
+    content: {
+      skills: [{
+        name: "xhgj-gitlab-collaboration",
+        path: "skills/xhgj-gitlab-collaboration",
+        version: "0.4.2",
+        description: "GitLab 协作执行。",
+      }],
+    },
+  });
+  const integrity = `sha256:${"1".repeat(64)}`;
+  const marketplace = {
+    schemaVersion: 1,
+    id: "rd-guide",
+    name: "研发指南",
+    plugins: [{
+      id: "rd-guide",
+      description: "RD Guide 技能",
+      source: { type: "path", manifestPath: ".flower-plugin/plugin.json" },
+      trust: { maxProfile: "standard" },
+      versions: [{ version: "0.8.0", ref: "v0.8.0", commit, integrity }],
+    }],
+  };
+  const reads = [];
+  const projectRoot = path.join(root, "project");
+  const provider = new GitLabSourceProvider({
+    source,
+    projectRoot,
+    client: {
+      resolveCommit: async (project, ref) => {
+        assert.equal(project, "group/rd-guide");
+        assert.equal(ref, "main");
+        return commit;
+      },
+      readRawFile: async (project, filePath, ref) => {
+        reads.push({ project, filePath, ref });
+        if (filePath === ".flower-plugin/marketplace.json") return JSON.stringify(marketplace);
+        if (filePath === ".flower-plugin/plugin.json") return JSON.stringify(manifest);
+        throw new Error(`unexpected raw file:${filePath}`);
+      },
+      downloadArchive: async () => { throw new Error("manifest-only inspection 不应下载 archive"); },
+      readRepositoryTree: async () => { throw new Error("manifest-only inspection 不应读取 tree"); },
+    },
+  });
+
+  const inspection = await provider.inspectContentManifest("rd-guide/rd-guide", { version: "0.8.0" });
+
+  assert.equal(inspection.version, "0.8.0");
+  assert.equal(inspection.source.indexCommit, commit);
+  assert.equal(inspection.manifest.content.skills[0].version, "0.4.2");
+  assert.equal(fs.existsSync(path.join(projectRoot, ".flower/cache/gitlab")), false);
+  assert.deepEqual(reads, [
+    { project: "group/rd-guide", filePath: ".flower-plugin/marketplace.json", ref: commit },
+    { project: "group/rd-guide", filePath: ".flower-plugin/plugin.json", ref: commit },
+  ]);
+});
+
+test("GitLab Provider locked manifest-only inspection 使用锁定索引", async (t) => {
+  const root = createPluginTestRoot(t, "flower-gitlab-provider-locked-manifest-inspection-");
+  const indexCommit = "d".repeat(40);
+  const packageCommit = "e".repeat(40);
+  const manifest = pluginManifest({
+    id: "rd-guide",
+    version: "0.8.0",
+    content: {
+      skills: [{
+        name: "xhgj-gitlab-collaboration",
+        path: "skills/xhgj-gitlab-collaboration",
+        version: "0.4.2",
+        description: "GitLab 协作执行。",
+      }],
+    },
+  });
+  const integrity = `sha256:${"2".repeat(64)}`;
+  const marketplace = {
+    schemaVersion: 1,
+    id: "rd-guide",
+    name: "研发指南",
+    plugins: [{
+      id: "rd-guide",
+      description: "RD Guide 技能",
+      source: { type: "path", manifestPath: ".flower-plugin/plugin.json" },
+      trust: { maxProfile: "standard" },
+      versions: [{ version: "0.8.0", ref: "v0.8.0", commit: packageCommit, integrity }],
+    }],
+  };
+  const lockedPlugin = {
+    id: "rd-guide/rd-guide",
+    version: "0.8.0",
+    source: { id: "rd-guide", type: "gitlab", reference: "group/rd-guide", indexCommit },
+    commit: packageCommit,
+    integrity,
+    dependencies: {},
+    compatibility: manifest.compatibility,
+    capabilities: {
+      profile: "standard",
+      granted: ["content.skills"],
+      denied: [],
+      approvalDigest: null,
+    },
+  };
+  const reads = [];
+  const projectRoot = path.join(root, "project");
+  const provider = new GitLabSourceProvider({
+    source,
+    projectRoot,
+    client: {
+      resolveCommit: async () => { throw new Error("locked inspection 不应解析当前 ref"); },
+      readRawFile: async (project, filePath, ref) => {
+        reads.push({ project, filePath, ref });
+        if (filePath === ".flower-plugin/marketplace.json") return JSON.stringify(marketplace);
+        if (filePath === ".flower-plugin/plugin.json") return JSON.stringify(manifest);
+        throw new Error(`unexpected raw file:${filePath}`);
+      },
+      downloadArchive: async () => { throw new Error("locked inspection 不应下载 archive"); },
+      readRepositoryTree: async () => { throw new Error("locked inspection 不应读取 tree"); },
+    },
+  });
+
+  const inspection = await provider.inspectContentManifest("rd-guide/rd-guide", { lockedPlugin });
+
+  assert.equal(inspection.version, lockedPlugin.version);
+  assert.equal(inspection.source.indexCommit, indexCommit);
+  assert.equal(inspection.commit, packageCommit);
+  assert.equal(fs.existsSync(path.join(projectRoot, ".flower/cache/gitlab")), false);
+  assert.deepEqual(reads, [
+    { project: "group/rd-guide", filePath: ".flower-plugin/marketplace.json", ref: indexCommit },
+    { project: "group/rd-guide", filePath: ".flower-plugin/plugin.json", ref: packageCommit },
+  ]);
+});
+
 test("GitLab Provider 删除损坏缓存后重新下载并恢复内容", async (t) => {
   const root = createPluginTestRoot(t, "flower-gitlab-provider-redownload-");
   const container = path.join(root, "archive-source");

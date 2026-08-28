@@ -360,6 +360,55 @@ test("TUI inspection 只从 manifest content.skills 返回 Skill 清单", async 
   ]);
 });
 
+test("TUI inspection 优先使用 Provider 的 manifest-only 清单", async (t) => {
+  const root = createPluginTestRoot(t, "flower-remote-cli-content-skill-fast-");
+  const manifest = pluginManifest({
+    content: {
+      skills: [{
+        name: "xhgj-gitlab-collaboration",
+        path: "skills/xhgj-gitlab-collaboration",
+        version: "0.1.0",
+        description: "GitLab 协作执行。",
+      }],
+    },
+  });
+  let inspected = null;
+  const provider = {
+    id: "rd-guide",
+    type: "gitlab",
+    inspectContentManifest: async (id, options) => {
+      inspected = { id, options };
+      return { version: "1.0.0", manifest };
+    },
+    prepare: async () => { throw new Error("inspection 不应准备完整闭包"); },
+    prepareVersion: async () => { throw new Error("inspection 不应下载固定包"); },
+    listCandidates: () => { throw new Error("inspection 不应读取候选"); },
+    readPackage: () => { throw new Error("inspection 不应读取包缓存"); },
+  };
+  const sourceStore = new UserSourceStore({
+    configFile: path.join(root, "config.json"),
+    builtinDescriptors: [descriptor],
+  });
+
+  const inspection = await inspectPluginContentSkills({
+    pluginId: "rd-guide/demo",
+    version: "1.0.0",
+  }, { target: root }, {
+    providers: [provider],
+    sourceStore,
+    credentialBundle: { store: new MemoryCredentialStore(), persistent: false },
+  });
+
+  assert.equal(inspected.id, "rd-guide/demo");
+  assert.equal(inspected.options.version, "1.0.0");
+  assert.deepEqual(inspection.skills, [{
+    name: "xhgj-gitlab-collaboration",
+    path: "skills/xhgj-gitlab-collaboration",
+    description: "GitLab 协作执行。",
+    version: "0.1.0",
+  }]);
+});
+
 test("source list 与 auth status 保持零网络并输出非敏感 JSON", async (t) => {
   const root = createPluginTestRoot(t, "flower-remote-cli-status-");
   const sourceStore = new UserSourceStore({

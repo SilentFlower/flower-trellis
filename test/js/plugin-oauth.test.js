@@ -285,7 +285,9 @@ test("CredentialManager 在无 Flower 凭据时复用同 host glab token", async
     },
   });
   assert.equal(await manager.getAccessToken(source), "glab-token");
+  assert.equal(await manager.getAccessToken(source), "glab-token");
   assert.deepEqual(calls[0], ["auth", "status", "--hostname", "gitlab.example.test", "--show-token"]);
+  assert.equal(calls.length, 1);
   assert.equal(await store.get(source), null);
 });
 

@@ -96,7 +96,7 @@ Source Provider 最小接口固定为：
 ```
 
 远程 Provider 可额外实现异步 `prepare(canonicalId)`、`prepareLocked(plugin)` 和 `search(query)`，但这些方法由 P3 适配层调用，不进入 P2 `SourceRegistry` 的最小接口。
-TUI inspection 可额外使用远程 Provider 的 `prepareVersion(canonicalId, version)` 只准备一个已选版本；该能力只能用于读取展示 metadata，不替代完整生命周期的 `prepare()` 依赖闭包。
+TUI inspection 可额外使用远程 Provider 的 `inspectContentManifest(canonicalId, { version?, lockedPlugin? })` 直接读取固定版本 manifest；Provider 不支持 manifest-only inspection 时，才回退到 `prepareVersion(canonicalId, version)` 准备一个已选版本。该能力只能用于读取展示 metadata，不替代完整生命周期的 `prepare()` 依赖闭包和包摘要校验。
 
 ## 3. Contracts
 

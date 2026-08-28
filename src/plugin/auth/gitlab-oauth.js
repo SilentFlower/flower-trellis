@@ -415,6 +415,7 @@ export class GitLabCredentialManager {
       glabCommand: options.glabCommand,
     });
     this.refreshes = new Map();
+    this.externalTokens = new Map();
   }
 
   /**
@@ -426,8 +427,13 @@ export class GitLabCredentialManager {
   async getAccessToken(source) {
     const credential = await this.store.get(source);
     if (!credential) {
+      const externalKey = `${source.id}\u0000${source.baseUrl}`;
+      if (this.externalTokens.has(externalKey)) return this.externalTokens.get(externalKey);
       const external = await this.resolver.resolveExternal(source);
-      if (external) return external.accessToken;
+      if (external) {
+        this.externalTokens.set(externalKey, external.accessToken);
+        return external.accessToken;
+      }
       throw new PluginRuntimeError(`GitLab source 尚未登录:${source.id}`, {
         code: PLUGIN_RUNTIME_ERROR_CODES.AUTH_REQUIRED,
         path: source.id,

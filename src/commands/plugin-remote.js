@@ -245,6 +245,21 @@ export async function inspectPluginContentSkills(request, ctx, options = {}) {
     registry,
     lock,
   });
+  const manifestInspection = await inspectRemotePluginContentManifest({
+    canonicalId,
+    registry,
+    version: request.version,
+    lockedPlugin: request.lockedPlugin || null,
+  });
+  if (manifestInspection) {
+    return {
+      ok: true,
+      pluginId: canonicalId,
+      version: manifestInspection.version,
+      name: manifestInspection.manifest.name,
+      skills: listContentSkillChoices(manifestInspection.manifest.content.skills || [], canonicalId),
+    };
+  }
   await prepareRemotePluginForSkillInspection({
     parsed,
     canonicalId,
@@ -273,6 +288,23 @@ export async function inspectPluginContentSkills(request, ctx, options = {}) {
     name: pluginPackage.manifest.name,
     skills: listContentSkillChoices(pluginPackage.manifest.content.skills || [], canonicalId),
   };
+}
+
+/**
+ * 优先用 Provider 的 manifest-only inspection 读取 Skill 清单元数据。
+ *
+ * 这里不需要运行时包内容，也不需要 canonical tree hash；完整安装/更新仍会在生命周期
+ * 中准备固定包并校验摘要。TUI 首屏只展示 manifest 声明，避免为 checkbox 下载 archive。
+ *
+ * @param {{canonicalId:string,registry:object,version?:string|null,lockedPlugin?:object|null}} context 读取上下文
+ * @returns {Promise<{version:string,manifest:import("../plugin/contracts.js").PluginManifest}|null>} manifest inspection 结果
+ */
+async function inspectRemotePluginContentManifest({ canonicalId, registry, version, lockedPlugin }) {
+  const { sourceId } = parseCanonicalPluginId(canonicalId);
+  if (!registry.has(sourceId)) return null;
+  const provider = registry.get(sourceId);
+  if (typeof provider.inspectContentManifest !== "function") return null;
+  return provider.inspectContentManifest(canonicalId, { version, lockedPlugin });
 }
 
 /**

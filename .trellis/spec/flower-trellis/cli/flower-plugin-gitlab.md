@@ -77,6 +77,7 @@ GitLabSourceProvider.prepareIndex() -> Promise<MarketplaceManifest>
 GitLabSourceProvider.prepare(canonicalId) -> Promise<void>
 GitLabSourceProvider.prepareVersion(canonicalId, version) -> Promise<void>
 GitLabSourceProvider.prepareLocked(plugin) -> Promise<void>
+GitLabSourceProvider.inspectContentManifest(canonicalId, { version?, lockedPlugin? }) -> Promise<PluginCandidate|null>
 GitLabSourceProvider.search(query?) -> Promise<object[]>
 GitLabSourceProvider.listCandidates(canonicalId) -> PluginCandidate[]
 GitLabSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
@@ -104,7 +105,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - Keyring service 固定为 `flower-trellis`，account 固定为 `<lowercase-host>[:port]/<source-id>`。凭据载荷固定包含 `schemaVersion/sourceId/baseUrl/tokenType/scope/accessToken/refreshToken/createdAt/expiresAt/redirectUri`；凭据 scope 只要包含 `api`，或同时包含旧 `read_api` 与 `read_repository`，就满足当前 GitLab REST 读取能力。
 - `@napi-rs/keyring` 是 optional dependency。模块缺失或系统后端运行失败时只能切换到当前进程的 `MemoryCredentialStore`，并令 `persistent=false`；凭据 JSON 损坏或 scope 无效必须直接报错，不能静默降级。
 - GitLab 凭据解析链固定为 Flower Keyring OAuth、同 host `glab`、host 绑定环境/PAT fallback。`glab` 只能通过 `glab auth status --hostname <host> --show-token` 读取；捕获 stdout/stderr 后只提取同 host token，原始输出不得进入普通输出、诊断或持久化文件。环境 fallback 只接受 host 专属变量名如 `GITLAB_TOKEN_<HOST_KEY>` / `GLAB_TOKEN_<HOST_KEY>`，或 `GITLAB_TOKEN`、`GLAB_TOKEN`、`FLOWER_GITLAB_TOKEN` 与 `GITLAB_HOST`、`GLAB_HOST`、`FLOWER_GITLAB_HOST`、`CI_SERVER_HOST`、`CI_SERVER_URL` 中任一同 host 绑定值配对。未能证明同 host 时必须当作无凭据，不得猜测当前 Git remote。
-- 外部 GitLab token 只允许在当前进程内交给 REST client 使用，`persistent=false`，`scopes=[]`，`expiresAt=null`；不得写入 Keyring、用户 source store、`.flower/`、lock、state、cache metadata、任务文件或普通输出。`plugin auth logout` 只删除 Flower Keyring 凭据，不能删除 `glab` 配置或环境变量；fallback 仍存在时后续 status 可以继续显示已登录。
+- 外部 GitLab token 只允许在当前进程内交给 REST client 使用，`persistent=false`，`scopes=[]`，`expiresAt=null`；`GitLabCredentialManager` 可在单个 manager 生命周期内缓存已解析的外部 token，避免同一命令的每个 REST 请求重复 shell out，但不得写入 Keyring、用户 source store、`.flower/`、lock、state、cache metadata、任务文件或普通输出。`plugin auth logout` 只删除 Flower Keyring 凭据，不能删除 `glab` 配置或环境变量；fallback 仍存在时后续 status 可以继续显示已登录。
 - 用户 source store schemaVersion 3 同时接受 GitLab/GitHub descriptor 与内置来源 `{id,enabled}` 偏好；schemaVersion 1/2 继续兼容旧 descriptor。旧配置中与内置 ID 重名的完整 descriptor 只继承 `enabled`，不得覆盖随包连接字段；下一次写入原子压缩为 v3 偏好。schemaVersion 1 中出现 GitHub 必须报配置错误。
 - GitHub 持久化 descriptor 固定字段为 `schemaVersion/id/type/name/enabled/repository/ref/subdir?/format/entryPath?`。`repository` 只保存无凭据的 `owner/repository`；命令草稿可省略 ref，但 inspect 必须解析默认分支并补齐后才能写入。`format=auto` 时不得保存 `entryPath`，固定格式时必须保存安全入口路径。
 - `source update --clear-subdir` 显式删除旧 subdir；把 format 改回 `auto` 必须同时删除旧 entryPath，不能用 truthy fallback 让旧值复活。
@@ -146,7 +147,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 交互式新增来源类型页必须有明确的 `返回来源` 和 `退出管理` 动作。用户选择返回、退出、取消预览或确认前失败时不得调用 `source add/update`。
 - GitHub 交互检测必须在耗时动作前输出进度：初次检测、歧义选择后重试、保存来源都要给出可读状态。检测失败不退出到 shell，应记录到管理器问题页并保持 source store、项目 `.flower/` 和临时 cache 零持久化。
 - Flower Marketplace 搜索只读取并缓存索引快照，按 Plugin ID 聚合全部版本并按 SemVer 降序展示；只有 `prepare(canonicalId)` 才下载被选 Plugin 的版本，禁止发现页预取整个 Marketplace。
-- TUI 的普通 Marketplace Skill 选择只在用户选定具体 Plugin/版本或管理已安装 Plugin 时触发；inspection 优先复用 Provider `prepareVersion/readPackage` 只读取当前版本，不支持单版本准备时才回退 `prepare/readPackage`；可选项只从固定包 manifest `content.skills` entry 生成，`description/version` 也只取自 entry，不把 `scripts/tests` 等验证资源展示为可安装 Skill。
+- TUI 的普通 Marketplace Skill 选择只在用户选定具体 Plugin/版本或管理已安装 Plugin 时触发；inspection 优先复用 Provider `inspectContentManifest` 读取 Marketplace 当前索引或 lock 的 `indexCommit`，再按固定 Plugin commit 直接读取 manifest，不下载 archive、不读取 repository tree、不写包缓存；Provider 不支持 manifest-only inspection 时才回退 `prepareVersion/readPackage` 只准备当前版本，再不支持单版本准备时回退 `prepare/readPackage`。可选项只从 manifest `content.skills` entry 生成，`description/version` 也只取自 entry，不把 `scripts/tests` 等验证资源展示为可安装 Skill。
 - Claude/Codex Marketplace 支持同仓相对路径、GitHub shorthand、GitHub HTTPS URL，以及 GitHub `git-subdir`。公开跨仓条目分别解析目标仓库默认分支或显式 ref；SSH、私有仓库、非 GitHub git-subdir、npm、通用 Git host 和远程 JSON 只产生 unsupported 诊断。
 - 没有 Marketplace 时允许把 `plugins/*` 中的多个可识别目录作为一个来源目录；每个目录独立归一化为候选。歧义只在单个选择边界内解决，不能因遍历顺序静默选中。
 - inspect/preview 的 cache root 必须由调用方放在操作系统临时目录并在 finally 清理。只有检测和兼容预览完成后才允许原子写 source store；失败、取消或未确认不得创建项目 `.flower/cache`。
