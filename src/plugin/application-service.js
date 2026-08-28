@@ -22,6 +22,8 @@ import {
   selectContentSkillEntries,
 } from "./content-selection.js";
 
+const SKILL_GARDEN_MIGRATION_OWNER_ID = "flower/skill-garden";
+
 /**
  * 计算 lock roots 可达的全部 Plugin。
  *
@@ -123,6 +125,94 @@ function standardContentPlan(graph) {
 }
 
 /**
+ * 校验冻结 Plugin 的 lock/state 对应关系与当前目标摘要。
+ *
+ * @param {string} projectRoot 项目根
+ * @param {import("./contracts.js").ResolvedPlugin} locked 冻结 lock entry
+ * @param {import("./contracts.js").PluginStateEntry} applied 冻结 state entry
+ * @returns {void}
+ */
+function assertPreservedState(projectRoot, locked, applied) {
+  if (
+    applied.version !== locked.version ||
+    !contentSelectionsEqual(applied.contentSelection, locked.contentSelection)
+  ) {
+    throw new PluginRuntimeError(`冻结 Plugin 的 lock/state 不一致:${locked.id}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
+      path: locked.id,
+    });
+  }
+  for (const entry of applied.paths) {
+    const target = path.join(projectRoot, ...entry.path.split("/"));
+    const actual = entry.kind === "directory"
+      ? hashDirectoryIfExists(target)
+      : hashFileIfExists(target);
+    if (actual !== entry.hash) {
+      throw new PluginRuntimeError(`冻结 Plugin 目标摘要漂移:${entry.path}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
+        path: entry.path,
+        details: { expected: entry.hash, actual },
+      });
+    }
+  }
+  for (const patchEntry of applied.patches) {
+    const target = path.join(projectRoot, ...patchEntry.target.split("/"));
+    const actual = hashFileIfExists(target);
+    if (actual !== patchEntry.resultHash) {
+      throw new PluginRuntimeError(`冻结 Plugin Patch 目标摘要漂移:${patchEntry.target}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
+        path: patchEntry.target,
+        details: { expected: patchEntry.resultHash, actual },
+      });
+    }
+  }
+}
+
+/**
+ * 判断两个项目内路径是否相同或存在父子关系。
+ *
+ * @param {string} left 左路径
+ * @param {string} right 右路径
+ * @returns {boolean} 是否相交
+ */
+function pathsOverlap(left, right) {
+  return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
+}
+
+/**
+ * 阻止活跃 Plugin 的计划改写冻结 Plugin 的受管目标。
+ *
+ * @param {import("./contracts.js").PluginStateEntry[]} preservedEntries 冻结 state entries
+ * @param {{mutations?:Array<{owner:string,target:string}>,directoryClaims?:Array<{owner:string,path:string}>,directoryRemovals?:Array<{owner:string,path:string}>,patchMutations?:Array<{owner:string,target:string}>}} plan 活跃计划片段
+ * @returns {void}
+ */
+function assertNoPreservedTargetConflicts(preservedEntries, plan) {
+  const protectedTargets = preservedEntries.flatMap((plugin) => [
+    ...plugin.paths.map(({ path: target }) => ({ owner: plugin.id, target })),
+    ...plugin.patches.map(({ target }) => ({ owner: plugin.id, target })),
+  ]);
+  const activeTargets = [
+    ...(plan.mutations || []).map(({ owner, target }) => ({ owner, target })),
+    ...(plan.directoryClaims || []).map(({ owner, path: target }) => ({ owner, target })),
+    ...(plan.directoryRemovals || []).map(({ owner, path: target }) => ({ owner, target })),
+    ...(plan.patchMutations || []).map(({ owner, target }) => ({ owner, target })),
+  ];
+  for (const active of activeTargets) {
+    const protectedTarget = protectedTargets.find((entry) => pathsOverlap(active.target, entry.target));
+    if (!protectedTarget) continue;
+    throw new PluginRuntimeError(`活跃 Plugin 计划与冻结目标冲突:${active.target}`, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
+      path: active.target,
+      details: {
+        activeOwner: active.owner,
+        preservedOwner: protectedTarget.owner,
+        preservedTarget: protectedTarget.target,
+      },
+    });
+  }
+}
+
+/**
  * Flower Plugin 生命周期应用服务。
  */
 export class PluginApplicationService {
@@ -156,7 +246,7 @@ export class PluginApplicationService {
   /**
    * 添加或更新一个直接 Plugin 声明并应用完整图。
    *
-   * @param {{id:string,version?:string,platforms?:string[],contentSelection?:import("./contracts.js").PluginContentSelection,dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,onPreflight?:(result:object)=>void}} options 添加选项
+   * @param {{id:string,version?:string,platforms?:string[],contentSelection?:import("./contracts.js").PluginContentSelection,dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,preserveIds?:string[],onPreflight?:(result:object)=>void}} options 添加选项
    * @returns {object} 生命周期结果
    */
   add(options) {
@@ -188,6 +278,7 @@ export class PluginApplicationService {
       approvals: options.approvals || [],
       approvedDigests: options.approvedDigests,
       nonInteractive: options.nonInteractive,
+      preserveIds: options.preserveIds || [],
       onPreflight: options.onPreflight,
     });
   }
@@ -199,7 +290,7 @@ export class PluginApplicationService {
    * 其锁定包也已不可重放，逐个更新会在其它节点上撞 `已锁定 Plugin 包不可重放`。
    * 传入 `widen` 时按 `update: "all"` 解析，让全部节点都允许升级，一次性解开这种死锁。
    *
-   * @param {{id?:string|null,version?:string,widen?:Map<string,string>|Record<string,string>,contentSelection?:import("./contracts.js").PluginContentSelection|null,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,onPreflight?:(result:object)=>void}} [options] 更新选项
+   * @param {{id?:string|null,version?:string,widen?:Map<string,string>|Record<string,string>,contentSelection?:import("./contracts.js").PluginContentSelection|null,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,preserveIds?:string[],onPreflight?:(result:object)=>void}} [options] 更新选项
    * @returns {object} 生命周期结果
    */
   update(options = {}) {
@@ -280,6 +371,7 @@ export class PluginApplicationService {
       approvals: options.approvals || [],
       approvedDigests: options.approvedDigests,
       nonInteractive: options.nonInteractive,
+      preserveIds: options.preserveIds || [],
       onPreflight: options.onPreflight,
     });
   }
@@ -557,10 +649,39 @@ export class PluginApplicationService {
     const pluginsFile = validatePluginsFile(input.plugins);
     const previousLock = this.store.readLock();
     const previousState = this.store.readState();
+    const preservedIds = new Set(input.preserveIds || []);
+    const previousLockById = new Map((previousLock?.plugins || []).map((plugin) => [plugin.id, plugin]));
+    const previousStateById = new Map((previousState?.plugins || []).map((plugin) => [plugin.id, plugin]));
     const resolution = resolvePluginGraph(pluginsFile.plugins, this.registry, {
       lockedPlugins: previousLock?.plugins || [],
       update: input.update,
+      preserveIds: [...preservedIds],
     });
+    const resolvedIds = new Set(resolution.graph.plugins.map(({ id }) => id));
+    const preservedEntries = [];
+    for (const id of [...preservedIds].sort(compareUtf8)) {
+      const previousLocked = previousLockById.get(id);
+      const previousEntry = previousStateById.get(id);
+      if (!previousLocked || !resolvedIds.has(id)) {
+        throw new PluginRuntimeError(`冻结 Plugin 缺少既有 lock:${id}`, {
+          code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
+          path: id,
+        });
+      }
+      if (!previousEntry) {
+        throw new PluginRuntimeError(`冻结 Plugin 缺少既有 state:${id}`, {
+          code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
+          path: id,
+        });
+      }
+      assertPreservedState(this.projectRoot, previousLocked, previousEntry);
+      preservedEntries.push(previousEntry);
+    }
+    const activeGraph = {
+      roots: resolution.graph.roots.filter((id) => !preservedIds.has(id)),
+      plugins: resolution.graph.plugins.filter(({ id }) => !preservedIds.has(id)),
+    };
+    const activeSelected = resolution.selected.filter(({ id }) => !preservedIds.has(id));
     let projection = {
       mutations: [],
       payloads: new Map(),
@@ -569,47 +690,45 @@ export class PluginApplicationService {
       directoryRemovals: [],
     };
     let platformSelection = { platforms: [], targets: [] };
-    if (resolution.graph.plugins.length > 0) {
+    if (activeGraph.plugins.length > 0) {
       const platforms = input.platforms.length > 0
         ? input.platforms
         : statePlatforms(previousState);
       platformSelection = this.platformDetector(this.projectRoot, platforms);
       projection = projectPluginContent({
         projectRoot: this.projectRoot,
-        graph: resolution.graph,
-        selected: resolution.selected,
+        graph: activeGraph,
+        selected: activeSelected,
         registry: this.registry,
         platformSelection,
         previousState,
       });
     }
-    const preservedIds = new Set(input.preserveIds || []);
     if (preservedIds.size > 0) {
-      for (const id of preservedIds) {
-        const previousEntry = previousState?.plugins.find((plugin) => plugin.id === id);
-        const nextIndex = projection.state.plugins.findIndex((plugin) => plugin.id === id);
-        if (!previousEntry || nextIndex < 0) {
-          throw new PluginRuntimeError(`冻结 Plugin 缺少既有 state:${id}`, {
-            code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
-            path: id,
-          });
-        }
-        projection.state.plugins[nextIndex] = structuredClone(previousEntry);
-        const previousLocked = previousLock?.plugins.find((plugin) => plugin.id === id);
-        const graphIndex = resolution.graph.plugins.findIndex((plugin) => plugin.id === id);
-        if (!previousLocked || graphIndex < 0) {
-          throw new PluginRuntimeError(`冻结 Plugin 缺少既有 lock:${id}`, {
-            code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
-            path: id,
-          });
-        }
-        resolution.graph.plugins[graphIndex] = structuredClone(previousLocked);
-      }
-      projection.mutations = projection.mutations.filter(({ owner }) => !preservedIds.has(owner));
-      projection.directoryClaims = projection.directoryClaims.filter(({ owner }) => !preservedIds.has(owner));
-      projection.directoryRemovals = projection.directoryRemovals
-        .filter(({ owner }) => !preservedIds.has(owner));
-      if (previousState?.migration) projection.state.migration = structuredClone(previousState.migration);
+      const projectedStateById = new Map(projection.state.plugins.map((plugin) => [plugin.id, plugin]));
+      projection.state.plugins = resolution.graph.plugins.map(({ id }) => {
+        if (preservedIds.has(id)) return structuredClone(previousStateById.get(id));
+        const projected = projectedStateById.get(id);
+        if (!projected) throw new Error(`Resolved Plugin 缺少投影 state:${id}`);
+        return projected;
+      });
+      resolution.graph.plugins = resolution.graph.plugins.map((plugin) => (
+        preservedIds.has(plugin.id)
+          ? structuredClone(previousLockById.get(plugin.id))
+          : plugin
+      ));
+      assertNoPreservedTargetConflicts(preservedEntries, {
+        mutations: projection.mutations,
+        directoryClaims: projection.directoryClaims,
+        directoryRemovals: projection.directoryRemovals,
+      });
+    }
+    if (
+      preservedIds.has(SKILL_GARDEN_MIGRATION_OWNER_ID) &&
+      !projection.state.migration &&
+      previousState?.migration
+    ) {
+      projection.state.migration = structuredClone(previousState.migration);
     }
 
     const previousDirectories = new Map();
@@ -619,7 +738,11 @@ export class PluginApplicationService {
       }
     }
     const directoryClaims = [];
-    const desiredDirectoryPaths = new Set();
+    const desiredDirectoryPaths = new Set(
+      projection.state.plugins.flatMap((plugin) => plugin.paths
+        .filter(({ kind }) => kind === "directory")
+        .map(({ path: target }) => target)),
+    );
     const directoryOwners = new Map();
     for (const claim of projection.directoryClaims) {
       desiredDirectoryPaths.add(claim.path);
@@ -697,6 +820,12 @@ export class PluginApplicationService {
         });
       }
     }
+    if (preservedIds.size > 0) {
+      assertNoPreservedTargetConflicts(preservedEntries, {
+        mutations: removalMutations,
+        directoryRemovals,
+      });
+    }
 
     const patchPlanner = getPluginPatchPlanner();
     let patchResult = standardContentPlan(resolution.graph);
@@ -773,6 +902,11 @@ export class PluginApplicationService {
           return false;
         });
       }
+    }
+    if (preservedIds.size > 0) {
+      assertNoPreservedTargetConflicts(preservedEntries, {
+        patchMutations: patchResult.patchMutations,
+      });
     }
     const grants = new Map(patchResult.grants.map(({ pluginId, grant }) => [pluginId, grant]));
     for (const plugin of resolution.graph.plugins) {

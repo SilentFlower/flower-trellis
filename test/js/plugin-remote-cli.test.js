@@ -6,10 +6,16 @@ import { plugin, parsePluginArgs } from "../../src/commands/plugin.js";
 import {
   inspectGitHubPluginSource,
   inspectPluginContentSkills,
+  prepareRemotePluginCandidates,
+  registerRemotePluginSources,
 } from "../../src/commands/plugin-remote.js";
-import { PluginRuntimeError } from "../../src/plugin/runtime-errors.js";
+import {
+  PLUGIN_RUNTIME_ERROR_CODES,
+  PluginRuntimeError,
+} from "../../src/plugin/runtime-errors.js";
 import { MemoryCredentialStore } from "../../src/plugin/auth/memory-credential-store.js";
 import { hashCanonicalTree } from "../../src/plugin/integrity/canonical-tree.js";
+import { SourceRegistry } from "../../src/plugin/sources/source-registry.js";
 import { UserSourceStore } from "../../src/plugin/sources/user-source-store.js";
 import {
   createPluginTestRoot,
@@ -78,6 +84,145 @@ test("Plugin parser 支持 source、auth 与 search 命令", () => {
     device: false,
     help: false,
   });
+});
+
+test("显式外部 Plugin update 仍要求准备远程固定包", async () => {
+  const id = "rd-guide/demo";
+  let prepareLockedCalls = 0;
+  const provider = {
+    async prepareLocked() {
+      prepareLockedCalls += 1;
+      throw new PluginRuntimeError("公司 GitLab 当前不可达", {
+        code: PLUGIN_RUNTIME_ERROR_CODES.AUTH_REQUIRED,
+        path: "rd-guide",
+      });
+    },
+  };
+  const registry = {
+    has(sourceId) {
+      return sourceId === "rd-guide";
+    },
+    get() {
+      return provider;
+    },
+  };
+
+  await assert.rejects(
+    () => prepareRemotePluginCandidates({
+      parsed: { command: "update" },
+      canonicalId: id,
+      registry,
+      lock: {
+        schemaVersion: 1,
+        roots: [id],
+        plugins: [{
+          id,
+          version: "1.0.0",
+          source: { id: "rd-guide", type: "gitlab", reference: "group/rd-guide" },
+          commit: "a".repeat(40),
+          integrity: `sha256:${"b".repeat(64)}`,
+          dependencies: {},
+          compatibility: { flower: "*" },
+          capabilities: {
+            profile: "standard",
+            granted: ["content.skills"],
+            denied: [],
+            approvalDigest: null,
+          },
+        }],
+      },
+    }),
+    (error) => error.code === PLUGIN_RUNTIME_ERROR_CODES.AUTH_REQUIRED,
+  );
+  assert.equal(prepareLockedCalls, 1);
+});
+
+test("活跃 builtin 新增远程依赖时登记来源且不准备同来源冻结节点", async () => {
+  const activeId = "flower/skill-garden";
+  const preservedId = "rd-guide/existing";
+  const dependencyId = "rd-guide/new";
+  const activeCandidate = {
+    id: activeId,
+    version: "1.0.0",
+    source: { id: "flower", type: "builtin", reference: "package:skill-garden" },
+    commit: null,
+    integrity: `sha256:${"a".repeat(64)}`,
+    manifest: pluginManifest({
+      id: "skill-garden",
+      dependencies: {
+        [preservedId]: "1.0.0",
+        [dependencyId]: "^1.0.0",
+      },
+    }),
+  };
+  const dependencyCandidate = {
+    id: dependencyId,
+    version: "1.0.0",
+    source: { id: "rd-guide", type: "gitlab", reference: "group/rd-guide" },
+    commit: "b".repeat(40),
+    integrity: `sha256:${"c".repeat(64)}`,
+    manifest: pluginManifest({ id: "new" }),
+  };
+  const registry = new SourceRegistry([{
+    id: "flower",
+    type: "builtin",
+    listCandidates: (id) => id === activeId ? [activeCandidate] : [],
+    readPackage: () => { throw new Error("本测试不读取 builtin 包"); },
+  }]);
+  const preparedIds = [];
+  let prepareLockedCalls = 0;
+  const remoteProvider = {
+    id: "rd-guide",
+    type: "gitlab",
+    prepare: async (id) => { preparedIds.push(id); },
+    prepareLocked: async () => { prepareLockedCalls += 1; },
+    listCandidates: (id) => id === dependencyId ? [dependencyCandidate] : [],
+    readPackage: () => { throw new Error("本测试不读取远程包"); },
+  };
+  const lock = {
+    schemaVersion: 1,
+    roots: [activeId, preservedId],
+    plugins: [{
+      id: preservedId,
+      version: "1.0.0",
+      source: { id: "rd-guide", type: "gitlab", reference: "group/rd-guide" },
+      commit: "d".repeat(40),
+      integrity: `sha256:${"e".repeat(64)}`,
+      dependencies: {},
+      compatibility: { flower: "*" },
+      capabilities: {
+        profile: "standard",
+        granted: ["content.skills"],
+        denied: [],
+        approvalDigest: null,
+      },
+    }],
+  };
+  const sourceStore = { list: () => [descriptor] };
+
+  await registerRemotePluginSources({
+    parsed: { command: "update", pluginId: activeId },
+    projectRoot: process.cwd(),
+    options: {
+      sourceStore,
+      credentialBundle: { store: new MemoryCredentialStore(), persistent: false },
+      gitlabProviderFactory: () => remoteProvider,
+    },
+    registry,
+    lock,
+    preserveIds: [preservedId],
+  });
+  await prepareRemotePluginCandidates({
+    parsed: { command: "update" },
+    canonicalId: activeId,
+    registry,
+    lock,
+    preserveIds: [preservedId],
+  });
+
+  assert.equal(registry.has("rd-guide"), true);
+  assert.deepEqual(preparedIds, [dependencyId]);
+  assert.equal(prepareLockedCalls, 0);
 });
 
 test("GitHub source 新增先探测固定格式，再复用现有生命周期安装", async (t) => {

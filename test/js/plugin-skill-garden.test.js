@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { applyEnhancements } from "../../src/lib/apply-enhancements.js";
+import { replayPlugins } from "../../src/commands/update.js";
 import { ENHANCEMENTS_ROOT } from "../../src/lib/paths.js";
 import { flowerVersion } from "../../src/lib/versions.js";
 import {
@@ -16,6 +17,8 @@ import {
 } from "../../src/builtin-plugins/skill-garden/uninstall.js";
 import { isBuiltinProviderTrusted } from "../../src/plugin/capabilities/builtin-trust.js";
 import { PluginApplicationService } from "../../src/plugin/application-service.js";
+import { hashDirectoryIfExists, hashFileIfExists } from "../../src/plugin/install/content-hash.js";
+import { PLUGIN_RUNTIME_ERROR_CODES } from "../../src/plugin/runtime-errors.js";
 import { ProjectStore } from "../../src/plugin/state/project-store.js";
 import { SourceRegistry } from "../../src/plugin/sources/source-registry.js";
 
@@ -36,6 +39,67 @@ function quietApply(target, options) {
   } finally {
     console.log = original;
   }
+}
+
+/**
+ * 为已安装 Skill-Garden 的测试项目追加一个仅保留安装态的外部 Plugin。
+ *
+ * @param {string} target 项目根
+ * @returns {{id:string,managedRoot:string,lockEntry:object,stateEntry:object}} 外部 Plugin 证据
+ */
+function attachOfflineExternalPlugin(target) {
+  const id = "offline/company-only";
+  const managedPath = ".agents/skills/company-only";
+  const managedRoot = path.join(target, ...managedPath.split("/"));
+  fs.mkdirSync(managedRoot, { recursive: true });
+  fs.writeFileSync(path.join(managedRoot, "SKILL.md"), "# Company Only\n");
+  const store = new ProjectStore(target);
+  const plugins = store.readPlugins();
+  plugins.plugins.push({ id, source: "offline", version: "1.0.0" });
+  plugins.plugins.sort((left, right) => left.id.localeCompare(right.id));
+  store.writePlugins(plugins);
+  const lock = store.readLock();
+  const lockEntry = {
+    id,
+    version: "1.0.0",
+    source: {
+      id: "offline",
+      type: "github",
+      reference: "example/private-plugin",
+      format: "skill-only",
+      entryPath: "SKILL.md",
+    },
+    commit: "a".repeat(40),
+    integrity: `sha256:${"b".repeat(64)}`,
+    dependencies: {},
+    compatibility: { flower: "*" },
+    capabilities: {
+      profile: "standard",
+      granted: ["content.skills"],
+      denied: [],
+      approvalDigest: null,
+    },
+  };
+  lock.roots.push(id);
+  lock.roots.sort();
+  lock.plugins.push(lockEntry);
+  store.writeLock(lock);
+  const state = store.readState();
+  const stateEntry = {
+    id,
+    version: "1.0.0",
+    platforms: ["codex"],
+    paths: [{
+      path: managedPath,
+      kind: "directory",
+      hash: hashDirectoryIfExists(managedRoot),
+      ownership: "exclusive",
+    }],
+    patches: [],
+  };
+  state.plugins.push(stateEntry);
+  store.writeState(state);
+  return { id, managedRoot, lockEntry, stateEntry };
 }
 
 /**
@@ -300,6 +364,9 @@ test("replay 冻结 skill-garden 时保留原 lock/state 且不重算 variant", 
   const target = createTarget(t);
   quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
   const store = new ProjectStore(target);
+  const state = store.readState();
+  state.migration = { source: "legacy-flower-manifest", schemaVersion: 1 };
+  store.writeState(state);
   const beforeLock = fs.readFileSync(path.join(target, ".flower/plugin-lock.json"), "utf8");
   const beforeState = fs.readFileSync(path.join(target, ".flower/state.json"), "utf8");
   fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.5\n");
@@ -331,6 +398,107 @@ test("replay 冻结 skill-garden 时保留原 lock/state 且不重算 variant", 
   assert.ok(preflightPlan);
   assert.deepEqual(preflightPlan.contentMutations, []);
   assert.deepEqual(preflightPlan.patchMutations, []);
+  assert.equal(fs.readFileSync(path.join(target, ".flower/plugin-lock.json"), "utf8"), beforeLock);
+  assert.equal(fs.readFileSync(path.join(target, ".flower/state.json"), "utf8"), beforeState);
+});
+
+test("移除 skill-garden 时清理不再有 owner 的 migration", (t) => {
+  const target = createTarget(t);
+  quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
+  const store = new ProjectStore(target);
+  const state = store.readState();
+  state.migration = { source: "legacy-flower-manifest", schemaVersion: 1 };
+  store.writeState(state);
+  const service = new PluginApplicationService(target, {
+    store,
+    registry: new SourceRegistry(),
+  });
+
+  service.remove({ id: SKILL_GARDEN_PLUGIN_ID });
+
+  assert.equal(Object.hasOwn(store.readState(), "migration"), false);
+});
+
+test("Update 重放在外部来源未配置时冻结其 lock/state 与受管目录", async (t) => {
+  const target = createTarget(t);
+  quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
+  const external = attachOfflineExternalPlugin(target);
+  const store = new ProjectStore(target);
+  const beforeLock = structuredClone(store.readLock().plugins.find(({ id }) => id === external.id));
+  const beforeState = structuredClone(store.readState().plugins.find(({ id }) => id === external.id));
+
+  await replayPlugins({
+    enhance: true,
+    variant: "0.5",
+    skills: ["trellis-route"],
+    trellisControlMode: "materialized",
+    trellisControlQuiet: true,
+  }, target, false);
+
+  assert.deepEqual(store.readLock().plugins.find(({ id }) => id === external.id), beforeLock);
+  assert.deepEqual(store.readState().plugins.find(({ id }) => id === external.id), beforeState);
+  assert.equal(fs.readFileSync(path.join(external.managedRoot, "SKILL.md"), "utf8"), "# Company Only\n");
+});
+
+test("冻结外部目录漂移时 Update 重放在写入前失败", async (t) => {
+  const target = createTarget(t);
+  quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
+  const external = attachOfflineExternalPlugin(target);
+  const lockPath = path.join(target, ".flower/plugin-lock.json");
+  const statePath = path.join(target, ".flower/state.json");
+  const beforeLock = fs.readFileSync(lockPath, "utf8");
+  const beforeState = fs.readFileSync(statePath, "utf8");
+  fs.appendFileSync(path.join(external.managedRoot, "SKILL.md"), "用户修改\n");
+
+  await assert.rejects(
+    () => replayPlugins({
+      enhance: true,
+      variant: "0.5",
+      skills: ["trellis-route"],
+      trellisControlMode: "materialized",
+      trellisControlQuiet: true,
+    }, target, false),
+    /Plugin Runtime 重放失败/,
+  );
+  assert.equal(fs.readFileSync(lockPath, "utf8"), beforeLock);
+  assert.equal(fs.readFileSync(statePath, "utf8"), beforeState);
+  assert.match(fs.readFileSync(path.join(external.managedRoot, "SKILL.md"), "utf8"), /用户修改/);
+});
+
+test("活跃 Skill-Garden 不得改写冻结 Plugin 声明的目标", (t) => {
+  const target = createTarget(t);
+  quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
+  const external = attachOfflineExternalPlugin(target);
+  const store = new ProjectStore(target);
+  const conflictPath = ".claude/skills/trellis-route/SKILL.md";
+  const state = store.readState();
+  const externalState = state.plugins.find(({ id }) => id === external.id);
+  externalState.paths = [{
+    path: conflictPath,
+    kind: "file",
+    hash: hashFileIfExists(path.join(target, ...conflictPath.split("/"))),
+    ownership: "exclusive",
+  }];
+  store.writeState(state);
+  const beforeLock = fs.readFileSync(path.join(target, ".flower/plugin-lock.json"), "utf8");
+  const beforeState = fs.readFileSync(path.join(target, ".flower/state.json"), "utf8");
+  const provider = new SkillGardenBuiltinProvider({
+    projectRoot: target,
+    previousState: store.readState(),
+  });
+  const service = new PluginApplicationService(target, {
+    store,
+    registry: new SourceRegistry([provider]),
+  });
+
+  assert.throws(
+    () => service.update({
+      id: SKILL_GARDEN_PLUGIN_ID,
+      version: provider.manifest.version,
+      preserveIds: [external.id],
+    }),
+    (error) => error.code === PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
+  );
   assert.equal(fs.readFileSync(path.join(target, ".flower/plugin-lock.json"), "utf8"), beforeLock);
   assert.equal(fs.readFileSync(path.join(target, ".flower/state.json"), "utf8"), beforeState);
 });

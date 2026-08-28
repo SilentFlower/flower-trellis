@@ -47,6 +47,50 @@ test("resolver 普通重放保持 lock，显式 update 选择更高兼容版本"
   assert.equal(resolvePluginGraph(declaration, registry(entries), { lockedPlugins: locked, update: ["flower/demo"] }).graph.plugins[0].version, "1.1.0");
 });
 
+test("resolver 使用旧 lock 求解冻结节点且不读取 Provider 候选", () => {
+  const declaration = [{ id: "offline/demo", source: "offline", version: "^1.0.0" }];
+  const lockedCandidate = candidate("offline/demo", "1.0.0");
+  lockedCandidate.source = {
+    id: "offline",
+    type: "github",
+    reference: "example/private-plugin",
+    format: "skill-only",
+    entryPath: "SKILL.md",
+  };
+  lockedCandidate.commit = "a".repeat(40);
+  const locked = resolvePluginGraph(
+    declaration,
+    registry({ "offline/demo": [lockedCandidate] }),
+  ).graph.plugins;
+  const result = resolvePluginGraph(declaration, {
+    listCandidates() {
+      throw new Error("冻结节点不应读取 Provider 候选");
+    },
+  }, {
+    lockedPlugins: locked,
+    preserveIds: ["offline/demo"],
+  });
+
+  assert.deepEqual(result.graph.plugins, locked);
+});
+
+test("resolver 仍拒绝不满足新约束的冻结版本", () => {
+  const originalDeclaration = [{ id: "offline/demo", source: "offline", version: "^1.0.0" }];
+  const locked = resolvePluginGraph(
+    originalDeclaration,
+    registry({ "offline/demo": [candidate("offline/demo", "1.0.0")] }),
+  ).graph.plugins;
+
+  assert.throws(
+    () => resolvePluginGraph(
+      [{ id: "offline/demo", source: "offline", version: "^2.0.0" }],
+      registry({}),
+      { lockedPlugins: locked, preserveIds: ["offline/demo"] },
+    ),
+    (error) => error.code === PLUGIN_RUNTIME_ERROR_CODES.DEPENDENCY_CONFLICT,
+  );
+});
+
 test("resolver 报告缺失、冲突、自依赖和循环", () => {
   assert.throws(
     () => resolvePluginGraph([{ id: "flower/missing", source: "flower", version: "*" }], registry({})),

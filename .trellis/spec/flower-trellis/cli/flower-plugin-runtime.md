@@ -8,6 +8,7 @@
 
 - 修改 `src/plugin/application-service.js`、`resolver/**`、builtin/local Source Provider、`install/**` 或 `src/commands/plugin.js` 的生命周期路径。
 - 改变 `plugin list/add/update/remove/verify` 参数、退出码、JSON 输出、平台检测、锁定优先、依赖求解、目标 ownership 或事务恢复语义。
+- 改变 Flower update 对外部 Plugin 的冻结范围、远程候选准备、旧 lock/state 复用或 migration owner 语义。
 - 为 GitLab、GitHub、外部格式 Adapter、Patch capability、内置 Plugin 或作者工具接入基础 Runtime。
 
 P2 Runtime 只负责项目级解析、计划和写盘。远程认证与候选准备、Patch 授权、旧增强迁移必须通过可选模块或进程内扩展点接入，不能把 P3/P4/P5 实现静态并入基础生命周期模块。
@@ -28,6 +29,7 @@ new LocalSourceProvider({ id, projectRoot, references })
 resolvePluginGraph(declarations, registry, {
   lockedPlugins?,
   update?,
+  preserveIds?,
   grantCapabilities?,
 }?) -> { graph, selected, orphans, constraints }
 buildPluginLock(graph) -> PluginLock
@@ -49,11 +51,16 @@ PluginApplicationService.update({
   id?,          // 单个 Plugin；与 widen 互斥
   version?,     // SemVer range，必须与 id 同时给出
   widen?,       // Map<canonicalId, range> 或等价对象；命中时按 update="all" 解析
-  platforms?, dryRun?, approvals?, approvedDigests?, nonInteractive?, onPreflight?,
+  platforms?, dryRun?, approvals?, approvedDigests?, nonInteractive?, preserveIds?, onPreflight?,
 }?) -> LifecycleResult
-PluginApplicationService.replay(options?) -> LifecycleResult
+PluginApplicationService.replay({ preserveIds?, ... }?) -> LifecycleResult
 PluginApplicationService.remove(options) -> LifecycleResult
 PluginApplicationService.verify(options?) -> { ok, diagnostics }
+
+registerRemotePluginSources({ parsed, projectRoot, options, registry, lock, preserveIds? })
+  -> Promise<void>
+prepareRemotePluginCandidates({ parsed, canonicalId, registry, lock, preserveIds? })
+  -> Promise<void>
 
 parsePluginArgs(argv) -> PluginCommand
 plugin(ctx, options?) -> Promise<0 | 1 | 2 | 3>
@@ -168,7 +175,11 @@ TUI inspection 可额外使用远程 Provider 的 `inspectContentManifest(canoni
 - 进程内扩展注册必须与模块加载顺序无关：扩展实现晚于基础对象加载时，需要回补此前等待的实例或请求，不能静默丢失。
 - 自定义内容投影只允许持有进程内 builtin 信任标记的 Provider 实现。外部 Provider 即使伪造 `type=builtin`、同名 source 或序列化字段，也不得取得 `projectContent()`、多 system catalog、adapter 或 unowned takeover 权限。
 - system 投影可以为迁移声明 `allowUnownedWrite` / `allowUnownedRemove`，但这些标记只能由可信自定义投影产生；普通 Plugin 仍必须遵守既有 state ownership。
-- `replay({ preserveIds })` 用于冻结已锁定节点：被冻结节点必须复用旧 lock 的 version/source/commit/integrity、精确 dependencies、compatibility、capability profile/grant 和旧 state，不能从当前随包 manifest 重算约束或生成 mutation；其余节点仍走完整 lock-first 解析、校验和事务。
+- `replay({ preserveIds })` 与受控的 targeted update 可以冻结已锁定节点。`preserveIds` 只允许由内部编排传入，不增加公开 `--offline` / `--skip-auth`；普通 Flower update 更新 `flower/skill-garden` 时冻结旧 lock 中其它 GitLab/GitHub 节点，显式外部 `plugin update` 不得套用该集合。
+- 冻结节点必须直接从旧 lock 合成只参与 Resolver 约束求解的候选，逐字段保留 version/source/commit/integrity、精确 dependencies、compatibility 和 capability grant；缺少旧 lock 时失败，不能查询 Provider 猜测版本。冻结候选不得进入 `prepare()` / `prepareLocked()`、凭据解析、网络请求、固定包缓存、`readPackage()`、内容投影或 Patch catalog 读取。
+- 远程 Source 注册不能只看非冻结旧 lock。对于当前已可读取的 builtin/local 活跃候选，必须先展开其非冻结依赖并登记所需 source；候选准备随后继续跨 Provider 遍历依赖闭包。依赖 ID 本身位于 `preserveIds` 时，注册扫描和准备闭包都必须跳过它；同一 source 中新增的非冻结依赖仍按正常认证、网络和 Provider 规则准备。
+- Application Service 必须在内容投影前拆分 active/preserved graph，先校验冻结 lock/state 对应关系及文件、目录、Patch target 摘要，再原样合并旧 lock/state。冻结节点不得产生普通 mutation、Patch mutation、目录 claim/removal；活跃计划与冻结路径、目录前缀或 Patch target 相交时必须在事务前失败。
+- `state.migration` 由实际活跃的 `flower/skill-garden` 投影维护。只有 `preserveIds` 明确包含 `flower/skill-garden` 时才可沿用旧 migration；仅冻结外部 Plugin、移除 Skill-Garden 或 graph 已不再包含该 owner 时不得保留旧值。
 
 ### Builtin Skill-Garden
 
@@ -204,8 +215,12 @@ TUI inspection 可额外使用远程 Provider 的 `inspectContentManifest(canoni
 | --- | --- | --- |
 | Provider 缺少接口或 source 重复 | `TypeError` / `PLUGIN_SOURCE_DUPLICATE` | Resolver 未运行 |
 | source 未注册或候选来源歧义 | `PLUGIN_SOURCE_NOT_FOUND` / `PLUGIN_SOURCE_AMBIGUOUS` | 零写入 |
+| 活跃候选新增非冻结远程依赖，但 source 不存在、已禁用、未授权或不可达 | 保持现有 source/auth/remote 稳定错误 | 零写入；不能因同 source 另有冻结节点而跳过活跃依赖准备 |
 | 仓库没有受支持入口或外部内容不可安全导入 | `PLUGIN_FORMAT_UNRECOGNIZED` / `PLUGIN_FORMAT_UNSUPPORTED` | source store、`.flower/` 与目标文件零写入 |
 | 依赖缺失、约束冲突、自依赖或循环 | `PLUGIN_DEPENDENCY_MISSING` / `PLUGIN_DEPENDENCY_CONFLICT` / `PLUGIN_DEPENDENCY_CYCLE` | 零写入，details 保留稳定约束或 cycle |
+| 冻结 ID 缺少旧 lock/state，或冻结文件、目录、Patch target 摘要漂移 | `PLUGIN_TARGET_DRIFT` | 不准备冻结来源，事务目录尚未创建 |
+| 活跃 content/Patch/目录计划与冻结 ownership 或 Patch target 相交 | `PLUGIN_CONTENT_CONFLICT` | 事务目录尚未创建，冻结内容与 lock/state 不变 |
+| 活跃依赖范围不接受冻结 lock 的精确版本 | `PLUGIN_DEPENDENCY_CONFLICT` | 零写入；不得联网升级冻结节点 |
 | 精确锁声明越界且锁定包已从来源消失，节点未列入 `update` | `PLUGIN_TARGET_DRIFT`（`已锁定 Plugin 包不可重放`） | 零写入；须改用 `update({widen})` 一次覆盖全部越界声明 |
 | `version` 缺 `id` / `widen` 与 `id` 并用 / `widen` 指向未声明 Plugin | `PLUGIN_USAGE_ERROR`，退出码 `2` | 零写入，空项目也不得降级为 `unchanged` |
 | `--widen` 取值不是 `<plugin>=<range>`、range 非法或同一 Plugin 重复声明 | `PLUGIN_USAGE_ERROR`，退出码 `2` | 参数解析阶段失败，Runtime 未启动 |
@@ -238,6 +253,7 @@ TUI inspection 可额外使用远程 Provider 的 `inspectContentManifest(canoni
   `claude-code/codex` 时，wrapper 显式传入 `claude/codex`，新 state 收窄到真实平台，且只清理纯旧
   check-all agent 目录。
 - P3 动态加载远程适配器、准备 GitLab Provider 后，把同一 `SourceRegistry` 交给 Application Service，远程包与 local/builtin 包走相同 Resolver 和事务。
+- 普通 Flower update 在无 GitLab 凭据、无固定包缓存且内网 source 不可达时，只更新 active Skill-Garden；外部冻结节点的 lock/state/受管字节保持不变，重复 dry-run 为 changed-only。
 - Marketplace 只保留最新版且三个精确锁中有两个越界：一次 `update --widen a=^0.4.0 --widen b=^0.2.2` 即完成放宽与更新；未越界的第三个声明保持原样，lock 同步到两个新版本。
 
 ### Base
@@ -248,6 +264,8 @@ TUI inspection 可额外使用远程 Provider 的 `inspectContentManifest(canoni
 - 空项目执行 `plugin update --version <range>`（无 Plugin ID）：仍返回 `PLUGIN_USAGE_ERROR` 退出码 `2`，不被空项目短路吞掉。
 - dry-run 计划包含目标变化和孤立依赖，但项目字节、mtime 和事务目录不变化。
 - GitHub 来源预览发现两个格式入口：交互模式展示候选并固定用户选择；同一输入在非 TTY 下返回结构化歧义错误。
+- Skill-Garden 新版本从某个已有冻结节点的 GitLab source 引入新 Plugin：只跳过冻结 ID，仍登记该 source 并准备新依赖；来源不可达时按正常认证/网络错误失败。
+- 冻结 Skill-Garden 的 replay 原样保留旧 migration；活跃更新使用新投影 migration，移除 Skill-Garden 后 state 不再包含 migration。
 - 同一 lock 和平台选择重复应用：第二次目标与 plugins/lock/state 全部 changed-only。
 
 ### Bad
@@ -260,6 +278,8 @@ TUI inspection 可额外使用远程 Provider 的 `inspectContentManifest(canoni
   common-only 场景被 `resolveEnhancementSnapshot()` 挡住并写入问题页签。
 - `flower-trellis update` 重放 `flower/skill-garden` 时不传 `--platform`，导致 Runtime 复用污染的旧
   `.flower/state.json.platforms` 并重新创建未启用平台目录。
+- 为了离线升级而跳过整个远程 source：同 source 的活跃新依赖会被误判缺失；正确边界是跳过精确冻结 ID，而不是跳过 source。
+- 只要任意节点被冻结就复制旧 `state.migration`：移除 Skill-Garden 后会留下没有 owner 的迁移标记。
 - 在 Provider 内按遍历顺序选择第一个外部 manifest，或让 Adapter 直接写 `.agents/skills`、`.claude/skills`、`.flower/`。
 - 交互层对多个越界声明逐个调用 `update <id> --version <range>`：第一条命令就会在另一个不可重放的锁定包上失败，越界越多越死锁。
 - 交互层先用未放宽的 `update --dry-run` 做预览再询问用户：预览必然以退出码 `3` 失败，用户只看到提示后直接中断。
@@ -268,11 +288,12 @@ TUI inspection 可额外使用远程 Provider 的 `inspectContentManifest(canoni
 
 - `plugin-source-registry.test.js`：builtin/local 标准候选、重复 source、固定包漂移、路径去重和可选 capability 晚加载回补。
 - `plugin-dependency-resolver.test.js`：传递/共享依赖、稳定顺序、lock-first、显式 update、缺失、歧义、冲突、自依赖、循环和 orphan。
+- `plugin-dependency-resolver.test.js` 的冻结断言还必须覆盖：Provider 无候选时从旧 lock 求解成功；活跃新约束不接受冻结精确版本时返回依赖冲突。
 - `plugin-content-projector.test.js`：显式/检测平台、共享物理 root、override、无平台阻断，以及 `contentSelection.skills` 过滤、缺失选择和 `name/path` 重复。
 - `plugin-install-planner.test.js`：同目标、ownership、用户文件、文件目录前缀及普通内容/Patch 冲突。
 - `plugin-transaction-writer.test.js`：before/payload 漂移、state 最后写、changed-only、dry-run、回滚和 retained evidence。
 - `plugin-format-adapters.test.js`：Flower/Codex/Claude/skill-only 检测、歧义、路径边界、commands 转换、主动组件仅诊断和标准包校验。
-- `plugin-interactive.test.js` 与 `plugin-remote-cli.test.js`：歧义选择、非 TTY 零 prompt、兼容预览、普通 Marketplace Plugin 的 Skill 子集选择、远程 manifest Skill inspection、临时 cache 成功/失败清理和确认前零持久化。
+- `plugin-interactive.test.js` 与 `plugin-remote-cli.test.js`：歧义选择、非 TTY 零 prompt、兼容预览、普通 Marketplace Plugin 的 Skill 子集选择、远程 manifest Skill inspection、临时 cache 成功/失败清理和确认前零持久化；活跃 builtin 新增远程依赖时登记 source 并准备新 ID，同时断言同 source 冻结 ID 的 `prepare/prepareLocked` 调用数为 0。
 - no `.trellis` common-only 回归必须覆盖：`aliyun-ops-skill.test.js` 断言 `listSkillCatalog()` 返回
   common 清单、空 `enhancementSkills`、安装/停用不创建 `.flower`；`plugin-interactive.test.js`
   断言发现页内置入口不读取 Provider 候选且只调用 `openSkillManager()`；`plugin-e2e-interactive.test.js`
@@ -281,7 +302,7 @@ TUI inspection 可额外使用远程 Provider 的 `inspectContentManifest(canoni
 - `trellis-control.test.js`：disabled 项目真实 `plugin add` 后外部 Skill、声明和 state 保留，Trellis
   平台入口重新 detach，最终 `inspectTrellisControl().status === "disabled"`；同时覆盖 excluded spec
   精确快照恢复和外层补偿不完整时的 `repair-required` 持久化。
-- `plugin-skill-garden.test.js`：builtin trust/digest、legacy 迁移、冻结 replay、shared common ownership 和 state/hash 卸载。
+- `plugin-skill-garden.test.js`：builtin trust/digest、legacy 迁移、冻结 replay、shared common ownership 和 state/hash 卸载；离线 Update 重放必须断言冻结外部 lock/state/字节不变、缓存非必要、漂移/目标冲突零写入，以及 migration 在冻结 Skill-Garden 时保留、移除 owner 时清除。
 - `update-backups.test.js`：`flower-trellis update` 的 Skill-Garden 重放必须覆盖污染平台 state
   收窄；断言旧 state 含 `gemini/zcode` 而 Trellis hash 只含 Claude/Codex 时，新 state 只保留
   `claude/codex`，且纯旧 `.gemini/.zcode` check-all agent 目录被清理；精确 Plugin target 即使位于
@@ -361,3 +382,26 @@ if (!fs.existsSync(path.join(target, ".trellis"))) {
 
 无 `.trellis/` 分支只负责把用户带到既有 `skill-manager` action；common skill 的启停继续由
 `listSkillCatalog()`、`installCommonSkills()` 和 `removeCommonSkills()` 按平台目录事实处理。
+
+离线冻结的 Wrong / Correct：
+
+#### Wrong
+
+```js
+for (const plugin of lock.plugins) {
+  await registry.get(plugin.source.id).prepareLocked(plugin);
+}
+const projection = projectPluginContent({ graph: resolution.graph, selected: resolution.selected });
+```
+
+完整恢复远程 lock 会让未更新的内网 Plugin 阻塞 Flower update；完整投影又要求冻结节点仍有本地固定包。
+
+#### Correct
+
+```js
+await prepareRemotePluginCandidates({ registry, lock, preserveIds, canonicalId });
+const resolution = resolvePluginGraph(declarations, registry, { lockedPlugins: lock.plugins, preserveIds });
+const activeGraph = resolution.graph.plugins.filter(({ id }) => !preserveIds.includes(id));
+```
+
+远程准备按精确冻结 ID 跳过读取，Resolver 用旧 lock 合成冻结候选，只有 active graph 进入包读取、内容与 Patch 投影；冻结 state/lock 在统一事务前校验并原样合并。

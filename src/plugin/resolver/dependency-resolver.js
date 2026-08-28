@@ -3,6 +3,7 @@ import {
   PLUGIN_RUNTIME_ERROR_CODES,
   PluginRuntimeError,
 } from "../runtime-errors.js";
+import { parseCanonicalPluginId } from "../schemas/shared.js";
 import { compareUtf8 } from "../stable-order.js";
 import { normalizeContentSelection } from "../content-selection.js";
 
@@ -38,6 +39,40 @@ function defaultCapabilityGrant(request) {
     granted: [...request.required].sort(compareUtf8),
     denied: [...(request.optional || [])].sort(compareUtf8),
     approvalDigest: null,
+  };
+}
+
+/**
+ * 从旧 lock 合成只参与依赖求解的冻结候选。
+ *
+ * 冻结候选不代表本地仍有可读取的 Plugin 包，因此 content 只放合法占位值；调用方必须在
+ * 内容投影前剥离该候选，并原样复用旧 lock/state。
+ *
+ * @param {import("../contracts.js").ResolvedPlugin} locked 已锁定 Plugin
+ * @returns {import("../contracts.js").PluginCandidate} 冻结候选
+ */
+function createPreservedCandidate(locked) {
+  const { pluginId } = parseCanonicalPluginId(locked.id);
+  return {
+    id: locked.id,
+    version: locked.version,
+    source: structuredClone(locked.source),
+    commit: locked.commit,
+    integrity: locked.integrity,
+    manifest: {
+      schemaVersion: 1,
+      id: pluginId,
+      name: locked.id,
+      version: locked.version,
+      compatibility: structuredClone(locked.compatibility),
+      dependencies: structuredClone(locked.dependencies),
+      capabilities: {
+        profile: locked.capabilities.profile,
+        required: [...locked.capabilities.granted],
+        optional: [...locked.capabilities.denied],
+      },
+      content: { skills: [] },
+    },
   };
 }
 
@@ -162,7 +197,7 @@ function stableTopologicalOrder(roots, selected) {
  *
  * @param {import("../contracts.js").ProjectPluginDeclaration[]} declarations 直接声明
  * @param {{listCandidates:(id:string)=>import("../contracts.js").PluginCandidate[]}} registry Source Registry
- * @param {{lockedPlugins?:import("../contracts.js").ResolvedPlugin[],update?:string[]|"all",grantCapabilities?:(request:import("../contracts.js").CapabilityRequest,candidate:import("../contracts.js").PluginCandidate)=>import("../contracts.js").CapabilityGrant}} [options] 解析选项
+ * @param {{lockedPlugins?:import("../contracts.js").ResolvedPlugin[],update?:string[]|"all",preserveIds?:string[],grantCapabilities?:(request:import("../contracts.js").CapabilityRequest,candidate:import("../contracts.js").PluginCandidate)=>import("../contracts.js").CapabilityGrant}} [options] 解析选项
  * @returns {{graph:import("../contracts.js").ResolvedGraph,selected:import("../contracts.js").PluginCandidate[],orphans:string[],constraints:Record<string,Array<{range:string,from:string}>>}} 解析结果
  */
 export function resolvePluginGraph(declarations, registry, options = {}) {
@@ -172,9 +207,19 @@ export function resolvePluginGraph(declarations, registry, options = {}) {
   const updateIds = options.update === "all"
     ? new Set(lockedPlugins.map(({ id }) => id))
     : new Set(options.update || []);
+  const preservedIds = new Set(options.preserveIds || []);
   const grantCapabilities = options.grantCapabilities || defaultCapabilityGrant;
   const initialConstraints = new Map();
   const rootDeclarations = new Map(declarations.map((declaration) => [declaration.id, declaration]));
+
+  for (const id of [...preservedIds].sort(compareUtf8)) {
+    if (!lockedById.has(id)) {
+      throw new PluginRuntimeError(`冻结 Plugin 缺少既有 lock:${id}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
+        path: id,
+      });
+    }
+  }
 
   for (const declaration of [...declarations].sort((left, right) => compareUtf8(left.id, right.id))) {
     const entries = initialConstraints.get(declaration.id) || [];
@@ -201,11 +246,15 @@ export function resolvePluginGraph(declarations, registry, options = {}) {
     if (!nextId) return { selected, constraints };
 
     let candidates;
-    try {
-      candidates = registry.listCandidates(nextId);
-    } catch (error) {
-      if (error?.code !== PLUGIN_RUNTIME_ERROR_CODES.SOURCE_NOT_FOUND) throw error;
-      candidates = [];
+    if (preservedIds.has(nextId)) {
+      candidates = [createPreservedCandidate(lockedById.get(nextId))];
+    } else {
+      try {
+        candidates = registry.listCandidates(nextId);
+      } catch (error) {
+        if (error?.code !== PLUGIN_RUNTIME_ERROR_CODES.SOURCE_NOT_FOUND) throw error;
+        candidates = [];
+      }
     }
     if (candidates.length === 0) {
       throw new PluginRuntimeError(`找不到 Plugin 依赖:${nextId}`, {
@@ -298,7 +347,9 @@ export function resolvePluginGraph(declarations, registry, options = {}) {
       integrity: candidate.integrity,
       dependencies,
       compatibility: candidate.manifest.compatibility,
-      capabilities: grantCapabilities(candidate.manifest.capabilities, candidate),
+      capabilities: preservedIds.has(id)
+        ? structuredClone(lockedById.get(id).capabilities)
+        : grantCapabilities(candidate.manifest.capabilities, candidate),
       ...(contentSelection ? { contentSelection } : {}),
     };
   });

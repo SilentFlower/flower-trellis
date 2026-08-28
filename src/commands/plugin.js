@@ -747,7 +747,7 @@ function pluginExitCode(error) {
  * 执行 Plugin 生命周期命令。
  *
  * @param {object} ctx cli-args.js 的执行上下文
- * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},interactive?:boolean,prompts?:object,confirmApproval?:(requests:object[])=>Promise<boolean>|boolean,compact?:boolean,onPreflight?:(result:object)=>void,trellisControlMode?:"materialized"|"restoring"}} [options] 测试、Provider、输出与交互确认注入
+ * @param {{cwd?:string,providers?:object[],output?:{log:(message:string)=>void,error:(message:string)=>void},interactive?:boolean,prompts?:object,confirmApproval?:(requests:object[])=>Promise<boolean>|boolean,compact?:boolean,preserveIds?:string[],onPreflight?:(result:object)=>void,trellisControlMode?:"materialized"|"restoring"}} [options] 测试、Provider、输出与交互确认注入
  * @returns {Promise<number>} 进程退出码
  */
 export async function plugin(ctx, options = {}) {
@@ -834,6 +834,7 @@ export async function plugin(ctx, options = {}) {
       options,
       registry,
       lock,
+      preserveIds: options.preserveIds || [],
     });
 
     if (parsed.command !== "add" && canonicalId && !canonicalId.includes("/")) {
@@ -889,7 +890,13 @@ export async function plugin(ctx, options = {}) {
       }));
     }
 
-    await remoteRuntime?.prepareRemotePluginCandidates({ parsed, canonicalId, registry, lock });
+    await remoteRuntime?.prepareRemotePluginCandidates({
+      parsed,
+      canonicalId,
+      registry,
+      lock,
+      preserveIds: options.preserveIds || [],
+    });
 
     const service = new PluginApplicationService(ctx.target, { registry, store });
     let result;
@@ -906,6 +913,7 @@ export async function plugin(ctx, options = {}) {
         platforms: parsed.platforms,
         ...(parsed.contentSelection ? { contentSelection: parsed.contentSelection } : {}),
         dryRun: parsed.dryRun,
+        preserveIds: options.preserveIds || [],
         onPreflight: options.onPreflight,
       };
       result = parsed.dryRun ? service.add(addOptions) : await executeWithCapabilityApproval(
@@ -925,6 +933,7 @@ export async function plugin(ctx, options = {}) {
         platforms: parsed.platforms,
         ...(parsed.contentSelection ? { contentSelection: parsed.contentSelection } : {}),
         dryRun: parsed.dryRun,
+        preserveIds: options.preserveIds || [],
         onPreflight: options.onPreflight,
       };
       result = parsed.dryRun ? service.update(updateOptions) : await executeWithCapabilityApproval(

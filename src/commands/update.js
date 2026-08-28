@@ -89,6 +89,13 @@ function pluginPlatformArgs(platforms) {
  */
 export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = null) {
   const output = ctx.trellisControlQuiet ? SILENT_OUTPUT : console;
+  const store = new ProjectStore(target);
+  const lock = store.readLock();
+  const preserveIds = (lock?.plugins || [])
+    .filter(({ id, source }) => (
+      id !== SKILL_GARDEN_PLUGIN_ID && ["gitlab", "github"].includes(source.type)
+    ))
+    .map(({ id }) => id);
   const onPreflight = compensationSnapshot || ctx.trellisControlExtendSnapshot
     ? ({ plan }) => {
       const targets = [
@@ -100,7 +107,7 @@ export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = 
     }
     : undefined;
   if (ctx.enhance) {
-    const declared = new ProjectStore(target).readPlugins().plugins
+    const declared = store.readPlugins().plugins
       .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
     const code = await plugin({
       ...ctx,
@@ -113,6 +120,7 @@ export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = 
       ],
     }, {
       skillGarden: { variant: ctx.variant, skills: ctx.skills },
+      preserveIds,
       compact: true,
       onPreflight,
       output,
@@ -122,7 +130,7 @@ export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = 
   }
 
   output.log("· --no-enhance:跳过 Skill-Garden，仅重放其它已声明 Plugin");
-  const preserveSkillGarden = new ProjectStore(target).readLock()?.plugins
+  const preserveSkillGarden = lock?.plugins
     .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID) === true;
   const code = await plugin({
     ...ctx,
