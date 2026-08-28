@@ -1,0 +1,3 @@
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"检查离线冻结语义、lock/state 保留、changed-only 与回滚契约。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md","reason":"检查冻结节点没有鉴权或网络调用，外部显式更新未被绕过。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-capabilities.md","reason":"检查冻结目标冲突、capability 和 Patch 事务门禁未回退。"}

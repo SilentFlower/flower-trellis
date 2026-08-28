@@ -1,0 +1,71 @@
+{
+  "id": "offline-plugin-preserve",
+  "name": "offline-plugin-preserve",
+  "title": "修复外部 Plugin 不可达时阻塞 Flower 升级",
+  "description": "允许更新内置 Skill-Garden 时离线冻结未受影响的外部 Plugin，保留其 lock/state/受管内容；仅在路径冲突、状态漂移或外部 Plugin 本身需要更新时要求远程来源可达。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-28",
+  "completedAt": "2026-08-28",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-08-28T15:36:00Z",
+      "contextKey": "codex_01a048e0-c72a-7022-9823-5b17d38c9820",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "94876120eb824e5883f44049a53f5748ef48fdb7",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "94876120eb824e5883f44049a53f5748ef48fdb7",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "42385f19bbd62e2a24d806540cceac03fc67a1ec340179f020c0d2be0d538e17"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "124b592037eef542d7faf7ecb3be93b4bfd3aed0",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "e13bd359e491be51640283f02fbcc5707b3fdc2fd7f9aa0284650e2b9008e288"
+          }
+        ],
+        "fingerprint": "c32fa5bbe1eaa55d91df9a6df06861f1b525a7888b328be5455ab86abbb17d16"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-08-28T17:23:18Z",
+    "completedSteps": [
+      "实现外部 Plugin 离线冻结并通过完整验证与规范更新"
+    ],
+    "partialStep": null,
+    "nextStep": "任务已完成，待按需归档",
+    "notes": "普通 Flower 更新不再因未受影响的外部 GitLab/GitHub Plugin 来源不可达而阻塞；显式外部更新仍保持原有远程校验。"
+  }
+}

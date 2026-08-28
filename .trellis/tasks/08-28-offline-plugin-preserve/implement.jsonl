@@ -1,0 +1,3 @@
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md","reason":"实现 Plugin 完整图解析、冻结节点、内容投影、事务与生命周期契约。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-gitlab.md","reason":"确保冻结路径零凭据、零网络，显式远程更新仍遵守 GitLab Provider 契约。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-capabilities.md","reason":"保持外部 capability、Patch 冲突和统一 Transaction Writer 安全边界。"}
