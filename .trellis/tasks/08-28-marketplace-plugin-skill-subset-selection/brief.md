@@ -2,31 +2,35 @@
 
 ## Goal
 
-- 让普通 Marketplace Plugin 可以按 manifest `content.skills` 声明的 Skill 子集安装，并在 TUI 中提供类似内置 Skill Garden 的选择体验；rd-guide 当前只向用户暴露 `xhgj-gitlab-collaboration`。
+- 让普通 Marketplace Plugin 可以按 manifest `content.skills` 声明的 Skill 子集安装，并在 TUI 中提供类似内置 Skill Garden 的直接技能管理体验；rd-guide 当前只向用户暴露 `xhgj-gitlab-collaboration`，不再把用户带进底层单 Plugin 详情模型。
 
 ## Scope
 
 - 新增 `contentSelection.skills` 数据模型，贯通 `.flower/plugins.json`、`plugin-lock.json`、`state.json`、公共 DTO 和 schema。
+- 将 Flower manifest 的 `content.skills` 收敛为对象数组 `{name,path,version,description?}`；Skill 选择与展示版本都来自该 manifest entry，不再从 `SKILL.md` frontmatter 推断版本。
 - 增加 CLI selection 参数，支持 `plugin add` 和单个 `plugin update <id>` 选择 Skill 子集，并让 dry-run、update、replay、verify 回读或校验该选择。
-- 修改 Resolver、lock builder、Application Service 和 content projector，使普通 Plugin 的 `content.skills` 只投影被选择的 Skill，未声明 selection 时保持全量安装兼容。
-- 扩展 Plugin TUI：rd-guide 普通 Marketplace Plugin 在发现页和已安装页进入 Skill 选择/管理视图，列表只来自 manifest `content.skills`。
+- 修改 Resolver、lock builder、Application Service 和 content projector，使普通 Plugin 的 `content.skills` 只投影被选择的 Skill；未声明 selection 时按 manifest 全量安装。
+- 扩展 Plugin TUI：rd-guide 普通 Marketplace Plugin 在发现页直接进入 Skill 选择/管理视图，显式 selection 的已安装条目按 Enter 直接管理，列表只来自 manifest `content.skills`。
+- 支持 rd-guide 仓库根目录 `.flower-plugin/marketplace.json` 与 `.flower-plugin/plugin.json`：Marketplace 只发布聚合包 `rd-guide`，运行时包只包含顶层 `plugin.json` 和 manifest 显式声明内容。
 - 补充 schema、CLI parser、生命周期、投影、TUI 交互和 rd-guide 单 Skill 场景的定向测试。
 
 ## Non-Goals
 
-- 不调整 rd-guide 仓库目录结构。
 - 不把 `contract.yaml` 作为 TUI 可选 Skill 的唯一来源。
+- 不兼容旧的 `content.skills: ["skills/foo"]` manifest 形态，也不保留旧 `.flower-marketplace/marketplace.json` 发布路径。
 - 不新增外部 Plugin 的主动执行 capability，也不安装 manifest 外的脚本、测试或验证目录。
 - 不重做 Marketplace source/auth/search 认证流程。
 
 ## Key Decisions
 
 - 使用 `contentSelection.skills` 表示项目选择，而不是复用 manifest 的 `content.skills`；manifest 表示包发布了哪些内容路径，selection 表示当前项目启用哪些 Skill 名称。
-- selection 值使用 manifest `content.skills` 条目的 basename；只要 Skill 目录名不变，rd-guide 调整包内父目录后选择仍可延续。
-- `contentSelection` 缺失表示旧行为：安装全部 manifest `content.skills`；存在时必须非空、唯一、稳定排序。
+- selection 值使用 manifest `content.skills[].name`；`path` 只表示包内来源路径，目标 Skill 目录名由 `name` 决定。
+- `contentSelection` 缺失表示安装全部 manifest `content.skills`；存在时必须非空、唯一、稳定排序。
 - selection 写入 `.flower/plugins.json` 作为项目声明意图，写入 `plugin-lock.json` 作为 resolved graph 回读，写入 `state.json` 作为本机实际投影记录。
 - TUI 不硬编码 rd-guide 的隐藏名单；rd-guide 当前只显示 GitLab collaboration，由 rd-guide 包 manifest 只声明该 Skill 来控制。
 - 内置 `flower/skill-garden` 继续走原有 `skill-manager` action，不进入普通 Marketplace selection 流程。
+- rd-guide 的 TUI 是来源级 Skill 管理心智模型，底层仍可通过 canonical Plugin ID 执行生命周期命令；flower-trellis 只读取 `.flower-plugin/plugin.json` 声明，不扫目录猜测。
+- `.flower-plugin/marketplace.json` 是索引文件，不能进入聚合 Plugin 包哈希；GitLab Provider 与格式 Adapter 都会基于 `.flower-plugin/plugin.json` 构建声明式运行时包。
 
 ## Key Context
 
@@ -47,12 +51,15 @@
 - `plugin update <id>` 无 selection 参数时保留既有选择，带 selection 参数时按新子集投影并清理取消选择的 hash-clean 旧路径。
 - `plugin replay` 使用 `.flower/plugins.json` 选择意图重放，不自动安装远端新增但未选择 Skill。
 - `plugin verify` 能发现声明、lock、state selection 不一致，以及 selected Skill 已不在当前 manifest `content.skills` 中的情况。
-- TUI 发现页安装 rd-guide Plugin 时只显示 `xhgj-gitlab-collaboration`，确认后 dry-run 与真实命令携带相同 selection。
-- TUI 已安装页可重新管理 rd-guide Skill 选择，并复用现有预览、确认、失败停留和问题页机制。
+- TUI 发现页安装 rd-guide Plugin 时跳过 `Plugin 详情` 中间页，直接显示 RD Guide 技能管理；当前只显示 `xhgj-gitlab-collaboration`，用户勾选后回车直接应用 selection，不再进入选平台、dry-run 预览和二次确认。
+- TUI 发现页安装 rd-guide 时，未安装 Skill 默认不勾选；已安装页可重新管理 rd-guide Skill 选择，显式 selection 条目按 Enter 直接进入 checkbox，回车后直接应用更新，失败仍停留并进入问题页机制。
+- TUI 已安装 rd-guide 后取消部分 Skill 勾选会保存剩余启用项；取消全部勾选会执行 `plugin remove <id>` 停用整个 RD Guide 插件。
+- `RD Guide 技能` 聚合入口不展示底层 Marketplace Plugin 包版本，已安装显式 selection 时展示已启用 Skill 数量；具体 Skill 行展示 `content.skills[].version`，不能用 rd-guide bundle / Plugin 包版本替代。
 - manifest 外存在其它 Skill、`scripts/`、`tests/` 或 `verification/` 时，TUI 不显示，投影不安装。
+- rd-guide Skill 管理 prompt 使用中文帮助与取消提示，空选择不暴露英文校验文案；inspection 只从 manifest skill entry 读取用途描述和版本，并缓存同一轮 TUI 的重复读取。
 - `flower/skill-garden` 行为不回退。
 - 定向测试、相关远程测试、全量 `npm test`、`npm pack --dry-run --json`、`git diff --check` 按计划通过。
 
 ## Next Step
 
-- 用户确认 brief 后，运行 `python3 ./.trellis/scripts/task.py start .trellis/tasks/08-28-marketplace-plugin-skill-subset-selection` 进入实现阶段。
+- 完成文档同步后进入 Check-All 与提交前验证。
