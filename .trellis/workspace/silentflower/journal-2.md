@@ -1187,3 +1187,24 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 96: 修复外部 Plugin 不可达时阻塞 Flower 升级
+
+**Date**: 2026-08-29
+**Task**: 修复外部 Plugin 不可达时阻塞 Flower 升级
+**Branch**: `main`
+
+### Summary
+
+普通 Flower 更新现在会离线冻结未受影响的外部 Plugin，保持 lock/state/受管内容不变；完成完整回归、规范更新、精确推送与任务归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6210cfa` | (see git log) |
+
+### Status
+
+[OK] **Completed**
