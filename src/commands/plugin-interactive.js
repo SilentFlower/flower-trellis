@@ -20,6 +20,12 @@ import {
 } from "../plugin/sources/user-source-store.js";
 import { ProjectStore } from "../plugin/state/project-store.js";
 import {
+  contentSelectionArgs,
+  contentSelectionFromSkillNames,
+  normalizeContentSelection,
+} from "../plugin/content-selection.js";
+import { parseCanonicalPluginId } from "../plugin/schemas/shared.js";
+import {
   pluginActionPrompt,
   pluginManagerPrompt,
 } from "./plugin-manager-prompt.js";
@@ -139,6 +145,73 @@ function withPlatforms(args, platforms) {
     ...args,
     ...platforms.flatMap((platform) => ["--platform", platform]),
   ];
+}
+
+/**
+ * 生成 Marketplace Skill 管理标题。
+ *
+ * @param {string} pluginId canonical Plugin ID
+ * @returns {string} 标题
+ */
+function skillSelectionTitle(pluginId) {
+  const { sourceId } = parseCanonicalPluginId(pluginId);
+  return sourceId === "rd-guide" ? "RD Guide 技能管理" : `${pluginId} Skill 管理`;
+}
+
+/**
+ * 判断已安装 Plugin 是否适合展示普通 Marketplace Skill 选择入口。
+ *
+ * @param {string} pluginId canonical Plugin ID
+ * @param {object|null|undefined} declaration 直接声明
+ * @returns {boolean} 是否展示入口
+ */
+function supportsMarketplaceSkillSelection(pluginId, declaration) {
+  if (pluginId === SKILL_GARDEN_PLUGIN_ID) return false;
+  const sourceId = declaration?.source || parseCanonicalPluginId(pluginId).sourceId;
+  return sourceId !== "local" && sourceId !== "flower";
+}
+
+/**
+ * 读取并提示用户选择普通 Marketplace Plugin 的 Skill 子集。
+ *
+ * @param {object} context 交互上下文
+ * @param {{pluginId:string,version?:string,source?:string|null,currentSelection?:object|null,lockedPlugin?:object|null}} input 选择输入
+ * @returns {Promise<{ok:boolean,selection:object|null}>} 选择结果；无 Skill 时 selection 为 null
+ */
+async function promptMarketplaceSkillSelection(context, input) {
+  let inspection;
+  try {
+    inspection = await context.inspectPluginContentSkills(input);
+  } catch (error) {
+    recordIssue(context.state, `${input.pluginId} Skill 清单读取失败`, error);
+    context.state.lastFailure = `${input.pluginId} Skill 清单读取失败`;
+    return { ok: false, selection: null };
+  }
+  const skills = inspection.skills || [];
+  if (skills.length === 0) return { ok: true, selection: null };
+  const defaults = new Set(
+    normalizeContentSelection(input.currentSelection)?.skills ||
+    skills.map(({ name }) => name),
+  );
+  const selected = await context.prompts.checkbox({
+    message: skillSelectionTitle(input.pluginId),
+    choices: skills.map((skill) => ({
+      name: skill.name,
+      value: skill.name,
+      checked: defaults.has(skill.name),
+      description: skill.path,
+    })),
+    required: true,
+    loop: false,
+    pageSize: 12,
+  });
+  return {
+    ok: true,
+    selection: contentSelectionFromSkillNames(selected, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: input.pluginId,
+    }),
+  };
 }
 
 /**
@@ -940,6 +1013,13 @@ async function installPlugin(context, plugin) {
   // 声明写兼容范围而不是精确版本，否则 Marketplace 一发新版，解析器就再也筛不到候选。
   const range = `^${version}`;
   const args = ["add", plugin.id, "--version", range];
+  const skillSelection = await promptMarketplaceSkillSelection(context, {
+    pluginId: plugin.id,
+    version,
+    source: plugin.source,
+  });
+  if (!skillSelection.ok) return;
+  args.push(...contentSelectionArgs(skillSelection.selection));
   // 平台交给服务层的「既有 state → 项目探测」链；只有项目完全没有平台证据时才问用户。
   const current = readProjectView(context.store, context.ctx.target);
   if (inferPlatforms(context.ctx.target, current.state).length === 0) {
@@ -1036,6 +1116,47 @@ function printWidenPlan(context, plan) {
 }
 
 /**
+ * 管理已安装 Marketplace Plugin 的 Skill 选择。
+ *
+ * @param {object} context 交互上下文
+ * @param {string} pluginId canonical Plugin ID
+ * @returns {Promise<void>} 完成信号
+ */
+async function managePluginSkillSelection(context, pluginId) {
+  const view = readProjectView(context.store, context.ctx.target);
+  const declaration = view.plugins.plugins.find(({ id }) => id === pluginId) || null;
+  const lockedPlugin = (view.lock?.plugins || []).find(({ id }) => id === pluginId) || null;
+  const applied = (view.state?.plugins || []).find(({ id }) => id === pluginId) || null;
+  const currentSelection = declaration?.contentSelection || applied?.contentSelection || lockedPlugin?.contentSelection || null;
+  if (!declaration) {
+    recordIssue(context.state, `${pluginId} Skill 选择失败`, new Error(`项目未声明 Plugin:${pluginId}`));
+    context.state.lastFailure = `${pluginId} Skill 选择失败`;
+    return;
+  }
+  const version = lockedPlugin?.version || marketplaceVersions(context.state, pluginId)[0] || null;
+  const skillSelection = await promptMarketplaceSkillSelection(context, {
+    pluginId,
+    version,
+    source: declaration.source,
+    currentSelection,
+    ...(lockedPlugin ? { lockedPlugin } : {}),
+  });
+  if (!skillSelection.ok || !skillSelection.selection) return;
+  const args = ["update", pluginId, ...contentSelectionArgs(skillSelection.selection)];
+  context.output.log("\n更新 Skill 选择预览:");
+  if (await runChecked(context, [...args, "--dry-run"], `${pluginId} Skill 选择预览失败`) !== 0) return;
+  const confirmed = await context.prompts.confirm({
+    message: `应用 ${pluginId} 的 Skill 选择?`,
+    default: true,
+  });
+  if (!confirmed) {
+    context.output.log("  · 已取消 Skill 选择更新");
+    return;
+  }
+  await runChecked(context, args, `${pluginId} Skill 选择更新失败`);
+}
+
+/**
  * 管理一个已安装 Plugin。
  *
  * @param {object} context 交互上下文
@@ -1043,10 +1164,14 @@ function printWidenPlan(context, plan) {
  * @returns {Promise<void>} 完成信号
  */
 async function manageInstalledPlugin(context, pluginId) {
+  const view = readProjectView(context.store, context.ctx.target);
+  const declaration = view.plugins.plugins.find(({ id }) => id === pluginId) || null;
+  const canManageSkills = supportsMarketplaceSkillSelection(pluginId, declaration);
   const action = await context.prompts.select({
     message: `管理 ${pluginId}`,
     choices: [
       { name: "校验安装状态", value: "verify" },
+      ...(canManageSkills ? [{ name: "管理 Skill 选择", value: "skills" }] : []),
       { name: "检查并更新", value: "update" },
       { name: "卸载", value: "remove" },
       { name: "返回已安装", value: "back" },
@@ -1060,6 +1185,10 @@ async function manageInstalledPlugin(context, pluginId) {
   }
   if (action === "update") {
     await runUpdate(context, collectWidenPlan(context), pluginId);
+    return;
+  }
+  if (action === "skills") {
+    await managePluginSkillSelection(context, pluginId);
     return;
   }
   context.output.log("\n卸载预览:");
@@ -1439,7 +1568,7 @@ async function handleAction(context, actionKey, actions) {
  * 运行交互式 Flower Plugin 管理器。
  *
  * @param {object} ctx cli.js 的解析上下文
- * @param {{prompts?:object,output?:{log:(message:string)=>void,error?:(message:string)=>void},store?:ProjectStore,sourceStore?:UserSourceStore,credentialBundle?:object,credentialStoreOptions?:object,remoteRuntime?:object,skillGardenProvider?:SkillGardenBuiltinProvider,openSkillManager?:()=>Promise<void>,runCommand:(args:string[],commandOptions?:object)=>Promise<number>|number,searchPlugins?:(query:string,sourceId:string)=>Promise<object[]>,authStatus?:(sourceId:string)=>Promise<object>,inspectGitHubSource?:(source:object)=>Promise<object>,confirmApproval?:Function,promptAuthoring?:Function}} options 交互依赖
+ * @param {{prompts?:object,output?:{log:(message:string)=>void,error?:(message:string)=>void},store?:ProjectStore,sourceStore?:UserSourceStore,credentialBundle?:object,credentialStoreOptions?:object,remoteRuntime?:object,skillGardenProvider?:SkillGardenBuiltinProvider,openSkillManager?:()=>Promise<void>,runCommand:(args:string[],commandOptions?:object)=>Promise<number>|number,searchPlugins?:(query:string,sourceId:string)=>Promise<object[]>,authStatus?:(sourceId:string)=>Promise<object>,inspectGitHubSource?:(source:object)=>Promise<object>,inspectPluginContentSkills?:(request:object)=>Promise<object>,confirmApproval?:Function,promptAuthoring?:Function}} options 交互依赖
  * @returns {Promise<number>} 退出码
  */
 export async function runPluginInteractive(ctx, options) {
@@ -1497,6 +1626,9 @@ export async function runPluginInteractive(ctx, options) {
     ctx,
     commandOptions,
   ));
+  const inspectPluginContentSkills = options.inspectPluginContentSkills || ((request) => (
+    remoteRuntime.inspectPluginContentSkills(request, ctx, commandOptions)
+  ));
   const openSkillManager = options.openSkillManager || (async () => {
     const { skill } = await import("./skill.js");
     await skill({ ...ctx, passthrough: [] });
@@ -1521,6 +1653,7 @@ export async function runPluginInteractive(ctx, options) {
     searchPlugins,
     authStatus,
     inspectGitHubSource,
+    inspectPluginContentSkills,
     openSkillManager,
     runCommand: options.runCommand,
     commandOptions,

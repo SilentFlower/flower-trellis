@@ -15,7 +15,9 @@ import { GitLabRestClient } from "../plugin/gitlab/rest-client.js";
 import { GitHubRestClient } from "../plugin/github/rest-client.js";
 import { GitLabSourceProvider } from "../plugin/sources/gitlab-provider.js";
 import { GitHubSourceProvider } from "../plugin/sources/github-provider.js";
+import { SourceRegistry } from "../plugin/sources/source-registry.js";
 import { UserSourceStore } from "../plugin/sources/user-source-store.js";
+import { listContentSkillChoices } from "../plugin/content-selection.js";
 import { compareUtf8 } from "../plugin/stable-order.js";
 
 /**
@@ -209,6 +211,66 @@ export async function searchPluginMarketplaces(parsed, ctx, options = {}) {
     query: parsed.query || "",
     results: results.sort((left, right) => compareUtf8(left.id || left.source, right.id || right.source)),
     diagnostics: diagnostics.sort((left, right) => compareUtf8(left.source, right.source)),
+  };
+}
+
+/**
+ * 为 TUI 按需读取 Marketplace Plugin 的 manifest Skill 清单。
+ *
+ * @param {{pluginId:string,version?:string,source?:string|null,lockedPlugin?:import("../plugin/contracts.js").ResolvedPlugin|null}} request 读取请求
+ * @param {object} ctx CLI 上下文
+ * @param {object} [options] Provider、凭据和测试注入
+ * @returns {Promise<{ok:true,pluginId:string,version:string,name:string,skills:Array<{name:string,path:string}>}>} Skill 清单
+ */
+export async function inspectPluginContentSkills(request, ctx, options = {}) {
+  const canonicalId = request.pluginId || request.lockedPlugin?.id;
+  if (!canonicalId) {
+    throw new PluginRuntimeError("读取 Plugin Skill 清单需要 Plugin ID", {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: "pluginId",
+    });
+  }
+  const registry = new SourceRegistry(options.providers || []);
+  const lock = request.lockedPlugin
+    ? { schemaVersion: 1, roots: [request.lockedPlugin.id], plugins: [request.lockedPlugin] }
+    : null;
+  const parsed = request.lockedPlugin
+    ? { command: "verify", pluginId: canonicalId, source: null }
+    : { command: "add", pluginId: canonicalId, source: request.source || null };
+
+  await registerRemotePluginSources({
+    parsed,
+    projectRoot: ctx.target,
+    options,
+    registry,
+    lock,
+  });
+  await prepareRemotePluginCandidates({
+    parsed,
+    canonicalId,
+    registry,
+    lock,
+  });
+
+  let plugin = request.lockedPlugin || null;
+  if (!plugin) {
+    const candidates = registry.listCandidates(canonicalId);
+    plugin = candidates.find((candidate) => candidate.version === request.version) || null;
+    if (!plugin) {
+      throw new PluginRuntimeError(`Marketplace Plugin 版本不存在:${canonicalId}@${request.version}`, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.SOURCE_NOT_FOUND,
+        path: canonicalId,
+      });
+    }
+  }
+
+  const pluginPackage = registry.readPackage(plugin);
+  return {
+    ok: true,
+    pluginId: canonicalId,
+    version: plugin.version,
+    name: pluginPackage.manifest.name,
+    skills: listContentSkillChoices(pluginPackage.manifest.content.skills || [], canonicalId),
   };
 }
 

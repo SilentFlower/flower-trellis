@@ -90,6 +90,40 @@ function interactiveFixture(t) {
   };
 }
 
+/**
+ * 断言 rd-guide 普通 Plugin 的 Skill 选择题。
+ *
+ * @param {object} question checkbox prompt 入参
+ */
+function assertRdGuideSkillQuestion(question) {
+  assert.equal(question.message, "RD Guide 技能管理");
+  assert.deepEqual(
+    question.choices.map(({ value }) => value),
+    ["xhgj-gitlab-collaboration"],
+  );
+}
+
+/**
+ * 构造只暴露 GitLab 协作 Skill 的 rd-guide 清单读取器。
+ *
+ * @param {{version?:string,locked?:boolean}} [expect] 期望参数
+ * @returns {Function} 清单读取器
+ */
+function rdGuideSkillInspector(expect = {}) {
+  return async (request) => {
+    assert.equal(request.pluginId, "rd-guide/review");
+    if (expect.version) assert.equal(request.version, expect.version);
+    if (expect.locked) assert.ok(request.lockedPlugin);
+    return {
+      ok: true,
+      pluginId: request.pluginId,
+      version: request.version || request.lockedPlugin?.version || "1.0.0",
+      name: "研发指南",
+      skills: [{ name: "xhgj-gitlab-collaboration", path: "skills/xhgj-gitlab-collaboration" }],
+    };
+  };
+}
+
 test("四页签管理器可显式退出且不初始化项目状态", async (t) => {
   const fixture = interactiveFixture(t);
   const script = scriptedPrompts([{
@@ -243,6 +277,7 @@ test("发现页先展示详情，再执行 dry-run 和确认安装", async (t) =
     { type: "manager", value: managerResult("discover", "plugin:rd-guide:rd-guide/review") },
     { type: "select", value: "install" },
     { type: "select", value: "1.2.0" },
+    { type: "checkbox", value: ["xhgj-gitlab-collaboration"], check: assertRdGuideSkillQuestion },
     { type: "checkbox", value: ["codex"] },
     { type: "confirm", value: true },
     { type: "manager", value: managerResult("installed", "exit") },
@@ -261,12 +296,32 @@ test("发现页先展示详情，再执行 dry-run 和确认安装", async (t) =
       source: "rd-guide",
     }],
     authStatus: async () => ({ authorized: true, persistent: false }),
+    inspectPluginContentSkills: rdGuideSkillInspector({ version: "1.2.0" }),
     runCommand: async (args) => { commands.push(args); return 0; },
   });
   assert.equal(code, 0);
   assert.deepEqual(commands, [
-    ["add", "rd-guide/review", "--version", "^1.2.0", "--platform", "codex", "--dry-run"],
-    ["add", "rd-guide/review", "--version", "^1.2.0", "--platform", "codex"],
+    [
+      "add",
+      "rd-guide/review",
+      "--version",
+      "^1.2.0",
+      "--content-skill",
+      "xhgj-gitlab-collaboration",
+      "--platform",
+      "codex",
+      "--dry-run",
+    ],
+    [
+      "add",
+      "rd-guide/review",
+      "--version",
+      "^1.2.0",
+      "--content-skill",
+      "xhgj-gitlab-collaboration",
+      "--platform",
+      "codex",
+    ],
   ]);
   assert.match(fixture.output.join("\n"), /代码评审规范/);
   script.assertDone();
@@ -285,6 +340,7 @@ test("未登录来源按 Enter 直接设备码授权并返回原发现页", asyn
     },
     { type: "manager", value: managerResult("discover", "plugin:rd-guide:rd-guide/review") },
     { type: "select", value: "install" },
+    { type: "checkbox", value: ["xhgj-gitlab-collaboration"], check: assertRdGuideSkillQuestion },
     { type: "checkbox", value: ["claude"] },
     { type: "confirm", value: false },
     { type: "manager", value: managerResult("discover", "exit") },
@@ -308,6 +364,7 @@ test("未登录来源按 Enter 直接设备码授权并返回原发现页", asyn
       }];
     },
     authStatus: async () => ({ authorized, persistent: false }),
+    inspectPluginContentSkills: rdGuideSkillInspector({ version: "1.0.0" }),
     runCommand: async (args) => {
       commands.push(args);
       if (args[0] === "auth") authorized = true;
@@ -317,7 +374,17 @@ test("未登录来源按 Enter 直接设备码授权并返回原发现页", asyn
   assert.equal(searches, 1);
   assert.deepEqual(commands, [
     ["auth", "login", "rd-guide", "--device"],
-    ["add", "rd-guide/review", "--version", "^1.0.0", "--platform", "claude", "--dry-run"],
+    [
+      "add",
+      "rd-guide/review",
+      "--version",
+      "^1.0.0",
+      "--content-skill",
+      "xhgj-gitlab-collaboration",
+      "--platform",
+      "claude",
+      "--dry-run",
+    ],
   ]);
   assert.match(fixture.output.join("\n"), /已取消安装/);
   script.assertDone();
@@ -677,6 +744,7 @@ test("项目已有平台证据时安装不再询问平台", async (t) => {
   const script = scriptedPrompts([
     { type: "manager", value: managerResult("discover", "plugin:rd-guide:rd-guide/review") },
     { type: "select", value: "install" },
+    { type: "checkbox", value: ["xhgj-gitlab-collaboration"], check: assertRdGuideSkillQuestion },
     { type: "confirm", value: true },
     { type: "manager", value: managerResult("installed", "exit") },
   ]);
@@ -694,11 +762,113 @@ test("项目已有平台证据时安装不再询问平台", async (t) => {
       source: "rd-guide",
     }],
     authStatus: async () => ({ authorized: true, persistent: false }),
+    inspectPluginContentSkills: rdGuideSkillInspector({ version: "1.0.0" }),
     runCommand: async (args) => { commands.push(args); return 0; },
   });
   assert.deepEqual(commands, [
-    ["add", "rd-guide/review", "--version", "^1.0.0", "--dry-run"],
-    ["add", "rd-guide/review", "--version", "^1.0.0"],
+    [
+      "add",
+      "rd-guide/review",
+      "--version",
+      "^1.0.0",
+      "--content-skill",
+      "xhgj-gitlab-collaboration",
+      "--dry-run",
+    ],
+    [
+      "add",
+      "rd-guide/review",
+      "--version",
+      "^1.0.0",
+      "--content-skill",
+      "xhgj-gitlab-collaboration",
+    ],
+  ]);
+  script.assertDone();
+});
+
+test("已安装页可按 manifest 管理 Marketplace Skill 选择", async (t) => {
+  const fixture = interactiveFixture(t);
+  const store = {
+    readPlugins: () => ({
+      schemaVersion: 1,
+      plugins: [{
+        id: "rd-guide/review",
+        source: "rd-guide",
+        version: "^1.0.0",
+        contentSelection: { skills: ["xhgj-gitlab-collaboration"] },
+      }],
+    }),
+    readLock: () => ({
+      schemaVersion: 1,
+      roots: ["rd-guide/review"],
+      plugins: [{
+        id: "rd-guide/review",
+        version: "1.0.0",
+        source: { id: "rd-guide", type: "gitlab", reference: "group/rd-guide" },
+      }],
+    }),
+    readState: () => ({
+      schemaVersion: 1,
+      plugins: [{
+        id: "rd-guide/review",
+        version: "1.0.0",
+        platforms: ["codex"],
+        contentSelection: { skills: ["xhgj-gitlab-collaboration"] },
+      }],
+    }),
+  };
+  const script = scriptedPrompts([
+    { type: "manager", value: managerResult("installed", "installed:rd-guide/review") },
+    {
+      type: "select",
+      value: "skills",
+      check: (question) => {
+        assert.ok(question.choices.some(({ value }) => value === "skills"));
+      },
+    },
+    {
+      type: "checkbox",
+      value: ["xhgj-humanize-writing"],
+      check: (question) => {
+        assert.equal(question.message, "RD Guide 技能管理");
+        assert.deepEqual(
+          question.choices.map(({ value }) => value),
+          ["xhgj-gitlab-collaboration", "xhgj-humanize-writing"],
+        );
+        assert.equal(question.choices[0].checked, true);
+      },
+    },
+    { type: "confirm", value: true },
+    { type: "manager", value: managerResult("installed", "exit") },
+  ]);
+  const commands = [];
+  await runPluginInteractive({ target: fixture.project }, {
+    prompts: script.prompts,
+    output: fixture.outputAdapter,
+    store,
+    sourceStore: fixture.sourceStore,
+    credentialBundle: fixture.credentialBundle,
+    authStatus: async () => ({ authorized: true, persistent: false }),
+    inspectPluginContentSkills: async (request) => {
+      assert.equal(request.pluginId, "rd-guide/review");
+      assert.ok(request.lockedPlugin);
+      return {
+        ok: true,
+        pluginId: request.pluginId,
+        version: "1.0.0",
+        name: "研发指南",
+        skills: [
+          { name: "xhgj-gitlab-collaboration", path: "skills/xhgj-gitlab-collaboration" },
+          { name: "xhgj-humanize-writing", path: "skills/xhgj-humanize-writing" },
+        ],
+      };
+    },
+    runCommand: async (args) => { commands.push(args); return 0; },
+  });
+  assert.deepEqual(commands, [
+    ["update", "rd-guide/review", "--content-skill", "xhgj-humanize-writing", "--dry-run"],
+    ["update", "rd-guide/review", "--content-skill", "xhgj-humanize-writing"],
   ]);
   script.assertDone();
 });

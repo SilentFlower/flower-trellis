@@ -16,6 +16,11 @@ import { hashDirectoryIfExists, hashFileIfExists } from "./install/content-hash.
 import { getPluginPatchPlanner } from "./runtime-extensions.js";
 import { isRuntimeBuiltinProviderTrusted } from "./runtime-extensions.js";
 import { compareUtf8 } from "./stable-order.js";
+import {
+  contentSelectionsEqual,
+  normalizeContentSelection,
+  selectContentSkillEntries,
+} from "./content-selection.js";
 
 /**
  * 计算 lock roots 可达的全部 Plugin。
@@ -151,7 +156,7 @@ export class PluginApplicationService {
   /**
    * 添加或更新一个直接 Plugin 声明并应用完整图。
    *
-   * @param {{id:string,version?:string,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,onPreflight?:(result:object)=>void}} options 添加选项
+   * @param {{id:string,version?:string,platforms?:string[],contentSelection?:import("./contracts.js").PluginContentSelection,dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,onPreflight?:(result:object)=>void}} options 添加选项
    * @returns {object} 生命周期结果
    */
   add(options) {
@@ -168,6 +173,11 @@ export class PluginApplicationService {
       source: sourceId,
       version: options.version || "*",
     };
+    const contentSelection = normalizeContentSelection(options.contentSelection, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: options.id,
+    });
+    if (contentSelection) declaration.contentSelection = contentSelection;
     const declarations = pluginsFile.plugins.filter(({ id }) => id !== options.id);
     declarations.push(declaration);
     return this.#applyLifecycle("add", {
@@ -189,12 +199,13 @@ export class PluginApplicationService {
    * 其锁定包也已不可重放，逐个更新会在其它节点上撞 `已锁定 Plugin 包不可重放`。
    * 传入 `widen` 时按 `update: "all"` 解析，让全部节点都允许升级，一次性解开这种死锁。
    *
-   * @param {{id?:string|null,version?:string,widen?:Map<string,string>|Record<string,string>,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,onPreflight?:(result:object)=>void}} [options] 更新选项
+   * @param {{id?:string|null,version?:string,widen?:Map<string,string>|Record<string,string>,contentSelection?:import("./contracts.js").PluginContentSelection|null,platforms?:string[],dryRun?:boolean,approvals?:string[],approvedDigests?:Map<string,string>|Record<string,string>,nonInteractive?:boolean,onPreflight?:(result:object)=>void}} [options] 更新选项
    * @returns {object} 生命周期结果
    */
   update(options = {}) {
     const pluginsFile = this.store.readPlugins();
     const widen = normalizeVersionOverrides(options.widen);
+    const hasContentSelection = Object.prototype.hasOwnProperty.call(options, "contentSelection");
     if (options.id && !pluginsFile.plugins.some(({ id }) => id === options.id)) {
       throw new PluginRuntimeError(`项目未声明 Plugin:${options.id}`, {
         code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
@@ -214,6 +225,18 @@ export class PluginApplicationService {
         path: "widen",
       });
     }
+    if (hasContentSelection && !options.id) {
+      throw new PluginRuntimeError("更新 Content Skill 选择时必须指定 Plugin ID", {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: "contentSelection",
+      });
+    }
+    if (hasContentSelection && widen.size > 0) {
+      throw new PluginRuntimeError("更新 Content Skill 选择时不能同时放宽声明范围", {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: "contentSelection",
+      });
+    }
     const declaredIds = new Set(pluginsFile.plugins.map(({ id }) => id));
     for (const id of [...widen.keys()].sort(compareUtf8)) {
       if (!declaredIds.has(id)) {
@@ -229,12 +252,24 @@ export class PluginApplicationService {
     const overrides = options.version && options.id
       ? new Map([[options.id, options.version]])
       : widen;
-    const nextPlugins = overrides.size > 0
+    const contentSelection = hasContentSelection
+      ? normalizeContentSelection(options.contentSelection, {
+        code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+        path: options.id,
+      })
+      : undefined;
+    const nextPlugins = (overrides.size > 0 || hasContentSelection)
       ? {
         ...pluginsFile,
-        plugins: pluginsFile.plugins.map((plugin) => (
-          overrides.has(plugin.id) ? { ...plugin, version: overrides.get(plugin.id) } : plugin
-        )),
+        plugins: pluginsFile.plugins.map((plugin) => {
+          let next = overrides.has(plugin.id) ? { ...plugin, version: overrides.get(plugin.id) } : plugin;
+          if (hasContentSelection && plugin.id === options.id) {
+            next = { ...next };
+            if (contentSelection) next.contentSelection = contentSelection;
+            else delete next.contentSelection;
+          }
+          return next;
+        }),
       }
       : pluginsFile;
     return this.#applyLifecycle("update", {
@@ -410,13 +445,32 @@ export class PluginApplicationService {
           severity: "error",
         });
       }
+      const locked = lockById.get(declaration.id);
+      const applied = stateById.get(declaration.id);
+      if (locked && !contentSelectionsEqual(declaration.contentSelection, locked.contentSelection)) {
+        diagnostics.push({
+          code: "verify.content-selection-lock-mismatch",
+          path: declaration.id,
+          message: `Plugin 声明与 lock 的 Content Skill 选择不一致:${declaration.id}`,
+          severity: "error",
+        });
+      }
+      if (applied && !contentSelectionsEqual(declaration.contentSelection, applied.contentSelection)) {
+        diagnostics.push({
+          code: "verify.content-selection-state-mismatch",
+          path: declaration.id,
+          message: `Plugin 声明与 state 的 Content Skill 选择不一致:${declaration.id}`,
+          severity: "error",
+        });
+      }
     }
     for (const id of requestedIds) {
       const locked = lockById.get(id);
       const applied = stateById.get(id);
       if (!locked) continue;
+      let pluginPackage = null;
       try {
-        this.registry.readPackage(locked);
+        pluginPackage = this.registry.readPackage(locked);
       } catch (error) {
         diagnostics.push({
           code: "verify.package-invalid",
@@ -424,6 +478,18 @@ export class PluginApplicationService {
           message: `固定 Plugin 包校验失败:${error.message}`,
           severity: "error",
         });
+      }
+      if (pluginPackage) {
+        try {
+          selectContentSkillEntries(pluginPackage.manifest.content.skills || [], locked.contentSelection, id);
+        } catch (error) {
+          diagnostics.push({
+            code: "verify.content-selection-invalid",
+            path: id,
+            message: error.message,
+            severity: "error",
+          });
+        }
       }
       if (!applied) {
         diagnostics.push({
@@ -439,6 +505,14 @@ export class PluginApplicationService {
           code: "verify.version-mismatch",
           path: id,
           message: `Plugin state 版本与 lock 不一致:${id}`,
+          severity: "error",
+        });
+      }
+      if (!contentSelectionsEqual(locked.contentSelection, applied.contentSelection)) {
+        diagnostics.push({
+          code: "verify.content-selection-apply-mismatch",
+          path: id,
+          message: `Plugin lock 与 state 的 Content Skill 选择不一致:${id}`,
           severity: "error",
         });
       }

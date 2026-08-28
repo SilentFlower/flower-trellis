@@ -9,6 +9,10 @@ import {
 import { assertSafePosixRelativePath } from "../schemas/shared.js";
 import { compareUtf8 } from "../stable-order.js";
 import { isRuntimeBuiltinProviderTrusted } from "../runtime-extensions.js";
+import {
+  normalizeContentSelection,
+  selectContentSkillEntries,
+} from "../content-selection.js";
 import { hashContent, hashFileIfExists } from "./content-hash.js";
 
 const CONTENT_KINDS = ["skills", "specs", "assets", "scripts", "tests"];
@@ -146,6 +150,7 @@ export function projectPluginContent(options) {
     const candidate = selectedById.get(resolved.id);
     if (!candidate) throw new Error(`Resolved Plugin 缺少候选:${resolved.id}`);
     const pluginPackage = options.registry.readPackage(candidate);
+    const contentSelection = normalizeContentSelection(resolved.contentSelection);
     const provider = typeof options.registry.get === "function"
       ? options.registry.get(candidate.source.id)
       : null;
@@ -184,7 +189,10 @@ export function projectPluginContent(options) {
     }
     const paths = new Map();
     for (const kind of CONTENT_KINDS) {
-      for (const entry of [...(pluginPackage.manifest.content[kind] || [])].sort(compareUtf8)) {
+      const entries = kind === "skills"
+        ? selectContentSkillEntries(pluginPackage.manifest.content.skills || [], contentSelection, resolved.id)
+        : [...(pluginPackage.manifest.content[kind] || [])].sort(compareUtf8);
+      for (const entry of entries) {
         const expanded = expandContentEntry(pluginPackage.root, entry);
         const targets = kind === "skills" ? options.platformSelection.targets : [{ root: null }];
         for (const platformTarget of targets) {
@@ -257,6 +265,7 @@ export function projectPluginContent(options) {
       id: resolved.id,
       version: resolved.version,
       platforms: [...options.platformSelection.platforms],
+      ...(contentSelection ? { contentSelection } : {}),
       paths: [...paths.values()].sort((left, right) => compareUtf8(left.path, right.path)),
       patches: [],
     });

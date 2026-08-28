@@ -113,6 +113,88 @@ test("内容投影把 canonical Skill 一次写入共享物理 root", (t) => {
   assert.equal(projection.payloads.size, 3);
 });
 
+test("内容投影按 contentSelection.skills 过滤 manifest Skill", (t) => {
+  const project = createPluginTestRoot(t);
+  writePluginPackage(project, "plugins/demo", pluginManifest({
+    content: { skills: ["skills/alpha", "skills/beta"] },
+  }), {
+    "skills/alpha/SKILL.md": "# Alpha\n",
+    "skills/beta/SKILL.md": "# Beta\n",
+  });
+  const registry = new SourceRegistry([
+    new LocalSourceProvider({ id: "local", projectRoot: project, references: ["plugins"] }),
+  ]);
+  const resolution = resolvePluginGraph(
+    [{ id: "local/demo", source: "local", version: "*", contentSelection: { skills: ["beta"] } }],
+    registry,
+  );
+  const projection = projectPluginContent({
+    projectRoot: project,
+    graph: resolution.graph,
+    selected: resolution.selected,
+    registry,
+    platformSelection: detectPluginPlatforms(project, ["codex"]),
+  });
+
+  assert.deepEqual(
+    projection.mutations.map(({ target }) => target),
+    [".agents/skills/beta/SKILL.md"],
+  );
+  assert.deepEqual(projection.state.plugins[0].contentSelection, { skills: ["beta"] });
+  assert.equal([...projection.payloads.values()][0].toString(), "# Beta\n");
+});
+
+test("内容投影拒绝不存在或 basename 重复的 contentSelection Skill", (t) => {
+  const missingProject = createPluginTestRoot(t, "flower-content-selection-missing-");
+  writePluginPackage(missingProject, "plugins/demo", pluginManifest({
+    content: { skills: ["skills/alpha"] },
+  }), {
+    "skills/alpha/SKILL.md": "# Alpha\n",
+  });
+  const missingRegistry = new SourceRegistry([
+    new LocalSourceProvider({ id: "local", projectRoot: missingProject, references: ["plugins"] }),
+  ]);
+  const missingResolution = resolvePluginGraph(
+    [{ id: "local/demo", source: "local", version: "*", contentSelection: { skills: ["beta"] } }],
+    missingRegistry,
+  );
+  assert.throws(
+    () => projectPluginContent({
+      projectRoot: missingProject,
+      graph: missingResolution.graph,
+      selected: missingResolution.selected,
+      registry: missingRegistry,
+      platformSelection: detectPluginPlatforms(missingProject, ["codex"]),
+    }),
+    (error) => error.code === PLUGIN_RUNTIME_ERROR_CODES.CONTENT_SELECTION_INVALID,
+  );
+
+  const duplicateProject = createPluginTestRoot(t, "flower-content-selection-duplicate-");
+  writePluginPackage(duplicateProject, "plugins/demo", pluginManifest({
+    content: { skills: ["skills/demo", "other/demo"] },
+  }), {
+    "skills/demo/SKILL.md": "# Demo\n",
+    "other/demo/SKILL.md": "# Other\n",
+  });
+  const duplicateRegistry = new SourceRegistry([
+    new LocalSourceProvider({ id: "local", projectRoot: duplicateProject, references: ["plugins"] }),
+  ]);
+  const duplicateResolution = resolvePluginGraph(
+    [{ id: "local/demo", source: "local", version: "*" }],
+    duplicateRegistry,
+  );
+  assert.throws(
+    () => projectPluginContent({
+      projectRoot: duplicateProject,
+      graph: duplicateResolution.graph,
+      selected: duplicateResolution.selected,
+      registry: duplicateRegistry,
+      platformSelection: detectPluginPlatforms(duplicateProject, ["codex"]),
+    }),
+    (error) => error.code === PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
+  );
+});
+
 test("内容投影应用 platform override，并拒绝共享 root 的差异覆盖", (t) => {
   const project = createPluginTestRoot(t);
   const packageRoot = writePluginPackage(project, "plugins/demo", pluginManifest());

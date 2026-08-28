@@ -23,6 +23,11 @@
  */
 
 /**
+ * @typedef {object} PluginContentSelection
+ * @property {string[]} [skills] 当前项目选择启用的 Skill 名称
+ */
+
+/**
  * @typedef {object} PluginManifest
  * @property {1} schemaVersion schema 版本
  * @property {string} id Plugin 本地 ID
@@ -146,6 +151,7 @@
  * @property {Record<string,string>} dependencies 已解析依赖版本
  * @property {CompatibilityConstraint} compatibility 兼容范围
  * @property {CapabilityGrant} capabilities 实际能力授权
+ * @property {PluginContentSelection} [contentSelection] 内容选择
  */
 
 /**
@@ -210,6 +216,7 @@
  * @property {string} source 来源 ID
  * @property {string} version SemVer range
  * @property {string[]} [platforms] 显式平台限制
+ * @property {PluginContentSelection} [contentSelection] 内容选择
  */
 
 /**
@@ -245,6 +252,7 @@
  * @property {string} id canonical Plugin ID
  * @property {string} version 已应用版本
  * @property {string[]} platforms 实际投影平台
+ * @property {PluginContentSelection} [contentSelection] 内容选择
  * @property {PluginPathState[]} paths 受管路径
  * @property {PluginPatchState[]} patches Patch 应用状态
  */

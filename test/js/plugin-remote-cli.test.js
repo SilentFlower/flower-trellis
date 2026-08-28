@@ -3,7 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { plugin, parsePluginArgs } from "../../src/commands/plugin.js";
-import { inspectGitHubPluginSource } from "../../src/commands/plugin-remote.js";
+import {
+  inspectGitHubPluginSource,
+  inspectPluginContentSkills,
+} from "../../src/commands/plugin-remote.js";
 import { PluginRuntimeError } from "../../src/plugin/runtime-errors.js";
 import { MemoryCredentialStore } from "../../src/plugin/auth/memory-credential-store.js";
 import { hashCanonicalTree } from "../../src/plugin/integrity/canonical-tree.js";
@@ -278,6 +281,59 @@ test("GitHub 来源预览失败也清理临时缓存且不写项目", async (t) 
   }), (error) => error.code === "PLUGIN_FORMAT_UNRECOGNIZED");
   assert.equal(fs.existsSync(cacheRoot), false);
   assert.equal(fs.existsSync(path.join(root, ".flower")), false);
+});
+
+test("TUI inspection 只从 manifest content.skills 返回 Skill 清单", async (t) => {
+  const root = createPluginTestRoot(t, "flower-remote-cli-content-skills-");
+  const manifest = pluginManifest({
+    content: {
+      skills: ["skills/xhgj-humanize-writing", "skills/xhgj-gitlab-collaboration"],
+      scripts: ["scripts"],
+      tests: ["tests"],
+    },
+  });
+  const packageRoot = writePluginPackage(root, "remote-package", manifest, {
+    "skills/xhgj-humanize-writing/SKILL.md": "# Humanize\n",
+    "skills/xhgj-gitlab-collaboration/SKILL.md": "# GitLab\n",
+    "scripts/render_real_usage.py": "print('usage')\n",
+    "tests/self_check.py": "print('check')\n",
+  });
+  const integrity = hashCanonicalTree(packageRoot);
+  const candidate = {
+    id: "rd-guide/demo",
+    version: "1.0.0",
+    source: { id: "rd-guide", type: "gitlab", reference: "group/rd-guide", indexCommit: "a".repeat(40) },
+    commit: "b".repeat(40),
+    integrity,
+    manifest,
+  };
+  let prepared = null;
+  const provider = {
+    id: "rd-guide",
+    type: "gitlab",
+    prepare: async (id) => { prepared = id; },
+    listCandidates: () => [candidate],
+    readPackage: () => ({ root: packageRoot, manifest, integrity }),
+  };
+  const sourceStore = new UserSourceStore({
+    configFile: path.join(root, "config.json"),
+    builtinDescriptors: [descriptor],
+  });
+
+  const inspection = await inspectPluginContentSkills({
+    pluginId: "rd-guide/demo",
+    version: "1.0.0",
+  }, { target: root }, {
+    providers: [provider],
+    sourceStore,
+    credentialBundle: { store: new MemoryCredentialStore(), persistent: false },
+  });
+
+  assert.equal(prepared, "rd-guide/demo");
+  assert.deepEqual(inspection.skills, [
+    { name: "xhgj-gitlab-collaboration", path: "skills/xhgj-gitlab-collaboration" },
+    { name: "xhgj-humanize-writing", path: "skills/xhgj-humanize-writing" },
+  ]);
 });
 
 test("source list 与 auth status 保持零网络并输出非敏感 JSON", async (t) => {

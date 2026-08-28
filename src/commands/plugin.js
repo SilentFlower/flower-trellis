@@ -17,6 +17,7 @@ import {
   SKILL_GARDEN_PLUGIN_ID,
   SkillGardenBuiltinProvider,
 } from "../builtin-plugins/skill-garden/provider.js";
+import { contentSelectionFromSkillNames } from "../plugin/content-selection.js";
 
 const REMOTE_PLUGIN_ENTRY = new URL("./plugin-remote.js", import.meta.url);
 const PATCH_RUNTIME_ENTRY = new URL("../plugin/install/patch-planner.js", import.meta.url);
@@ -35,6 +36,7 @@ const PLUGIN_CONFLICT_CODES = new Set([
   PLUGIN_RUNTIME_ERROR_CODES.DEPENDENCY_MISSING,
   PLUGIN_RUNTIME_ERROR_CODES.DEPENDENCY_CONFLICT,
   PLUGIN_RUNTIME_ERROR_CODES.DEPENDENCY_CYCLE,
+  PLUGIN_RUNTIME_ERROR_CODES.CONTENT_SELECTION_INVALID,
   PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
   PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
   PLUGIN_RUNTIME_ERROR_CODES.VERIFY_FAILED,
@@ -227,7 +229,7 @@ function parseManagementArgs(argv) {
  * 解析 Plugin 多级命令参数。
  *
  * @param {string[]} argv `plugin` 后的参数
- * @returns {{command:string,pluginId:string|null,source:string|null,version:string|null,platforms:string[],dryRun:boolean,json:boolean,help:boolean}} 解析结果
+ * @returns {{command:string,pluginId:string|null,source:string|null,version:string|null,platforms:string[],contentSelection:object|null,dryRun:boolean,json:boolean,help:boolean}} 解析结果
  */
 export function parsePluginArgs(argv) {
   const authoring = parsePluginAuthoringArgs(argv);
@@ -238,6 +240,7 @@ export function parsePluginArgs(argv) {
   const command = rootHelp ? "list" : (argv[0] || "list");
   const positional = [];
   const platforms = [];
+  const contentSkills = [];
   const widen = [];
   let source = null;
   let version = null;
@@ -247,7 +250,13 @@ export function parsePluginArgs(argv) {
 
   for (let index = 1; index < argv.length; index += 1) {
     const token = argv[index];
-    if (token === "--source" || token === "--version" || token === "--platform" || token === "--widen") {
+    if (
+      token === "--source" ||
+      token === "--version" ||
+      token === "--platform" ||
+      token === "--widen" ||
+      token === "--content-skill"
+    ) {
       const value = argv[index + 1];
       if (!value || value.startsWith("--")) {
         throw new PluginRuntimeError(`${token} 缺少取值`, {
@@ -259,6 +268,7 @@ export function parsePluginArgs(argv) {
       if (token === "--source") source = value;
       else if (token === "--version") version = value;
       else if (token === "--widen") widen.push(value);
+      else if (token === "--content-skill") contentSkills.push(value);
       else platforms.push(value);
       continue;
     }
@@ -341,6 +351,24 @@ export function parsePluginArgs(argv) {
       path: command,
     });
   }
+  const contentSelection = contentSkills.length > 0
+    ? contentSelectionFromSkillNames(contentSkills, {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: "--content-skill",
+    })
+    : null;
+  if (contentSelection && !["add", "update"].includes(command)) {
+    throw new PluginRuntimeError("--content-skill 仅支持 plugin add 与单个 plugin update", {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: command,
+    });
+  }
+  if (contentSelection && command === "update" && (!positional[0] || widen.length > 0)) {
+    throw new PluginRuntimeError("--content-skill 仅支持单个 plugin update，且不能与 --widen 同时使用", {
+      code: PLUGIN_RUNTIME_ERROR_CODES.USAGE_ERROR,
+      path: "--content-skill",
+    });
+  }
   return {
     command,
     pluginId: positional[0] || null,
@@ -348,6 +376,7 @@ export function parsePluginArgs(argv) {
     version,
     widen: parseWidenPairs(widen),
     platforms: parsePlatforms(platforms),
+    contentSelection,
     dryRun,
     json,
     help,
@@ -365,8 +394,8 @@ function printPluginHelp(output) {
     : "";
   output.log(`用法:
   flower-trellis plugin list [--json]
-  flower-trellis plugin add <plugin> [--source <来源 ID|项目内路径>] [--version <range>] [--platform <id>] [--dry-run] [--json]
-  flower-trellis plugin update [plugin] [--version <range>] [--widen <plugin>=<range>]... [--platform <id>] [--dry-run] [--json]
+  flower-trellis plugin add <plugin> [--source <来源 ID|项目内路径>] [--version <range>] [--platform <id>] [--content-skill <name>]... [--dry-run] [--json]
+  flower-trellis plugin update [plugin] [--version <range>] [--widen <plugin>=<range>]... [--platform <id>] [--content-skill <name>]... [--dry-run] [--json]
   flower-trellis plugin remove <plugin> [--dry-run] [--json]
   flower-trellis plugin verify [plugin] [--json]
   flower-trellis plugin init --id <source/plugin> --name <name> [--version <semver>] [--profile <standard|integration>] [--patches] [--marketplace] [--non-interactive] [--json]
@@ -875,6 +904,7 @@ export async function plugin(ctx, options = {}) {
             : "*"
         ),
         platforms: parsed.platforms,
+        ...(parsed.contentSelection ? { contentSelection: parsed.contentSelection } : {}),
         dryRun: parsed.dryRun,
         onPreflight: options.onPreflight,
       };
@@ -893,6 +923,7 @@ export async function plugin(ctx, options = {}) {
           : parsed.version ? { version: parsed.version } : {}),
         ...(Object.keys(parsed.widen || {}).length > 0 ? { widen: parsed.widen } : {}),
         platforms: parsed.platforms,
+        ...(parsed.contentSelection ? { contentSelection: parsed.contentSelection } : {}),
         dryRun: parsed.dryRun,
         onPreflight: options.onPreflight,
       };

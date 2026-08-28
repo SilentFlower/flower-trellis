@@ -69,6 +69,26 @@ const capabilityGrantSchema = {
   },
 };
 
+const contentSelectionNameSchema = {
+  type: "string",
+  minLength: 1,
+  pattern: "^(?!\\.{1,2}$)[^/\\\\]+$",
+};
+
+const contentSelectionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["skills"],
+  properties: {
+    skills: {
+      type: "array",
+      minItems: 1,
+      items: contentSelectionNameSchema,
+      uniqueItems: true,
+    },
+  },
+};
+
 /** `.flower/plugins.json` v1 JSON Schema。 */
 export const PLUGINS_FILE_SCHEMA = Object.freeze({
   $id: "https://flower-trellis.local/schema/plugins-file-v1.json",
@@ -92,6 +112,7 @@ export const PLUGINS_FILE_SCHEMA = Object.freeze({
             items: { type: "string", format: "plugin-id" },
             uniqueItems: true,
           },
+          contentSelection: contentSelectionSchema,
         },
       },
     },
@@ -147,6 +168,7 @@ export const PLUGIN_LOCK_SCHEMA = Object.freeze({
             },
           },
           capabilities: capabilityGrantSchema,
+          contentSelection: contentSelectionSchema,
         },
       },
     },
@@ -176,6 +198,7 @@ export const PLUGIN_STATE_SCHEMA = Object.freeze({
             items: { type: "string", format: "plugin-id" },
             uniqueItems: true,
           },
+          contentSelection: contentSelectionSchema,
           paths: {
             type: "array",
             items: {

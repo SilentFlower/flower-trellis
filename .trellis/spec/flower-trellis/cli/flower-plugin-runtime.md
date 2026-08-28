@@ -112,6 +112,8 @@ Source Provider 最小接口固定为：
 - `widen` 只改写覆盖表中列出的声明；未越界的声明保持原样，不因整图放宽而被顺带升级约束。
 - `widen` 的每个 range 必须是合法 SemVer range，每个 key 必须是当前 `plugins.json` 中已声明的 canonical ID。
 - CLI `--widen <plugin>=<range>` 可重复，按**第一个** `=` 切分。range 自身含 `=`（如 `>=0.2.2 <0.3.0`）时落在右侧，不受影响；不得改用重复 `--version` 承载 `id=range`，裸 range 与 `id=range` 两种形态无法安全区分。
+- CLI `--content-skill <name>` 可重复，也允许逗号列表；归一化后写入直接声明 `contentSelection.skills`。该参数只允许 `plugin add` 和带单个 Plugin ID 的 `plugin update`，不得与 `--widen` 并用。Resolver 只把直接声明的选择带入对应 root，依赖始终安装 manifest 声明的完整 Skill 内容。
+- Content projector 只用 `contentSelection.skills` 过滤 manifest `content.skills`；`specs/assets/scripts/tests` 仍按 manifest 全量投影为普通被动内容。过滤匹配使用每个 Skill entry 的 POSIX basename，并在 basename 重复或选择不存在时失败。
 - 候选、约束、roots、orphans 和 lock 输出必须按 UTF-8 稳定排序，不能依赖 Provider、对象或文件系统返回顺序。
 
 ### Platform And Install Plan
@@ -265,16 +267,16 @@ Source Provider 最小接口固定为：
 
 - `plugin-source-registry.test.js`：builtin/local 标准候选、重复 source、固定包漂移、路径去重和可选 capability 晚加载回补。
 - `plugin-dependency-resolver.test.js`：传递/共享依赖、稳定顺序、lock-first、显式 update、缺失、歧义、冲突、自依赖、循环和 orphan。
-- `plugin-content-projector.test.js`：显式/检测平台、共享物理 root、override 和无平台阻断。
+- `plugin-content-projector.test.js`：显式/检测平台、共享物理 root、override、无平台阻断，以及 `contentSelection.skills` 过滤、缺失选择和 basename 重复。
 - `plugin-install-planner.test.js`：同目标、ownership、用户文件、文件目录前缀及普通内容/Patch 冲突。
 - `plugin-transaction-writer.test.js`：before/payload 漂移、state 最后写、changed-only、dry-run、回滚和 retained evidence。
 - `plugin-format-adapters.test.js`：Flower/Codex/Claude/skill-only 检测、歧义、路径边界、commands 转换、主动组件仅诊断和标准包校验。
-- `plugin-interactive.test.js` 与 `plugin-remote-cli.test.js`：歧义选择、非 TTY 零 prompt、兼容预览、临时 cache 成功/失败清理和确认前零持久化。
+- `plugin-interactive.test.js` 与 `plugin-remote-cli.test.js`：歧义选择、非 TTY 零 prompt、兼容预览、普通 Marketplace Plugin 的 Skill 子集选择、远程 manifest Skill inspection、临时 cache 成功/失败清理和确认前零持久化。
 - no `.trellis` common-only 回归必须覆盖：`aliyun-ops-skill.test.js` 断言 `listSkillCatalog()` 返回
   common 清单、空 `enhancementSkills`、安装/停用不创建 `.flower`；`plugin-interactive.test.js`
   断言发现页内置入口不读取 Provider 候选且只调用 `openSkillManager()`；`plugin-e2e-interactive.test.js`
   断言真实 TTY 裸 `plugin` 首页显示内置入口并零写入退出。
-- `plugin-lifecycle-cli.test.js`：parser、真实 add/update/remove/verify、空项目 update、无平台零写入、JSON/人类输出、短 ID 和退出码。断言点还须覆盖：`--widen` 的重复取值与含 `=` range 的切分；多个精确锁同时越界时逐个 `--version` 失败于 `已锁定 Plugin 包不可重放` 而批量 `--widen` 成功；批量 dry-run 后 `plugins.json` 零写入；未越界声明保持原样；空项目 `update --version` 返回退出码 `2`。
+- `plugin-lifecycle-cli.test.js`：parser、真实 add/update/remove/verify、空项目 update、无平台零写入、JSON/人类输出、短 ID 和退出码。断言点还须覆盖：`--content-skill` 重复/逗号归一化、add/update 持久化并过滤 Skill、非法或越界命令拒绝；`--widen` 的重复取值与含 `=` range 的切分；多个精确锁同时越界时逐个 `--version` 失败于 `已锁定 Plugin 包不可重放` 而批量 `--widen` 成功；批量 dry-run 后 `plugins.json` 零写入；未越界声明保持原样；空项目 `update --version` 返回退出码 `2`。
 - `trellis-control.test.js`：disabled 项目真实 `plugin add` 后外部 Skill、声明和 state 保留，Trellis
   平台入口重新 detach，最终 `inspectTrellisControl().status === "disabled"`；同时覆盖 excluded spec
   精确快照恢复和外层补偿不完整时的 `repair-required` 持久化。

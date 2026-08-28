@@ -4,6 +4,7 @@ import {
   PluginRuntimeError,
 } from "../runtime-errors.js";
 import { compareUtf8 } from "../stable-order.js";
+import { normalizeContentSelection } from "../content-selection.js";
 
 /**
  * 比较候选的稳定优先级。
@@ -173,6 +174,7 @@ export function resolvePluginGraph(declarations, registry, options = {}) {
     : new Set(options.update || []);
   const grantCapabilities = options.grantCapabilities || defaultCapabilityGrant;
   const initialConstraints = new Map();
+  const rootDeclarations = new Map(declarations.map((declaration) => [declaration.id, declaration]));
 
   for (const declaration of [...declarations].sort((left, right) => compareUtf8(left.id, right.id))) {
     const entries = initialConstraints.get(declaration.id) || [];
@@ -279,6 +281,9 @@ export function resolvePluginGraph(declarations, registry, options = {}) {
   const order = stableTopologicalOrder(roots, selected);
   const resolvedPlugins = order.map((id) => {
     const candidate = selected.get(id);
+    const contentSelection = rootDeclarations.has(id)
+      ? normalizeContentSelection(rootDeclarations.get(id).contentSelection)
+      : undefined;
     const dependencies = Object.fromEntries(
       Object.keys(candidate.manifest.dependencies || {}).sort(compareUtf8).map((dependency) => [
         dependency,
@@ -294,6 +299,7 @@ export function resolvePluginGraph(declarations, registry, options = {}) {
       dependencies,
       compatibility: candidate.manifest.compatibility,
       capabilities: grantCapabilities(candidate.manifest.capabilities, candidate),
+      ...(contentSelection ? { contentSelection } : {}),
     };
   });
   const graph = { roots, plugins: resolvedPlugins };

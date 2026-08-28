@@ -75,7 +75,9 @@ ProjectStore.writeState(value) -> {status, path}
 ```
 
 - `plugins.json` 只保存直接 Plugin、source ID、版本约束和可选显式平台限制。
+- 直接 Plugin 可选 `contentSelection.skills`，表示按 manifest `content.skills` 的 basename 选择要安装的 Skill 子集；名称必须是非空单段安全名，不能含 `/`、`\`、`.` 或 `..`。该字段只属于直接声明，不由依赖继承。
 - `plugin-lock.json` 保存完整图、source descriptor、commit、integrity、兼容范围和 capability grant；不得保存 token、用户身份、本机绝对路径或检测平台。
+- `plugin-lock.json` 和 `state.json` 必须原样记录解析后实际生效的 `contentSelection`，用于 verify 检测声明、lock 和本机投影是否一致。
 - resolved source 是判别式对象：`builtin.reference` 为包内稳定引用，`local.reference` 为安全 POSIX 相对路径，`gitlab.reference` 为 GitLab project path，`github.reference` 为规范化的 `owner/repository`。
 - GitLab 锁定项必须同时包含 Plugin `commit` 与 Marketplace `source.indexCommit`。
 - GitHub 锁定项必须固定 `format` 与 `entryPath`；通过 Marketplace 发现时还必须成对保存 `indexReference/indexCommit`，直连 Plugin 不得伪造索引字段。
@@ -106,6 +108,7 @@ ProjectStore.writeState(value) -> {status, path}
 | canonical/source ID 不一致 | schema issue `project.source-mismatch` 或 `lock.source-mismatch` | 不进入 Resolver/写盘 |
 | GitLab lock 缺 commit/index commit | `lock.gitlab-commit-required` / `lock.index-commit-required` | 不产生可提交 lock |
 | GitHub lock 缺 format/entryPath，或索引 identity 只出现一半 | `PLUGIN_SCHEMA_INVALID` | 不产生可提交 lock |
+| `contentSelection.skills` 名称非法、重复、为空或指向不存在的 manifest Skill | `PLUGIN_CONTENT_SELECTION_INVALID` | 不写入声明、lock、state 或目标 Skill |
 | v1 source store 含 GitHub，或 `format=auto` 同时固定 entryPath | `PLUGIN_SOURCE_CONFIG_INVALID` | 原配置字节不变 |
 | 重复 Marketplace Plugin/版本 | `marketplace.duplicate-plugin` / `marketplace.duplicate-version` | 精确指向重复条目 |
 | 相同 canonical JSON 重复写入 | `{status: "unchanged"}` | 文件内容与 mtime 不变 |

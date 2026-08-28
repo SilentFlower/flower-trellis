@@ -42,6 +42,10 @@ test("Plugin parser 独立处理多级命令、重复平台与 dry-run", () => {
       "codex,gemini",
       "--platform",
       "zcode",
+      "--content-skill",
+      "review,gitlab",
+      "--content-skill",
+      "gitlab",
       "--dry-run",
       "--json",
     ]),
@@ -52,6 +56,7 @@ test("Plugin parser 独立处理多级命令、重复平台与 dry-run", () => {
       version: "^1.0.0",
       widen: {},
       platforms: ["codex", "gemini", "zcode"],
+      contentSelection: { skills: ["gitlab", "review"] },
       dryRun: true,
       json: true,
       help: false,
@@ -332,6 +337,22 @@ test("Plugin parser 拒绝非法版本与命令不支持的 flag", () => {
     () => parsePluginArgs(["verify", "--platform", "codex"]),
     (error) => error.code === "PLUGIN_USAGE_ERROR",
   );
+  assert.throws(
+    () => parsePluginArgs(["verify", "local/demo", "--content-skill", "demo"]),
+    (error) => error.code === "PLUGIN_USAGE_ERROR",
+  );
+  assert.throws(
+    () => parsePluginArgs(["update", "--content-skill", "demo"]),
+    (error) => error.code === "PLUGIN_USAGE_ERROR",
+  );
+  assert.throws(
+    () => parsePluginArgs(["update", "local/demo", "--widen", "local/demo=^1.0.0", "--content-skill", "demo"]),
+    (error) => error.code === "PLUGIN_USAGE_ERROR",
+  );
+  assert.throws(
+    () => parsePluginArgs(["add", "local/demo", "--content-skill", "nested/demo"]),
+    (error) => error.code === "PLUGIN_USAGE_ERROR",
+  );
   // --source 仍只属于 add；--version 放开到 update 以便放宽存量精确锁。
   assert.throws(
     () => parsePluginArgs(["update", "local/demo", "--source", "plugins/demo"]),
@@ -342,6 +363,123 @@ test("Plugin parser 拒绝非法版本与命令不支持的 flag", () => {
     (error) => error.code === "PLUGIN_USAGE_ERROR",
   );
   assert.equal(parsePluginArgs(["update", "local/demo", "--version", "^1.1.0"]).version, "^1.1.0");
+});
+
+test("Plugin lifecycle 按 contentSelection.skills 投影并在 update 中保留选择", (t) => {
+  const project = createPluginTestRoot(t, "flower-cli-content-selection-");
+  const packageRoot = writePluginPackage(project, "plugins/demo", pluginManifest({
+    content: { skills: ["skills/gitlab", "skills/humanize"] },
+  }), {
+    "skills/gitlab/SKILL.md": "# GitLab 1.0\n",
+    "skills/humanize/SKILL.md": "# Humanize 1.0\n",
+  });
+
+  const add = runPlugin(project, [
+    "add",
+    "local/demo",
+    "--source",
+    "plugins/demo",
+    "--platform",
+    "codex",
+    "--content-skill",
+    "gitlab",
+    "--json",
+  ]);
+  assert.equal(add.status, 0, `${add.stdout}\n${add.stderr}`);
+  assert.equal(fs.readFileSync(path.join(project, ".agents/skills/gitlab/SKILL.md"), "utf8"), "# GitLab 1.0\n");
+  assert.equal(fs.existsSync(path.join(project, ".agents/skills/humanize/SKILL.md")), false);
+  for (const file of ["plugins.json", "plugin-lock.json", "state.json"]) {
+    const data = JSON.parse(fs.readFileSync(path.join(project, ".flower", file), "utf8"));
+    assert.deepEqual(data.plugins[0].contentSelection, { skills: ["gitlab"] }, `${file} 缺少选择记录`);
+  }
+
+  fs.writeFileSync(path.join(packageRoot, "plugin.json"), `${JSON.stringify(pluginManifest({
+    version: "1.1.0",
+    content: { skills: ["skills/gitlab", "skills/humanize", "skills/release"] },
+  }), null, 2)}\n`);
+  fs.writeFileSync(path.join(packageRoot, "skills/gitlab/SKILL.md"), "# GitLab 1.1\n");
+  fs.mkdirSync(path.join(packageRoot, "skills/release"), { recursive: true });
+  fs.writeFileSync(path.join(packageRoot, "skills/release/SKILL.md"), "# Release 1.1\n");
+
+  const update = runPlugin(project, ["update", "local/demo", "--json"]);
+  assert.equal(update.status, 0, `${update.stdout}\n${update.stderr}`);
+  assert.equal(fs.readFileSync(path.join(project, ".agents/skills/gitlab/SKILL.md"), "utf8"), "# GitLab 1.1\n");
+  assert.equal(fs.existsSync(path.join(project, ".agents/skills/release/SKILL.md")), false);
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.join(project, ".flower/plugins.json"), "utf8")).plugins[0].contentSelection,
+    { skills: ["gitlab"] },
+  );
+
+  const replay = runPlugin(project, ["replay", "--dry-run", "--json"]);
+  assert.equal(replay.status, 0, `${replay.stdout}\n${replay.stderr}`);
+  assert.ok(
+    JSON.parse(replay.stdout).changes.every(({ target: replayTarget }) => !replayTarget?.includes("release")),
+    "replay 不应投影未选择的新增 Skill",
+  );
+  assert.equal(fs.readFileSync(path.join(project, ".agents/skills/gitlab/SKILL.md"), "utf8"), "# GitLab 1.1\n");
+  assert.equal(fs.existsSync(path.join(project, ".agents/skills/release/SKILL.md")), false);
+
+  const switchSelection = runPlugin(project, [
+    "update",
+    "local/demo",
+    "--content-skill",
+    "humanize",
+    "--json",
+  ]);
+  assert.equal(switchSelection.status, 0, `${switchSelection.stdout}\n${switchSelection.stderr}`);
+  assert.equal(fs.existsSync(path.join(project, ".agents/skills/gitlab/SKILL.md")), false);
+  assert.equal(fs.readFileSync(path.join(project, ".agents/skills/humanize/SKILL.md"), "utf8"), "# Humanize 1.0\n");
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.join(project, ".flower/state.json"), "utf8")).plugins[0].contentSelection,
+    { skills: ["humanize"] },
+  );
+});
+
+test("Plugin verify 报告 contentSelection 不一致和 manifest 缺失选择", (t) => {
+  const project = createPluginTestRoot(t, "flower-cli-content-selection-verify-");
+  const writeProjectJson = (file, mutate) => {
+    const target = path.join(project, ".flower", file);
+    const data = JSON.parse(fs.readFileSync(target, "utf8"));
+    mutate(data);
+    fs.writeFileSync(target, `${JSON.stringify(data, null, 2)}\n`);
+  };
+  writePluginPackage(project, "plugins/demo", pluginManifest({
+    content: { skills: ["skills/gitlab", "skills/humanize"] },
+  }), {
+    "skills/gitlab/SKILL.md": "# GitLab\n",
+    "skills/humanize/SKILL.md": "# Humanize\n",
+  });
+  const add = runPlugin(project, [
+    "add",
+    "local/demo",
+    "--source",
+    "plugins/demo",
+    "--platform",
+    "codex",
+    "--content-skill",
+    "gitlab",
+    "--json",
+  ]);
+  assert.equal(add.status, 0, `${add.stdout}\n${add.stderr}`);
+
+  writeProjectJson("plugin-lock.json", (lock) => {
+    lock.plugins[0].contentSelection = { skills: ["humanize"] };
+  });
+  const mismatch = runPlugin(project, ["verify", "local/demo", "--json"]);
+  assert.equal(mismatch.status, 3, `${mismatch.stdout}\n${mismatch.stderr}`);
+  let codes = new Set(JSON.parse(mismatch.stdout).diagnostics.map(({ code }) => code));
+  assert.equal(codes.has("verify.content-selection-lock-mismatch"), true);
+  assert.equal(codes.has("verify.content-selection-apply-mismatch"), true);
+
+  for (const file of ["plugins.json", "plugin-lock.json", "state.json"]) {
+    writeProjectJson(file, (data) => {
+      data.plugins[0].contentSelection = { skills: ["missing"] };
+    });
+  }
+  const missing = runPlugin(project, ["verify", "local/demo", "--json"]);
+  assert.equal(missing.status, 3, `${missing.stdout}\n${missing.stderr}`);
+  codes = new Set(JSON.parse(missing.stdout).diagnostics.map(({ code }) => code));
+  assert.equal(codes.has("verify.content-selection-invalid"), true);
 });
 
 test("精确锁在 Marketplace 只保留新版时靠 update --version 放宽后继续更新", (t) => {

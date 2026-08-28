@@ -143,6 +143,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 交互式新增来源类型页必须有明确的 `返回来源` 和 `退出管理` 动作。用户选择返回、退出、取消预览或确认前失败时不得调用 `source add/update`。
 - GitHub 交互检测必须在耗时动作前输出进度：初次检测、歧义选择后重试、保存来源都要给出可读状态。检测失败不退出到 shell，应记录到管理器问题页并保持 source store、项目 `.flower/` 和临时 cache 零持久化。
 - Flower Marketplace 搜索只读取并缓存索引快照，按 Plugin ID 聚合全部版本并按 SemVer 降序展示；只有 `prepare(canonicalId)` 才下载被选 Plugin 的版本，禁止发现页预取整个 Marketplace。
+- TUI 的普通 Marketplace Skill 选择只在用户选定具体 Plugin/版本或管理已安装 Plugin 时触发；inspection 复用 Provider prepare/readPackage，只从固定包 manifest `content.skills` 生成可选项，不把 `scripts/tests` 等验证资源展示为可安装 Skill。
 - Claude/Codex Marketplace 支持同仓相对路径、GitHub shorthand、GitHub HTTPS URL，以及 GitHub `git-subdir`。公开跨仓条目分别解析目标仓库默认分支或显式 ref；SSH、私有仓库、非 GitHub git-subdir、npm、通用 Git host 和远程 JSON 只产生 unsupported 诊断。
 - 没有 Marketplace 时允许把 `plugins/*` 中的多个可识别目录作为一个来源目录；每个目录独立归一化为候选。歧义只在单个选择边界内解决，不能因遍历顺序静默选中。
 - inspect/preview 的 cache root 必须由调用方放在操作系统临时目录并在 finally 清理。只有检测和兼容预览完成后才允许原子写 source store；失败、取消或未确认不得创建项目 `.flower/cache`。

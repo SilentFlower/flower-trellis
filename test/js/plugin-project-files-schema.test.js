@@ -133,6 +133,45 @@ test("GitLab 锁必须包含 Plugin commit 与 Marketplace index commit", () => 
   );
 });
 
+test("项目文件接受 contentSelection 并拒绝重复或路径式 Skill 名称", () => {
+  const plugins = {
+    schemaVersion: 1,
+    plugins: [{
+      id: "flower/sample",
+      source: "flower",
+      version: "^1.0.0",
+      contentSelection: { skills: ["sample"] },
+    }],
+  };
+  assert.equal(validatePluginsFile(plugins), plugins);
+
+  const lock = validLock();
+  lock.plugins[0].contentSelection = { skills: ["sample"] };
+  assert.equal(validatePluginLock(lock), lock);
+
+  const state = {
+    schemaVersion: 1,
+    transactionVersion: 1,
+    plugins: [{
+      id: "flower/sample",
+      version: "1.0.0",
+      platforms: ["codex"],
+      contentSelection: { skills: ["sample"] },
+      paths: [],
+      patches: [],
+    }],
+  };
+  assert.equal(validatePluginState(state), state);
+
+  const duplicate = structuredClone(plugins);
+  duplicate.plugins[0].contentSelection = { skills: ["sample", "sample"] };
+  assert.throws(() => validatePluginsFile(duplicate), PluginSchemaError);
+
+  const pathLike = structuredClone(plugins);
+  pathLike.plugins[0].contentSelection = { skills: ["nested/sample"] };
+  assert.throws(() => validatePluginsFile(pathLike), PluginSchemaError);
+});
+
 test("本机 state 记录平台、ownership 与 Patch provenance并拒绝重复路径", () => {
   const state = {
     schemaVersion: 1,
