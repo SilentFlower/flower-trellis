@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -70,9 +70,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.2",
+    "version": "0.7.0",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **flower:** 修正遥测上报地址并忽略上游 npm 升级提示 ([3030472](https://github.com/SilentFlower/flower-trellis/commit/303047282032270267cf3b26ffc20c13f9892324))",
+    "body": "### ✨ 新功能 Features\n\n* **plugin:** align rd-guide marketplace package model ([e399d6e](https://github.com/SilentFlower/flower-trellis/commit/e399d6e70042256258431a4629f5efa15ba2f417))\n* **plugin:** manage common skills without trellis ([0a9cd62](https://github.com/SilentFlower/flower-trellis/commit/0a9cd62ff3cd37971f5d65ea8500e4f51ed3a280))\n* **plugin:** reuse GitLab global credentials ([a3c6b16](https://github.com/SilentFlower/flower-trellis/commit/a3c6b1616b123ff0f7328ce5b2eace5eb631ae5b))\n* **plugin:** support marketplace skill subset selection ([6406ccb](https://github.com/SilentFlower/flower-trellis/commit/6406ccbdbe982a885069a6a4af133fc132565a1c))\n\n\n### 🐛 修复 Bug Fixes\n\n* **plugin:** speed up GitLab RD Guide skill inspection ([8bd1eac](https://github.com/SilentFlower/flower-trellis/commit/8bd1eac86ac32680d52c6fa715ece1b4c4ba99ef))",
     "truncated": false
   },
   "optionalDependencies": {

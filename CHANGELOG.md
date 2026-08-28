@@ -4,6 +4,21 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.7.0](https://github.com/SilentFlower/flower-trellis/compare/v0.6.2...v0.7.0) (2026-08-28)
+
+
+### ✨ 新功能 Features
+
+* **plugin:** align rd-guide marketplace package model ([e399d6e](https://github.com/SilentFlower/flower-trellis/commit/e399d6e70042256258431a4629f5efa15ba2f417))
+* **plugin:** manage common skills without trellis ([0a9cd62](https://github.com/SilentFlower/flower-trellis/commit/0a9cd62ff3cd37971f5d65ea8500e4f51ed3a280))
+* **plugin:** reuse GitLab global credentials ([a3c6b16](https://github.com/SilentFlower/flower-trellis/commit/a3c6b1616b123ff0f7328ce5b2eace5eb631ae5b))
+* **plugin:** support marketplace skill subset selection ([6406ccb](https://github.com/SilentFlower/flower-trellis/commit/6406ccbdbe982a885069a6a4af133fc132565a1c))
+
+
+### 🐛 修复 Bug Fixes
+
+* **plugin:** speed up GitLab RD Guide skill inspection ([8bd1eac](https://github.com/SilentFlower/flower-trellis/commit/8bd1eac86ac32680d52c6fa715ece1b4c4ba99ef))
+
 ## [0.6.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.1...v0.6.2) (2026-08-26)
 
 
