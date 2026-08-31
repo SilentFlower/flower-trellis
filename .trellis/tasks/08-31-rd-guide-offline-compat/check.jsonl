@@ -1,0 +1,2 @@
+{"file":".trellis/tasks/08-31-rd-guide-offline-compat/research.md","reason":"核对历史路径、离线冻结、孤立收敛和显式远程失败边界。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-contracts.md","reason":"核对 schema 向后兼容、安全路径和 lock 可重放身份。"}

@@ -1,0 +1,2 @@
+{"file":".trellis/tasks/08-31-rd-guide-offline-compat/research.md","reason":"提供已核实的 404 根因、现有复用能力和离线兼容边界。"}
+{"file":".trellis/spec/flower-trellis/cli/flower-plugin-contracts.md","reason":"约束 lock/source schema、兼容字段和 canonical 状态。"}

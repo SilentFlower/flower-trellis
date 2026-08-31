@@ -1,0 +1,35 @@
+{
+  "id": "rd-guide-offline-compat",
+  "name": "rd-guide-offline-compat",
+  "title": "保障旧 RD Guide 项目的离线升级兼容",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "plugin-runtime",
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-08-31",
+  "completedAt": "2026-08-31",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-08-31T07:44:22Z",
+    "completedSteps": [
+      "完成旧 RD Guide 离线升级兼容、遗留技能清理与全量验证"
+    ],
+    "partialStep": null,
+    "nextStep": "归档任务",
+    "notes": "GitLab 历史索引路径、声明驱动可达性、孤儿状态事务清理和离线升级回归已完成。"
+  }
+}
