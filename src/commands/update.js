@@ -29,6 +29,7 @@ import {
   restoreUpdateSnapshot,
 } from "../lib/update-transaction.js";
 import { runWithTrellisIntegrationEnabled } from "../lib/trellis-control.js";
+import { classifyLockReachability } from "../plugin/lock-reachability.js";
 
 const SILENT_OUTPUT = Object.freeze({
   columns: 80,
@@ -90,10 +91,14 @@ function pluginPlatformArgs(platforms) {
 export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = null) {
   const output = ctx.trellisControlQuiet ? SILENT_OUTPUT : console;
   const store = new ProjectStore(target);
+  const pluginsFile = store.readPlugins();
   const lock = store.readLock();
+  const { reachableIds } = classifyLockReachability(pluginsFile.plugins, lock);
   const preserveIds = (lock?.plugins || [])
     .filter(({ id, source }) => (
-      id !== SKILL_GARDEN_PLUGIN_ID && ["gitlab", "github"].includes(source.type)
+      reachableIds.has(id) &&
+      id !== SKILL_GARDEN_PLUGIN_ID &&
+      ["gitlab", "github"].includes(source.type)
     ))
     .map(({ id }) => id);
   const onPreflight = compensationSnapshot || ctx.trellisControlExtendSnapshot
@@ -107,7 +112,7 @@ export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = 
     }
     : undefined;
   if (ctx.enhance) {
-    const declared = store.readPlugins().plugins
+    const declared = pluginsFile.plugins
       .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
     const code = await plugin({
       ...ctx,
@@ -130,15 +135,17 @@ export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = 
   }
 
   output.log("· --no-enhance:跳过 Skill-Garden，仅重放其它已声明 Plugin");
-  const preserveSkillGarden = lock?.plugins
-    .some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID) === true;
+  const preserveSkillGarden = reachableIds.has(SKILL_GARDEN_PLUGIN_ID);
   const code = await plugin({
     ...ctx,
     target,
     passthrough: ["replay", ...(dryRun ? ["--dry-run"] : [])],
   }, {
     skillGarden: { preserve: preserveSkillGarden },
-    preserveIds: preserveSkillGarden ? [SKILL_GARDEN_PLUGIN_ID] : [],
+    preserveIds: [
+      ...preserveIds,
+      ...(preserveSkillGarden ? [SKILL_GARDEN_PLUGIN_ID] : []),
+    ],
     compact: true,
     onPreflight,
     output,

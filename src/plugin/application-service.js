@@ -21,28 +21,9 @@ import {
   normalizeContentSelection,
   selectContentSkillEntries,
 } from "./content-selection.js";
+import { classifyLockReachability } from "./lock-reachability.js";
 
 const SKILL_GARDEN_MIGRATION_OWNER_ID = "flower/skill-garden";
-
-/**
- * 计算 lock roots 可达的全部 Plugin。
- *
- * @param {import("./contracts.js").PluginLock} lock Plugin lock
- * @returns {Set<string>} 可达 Plugin ID
- */
-function reachableLockIds(lock) {
-  const byId = new Map(lock.plugins.map((plugin) => [plugin.id, plugin]));
-  const reachable = new Set();
-  const visit = (id) => {
-    if (reachable.has(id)) return;
-    reachable.add(id);
-    const plugin = byId.get(id);
-    if (!plugin) return;
-    Object.keys(plugin.dependencies).sort(compareUtf8).forEach(visit);
-  };
-  [...lock.roots].sort(compareUtf8).forEach(visit);
-  return reachable;
-}
 
 /**
  * 汇总既有 Plugin state 的实际投影平台，供无显式选择的生命周期继续复用。
@@ -489,10 +470,10 @@ export class PluginApplicationService {
       }
     }
     if (lock) {
-      const reachable = reachableLockIds(lock);
+      const { reachableIds } = classifyLockReachability(pluginsFile.plugins, lock);
       for (const id of [...lockById.keys()].sort(compareUtf8)) {
         if (options.id && id !== options.id) continue;
-        if (!reachable.has(id)) {
+        if (!reachableIds.has(id)) {
           diagnostics.push({
             code: "verify.lock-orphan",
             path: id,
@@ -788,6 +769,7 @@ export class PluginApplicationService {
           if (desiredDirectoryPaths.has(entry.path)) continue;
           const target = path.join(this.projectRoot, ...entry.path.split("/"));
           const currentHash = hashDirectoryIfExists(target);
+          if (currentHash === null) continue;
           if (currentHash !== entry.hash) {
             throw new PluginRuntimeError(`受管 Plugin 目录已被用户修改，拒绝删除:${entry.path}`, {
               code: PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,
@@ -803,6 +785,7 @@ export class PluginApplicationService {
         if (desiredPaths.has(entry.path)) continue;
         const target = path.join(this.projectRoot, ...entry.path.split("/"));
         const currentHash = hashFileIfExists(target);
+        if (currentHash === null) continue;
         if (currentHash !== entry.hash) {
           throw new PluginRuntimeError(`受管 Plugin 文件已被用户修改，拒绝删除:${entry.path}`, {
             code: PLUGIN_RUNTIME_ERROR_CODES.CONTENT_CONFLICT,

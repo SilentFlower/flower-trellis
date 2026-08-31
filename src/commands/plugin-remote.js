@@ -19,6 +19,22 @@ import { SourceRegistry } from "../plugin/sources/source-registry.js";
 import { UserSourceStore } from "../plugin/sources/user-source-store.js";
 import { listContentSkillChoices } from "../plugin/content-selection.js";
 import { compareUtf8 } from "../plugin/stable-order.js";
+import { classifyLockReachability } from "../plugin/lock-reachability.js";
+
+/**
+ * 计算远程准备允许读取的既有 lock 节点。
+ *
+ * 兼容直接调用测试时没有传入 `pluginsFile` 的旧签名，此时才回退到 lock roots；真实 CLI
+ * 始终传入当前声明，避免半清理项目的陈旧 roots 触发外部来源访问。
+ *
+ * @param {import("../plugin/contracts.js").ProjectPluginsFile|undefined} pluginsFile 当前声明
+ * @param {import("../plugin/contracts.js").PluginLock|null} lock 既有 lock
+ * @returns {Set<string>} 可准备的既有 lock ID
+ */
+function reachableRemoteLockIds(pluginsFile, lock) {
+  const declarations = pluginsFile?.plugins || (lock?.roots || []).map((id) => ({ id }));
+  return classifyLockReachability(declarations, lock).reachableIds;
+}
 
 /**
  * 输出 source、auth 与 search 管理命令结果。
@@ -537,22 +553,35 @@ export async function runPluginManagementCommand(parsed, ctx, options, output) {
 /**
  * 为生命周期命令登记所需的远程 Source Provider。
  *
- * @param {{parsed:object,projectRoot:string,options:object,registry:object,lock:object|null,preserveIds?:string[]}} context 远程准备上下文
+ * @param {{parsed:object,projectRoot:string,options:object,registry:object,lock:object|null,pluginsFile?:import("../plugin/contracts.js").ProjectPluginsFile,preserveIds?:string[]}} context 远程准备上下文
  * @returns {Promise<void>} 登记完成
  */
-export async function registerRemotePluginSources({ parsed, projectRoot, options, registry, lock, preserveIds = [] }) {
+export async function registerRemotePluginSources({
+  parsed,
+  projectRoot,
+  options,
+  registry,
+  lock,
+  pluginsFile,
+  preserveIds = [],
+}) {
   const preserved = new Set(preserveIds);
+  const reachableLockedIds = reachableRemoteLockIds(pluginsFile, lock);
   const remoteIds = new Set(["add", "update", "remove", "verify", "replay"].includes(parsed.command)
     ? (lock?.plugins || [])
-      .filter(({ id, source }) => !preserved.has(id) && ["gitlab", "github"].includes(source.type))
+      .filter(({ id, source }) => (
+        reachableLockedIds.has(id) &&
+        !preserved.has(id) &&
+        ["gitlab", "github"].includes(source.type)
+      ))
       .map(({ source }) => source.id)
     : []);
+  const declaredSourceId = parsed.pluginId?.includes("/")
+    ? parseCanonicalPluginId(parsed.pluginId).sourceId
+    : null;
   let sourceStore = null;
   let configuredSources = null;
   if (parsed.command === "add") {
-    const declaredSourceId = parsed.pluginId?.includes("/")
-      ? parseCanonicalPluginId(parsed.pluginId).sourceId
-      : null;
     const simpleSourceOption = parsed.source && !parsed.source.includes("/") && !parsed.source.includes(".")
       ? parsed.source
       : null;
@@ -587,7 +616,13 @@ export async function registerRemotePluginSources({ parsed, projectRoot, options
       remoteIds.add(simpleSourceOption);
     }
   }
-  if (parsed.command === "update" && parsed.pluginId?.includes("/")) {
+  const shouldCollectDependencySources = parsed.command === "update" || (
+    parsed.command === "add" &&
+    declaredSourceId &&
+    registry.has(declaredSourceId) &&
+    registry.get(declaredSourceId).type === "builtin"
+  );
+  if (shouldCollectDependencySources && parsed.pluginId?.includes("/")) {
     for (const sourceId of collectUnregisteredDependencySources(
       registry,
       [parsed.pluginId],
@@ -640,24 +675,34 @@ export async function registerRemotePluginSources({ parsed, projectRoot, options
 /**
  * 准备远程 Plugin 候选及固定 lock 缓存。
  *
- * @param {{parsed:object,canonicalId:string|null,registry:object,lock:object|null,preserveIds?:string[]}} context 候选准备上下文
+ * @param {{parsed:object,canonicalId:string|null,registry:object,lock:object|null,pluginsFile?:import("../plugin/contracts.js").ProjectPluginsFile,preserveIds?:string[]}} context 候选准备上下文
  * @returns {Promise<void>} 准备完成
  */
-export async function prepareRemotePluginCandidates({ parsed, canonicalId, registry, lock, preserveIds = [] }) {
+export async function prepareRemotePluginCandidates({
+  parsed,
+  canonicalId,
+  registry,
+  lock,
+  pluginsFile,
+  preserveIds = [],
+}) {
+  const reachableLockedIds = reachableRemoteLockIds(pluginsFile, lock);
   if (parsed.command === "add" && registry.has(parseCanonicalPluginId(canonicalId).sourceId)) {
-    await prepareRemoteLock(registry, lock, preserveIds);
+    await prepareRemoteLock(registry, lock, preserveIds, reachableLockedIds);
     await prepareRemoteClosure(registry, [canonicalId], preserveIds);
   } else if (parsed.command === "update") {
     // 更新单一 Plugin 时，解析器仍会 lock-first 重放完整图；先恢复全部远程固定包，
     // 再只为本轮显式更新目标加载新候选，避免顺带升级其它外部 Plugin。
-    await prepareRemoteLock(registry, lock, preserveIds);
+    await prepareRemoteLock(registry, lock, preserveIds, reachableLockedIds);
     const updateIds = canonicalId
       ? [canonicalId]
-      : (lock?.plugins || []).filter(({ source }) => ["gitlab", "github"].includes(source.type)).map(({ id }) => id);
+      : (lock?.plugins || [])
+        .filter(({ id, source }) => reachableLockedIds.has(id) && ["gitlab", "github"].includes(source.type))
+        .map(({ id }) => id);
     await prepareRemoteClosure(registry, updateIds, preserveIds);
     assertExternalVersionsNotReused(registry, lock, updateIds);
   } else if (["remove", "verify", "replay"].includes(parsed.command)) {
-    await prepareRemoteLock(registry, lock, preserveIds);
+    await prepareRemoteLock(registry, lock, preserveIds, reachableLockedIds);
   }
 }
 
@@ -725,12 +770,14 @@ async function prepareRemoteClosure(registry, initialIds, preserveIds = []) {
  * @param {object} registry Provider 注册表
  * @param {import("../plugin/contracts.js").PluginLock|null} lock 当前 lock
  * @param {string[]} [preserveIds] 不读取来源的冻结 Plugin ID
+ * @param {Set<string>|null} [reachableIds] 当前声明可达的既有 lock ID
  * @returns {Promise<void>} 恢复完成
  */
-async function prepareRemoteLock(registry, lock, preserveIds = []) {
+async function prepareRemoteLock(registry, lock, preserveIds = [], reachableIds = null) {
   const preserved = new Set(preserveIds);
   for (const plugin of lock?.plugins || []) {
     if (
+      (reachableIds && !reachableIds.has(plugin.id)) ||
       preserved.has(plugin.id) ||
       !["gitlab", "github"].includes(plugin.source.type) ||
       !registry.has(plugin.source.id)

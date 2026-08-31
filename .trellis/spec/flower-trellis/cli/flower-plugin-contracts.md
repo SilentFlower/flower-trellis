@@ -80,7 +80,8 @@ ProjectStore.writeState(value) -> {status, path}
 - `plugin-lock.json` 保存完整图、source descriptor、commit、integrity、兼容范围和 capability grant；不得保存 token、用户身份、本机绝对路径或检测平台。
 - `plugin-lock.json` 和 `state.json` 必须原样记录解析后实际生效的 `contentSelection`，用于 verify 检测声明、lock 和本机投影是否一致。
 - resolved source 是判别式对象：`builtin.reference` 为包内稳定引用，`local.reference` 为安全 POSIX 相对路径，`gitlab.reference` 为 GitLab project path，`github.reference` 为规范化的 `owner/repository`。
-- GitLab 锁定项必须同时包含 Plugin `commit` 与 Marketplace `source.indexCommit`。
+- GitLab 锁定项必须同时包含 Plugin `commit` 与 Marketplace `source.indexCommit`；新生成的锁还必须保存安全 POSIX 相对路径 `source.indexPath`，使索引 commit 与索引路径共同构成可重放身份。
+- `source.indexPath` 对旧 lock 保持可选读取兼容；缺失字段不能让既有项目在 schema 层失效，但 Provider 必须按来源专属的确定性规则补全，不能通过联网试探多个历史路径。
 - GitHub 锁定项必须固定 `format` 与 `entryPath`；通过 Marketplace 发现时还必须成对保存 `indexReference/indexCommit`，直连 Plugin 不得伪造索引字段。
 - 用户级 `plugin-sources.json` schemaVersion 3 以 `type=gitlab|github` 判别自定义来源，并允许内置来源 `{id,enabled}` 偏好。schemaVersion 1/2 继续兼容旧 descriptor；与内置 ID 重名的旧完整记录只继承 `enabled`，下一次写入原子压缩为 v3 偏好，不能覆盖随包连接定义。v1 中出现 GitHub 必须拒绝。
 - GitHub 来源草稿可省略 `ref`，Provider 必须先解析仓库默认分支，再把实际 ref 写入持久化 descriptor；已保存 descriptor 的 `ref` 必填。`format=auto` 与 `entryPath` 互斥，确认格式后必须同时固定非 `auto` format 与安全 `entryPath`。
@@ -108,6 +109,7 @@ ProjectStore.writeState(value) -> {status, path}
 | 文件系统读取、写入、同步、关闭、rename 或清理失败 | `PluginIoError` / `PLUGIN_IO_ERROR` | 原文件保留；可清理时无 `.tmp` 残留 |
 | canonical/source ID 不一致 | schema issue `project.source-mismatch` 或 `lock.source-mismatch` | 不进入 Resolver/写盘 |
 | GitLab lock 缺 commit/index commit | `lock.gitlab-commit-required` / `lock.index-commit-required` | 不产生可提交 lock |
+| GitLab `source.indexPath` 不是安全 POSIX 相对路径 | `PluginSchemaError` / `PLUGIN_SCHEMA_INVALID` | 不读取远程索引，不产生可提交 lock |
 | GitHub lock 缺 format/entryPath，或索引 identity 只出现一半 | `PLUGIN_SCHEMA_INVALID` | 不产生可提交 lock |
 | `contentSelection.skills` 名称非法、重复、为空或指向不存在的 manifest Skill | `PLUGIN_CONTENT_SELECTION_INVALID` | 不写入声明、lock、state 或目标 Skill |
 | v1 source store 含 GitHub，或 `format=auto` 同时固定 entryPath | `PLUGIN_SOURCE_CONFIG_INVALID` | 原配置字节不变 |
@@ -127,7 +129,7 @@ ProjectStore.writeState(value) -> {status, path}
 }
 ```
 
-GitLab resolved source 使用 `id=rd-guide`、`type=gitlab`、project path `reference` 和固定 `indexCommit`；Plugin 节点同时固定 `commit` 与 `integrity`。
+GitLab resolved source 使用 `id=rd-guide`、`type=gitlab`、project path `reference`、安全 `indexPath` 和固定 `indexCommit`；Plugin 节点同时固定 `commit` 与 `integrity`。旧 lock 可缺少 `indexPath`，但下一次成功解析出的候选和新 lock 必须带上 Provider 确认后的实际路径。
 
 ### Base
 
@@ -149,7 +151,7 @@ GitLab resolved source 使用 `id=rd-guide`、`type=gitlab`、project path `refe
 
 - `plugin-manifest-schema.test.js`：有效 manifest；`content.skills` 对象 entry；旧字符串 Skill 条目拒绝；重复 Skill name/path；未知字段；严格 SemVer/range；canonical dependency；POSIX/Windows 不安全路径；未知 schema version。
 - `plugin-marketplace-schema.test.js`：path/gitlab/github source、安全 subdir/manifestPath、共仓 path 省略、重复 Plugin/版本、未知来源、`system` 上限和 commit/digest 格式。
-- `plugin-project-files-schema.test.js`：空声明；重复 ID；source mismatch；不安全 local reference；非法 capability；未知依赖；GitLab commit/index commit；state ownership/provenance。
+- `plugin-project-files-schema.test.js`：空声明；重复 ID；source mismatch；不安全 local reference；非法 capability；未知依赖；GitLab commit/index commit；GitLab 安全 `indexPath`、旧 lock 缺失兼容与危险路径拒绝；state ownership/provenance。
 - `plugin-source-store.test.js`：v1 GitLab 读取/写入升级、v1 GitHub 拒绝、GitHub URL 规范化、format/entryPath 联动和安全 subdir。
 - `plugin-integrity.test.js`：对象键/数组顺序；非法 JSON 值；不同根和创建顺序同 hash；内容变化异 hash；根/内部软链和特殊文件失败。
 - `plugin-project-store.test.js`：无 Trellis 初始化；局部 ignore 幂等；缺失/损坏状态；changed-only mtime；write/close/rename 故障；项目根、`.flower` 与受管文件软链失败。

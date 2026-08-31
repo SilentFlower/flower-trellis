@@ -126,7 +126,8 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 ### Marketplace And Cache
 
 - 首次准备先把 source `ref` 解析为 40 位 commit，再在该 commit 读取并验证 Marketplace。Marketplace ID 必须等于 source ID。
-- candidate 的 GitLab `source.reference` 只保存 project path，`source.indexCommit` 保存索引 commit；Plugin 自身同时固定 `commit` 和 `integrity`。
+- candidate 的 GitLab `source.reference` 只保存 project path，`source.indexCommit` 保存索引 commit，`source.indexPath` 保存已经验证的 Marketplace 安全相对路径；Plugin 自身同时固定 `commit` 和 `integrity`。
+- `indexCommit + indexPath` 是锁定索引的完整回放身份。当前索引准备使用 source descriptor 的 `marketplacePath`，锁定回放和 manifest-only inspection 必须优先使用 lock 中的 `source.indexPath`，不能无条件套用当前 source 配置路径。
 - archive 的全局危险路径必须一律拒绝：绝对路径、Windows 绝对路径、反斜杠、空片段、`.`、`..` 和条目总数超限都属于 `PLUGIN_REMOTE_ARCHIVE_INVALID`。总解压字节超限也必须失败，不能只跳过后续条目。
 - archive 普通包内容只允许普通目录和普通文件。软链、硬链、特殊文件或单文件超限位于调用方显式选中的 `subdir` 内时必须失败；位于全仓扫描阶段的未选中目录或仓库根无关位置时允许跳过，避免公开仓库根目录的 `AGENTS.md`、文档 symlink 等无关条目误阻断格式检测。
 - 解包后的规范化复制仍必须使用 ordinary-directory 边界：实际进入 Plugin/Skill 包根的软链、硬链和特殊文件一律拒绝。跳过无关 archive 条目不能放宽已选 Plugin 子树或目标写盘边界。
@@ -134,7 +135,8 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 解包后的 Plugin 根必须通过 manifest 校验和 P1 canonical tree hash。Marketplace entry source 可声明 `manifestPath`，例如 rd-guide 仓库根 `.flower-plugin/plugin.json`；共仓 `type:"path"` 可省略 `path` 表示从索引所在仓库根构建包。
 - GitLab Provider 不得把带 Marketplace 索引的仓库根直接作为 Plugin 包哈希。准备固定包时必须先写出运行时包顶层 `plugin.json`，再只复制 manifest 声明的 `content`/`patches` 路径和匹配 platform override；`.flower-plugin/marketplace.json`、未声明验证脚本和未声明 Skill 不进入包。
 - 缓存键绑定 `baseUrl/project/commit/subdir/manifestPath/integrity`；metadata 绑定 `sourceId/baseUrl/project/commit/subdir/manifestPath/integrity`，不得包含 token、header 或用户身份。
-- 缓存命中仍须复核 tree hash、manifest ID 和版本。损坏缓存只删除对应不可变缓存项并重新下载，不修改 lock。`prepareLocked()` 只能接受 lock 的 `indexCommit/version/commit/integrity/reference` 与锁定 Marketplace 完全一致的条目。
+- 缓存命中仍须复核 tree hash、manifest ID 和版本。损坏缓存只删除对应不可变缓存项并重新下载，不修改 lock。`prepareLocked()` 只能接受 lock 的 `indexPath/indexCommit/version/commit/integrity/reference` 与锁定 Marketplace 完全一致的条目；登记到候选集合时也必须补回解析后的 `indexPath`。
+- 旧 lock 缺少 `source.indexPath` 时只允许确定性兼容：Provider/source ID 都是 `rd-guide`、当前与锁定 project 都是 `digital-rd-governance/rd-guide`，且 Plugin ID 以 `rd-guide/xhgj-` 开头时固定使用 `.flower-marketplace/marketplace.json`；其它旧 GitLab lock 使用当前 source 的安全 `marketplacePath`。禁止在 404 后轮询新旧路径。
 - `prepareLocked()` 只表示旧 lock 的固定包已经可重放，可以向候选集合登记锁定版本，但不得把 canonical ID 标记为“最新 Marketplace 已准备”。显式远程 `plugin update` 必须在恢复旧 lock 后继续执行 `prepare()`，重新解析 source `ref`、读取当前索引并加载新版候选；Provider 应使用独立的 prepared 状态，不能用 `candidates.has(id)` 兼任索引准备标记。
 - `plugin source list`、`plugin auth status` 和未引用远程 source 的本地生命周期保持零网络。远程 add/update 只负责异步准备 Provider，最终解析和写盘复用 `PluginApplicationService`。
 
@@ -177,6 +179,8 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 | 显式 `subdir` 或已选 Plugin/Skill 包根内出现软链、硬链、特殊文件或单文件超限 | `PLUGIN_REMOTE_ARCHIVE_INVALID` / `PLUGIN_UNSAFE_PATH`，不发布缓存 |
 | manifest 身份、版本、trust 或 lock/index 不一致 | `PLUGIN_TARGET_DRIFT` 或来源配置错误，不进入 Runtime 写盘 |
 | digest 不匹配 | P1 完整性错误包装为稳定 Runtime 错误，删除 staging/损坏缓存 |
+| lock 中 `source.indexPath` 不安全 | 项目 schema 读取返回 `PLUGIN_SCHEMA_INVALID`，不进入 Provider 或远程请求 |
+| 确定性历史 `indexPath` 对应索引缺失或内容不匹配 | 保持现有远程请求、来源配置或 `PLUGIN_TARGET_DRIFT` 稳定错误；不探测其它路径，项目零写入 |
 | Keyring 不可用 | 使用进程内 store，`persistent=false`，不创建明文凭据文件 |
 | `prepareLocked()` 已登记旧候选后执行显式远程 update | 仍须读取当前 Marketplace 并把满足约束的新版候选交给 Resolver；不得因旧候选存在而提前返回 |
 | GitHub 403/429 且匿名额度耗尽 | `PLUGIN_REMOTE_RATE_LIMITED`，保留 limit/reset 非敏感诊断，零持久化 |
@@ -195,6 +199,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 用户设置 `GITLAB_TOKEN` 与 `GITLAB_HOST=gitlab.xhgjdev.com`；无 `glab` 时 resolver 仍可在当前进程内提供 token，logout 后该 fallback 不受影响。
 - 内置 `rd-guide` 随包从 HTTP 升级到 HTTPS 或切换 ref 后，即使用户目录仍有旧版完整 descriptor，运行时也使用新随包连接字段，仅保留用户原有启停选择。
 - 已锁定 Plugin 的 metadata、tree hash、manifest 身份全部匹配时，`prepareLocked()` 直接复用缓存，不访问 GitLab。
+- 旧 `rd-guide/xhgj-*` lock 没有 `indexPath` 时，`prepareLocked()` 和锁定 manifest inspection 都只读取固定 `indexCommit` 下的 `.flower-marketplace/marketplace.json`，不会因当前来源改成 `.flower-plugin/marketplace.json` 而产生 404。
 - 项目先锁定 `rd-guide/demo@1.0.0`，Marketplace 当前索引随后发布 `1.1.0`；显式 `plugin update rd-guide/demo` 先恢复 1.0.0 固定包，再读取新索引并由 Resolver 选择 1.1.0。
 - rd-guide 在仓库根维护 `.flower-plugin/marketplace.json` 和 `.flower-plugin/plugin.json`，Marketplace 只发布 `rd-guide` 聚合包；用户进入 TUI 时只看到 manifest `content.skills` 中声明的具体 Skill 及其独立版本。
 
@@ -203,6 +208,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 系统没有 Keyring：Flower OAuth 登录只在当前进程有效，`auth status --json` 输出 `persistent:false`，不生成 token 文件。
 - 外部凭据无法离线获得 scope：status JSON 固定返回 `scopes:[]`，人类输出只在实际 scope 非空时显示 scope，不暴露凭据来源。
 - 用户只执行本地 Plugin 命令或禁用 `rd-guide`：GitLab 请求数为 0。
+- 其它旧 GitLab lock 缺少 `indexPath`：Provider 使用该 source 当前已验证的 `marketplacePath`，不猜测 RD Guide 历史目录。
 - GitHub source 省略 ref：Provider 读取默认分支，持久化实际 ref/format/entryPath，并在 JSON 中返回固定 commit 与兼容性摘要。
 - 交互新增 GitHub source：用户只输入 `https://github.com/obra/superpowers`，检测返回多个入口，用户选择 `.claude-plugin/plugin.json` 后预览 `superpowers/superpowers@6.2.0`，14 个 skills 导入，hooks 仅展示为不会安装，确认后才保存 `format/entryPath`。
 - 交互新增 GitLab source：用户输入 `http://gitlab.example.test/team/guide`，UI 自动派生 source ID `guide`、项目路径 `team/guide`，并复用同地址已有 OAuth Application ID。
@@ -218,7 +224,8 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - 把 `candidates.has(canonicalId)` 当作 `prepare()` 的幂等门禁；`prepareLocked()` 会先写入旧候选，导致显式远程 update 永远看不到新索引版本。
 - 在发现页下载 Marketplace 的每个 Plugin archive，或用项目 `.flower/cache` 承载尚未确认的来源预览。
 - 把 `.flower-plugin/marketplace.json` 或仓库根未声明文件纳入 Plugin 包哈希，导致发布索引自引用、每次索引更新都要求改 Plugin integrity。
-- 继续探测或生成旧 `.flower-marketplace/marketplace.json`，让新 rd-guide 发布路径和本地/GitHub Adapter 分叉。
+- 新发布继续生成旧 `.flower-marketplace/marketplace.json`，让 rd-guide 发布路径和本地/GitHub Adapter 分叉；历史兼容只能读取被精确映射的旧锁，不能改变当前发布路径。
+- 锁定回放无条件读取当前 `source.marketplacePath`，或在 404 后探测 `.flower-plugin` / `.flower-marketplace` 多个路径。
 - 捕获 `PLUGIN_UNSAFE_PATH`、schema 或格式歧义后统一包装成 `PLUGIN_IO_ERROR`，导致调用方失去稳定诊断。
 - 交互新增来源时先问 `Source ID`、`format`、`entryPath` 等内部字段，或检测失败后直接退出管理器让用户回到 shell。
 
@@ -228,7 +235,7 @@ GitHubSourceProvider.readPackage(plugin) -> { root, manifest, integrity }
 - `plugin-credential-store.test.js`：版本化副本、Keyring 运行失败的内存降级、损坏 payload 不降级、递归脱敏、`api` 与旧 `read_api + read_repository` scope 兼容。
 - `plugin-oauth.test.js`：PKCE S256/state/一次性 callback/公共客户端、新请求 scope、环境失败降级与认证失败不降级、OAuth 请求超时、Device pending/slow_down/请求中取消且不继续轮询、scope 验证、redirect URI refresh、并发单飞与 refresh 清理、同 host `glab` 与 host 绑定环境 fallback。
 - `plugin-gitlab-rest-client.test.js`：Bearer、禁用重定向、project/file 编码、commit/tree 分页/files/archive、大小限制、超时和一次重试、401/403 认证类错误映射与脱敏。
-- `plugin-gitlab-provider.test.js`：index commit、candidate/lock 字段、不可变缓存、损坏重下、archive 链接/路径/限额、OAuth 406 tree/raw 回退、subdir、digest、manifest 身份、trust 上限，以及仓库根 `.flower-plugin` metadata 的声明式运行时包。
+- `plugin-gitlab-provider.test.js`：index commit/path、candidate/lock 字段、新锁记录当前 `indexPath`、旧 RD Guide 独立 Plugin 确定性历史路径、锁定 inspection 共用路径且不做多路径探测、不可变缓存、损坏重下、archive 链接/路径/限额、OAuth 406 tree/raw 回退、subdir、digest、manifest 身份、trust 上限，以及仓库根 `.flower-plugin` metadata 的声明式运行时包。
 - `plugin-remote-cli.test.js`：source/auth/search 参数、非敏感 JSON、管理命令零网络、status/search 复用 resolver、logout 不删除 fallback、远程 add/update 复用 Application Service、自定义 local source ID 不误判为 GitLab。
 - `plugin-e2e-gitlab.test.js`：真实 CLI 跨进程覆盖 Device Flow、PKCE、search、v1 add、切换 Marketplace 后的 v2 update、禁用零网络，以及 stdout/stderr/项目文件敏感值扫描；必须断言旧 lock 候选不会阻止当前索引准备。
 - `plugin-github-rest-client.test.js`：默认分支、commit/date、允许的 redirect host、匿名限流、大小限制、超时和重试。
@@ -260,6 +267,31 @@ await provider.prepare("rd-guide/code-review");
 ```
 
 认证、只读请求和固定包准备分别由现有公共入口负责；Provider 产出 P1 DTO，项目写盘继续交给 Runtime/Application Service。
+
+### Wrong: 锁定回放使用当前 Marketplace 路径
+
+```js
+const marketplace = await client.readRawFile(
+  source.project,
+  source.marketplacePath,
+  plugin.source.indexCommit,
+);
+```
+
+当前 source 配置不是旧 lock 的完整来源身份；路径迁移后，这会在正确的历史 commit 上读取错误目录并返回 404。
+
+### Correct: 使用锁定索引路径或确定性兼容映射
+
+```js
+const indexPath = this.#lockedMarketplacePath(plugin);
+const marketplace = await this.client.readRawFile(
+  this.source.project,
+  indexPath,
+  plugin.source.indexCommit,
+);
+```
+
+`#lockedMarketplacePath()` 优先校验 lock 的 `indexPath`，只对精确 RD Guide 旧锁应用固定历史映射，其余旧锁回退当前安全配置路径；整个过程不通过网络探测猜测来源身份。
 
 ### Wrong: 在调用点直接读取通用环境 token
 

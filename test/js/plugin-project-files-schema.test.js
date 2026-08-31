@@ -118,8 +118,10 @@ test("锁文件接受固定 GitHub 来源并拒绝不完整 Marketplace 身份",
   );
 });
 
-test("GitLab 锁必须包含 Plugin commit 与 Marketplace index commit", () => {
+test("GitLab 锁必须包含固定 commit，并校验 Marketplace index path", () => {
   const lock = validLock();
+  lock.roots = ["rd-guide/sample"];
+  lock.plugins[0].id = "rd-guide/sample";
   lock.plugins[0].source = {
     id: "rd-guide",
     type: "gitlab",
@@ -131,6 +133,15 @@ test("GitLab 锁必须包含 Plugin commit 与 Marketplace index commit", () => 
       error.issues.some((issue) => issue.code === "lock.gitlab-commit-required") &&
       error.issues.some((issue) => issue.code === "lock.index-commit-required"),
   );
+
+  lock.plugins[0].commit = "a".repeat(40);
+  lock.plugins[0].source.indexCommit = "b".repeat(40);
+  lock.plugins[0].source.indexPath = ".flower-plugin/marketplace.json";
+  assert.equal(validatePluginLock(lock), lock);
+
+  const unsafePath = structuredClone(lock);
+  unsafePath.plugins[0].source.indexPath = "../marketplace.json";
+  assert.throws(() => validatePluginLock(unsafePath), PluginSchemaError);
 });
 
 test("项目文件接受 contentSelection 并拒绝重复或路径式 Skill 名称", () => {

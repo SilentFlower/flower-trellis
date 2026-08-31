@@ -118,6 +118,7 @@
  * @property {"gitlab"} type GitLab 来源
  * @property {string} reference GitLab project path
  * @property {string} [indexCommit] Marketplace 索引 commit
+ * @property {string} [indexPath] Marketplace 索引安全相对路径
  */
 
 /**

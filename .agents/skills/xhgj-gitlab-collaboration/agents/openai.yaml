@@ -1,4 +1,0 @@
-interface:
-  display_name: "XHGJ GitLab 协作"
-  short_description: "以本人身份安全执行 GitLab Issue、Note 与 MR 协作"
-  default_prompt: "Use $xhgj-gitlab-collaboration to preflight and carry out this GitLab collaboration task with full readback."

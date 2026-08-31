@@ -38,6 +38,7 @@ const sourceDescriptorSchema = {
         type: { const: "gitlab" },
         reference: { type: "string", format: "gitlab-project" },
         indexCommit: { type: "string", format: "git-commit" },
+        indexPath: SAFE_PATH_SCHEMA,
       },
     },
     {

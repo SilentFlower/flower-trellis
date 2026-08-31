@@ -834,6 +834,7 @@ export async function plugin(ctx, options = {}) {
       options,
       registry,
       lock,
+      pluginsFile,
       preserveIds: options.preserveIds || [],
     });
 
@@ -895,6 +896,7 @@ export async function plugin(ctx, options = {}) {
       canonicalId,
       registry,
       lock,
+      pluginsFile,
       preserveIds: options.preserveIds || [],
     });
 

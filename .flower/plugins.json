@@ -4,26 +4,6 @@
       "id": "flower/skill-garden",
       "source": "flower",
       "version": "0.6.4"
-    },
-    {
-      "id": "rd-guide/xhgj-dws-message-governance",
-      "source": "rd-guide",
-      "version": "0.2.0"
-    },
-    {
-      "id": "rd-guide/xhgj-gitlab-collaboration",
-      "source": "rd-guide",
-      "version": "0.4.2"
-    },
-    {
-      "id": "rd-guide/xhgj-governed-mail-distribution",
-      "source": "rd-guide",
-      "version": "^0.2.2"
-    },
-    {
-      "id": "rd-guide/xhgj-rd-guide",
-      "source": "rd-guide",
-      "version": "^0.4.0"
     }
   ],
   "schemaVersion": 1

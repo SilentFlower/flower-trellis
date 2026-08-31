@@ -20,6 +20,9 @@ import {
 } from "./remote-archive.js";
 
 const PROFILE_RANK = Object.freeze({ standard: 0, integration: 1, system: 2 });
+const RD_GUIDE_SOURCE_ID = "rd-guide";
+const RD_GUIDE_PROJECT = "digital-rd-governance/rd-guide";
+const LEGACY_RD_GUIDE_MARKETPLACE_PATH = ".flower-marketplace/marketplace.json";
 
 /**
  * GitLab Marketplace Provider；网络阶段由 prepare() 显式触发。
@@ -178,6 +181,7 @@ export class GitLabSourceProvider {
       inspected.version,
       manifest,
       inspected.indexCommit,
+      inspected.indexPath,
     );
     if (lockedPlugin) this.#assertLockedInspectionMatches(lockedPlugin, candidate);
     return candidate;
@@ -191,6 +195,7 @@ export class GitLabSourceProvider {
    */
   async prepareLocked(plugin) {
     if (this.packageRoots.has(this.#key(plugin))) return;
+    const indexPath = this.#lockedMarketplacePath(plugin);
     const cached = this.#findCachedPackage(plugin);
     if (cached) {
       this.#registerLockedCandidate(plugin, cached.root, cached.manifest, "standard");
@@ -198,7 +203,7 @@ export class GitLabSourceProvider {
     }
     const raw = await this.client.readRawFile(
       this.source.project,
-      this.source.marketplacePath,
+      indexPath,
       plugin.source.indexCommit,
     );
     let marketplace;
@@ -627,7 +632,7 @@ export class GitLabSourceProvider {
    *
    * @param {string} pluginId Plugin 本地 ID
    * @param {string} requestedVersion 请求版本
-   * @returns {Promise<{entry:object,version:object,indexCommit:string}>} Marketplace 版本上下文
+   * @returns {Promise<{entry:object,version:object,indexCommit:string,indexPath:string}>} Marketplace 版本上下文
    */
   async #marketplaceVersionForInspection(pluginId, requestedVersion) {
     const marketplace = await this.prepareIndex();
@@ -639,7 +644,7 @@ export class GitLabSourceProvider {
         path: `${this.id}/${pluginId}`,
       });
     }
-    return { entry, version, indexCommit: this.indexCommit };
+    return { entry, version, indexCommit: this.indexCommit, indexPath: this.source.marketplacePath };
   }
 
   /**
@@ -647,12 +652,13 @@ export class GitLabSourceProvider {
    *
    * @param {string} pluginId Plugin 本地 ID
    * @param {import("../contracts.js").ResolvedPlugin} plugin 已锁定 Plugin
-   * @returns {Promise<{entry:object,version:object,indexCommit:string}>} Marketplace 版本上下文
+   * @returns {Promise<{entry:object,version:object,indexCommit:string,indexPath:string}>} Marketplace 版本上下文
    */
   async #lockedMarketplaceVersionForInspection(pluginId, plugin) {
+    const indexPath = this.#lockedMarketplacePath(plugin);
     const raw = await this.client.readRawFile(
       this.source.project,
-      this.source.marketplacePath,
+      indexPath,
       plugin.source.indexCommit,
     );
     let marketplace;
@@ -683,7 +689,7 @@ export class GitLabSourceProvider {
         path: plugin.id,
       });
     }
-    return { entry, version, indexCommit: plugin.source.indexCommit };
+    return { entry, version, indexCommit: plugin.source.indexCommit, indexPath };
   }
 
   /**
@@ -700,7 +706,8 @@ export class GitLabSourceProvider {
       lockedPlugin.commit.toLowerCase() !== candidate.commit ||
       lockedPlugin.integrity !== candidate.integrity ||
       lockedPlugin.source.reference !== candidate.source.reference ||
-      lockedPlugin.source.indexCommit !== candidate.source.indexCommit
+      lockedPlugin.source.indexCommit !== candidate.source.indexCommit ||
+      this.#lockedMarketplacePath(lockedPlugin) !== candidate.source.indexPath
     ) {
       throw new PluginRuntimeError(`GitLab lock 与 Marketplace 不一致:${lockedPlugin.id}`, {
         code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
@@ -717,9 +724,17 @@ export class GitLabSourceProvider {
    * @param {object} version Marketplace 版本条目
    * @param {object} manifest 已校验 Plugin manifest
    * @param {string} [indexCommit] Marketplace index commit
+   * @param {string} [indexPath] Marketplace index path
    * @returns {import("../contracts.js").PluginCandidate} Provider 候选
    */
-  #candidateFromMarketplaceVersion(canonicalId, entry, version, manifest, indexCommit = this.indexCommit) {
+  #candidateFromMarketplaceVersion(
+    canonicalId,
+    entry,
+    version,
+    manifest,
+    indexCommit = this.indexCommit,
+    indexPath = this.source.marketplacePath,
+  ) {
     const id = composeCanonicalPluginId(this.id, manifest.id);
     if (id !== canonicalId || manifest.version !== version.version) {
       throw new PluginRuntimeError(`远程 Plugin 身份与索引不一致:${canonicalId}@${version.version}`, {
@@ -741,6 +756,7 @@ export class GitLabSourceProvider {
         type: "gitlab",
         reference: this.#sourceReference(entry.source),
         indexCommit,
+        indexPath: assertSafePosixRelativePath(indexPath, "Marketplace index path"),
       },
       commit: version.commit.toLowerCase(),
       integrity: version.integrity,
@@ -825,13 +841,38 @@ export class GitLabSourceProvider {
     const candidate = {
       id: plugin.id,
       version: plugin.version,
-      source: plugin.source,
+      source: {
+        ...plugin.source,
+        indexPath: this.#lockedMarketplacePath(plugin),
+      },
       commit: plugin.commit,
       integrity: plugin.integrity,
       manifest,
       marketplaceMaxProfile,
     };
     this.#registerCandidate(candidate, root);
+  }
+
+  /**
+   * 解析旧 lock 固定使用的 Marketplace 路径。
+   *
+   * 旧 RD Guide 独立 Plugin 只存在于历史 `.flower-marketplace` 索引；该映射同时限定来源
+   * ID、项目和 Plugin ID 族，避免对其它 GitLab Marketplace 做多路径探测或误判。
+   *
+   * @param {import("../contracts.js").ResolvedPlugin} plugin 已锁定 Plugin
+   * @returns {string} 安全的固定 Marketplace 索引路径
+   */
+  #lockedMarketplacePath(plugin) {
+    const indexPath = plugin.source.indexPath || (
+      this.id === RD_GUIDE_SOURCE_ID &&
+      this.source.project === RD_GUIDE_PROJECT &&
+      plugin.source.id === RD_GUIDE_SOURCE_ID &&
+      plugin.source.reference === RD_GUIDE_PROJECT &&
+      plugin.id.startsWith(`${RD_GUIDE_SOURCE_ID}/xhgj-`)
+        ? LEGACY_RD_GUIDE_MARKETPLACE_PATH
+        : this.source.marketplacePath
+    );
+    return assertSafePosixRelativePath(indexPath, "Marketplace index path");
   }
 
   /**

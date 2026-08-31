@@ -137,7 +137,60 @@ test("显式外部 Plugin update 仍要求准备远程固定包", async () => {
   assert.equal(prepareLockedCalls, 1);
 });
 
-test("活跃 builtin 新增远程依赖时登记来源且不准备同来源冻结节点", async () => {
+test("远程准备忽略当前声明不可达的孤立 lock", async () => {
+  const id = "rd-guide/xhgj-legacy";
+  const lock = {
+    schemaVersion: 1,
+    roots: [id],
+    plugins: [{
+      id,
+      source: { id: "rd-guide", type: "gitlab" },
+      dependencies: {},
+    }],
+  };
+  const pluginsFile = { schemaVersion: 1, plugins: [] };
+  let sourceStoreReads = 0;
+  const registry = new SourceRegistry();
+
+  await registerRemotePluginSources({
+    parsed: { command: "replay" },
+    projectRoot: process.cwd(),
+    options: {
+      sourceStore: {
+        list() {
+          sourceStoreReads += 1;
+          return [descriptor];
+        },
+      },
+    },
+    registry,
+    lock,
+    pluginsFile,
+  });
+
+  let prepareLockedCalls = 0;
+  const preparedRegistry = {
+    has: (sourceId) => sourceId === "rd-guide",
+    get: () => ({
+      async prepareLocked() {
+        prepareLockedCalls += 1;
+      },
+    }),
+  };
+  await prepareRemotePluginCandidates({
+    parsed: { command: "replay" },
+    canonicalId: null,
+    registry: preparedRegistry,
+    lock,
+    pluginsFile,
+  });
+
+  assert.equal(sourceStoreReads, 0);
+  assert.equal(registry.has("rd-guide"), false);
+  assert.equal(prepareLockedCalls, 0);
+});
+
+async function assertActiveBuiltinRemoteDependencyPrepared(command) {
   const activeId = "flower/skill-garden";
   const preservedId = "rd-guide/existing";
   const dependencyId = "rd-guide/new";
@@ -201,7 +254,7 @@ test("活跃 builtin 新增远程依赖时登记来源且不准备同来源冻�
   const sourceStore = { list: () => [descriptor] };
 
   await registerRemotePluginSources({
-    parsed: { command: "update", pluginId: activeId },
+    parsed: { command, pluginId: activeId },
     projectRoot: process.cwd(),
     options: {
       sourceStore,
@@ -213,7 +266,7 @@ test("活跃 builtin 新增远程依赖时登记来源且不准备同来源冻�
     preserveIds: [preservedId],
   });
   await prepareRemotePluginCandidates({
-    parsed: { command: "update" },
+    parsed: { command },
     canonicalId: activeId,
     registry,
     lock,
@@ -223,7 +276,13 @@ test("活跃 builtin 新增远程依赖时登记来源且不准备同来源冻�
   assert.equal(registry.has("rd-guide"), true);
   assert.deepEqual(preparedIds, [dependencyId]);
   assert.equal(prepareLockedCalls, 0);
-});
+}
+
+test("活跃 builtin 首次添加时登记新增远程依赖来源且不准备同来源冻结节点", () =>
+  assertActiveBuiltinRemoteDependencyPrepared("add"));
+
+test("活跃 builtin 更新时登记新增远程依赖来源且不准备同来源冻结节点", () =>
+  assertActiveBuiltinRemoteDependencyPrepared("update"));
 
 test("GitHub source 新增先探测固定格式，再复用现有生命周期安装", async (t) => {
   const root = createPluginTestRoot(t, "flower-github-cli-add-");

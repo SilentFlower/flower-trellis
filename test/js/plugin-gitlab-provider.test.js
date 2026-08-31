@@ -63,6 +63,7 @@ test("GitLab Provider 固定索引 commit、验证 digest 并复用不可变缓�
   const candidate = provider.listCandidates("rd-guide/demo")[0];
   assert.equal(candidate.commit, commit);
   assert.equal(candidate.source.indexCommit, commit);
+  assert.equal(candidate.source.indexPath, ".flower-plugin/marketplace.json");
   assert.equal(candidate.source.reference, "group/rd-guide");
   assert.equal(provider.readPackage(candidate).integrity, integrity);
   assert.deepEqual(await provider.search("示例"), [{
@@ -107,6 +108,76 @@ test("GitLab Provider 固定索引 commit、验证 digest 并复用不可变缓�
     () => providerFromLockedIndex.readPackage(candidate),
     (error) => error.code === "PLUGIN_IO_ERROR" && !error.message.includes(root),
   );
+});
+
+test("GitLab Provider 通过受限映射重放旧 RD Guide Marketplace 路径", async (t) => {
+  const root = createPluginTestRoot(t, "flower-gitlab-provider-legacy-index-");
+  const project = "digital-rd-governance/rd-guide";
+  const indexCommit = "b".repeat(40);
+  const packageCommit = "c".repeat(40);
+  const repositoryContainer = path.join(root, "archive-source");
+  const repositoryRoot = path.join(repositoryContainer, "rd-guide-legacy");
+  const pluginRoot = writePluginPackage(
+    repositoryRoot,
+    "plugins/xhgj-legacy",
+    pluginManifest({ id: "xhgj-legacy" }),
+  );
+  const integrity = hashCanonicalTree(pluginRoot);
+  const archive = await archiveDirectory(
+    repositoryContainer,
+    path.basename(repositoryRoot),
+    path.join(root, "archive.tar.gz"),
+  );
+  const marketplace = {
+    schemaVersion: 1,
+    id: "rd-guide",
+    name: "研发指南",
+    plugins: [{
+      id: "xhgj-legacy",
+      description: "历史 Plugin",
+      source: { type: "path", path: "plugins/xhgj-legacy" },
+      trust: { maxProfile: "standard" },
+      versions: [{ version: "1.0.0", ref: "v1.0.0", commit: packageCommit, integrity }],
+    }],
+  };
+  const reads = [];
+  const provider = new GitLabSourceProvider({
+    source: { ...source, project },
+    projectRoot: path.join(root, "project"),
+    client: {
+      resolveCommit: async () => { throw new Error("锁定重放不应解析当前 ref"); },
+      readRawFile: async (readProject, filePath, ref) => {
+        reads.push({ project: readProject, filePath, ref });
+        return JSON.stringify(marketplace);
+      },
+      downloadArchive: async () => archive,
+    },
+  });
+  const lockedPlugin = {
+    id: "rd-guide/xhgj-legacy",
+    version: "1.0.0",
+    source: { id: "rd-guide", type: "gitlab", reference: project, indexCommit },
+    commit: packageCommit,
+    integrity,
+    dependencies: {},
+    compatibility: { flower: "*" },
+    capabilities: {
+      profile: "standard",
+      granted: ["content.skills"],
+      denied: [],
+      approvalDigest: null,
+    },
+  };
+
+  await provider.prepareLocked(lockedPlugin);
+
+  const [candidate] = provider.listCandidates(lockedPlugin.id);
+  assert.equal(candidate.source.indexPath, ".flower-marketplace/marketplace.json");
+  assert.deepEqual(reads, [{
+    project,
+    filePath: ".flower-marketplace/marketplace.json",
+    ref: indexCommit,
+  }]);
 });
 
 test("GitLab Provider prepareVersion 只准备指定版本", async (t) => {
@@ -347,6 +418,7 @@ test("GitLab Provider locked manifest-only inspection 使用锁定索引", async
 
   assert.equal(inspection.version, lockedPlugin.version);
   assert.equal(inspection.source.indexCommit, indexCommit);
+  assert.equal(inspection.source.indexPath, ".flower-plugin/marketplace.json");
   assert.equal(inspection.commit, packageCommit);
   assert.equal(fs.existsSync(path.join(projectRoot, ".flower/cache/gitlab")), false);
   assert.deepEqual(reads, [

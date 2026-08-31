@@ -45,30 +45,33 @@ function quietApply(target, options) {
  * 为已安装 Skill-Garden 的测试项目追加一个仅保留安装态的外部 Plugin。
  *
  * @param {string} target 项目根
+ * @param {{id?:string,managedPath?:string,source?:object,version?:string}} [options] 外部 Plugin 身份
  * @returns {{id:string,managedRoot:string,lockEntry:object,stateEntry:object}} 外部 Plugin 证据
  */
-function attachOfflineExternalPlugin(target) {
-  const id = "offline/company-only";
-  const managedPath = ".agents/skills/company-only";
+function attachOfflineExternalPlugin(target, options = {}) {
+  const id = options.id || "offline/company-only";
+  const managedPath = options.managedPath || ".agents/skills/company-only";
+  const version = options.version || "1.0.0";
+  const source = options.source || {
+    id: "offline",
+    type: "github",
+    reference: "example/private-plugin",
+    format: "skill-only",
+    entryPath: "SKILL.md",
+  };
   const managedRoot = path.join(target, ...managedPath.split("/"));
   fs.mkdirSync(managedRoot, { recursive: true });
   fs.writeFileSync(path.join(managedRoot, "SKILL.md"), "# Company Only\n");
   const store = new ProjectStore(target);
   const plugins = store.readPlugins();
-  plugins.plugins.push({ id, source: "offline", version: "1.0.0" });
+  plugins.plugins.push({ id, source: source.id, version });
   plugins.plugins.sort((left, right) => left.id.localeCompare(right.id));
   store.writePlugins(plugins);
   const lock = store.readLock();
   const lockEntry = {
     id,
-    version: "1.0.0",
-    source: {
-      id: "offline",
-      type: "github",
-      reference: "example/private-plugin",
-      format: "skill-only",
-      entryPath: "SKILL.md",
-    },
+    version,
+    source,
     commit: "a".repeat(40),
     integrity: `sha256:${"b".repeat(64)}`,
     dependencies: {},
@@ -87,7 +90,7 @@ function attachOfflineExternalPlugin(target) {
   const state = store.readState();
   const stateEntry = {
     id,
-    version: "1.0.0",
+    version,
     platforms: ["codex"],
     paths: [{
       path: managedPath,
@@ -100,6 +103,19 @@ function attachOfflineExternalPlugin(target) {
   state.plugins.push(stateEntry);
   store.writeState(state);
   return { id, managedRoot, lockEntry, stateEntry };
+}
+
+function legacyRdGuideOptions() {
+  return {
+    id: "rd-guide/xhgj-legacy",
+    managedPath: ".agents/skills/xhgj-legacy",
+    source: {
+      id: "rd-guide",
+      type: "gitlab",
+      reference: "digital-rd-governance/rd-guide",
+      indexCommit: "c".repeat(40),
+    },
+  };
 }
 
 /**
@@ -438,6 +454,82 @@ test("Update 重放在外部来源未配置时冻结其 lock/state 与受管目�
   assert.deepEqual(store.readLock().plugins.find(({ id }) => id === external.id), beforeLock);
   assert.deepEqual(store.readState().plugins.find(({ id }) => id === external.id), beforeState);
   assert.equal(fs.readFileSync(path.join(external.managedRoot, "SKILL.md"), "utf8"), "# Company Only\n");
+});
+
+test("--no-enhance Update 离线冻结旧 RD Guide 独立 Plugin", async (t) => {
+  const target = createTarget(t);
+  quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
+  const external = attachOfflineExternalPlugin(target, legacyRdGuideOptions());
+  const store = new ProjectStore(target);
+  const beforeLock = structuredClone(store.readLock().plugins.find(({ id }) => id === external.id));
+  const beforeState = structuredClone(store.readState().plugins.find(({ id }) => id === external.id));
+
+  await replayPlugins({
+    enhance: false,
+    variant: "0.5",
+    skills: ["trellis-route"],
+    trellisControlMode: "materialized",
+    trellisControlQuiet: true,
+  }, target, false);
+
+  assert.deepEqual(store.readLock().plugins.find(({ id }) => id === external.id), beforeLock);
+  assert.deepEqual(store.readState().plugins.find(({ id }) => id === external.id), beforeState);
+  assert.equal(fs.readFileSync(path.join(external.managedRoot, "SKILL.md"), "utf8"), "# Company Only\n");
+});
+
+test("Update 不访问 GitLab 并事务清理目标已缺失的孤立 RD Guide 状态", async (t) => {
+  const target = createTarget(t);
+  quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
+  const external = attachOfflineExternalPlugin(target, legacyRdGuideOptions());
+  const store = new ProjectStore(target);
+  const plugins = store.readPlugins();
+  plugins.plugins = plugins.plugins.filter(({ id }) => id !== external.id);
+  store.writePlugins(plugins);
+  fs.rmSync(external.managedRoot, { recursive: true, force: true });
+
+  await replayPlugins({
+    enhance: true,
+    variant: "0.5",
+    skills: ["trellis-route"],
+    trellisControlMode: "materialized",
+    trellisControlQuiet: true,
+  }, target, false);
+
+  const lock = store.readLock();
+  const state = store.readState();
+  assert.equal(lock.roots.includes(external.id), false);
+  assert.equal(lock.plugins.some(({ id }) => id === external.id), false);
+  assert.equal(state.plugins.some(({ id }) => id === external.id), false);
+});
+
+test("孤立 RD Guide 受管目录漂移时 Update 在写入前失败", async (t) => {
+  const target = createTarget(t);
+  quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
+  const external = attachOfflineExternalPlugin(target, legacyRdGuideOptions());
+  const store = new ProjectStore(target);
+  const plugins = store.readPlugins();
+  plugins.plugins = plugins.plugins.filter(({ id }) => id !== external.id);
+  store.writePlugins(plugins);
+  const lockPath = path.join(target, ".flower/plugin-lock.json");
+  const statePath = path.join(target, ".flower/state.json");
+  const beforeLock = fs.readFileSync(lockPath, "utf8");
+  const beforeState = fs.readFileSync(statePath, "utf8");
+  fs.appendFileSync(path.join(external.managedRoot, "SKILL.md"), "用户修改\n");
+
+  await assert.rejects(
+    () => replayPlugins({
+      enhance: true,
+      variant: "0.5",
+      skills: ["trellis-route"],
+      trellisControlMode: "materialized",
+      trellisControlQuiet: true,
+    }, target, false),
+    /Plugin Runtime 重放失败/,
+  );
+
+  assert.equal(fs.readFileSync(lockPath, "utf8"), beforeLock);
+  assert.equal(fs.readFileSync(statePath, "utf8"), beforeState);
+  assert.match(fs.readFileSync(path.join(external.managedRoot, "SKILL.md"), "utf8"), /用户修改/);
 });
 
 test("冻结外部目录漂移时 Update 重放在写入前失败", async (t) => {
