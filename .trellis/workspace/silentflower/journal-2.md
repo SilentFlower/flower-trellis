@@ -1208,3 +1208,24 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 97: 归档旧 RD Guide 离线升级兼容
+
+**Date**: 2026-08-31
+**Task**: 归档旧 RD Guide 离线升级兼容
+**Branch**: `main`
+
+### Summary
+
+完成旧 RD Guide 历史 Marketplace 路径兼容、声明驱动的 lock 可达性、孤儿状态事务清理与旧 xhgj 技能移除；业务和任务记录均已推送，任务进入归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fcec390` | (see git log) |
+
+### Status
+
+[OK] **Completed**
