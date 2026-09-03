@@ -1229,3 +1229,39 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 98: 优化 CLI 调用契约与帮助体验
+
+**Date**: 2026-09-03
+**Task**: 优化 CLI 调用契约与帮助体验
+**Branch**: `main`
+
+### Summary
+
+统一 Trellis 查询状态、任务引用和进度写入契约，补齐 Flower 一级命令无副作用帮助，并同步 Skill-Garden 真源、增强快照与 dogfood。
+
+### Main Changes
+
+- 查询型空状态改为结构化成功结果，写入型活动任务门禁保持严格。
+- 统一 decision_log 与 task_progress 的任务引用解析，自动补齐缺失的 updatedAt。
+- 补齐 Flower 命令帮助矩阵与 worktree 已有分支引导。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6199ab8` | (see git log) |
+| `b7a39db` | (see git log) |
+
+### Testing
+
+- [OK] npm test：Node 518/518、Python 312/312，Patch、compiled-target、上下文预算和输出模板通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 发布时按任务 release.md 说明 task.py current 退出码兼容性变化。

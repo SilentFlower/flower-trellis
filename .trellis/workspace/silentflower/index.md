@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 97
-- **Last Active**: 2026-08-31
+- **Total Sessions**: 98
+- **Last Active**: 2026-09-03
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~1231 | Active |
+| `journal-2.md` | ~1267 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 98 | 2026-09-03 | 优化 CLI 调用契约与帮助体验 | `6199ab8`, `b7a39db` | `main` |
 | 97 | 2026-08-31 | 归档旧 RD Guide 离线升级兼容 | `fcec390` | `main` |
 | 96 | 2026-08-29 | 修复外部 Plugin 不可达时阻塞 Flower 升级 | `6210cfa` | `main` |
 | 95 | 2026-08-28 | 优化 RD Guide 技能清单读取 | `8bd1eac` | `main` |
