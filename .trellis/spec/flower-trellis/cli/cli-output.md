@@ -58,6 +58,75 @@
 
 ---
 
+## Scenario: Command Help Contract
+
+### 1. Scope / Trigger
+
+- Trigger: 新增或修改 Flower 自有一级命令、拥有独立参数契约的子命令，或调整其联网、写盘、
+  prompt、PTY 与子进程入口。
+- Scope: 根帮助负责导航，命令级帮助由对应 `src/commands/*.js` 所有者维护；未知 Trellis 命令的
+  透传语义不变。
+
+### 2. Signatures
+
+```text
+flower-trellis --help
+flower-trellis <command> [-h|--help]
+flower-trellis worktree <status|prepare|migrate|create|remove> --help
+hasHelpFlag(args: string[]) -> boolean
+```
+
+### 3. Contracts
+
+- Flower 自有一级命令和拥有独立参数契约的子命令必须支持 `-h` / `--help`，帮助打印到 stdout、
+  stderr 为空并返回 `0`；根帮助必须提供 `flower-trellis <命令> --help` 导航。
+- 命令入口先调用 `hasHelpFlag(args)` 或该命令已有的等价解析器；帮助分支必须先于目标目录校验、
+  版本联网检查、用户级或项目级写盘、Inquirer prompt、PTY 和其它子进程。
+- 公共层只保存帮助标记判断，不复制各命令参数知识。帮助正文至少包含用途、用法、关键选项和
+  容易失败场景的下一步引导。
+- `worktree create --help` 必须明确 `--branch` 只创建新分支；已有分支引导到
+  `git worktree add`，随后运行 `worktree status`，必要时再运行 `worktree prepare`。
+
+### 4. Validation & Error Matrix
+
+| 输入 | 结果 |
+|------|------|
+| 根级 `--help` / `-h` | 根帮助，退出 `0` |
+| 自有命令帮助 + 不存在的 `--target` | 命令帮助，退出 `0`，不校验或创建目标 |
+| 帮助路径遇到不可用网络、用户配置或 Python/PTY 命令 | 不访问对应依赖，仍退出 `0` |
+| `worktree create --help` | 同时展示新分支限制与已有分支操作路径 |
+| 非帮助请求的未知参数 | 保持命令既有 usage error，不静默忽略 |
+
+### 5. Good / Base / Bad Cases
+
+- Good: `flower-trellis update --help --target <missing>` 不联网、不写盘并输出 update 用法。
+- Base: `plugin`、`trellis`、`skill`、`worktree` 已有帮助解析继续由原命令所有者维护。
+- Bad: 先运行 `checkForUpdate()`、目标校验或 PTY，再因为发现 `--help` 才返回。
+
+### 6. Tests Required
+
+- 真实 CLI 帮助矩阵覆盖全部自有一级命令和代表性独立子命令，断言退出码 `0`、stderr 为空及
+  关键导航文案。
+- 使用不存在目标与隔离的 `HOME` / `XDG_CONFIG_HOME` / `APPDATA`，断言沙箱零写入。
+- 对新增帮助入口静态断言帮助分支位于已知联网、写盘、prompt、PTY 或子进程调用之前。
+
+### 7. Wrong vs Correct
+
+```js
+// Wrong: 帮助请求已经进入目标校验和运行流程。
+assertTarget(ctx.target);
+if (hasHelpFlag(ctx.passthrough)) printHelp();
+
+// Correct: 公开入口首先完成无副作用帮助短路。
+if (hasHelpFlag(ctx.passthrough)) {
+  printHelp();
+  return;
+}
+assertTarget(ctx.target);
+```
+
+---
+
 ## Exit Codes
 
 | 退出码 | 场景 | 出处 |

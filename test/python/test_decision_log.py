@@ -6,6 +6,8 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -13,6 +15,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "vendor/skill-garden/.trellis/0.6/scripts/decision_log.py"
+COMMON_SOURCE = ROOT / ".trellis/scripts/common"
 
 
 def load_module():
@@ -65,6 +68,29 @@ class DecisionLogTest(unittest.TestCase):
             requirements=["R4"],
             files=["src/example.py"],
         )
+
+    def run_cli(self, root: Path, *args: str) -> tuple[subprocess.CompletedProcess[str], dict]:
+        """在隔离项目运行 decision_log CLI。
+
+        Args:
+            root: 隔离 Trellis 项目根目录。
+            *args: 传给 decision_log.py 的参数。
+
+        Returns:
+            子进程结果和解析后的 JSON 输出。
+        """
+        scripts_dir = root / ".trellis/scripts"
+        scripts_dir.mkdir(parents=True, exist_ok=True)
+        if not (scripts_dir / "common").exists():
+            shutil.copytree(COMMON_SOURCE, scripts_dir / "common")
+        result = subprocess.run(
+            ["python3", str(SOURCE), *args],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result, json.loads(result.stdout)
 
     def test_append_assigns_ids_and_requires_review(self) -> None:
         """决策 ID 递增，未审查时归档门禁关闭。"""
@@ -169,6 +195,44 @@ class DecisionLogTest(unittest.TestCase):
 
         self.assertEqual(len(lines), 2)
         self.assertTrue(all(isinstance(json.loads(line), dict) for line in lines))
+
+    def test_cli_resolves_unique_short_task_name(self) -> None:
+        """唯一短名与完整日期目录得到同一任务。"""
+        root = Path(self.temp.name)
+        task_dir = root / ".trellis/tasks/09-03-unique-one"
+        task_dir.mkdir()
+
+        result, payload = self.run_cli(root, "status", "--task", "unique-one", "--json")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["decision_count"], 0)
+
+    def test_cli_rejects_ambiguous_short_task_name(self) -> None:
+        """多个日期目录命中同一短名时必须列出候选并失败。"""
+        root = Path(self.temp.name)
+        (root / ".trellis/tasks/09-02-shared").mkdir()
+        (root / ".trellis/tasks/09-03-shared").mkdir()
+
+        result, payload = self.run_cli(root, "status", "--task", "shared", "--json")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "decision-log-error")
+        self.assertIn("任务引用存在歧义", payload["message"])
+        self.assertIn("09-02-shared", payload["message"])
+        self.assertIn("09-03-shared", payload["message"])
+
+    def test_cli_rejects_task_path_outside_active_tasks(self) -> None:
+        """项目外和活动任务目录外的路径都不能被解析。"""
+        root = Path(self.temp.name)
+        outside = root / "outside"
+        outside.mkdir()
+
+        result, payload = self.run_cli(root, "status", "--task", str(outside), "--json")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "decision-log-error")
+        self.assertIn("必须指向活动任务目录", payload["message"])
 
 
 if __name__ == "__main__":

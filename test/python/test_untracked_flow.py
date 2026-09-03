@@ -299,8 +299,8 @@ class UntrackedFlowTest(unittest.TestCase):
         self.assertNotIn("trellis-update-spec", payload["hint"])
 
     def test_cross_session_and_active_task_are_isolated(self) -> None:
-        """其它 session 不继承事项，当前 session 有 task 时拒绝 begin。"""
-        self._helper(
+        """其它 session 不继承事项，当前 session 有 task 时拒绝 begin 和 clear。"""
+        _, created = self._helper(
             "begin",
             "--summary",
             "session A",
@@ -323,6 +323,12 @@ class UntrackedFlowTest(unittest.TestCase):
         runtime = self._session()
         runtime["current_task"] = ".trellis/tasks/task-a"
         self._session_path().write_text(json.dumps(runtime), encoding="utf-8")
+        status_result, status = self._helper("status", check=False)
+        self.assertEqual(status_result.returncode, 0)
+        self.assertEqual(status["status"], "not-applicable")
+        self.assertEqual(status["reason"], "active-task-present")
+        self.assertEqual(status["task"], ".trellis/tasks/task-a")
+
         result, payload = self._helper(
             "begin",
             "--summary",
@@ -335,6 +341,18 @@ class UntrackedFlowTest(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(payload["reason"], "active-task-present")
+
+        result, payload = self._helper(
+            "clear",
+            "--reason",
+            "abandoned",
+            "--work-id",
+            created["workId"],
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(payload["reason"], "active-task-present")
+        self.assertIn("untracked_flow", self._session())
 
     def test_corrupt_runtime_and_replace_failure_preserve_existing_data(self) -> None:
         """损坏或原子替换失败不覆盖旧 runtime。"""

@@ -9,6 +9,26 @@ import { ProjectStore } from "../plugin/state/project-store.js";
 import { SKILL_GARDEN_PLUGIN_ID } from "../builtin-plugins/skill-garden/provider.js";
 import { showCommandCompletion } from "../lib/command-completion.js";
 import { reportTelemetry } from "../lib/telemetry.js";
+import { hasHelpFlag } from "../lib/cli-args.js";
+
+/** 打印 init 命令帮助。 */
+function printInitHelp() {
+  console.log(`flower-trellis init — 初始化 Trellis 并安装 Skill Garden 强化
+
+用法:
+  flower-trellis init [trellis flags] [flower flags]
+
+常用选项:
+  -y, --yes               非交互执行，默认启用 Codex + Claude Code
+  --target <dir>           目标目录，必须已经存在
+  --no-enhance             只运行 Trellis init
+  --enhance-only           只安装强化包
+  --skills <a,b,...>       仅安装指定技能
+  --variant <old|0.5|0.6>  指定强化包变体
+  --no-update-check        本次跳过版本检查
+
+需要选择模板、monorepo 或平台时，移除 -y 进入交互流程。`);
+}
 
 /**
  * flower-trellis init:驱动 `trellis init`,随后叠加强化包。
@@ -23,6 +43,10 @@ import { reportTelemetry } from "../lib/telemetry.js";
  * @returns {Promise<void>} Trellis 初始化、强化叠加与完成交互结束后返回
  */
 export async function init(ctx) {
+  if (hasHelpFlag(ctx.passthrough)) {
+    printInitHelp();
+    return;
+  }
   const { target } = ctx;
   if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
     throw new Error(`目标目录不存在:${target}`);

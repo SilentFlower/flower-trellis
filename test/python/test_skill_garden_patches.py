@@ -1087,7 +1087,7 @@ class PatchConsumerTest(unittest.TestCase):
         self.load_compiled_targets()
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, self.target)
-        self.assertEqual(len(plan["patches"]), 41)
+        self.assertEqual(len(plan["patches"]), 43)
         self.assertGreaterEqual(len(plan["files"]), 300)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),
@@ -1096,6 +1096,8 @@ class PatchConsumerTest(unittest.TestCase):
         operation_ids = {item["id"] for item in plan["results"]}
         self.assertIn("task-start-session-write-gate", operation_ids)
         self.assertIn("task-finish-clear-result", operation_ids)
+        self.assertIn("task-current-query-contract", operation_ids)
+        self.assertIn("task-reference-resolution", operation_ids)
         self.assertIn("active-task-runtime-json-io", operation_ids)
         self.assertIn("task-create-parent-link", operation_ids)
         self.assertIn("codex-session-start-pre-check-hold", operation_ids)
@@ -1119,6 +1121,13 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("codex-agents-untracked-context", operation_ids)
         self.assertIn("kiro-agents-untracked-context", operation_ids)
         self.assertTrue(META_OPERATIONS.issubset(operation_ids))
+        task_utils = next(
+            item["next"]
+            for item in plan["files"]
+            if item["target"] == ".trellis/scripts/common/task_utils.py"
+        )
+        self.assertIn("skill-garden patch task-reference-resolution", task_utils)
+        self.assertIn("def resolve_task_reference", task_utils)
 
     def test_real_conflicts_cover_new_control_plane_operations(self) -> None:
         """新增控制面 operation 必须进入最终产物冲突断言。"""
@@ -1153,6 +1162,8 @@ class PatchConsumerTest(unittest.TestCase):
             "workflow-state-untracked-helper",
             "workflow-state-breadcrumb-subject",
             "workflow-state-main-subject-routing",
+            "task-current-query-contract",
+            "task-reference-resolution",
         }.issubset(covered))
         self.assertTrue(META_OPERATIONS.issubset(covered))
 
@@ -1550,17 +1561,21 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertIn("Planning task brief.md is stale", task_script)
         self.assertIn("Failed to persist task status before start", task_script)
         self.assertIn("Task status rollback also failed", task_script)
-
+        self.assertIn("skill-garden patch task-current-query-contract", task_script)
+        self.assertIn("No current task set", task_script)
     def test_real_catalog_continue_selects_progress_recovery(self) -> None:
         """验证 Python consumer 的 continue 精细安装先恢复 progress 再判断 Phase。"""
         self.load_compiled_targets()
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, self.target, ["trellis-continue"])
 
-        self.assertEqual(plan["bundles"], ["trellis-continue"])
+        self.assertEqual(
+            plan["bundles"],
+            ["trellis-continue", "task-reference-contract"],
+        )
         self.assertEqual(
             plan["patches"],
-            ["trellis-continue-task-progress-recovery"],
+            ["trellis-continue-task-progress-recovery", "task-reference-resolution"],
         )
         self.assertIn(
             "trellis-continue-task-progress-recovery",

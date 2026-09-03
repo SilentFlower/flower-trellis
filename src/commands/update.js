@@ -1,5 +1,5 @@
 import { runTrellis, runTrellisPty } from "../lib/trellis-runner.js";
-import { trellisUpdatePassthroughArgs } from "../lib/cli-args.js";
+import { hasHelpFlag, trellisUpdatePassthroughArgs } from "../lib/cli-args.js";
 import { plugin } from "./plugin.js";
 import { printBanner, getDeveloper } from "../lib/banner.js";
 import { checkForUpdate } from "../lib/update-check.js";
@@ -40,6 +40,23 @@ const SILENT_OUTPUT = Object.freeze({
   on() {},
   off() {},
 });
+
+/** 打印 update 命令帮助。 */
+function printUpdateHelp() {
+  console.log(`flower-trellis update — 升级 Trellis 并重放已声明 Plugin
+
+用法:
+  flower-trellis update [trellis flags] [flower flags]
+
+常用选项:
+  --target <dir>           目标 Trellis 项目
+  --dry-run                仅预览升级与 Plugin 变化
+  --enhance-only           跳过 Trellis update，仅重放 Plugin
+  --backup-retention <n>   成功后保留最近 n 份升级备份，0 表示不清理
+  --no-update-check        本次跳过 flower-trellis 版本检查
+
+跨版本预览会在项目外沙箱执行；真实更新失败时会尝试恢复受管状态。`);
+}
 
 /**
  * 判断普通跨版本 dry-run 是否需要进入项目外升级沙箱。
@@ -222,6 +239,10 @@ function printBackupRetentionResult(result, output = console) {
  * @returns {Promise<void>} 升级、强化叠加与备份保留处理完成后返回
  */
 export async function update(ctx) {
+  if (hasHelpFlag(ctx.passthrough)) {
+    printUpdateHelp();
+    return;
+  }
   const dryRun = ctx.passthrough.includes("--dry-run");
   if (!dryRun && ctx.trellisControlMode !== "materialized" && ctx.trellisControlMode !== "restoring") {
     return runWithTrellisIntegrationEnabled(ctx.target, ({ extendSnapshot }) => update({

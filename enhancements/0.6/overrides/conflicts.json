@@ -1647,6 +1647,39 @@
       },
       "owner": "trellis-finish-work",
       "reason": "finish-work 只能归档已 completed 任务，不能替代 trellis-push 写完成状态。"
+    },
+    {
+      "id": "task-current-required-query-contract",
+      "severity": "error",
+      "target": ".trellis/scripts/task.py",
+      "whenOperations": ["task-current-query-contract"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch task-current-query-contract v0.6",
+          "print(colored(\"No current task set\", Colors.YELLOW))",
+          "\"current_task\": task_obj"
+        ]
+      },
+      "owner": "task-current-query-contract",
+      "reason": "current 查询的有效空状态必须以退出码 0 和明确输出表达。"
+    },
+    {
+      "id": "task-reference-required-strict-resolver",
+      "severity": "error",
+      "target": ".trellis/scripts/common/task_utils.py",
+      "whenOperations": ["task-reference-resolution"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch task-reference-resolution v0.6",
+          "def resolve_task_reference(task_ref: str, repo_root: Path) -> Path:",
+          "任务引用存在歧义",
+          "任务引用必须指向活动任务目录"
+        ]
+      },
+      "owner": "task-reference-resolution",
+      "reason": "消费 helper 必须复用确定性解析器，并拒绝歧义或越界路径。"
     }
   ]
 }

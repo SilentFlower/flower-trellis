@@ -6,6 +6,24 @@ import {
   safetyState,
 } from "../lib/self-check.js";
 import { installFlowerVersion } from "../lib/update-check.js";
+import { hasHelpFlag } from "../lib/cli-args.js";
+
+/** 打印 self-update 命令帮助。 */
+function printSelfUpdateHelp() {
+  console.log(`flower-trellis self-update — 更新全局 Flower 并重叠加当前项目
+
+用法:
+  flower-trellis self-update --target <dir> --dry-run
+  flower-trellis self-update --target <dir> --yes [--project-only] [-- <update flags>]
+
+选项:
+  --dry-run       只展示全局升级、项目更新与安全检查
+  -y, --yes       确认真实写入
+  --project-only  跳过全局包升级，仅修复项目版本差异
+  --              把后续冲突策略转发给项目 update
+
+建议先运行 --dry-run；真实更新完成后按输出进入 trellis-push。`);
+}
 
 /** 判断参数里是否包含指定 flag。 */
 function hasFlag(args, name) {
@@ -109,6 +127,10 @@ function printFlowerUpdateResult(fields) {
  * @returns {Promise<void>}
  */
 export async function selfUpdate(ctx) {
+  if (hasHelpFlag(ctx.passthrough)) {
+    printSelfUpdateHelp();
+    return;
+  }
   const dryRun = hasFlag(ctx.passthrough, "--dry-run");
   const yes = hasFlag(ctx.passthrough, "--yes") || hasFlag(ctx.passthrough, "-y");
   const projectOnly = hasFlag(ctx.passthrough, "--project-only");

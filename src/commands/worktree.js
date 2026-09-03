@@ -8,6 +8,7 @@ import {
 } from "../lib/trellis-python-command.js";
 
 const SUPPORTED_COMMANDS = new Set(["status", "prepare", "migrate", "create", "remove"]);
+const HELP_OPTIONS = new Set(["-h", "--help"]);
 const VALUE_OPTIONS = new Set([
   "--branch",
   "--base",
@@ -18,6 +19,114 @@ const VALUE_OPTIONS = new Set([
   "--plan-fingerprint",
 ]);
 const BOOLEAN_OPTIONS = new Set(["--json", "--dry-run", "--yes", "--inherit-route-prefs"]);
+
+/**
+ * 识别 worktree 根级或子命令级帮助请求。
+ *
+ * @param {string[]} args `worktree` 之后的参数
+ * @returns {string|null|undefined} 子命令名、根级帮助标记，或非帮助请求
+ */
+function requestedHelpCommand(args) {
+  const first = args[0];
+  if (first === "help" || HELP_OPTIONS.has(first)) {
+    const command = args[1];
+    if (command && !SUPPORTED_COMMANDS.has(command)) {
+      throw new Error(`worktree help 不支持子命令: ${command}`);
+    }
+    return command || null;
+  }
+  if (SUPPORTED_COMMANDS.has(first) && args.slice(1).some((token) => HELP_OPTIONS.has(token))) {
+    return first;
+  }
+  return undefined;
+}
+
+/**
+ * 打印 worktree 根级或指定子命令的场景化帮助。
+ *
+ * @param {string|null} command 可选子命令
+ * @returns {void}
+ */
+function printWorktreeHelp(command) {
+  if (command === "status") {
+    console.log(`flower-trellis worktree status — 只读诊断目标 worktree
+
+用法:
+  flower-trellis worktree status [--target <dir>] [--json]
+
+先运行 status，再根据返回的 ready-local、needs-prepare、needs-init 或
+needs-migration 状态选择下一步。`);
+    return;
+  }
+  if (command === "prepare") {
+    console.log(`flower-trellis worktree prepare — 准备分支本地运行状态
+
+用法:
+  flower-trellis worktree prepare [--target <dir>] [--developer <name>]
+                                   [--inherit-route-prefs] [--json]
+
+prepare 不创建 Git worktree，只补齐目标分支本地的 developer、runtime 和 registry 状态。
+仅在确实需要继承当前控制 worktree 的个人路由偏好时使用 --inherit-route-prefs。`);
+    return;
+  }
+  if (command === "migrate") {
+    console.log(`flower-trellis worktree migrate — 迁移旧版 worktree 投影
+
+用法:
+  flower-trellis worktree migrate [--target <dir>] --dry-run [--json]
+  flower-trellis worktree migrate [--target <dir>] [--json]
+
+必须先用 --dry-run 检查迁移计划，再执行真实迁移。`);
+    return;
+  }
+  if (command === "create") {
+    console.log(`flower-trellis worktree create — 创建新分支、worktree 和 planning task
+
+只读预检:
+  flower-trellis worktree create --target <dir> --branch <new-branch> [--base <ref>]
+    --task-title <title> --task-slug <slug> [--task-description <text>]
+    [--developer <name>] [--json]
+
+确认执行:
+  flower-trellis worktree create ... --yes --plan-fingerprint <sha256>
+
+重要:
+  --branch 必须是尚不存在的新分支；create 不挂载已有分支。
+  已有分支请改用:
+    git worktree add <target> <existing-branch>
+    flower-trellis worktree status --target <target>
+  若 status 返回 needs-prepare，再运行:
+    flower-trellis worktree prepare --target <target> [--developer <name>]`);
+    return;
+  }
+  if (command === "remove") {
+    console.log(`flower-trellis worktree remove — 安全移除已登记的 linked worktree
+
+用法:
+  flower-trellis worktree remove [--target <dir>] [--json]
+
+目标必须无未提交修改、活动任务、会话或锁；remove 保留对应 Git 分支。`);
+    return;
+  }
+  console.log(`flower-trellis worktree — 管理分支本地化 Git worktree
+
+用法:
+  flower-trellis worktree <子命令> [选项]
+  flower-trellis worktree <子命令> --help
+
+子命令:
+  status    只读诊断目标 worktree 状态
+  prepare   准备分支本地 developer、runtime 和 registry 状态
+  migrate   迁移旧版 worktree 投影
+  create    创建新分支、worktree 和 planning task
+  remove    安全移除 worktree，保留 Git 分支
+
+推荐先运行:
+  flower-trellis worktree status --target <target>
+
+创建新分支请查看:
+  flower-trellis worktree create --help`);
+}
 
 /**
  * 解析 Flower worktree 子命令参数。
@@ -154,6 +263,11 @@ export function printWorktreeResult(payload) {
  * @returns {Promise<number>} 进程退出码
  */
 export async function worktree(ctx) {
+  const helpCommand = requestedHelpCommand(ctx.passthrough);
+  if (helpCommand !== undefined) {
+    printWorktreeHelp(helpCommand);
+    return 0;
+  }
   const parsed = parseWorktreeArgs(ctx.passthrough);
   if (parsed.command === "create" && !ctx.targetExplicit) {
     throw new Error("worktree create 必须显式传入 --target");

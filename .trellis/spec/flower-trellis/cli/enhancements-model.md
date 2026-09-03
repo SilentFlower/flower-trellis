@@ -95,6 +95,88 @@ replay 不受影响。真实 update 的 Trellis + Plugin 链失败时由项目�
 
 ---
 
+## Scenario: CLI Query And Task Reference Contracts
+
+### 1. Scope / Trigger
+
+- Trigger: 修改 Trellis 状态查询退出码、接收 `--task` 的 helper、任务 progress schema，或相关
+  Skill-Garden Patch/Bundle 分发关系。
+- Scope: 只把有效空状态或不适用状态定义为查询成功；解析、写入、状态迁移和安全边界错误继续
+  返回非零。
+
+### 2. Signatures
+
+```text
+python3 ./.trellis/scripts/task.py current [--source|--json]
+python3 ./.trellis/scripts/untracked_flow.py status [--verbose]
+python3 ./.trellis/scripts/decision_log.py status --task <ref> [--json]
+python3 ./.trellis/scripts/task_progress.py status --task <ref> [--json]
+python3 ./.trellis/scripts/task_progress.py write --task <ref> --progress-json <json> [--complete] [--json]
+resolve_task_reference(task_ref: str, repo_root: Path) -> Path
+```
+
+### 3. Contracts
+
+- `task.py current` 成功读取 runtime 后始终返回 `0`。无活动任务时，文本输出
+  `No current task set`，`--source` 输出 `Current task: (none)`，`--json` 输出
+  `current_task: null`。严格调用方必须解析结构化结果或调用 `common.active_task`。
+- `untracked_flow.py status` 在 session 已绑定活动任务时返回 `status=not-applicable`、
+  `reason=active-task-present` 和 `task`，退出 `0`；`begin`、`advance`、`clear` 等写入或迁移动作
+  继续执行活动任务互斥门禁。
+- `decision_log.py` 与 `task_progress.py` 必须复用 `resolve_task_reference()`。它支持完整目录名、
+  `.trellis/tasks/<name>` 相对路径、允许的绝对路径和唯一 `-<short-name>` 后缀；歧义候选按目录名
+  排序展示，不存在、archive、嵌套目录、软链逃逸和项目外路径失败关闭。
+- 原有宽松 `resolve_task_dir()` 保留给历史任务生命周期调用方，不得因本契约收紧其语义。
+- progress schema 固定为 `updatedAt`、`completedSteps`、`partialStep`、`nextStep`、`notes`。
+  `write` 仅在 `updatedAt` 字段完全缺失时生成秒级 UTC 时间；显式空值、错误类型、其它缺失字段
+  和额外字段继续失败，写盘继续使用同目录临时文件、`fsync` 和原子替换。
+- `task.py` 与 `task_utils.py` 是上游 target：通过 Skill-Garden Patch/Bundle 注入并刷新 compiled
+  targets。canonical helper 先改 `vendor/skill-garden/.trellis/0.6/scripts/`，再同步到
+  `enhancements/0.6` 和当前项目 dogfood 副本。精细安装 consumer 必须同时获得公共解析 Patch，
+  但不得让无关 Bundle 被迫依赖 `task_utils.py`。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 退出/结果 |
+|------|-----------|
+| `current` 无活动任务 | `0`；文本明确无任务或 JSON `current_task=null` |
+| `untracked status` 已有活动任务 | `0`；`not-applicable/active-task-present` |
+| `untracked begin/advance` 与活动任务冲突 | 非零；保持原互斥错误 |
+| 精确名、允许路径或唯一短名 | 解析到同一活动任务目录 |
+| 歧义、缺失、archive、嵌套或越界引用 | 非零；稳定 `task-reference-error` 或 owner 错误 |
+| progress 缺少 `updatedAt` | 自动生成 UTC 时间并按原子写入契约保存 |
+| progress 显式空时间、其它缺失字段或额外字段 | 非零；旧 `task.json` 字节保持不变 |
+
+### 5. Good / Base / Bad Cases
+
+- Good: 探测命令读取 `current_task` 或 `status/reason`，不会把正常空状态渲染成执行失败。
+- Good: `decision_log.py` 与 `task_progress.py` 对同一唯一短名得到同一目录。
+- Base: 已有完整 `updatedAt` 的合法 progress 原样保存；旧生命周期调用方继续使用宽松解析器。
+- Bad: 用 `task.py current` 的非零退出码判断“没有任务”，或从多个短名候选中取遍历到的第一个。
+
+### 6. Tests Required
+
+- `task.py current` 覆盖文本、`--source`、`--json` 的空状态退出码和输出字段。
+- untracked 覆盖活动任务下的只读 `status` 与写入型命令失败矩阵。
+- 公共解析器覆盖精确名、唯一/歧义短名、相对/绝对路径、不存在、archive、嵌套和软链逃逸。
+- progress 覆盖固定时间生成、显式时间保留、非法时间、其它缺失字段、额外字段和原子失败不改旧值。
+- 运行 Patch 冲突检查、compiled-target 漂移检查、canonical/snapshot/dogfood 内容一致性和完整
+  `npm test`。
+
+### 7. Wrong vs Correct
+
+```python
+# Wrong: 正常空状态依赖非零退出码，严格与查询语义混在一起。
+if task_path is None:
+    return 1
+
+# Correct: 查询成功返回 0，调用方读取结构化状态自行决定是否要求活动任务。
+print(json.dumps({"current_task": task_obj}, ensure_ascii=False))
+return 0
+```
+
+---
+
 ## Scenario: Common Skill Replacement Migration
 
 ### 1. Scope / Trigger
@@ -2776,7 +2858,8 @@ risk_items          ->始终逐项展示,不折叠
   普通默认 push 不扩大 auto-loop 的远端授权。auto-loop 自己校验 action/profile/task、空 staged
   区和文件归属,再把 exact files/message 交给内部执行器;`trellis-push` 不读写 runner runtime。
 - 当前任务进度 schema 固定为 `updatedAt`、`completedSteps`、`partialStep`、`nextStep`、`notes`;
-  不保存 push mode、业务 commit hash、分支或完整计划。`task_progress.py write` 必须拒绝额外字段,
+  不保存 push mode、业务 commit hash、分支或完整计划。`task_progress.py write` 仅在调用方完全省略
+  `updatedAt` 时生成 UTC 时间，显式空值仍失败；同时必须拒绝额外字段,
   只接受 `status=in_progress`；普通最终分支携带 `--complete` 时在同一次原子替换中写 progress、
   `status=completed` 和 UTC 日期 `completedAt`，并移除 legacy `last_push_snapshot`。
 - Task Progress Recovery 的读取 owner 是 `trellis-continue`：它在加载 Phase Index/选择恢复步骤前运行

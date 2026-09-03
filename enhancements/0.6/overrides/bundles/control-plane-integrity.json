@@ -5,6 +5,8 @@
   "installMode": "full-only",
   "patches": [
     "scripts/task-store-write-integrity",
+    "scripts/task-current-query-contract",
+    "scripts/task-reference-resolution",
     "scripts/runtime-state-integrity",
     "scripts/session-context-update-boundary",
     "hooks/session-start/update-boundary"

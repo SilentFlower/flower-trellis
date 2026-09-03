@@ -2,6 +2,16 @@ import path from "node:path";
 import { DEFAULT_UPDATE_BACKUP_RETENTION } from "../constants.js";
 
 /**
+ * 判断命令参数是否请求帮助。
+ *
+ * @param {string[]} args 命令自身收到的参数
+ * @returns {boolean} 是否包含 -h 或 --help
+ */
+export function hasHelpFlag(args) {
+  return args.some((arg) => arg === "-h" || arg === "--help");
+}
+
+/**
  * 解析 flower-trellis argv，分离自有参数与 Trellis 透传参数。
  *
  * @param {string[]} argv 不含 node 与入口脚本的参数列表

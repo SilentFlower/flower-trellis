@@ -1,4 +1,18 @@
 import { readTelemetryState, setTelemetryEnabled } from "../lib/telemetry.js";
+import { hasHelpFlag } from "../lib/cli-args.js";
+
+/** 打印 telemetry 命令帮助。 */
+function printTelemetryHelp() {
+  console.log(`flower-trellis telemetry — 管理匿名安装遥测
+
+用法:
+  flower-trellis telemetry status
+  flower-trellis telemetry enable
+  flower-trellis telemetry disable
+
+status 只读取用户级状态；enable/disable 会更新用户级遥测开关。
+环境变量 FLOWER_NO_TELEMETRY=1 可临时停用上报。`);
+}
 
 /**
  * 格式化可空时间。
@@ -41,6 +55,10 @@ function printStatus(env) {
  * @returns {Promise<void>} 命令执行完成后返回
  */
 export async function telemetry(ctx) {
+  if (hasHelpFlag(ctx.passthrough)) {
+    printTelemetryHelp();
+    return;
+  }
   const action = ctx.passthrough[0] || "status";
   if (action === "status") {
     printStatus(process.env);

@@ -32,6 +32,7 @@
     "skills/trellis-brainstorm/planning-authorization",
     "skills/trellis-brainstorm/auto-task-create",
     "skills/trellis-brainstorm/planning-handoff",
-    "scripts/task-start-brief-gate"
+    "scripts/task-start-brief-gate",
+    "scripts/task-current-query-contract"
   ]
 }

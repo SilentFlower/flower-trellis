@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "task-reference-contract",
+  "aliases": [
+    "decision-log",
+    "task-progress",
+    "progress",
+    "push-snapshot",
+    "snapshot",
+    "trellis-auto-loop",
+    "auto-loop",
+    "auto-loop-runner",
+    "trellis-finish-work",
+    "finish-work",
+    "finish-work-enhancement",
+    "trellis-continue",
+    "continue",
+    "progress-recovery",
+    "trellis-push",
+    "push"
+  ],
+  "installMode": "full-or-selected",
+  "patches": ["scripts/task-reference-resolution"]
+}

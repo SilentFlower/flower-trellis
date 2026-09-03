@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "id": "task-current-query-contract",
+  "purpose": "cli_query_contract",
+  "operations": [
+    {
+      "id": "task-current-query-contract",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/task.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "task-current-selector.py" },
+      "content": { "source": "task-current-content.py" }
+    }
+  ]
+}

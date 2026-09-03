@@ -17,6 +17,33 @@ import {
 
 const CLI = path.resolve("bin/flower-trellis.js");
 
+test("worktree 根级帮助展示子命令导航并正常退出", () => {
+  const result = spawnSync(process.execPath, [CLI, "worktree", "--help"], {
+    cwd: path.resolve("."),
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+  assert.match(result.stdout, /worktree <子命令> --help/);
+  assert.match(result.stdout, /status\s+只读诊断目标 worktree 状态/);
+  assert.match(result.stdout, /worktree create --help/);
+});
+
+test("worktree create 帮助解释新分支限制和已有分支路径", () => {
+  const result = spawnSync(process.execPath, [CLI, "worktree", "create", "--help"], {
+    cwd: path.resolve("."),
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+  assert.match(result.stdout, /--branch 必须是尚不存在的新分支/);
+  assert.match(result.stdout, /git worktree add <target> <existing-branch>/);
+  assert.match(result.stdout, /worktree status --target <target>/);
+  assert.match(result.stdout, /status 返回 needs-prepare/);
+});
+
 test("worktree 参数由 Flower 自有 facade 消费", () => {
   const parsedCli = parseCliArgs([
     "worktree",

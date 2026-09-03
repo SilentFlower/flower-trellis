@@ -12,9 +12,24 @@ import {
   buildSelfCheck,
   DEFAULT_UPDATE_PROMPT_SNOOZE_HOURS,
 } from "../lib/self-check.js";
+import { hasHelpFlag } from "../lib/cli-args.js";
 
 const POLICIES = new Set(["off", "notify", "ask", "auto"]);
 const ACTIONABLE_STATUSES = new Set(["update_available", "project_out_of_sync"]);
+
+/** 打印 update-check 命令帮助。 */
+function printUpdateCheckHelp() {
+  console.log(`flower-trellis update-check — 管理启动更新检查策略
+
+用法:
+  flower-trellis update-check get [--target <dir>]
+  flower-trellis update-check set [--policy <off|notify|ask|auto>] [--interval-hours <n>]
+  flower-trellis update-check <disable|enable|reset>
+  flower-trellis update-check snooze [--hours <n>|--days <n>]
+  flower-trellis update-check skip
+
+set 至少需要一个策略选项；snooze 与 skip 仅在当前存在可操作更新提示时有效。`);
+}
 
 /** 读取 flag 后面的取值。 */
 function optionValue(args, name) {
@@ -79,6 +94,10 @@ function assertTrellisProject(target) {
  */
 export async function updateCheck(ctx) {
   const args = ctx.passthrough;
+  if (hasHelpFlag(args)) {
+    printUpdateCheckHelp();
+    return;
+  }
   const action = args.find((arg) => !arg.startsWith("-")) || "get";
   assertTrellisProject(ctx.target);
 

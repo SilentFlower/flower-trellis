@@ -88,6 +88,7 @@ function printHelp() {
                                                         管理分支本地化 Git worktree
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
+  flower-trellis <命令> --help                           查看命令级用法与下一步引导
   flower-trellis -v                                      打印版本
 
 flower 自有 flag:
@@ -107,6 +108,7 @@ flower 自有 flag:
   update-check skip|reset           跳过当前提示或清空提示节流状态
 
 Worktree:
+  worktree --help                     查看子命令、推荐流程和已有分支引导
   worktree create --target <dir> --branch <name> --task-title <title> --task-slug <slug>
                                       只读预检；默认 base 为当前来源分支
   worktree create ... --yes --plan-fingerprint <sha256>
@@ -137,7 +139,7 @@ async function main() {
 
   const argv = process.argv.slice(2);
 
-  // 顶层 -v / -h 仅在作为首个参数时拦截;子命令的 --help/--version 透传给 trellis
+  // 顶层 -v / -h 仅在作为首个参数时拦截；Flower 子命令各自处理帮助，其它命令透传 Trellis。
   if (argv[0] === "-v" || argv[0] === "--version") {
     printVersion(process.cwd());
     return;

@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-08-28T18:19:48.301Z",
+  "syncedAt": "2026-09-03T03:24:53.596Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "124b592037eef542d7faf7ecb3be93b4bfd3aed0",
+  "sourceCommit": "6199ab8b2e0259ff695d70797943ea1ae97e099c",
   "common": {
     "codexSkills": [
       "aliyun-ops",
@@ -216,6 +216,12 @@
         "scripts/session-context-update-boundary/output-content.py",
         "scripts/session-context-update-boundary/output-selector.py",
         "scripts/session-context-update-boundary/patch.json",
+        "scripts/task-current-query-contract/patch.json",
+        "scripts/task-current-query-contract/task-current-content.py",
+        "scripts/task-current-query-contract/task-current-selector.py",
+        "scripts/task-reference-resolution/patch.json",
+        "scripts/task-reference-resolution/task-reference-content.py",
+        "scripts/task-reference-resolution/task-reference-selector.py",
         "scripts/task-start-brief-gate/degraded-content.py",
         "scripts/task-start-brief-gate/degraded-selector.py",
         "scripts/task-start-brief-gate/guard-content.py",
@@ -451,6 +457,7 @@
         "maven-verification.json",
         "shared-hook-runtime.json",
         "task-progress-recovery.json",
+        "task-reference-contract.json",
         "trellis-meta.json",
         "trellis-session-insight.json",
         "untracked-execution.json",

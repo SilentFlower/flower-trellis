@@ -65,6 +65,10 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
   `test-target/`、`.trellis-tmp/` 已在 `.gitignore` 中,可作本地目标。
 - 改动叠加逻辑后,记得 `npm run sync` 重建 `enhancements/` 快照再验证。
 - 改动 Skill-Garden Patch catalog、顺序、policy 或 pinned Trellis 结果后，运行 `npm run patch:targets` 刷新子仓 canonical target 层，再用 `npm run patch:targets:check` 验证零漂移。Flower adapter/平台 catalog 改动由全平台冲突门禁覆盖，不生成可提交 matrix。
+- 改动 Flower 命令帮助时，用真实 CLI 在不存在的 `--target` 和隔离用户配置目录运行帮助矩阵，
+  断言退出码 `0`、stderr 为空且零写入；同时检查帮助分支先于联网、写盘、prompt 和子进程入口。
+- 改动 Trellis Python 查询/helper 契约时，分别覆盖正常空状态、唯一/歧义任务引用、越界路径、
+  自动机械字段与显式非法字段，不能只断言成功路径。
 - 发布审计需要严格预算时显式运行 `node scripts/check-ai-context-budget.mjs --strict`；
   strict 不属于默认大小门禁。
 
@@ -81,5 +85,7 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 - [ ] 导出函数有中文 JSDoc(`@param` / `@returns`)?
 - [ ] 纯 ESM(`node:` 前缀、命名导出、相对 import 带 `.js`)?
 - [ ] 输出前缀符号沿用既有语义(`✓` / `·` / `❌` / `🌸`)?
+- [ ] `-h/--help` 是否在目标校验、联网、写盘、prompt 和子进程之前返回 0?
+- [ ] 查询型空状态是否返回 0 并用结构化字段表达，写入型错误仍保持非零?
 - [ ] `npm test` 通过，context budget warning 已审阅且没有通过调高阈值掩盖重复内容?
 - [ ] `check-patch-conflicts` 覆盖全部声明 target，旧互斥协议未复现，vendor/snapshot overrides 一致?

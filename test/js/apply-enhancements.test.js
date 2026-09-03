@@ -369,6 +369,14 @@ function writeTaskScriptTarget(target) {
   );
 }
 
+function writeTaskUtilsTarget(target) {
+  return write(
+    target,
+    ".trellis/scripts/common/task_utils.py",
+    fs.readFileSync(path.join(UPSTREAM_SCRIPTS, "common/task_utils.py"), "utf8"),
+  );
+}
+
 function writeControlPlaneTargets(target) {
   write(
     target,
@@ -419,6 +427,7 @@ function writeIntentTargets(target) {
   write(target, ".agents/skills/trellis-brainstorm/SKILL.md", brainstorm);
   write(target, ".claude/skills/trellis-brainstorm/SKILL.md", brainstorm);
   writeTaskScriptTarget(target);
+  writeTaskUtilsTarget(target);
   write(
     target,
     ".codex/hooks/session-start.py",
@@ -822,6 +831,7 @@ test("0.6 未登记 patch 版本 warning 放行，跨兼容线 error 且零写�
 
   const skillOnly = fs.mkdtempSync(path.join(os.tmpdir(), "flower-version-skill-only-"));
   write(skillOnly, ".trellis/.version", "0.6.13\n");
+  writeTaskUtilsTarget(skillOnly);
   fs.mkdirSync(path.join(skillOnly, ".agents"));
   const { logs: skillOnlyLogs } = captureApply(
     skillOnly,
@@ -923,6 +933,7 @@ test("Auto-Loop 与 Finish-Work 精细安装同时携带决策归档硬门禁", 
     const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-decision-audit-bundle-"));
     write(target, ".trellis/.version", "0.6.14\n");
     writeControlPlaneTargets(target);
+    writeTaskUtilsTarget(target);
     fs.mkdirSync(path.join(target, ".agents/skills"), { recursive: true });
 
     quietApply(target, { variant: "0.6", skills: [alias] });
@@ -951,6 +962,7 @@ test("trellis-continue 精细安装同时恢复入口与 task_progress helper", 
     const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-continue-${alias}-`));
     write(target, ".trellis/.version", "0.6.14\n");
     const continueTargets = writeContinueTargets(target);
+    writeTaskUtilsTarget(target);
 
     const result = quietApply(target, { variant: "0.6", skills: [alias] });
     assert.ok(result.installed.includes("script:task_progress.py"));
@@ -979,6 +991,7 @@ test("trellis-continue Patch 覆盖全部平台入口且保持 Phase 前恢复�
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-continue-platforms-"));
   write(target, ".trellis/.version", "0.6.14\n");
   const continueTargets = writeAllContinueTargets(target);
+  writeTaskUtilsTarget(target);
 
   quietApply(target, { variant: "0.6", skills: ["trellis-continue"] });
   assert.equal(continueTargets.length, 21);
@@ -1052,6 +1065,7 @@ test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持�
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-native-gate-matrix-"));
   write(target, ".trellis/.version", "0.6.14\n");
   writeControlPlaneTargets(target);
+  writeTaskUtilsTarget(target);
   const updateTargets = writeAllUpdateSpecTargets(target);
   const finishTargets = writeAllFinishTargets(target);
 

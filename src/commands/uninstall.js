@@ -3,6 +3,22 @@ import {
   applySkillGardenUninstall,
   planSkillGardenUninstall,
 } from "../builtin-plugins/skill-garden/uninstall.js";
+import { hasHelpFlag } from "../lib/cli-args.js";
+
+/** 打印 uninstall 命令帮助。 */
+function printUninstallHelp() {
+  console.log(`flower-trellis uninstall — 卸载 Trellis 并清理受管强化资产
+
+用法:
+  flower-trellis uninstall [--target <dir>] [--dry-run] [-y|--yes]
+
+选项:
+  --dry-run       只预览 Trellis 与 Plugin 清理计划
+  -y, --yes       传给 Trellis 的非交互确认
+  --target <dir>  目标项目目录
+
+若仍有其它 Plugin 依赖 flower/skill-garden，命令会拒绝清理并列出依赖方。`);
+}
 
 /**
  * flower-trellis uninstall：由 Trellis 删除自身内容，再按 Plugin state 清理平台资产。
@@ -11,6 +27,10 @@ import {
  * @returns {Promise<void>} 卸载完成后返回
  */
 export async function uninstall(ctx) {
+  if (hasHelpFlag(ctx.passthrough)) {
+    printUninstallHelp();
+    return;
+  }
   const { target } = ctx;
   const dryRun = ctx.passthrough.includes("--dry-run");
   const cleanupPlan = planSkillGardenUninstall(target);

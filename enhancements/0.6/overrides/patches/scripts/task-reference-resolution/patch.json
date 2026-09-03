@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "id": "task-reference-resolution",
+  "purpose": "cli_task_reference",
+  "operations": [
+    {
+      "id": "task-reference-resolution",
+      "operation": "insert",
+      "position": "after",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/task_utils.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "task-reference-selector.py" },
+      "content": { "source": "task-reference-content.py" }
+    }
+  ]
+}

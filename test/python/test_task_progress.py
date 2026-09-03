@@ -7,6 +7,8 @@ from contextlib import redirect_stdout
 from importlib import util as importlib_util
 from io import StringIO
 import json
+import shutil
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -15,6 +17,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "vendor/skill-garden/.trellis/0.6/scripts/task_progress.py"
+COMMON_SOURCE = ROOT / ".trellis/scripts/common"
 
 
 class TaskProgressDiagnosticsTest(unittest.TestCase):
@@ -35,6 +38,20 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
         task_dir.mkdir(parents=True)
         value = data if isinstance(data, str) else json.dumps(data)
         (task_dir / "task.json").write_text(value, encoding="utf-8")
+
+    def run_cli(self, root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        """在隔离项目运行 task_progress CLI。"""
+        scripts_dir = root / ".trellis/scripts"
+        scripts_dir.mkdir(parents=True, exist_ok=True)
+        if not (scripts_dir / "common").exists():
+            shutil.copytree(COMMON_SOURCE, scripts_dir / "common")
+        return subprocess.run(
+            ["python3", str(SOURCE), *args],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
 
     def test_scan_returns_valid_invalid_and_warning_groups(self) -> None:
         """健康进度、坏 schema 和坏 task.json 分别进入对应列表。"""
@@ -105,6 +122,64 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
             args = Namespace(
                 task=".trellis/tasks/current",
                 progress_json=json.dumps({"nextStep": "implement"}),
+                json=True,
+            )
+
+            with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
+                with redirect_stdout(StringIO()):
+                    result = self.module.cmd_write(args, root)
+
+            self.assertEqual(result, 1)
+            self.assertEqual(task_json.read_bytes(), before)
+
+    def test_write_generates_missing_updated_at(self) -> None:
+        """调用方省略 updatedAt 时由 helper 写入固定 UTC 时间。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-time-") as temp:
+            root = Path(temp)
+            self.write_task(root, "current", {"status": "in_progress"})
+            task_dir = root / ".trellis/tasks/current"
+            progress = {
+                "completedSteps": ["plan"],
+                "partialStep": None,
+                "nextStep": "implement",
+                "notes": "",
+            }
+            args = Namespace(
+                task=".trellis/tasks/current",
+                progress_json=json.dumps(progress),
+                complete=False,
+                json=True,
+            )
+
+            with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
+                with mock.patch.object(self.module, "_utc_now", return_value="2026-09-03T01:02:03Z"):
+                    with redirect_stdout(StringIO()):
+                        result = self.module.cmd_write(args, root)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(result, 0)
+            self.assertEqual(data["progress"]["updatedAt"], "2026-09-03T01:02:03Z")
+            self.assertEqual(data["progress"]["nextStep"], "implement")
+
+    def test_explicit_empty_updated_at_remains_invalid(self) -> None:
+        """显式空时间代表调用错误，不能被自动覆盖。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-empty-time-") as temp:
+            root = Path(temp)
+            self.write_task(root, "current", {"status": "in_progress"})
+            task_dir = root / ".trellis/tasks/current"
+            task_json = task_dir / "task.json"
+            before = task_json.read_bytes()
+            progress = {
+                "updatedAt": "",
+                "completedSteps": [],
+                "partialStep": None,
+                "nextStep": "implement",
+                "notes": "",
+            }
+            args = Namespace(
+                task=".trellis/tasks/current",
+                progress_json=json.dumps(progress),
+                complete=False,
                 json=True,
             )
 
@@ -303,6 +378,32 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
             self.assertEqual(data["status"], "in_progress")
             self.assertIsNone(data["completedAt"])
             self.assertEqual(data["progress"], progress)
+
+    def test_cli_uses_shared_short_name_resolution(self) -> None:
+        """CLI 的唯一短名解析与 decision_log 共用严格规则。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-ref-") as temp:
+            root = Path(temp)
+            self.write_task(root, "09-03-progress-ref", {"status": "in_progress"})
+
+            result = self.run_cli(root, "status", "--task", "progress-ref", "--json")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "no-progress")
+            self.assertEqual(payload["task"], ".trellis/tasks/09-03-progress-ref")
+
+    def test_write_help_lists_schema_and_minimal_example(self) -> None:
+        """write 帮助直接给出字段和可运行的最小载荷。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-help-") as temp:
+            root = Path(temp)
+            (root / ".trellis").mkdir()
+
+            result = self.run_cli(root, "write", "--help")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("completedSteps", result.stdout)
+            self.assertIn("updatedAt", result.stdout)
+            self.assertIn("最小示例", result.stdout)
 
 
 if __name__ == "__main__":
