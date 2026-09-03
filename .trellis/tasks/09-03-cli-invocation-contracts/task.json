@@ -3,7 +3,7 @@
   "name": "cli-invocation-contracts",
   "title": "优化 CLI 调用契约与帮助体验",
   "description": "统一 Trellis 状态查询、任务引用、进度写入和 Flower 子命令帮助契约，减少正常状态误报与参数猜测失败。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "silentflower",
   "assignee": "silentflower",
   "createdAt": "2026-09-03",
-  "completedAt": null,
+  "completedAt": "2026-09-03",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -35,12 +35,14 @@
   "notes": "",
   "meta": {},
   "progress": {
-    "updatedAt": "2026-09-03T03:19:59Z",
+    "updatedAt": "2026-09-03T03:26:54Z",
     "completedSteps": [
-      "skill-garden 本地提交已创建"
+      "skill-garden 提交并推送",
+      "flower-trellis 快照同步",
+      "flower-trellis 业务提交并推送"
     ],
-    "partialStep": "skill-garden push 被远端更新拒绝",
-    "nextStep": "先处理 skill-garden origin/main 的远端领先，再重试推送并继续主仓同步与提交",
-    "notes": "flower-trellis 的 npm run sync、业务提交和推送均未开始。"
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档任务",
+    "notes": "Full Check-All 与 Update-Spec 已通过；skill-garden 远端领先恢复完成。"
   }
 }
