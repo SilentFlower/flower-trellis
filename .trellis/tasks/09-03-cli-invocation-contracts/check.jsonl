@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/cli-output.md","reason":"检查帮助路径无副作用、退出码和输出格式是否符合项目约定。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"执行完整质量门禁并检查测试、快照和生成物一致性。"}
+{"file":".trellis/tasks/09-03-cli-invocation-contracts/research/helper-contract-summary.md","reason":"检查状态查询优化未放宽 decision、progress、runtime 与 Patch 真源安全边界。"}
+{"file":".trellis/tasks/09-03-cli-invocation-contracts/research/history-failure-summary.md","reason":"复核四类历史问题均有回归测试且正确护栏未被放宽。"}

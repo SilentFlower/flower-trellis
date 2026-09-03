@@ -1,0 +1,46 @@
+{
+  "id": "cli-invocation-contracts",
+  "name": "cli-invocation-contracts",
+  "title": "优化 CLI 调用契约与帮助体验",
+  "description": "统一 Trellis 状态查询、任务引用、进度写入和 Flower 子命令帮助契约，减少正常状态误报与参数猜测失败。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-03",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/cli.js",
+    "src/commands/update.js",
+    "src/commands/self-update.js",
+    "src/commands/worktree.js",
+    "vendor/skill-garden/.trellis/0.6/scripts/decision_log.py",
+    "vendor/skill-garden/.trellis/0.6/scripts/task_progress.py",
+    "vendor/skill-garden/.trellis/0.6/scripts/untracked_flow.py",
+    "enhancements/0.6/overrides/patches/scripts",
+    "test/js",
+    "test/python"
+  ],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-09-03T03:19:59Z",
+    "completedSteps": [
+      "skill-garden 本地提交已创建"
+    ],
+    "partialStep": "skill-garden push 被远端更新拒绝",
+    "nextStep": "先处理 skill-garden origin/main 的远端领先，再重试推送并继续主仓同步与提交",
+    "notes": "flower-trellis 的 npm run sync、业务提交和推送均未开始。"
+  }
+}

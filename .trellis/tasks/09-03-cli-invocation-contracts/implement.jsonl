@@ -1,0 +1,3 @@
+{"file":".trellis/spec/flower-trellis/cli/cli-output.md","reason":"实现 Flower 帮助、退出码和错误输出时遵循现有 CLI 契约。"}
+{"file":".trellis/tasks/09-03-cli-invocation-contracts/research/helper-contract-summary.md","reason":"实现 Skill-Garden helper、Patch/Bundle 和三层同步时遵循相关既有契约，避免加载超大规范被截断。"}
+{"file":".trellis/tasks/09-03-cli-invocation-contracts/research/history-failure-summary.md","reason":"保持实现针对历史高频失败，不误伤正确安全护栏。"}
