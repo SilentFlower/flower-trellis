@@ -1265,3 +1265,38 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Next Steps
 
 - 发布时按任务 release.md 说明 task.py current 退出码兼容性变化。
+
+
+## Session 99: 归档 Astra SessionStart 工作流提示任务
+
+**Date**: 2026-09-05
+**Task**: 归档 Astra SessionStart 工作流提示任务
+**Branch**: `main`
+
+### Summary
+
+完成英文 Astra 专用 SessionStart 提示、精确模型筛选和独立开关；工程、安装、真实宿主及 60 次行为对照验证完成，规范和任务记录已推送，当前任务已归档。六项预设行为指标无明显改善，探索性模板信号及工具开销增长如实保留。
+
+### Main Changes
+
+- 提示仅在 Codex startup/clear/compact 的 state 分段命中 gpt-6-astra 时追加一次，完整块 1502 字节；普通 UserPromptSubmit 零新增。
+- 已补齐 release.md 的安装、可选配置、回滚和验证说明，无数据库或外部系统操作。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1d79835` | (see git log) |
+
+### Testing
+
+- [OK] 完整 npm test：519 JS、323 Python；后续新增超限测试的 Python 专项 12 项通过，严格预算及正常安装幂等验证通过。
+- [OK] 真实 Astra/5.5 与手动/自动 compact 验证完成；60 次行为对照主指标无明显改善，工具完成项 150→206。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 后续提示优化依据独立失败场景另建任务；beginner-usage-guide 及其他既有未提交变更保持原状。
