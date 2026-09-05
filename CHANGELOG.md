@@ -4,6 +4,21 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.5](https://github.com/SilentFlower/flower-trellis/compare/v0.6.4...v0.6.5) (2026-09-05)
+
+
+### ✨ 新功能 Features
+
+* **cli:** 优化调用契约与帮助体验 ([b7a39db](https://github.com/SilentFlower/flower-trellis/commit/b7a39dbda2042643c3e15dd47caebe7c83242548))
+* **codex:** 为 Astra 添加 SessionStart 工作流提示 ([1d79835](https://github.com/SilentFlower/flower-trellis/commit/1d79835f4bea1782f5774ff8c14a6263742b1677))
+* **telemetry:** 采集平台活跃与核心操作质量 ([08598bf](https://github.com/SilentFlower/flower-trellis/commit/08598bf26638567b9183150d7c258e2f801046a4))
+
+
+### 🐛 修复 Bug Fixes
+
+* **hooks:** 分段注入启动上下文并保留额度 ([5eaf6af](https://github.com/SilentFlower/flower-trellis/commit/5eaf6afd7c7b088e8421f3b176d0d79ccb9cdba2))
+* **plugin:** 兼容旧 RD Guide 离线升级 ([fcec390](https://github.com/SilentFlower/flower-trellis/commit/fcec3905629dd31bc3f113ac28bf64139311324e))
+
 ## [0.6.4](https://github.com/SilentFlower/flower-trellis/compare/v0.6.3...v0.6.4) (2026-08-28)
 
 

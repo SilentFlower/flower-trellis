@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -70,9 +70,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.4",
+    "version": "0.6.5",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **plugin:** 支持离线冻结未更新的外部 Plugin ([6210cfa](https://github.com/SilentFlower/flower-trellis/commit/6210cfae8d459a3e7b105043e4ecbc23d1b5bed9))",
+    "body": "### ✨ 新功能 Features\n\n* **cli:** 优化调用契约与帮助体验 ([b7a39db](https://github.com/SilentFlower/flower-trellis/commit/b7a39dbda2042643c3e15dd47caebe7c83242548))\n* **codex:** 为 Astra 添加 SessionStart 工作流提示 ([1d79835](https://github.com/SilentFlower/flower-trellis/commit/1d79835f4bea1782f5774ff8c14a6263742b1677))\n* **telemetry:** 采集平台活跃与核心操作质量 ([08598bf](https://github.com/SilentFlower/flower-trellis/commit/08598bf26638567b9183150d7c258e2f801046a4))\n\n\n### 🐛 修复 Bug Fixes\n\n* **hooks:** 分段注入启动上下文并保留额度 ([5eaf6af](https://github.com/SilentFlower/flower-trellis/commit/5eaf6afd7c7b088e8421f3b176d0d79ccb9cdba2))\n* **plugin:** 兼容旧 RD Guide 离线升级 ([fcec390](https://github.com/SilentFlower/flower-trellis/commit/fcec3905629dd31bc3f113ac28bf64139311324e))",
     "truncated": false
   },
   "optionalDependencies": {
