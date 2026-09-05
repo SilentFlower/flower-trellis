@@ -26,7 +26,7 @@
 - Update-Spec/Finish-Work：读取 compiled full 中实际存在的最终 `.agents`、`.claude/skills`、`.claude/commands` 入口。
 - Auto-Loop：该 skill 不是 Patch target，读取 `vendor/skill-garden/.trellis/0.6` 下直接铺设的 canonical `.agents/.claude` 入口；源、快照和 dogfood 一致性由同步测试单独保证。
 - Phase summary：真实运行 `python3 ./.trellis/scripts/get_context.py --mode phase`。
-- SessionStart：用隔离临时 fixture 调用真实 `.codex/hooks/session-start.py`，读取 `additionalContext`。
+- SessionStart：在隔离临时 fixture 部署 Flower 分段脚本及 Codex / Claude 原生 hook，分别运行 `.trellis/scripts/flower_session_start.py --hook <原生路径> --part state|rules|stages`，读取六份实际 `additionalContext`。`session-start` 合计取两平台中较大者，不重复累计等价平台。
 
 Patch 的 `content.md`、`common-content.md`、`subagent-content.md` 只是构建输入。直接测它们会漏掉 frontmatter、上游保留段、marker、结构拼接和平台差异，因此不构成预算证据。
 
@@ -48,6 +48,8 @@ node scripts/check-ai-context-budget.mjs --strict
 - 已登记 baseline 时的 `baseline delta`
 
 UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变化，不作为可复现门禁。
+
+`session-start:<platform>:<part>` 另输出 Unicode 字符数，`unit=characters` 的 target / review 按字符比较；其余指标继续按 UTF-8 bytes 比较。分段字符指标与 Codex 的近似 token 额度不是同一单位，不能据此宣称已验证宿主实际接收。
 
 ## Layer Ownership
 
@@ -74,7 +76,8 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 | 单个最终 Finish-Work 入口 | 10 KiB | 12 KiB |
 | 单个最终 Auto-Loop 入口 | 16 KiB | 18 KiB |
 | Phase summary | 18 KiB | 20 KiB |
-| SessionStart `additionalContext` | 18 KiB | 20 KiB |
+| SessionStart 三段 `additionalContext` 合计（最大平台） | 18 KiB | 20 KiB |
+| 单个 SessionStart 分段 | 8000 字符 | 10000 字符 |
 | control-context-total | 116 KiB | 128 KiB |
 
 `control-context-total` 是控制面总体积审计，不声称这些内容会在单次 prompt 中同时出现。公式固定为：
@@ -84,7 +87,7 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 + 最大 Update-Spec 最终入口
 + 最大 Finish-Work 最终入口
 + Phase summary
-+ SessionStart additionalContext
++ SessionStart additionalContext（最大平台的三段合计）
 ```
 
 修改公式必须更新 checker、基线和本规范，不能只调整展示文本。
@@ -194,7 +197,7 @@ node scripts/check-ai-context-budget.mjs --strict
 - 默认模式在 warn/high-warning 时退出 0。
 - strict 只在 high-warning 时退出非 0。
 - 结构性测量错误始终非 0。
-- SessionStart fixture 返回非空 `additionalContext`。
+- Codex / Claude 的三个 SessionStart 分段均返回非空 `additionalContext`，不能把注入失败诊断当作成功测量；原文完整性、并行执行和额度迁移另由分段及平台回归验证。
 - state 从最终 workflow 动态枚举，不写死文件数量。
 - Update-Spec/Finish-Work 从 compiled final 平台入口测量，不读取 Patch content；Auto-Loop 从直接铺设的 canonical variant skill 测量。
 - control-context-total 使用固定公式和最大平台入口。

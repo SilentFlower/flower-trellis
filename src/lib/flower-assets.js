@@ -8,6 +8,12 @@ export const FLOWER_UPDATE_HOOK = "flower_update_hook.py";
 /** flower 自有启动更新 hook 在目标项目内的相对路径。 */
 export const FLOWER_UPDATE_HOOK_REL = `.trellis/scripts/${FLOWER_UPDATE_HOOK}`;
 
+/** Flower 自有 SessionStart 分段脚本。 */
+export const FLOWER_SESSION_HOOK = "flower_session_start.py";
+
+/** SessionStart 分段脚本在目标项目中的位置。 */
+export const FLOWER_SESSION_HOOK_REL = `.trellis/scripts/${FLOWER_SESSION_HOOK}`;
+
 /**
  * 复制 flower 自有脚本资产。
  *
@@ -18,12 +24,15 @@ export const FLOWER_UPDATE_HOOK_REL = `.trellis/scripts/${FLOWER_UPDATE_HOOK}`;
  * @returns {{installed:string[],paths:string[]}} 已安装资产和 manifest 路径
  */
 export function copyFlowerAssets(target) {
-  copyPath(
-    path.join(PKG_ROOT, "src", "assets", FLOWER_UPDATE_HOOK),
-    path.join(target, ...FLOWER_UPDATE_HOOK_REL.split("/")),
-  );
+  const assets = [FLOWER_UPDATE_HOOK, FLOWER_SESSION_HOOK];
+  for (const asset of assets) {
+    copyPath(
+      path.join(PKG_ROOT, "src", "assets", asset),
+      path.join(target, ".trellis", "scripts", asset),
+    );
+  }
   return {
-    installed: [`script:${FLOWER_UPDATE_HOOK}`],
-    paths: [FLOWER_UPDATE_HOOK_REL],
+    installed: assets.map((asset) => `script:${asset}`),
+    paths: assets.map((asset) => `.trellis/scripts/${asset}`),
   };
 }

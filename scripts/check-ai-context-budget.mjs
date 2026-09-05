@@ -4,6 +4,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { PKG_ROOT } from "../src/lib/paths.js";
+import { FLOWER_SESSION_HOOK, FLOWER_SESSION_HOOK_REL } from "../src/lib/flower-assets.js";
 
 const KIB = 1024;
 const COMPILED_TARGETS_ROOT = path.join(
@@ -163,28 +164,44 @@ function measureSessionStart() {
       path.join(fixture, ".trellis", "scripts", "common"),
     );
     fs.mkdirSync(path.join(fixture, ".trellis", "tasks"), { recursive: true });
-    const hook = path.join(PKG_ROOT, ".codex", "hooks", "session-start.py");
-    const output = execFileSync("python3", [hook], {
-      cwd: PKG_ROOT,
-      encoding: "utf8",
-      input: JSON.stringify({
-        cwd: fixture,
-        session_id: "context-budget-fixture",
-      }),
-      env: {
-        ...process.env,
-        TRELLIS_CONTEXT_ID: "context-budget-fixture",
-        TRELLIS_HOOKS: "1",
-        TRELLIS_DISABLE_HOOKS: "0",
-        CODEX_NON_INTERACTIVE: "0",
-      },
-    });
-    const parsed = JSON.parse(output);
-    const context = parsed?.hookSpecificOutput?.additionalContext;
-    if (typeof context !== "string" || !context) {
-      throw new Error("SessionStart fixture 未返回 additionalContext");
+    copyIfExists(
+      path.join(PKG_ROOT, "src", "assets", FLOWER_SESSION_HOOK),
+      path.join(fixture, FLOWER_SESSION_HOOK_REL),
+    );
+    const parts = [];
+    for (const platform of ["codex", "claude"]) {
+      const hook = `.${platform}/hooks/session-start.py`;
+      copyIfExists(path.join(PKG_ROOT, hook), path.join(fixture, hook));
+      for (const part of ["state", "rules", "stages"]) {
+        const output = execFileSync("python3", [FLOWER_SESSION_HOOK_REL, "--hook", hook, "--part", part], {
+          cwd: fixture,
+          encoding: "utf8",
+          input: JSON.stringify({ cwd: fixture, session_id: "context-budget-fixture", source: "startup" }),
+          env: {
+            ...process.env,
+            TRELLIS_CONTEXT_ID: "context-budget-fixture",
+            TRELLIS_HOOKS: "1",
+            TRELLIS_DISABLE_HOOKS: "0",
+            CODEX_NON_INTERACTIVE: "0",
+            CLAUDE_PROJECT_DIR: fixture,
+            CLAUDE_ENV_FILE: path.join(fixture, "shell.env"),
+            PYTHONDONTWRITEBYTECODE: "1",
+          },
+        });
+        const parsed = JSON.parse(output);
+        const value = parsed?.hookSpecificOutput?.additionalContext;
+        if (typeof value !== "string" || !value || value.includes("<trellis-injection-error")) {
+          throw new Error(`SessionStart ${platform}/${part} fixture 未返回有效 additionalContext`);
+        }
+        parts.push({ platform, part, value });
+      }
     }
-    return context;
+    // 两平台是等价入口，控制面总量只计较大的平台合计，避免重复累计。
+    const totals = ["codex", "claude"].map((platform) =>
+      parts.filter((item) => item.platform === platform).map((item) => item.value).join("")
+    );
+    totals.sort((a, b) => Buffer.byteLength(b, "utf8") - Buffer.byteLength(a, "utf8"));
+    return { parts, total: totals[0] };
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true });
   }
@@ -193,7 +210,7 @@ function measureSessionStart() {
 /**
  * 收集 flower-trellis AI control-plane 的上下文大小指标。
  *
- * @returns {Array<{name:string,bytes:number,lines:number,target:number,review:number,baseline:number|null}>} 指标列表
+ * @returns {Array<object>} 字节指标及按字符计量的 SessionStart 分段指标
  */
 export function collectAiContextMetrics() {
   const compiledRoot = resolveCompiledFullRoot();
@@ -275,17 +292,22 @@ export function collectAiContextMetrics() {
     ),
     measureText(
       "session-start",
-      sessionStart,
+      sessionStart.total,
       BUDGETS.sessionStart,
       BASELINES.sessionStart,
     ),
+    ...sessionStart.parts.map(({ platform, part, value }) => ({
+      ...measureText(`session-start:${platform}:${part}`, value, { target: 8000, review: 10000 }),
+      unit: "characters",
+      characters: [...value].length,
+    })),
     measureTotal(
       "control-context-total",
       Buffer.byteLength(workflow, "utf8") +
         largestUpdateSpec +
         largestFinishWork +
         Buffer.byteLength(phaseSummary, "utf8") +
-        Buffer.byteLength(sessionStart, "utf8"),
+        Buffer.byteLength(sessionStart.total, "utf8"),
       BUDGETS.controlTotal,
       BASELINES.controlTotal,
     ),
@@ -300,15 +322,18 @@ export function collectAiContextMetrics() {
  * @returns {Array<object>} 带 ok/warn/high-warning 状态的结果
  */
 export function evaluateAiContextMetrics(metrics) {
-  return metrics.map((metric) => ({
-    ...metric,
-    status: metric.bytes > metric.review
-      ? "high-warning"
-      : metric.bytes > metric.target
-        ? "warn"
-        : "ok",
-    delta: metric.baseline === null ? null : metric.bytes - metric.baseline,
-  }));
+  return metrics.map((metric) => {
+    const actual = metric.unit === "characters" ? metric.characters : metric.bytes;
+    return {
+      ...metric,
+      status: actual > metric.review
+        ? "high-warning"
+        : actual > metric.target
+          ? "warn"
+          : "ok",
+      delta: metric.baseline === null ? null : metric.bytes - metric.baseline,
+    };
+  });
 }
 
 /**
@@ -331,13 +356,15 @@ function formatBytes(value) {
 function printResults(results) {
   console.log("AI context budget:");
   for (const result of results) {
+    const formatLimit = result.unit === "characters" ? (value) => `${value} chars` : formatBytes;
+    const characters = result.unit === "characters" ? `chars=${result.characters} ` : "";
     const delta = result.delta === null
       ? ""
       : ` baselineΔ=${result.delta >= 0 ? "+" : ""}${result.delta} B`;
     console.log(
       `  ${result.status.padEnd(12)} ${result.name.padEnd(28)} ` +
-        `actual=${formatBytes(result.bytes)} lines=${result.lines} ` +
-        `target=${formatBytes(result.target)} review=${formatBytes(result.review)}${delta}`,
+        `actual=${formatBytes(result.bytes)} ${characters}lines=${result.lines} ` +
+        `target=${formatLimit(result.target)} review=${formatLimit(result.review)}${delta}`,
     );
   }
 }

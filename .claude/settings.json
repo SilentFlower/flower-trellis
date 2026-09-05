@@ -9,32 +9,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/session-start.py",
-            "timeout": 30
-          },
-          {
-            "type": "command",
             "command": "python3 .trellis/scripts/flower_update_hook.py",
             "timeout": 30
           }
         ]
       },
       {
-        "matcher": "clear",
+        "matcher": "startup|clear|compact",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/session-start.py",
+            "command": "python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-start.py --part state",
             "timeout": 30
-          }
-        ]
-      },
-      {
-        "matcher": "compact",
-        "hooks": [
+          },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/session-start.py",
+            "command": "python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-start.py --part rules",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-start.py --part stages",
             "timeout": 30
           }
         ]

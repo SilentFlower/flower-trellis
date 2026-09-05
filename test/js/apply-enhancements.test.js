@@ -529,10 +529,29 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   const continueTargets = writeContinueTargets(target);
   const updateSpecTargets = writeUpdateSpecTargets(target);
   const finishTargets = writeFinishTargets(target);
+  write(target, ".codex/hooks.json", JSON.stringify({ hooks: { SessionStart: [{
+    matcher: "startup|resume|clear|compact",
+    hooks: [{ type: "command", command: "python3 .codex/hooks/session-start.py", additionalContextLimit: 5000 }],
+  }] } }));
 
   const applied = quietApply(target);
   assert.equal(applied.patchReport.version.status, "tested");
   assert.equal(applied.patchReport.summary.errors, 0);
+  const sessionAsset = ".trellis/scripts/flower_session_start.py";
+  assert.equal(
+    fs.readFileSync(path.join(target, sessionAsset), "utf8"),
+    fs.readFileSync("src/assets/flower_session_start.py", "utf8"),
+  );
+  for (const [platform, configPath] of [["codex", ".codex/hooks.json"], ["claude", ".claude/settings.json"]]) {
+    const config = JSON.parse(fs.readFileSync(path.join(target, configPath), "utf8"));
+    const group = config.hooks.SessionStart.find((entry) => entry.matcher === "startup|clear|compact");
+    const handlers = group.hooks.filter((entry) => entry.command.includes(sessionAsset));
+    assert.equal(handlers.length, 3);
+    assert.deepEqual(handlers.map((entry) => entry.command.match(/--part (\w+)/)[1]), ["state", "rules", "stages"]);
+    assert.ok(handlers.every((entry) => entry.command.includes(`--hook .${platform}/hooks/session-start.py`)));
+    assert.ok(handlers.every((entry) => entry.additionalContextLimit === (platform === "codex" ? 5000 : undefined)));
+    assert.ok(!config.hooks.SessionStart.some((entry) => entry.matcher.includes("resume")));
+  }
   const first = snapshotTree(target);
   const workflowText = fs.readFileSync(workflow, "utf8");
   assert.match(workflowText, /skill-garden patch workflow-request-triage/);
@@ -708,6 +727,7 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     fs.readFileSync(path.join(target, ".flower/state.json"), "utf8"),
   );
   const skillGarden = state.plugins.find(({ id }) => id === "flower/skill-garden");
+  assert.ok(skillGarden.paths.some((entry) => entry.path === sessionAsset));
   assert.ok(plugins.plugins.some(({ id }) => id === "flower/skill-garden"));
   assert.ok(skillGarden.paths.some(({ path: value }) => value === ".trellis/scripts/task_intent.py"));
   assert.ok(skillGarden.paths.some(({ path: value }) => value === ".trellis/scripts/pre_check_state.py"));

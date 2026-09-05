@@ -25,12 +25,25 @@
     ],
     "SessionStart": [
       {
-        "matcher": "startup|resume|clear|compact",
+        "matcher": "startup|clear|compact",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -X utf8 .codex/hooks/session-start.py",
-            "timeout": 30
+            "command": "python3 -X utf8 .trellis/scripts/flower_session_start.py --hook .codex/hooks/session-start.py --part state",
+            "timeout": 30,
+            "additionalContextLimit": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 -X utf8 .trellis/scripts/flower_session_start.py --hook .codex/hooks/session-start.py --part rules",
+            "timeout": 30,
+            "additionalContextLimit": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 -X utf8 .trellis/scripts/flower_session_start.py --hook .codex/hooks/session-start.py --part stages",
+            "timeout": 30,
+            "additionalContextLimit": 5000
           }
         ]
       },

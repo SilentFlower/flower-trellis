@@ -44,7 +44,7 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
         timeout: 20,
       }] }],
       SessionStart: [
-        { hooks: [{ type: "command", command: "python3 .codex/hooks/session-start.py", timeout: 8 }] },
+        { matcher: "startup|resume|clear|compact", hooks: [{ type: "command", command: "python3 .codex/hooks/session-start.py", timeout: 8, additionalContextLimit: 5000 }] },
         { matcher: "clear", hooks: [{ type: "command", command: "python3 .trellis/scripts/flower_update_hook.py", timeout: 8 }] },
         { matcher: "custom", hooks: [{ type: "command", command: "echo keep", timeout: 5 }] },
       ],
@@ -92,7 +92,14 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   const codex = JSON.parse(fs.readFileSync(path.join(target, ".codex/hooks.json"), "utf8"));
   assert.equal(codex.custom, true);
   const codexSession = codex.hooks.SessionStart;
-  assert.equal(codexSession.filter((group) => group.matcher === "startup|resume|clear|compact").length, 1);
+  const sessionGroup = codexSession.find((group) => group.matcher === "startup|clear|compact");
+  assert.equal(sessionGroup.hooks.length, 3);
+  assert.deepEqual(sessionGroup.hooks.map((hook) => hook.additionalContextLimit), [5000, 5000, 5000]);
+  assert.ok(codexSession.every((group) => !group.matcher?.includes("resume")));
+  for (const [index, part] of ["state", "rules", "stages"].entries()) {
+    assert.equal(sessionGroup.hooks[index].command,
+      `python3 -X utf8 .trellis/scripts/flower_session_start.py --hook .codex/hooks/session-start.py --part ${part}`);
+  }
   assert.equal(codexSession.filter((group) => group.matcher === "startup").length, 1);
   assert.equal(codexSession.find((group) => group.matcher === "custom").hooks[0].command, "echo keep");
   assert.equal(codexSession.flatMap((group) => group.hooks).filter((hook) =>
@@ -102,6 +109,9 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   assert.deepEqual(claude.permissions, { allow: ["Read"] });
   assert.equal(claude.hooks.SessionStart[0].matcher, "startup");
   assert.equal(claude.hooks.SessionStart[0].hooks[0].timeout, 30);
+  const claudeParts = claude.hooks.SessionStart.find((group) => group.matcher === "startup|clear|compact");
+  assert.equal(claudeParts.hooks.length, 3);
+  assert.ok(claudeParts.hooks.every((hook) => !Object.hasOwn(hook, "additionalContextLimit")));
   const toml = fs.readFileSync(path.join(target, ".codex/config.toml"), "utf8");
   assert.doesNotMatch(toml, /multi_agent_v2/);
   assert.match(toml, /\[other\] # keep user section/);
@@ -124,6 +134,26 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
 
   const second = applyPatchPlan(target, prepare(target));
   assert.equal(second.changed, 0);
+
+  sessionGroup.hooks[1].additionalContextLimit = 6000;
+  sessionGroup.hooks[2].additionalContextLimit = 0;
+  write(target, ".codex/hooks.json", JSON.stringify(codex, null, 2) + "\n");
+  assert.equal(applyPatchPlan(target, prepare(target)).changed, 0);
+  const retained = JSON.parse(fs.readFileSync(path.join(target, ".codex/hooks.json"), "utf8"));
+  assert.deepEqual(retained.hooks.SessionStart.find((group) => group.matcher === "startup|clear|compact")
+    .hooks.map((hook) => hook.additionalContextLimit), [5000, 6000, 0]);
+});
+
+test("SessionStart 额度冲突或非法时不覆盖配置", () => {
+  for (const limits of [[5000, 6000], [-1], ["5000"]]) {
+    const target = fixture();
+    const value = JSON.stringify({ hooks: { SessionStart: [{ matcher: "startup", hooks: limits.map((limit) => ({
+      type: "command", command: "python3 .codex/hooks/session-start.py", additionalContextLimit: limit,
+    })) }] } });
+    write(target, ".codex/hooks.json", value);
+    assert.throws(() => prepare(target), /additionalContextLimit/);
+    assert.equal(fs.readFileSync(path.join(target, ".codex/hooks.json"), "utf8"), value);
+  }
 });
 
 test("Codex dispatch 配置缺少上游注释时仍只规范化能力值", () => {

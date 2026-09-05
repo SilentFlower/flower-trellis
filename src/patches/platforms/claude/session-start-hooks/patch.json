@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-claude-session-start-hooks",
+  "purpose": "platform_config",
+  "operations": [{
+    "id": "flower-claude-trellis-session-start",
+    "operation": "replace",
+    "targets": [{
+      "kind": "json",
+      "path": ".claude/settings.json",
+      "missing": "create",
+      "requires": [".claude"]
+    }],
+    "selector": {
+      "type": "json-hook-command",
+      "event": "SessionStart",
+      "commandNeedle": ".claude/hooks/session-start.py"
+    },
+    "content": {
+      "value": {
+        "matcher": "startup|clear|compact",
+        "timeout": 30,
+        "commandResolver": "claude-session-start",
+        "sessionParts": ["state", "rules", "stages"]
+      }
+    }
+  }]
+}

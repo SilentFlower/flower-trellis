@@ -1,8 +1,9 @@
-import { FLOWER_UPDATE_HOOK_REL } from "./flower-assets.js";
+import { FLOWER_UPDATE_HOOK_REL, FLOWER_SESSION_HOOK_REL } from "./flower-assets.js";
 
 const CODEX_WORKFLOW_HOOK = ".codex/hooks/inject-workflow-state.py";
 const CODEX_SESSION_START = ".codex/hooks/session-start.py";
 const CLAUDE_WORKFLOW_HOOK = ".claude/hooks/inject-workflow-state.py";
+const SESSION_PARTS = ["state", "rules", "stages"];
 
 function escapeRe(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -36,6 +37,9 @@ function resolveCommand(name, config, pythonCommand) {
   }
   const claudeBase = findHookCommand(config, "UserPromptSubmit", CLAUDE_WORKFLOW_HOOK) ||
     `${pythonCommand} ${CLAUDE_WORKFLOW_HOOK}`;
+  if (name === "claude-session-start") {
+    return claudeBase.replace(CLAUDE_WORKFLOW_HOOK, ".claude/hooks/session-start.py");
+  }
   if (name === "claude-flower-update") {
     return claudeBase.replace(CLAUDE_WORKFLOW_HOOK, FLOWER_UPDATE_HOOK_REL);
   }
@@ -62,17 +66,28 @@ function applyJsonHookCommand({ value, operation, pythonCommand = "python3" }) {
     return { error: `JSON Hook ${event} 必须是数组` };
   }
   const groups = existing ? structuredClone(existing) : [];
+  const retainedLimits = new Map();
   for (let index = groups.length - 1; index >= 0; index -= 1) {
     const group = groups[index];
     if (!isPlainObject(group)) return { error: `JSON Hook ${event}[${index}] 必须是对象` };
     if (group.hooks === undefined) group.hooks = [];
     if (!Array.isArray(group.hooks)) return { error: `JSON Hook ${event}[${index}].hooks 必须是数组` };
-    group.hooks = group.hooks.filter((hook) => !(
-      hook?.type === "command" &&
-      typeof hook.command === "string" &&
-      hook.command.includes(commandNeedle)
-    ));
-    if (group.hooks.length === 0 && !group.matcher) groups.splice(index, 1);
+    const matched = group.hooks.filter((hook) => hook?.type === "command" &&
+      typeof hook.command === "string" && hook.command.includes(commandNeedle));
+    for (const hook of matched) {
+      const limit = hook.additionalContextLimit;
+      if (limit === undefined) continue;
+      if (!Number.isSafeInteger(limit) || limit < 0) {
+        return { error: "已有 additionalContextLimit 必须是非负整数" };
+      }
+      const part = hook.command.match(/(?:^|\s)--part\s+(state|rules|stages)(?=\s|$)/)?.[1] || "legacy";
+      if (retainedLimits.has(part) && retainedLimits.get(part) !== limit) {
+        return { error: `同一 SessionStart 分段 ${part} 存在冲突的 additionalContextLimit` };
+      }
+      retainedLimits.set(part, limit);
+    }
+    group.hooks = group.hooks.filter((hook) => !matched.includes(hook));
+    if (group.hooks.length === 0 && (matched.length > 0 || !group.matcher)) groups.splice(index, 1);
   }
 
   if (operation.operation !== "remove") {
@@ -97,7 +112,24 @@ function applyJsonHookCommand({ value, operation, pythonCommand = "python3" }) {
       else groups.push(group);
     }
     if (!Array.isArray(group.hooks)) return { error: "目标 matcher hooks 必须是数组" };
-    group.hooks.push({ type: "command", command, timeout: content.timeout });
+    const parts = content.sessionParts;
+    if (parts !== undefined && (
+      event !== "SessionStart" ||
+      !["codex-session-start", "claude-session-start"].includes(content.commandResolver) ||
+      JSON.stringify(parts) !== JSON.stringify(SESSION_PARTS)
+    )) {
+      return { error: "sessionParts 只允许 Codex / Claude SessionStart 的 state、rules、stages" };
+    }
+    for (const part of parts || ["legacy"]) {
+      // 保留原生路径参数，供现有 bootstrap 检测和下一次迁移识别同一组 handler。
+      const nextCommand = parts
+        ? command.replace(commandNeedle, `${FLOWER_SESSION_HOOK_REL} --hook ${commandNeedle} --part ${part}`)
+        : command;
+      const handler = { type: "command", command: nextCommand, timeout: content.timeout };
+      const limit = retainedLimits.get(part) ?? retainedLimits.get("legacy");
+      if (limit !== undefined) handler.additionalContextLimit = limit;
+      group.hooks.push(handler);
+    }
   }
   config.hooks[event] = groups;
   return { value: JSON.stringify(config, null, 2) + "\n", source: "structured" };

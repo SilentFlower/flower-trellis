@@ -584,3 +584,92 @@ full-only control-plane-integrity -> atomic I/O + resolution + fallback + set
 ```
 
 每种安装模式只获得其声明职责,同时由 full/selected 计划测试和 conflict policy 验证最终产物。
+
+## Scenario: SessionStart Parts And Context Limit Preservation
+
+### 1. Scope / Trigger
+
+修改 Codex / Claude 的 SessionStart 注册、`json-hook-command` 重建逻辑或 Flower 启动资产时读取本节。
+旧 adapter 删除 handler 后只重建 type / command / timeout，会丢失用户设置的 `additionalContextLimit`；
+单份工作流摘要过长也可能被宿主替换成落盘预览。分段和额度迁移必须同时经过真实安装链验证。
+
+### 2. Signatures
+
+部署入口示例（在项目根目录执行；Python 命令沿用本规范的目标物化规则）：
+
+```bash
+python3 -X utf8 .trellis/scripts/flower_session_start.py --hook .codex/hooks/session-start.py --part state
+python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-start.py --part rules
+```
+
+- `--hook` 只接受上述两个原生路径；`--part` 只接受 `state | rules | stages`。
+- `render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | None`。
+- `split_workflow(summary: str) -> dict[str, str]` 返回 `rules` / `stages`，拼接后等于原始摘要。
+- `json-hook-command` 的 `content.value.sessionParts` 只允许固定数组 `["state", "rules", "stages"]`，
+  且仅用于 `event=SessionStart`、`commandResolver=codex-session-start|claude-session-start`。
+
+### 3. Contracts
+
+- 源脚本属于 `src/assets/flower_session_start.py`；builtin Skill-Garden 0.6 全装通过内容投影安装到
+  `.trellis/scripts/flower_session_start.py`，由 Plugin state 记录普通资产 ownership。对应平台 Patch
+  属于 Flower `flower-platform-integration` full-only Bundle；不得只直改已部署脚本或 JSON 配置。
+- 两个平台均只注册 `startup|clear|compact`；迁移删除旧单 handler / 旧分段及因此移空的分组，
+  保留无关 handler。Flower 更新检查独立匹配 `startup`。old/0.5 沿用原注册路径。
+- `selector.commandNeedle` 为该平台原生 SessionStart 相对路径。新命令保留该路径为 `--hook` 参数，
+  供既有 bootstrap 检测与后续迁移识别；不能把原生路径一并删除。
+- stdin 为宿主 JSON 对象；原生入口继续消费 session 字段。wrapper 按自身部署位置确定项目根并设置
+  输入 `cwd`；宿主的项目目录环境变量应与目标项目一致。CLI 注册仍沿用项目根目录的相对命令约定。
+- `state` 调用原生 `main()`，从标准 additionalContext 移除唯一完整 `trellis-workflow` 块，
+  独占会话绑定等副作用；`rules` / `stages` 只调用 Codex `_build_workflow_toc` 或 Claude
+  `_build_workflow_overview`，读取同一 `.trellis/workflow.md`，在 `### Planning Artifacts` 前无损分割。
+  handler 可并行，不能依赖执行顺序、其他分段的缓存或绑定结果。
+- 每份输出为 `hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: "..."}`，
+  正文由独立闭合的 `<trellis-session-part name="state|rules|stages">` 包裹。state 去掉原生
+  `additional_context` 兼容副本与旧全文字符计数消息，保留其他原生诊断。
+- 重建前收集 `additionalContextLimit`，要求为非负安全整数。已有分段的显式值优先，其次继承旧单
+  handler 的值；`0` 必须原样保留，不能用 truthy 判断丢弃。无显式值时不写该字段；不主动向 Claude
+  加入 Codex 专属额度。同一分段或旧单 handler 存在矛盾的显式额度时，preflight 报错而不任选其一。
+- `TRELLIS_HOOKS=0`、`TRELLIS_DISABLE_HOOKS=1` 时无输出；Codex 还尊重 `CODEX_NON_INTERACTIVE=1`。
+  `source=resume` 无输出；其余原生跳过条件继续交给 `should_skip_injection()`。
+- 大小目标、字符与 UTF-8 bytes 的区别、默认 / strict 告警规则统一见 [AI Context Budget](./ai-context-budget.md)。
+  分段字符数和本地 tokenizer 测量不能替代宿主实际接收验证，也不能证明模型会遵循工作流。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| 原单 handler 的额度为 5000，尚无分段覆盖 | 三段分别继承 5000，后续更新不丢失 |
+| 三段分别设置 5000 / 6000 / 0 | 再次应用原样保留，目标零差异 |
+| 缺省额度 | 保持字段缺省，使用宿主行为 |
+| 已有额度非法或同一分段额度冲突 | Patch preflight 失败，目标配置不写入 |
+| sessionParts 非固定数组，或 event / resolver 不支持 | Patch preflight 失败 |
+| resume 或显式禁用 | wrapper 退出 0，无注入输出 |
+| 原生文件损坏、输出非 JSON、缺少工作流块或章节边界 | stdout 输出 systemMessage 与 trellis-injection-error 上下文，stderr 诊断，退出 0；提示补读 workflow 和 get_context |
+| 分段超过脚本字符预算 | 保留完整正文及尾部规则，输出 systemMessage；不静默截断 |
+| 预算 fixture 返回注入失败诊断 | 结构性测量错误，不当作短小的成功上下文 |
+
+### 5. Good/Base/Bad Cases
+
+- Good：配置迁移保留用户 5000；三段并行输出，拼回正文与原始摘要等价；真实 update 再运行零差异。
+- Base：全新安装使用宿主缺省额度，只有 state 绑定会话，规则直接复用当前原生生成器。
+- Bad：三个 handler 分别运行完整原生 main 后截字数，造成重复绑定、规则遗漏或依赖 handler 顺序。
+- Bad：只改 `.codex/hooks.json` 中的额度，后续安装仍用删除重建的 adapter 抹掉该值。
+
+### 6. Tests Required
+
+```bash
+node --test test/js/platform-patches.test.js test/js/apply-enhancements.test.js test/js/ai-context-budget.test.js
+python3 -m unittest discover -s test/python -p 'test_flower_session_start.py'
+```
+
+断言：原文拼回等价、关键路由完整、并行无状态副作用、禁用与 resume 无输出；原额度 / 分段独立额度 /
+0 / 缺省 / 冲突 / 非法值迁移；缺少或损坏源的可见诊断与超限尾部保留；真实内容投影、目标 ownership
+和二次安装文件树不变。预算须运行两平台六份最终输出，并验证最大平台合计及字符单位。
+完整回归继续执行本规范的全局检查。真实宿主日志未验证时，必须明确记录接收证据缺口。
+
+### 7. Wrong vs Correct
+
+Wrong：`if (limit) handler.additionalContextLimit = limit`，且三个分段都先执行完整 SessionStart。
+
+Correct：`limit !== undefined` 时写回；按分段保留已有值，再继承旧单 handler 的额度；只有 state
+调用原生 main，规则分段只读生成器。配置和脚本一起经过 Plugin 事务安装，最后验证真实 handler 输出。
