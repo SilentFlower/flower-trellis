@@ -1,0 +1,43 @@
+{
+  "id": "astra-workflow-hint",
+  "name": "astra-workflow-hint",
+  "title": "为 gpt-6-astra 增加模型专用的工作流遵循提示",
+  "description": "仅在 Codex SessionStart 的 startup/clear/compact state 注入 Astra 专用短提示，减少重复上下文，并完成开关、工程与行为对照验证。",
+  "status": "completed",
+  "dev_type": "backend",
+  "scope": "codex-astra-workflow-hint",
+  "package": "flower-trellis",
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-05",
+  "completedAt": "2026-09-05",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/assets/flower_session_start.py",
+    "scripts/check-ai-context-budget.mjs",
+    "test/python/test_flower_session_start.py",
+    "test/js/ai-context-budget.test.js",
+    "test/js/apply-enhancements.test.js"
+  ],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "completedSteps": [
+      "英文 Astra SessionStart 提示、模型筛选与独立开关",
+      "工程、正常安装、真实宿主及 60 次行为对照验证",
+      "Check-All 与规范更新"
+    ],
+    "partialStep": null,
+    "nextStep": "等待用户按需发起 finish-work",
+    "notes": "六项预设行为指标未显示提升；探索性模板信号和工具开销上升已记录。混有此前外部 Plugin 安装变更的 .flower 文件整体保留未提交。",
+    "updatedAt": "2026-09-05T15:02:30Z"
+  }
+}

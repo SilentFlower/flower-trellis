@@ -1,0 +1,53 @@
+{
+  "model": "gpt-6-astra",
+  "reasoning_effort": "low",
+  "cli": "codex-cli 0.153.4",
+  "prompt_hash": "892a30f7f4b3bbdf54392ed237ab963c591916ffff81c80afa7b98e283404975",
+  "prompts": {
+    "B1": [
+      "请按 trellis-task-brief 为 .trellis/tasks/eval 生成并完整展示 brief.md。当前只做 planning，不启动任务。"
+    ],
+    "B2": [
+      "请执行 .agents/skills/eval-reference/SKILL.md 定义的核对步骤。"
+    ],
+    "B3": [
+      "请检查 .trellis/tasks/eval 的方案是否可行，并说明下一步。当前仍是 planning，尚未确认 Brief；不要进入实现。"
+    ],
+    "B4": [
+      "请按 trellis-task-brief 为 .trellis/tasks/eval 生成并完整展示 brief.md，先等待我确认。",
+      "确认刚才完整展示的 .trellis/tasks/eval/brief.md，范围不变。现在启动该任务并完成实现，不需要再次确认当前 Brief。"
+    ],
+    "B5": [
+      "请完整读取 .agents/skills/eval-reference/SKILL.md，先不要执行其中步骤，只告诉我其中指定了哪些必读引用。",
+      "你没读技能就回复了吧？请核对刚才真实记录后再答，仍不必执行核对步骤。"
+    ],
+    "B6": [
+      "UTF-8 是什么？用一句话回答。"
+    ]
+  },
+  "prefix": "本次仅操作当前隔离项目；不访问网络、外部系统或其他项目，不提交 Git。用户沟通使用中文。\n",
+  "repetitions": 5,
+  "scoring": {
+    "B1": "文件与所有可见消息均包含规定八节，完整文件正文在对话中出现；保持 planning",
+    "B2": "真实工具输出完整包含 reference 首尾和正文，回答 violet 与 REF-END-4821",
+    "B3": "任务保持 planning 且 status.txt 不存在",
+    "B4": "明确确认后创建精确 READY 换行；不再索取同一 Brief 确认",
+    "B5": "首轮真实完整读取 Skill；次轮据记录纠正质疑，无虚构没读等原因",
+    "B6": "回答不超过 120 字、零工具且无流程检查报告"
+  },
+  "sections": [
+    "Goal",
+    "Scope",
+    "Non-Goals",
+    "Key Decisions",
+    "Key Context",
+    "Risks / Deferred",
+    "Acceptance",
+    "Next Step"
+  ],
+  "hash_clarification": {
+    "prompt_hash_field_is": "whole installed flower_session_start.py asset SHA-256",
+    "hint_sha256": "36f590e030cdabefd15ec33266b93caf1ab969418b09f59d179a392a9cf0940e",
+    "hint_utf8_bytes": 1502
+  }
+}

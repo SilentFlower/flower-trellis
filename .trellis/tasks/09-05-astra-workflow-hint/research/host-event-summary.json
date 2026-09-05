@@ -1,0 +1,272 @@
+[
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071e4-d37b-7f70-b95e-fe262b03adb9",
+    "part": "stages",
+    "bytes": 5036,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071e4-d37b-7f70-b95e-fe262b03adb9",
+    "part": "rules",
+    "bytes": 6807,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071e4-d37b-7f70-b95e-fe262b03adb9",
+    "part": "state",
+    "bytes": 3549,
+    "hint_blocks": 1,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "UserPromptSubmit",
+    "model": "gpt-6-astra",
+    "source": null,
+    "session_id": "01a071e4-d37b-7f70-b95e-fe262b03adb9",
+    "part": ".codex/hooks/inject-workflow-state.py",
+    "bytes": 2940,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-5.5",
+    "source": "startup",
+    "session_id": "01a071ec-6b0a-75a1-b9fe-7691a93a9aaa",
+    "part": "rules",
+    "bytes": 6807,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-5.5",
+    "source": "startup",
+    "session_id": "01a071ec-6b0a-75a1-b9fe-7691a93a9aaa",
+    "part": "stages",
+    "bytes": 5036,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-5.5",
+    "source": "startup",
+    "session_id": "01a071ec-6b0a-75a1-b9fe-7691a93a9aaa",
+    "part": "state",
+    "bytes": 2046,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "UserPromptSubmit",
+    "model": "gpt-5.5",
+    "source": null,
+    "session_id": "01a071ec-6b0a-75a1-b9fe-7691a93a9aaa",
+    "part": ".codex/hooks/inject-workflow-state.py",
+    "bytes": 2940,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071ed-0c12-7a73-814a-65eda987ff7c",
+    "part": "rules",
+    "bytes": 6807,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071ed-0c12-7a73-814a-65eda987ff7c",
+    "part": "stages",
+    "bytes": 5036,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071ed-0c12-7a73-814a-65eda987ff7c",
+    "part": "state",
+    "bytes": 3549,
+    "hint_blocks": 1,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "UserPromptSubmit",
+    "model": "gpt-6-astra",
+    "source": null,
+    "session_id": "01a071ed-0c12-7a73-814a-65eda987ff7c",
+    "part": ".codex/hooks/inject-workflow-state.py",
+    "bytes": 2940,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071ed-540c-7142-87e2-e569a7974039",
+    "part": "rules",
+    "bytes": 6807,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071ed-540c-7142-87e2-e569a7974039",
+    "part": "stages",
+    "bytes": 5036,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071ed-540c-7142-87e2-e569a7974039",
+    "part": "state",
+    "bytes": 3549,
+    "hint_blocks": 1,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "UserPromptSubmit",
+    "model": "gpt-6-astra",
+    "source": null,
+    "session_id": "01a071ed-540c-7142-87e2-e569a7974039",
+    "part": ".codex/hooks/inject-workflow-state.py",
+    "bytes": 2940,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "compact",
+    "session_id": "01a071ed-0c12-7a73-814a-65eda987ff7c",
+    "part": "stages",
+    "bytes": 5036,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "compact",
+    "session_id": "01a071ed-0c12-7a73-814a-65eda987ff7c",
+    "part": "rules",
+    "bytes": 6807,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "compact",
+    "session_id": "01a071ed-0c12-7a73-814a-65eda987ff7c",
+    "part": "state",
+    "bytes": 3549,
+    "hint_blocks": 1,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "compact",
+    "session_id": "01a071ed-540c-7142-87e2-e569a7974039",
+    "part": "rules",
+    "bytes": 6807,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "compact",
+    "session_id": "01a071ed-540c-7142-87e2-e569a7974039",
+    "part": "stages",
+    "bytes": 5036,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "compact",
+    "session_id": "01a071ed-540c-7142-87e2-e569a7974039",
+    "part": "state",
+    "bytes": 3549,
+    "hint_blocks": 1,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "UserPromptSubmit",
+    "model": "gpt-6-astra",
+    "source": null,
+    "session_id": "01a071ed-540c-7142-87e2-e569a7974039",
+    "part": ".codex/hooks/inject-workflow-state.py",
+    "bytes": 2940,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071f3-6a87-7d20-b3b9-adb27be9d71a",
+    "part": "rules",
+    "bytes": 6807,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071f3-6a87-7d20-b3b9-adb27be9d71a",
+    "part": "stages",
+    "bytes": 5036,
+    "hint_blocks": 0,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "SessionStart",
+    "model": "gpt-6-astra",
+    "source": "startup",
+    "session_id": "01a071f3-6a87-7d20-b3b9-adb27be9d71a",
+    "part": "state",
+    "bytes": 3549,
+    "hint_blocks": 1,
+    "non_interactive": null
+  },
+  {
+    "hook_event_name": "UserPromptSubmit",
+    "model": "gpt-6-astra",
+    "source": null,
+    "session_id": "01a071f3-6a87-7d20-b3b9-adb27be9d71a",
+    "part": ".codex/hooks/inject-workflow-state.py",
+    "bytes": 2940,
+    "hint_blocks": 0,
+    "non_interactive": null
+  }
+]

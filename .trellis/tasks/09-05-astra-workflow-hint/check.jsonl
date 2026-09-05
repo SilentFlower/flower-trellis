@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"质量约定、回归与一致性审查。"}
+{"file":".trellis/tasks/09-05-astra-workflow-hint/research/patch-contracts.md","reason":"带源摘要的跨平台 Patch、重复安装、ownership 与完整 SessionStart 契约原文。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"预算 fixture 必须命中模型与 compact 路径，不能只测提示源文本。"}
+{"file":".trellis/tasks/09-05-astra-workflow-hint/research/feasibility.md","reason":"区分工程注入证据、行为实验、当前冲突与历史根因推测。"}

@@ -1,0 +1,70 @@
+{
+  "cli": "codex-cli 0.153.4",
+  "hint_version": 1,
+  "hint_language": "English",
+  "hint_utf8_bytes": 1502,
+  "hint_sha256": "36f590e030cdabefd15ec33266b93caf1ab969418b09f59d179a392a9cf0940e",
+  "asset_sha256": "892a30f7f4b3bbdf54392ed237ab963c591916ffff81c80afa7b98e283404975",
+  "installed_asset_matches": true,
+  "validation": {
+    "npm_test": {
+      "exit_code": 0,
+      "js_pass": 519,
+      "python_pass": 323,
+      "includes": [
+        "patch conflicts",
+        "compiled targets",
+        "AI context budget",
+        "output templates"
+      ]
+    },
+    "focused_final": {
+      "exit_code": 0,
+      "python_pass": 12,
+      "reason": "新增真实 UTF-8 超限故障路径后补验"
+    },
+    "strict_budget": {
+      "exit_code": 0,
+      "hint_bytes": 1502,
+      "codex_total_bytes": 15298,
+      "codex_baseline_bytes": 13795,
+      "codex_parts_bytes": {
+        "state": 3455,
+        "rules": 6807,
+        "stages": 5036
+      },
+      "control_context_total_bytes": 111655,
+      "existing_warning": "states-total=13119 bytes，未改阈值"
+    },
+    "snapshot": {
+      "exit_code": 0,
+      "pin": "6199ab8b2e",
+      "patches": 48,
+      "operations": 142,
+      "ready_targets": 915
+    }
+  },
+  "installation": {
+    "tree_changed_paths": [
+      ".flower/state.json"
+    ],
+    "disabled_preserved": true,
+    "disabled_hint_blocks": 0,
+    "workflow_state_present": true,
+    "repeat_changed_paths": []
+  },
+  "raw_logs": "/root/project/flower-trellis/.trellis-tmp/astra-validation",
+  "host_sessions": {
+    "astra_startup": "01a071e4-d37b-7f70-b95e-fe262b03adb9",
+    "gpt_5_5_startup": "01a071ec-6b0a-75a1-b9fe-7691a93a9aaa",
+    "astra_automatic_compact": "01a071ed-0c12-7a73-814a-65eda987ff7c",
+    "astra_manual_compact": "01a071ed-540c-7142-87e2-e569a7974039",
+    "astra_new_command": "01a071f3-6a87-7d20-b3b9-adb27be9d71a"
+  },
+  "host_notes": [
+    "自动压缩由 model_auto_compact_token_limit=26000 的独立 CLI 调用触发。",
+    "TUI /compact 完成后，客户端在下一条用户消息前交付三个 compact 分段，再执行 UserPromptSubmit。",
+    "TUI /new 在本客户端生成 startup，未观察到 clear；clear 分支由真实脚本的输入回归覆盖。",
+    "原始事件及完整输出在 host-hooks.jsonl；模型自述只作为辅助接收证据。"
+  ]
+}

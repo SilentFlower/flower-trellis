@@ -1,0 +1,41 @@
+[
+  {
+    "path": "/root/.codex/sessions/2026/09/05/rollout-2026-09-05T22-16-14-01a071ed-540c-7142-87e2-e569a7974039.jsonl",
+    "line": 9,
+    "timestamp": "2026-09-05T14:16:15.641Z",
+    "role": "developer",
+    "hint_blocks": 1,
+    "hint_bytes": [
+      1502
+    ],
+    "hint_sha256": [
+      "36f590e030cdabefd15ec33266b93caf1ab969418b09f59d179a392a9cf0940e"
+    ]
+  },
+  {
+    "path": "/root/.codex/sessions/2026/09/05/rollout-2026-09-05T22-16-14-01a071ed-540c-7142-87e2-e569a7974039.jsonl",
+    "line": 35,
+    "timestamp": "2026-09-05T14:21:19.823Z",
+    "role": "developer",
+    "hint_blocks": 1,
+    "hint_bytes": [
+      1502
+    ],
+    "hint_sha256": [
+      "36f590e030cdabefd15ec33266b93caf1ab969418b09f59d179a392a9cf0940e"
+    ]
+  },
+  {
+    "path": "/root/.codex/sessions/2026/09/05/rollout-2026-09-05T22-06-56-01a071e4-d37b-7f70-b95e-fe262b03adb9.jsonl",
+    "line": 9,
+    "timestamp": "2026-09-05T14:06:58.371Z",
+    "role": "developer",
+    "hint_blocks": 1,
+    "hint_bytes": [
+      1502
+    ],
+    "hint_sha256": [
+      "36f590e030cdabefd15ec33266b93caf1ab969418b09f59d179a392a9cf0940e"
+    ]
+  }
+]

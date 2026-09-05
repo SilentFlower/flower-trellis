@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"工程入口、开发前检查和质量门禁。"}
+{"file":".trellis/tasks/09-05-astra-workflow-hint/research/patch-contracts.md","reason":"带源摘要的适用规范完整章节，避免长规范尾部 SessionStart 契约被注入截断。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"最终运行输出计量、现有预算和总量公式。"}
+{"file":".trellis/tasks/09-05-astra-workflow-hint/research/feasibility.md","reason":"已核对的官方 Hook 契约、代码锚点、指令冲突和既有修改边界。"}
