@@ -168,15 +168,31 @@ function measureSessionStart() {
       path.join(PKG_ROOT, "src", "assets", FLOWER_SESSION_HOOK),
       path.join(fixture, FLOWER_SESSION_HOOK_REL),
     );
-    const parts = [];
-    for (const platform of ["codex", "claude"]) {
+    const scenarios = [
+      { platform: "codex", name: "missing-model", source: "startup" },
+      { platform: "codex", name: "astra-startup", source: "startup", model: "gpt-6-astra", expectedHints: 1 },
+      { platform: "codex", name: "astra-clear", source: "clear", model: "gpt-6-astra", expectedHints: 1 },
+      { platform: "codex", name: "astra-compact", source: "compact", model: "gpt-6-astra", expectedHints: 1 },
+      { platform: "codex", name: "other-model", source: "startup", model: "gpt-5.6-sol" },
+      { platform: "codex", name: "disabled", source: "startup", model: "gpt-6-astra", enabled: false },
+      { platform: "claude", name: "astra-startup", source: "startup", model: "gpt-6-astra" },
+      { platform: "claude", name: "astra-compact", source: "compact", model: "gpt-6-astra" },
+    ];
+    const cases = [];
+    let astraHint = "";
+    for (const scenario of scenarios) {
+      const { platform, name, source, model } = scenario;
       const hook = `.${platform}/hooks/session-start.py`;
       copyIfExists(path.join(PKG_ROOT, hook), path.join(fixture, hook));
+      // 固定测试配置，个人关闭设置不能让预算检查漏掉默认开启的实际成本。
+      fs.writeFileSync(path.join(fixture, ".trellis/config.yaml"),
+        `codex:\n  dispatch_mode: auto\n  astra_workflow_hint: ${scenario.enabled !== false}\n`);
+      const parts = [];
       for (const part of ["state", "rules", "stages"]) {
         const output = execFileSync("python3", [FLOWER_SESSION_HOOK_REL, "--hook", hook, "--part", part], {
           cwd: fixture,
           encoding: "utf8",
-          input: JSON.stringify({ cwd: fixture, session_id: "context-budget-fixture", source: "startup" }),
+          input: JSON.stringify({ cwd: fixture, session_id: "context-budget-fixture", source, model }),
           env: {
             ...process.env,
             TRELLIS_CONTEXT_ID: "context-budget-fixture",
@@ -191,17 +207,32 @@ function measureSessionStart() {
         const parsed = JSON.parse(output);
         const value = parsed?.hookSpecificOutput?.additionalContext;
         if (typeof value !== "string" || !value || value.includes("<trellis-injection-error")) {
-          throw new Error(`SessionStart ${platform}/${part} fixture 未返回有效 additionalContext`);
+          throw new Error(`SessionStart ${platform}/${name}/${part} fixture 未返回有效 additionalContext`);
+        }
+        const hints = [...value.matchAll(/<trellis-astra-workflow-hint [^>]*>[\s\S]*?<\/trellis-astra-workflow-hint>/g)];
+        const expected = part === "state" ? scenario.expectedHints || 0 : 0;
+        if (hints.length !== expected) {
+          throw new Error(`SessionStart ${platform}/${name}/${part} 模型提示数量错误:${hints.length} != ${expected}`);
+        }
+        if (hints.length) {
+          if (astraHint && astraHint !== hints[0][0]) throw new Error("SessionStart 各来源的 Astra 提示不一致");
+          astraHint = hints[0][0];
         }
         parts.push({ platform, part, value });
       }
+      cases.push({ platform, name, parts, value: parts.map((item) => item.value).join("") });
     }
-    // 两平台是等价入口，控制面总量只计较大的平台合计，避免重复累计。
-    const totals = ["codex", "claude"].map((platform) =>
-      parts.filter((item) => item.platform === platform).map((item) => item.value).join("")
+    // 同一平台的各事件不会同时发生；取每个平台的最大真实输出，保持原总量公式。
+    const largestCases = ["codex", "claude"].map((platform) =>
+      cases.filter((item) => item.platform === platform).sort((left, right) =>
+        Buffer.byteLength(right.value, "utf8") - Buffer.byteLength(left.value, "utf8")
+      )[0]
     );
-    totals.sort((a, b) => Buffer.byteLength(b, "utf8") - Buffer.byteLength(a, "utf8"));
-    return { parts, total: totals[0] };
+    const parts = largestCases.flatMap((item) => item.parts);
+    const total = largestCases.map((item) => item.value).sort((left, right) =>
+      Buffer.byteLength(right, "utf8") - Buffer.byteLength(left, "utf8")
+    )[0];
+    return { parts, total, cases, astraHint };
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true });
   }
@@ -301,6 +332,10 @@ export function collectAiContextMetrics() {
       unit: "characters",
       characters: [...value].length,
     })),
+    measureText("astra-workflow-hint", sessionStart.astraHint, { target: 2 * KIB, review: 2 * KIB }),
+    ...sessionStart.cases.map(({ platform, name, value }) =>
+      measureText(`session-start-case:${platform}:${name}`, value, BUDGETS.sessionStart)
+    ),
     measureTotal(
       "control-context-total",
       Buffer.byteLength(workflow, "utf8") +

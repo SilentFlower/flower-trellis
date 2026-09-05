@@ -19,6 +19,46 @@ PARTS = ("state", "rules", "stages")
 HOOKS = (".codex/hooks/session-start.py", ".claude/hooks/session-start.py")
 MAX_PART_CHARS = 8000
 WORKFLOW_BLOCK = re.compile(r"<trellis-workflow>\n(.*?)\n</trellis-workflow>\n*", re.DOTALL)
+ASTRA_MODEL = "gpt-6-astra"
+ASTRA_HINT_MAX_BYTES = 2048
+ASTRA_WORKFLOW_HINT = """<trellis-astra-workflow-hint model="gpt-6-astra" version="1">
+Applies only while the active model is gpt-6-astra; it does not apply after switching models. Perform checks internally, without a routine checklist report. Keep ordinary answers brief.
+When executing the current task:
+- Treat required steps, required references, phase boundaries, and output templates in applicable SKILL and WORKFLOW instructions as execution and delivery checks.
+- Before a step, review its rules and required references. Reuse material already read in full and unchanged; search matches are not full reads.
+- Preserve required heading levels, section order, and conditional sections in specified templates. General brevity or no-heading preferences apply to ordinary prose and do not justify flattening, shortening, or reshaping a specified template.
+- Resolve conflicts by instruction hierarchy and respect the user's current explicit authorization. Do not invent additional confirmation steps or claim that this hint or a SKILL overrides all host rules.
+- Before claiming "read", "checked", or "complete", verify actual tool records and artifacts. Successful reading and compliant execution are separate facts.
+- When corrected, review the applicable rules, execution records, and actual result before repairing it. If evidence is missing, state uncertainty. Do not invent causes such as "not read", "forgot", or "file missing", or consult unrelated rules in place of the relevant ones.
+</trellis-astra-workflow-hint>"""
+
+
+def _astra_workflow_hint(root: Path) -> str:
+    """读取项目开关，返回唯一来源的 Astra 提示或空串。
+
+    @param root: 当前部署项目根目录。
+    @return: 完整提示块；显式关闭时为空串，非法配置或超预算时抛出异常。
+    """
+    scripts_dir = str(root / ".trellis" / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from common.trellis_config import read_trellis_config
+
+    config = read_trellis_config(root)
+    codex = config.get("codex", {})
+    if not isinstance(codex, dict):
+        raise ValueError("codex 配置必须为映射")
+    enabled = codex.get("astra_workflow_hint", True)
+    # 上游无依赖 YAML 读取器返回字符串，不能把字符串 false 当作真值。
+    if isinstance(enabled, str) and enabled.lower() in ("true", "false"):
+        enabled = enabled.lower() == "true"
+    if not isinstance(enabled, bool):
+        raise ValueError("codex.astra_workflow_hint 必须为 true 或 false")
+    if not enabled:
+        return ""
+    if len(ASTRA_WORKFLOW_HINT.encode("utf-8")) > ASTRA_HINT_MAX_BYTES:
+        raise ValueError("Astra 工作流提示超过 2048 字节预算")
+    return ASTRA_WORKFLOW_HINT
 
 
 def split_workflow(summary: str) -> dict[str, str]:
@@ -80,6 +120,17 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
         if re.fullmatch(r"Trellis context injected \(\d+ chars\)", result.get("systemMessage", "")):
             # 原计数对应拆分前的全文；保留其他原生诊断，避免以后吞掉重要提示。
             result.pop("systemMessage")
+        if (hook == HOOKS[0] and hook_input.get("model") == ASTRA_MODEL
+                and hook_input.get("source") in ("startup", "clear", "compact")):
+            try:
+                hint = _astra_workflow_hint(root)
+                if hint:
+                    context = f"{context}\n{hint}"
+            except Exception as error:
+                # 提示是可选增强；失败不能吞掉已成功生成的原生启动上下文。
+                message = f"Astra 工作流提示未注入：{error}"
+                result["systemMessage"] = "\n".join(filter(None, [result.get("systemMessage"), message]))
+                print(message, file=sys.stderr)
     else:
         builder = module._build_workflow_toc if hook == HOOKS[0] else module._build_workflow_overview
         context = split_workflow(builder(root / ".trellis/workflow.md"))[part]
@@ -89,10 +140,11 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
     result["hookSpecificOutput"]["additionalContext"] = context
     if len(context) > MAX_PART_CHARS:
         # 保留正文供宿主落盘补读，不能为了满足预算再次静默截断规则。
-        result["systemMessage"] = (
+        message = (
             f"Trellis {part} 注入为 {len(context)} 字符，超过 {MAX_PART_CHARS} 字符预算；"
             "请检查分段大小，并补读宿主保存的全文及 .trellis/workflow.md。"
         )
+        result["systemMessage"] = "\n".join(filter(None, [result.get("systemMessage"), message]))
     return result
 
 

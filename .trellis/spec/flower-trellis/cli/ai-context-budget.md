@@ -26,7 +26,7 @@
 - Update-Spec/Finish-Work：读取 compiled full 中实际存在的最终 `.agents`、`.claude/skills`、`.claude/commands` 入口。
 - Auto-Loop：该 skill 不是 Patch target，读取 `vendor/skill-garden/.trellis/0.6` 下直接铺设的 canonical `.agents/.claude` 入口；源、快照和 dogfood 一致性由同步测试单独保证。
 - Phase summary：真实运行 `python3 ./.trellis/scripts/get_context.py --mode phase`。
-- SessionStart：在隔离临时 fixture 部署 Flower 分段脚本及 Codex / Claude 原生 hook，分别运行 `.trellis/scripts/flower_session_start.py --hook <原生路径> --part state|rules|stages`，读取六份实际 `additionalContext`。`session-start` 合计取两平台中较大者，不重复累计等价平台。
+- SessionStart：在隔离临时 fixture 部署 Flower 分段脚本及 Codex / Claude 原生 hook，分别运行 `.trellis/scripts/flower_session_start.py --hook <原生路径> --part state|rules|stages`。覆盖八个场景、每场景三份实际 `additionalContext`：Codex 缺失模型、Astra startup/clear/compact、其他模型、Astra 关闭，以及 Claude 携带 Astra 输入的 startup/compact。每个平台取最大场景保留六份分段汇总，`session-start` 取最大平台/场景合计，不重复累加等价入口。
 
 Patch 的 `content.md`、`common-content.md`、`subagent-content.md` 只是构建输入。直接测它们会漏掉 frontmatter、上游保留段、marker、结构拼接和平台差异，因此不构成预算证据。
 
@@ -51,6 +51,10 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 
 `session-start:<platform>:<part>` 另输出 Unicode 字符数，`unit=characters` 的 target / review 按字符比较；其余指标继续按 UTF-8 bytes 比较。分段字符指标与 Codex 的近似 token 额度不是同一单位，不能据此宣称已验证宿主实际接收。
 
+`session-start-case:<platform>:<name>` 输出每个场景的三段总字节数；`astra-workflow-hint` 从实际输出中提取
+完整闭合块计量，包含模型和版本标记。fixture 显式固定开关，不能因本地配置关闭而漏测开启成本；匹配场景
+只有 state 一块，其他输出零块，三种 source 的提示正文相同。数量或正文不一致是结构错误。
+
 ## Layer Ownership
 
 | 层 | 应保留 | 禁止 |
@@ -60,7 +64,7 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 | workflow body | 官方阶段结构和低频 walkthrough | 与 hub 同义的第二份完整规则 |
 | skill/command | 完整语义流程、选项、交互边界 | 手工实现可确定脚本逻辑 |
 | helper | 解析、验证、状态读写、错误矩阵 | 产品意图推断和长 prompt |
-| SessionStart | 当前状态、精简 workflow summary、spec index | 全 workflow、全 task artifacts、重复 breadcrumb |
+| SessionStart | 当前状态、精简 workflow summary、spec index、限定模型的短约束 | 全 workflow、全 task artifacts、重复 breadcrumb |
 
 同一规则确需跨层出现时，高频层只保留一句边界和权威入口。默认禁止“旧规则保留 + 新高优先级段继续追加”。
 
@@ -78,6 +82,7 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 | Phase summary | 18 KiB | 20 KiB |
 | SessionStart 三段 `additionalContext` 合计（最大平台） | 18 KiB | 20 KiB |
 | 单个 SessionStart 分段 | 8000 字符 | 10000 字符 |
+| 完整 Astra 模型提示块 | 2 KiB | 2 KiB |
 | control-context-total | 116 KiB | 128 KiB |
 
 `control-context-total` 是控制面总体积审计，不声称这些内容会在单次 prompt 中同时出现。公式固定为：
@@ -91,6 +96,9 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 ```
 
 修改公式必须更新 checker、基线和本规范，不能只调整展示文本。
+
+Astra 提示还受运行时独立 2048 字节硬限制：超限不新增提示并诊断，预算 fixture 因预期块缺失而报结构错误。
+这是可选模型提示的执行契约，不改变其它上下文对象默认告警的策略。实际拼接另有一个换行，须计入 state 和总量。
 
 ## Warning Policy
 
@@ -198,6 +206,8 @@ node scripts/check-ai-context-budget.mjs --strict
 - strict 只在 high-warning 时退出非 0。
 - 结构性测量错误始终非 0。
 - Codex / Claude 的三个 SessionStart 分段均返回非空 `additionalContext`，不能把注入失败诊断当作成功测量；原文完整性、并行执行和额度迁移另由分段及平台回归验证。
+- 八个 SessionStart 场景必须全部实际运行；Astra 三种来源均等于同配置无提示基线加完整块及一个换行，其他模型和关闭场景与基线相同。每个平台保留最大场景，控制面只计全局最大合计。
+- `astra-workflow-hint` 必须非空且不超过 2048 UTF-8 字节；独立故障测试使用多字节字符确认超限拒绝，不能只比较字符数或提示源文件大小。
 - state 从最终 workflow 动态枚举，不写死文件数量。
 - Update-Spec/Finish-Work 从 compiled final 平台入口测量，不读取 Patch content；Auto-Loop 从直接铺设的 canonical variant skill 测量。
 - control-context-total 使用固定公式和最大平台入口。

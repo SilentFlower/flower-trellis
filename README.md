@@ -141,6 +141,21 @@ flower-trellis enable --target .
 
 项目处于 disabled 时，`flower-trellis update`、`self-update` 的项目更新链，以及 `plugin add/update/remove/replay` 会临时恢复必要入口，完成写操作后再次 detach，并校验最终仍为 disabled；外部 Plugin 内容不会被当作 Trellis 入口删除。直接运行上游 `trellis update` 不经过这一控制面，可能重新生成入口，此时 `flower-trellis status` 会报告 `drifted`。`disable` 也不等同于 `uninstall`：历史数据和恢复能力会继续保留。
 
+## Astra 工作流提示
+
+Codex 的 SessionStart 在 `startup`、`clear`、`compact` 时，只有事件输入的当前模型精确为 `gpt-6-astra`，才会在 state 分段追加一份英文工作流提示。其他模型（包括 5.5）、缺失模型和未知别名不会追加；普通用户轮次不重复注入。
+
+提示用于辅助遵循技能、工作流、模板和证据陈述，效果仍需行为对照验证。它不能删除宿主或历史指令，也不保证覆盖更高优先级要求。会话中切换模型后，要等下次 SessionStart 才重新判断是否追加。
+
+默认开启。要独立关闭，在项目 `.trellis/config.yaml` 已有的 `codex` 配置下合并这一项，保留原有字段：
+
+```yaml
+codex:
+  astra_workflow_hint: false
+```
+
+设置 `true` 或删除该字段恢复默认。开关只影响后续新增提示；做无历史干扰的对照时应使用新会话。原工作流上下文继续注入，Trellis 全局禁用、resume 和非交互跳过规则保持原有行为。`no-trellis` 仍只跳过本轮 UserPromptSubmit。
+
 ## Flower Plugin
 
 Flower Plugin 是 flower-trellis 的标准运行时格式。GitHub 公共仓库可自动识别 Flower、Codex、Claude Code 与 Skill-only 包，并先规范化为标准 Flower package，再进入同一套来源解析、依赖锁定、能力校验、内容投影、事务写入和卸载所有权。外部 `skills/` 与 Claude legacy `commands/*.md` 可导入；hooks、agents、MCP、LSP、monitor、bin、settings、themes、output styles 和 apps 只展示兼容性诊断，不会执行。

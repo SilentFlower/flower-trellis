@@ -590,6 +590,7 @@ full-only control-plane-integrity -> atomic I/O + resolution + fallback + set
 ### 1. Scope / Trigger
 
 修改 Codex / Claude 的 SessionStart 注册、`json-hook-command` 重建逻辑或 Flower 启动资产时读取本节。
+修改 Astra 模型专用提示、项目开关、压缩恢复或模型切换边界时，同样以本节为准。
 旧 adapter 删除 handler 后只重建 type / command / timeout，会丢失用户设置的 `additionalContextLimit`；
 单份工作流摘要过长也可能被宿主替换成落盘预览。分段和额度迁移必须同时经过真实安装链验证。
 
@@ -604,6 +605,7 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
 
 - `--hook` 只接受上述两个原生路径；`--part` 只接受 `state | rules | stages`。
 - `render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | None`。
+- `_astra_workflow_hint(root: Path) -> str`：读取项目开关，返回完整英文提示或空串；非法显式配置或正文超限时抛出异常，由 state 的可选增强分支处理。
 - `split_workflow(summary: str) -> dict[str, str]` 返回 `rules` / `stages`，拼接后等于原始摘要。
 - `json-hook-command` 的 `content.value.sessionParts` 只允许固定数组 `["state", "rules", "stages"]`，
   且仅用于 `event=SessionStart`、`commandResolver=codex-session-start|claude-session-start`。
@@ -631,6 +633,23 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
   加入 Codex 专属额度。同一分段或旧单 handler 存在矛盾的显式额度时，preflight 报错而不任选其一。
 - `TRELLIS_HOOKS=0`、`TRELLIS_DISABLE_HOOKS=1` 时无输出；Codex 还尊重 `CODEX_NON_INTERACTIVE=1`。
   `source=resume` 无输出；其余原生跳过条件继续交给 `should_skip_injection()`。
+- Astra 提示正文唯一来源为源脚本的 `ASTRA_WORKFLOW_HINT`，英文与 workflow 主体一致，含闭合的
+  `<trellis-astra-workflow-hint model="gpt-6-astra" version="1">` 块，完整块不超过 2048 UTF-8 字节。
+  仅当 `hook` 为 Codex 原生路径、`part=state`、输入 `model` 精确等于字符串 `gpt-6-astra`，且
+  `source` 为 `startup | clear | compact` 时，在成功提取的原生状态后用一个换行追加；rules/stages 零追加。
+  不 trim、不猜别名、不读取配置默认模型，不使用 matcher 筛选模型；其他模型（包括 gpt-5.5）、缺失或非法模型零追加。
+- `.trellis/config.yaml` 的 `codex.astra_workflow_hint` 缺省开启，`false` 仅关闭后续新增提示。
+  沿用 `common.trellis_config.read_trellis_config`：其 YAML 标量返回字符串，因此只接受布尔值或
+  不区分大小写的 `"true" / "false"` 字符串；不能用 truthy 判断。`codex` 非映射或非法显式值须诊断。
+  配置合并到已有 codex 映射，正常更新必须保留该用户字段。
+- 每次匹配的 SessionStart 重新判断当前模型；普通 UserPromptSubmit 不新增提示，也不新增事件注册、
+  跨轮状态或 shared-runtime Patch。会话中切换模型不会立即刷新，关闭或切换不能删除历史提示。
+  `no-trellis` 保留仅跳过本轮 UserPromptSubmit 的原语义，不用于关闭 SessionStart 模型提示。
+- 提示生成失败只停用可选增强，保留原生 state 和原有诊断，追加 `systemMessage` 并写 stderr；
+  后续字符超预算诊断也必须追加，不能覆盖已有诊断。不得把该失败伪装成整个原生启动上下文丢失。
+- 提示覆盖必需步骤/引用、阶段边界、模板结构、指令层级、用户当前授权及证据陈述；检查默认内部完成，
+  普通问答保持简短。宿主规则冲突应按真实来源、适用范围和可编辑性记录，不能承诺 Hook 覆盖所有规则，
+  也不能把“已读取但执行偏离”解释成无依据的“没读”。工程注入成功与行为效果必须分别验证。
 - 大小目标、字符与 UTF-8 bytes 的区别、默认 / strict 告警规则统一见 [AI Context Budget](./ai-context-budget.md)。
   分段字符数和本地 tokenizer 测量不能替代宿主实际接收验证，也不能证明模型会遵循工作流。
 
@@ -644,6 +663,10 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
 | 已有额度非法或同一分段额度冲突 | Patch preflight 失败，目标配置不写入 |
 | sessionParts 非固定数组，或 event / resolver 不支持 | Patch preflight 失败 |
 | resume 或显式禁用 | wrapper 退出 0，无注入输出 |
+| Astra + startup/clear/compact + state + 开关开启 | 原状态后追加一个英文块，三段合计一次 |
+| 其他模型、缺失/非法 model、别名、非目标 source、Claude 或 rules/stages | 不新增提示，保留原路径输出 |
+| astra_workflow_hint=false | 原工作流保留，后续 SessionStart 不新增；历史提示不撤回 |
+| codex 非映射、开关为 yes/1/空值、读取器异常或完整提示超过 2048 字节 | 保留原生 state，追加可见诊断，不新增提示 |
 | 原生文件损坏、输出非 JSON、缺少工作流块或章节边界 | stdout 输出 systemMessage 与 trellis-injection-error 上下文，stderr 诊断，退出 0；提示补读 workflow 和 get_context |
 | 分段超过脚本字符预算 | 保留完整正文及尾部规则，输出 systemMessage；不静默截断 |
 | 预算 fixture 返回注入失败诊断 | 结构性测量错误，不当作短小的成功上下文 |
@@ -652,6 +675,9 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
 
 - Good：配置迁移保留用户 5000；三段并行输出，拼回正文与原始摘要等价；真实 update 再运行零差异。
 - Base：全新安装使用宿主缺省额度，只有 state 绑定会话，规则直接复用当前原生生成器。
+- Good：5.5 新会话零模型提示；切为 Astra 后等下一次 SessionStart 再追加；提示关闭后仍收到工作流状态。
+- Base：Astra 新会话、自动 compact 和手动 compact 均只由 state 追加。Codex 0.153.4 实测手动 compact 的上下文
+  在下一条用户消息前交付；`/new` 产生 startup。不要仅根据 UI 命令名猜测 source=clear。
 - Bad：三个 handler 分别运行完整原生 main 后截字数，造成重复绑定、规则遗漏或依赖 handler 顺序。
 - Bad：只改 `.codex/hooks.json` 中的额度，后续安装仍用删除重建的 adapter 抹掉该值。
 
@@ -664,7 +690,15 @@ python3 -m unittest discover -s test/python -p 'test_flower_session_start.py'
 
 断言：原文拼回等价、关键路由完整、并行无状态副作用、禁用与 resume 无输出；原额度 / 分段独立额度 /
 0 / 缺省 / 冲突 / 非法值迁移；缺少或损坏源的可见诊断与超限尾部保留；真实内容投影、目标 ownership
-和二次安装文件树不变。预算须运行两平台六份最终输出，并验证最大平台合计及字符单位。
+和二次安装文件树不变。预算场景和汇总规则见 AI Context Budget，不得只测缺失 model 的旧路径。
+模型提示回归覆盖三种 source × 两平台 × 三分段、同一会话连续切换模型、未知别名与非法值、缺省/关闭/
+非法配置、全局禁用、resume、非交互、生成器异常与真实 UTF-8 超限；移除新增换行和提示后，原上下文逐字一致。
+通过正常安装验证资产投影、独立开关保留及重复更新幂等；此源资产不属于 Skill-Garden 快照，不为它制造同步漂移。
+真实宿主验证保留 model/source、各分段块数、完整输出和 developer 接收证据；脚本输入回归不得冒充实际客户端事件。
+提示修改的行为验证固定模型 slug/可用版本、推理设置、客户端和场景，独立会话开关各重复运行；分别报告模板、
+必读遗漏、无依据陈述、重复确认、工具和上下文成本。模型隐藏修订不可锁定时记录限制，探索性发现与预设指标分开。
+Codex 0.153.4 的 exec resume usage 经真实 rollout 核对为会话累计值，成本取最终累计快照，不逐轮重复相加；
+更换客户端后先复核计量口径，不将本次观察当作所有版本的永久契约。
 完整回归继续执行本规范的全局检查。真实宿主日志未验证时，必须明确记录接收证据缺口。
 
 ### 7. Wrong vs Correct
@@ -673,3 +707,7 @@ Wrong：`if (limit) handler.additionalContextLimit = limit`，且三个分段都
 
 Correct：`limit !== undefined` 时写回；按分段保留已有值，再继承旧单 handler 的额度；只有 state
 调用原生 main，规则分段只读生成器。配置和脚本一起经过 Plugin 事务安装，最后验证真实 handler 输出。
+
+Wrong：用 `bool(config_value)` 解析字符串 false，或每个分段/用户轮次都重复注入模型提示。
+
+Correct：明确解析 true/false，只在匹配的 Codex SessionStart state 追加唯一正文；关闭增强仍保留原工作流。

@@ -47,19 +47,22 @@ class FlowerSessionStartTest(unittest.TestCase):
             "CLAUDE_ENV_FILE": str(self.root / "shell.env"),
         }
 
-    def run_hook(self, platform: str, part: str | None = None, source: str = "startup", env: dict | None = None):
+    def run_hook(self, platform: str, part: str | None = None, source: str = "startup", env: dict | None = None,
+                 hook_input: dict | None = None):
         """执行原生或分段入口。
 
         @param platform: codex 或 claude。
         @param part: 分段名；None 表示原生 hook。
         @param source: 会话事件来源。
         @param env: 可选的独立环境变量。
+        @param hook_input: 模型等事件字段；覆盖默认输入以验证宿主边界。
         @return: 捕获 stdout / stderr 的子进程结果。
         """
         hook = f".{platform}/hooks/session-start.py"
         args = [hook] if part is None else [".trellis/scripts/flower_session_start.py", "--hook", hook, "--part", part]
         return subprocess.run(["python3", *args], cwd=self.root, env=env or self.env,
-                              input=json.dumps({"cwd": str(self.root), "session_id": "session-parts-test", "source": source}),
+                              input=json.dumps({"cwd": str(self.root), "session_id": "session-parts-test",
+                                                "source": source, **(hook_input or {})}),
                               text=True, capture_output=True, timeout=20)
 
     def test_parallel_parts_preserve_native_content_and_fit_budget(self) -> None:
@@ -105,6 +108,97 @@ class FlowerSessionStartTest(unittest.TestCase):
                 self.assertEqual(self.run_hook(platform, part, "resume").stdout, "")
                 self.assertEqual(self.run_hook(platform, part, env={**self.env, "TRELLIS_HOOKS": "0"}).stdout, "")
         self.assertEqual(self.run_hook("codex", "state", env={**self.env, "CODEX_NON_INTERACTIVE": "1"}).stdout, "")
+
+    def test_astra_only_in_codex_state_for_supported_starts(self) -> None:
+        """三种启动来源都只追加一次，其余平台和分段的原文保持。"""
+        for source in ("startup", "clear", "compact"):
+            for platform in ("codex", "claude"):
+                for part in SESSION.PARTS:
+                    with self.subTest(source=source, platform=platform, part=part):
+                        baseline = json.loads(self.run_hook(platform, part, source).stdout)
+                        result = self.run_hook(platform, part, source, hook_input={"model": "gpt-6-astra"})
+                        data = json.loads(result.stdout)
+                        context = data["hookSpecificOutput"]["additionalContext"]
+                        if platform == "codex" and part == "state":
+                            self.assertEqual(context.count("<trellis-astra-workflow-hint "), 1)
+                            self.assertIn(SESSION.ASTRA_WORKFLOW_HINT, context)
+                            original = baseline["hookSpecificOutput"]["additionalContext"]
+                            self.assertEqual(context.replace("\n" + SESSION.ASTRA_WORKFLOW_HINT, ""), original)
+                            self.assertLessEqual(len(SESSION.ASTRA_WORKFLOW_HINT.encode("utf-8")), 2048)
+                        else:
+                            self.assertEqual(data, baseline)
+                        self.assertNotIn("systemMessage", data)
+
+    def test_model_switch_and_unknown_values_use_event_input_only(self) -> None:
+        """同一会话的连续启动事件重新判断模型，别名和非法值不推断。"""
+        baseline = self.run_hook("codex", "state").stdout
+        models = ["gpt-6-astra", "gpt-5.6-sol", None, 6, [], {}, "GPT-6-ASTRA",
+                  "gpt-6-astra-latest", " gpt-6-astra", "gpt-6-astra ", "gpt-6-astra"]
+        for model in models:
+            with self.subTest(model=model):
+                result = self.run_hook("codex", "state", hook_input={"model": model})
+                if model == "gpt-6-astra":
+                    self.assertIn("<trellis-astra-workflow-hint ", json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
+                else:
+                    self.assertEqual(result.stdout, baseline)
+        for source in ("unknown", "", None):
+            self.assertNotIn("trellis-astra-workflow-hint", self.run_hook(
+                "codex", "state", hook_input={"model": "gpt-6-astra", "source": source}).stdout)
+
+    def test_astra_config_and_global_disables_preserve_original_contract(self) -> None:
+        """关闭模型提示仍保留原上下文，全局禁用和 resume 保持零输出。"""
+        config = self.root / ".trellis/config.yaml"
+        baseline = json.loads(self.run_hook("codex", "state").stdout)
+        for raw in ("false", '"false"', "FALSE"):
+            config.write_text(f"codex:\n  dispatch_mode: auto\n  astra_workflow_hint: {raw}\n", encoding="utf-8")
+            result = json.loads(self.run_hook("codex", "state", hook_input={"model": "gpt-6-astra"}).stdout)
+            self.assertEqual(result, baseline)
+        for raw in ("true", '"true"', "TRUE"):
+            config.write_text(f"codex:\n  astra_workflow_hint: {raw}\n", encoding="utf-8")
+            result = self.run_hook("codex", "state", hook_input={"model": "gpt-6-astra"})
+            self.assertIn("trellis-astra-workflow-hint", result.stdout)
+        for env in ({"TRELLIS_HOOKS": "0"}, {"TRELLIS_DISABLE_HOOKS": "1"}, {"CODEX_NON_INTERACTIVE": "1"}):
+            for part in SESSION.PARTS:
+                self.assertEqual(self.run_hook("codex", part, env={**self.env, **env},
+                                               hook_input={"model": "gpt-6-astra"}).stdout, "")
+        self.assertEqual(self.run_hook("codex", "state", "resume", hook_input={"model": "gpt-6-astra"}).stdout, "")
+
+    def test_invalid_astra_config_is_diagnosed_without_losing_state(self) -> None:
+        """非法开关停用增强并保留原生上下文，不冒充整个启动失败。"""
+        baseline = json.loads(self.run_hook("codex", "state").stdout)["hookSpecificOutput"]
+        for config in ("codex: invalid\n", "codex:\n  astra_workflow_hint: yes\n",
+                       "codex:\n  astra_workflow_hint: 1\n", "codex:\n  astra_workflow_hint:\n"):
+            (self.root / ".trellis/config.yaml").write_text(config, encoding="utf-8")
+            result = self.run_hook("codex", "state", hook_input={"model": "gpt-6-astra"})
+            data = json.loads(result.stdout)
+            self.assertEqual(data["hookSpecificOutput"], baseline)
+            self.assertIn("Astra 工作流提示未注入", data["systemMessage"])
+            self.assertIn("Astra 工作流提示未注入", result.stderr)
+
+    def test_astra_generation_failure_preserves_native_diagnostics(self) -> None:
+        """可选提示异常和超预算均不能丢掉原生状态及既有诊断。"""
+        def native_main():
+            """输出具有已有诊断的原生夹具。"""
+            print(json.dumps({"systemMessage": "已有诊断", "hookSpecificOutput": {
+                "hookEventName": "SessionStart", "additionalContext": "原生状态\n<trellis-workflow>\n规则\n</trellis-workflow>\n"}}))
+        native = SimpleNamespace(should_skip_injection=lambda: False, main=native_main)
+        with patch.object(SESSION, "_load_hook", return_value=native):
+            for error in (ImportError("配置读取器不可用"), ValueError("提示超预算")):
+                with patch.object(SESSION, "_astra_workflow_hint", side_effect=error):
+                    result = SESSION.render_part(self.root, SESSION.HOOKS[0], "state",
+                                                 {"source": "startup", "model": "gpt-6-astra"})
+                    self.assertIn("原生状态", result["hookSpecificOutput"]["additionalContext"])
+                    self.assertIn("已有诊断", result["systemMessage"])
+                    self.assertIn("Astra 工作流提示未注入", result["systemMessage"])
+
+    def test_oversized_astra_prompt_fails_without_losing_native_state(self) -> None:
+        """真实 UTF-8 预算门禁拒绝超限正文，保留工作流状态。"""
+        baseline = SESSION.render_part(self.root, SESSION.HOOKS[0], "state", {"source": "startup"})
+        with patch.object(SESSION, "ASTRA_WORKFLOW_HINT", "中" * 683):
+            result = SESSION.render_part(self.root, SESSION.HOOKS[0], "state",
+                                         {"source": "startup", "model": "gpt-6-astra"})
+        self.assertEqual(result["hookSpecificOutput"], baseline["hookSpecificOutput"])
+        self.assertIn("超过 2048 字节预算", result["systemMessage"])
 
     def test_missing_hook_and_boundary_have_visible_diagnostics(self) -> None:
         """源缺失或结构变化不被当作完整注入。"""

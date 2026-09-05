@@ -72,13 +72,13 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [CLI Output](./cli-output.md) | 横幅、进度行、错误与退出码 |
 | [Config & State](./config-and-state.md) | 常量、路径、版本、manifest 状态与项目级 Trellis 开关 |
 | [Enhancements Model](./enhancements-model.md) | 强化包快照与叠加流水线 |
-| [Trellis Patch Engine](./trellis-patch-engine.md) | Skill-Garden/Flower 统一 Patch、Bundle、迁移与 provenance；SessionStart 分段注入与额度保留 |
+| [Trellis Patch Engine](./trellis-patch-engine.md) | Skill-Garden/Flower 统一 Patch、Bundle、迁移与 provenance；SessionStart 分段、额度保留及 Astra 模型提示/开关 |
 | [Flower Plugin Contracts](./flower-plugin-contracts.md) | Plugin/Marketplace schema、共享 DTO、canonical hash 与 `.flower/` Project Store 契约 |
 | [Flower Plugin Runtime And Lifecycle](./flower-plugin-runtime.md) | Source Registry、依赖解析、多平台投影、InstallPlan、事务恢复与项目级 Plugin 生命周期 CLI 契约 |
 | [Flower Plugin Remote Sources](./flower-plugin-gitlab.md) | GitLab/GitHub 来源、OAuth/匿名 REST、外部格式探测、安全 archive、不可变缓存与远程 CLI 契约 |
 | [Flower Plugin Capability Policy](./flower-plugin-capabilities.md) | standard/integration/system 授权交集、批准摘要、内置信任根与受限 Patch Planner 契约 |
 | [Flower Plugin Authoring And Marketplace CI](./flower-plugin-authoring.md) | 作者 Plugin/Skill、确定性 scaffold、ownership、validate、rd-guide CI 与 CODEOWNERS 契约 |
-| [AI Context Budget](./ai-context-budget.md) | 最终 workflow/state/skill、Phase summary、SessionStart 与控制面总量的告警预算 |
+| [AI Context Budget](./ai-context-budget.md) | 最终 workflow/state/skill、Phase summary、SessionStart 场景及 Astra 提示计量与控制面预算 |
 | [Release & Publishing](./release-and-publishing.md) | 发版流程、CI 发布(OIDC)、CHANGELOG 约定 |
 | [Quality Guidelines](./quality-guidelines.md) | 必守模式、禁用模式、评审清单 |
 
