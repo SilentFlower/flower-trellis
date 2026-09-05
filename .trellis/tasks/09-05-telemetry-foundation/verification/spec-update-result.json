@@ -1,0 +1,28 @@
+{
+  "spec_update_result": {
+    "status": "written",
+    "reason": "实际代码与验证支持 v1/v2 并存、采集/发送、事务事实及分析 UI 契约，已同步原权威规范与索引。",
+    "evidence": [
+      "src/lib/telemetry-{context,queue,operation}.js",
+      "test/js/telemetry-v2.test.js",
+      "worker/src/flower_telemetry_events.js",
+      "worker/src/flower_telemetry_analytics.js",
+      "worker/src/flower_telemetry_events.test.js",
+      "frontend/tests/telemetry-full-chain.mjs"
+    ],
+    "changed_files": [
+      "/root/project/flower-trellis/.trellis/spec/flower-trellis/cli/config-and-state.md",
+      "/root/project/flower-trellis/.trellis/spec/flower-trellis/cli/index.md",
+      "/root/project/ai-fund/.trellis/spec/backend/api-routes.md",
+      "/root/project/ai-fund/.trellis/spec/backend/database-guidelines.md",
+      "/root/project/ai-fund/.trellis/spec/backend/index.md",
+      "/root/project/ai-fund/.trellis/spec/frontend/component-guidelines.md",
+      "/root/project/ai-fund/.trellis/spec/frontend/index.md"
+    ],
+    "validation": [
+      "两仓 git diff --check -- .trellis/spec 通过",
+      "已回读 diff 并核对 API、字段、枚举、组件 props 和测试断言",
+      "本次调用仅修改 .trellis/spec/**"
+    ]
+  }
+}

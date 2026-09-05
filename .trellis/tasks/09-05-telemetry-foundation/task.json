@@ -1,0 +1,42 @@
+{
+  "id": "telemetry-foundation",
+  "name": "telemetry-foundation",
+  "title": "遥测第一批：平台活跃与核心操作质量",
+  "description": "规划实际使用平台、按日活跃与回访、初始化升级及插件安装结果的最小遥测闭环，覆盖 Flower CLI 与 ai-fund 管理端。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-05",
+  "completedAt": "2026-09-05",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-05-telemetry-roadmap",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "completedSteps": [
+      "完整 Brief 已批准并启动，implement/check 路由均为 inline",
+      "两仓 v1/v2 协议、真实响应样例和兼容边界已冻结",
+      "Flower 采集、后台队列、核心操作终态与 Claude/Codex hook 完成",
+      "ai-fund 接收、事务事实、聚合、清理与管理员四区界面完成",
+      "两仓全量与专项检查、Windows 原生验证、隔离全链路通过",
+      "迁移可重放与 schema 一致性、Worker 预构建、npm 包资产完整性通过",
+      "两仓 specs、Roadmap、任务验收及发布准备文档同步完成",
+      "ai-fund 与 Flower 的本批业务代码均已提交并推送"
+    ],
+    "partialStep": null,
+    "nextStep": "按发布准备说明核对生产迁移与发布计划；实际迁移、部署和发版另行执行",
+    "notes": "第一批两仓代码与验证已交付；生产数据库迁移、部署、客户端发版尚未执行。父 Roadmap 与既有 Plugin/协作 Skill 的19个计划外文件保留未提交。",
+    "updatedAt": "2026-09-05T17:59:57Z"
+  }
+}

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "新旧遥测协议、用户级状态、开关、并发与测试隔离"}
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "Flower hook 注册、原生上下文分段和 Patch ownership"}
+{"file": ".trellis/spec/flower-trellis/cli/flower-plugin-runtime.md", "reason": "builtin 版本、投影和重放卸载生命周期"}
+{"file": ".trellis/tasks/09-05-telemetry-foundation/research.md", "reason": "跨仓当前入口、版本语义、D1 与角色鉴权证据"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "质量门禁和代表性验证"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "新增遥测不改变 AI 上下文输出"}

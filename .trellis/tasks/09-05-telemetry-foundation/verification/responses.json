@@ -1,0 +1,415 @@
+{
+  "empty": {
+    "coverage": {
+      "started_on": null,
+      "timezone": "UTC",
+      "platforms": [
+        "claude",
+        "codex"
+      ],
+      "integration": "0.6 full",
+      "backfill_hours": 72,
+      "retention_days": 180
+    },
+    "summary": {
+      "dau": 0,
+      "active_7d": 0,
+      "active_30d": 0,
+      "new_observations": 0
+    },
+    "daily": [
+      {
+        "date": "2026-09-01",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-02",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-03",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-04",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-05",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-06",
+        "active": 0,
+        "new_observations": 0
+      }
+    ],
+    "platforms": [],
+    "versions": [],
+    "cohorts": [],
+    "operations": [
+      {
+        "operation": "init",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      },
+      {
+        "operation": "update",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      },
+      {
+        "operation": "self_update",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      },
+      {
+        "operation": "plugin_add",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      }
+    ],
+    "applied_filters": {
+      "from": "2026-09-01",
+      "to": "2026-09-06",
+      "activity": {},
+      "operations": {},
+      "summary_window_end": "2026-09-06"
+    }
+  },
+  "accepted": {
+    "results": [
+      {
+        "event_id": "35c6ade8-dc73-420a-a220-641492570fc2",
+        "status": "accepted"
+      }
+    ]
+  },
+  "duplicate": {
+    "results": [
+      {
+        "event_id": "35c6ade8-dc73-420a-a220-641492570fc2",
+        "status": "duplicate"
+      }
+    ]
+  },
+  "multi_platform_observing": {
+    "coverage": {
+      "started_on": "2026-09-06",
+      "timezone": "UTC",
+      "platforms": [
+        "claude",
+        "codex"
+      ],
+      "integration": "0.6 full",
+      "backfill_hours": 72,
+      "retention_days": 180
+    },
+    "summary": {
+      "dau": 1,
+      "active_7d": 1,
+      "active_30d": 1,
+      "new_observations": 1
+    },
+    "daily": [
+      {
+        "date": "2026-09-01",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-02",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-03",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-04",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-05",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-06",
+        "active": 1,
+        "new_observations": 1
+      }
+    ],
+    "platforms": [
+      {
+        "platform": "claude",
+        "active": 1
+      },
+      {
+        "platform": "codex",
+        "active": 1
+      }
+    ],
+    "versions": [
+      {
+        "dimension": "bundled_trellis",
+        "version": "0.6.0",
+        "count": 1
+      },
+      {
+        "dimension": "flower",
+        "version": "0.6.7",
+        "count": 1
+      },
+      {
+        "dimension": "skill_garden",
+        "version": null,
+        "count": 1
+      },
+      {
+        "dimension": "trellis",
+        "version": null,
+        "count": 1
+      }
+    ],
+    "cohorts": [
+      {
+        "date": "2026-09-06",
+        "size": 1,
+        "returned_7d": 0,
+        "returned_30d": 0,
+        "status_7d": "observing",
+        "rate_7d": null,
+        "status_30d": "observing",
+        "rate_30d": null
+      }
+    ],
+    "operations": [
+      {
+        "operation": "init",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      },
+      {
+        "operation": "update",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      },
+      {
+        "operation": "self_update",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      },
+      {
+        "operation": "plugin_add",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      }
+    ],
+    "applied_filters": {
+      "from": "2026-09-01",
+      "to": "2026-09-06",
+      "activity": {},
+      "operations": {},
+      "summary_window_end": "2026-09-06"
+    }
+  },
+  "with_legacy": {
+    "coverage": {
+      "started_on": "2026-09-06",
+      "timezone": "UTC",
+      "platforms": [
+        "claude",
+        "codex"
+      ],
+      "integration": "0.6 full",
+      "backfill_hours": 72,
+      "retention_days": 180
+    },
+    "summary": {
+      "dau": 1,
+      "active_7d": 1,
+      "active_30d": 1,
+      "new_observations": 1
+    },
+    "daily": [
+      {
+        "date": "2026-09-01",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-02",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-03",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-04",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-05",
+        "active": 0,
+        "new_observations": 0
+      },
+      {
+        "date": "2026-09-06",
+        "active": 1,
+        "new_observations": 1
+      }
+    ],
+    "platforms": [
+      {
+        "platform": "claude",
+        "active": 1
+      },
+      {
+        "platform": "codex",
+        "active": 1
+      }
+    ],
+    "versions": [
+      {
+        "dimension": "bundled_trellis",
+        "version": "0.6.0",
+        "count": 1
+      },
+      {
+        "dimension": "flower",
+        "version": "0.6.7",
+        "count": 1
+      },
+      {
+        "dimension": "skill_garden",
+        "version": null,
+        "count": 1
+      },
+      {
+        "dimension": "trellis",
+        "version": null,
+        "count": 1
+      }
+    ],
+    "cohorts": [
+      {
+        "date": "2026-09-06",
+        "size": 1,
+        "returned_7d": 0,
+        "returned_30d": 0,
+        "status_7d": "observing",
+        "rate_7d": null,
+        "status_30d": "observing",
+        "rate_30d": null
+      }
+    ],
+    "operations": [
+      {
+        "operation": "init",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      },
+      {
+        "operation": "update",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      },
+      {
+        "operation": "self_update",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      },
+      {
+        "operation": "plugin_add",
+        "success": 0,
+        "failure": 0,
+        "cancelled": 0,
+        "samples": 0,
+        "success_rate": null,
+        "errors": [],
+        "durations": []
+      }
+    ],
+    "applied_filters": {
+      "from": "2026-09-01",
+      "to": "2026-09-06",
+      "activity": {},
+      "operations": {},
+      "summary_window_end": "2026-09-06"
+    }
+  },
+  "rate_limited": {
+    "http_status": 429,
+    "body": {
+      "error": "遥测事件接收失败"
+    }
+  }
+}
