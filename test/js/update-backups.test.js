@@ -636,7 +636,7 @@ test("update 编排只在配置恢复 finally 之后调用清理", () => {
   const finallyIndex = source.indexOf("} finally {");
   const restoreIndex = source.indexOf("restoreConfigPreserveSnapshot", finallyIndex);
   const pruneIndex = source.lastIndexOf("pruneUpdateBackups(");
-  const completeIndex = source.indexOf("showCommandCompletion(");
+  const completeIndex = source.lastIndexOf("showCommandCompletion(");
 
   assert.ok(finallyIndex >= 0);
   assert.ok(restoreIndex > finallyIndex);

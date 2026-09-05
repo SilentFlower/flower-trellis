@@ -550,7 +550,12 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     assert.deepEqual(handlers.map((entry) => entry.command.match(/--part (\w+)/)[1]), ["state", "rules", "stages"]);
     assert.ok(handlers.every((entry) => entry.command.includes(`--hook .${platform}/hooks/session-start.py`)));
     assert.ok(handlers.every((entry) => entry.additionalContextLimit === (platform === "codex" ? 5000 : undefined)));
-    assert.ok(!config.hooks.SessionStart.some((entry) => entry.matcher.includes("resume")));
+    assert.ok(!config.hooks.SessionStart.filter(entry => entry.hooks.some(hook => hook.command.includes(sessionAsset))).some(entry => entry.matcher.includes("resume")));
+    for (const event of ["SessionStart", "UserPromptSubmit"]) {
+      const activity = config.hooks[event].flatMap(entry => entry.hooks).filter(hook => hook.command.includes("flower_telemetry_hook.py"));
+      assert.equal(activity.length, 1);
+      assert.ok(activity[0].command.endsWith(`--platform ${platform}`));
+    }
   }
   const first = snapshotTree(target);
   const workflowText = fs.readFileSync(workflow, "utf8");

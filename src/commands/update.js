@@ -1,3 +1,4 @@
+import { observeTelemetryOperation, beginTelemetryOperation, completeTelemetryOperation } from "../lib/telemetry-operation.js";
 import { runTrellis, runTrellisPty } from "../lib/trellis-runner.js";
 import { hasHelpFlag, trellisUpdatePassthroughArgs } from "../lib/cli-args.js";
 import { plugin } from "./plugin.js";
@@ -239,17 +240,30 @@ function printBackupRetentionResult(result, output = console) {
  * @returns {Promise<void>} 升级、强化叠加与备份保留处理完成后返回
  */
 export async function update(ctx) {
+  return observeTelemetryOperation(ctx, "update", executeUpdate);
+}
+
+/** 执行已建立外部操作上下文的命令。
+ * @param {object} ctx 命令上下文
+ * @returns {Promise<void>} 完成
+ */
+async function executeUpdate(ctx) {
   if (hasHelpFlag(ctx.passthrough)) {
     printUpdateHelp();
     return;
   }
   const dryRun = ctx.passthrough.includes("--dry-run");
+  if (!dryRun) beginTelemetryOperation(ctx);
   if (!dryRun && ctx.trellisControlMode !== "materialized" && ctx.trellisControlMode !== "restoring") {
-    return runWithTrellisIntegrationEnabled(ctx.target, ({ extendSnapshot }) => update({
+    const result = await runWithTrellisIntegrationEnabled(ctx.target, ({ extendSnapshot }) => update({
       ...ctx,
       trellisControlMode: "materialized",
+      telemetryDeferCompletion: true,
       trellisControlExtendSnapshot: extendSnapshot,
     }));
+    completeTelemetryOperation(ctx, "update");
+    await showCommandCompletion("update", ctx.target, { passthrough: ctx.passthrough, outcome: "success", output: ctx.trellisControlQuiet ? SILENT_OUTPUT : console });
+    return result;
   }
   const { target } = ctx;
   const quiet = ctx.trellisControlQuiet === true;
@@ -294,7 +308,7 @@ export async function update(ctx) {
         { stripBanner: true, ...(quiet ? { stdout: SILENT_OUTPUT } : {}) },
       );
       if (code !== 0) {
-        throw new Error(`trellis update 失败(退出码 ${code}),已中止,未重新叠加`);
+        throw Object.assign(new Error(`trellis update 失败(退出码 ${code}),已中止,未重新叠加`), { code: code === 130 ? "FLOWER_OPERATION_CANCELLED" : "FLOWER_UPSTREAM_FAILED" });
       }
       await replayPlugins(ctx, target, dryRun, compensationSnapshot);
       updateSucceeded = true;
@@ -343,10 +357,11 @@ export async function update(ctx) {
     output.log("  · --backup-retention 0:保留全部升级备份");
   }
 
+  if (!ctx.telemetryDeferCompletion) completeTelemetryOperation(ctx, "update");
   const telemetryPromise = dryRun
     ? null
     : reportTelemetry(target, "update_completed", { force: true });
-  await showCommandCompletion("update", target, {
+  if (!ctx.telemetryDeferCompletion) await showCommandCompletion("update", target, {
     passthrough: ctx.passthrough,
     outcome: dryRun ? "preview" : "success",
     output,

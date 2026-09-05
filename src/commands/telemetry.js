@@ -1,4 +1,5 @@
 import { readTelemetryState, setTelemetryEnabled } from "../lib/telemetry.js";
+import { queueTelemetryEvent, telemetryQueueStatus } from "../lib/telemetry-queue.js";
 import { hasHelpFlag } from "../lib/cli-args.js";
 
 /** 打印 telemetry 命令帮助。 */
@@ -46,20 +47,30 @@ function printStatus(env) {
   console.log(`  开发者名称:${state?.developerName || "首次有效上报时识别"}`);
   console.log(`  最近尝试:${formatTime(state?.lastAttemptAt || null)}`);
   console.log(`  最近成功:${formatTime(state?.lastSuccessAt || null)}`);
+  const queue = telemetryQueueStatus({ env });
+  console.log(`  待发送:${queue.pending ?? "未知"}；本地丢弃:${queue.dropped ?? "未知"}`);
+  console.log(`  v2 最近成功:${formatTime(queue.lastSuccessAt)}；最近诊断:${queue.diagnostic || "无"}`);
+  console.log(`  最早重试:${formatTime(queue.nextRetryAt)}`);
 }
 
 /**
  * flower-trellis telemetry:查询或修改用户级匿名遥测开关。
  *
  * @param {object} ctx 见 cli-args.js 的 parseCliArgs()
+ * @param {object} options 活动采集依赖，供隔离验证使用
  * @returns {Promise<void>} 命令执行完成后返回
  */
-export async function telemetry(ctx) {
+export async function telemetry(ctx, options = {}) {
   if (hasHelpFlag(ctx.passthrough)) {
     printTelemetryHelp();
     return;
   }
   const action = ctx.passthrough[0] || "status";
+  if (action === "record-activity") {
+    const platform = ctx.passthrough[1];
+    if (["claude", "codex"].includes(platform)) queueTelemetryEvent(ctx.target, { event: "activity_daily", ai_platform: platform }, options);
+    return;
+  }
   if (action === "status") {
     printStatus(process.env);
     return;

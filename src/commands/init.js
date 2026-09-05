@@ -1,3 +1,4 @@
+import { observeTelemetryOperation, beginTelemetryOperation, completeTelemetryOperation } from "../lib/telemetry-operation.js";
 import fs from "node:fs";
 import { runTrellisPty } from "../lib/trellis-runner.js";
 import { plugin } from "./plugin.js";
@@ -43,6 +44,14 @@ function printInitHelp() {
  * @returns {Promise<void>} Trellis 初始化、强化叠加与完成交互结束后返回
  */
 export async function init(ctx) {
+  return observeTelemetryOperation(ctx, "init", executeInit);
+}
+
+/** 执行已建立外部操作上下文的命令。
+ * @param {object} ctx 命令上下文
+ * @returns {Promise<void>} 完成
+ */
+async function executeInit(ctx) {
   if (hasHelpFlag(ctx.passthrough)) {
     printInitHelp();
     return;
@@ -86,13 +95,14 @@ export async function init(ctx) {
     }
   }
 
+  if (!ctx.passthrough.includes("--dry-run")) beginTelemetryOperation(ctx);
   if (!ctx.enhanceOnly) {
     // 伪终端运行:保留 trellis 的模板 / monorepo 交互 + 过滤其重复 banner
     const code = await runTrellisPty(["init", ...passthrough], target, {
       stripBanner: true,
     });
     if (code !== 0) {
-      throw new Error(`trellis init 失败(退出码 ${code}),已中止,未叠加强化包`);
+      throw Object.assign(new Error(`trellis init 失败(退出码 ${code}),已中止,未叠加强化包`), { code: code === 130 ? "FLOWER_OPERATION_CANCELLED" : "FLOWER_UPSTREAM_FAILED" });
     }
   } else {
     console.log("· --enhance-only:跳过 trellis init,仅叠加强化包");
@@ -113,6 +123,7 @@ export async function init(ctx) {
     console.log("· --no-enhance:跳过强化包叠加");
   }
 
+  completeTelemetryOperation(ctx, "init");
   const telemetryPromise = reportTelemetry(target, "init_completed", { force: true });
   await showCommandCompletion("init", target, { passthrough });
   await telemetryPromise;

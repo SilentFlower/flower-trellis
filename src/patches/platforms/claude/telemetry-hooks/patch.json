@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-claude-telemetry-hooks",
+  "purpose": "platform_config",
+  "operations": [
+    {
+      "id": "flower-claude-telemetry-sessionstart",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".claude/settings.json",
+          "missing": "create",
+          "requires": [
+            ".claude"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "SessionStart",
+        "commandNeedle": ".trellis/scripts/flower_telemetry_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "startup|resume|clear|compact",
+          "timeout": 5,
+          "commandResolver": "claude-flower-telemetry"
+        }
+      }
+    },
+    {
+      "id": "flower-claude-telemetry-userpromptsubmit",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".claude/settings.json",
+          "missing": "create",
+          "requires": [
+            ".claude"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "UserPromptSubmit",
+        "commandNeedle": ".trellis/scripts/flower_telemetry_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "*",
+          "timeout": 5,
+          "commandResolver": "claude-flower-telemetry"
+        }
+      }
+    }
+  ]
+}

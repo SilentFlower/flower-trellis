@@ -14,6 +14,12 @@ export const FLOWER_SESSION_HOOK = "flower_session_start.py";
 /** SessionStart 分段脚本在目标项目中的位置。 */
 export const FLOWER_SESSION_HOOK_REL = `.trellis/scripts/${FLOWER_SESSION_HOOK}`;
 
+/** Flower 独立静默活动 hook。 */
+export const FLOWER_TELEMETRY_HOOK = "flower_telemetry_hook.py";
+
+/** 活动 hook 在项目内的受管位置。 */
+export const FLOWER_TELEMETRY_HOOK_REL = `.trellis/scripts/${FLOWER_TELEMETRY_HOOK}`;
+
 /**
  * 复制 flower 自有脚本资产。
  *
@@ -24,7 +30,7 @@ export const FLOWER_SESSION_HOOK_REL = `.trellis/scripts/${FLOWER_SESSION_HOOK}`
  * @returns {{installed:string[],paths:string[]}} 已安装资产和 manifest 路径
  */
 export function copyFlowerAssets(target) {
-  const assets = [FLOWER_UPDATE_HOOK, FLOWER_SESSION_HOOK];
+  const assets = [FLOWER_UPDATE_HOOK, FLOWER_SESSION_HOOK, FLOWER_TELEMETRY_HOOK];
   for (const asset of assets) {
     copyPath(
       path.join(PKG_ROOT, "src", "assets", asset),

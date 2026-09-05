@@ -10,11 +10,24 @@ import {
   FLOWER_TELEMETRY_ENDPOINT,
   buildTelemetryPayload,
   readTelemetryState,
-  reportTelemetry,
+  reportTelemetry as enqueueTelemetry,
   setTelemetryEnabled,
   telemetryStatePath,
 } from "../../src/lib/telemetry.js";
 import { flowerVersion, trellisVersion } from "../../src/lib/versions.js";
+
+import { flushTelemetryQueue } from "../../src/lib/telemetry-queue.js";
+
+/** 用隔离 HTTP 依赖验证旧载荷经队列发送后的兼容结果。
+ * @param {string} target 项目
+ * @param {string} event 事件
+ * @param {object} options 测试依赖
+ * @returns {Promise<object>} 发送结果
+ */
+async function reportTelemetry(target, event, options) {
+  const result = await enqueueTelemetry(target, event, { ...options, launch: () => {} });
+  return result.status === "queued" ? flushTelemetryQueue(options) : result;
+}
 
 const FIRST_DEVICE_ID = "11111111-1111-4111-8111-111111111111";
 const SECOND_DEVICE_ID = "22222222-2222-4222-8222-222222222222";
@@ -47,6 +60,7 @@ function createFixture(t) {
     target,
     env: {
       ...process.env,
+      FLOWER_NO_TELEMETRY: "",
       HOME: home,
       XDG_CONFIG_HOME: config,
       GIT_CONFIG_GLOBAL: path.join(root, "gitconfig"),

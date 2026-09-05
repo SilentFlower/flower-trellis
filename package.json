@@ -33,7 +33,7 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --test test/js/*.test.js && python3 -m unittest discover -s test/python -p 'test_*.py' && node scripts/check-patch-conflicts.mjs && npm run patch:targets:check && node scripts/check-ai-context-budget.mjs && node scripts/check-output-templates.mjs",
+    "test": "node scripts/run-js-tests.mjs && python3 -m unittest discover -s test/python -p 'test_*.py' && node scripts/check-patch-conflicts.mjs && npm run patch:targets:check && node scripts/check-ai-context-budget.mjs && node scripts/check-output-templates.mjs",
     "sync": "node scripts/sync-enhancements.mjs",
     "patch:targets": "node scripts/run-skill-garden-compiled-targets.mjs",
     "patch:targets:check": "node scripts/run-skill-garden-compiled-targets.mjs --check",

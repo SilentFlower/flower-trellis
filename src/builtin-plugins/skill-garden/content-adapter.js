@@ -23,7 +23,7 @@ import {
   hashDirectoryIfExists,
   hashFileIfExists,
 } from "../../plugin/install/content-hash.js";
-import { FLOWER_UPDATE_HOOK, FLOWER_UPDATE_HOOK_REL, FLOWER_SESSION_HOOK, FLOWER_SESSION_HOOK_REL } from "../../lib/flower-assets.js";
+import { FLOWER_UPDATE_HOOK, FLOWER_UPDATE_HOOK_REL, FLOWER_SESSION_HOOK, FLOWER_SESSION_HOOK_REL, FLOWER_TELEMETRY_HOOK, FLOWER_TELEMETRY_HOOK_REL } from "../../lib/flower-assets.js";
 import { PKG_ROOT } from "../../lib/paths.js";
 import { injectWorkflow } from "../../lib/workflow-inject.js";
 import { applyCodexTweaks } from "../../lib/codex-tweaks.js";
@@ -753,6 +753,12 @@ export function projectSkillGardenContent(options) {
         `flower:asset:${FLOWER_SESSION_HOOK}`,
       );
       installed.add(`script:${FLOWER_SESSION_HOOK}`);
+      addFile(
+        FLOWER_TELEMETRY_HOOK_REL,
+        fs.readFileSync(path.join(PKG_ROOT, "src", "assets", FLOWER_TELEMETRY_HOOK)),
+        `flower:asset:${FLOWER_TELEMETRY_HOOK}`,
+      );
+      installed.add(`script:${FLOWER_TELEMETRY_HOOK}`);
     }
     const commonSync = describeInstalledCommonSkillSync(projectRoot);
     for (const common of commonSync.refreshes) {

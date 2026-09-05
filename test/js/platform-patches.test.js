@@ -95,7 +95,12 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   const sessionGroup = codexSession.find((group) => group.matcher === "startup|clear|compact");
   assert.equal(sessionGroup.hooks.length, 3);
   assert.deepEqual(sessionGroup.hooks.map((hook) => hook.additionalContextLimit), [5000, 5000, 5000]);
-  assert.ok(codexSession.every((group) => !group.matcher?.includes("resume")));
+  assert.ok(codexSession.filter(group => group.hooks.some(hook => hook.command.includes("flower_session_start.py"))).every(group => !group.matcher?.includes("resume")));
+  for (const event of ["SessionStart", "UserPromptSubmit"]) {
+    const activity = codex.hooks[event].flatMap(group => group.hooks).filter(hook => hook.command.includes("flower_telemetry_hook.py"));
+    assert.equal(activity.length, 1);
+    assert.match(activity[0].command, /--platform codex/);
+  }
   for (const [index, part] of ["state", "rules", "stages"].entries()) {
     assert.equal(sessionGroup.hooks[index].command,
       `python3 -X utf8 .trellis/scripts/flower_session_start.py --hook .codex/hooks/session-start.py --part ${part}`);

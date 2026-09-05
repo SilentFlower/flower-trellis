@@ -1,4 +1,4 @@
-import { FLOWER_UPDATE_HOOK_REL, FLOWER_SESSION_HOOK_REL } from "./flower-assets.js";
+import { FLOWER_UPDATE_HOOK_REL, FLOWER_SESSION_HOOK_REL, FLOWER_TELEMETRY_HOOK_REL } from "./flower-assets.js";
 
 const CODEX_WORKFLOW_HOOK = ".codex/hooks/inject-workflow-state.py";
 const CODEX_SESSION_START = ".codex/hooks/session-start.py";
@@ -32,6 +32,9 @@ function resolveCommand(name, config, pythonCommand) {
   if (name === "codex-session-start") {
     return codexBase.replace(CODEX_WORKFLOW_HOOK, CODEX_SESSION_START);
   }
+  if (name === "codex-flower-telemetry") {
+    return codexBase.replace(CODEX_WORKFLOW_HOOK, `${FLOWER_TELEMETRY_HOOK_REL} --platform codex`);
+  }
   if (name === "codex-flower-update") {
     return codexBase.replace(CODEX_WORKFLOW_HOOK, FLOWER_UPDATE_HOOK_REL);
   }
@@ -39,6 +42,9 @@ function resolveCommand(name, config, pythonCommand) {
     `${pythonCommand} ${CLAUDE_WORKFLOW_HOOK}`;
   if (name === "claude-session-start") {
     return claudeBase.replace(CLAUDE_WORKFLOW_HOOK, ".claude/hooks/session-start.py");
+  }
+  if (name === "claude-flower-telemetry") {
+    return claudeBase.replace(CLAUDE_WORKFLOW_HOOK, `${FLOWER_TELEMETRY_HOOK_REL} --platform claude`);
   }
   if (name === "claude-flower-update") {
     return claudeBase.replace(CLAUDE_WORKFLOW_HOOK, FLOWER_UPDATE_HOOK_REL);

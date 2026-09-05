@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-codex-telemetry-hooks",
+  "purpose": "platform_config",
+  "operations": [
+    {
+      "id": "flower-codex-telemetry-sessionstart",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".codex/hooks.json",
+          "missing": "create",
+          "requires": [
+            ".codex"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "SessionStart",
+        "commandNeedle": ".trellis/scripts/flower_telemetry_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "startup|resume|clear|compact",
+          "timeout": 5,
+          "commandResolver": "codex-flower-telemetry"
+        }
+      }
+    },
+    {
+      "id": "flower-codex-telemetry-userpromptsubmit",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".codex/hooks.json",
+          "missing": "create",
+          "requires": [
+            ".codex"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "UserPromptSubmit",
+        "commandNeedle": ".trellis/scripts/flower_telemetry_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "*",
+          "timeout": 5,
+          "commandResolver": "codex-flower-telemetry"
+        }
+      }
+    }
+  ]
+}

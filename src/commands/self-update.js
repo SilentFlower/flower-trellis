@@ -1,3 +1,4 @@
+import { observeTelemetryOperation, beginTelemetryOperation, completeTelemetryOperation } from "../lib/telemetry-operation.js";
 import { spawnSync } from "node:child_process";
 import {
   buildSelfCheck,
@@ -31,15 +32,16 @@ function hasFlag(args, name) {
 }
 
 /** 执行命令并在失败时给出统一错误。 */
-function runCommand(command, args, cwd, failureMessage) {
+function runCommand(command, args, cwd, failureMessage, env = process.env) {
   const res = spawnSync(command, args, {
     cwd,
+    env,
     stdio: "inherit",
     shell: process.platform === "win32",
   });
   if (res.status !== 0) {
     const reason = res.error ? res.error.message : `退出码 ${res.status ?? 1}`;
-    throw new Error(`${failureMessage}(${reason})`);
+    throw Object.assign(new Error(`${failureMessage}(${reason})`), { code: res.status === 130 ? "FLOWER_OPERATION_CANCELLED" : "FLOWER_UPSTREAM_FAILED" });
   }
 }
 
@@ -127,6 +129,14 @@ function printFlowerUpdateResult(fields) {
  * @returns {Promise<void>}
  */
 export async function selfUpdate(ctx) {
+  return observeTelemetryOperation(ctx, "self_update", executeSelfUpdate);
+}
+
+/** 执行已建立外部操作上下文的命令。
+ * @param {object} ctx 命令上下文
+ * @returns {Promise<void>} 完成
+ */
+async function executeSelfUpdate(ctx) {
   if (hasHelpFlag(ctx.passthrough)) {
     printSelfUpdateHelp();
     return;
@@ -193,11 +203,12 @@ export async function selfUpdate(ctx) {
     return;
   }
 
+  beginTelemetryOperation(ctx);
   if (shouldInstallFlower) {
     const res = installFlowerVersion(check.recommendation.version, { cwd: ctx.target });
     if (res.status !== 0) {
       const reason = res.error ? res.error.message : `退出码 ${res.status ?? 1}`;
-      throw new Error(`全局 flower-trellis 升级失败(${reason})`);
+      throw Object.assign(new Error(`全局 flower-trellis 升级失败(${reason})`), { code: res.status === 130 ? "FLOWER_OPERATION_CANCELLED" : "FLOWER_UPSTREAM_FAILED" });
     }
   } else {
     console.log("  · 跳过全局 flower-trellis 升级");
@@ -208,8 +219,10 @@ export async function selfUpdate(ctx) {
     projectArgs,
     ctx.target,
     "目标项目重叠加失败,请手动运行:" + projectUpdateCommand(ctx.target, forwarded),
+    { ...process.env, FLOWER_TELEMETRY_PARENT_OPERATION: ctx.telemetryOperation?.id || "self_update" },
   );
 
+  completeTelemetryOperation(ctx, "self_update");
   const dirty = gitDirtySummary(ctx.target);
   console.log(`\n🌸 flower-trellis self-update 完成 → ${ctx.target}`);
   printFlowerUpdateResult({

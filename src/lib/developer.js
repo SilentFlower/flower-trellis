@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
  * 读取目标目录可见的 Git 开发者名称。
  *
  * @param {string} target 目标项目根目录
- * @param {{env?:NodeJS.ProcessEnv}} [options] 读取选项
+ * @param {{env?:NodeJS.ProcessEnv,timeoutMs?:number}} [options] 读取选项
  * @returns {string|null} Git 开发者名称，无法识别时返回 null
  */
 export function readGitDeveloper(target, options = {}) {
@@ -13,6 +13,7 @@ export function readGitDeveloper(target, options = {}) {
       execFileSync("git", ["-C", target, "config", "user.name"], {
         encoding: "utf8",
         env: options.env || process.env,
+        ...(options.timeoutMs ? { timeout: options.timeoutMs } : {}),
       }).trim() || null
     );
   } catch {
@@ -25,7 +26,7 @@ export function readGitDeveloper(target, options = {}) {
  *
  * @param {string[]} passthrough Trellis 透传参数
  * @param {string} target 目标项目根目录
- * @param {{env?:NodeJS.ProcessEnv}} [options] 读取选项
+ * @param {{env?:NodeJS.ProcessEnv,timeoutMs?:number}} [options] 读取选项
  * @returns {string|null} 开发者名称，无法识别时返回 null
  */
 export function getDeveloper(passthrough, target, options = {}) {

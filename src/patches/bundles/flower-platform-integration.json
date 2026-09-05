@@ -8,6 +8,8 @@
     "codex/dispatch-mode",
     "codex/remove-multi-agent-v2",
     "claude/startup-update-hook",
-    "claude/session-start-hooks"
+    "claude/session-start-hooks",
+    "claude/telemetry-hooks",
+    "codex/telemetry-hooks"
   ]
 }

@@ -1038,7 +1038,7 @@ pruneUpdateBackups(target, { retention, beforeSnapshot, dryRun });
 
 ---
 
-## 用户级匿名安装遥测契约
+## 用户级安装遥测 v1 兼容契约
 
 ### 1. Scope / Trigger
 
@@ -1050,10 +1050,10 @@ pruneUpdateBackups(target, { retention, beforeSnapshot, dryRun });
 <flowerConfigDirectory>/telemetry.json
 flower-trellis telemetry status|enable|disable
 FLOWER_NO_TELEMETRY=1
-POST https://ai-api.hub.flower-cli.com/
+POST https://ai-api.hub.flower-cli.com/api/flower-trellis/telemetry
 ```
 
-状态字段固定为 `schemaVersion`、`deviceId`、`developerName`、`enabled`、`lastAttemptAt`、`lastSuccessAt`；旧状态缺少 `developerName` 时只读兼容为 `null`，下一次真实上报自动补齐。事件固定为 `version_check`、`init_completed`、`update_completed`。
+状态字段固定为 `schemaVersion`、`deviceId`、`developerName`、`enabled`、`lastAttemptAt`、`lastSuccessAt`；旧状态缺少 `developerName` 时只读兼容为 `null`，下一次真实上报自动补齐。v1 事件固定为 `version_check`、`init_completed`、`update_completed`。
 
 ### 3. Contracts
 
@@ -1066,7 +1066,7 @@ POST https://ai-api.hub.flower-cli.com/
 - 普通 `version_check` 复用 updateCheck `intervalHours` 节流；init/update 成功事件强制上报，update dry-run 不上报。
 - init/update 的 registry 请求与遥测并行；self-check 只有缓存未命中并真实请求 registry 时触发，stdout 始终只有原 JSON。
 - `FLOWER_NO_TELEMETRY` 只临时停用且零写入；持久开关独立于 updateCheck。
-- 网络上报默认使用 10 秒超时；测试或受控调用可用 `timeoutMs` 显式覆盖。HTTP/网络/状态写入错误全部静默降级。
+- `reportTelemetry()` 仅将 v1 快照入队，返回 `queued` 等本地状态；独立 sender 默认使用 10 秒请求超时。测试在 `flushTelemetryQueue()` 注入 HTTP 与 `timeoutMs`，不得让普通 CLI 等待网络。
 - 运行真实 CLI 的 E2E helper 必须在隔离环境中默认注入 `FLOWER_NO_TELEMETRY=1`，避免测试创建用户级状态或向生产遥测地址发请求；调用方仍可在明确的遥测专项测试中显式覆盖该默认值。
 - 普通 CLI E2E 不得为了模拟真实用户而清除该隔离变量；测试必须断言真实 init 完成后隔离配置目录内不存在 `telemetry.json`。
 
@@ -1156,3 +1156,75 @@ state = writeTelemetryState({ ...state, developerName })
 ```
 
 原因：`.trellis/.developer` 仍是项目身份真源，但 Git `user.name` 和用户级缓存可以在项目文件缺失或 SessionStart 上下文不完整时保持名称与随机设备 ID 的稳定关联；三者都不可用时才停止上报，避免伪造身份。
+
+
+## Scenario: v2 平台活动与核心操作遥测
+
+### 1. Scope / Trigger
+
+修改 `telemetry-context.js`（身份/开关与快照）、`telemetry-files.js`（普通文件和互斥）、`telemetry-queue.js`（采集/发送）、`telemetry-operation.js` 或 Flower 活动 hook 时适用。`telemetry.js` 只保留 v1 兼容门面；依赖方向为门面 → 队列 → context/files，禁止循环导入。
+
+### 2. Signatures
+
+```text
+telemetry.json: schemaVersion=1，唯一 deviceId/enabled；保持原字段兼容
+telemetry-v2/event-<uuid>.json: {deviceId,queuedAt,payload}
+telemetry-v2/meta.json: hints/pending/dropped/attempts/lease/nextRetryAt/诊断
+telemetry-v2/legacy.json: {id,queuedAt,payload}，最多一个 v1 待发快照
+telemetry record-activity <claude|codex> --target <directory>（内部静默入口）
+POST /api/flower-trellis/telemetry/events
+{schema_version:2,device_id,events:[...]}
+```
+
+### 3. Contracts
+
+- 活动事件 `activity_daily` 固定 `source_kind=ai_hook`，`ai_platform=claude|codex`；终态 `operation_completed` 固定 `source_kind=cli`、`ai_platform=null`。旧 `platform` 始终指操作系统。
+- 基础字段：`event_id/event/observed_at/source_kind/ai_platform/platform/arch/flower_version/bundled_trellis_version/project_trellis_version/installed_skill_garden_version/developer_name`。v2 缺名不阻止采集；项目版本未知为 null，强化包版本只取目标 builtin lock，不用 legacy manifest 或当前捆绑版本冒充。
+- 操作字段：`operation=init|update|self_update|plugin_add`，`outcome=success|failure|cancelled`，失败专属 `error_category`、`failure_stage`，以及 `duration_ms/duration_kind`。错误只按结构化码映射有限枚举；不读取 message。当前真实命令使用单调计时的 elapsed，可能含交互等待；协议另支持 execution/unavailable，不能伪称已排除人工等待。
+- 外部操作上下文跨 Plugin 递归/预览/重试传播。`--dry-run` 和 `trellisControlMode=restoring` 整条内部链禁止开始计时；self-update 子进程用 `FLOWER_TELEMETRY_PARENT_OPERATION` 抑制重复。执行器 Flower/捆绑版本在操作包装入口捕获。
+- 成功终态在业务及恢复操作完成后、下一步菜单前记录；捕获的拒绝批准、Prompt 退出或上游 130 可标 cancelled。SIGINT 沿用原立即退出，不为遥测延迟；强杀不补造结果。
+- 新版新旧状态写入共锁、锁内重读合并，网络不持锁。目录/文件拒绝软链接，原子写入；锁竞争有界 500ms，失败静默。显式 disable 先关开关再清待发和 hints，回执不得复活状态。旧二进制不懂新锁，不承诺跨所有历史版本并发强一致。
+- 日去重键为 UTC 日期+明确平台，身份由唯一状态绑定；入队后才写 hint。缺失/淘汰待发文件使未送达 hint 失效；到期 pending 即使命中同日提示也必须能唤醒。Python 只适配事件与本地路径，不创建身份、不接收提示词参数。
+- v2 队列最多 200 条/72h/单事件 4KiB，先过期后淘汰最旧；丢弃数仅本地。v1/v2 磁盘载荷发送前均检查白名单，损坏证据保留。
+- sender 使用 detached、stdio ignore、unref，单租约15秒，单次最多一批20条且整体小于64KiB；请求10秒、进程15秒。失败以1分钟起指数退避、抖动至1小时，合法 Retry-After 可延长。没有常驻补传进程。
+- `FLOWER_NO_TELEMETRY` 非空在采集/发送入口零写入；status 只读。所有普通 JS 测试通过 `scripts/run-js-tests.mjs` 默认禁用遥测，专项只能用隔离目录、HTTP 注入或本地接收端。
+- 独立 handler 仅从 0.6 full builtin 资产与 Claude/Codex Patch 投影；SessionStart 覆盖 startup/resume/clear/compact，UserPromptSubmit 覆盖跨日输入。原三段上下文的 matcher、内容和额度不变；其他平台及 old/0.5 不新增会话 hook。
+
+### 4. Validation & Error Matrix
+
+| 场景 | 结果 |
+| --- | --- |
+| 并发首次采集 | 一个 deviceId；同日同平台一次 |
+| 无开发者名称 | v1 missing_developer；v2 正常入队 |
+| 同日 pending 到期 | 允许再次启动 sender，仍不重复活动 |
+| accepted/duplicate | 清对应待发项 |
+| 固定 rejected 原因 | 终止该事件并记录本地诊断 |
+| 429/503/网络失败 | 保留原 UUID，延迟重试 |
+| disable 与在途回执竞争 | 开关保持关闭；已发请求不可撤回 |
+| 坏 JSON/软链接/锁繁忙 | 静默保留证据，不影响原命令 |
+| 帮助、预览、内部恢复、无操作自更新 | 零操作终态 |
+
+### 5. Good/Base/Bad Cases
+
+- Good：同一实例当天使用 Claude/Codex，分别记录平台活动，总体由服务端去重。
+- Base：全天离线后恢复，后续活动触发到期补传；永久不再运行则保留观测缺口。
+- Bad：由安装目录推测 AI 平台；上传提示词、session ID、路径、外部插件 ID 或错误原文；等待公网后才退出 CLI。
+
+### 6. Tests Required
+
+- `telemetry.test.js` 保留 v1 身份/名称/节流/开关/格式行为。
+- `telemetry-v2.test.js` 覆盖多进程去重、72h/200条、Retry-After、停用竞争、损坏和额外字段、嵌套/预览/恢复零重复。
+- `test_flower_telemetry_hook.py` 覆盖固定平台、事件、开关、跨日与配置目录一致性；平台 Patch/apply 测试覆盖独立注册和幂等。
+- `telemetry-windows.test.js` 必须在 Windows 本地源码副本与原生 Node 运行：队列、stdio 断流、Python `.cmd` 中文空格路径，以及忽略 AbortSignal 的故障请求仍在15秒结束。Linux skip 不作为 Windows 证据。
+- 两仓固定协议 fixture 必须一致；本地全链路必须连接实际命令/hook、Worker、SQLite 和管理页面，不能访问生产接收端。
+
+### 7. Wrong vs Correct
+
+```javascript
+// 错误：更新完成后重读包版本会冒充新执行器；嵌套安装会重复计数。
+const version = flowerVersion()
+// 正确：外部上下文保存运行器版本，嵌套调用复用同一个上下文。
+await observeTelemetryOperation(ctx, "self_update", executeSelfUpdate)
+```
+
+原因：全局安装替换文件后，旧 Node 进程仍执行旧代码；记录必须反映真实执行器。

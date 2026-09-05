@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "device_id": "1e5f3691-c8c4-4a0f-a835-2dc6f2b58d9a",
+  "events": [
+    {
+      "event_id": "35c6ade8-dc73-420a-a220-641492570fc2",
+      "event": "activity_daily",
+      "observed_at": "2026-09-06T10:00:00.000Z",
+      "source_kind": "ai_hook",
+      "ai_platform": "claude",
+      "platform": "linux",
+      "arch": "x64",
+      "flower_version": "0.6.7",
+      "bundled_trellis_version": "0.6.0",
+      "project_trellis_version": null,
+      "installed_skill_garden_version": null,
+      "developer_name": null
+    }
+  ]
+}

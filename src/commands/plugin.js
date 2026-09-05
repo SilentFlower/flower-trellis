@@ -1,3 +1,4 @@
+import { observeTelemetryOperation, beginTelemetryOperation, noteTelemetryError } from "../lib/telemetry-operation.js";
 import fs from "node:fs";
 import path from "node:path";
 import { PLUGIN_ERROR_CODES, PluginError } from "../plugin/errors.js";
@@ -636,7 +637,10 @@ async function executeWithCapabilityApproval(execute, preview, options, output) 
         default: false,
       });
     }
-    if (!approved) throw error;
+    if (!approved) {
+      error.telemetryCancelled = true;
+      throw error;
+    }
     return execute(previewResult.approvalRequests.map(({ pluginId }) => pluginId));
   }
 }
@@ -777,6 +781,12 @@ export async function plugin(ctx, options = {}) {
     if (["source", "auth", "search"].includes(parsed.command)) {
       const remoteRuntime = await loadRemotePluginRuntime();
       return await remoteRuntime.runPluginManagementCommand(parsed, ctx, options, output);
+    }
+    if (parsed.command === "add" && !parsed.dryRun) {
+      if (!ctx.telemetryOperation && !process.env.FLOWER_TELEMETRY_PARENT_OPERATION) {
+        return await observeTelemetryOperation(ctx, "plugin_add", nested => plugin(nested, options), options.telemetry || {});
+      }
+      beginTelemetryOperation(ctx);
     }
     const trellisAlreadyMaterialized = ["materialized", "restoring"].includes(ctx.trellisControlMode) ||
       ["materialized", "restoring"].includes(options.trellisControlMode);
@@ -966,6 +976,7 @@ export async function plugin(ctx, options = {}) {
     printResult(result, parsed.json, output, { compact, verbose });
     return result.ok === false ? 3 : 0;
   } catch (error) {
+    noteTelemetryError(ctx, error);
     const json = parsed?.json || ctx.passthrough?.includes("--json");
     const code = error instanceof PluginError ? error.code : "PLUGIN_UNEXPECTED_ERROR";
     const publicPath = error.path && !path.isAbsolute(error.path) ? error.path : "";

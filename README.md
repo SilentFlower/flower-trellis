@@ -85,7 +85,11 @@ flower-trellis -v
 
 > 已全局安装时可直接写 `flower-trellis`、`ftl` 或 `ft`(三者等价);未安装则在命令前加 `npx`。
 
-为统计安装活跃度和版本分布，CLI 默认在远程版本检查及 `init` / `update` 成功后上报随机设备 ID、Flower/Trellis 版本、开发者名称和运行平台。开发者名称优先读取项目 `.trellis/.developer`，缺失时回退到目标目录可见的 Git `user.name`，并缓存最近一次有效名称供后续上报；不采集 Git 邮箱、MAC、主机名、系统用户名、项目路径或仓库地址。可用 `flower-trellis telemetry disable` 持久停用，或用 `FLOWER_NO_TELEMETRY=1` 临时停用。
+默认启用安装与使用遥测：远程版本检查及 `init` / `update` 成功后保留原安装快照；新版还记录 Claude Code / Codex（0.6 full 集成）的 UTC 每日活动，以及 `init`、`update`、`self-update`、`plugin add` 的可观测终态。帮助、预览、菜单和未执行的自更新不计操作。
+
+载荷包含随机安装/事件 ID、观测时间、操作系统/架构、明确的 AI 平台、Flower 和捆绑/项目 Trellis/已装强化包版本；操作另含结果、有限错误分类和耗时口径。强化包版本沿用安装时 Flower 发布版本。开发者名称优先取项目 `.trellis/.developer`，其次 Git `user.name` 和缓存，可为空；不采集提示词、对话、session ID、错误原文、命令参数、外部插件 ID、Git 邮箱、MAC、主机名、系统用户名、项目路径或仓库地址。
+
+事件先进入用户配置目录下的 `telemetry-v2/`，后台独立进程一次最多发送 20 条，不等待网络即可结束主命令。本地最多保留 200 条、72 小时，失败退避重试；完全离线、强杀或关闭遥测可能造成样本缺口。`flower-trellis telemetry status` 只读展示待发数、丢弃数和最近诊断；`telemetry disable` 持久停用并清待发记录，已发出的请求无法撤回；`FLOWER_NO_TELEMETRY=1` 临时停用采集和发送且不写本地状态。旧版进程不具备新版共锁协议，不承诺与所有历史二进制之间的并发强一致。
 
 ### 命令
 
