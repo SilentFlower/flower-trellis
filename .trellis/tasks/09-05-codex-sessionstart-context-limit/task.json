@@ -1,0 +1,38 @@
+{
+  "id": "codex-sessionstart-context-limit",
+  "name": "codex-sessionstart-context-limit",
+  "title": "Codex / Claude SessionStart 分段注入与额度保留",
+  "description": "三段启动摘要、取消 Codex resume 注入、保留 handler 额度并验证生成幂等。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-05",
+  "completedAt": "2026-09-05",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "completedSteps": [
+      "完成 Codex / Claude SessionStart 三段注入、取消 resume 注入并保留显式额度",
+      "通过全量检查、隔离安装与更新验证并同步本项目配置",
+      "完成规范沉淀",
+      "实现变更已提交并推送"
+    ],
+    "partialStep": null,
+    "nextStep": "等待用户显式请求 finish-work；宿主新会话接收效果另行观察",
+    "notes": "真实宿主新会话接收和 Windows 实机仍未验证；RD Guide 相关变更按确认计划保留未提交。",
+    "updatedAt": "2026-09-05T12:16:12Z"
+  }
+}
