@@ -1300,3 +1300,40 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Next Steps
 
 - 后续提示优化依据独立失败场景另建任务；beginner-usage-guide 及其他既有未提交变更保持原状。
+
+
+## Session 100: 归档遥测第一批：生产部署与 v0.6.5 发布完成
+
+**Date**: 2026-09-06
+**Task**: 归档遥测第一批：生产部署与 v0.6.5 发布完成
+**Branch**: `main`
+
+### Summary
+
+归档遥测第一批跨仓任务：Flower 采集与 ai-fund 接收、分析界面已交付；生产 D1、Worker、Pages 上线，Flower v0.6.5 稳定版发布并验证。上线记录保留实际生产验证范围与后续观察项。
+
+### Main Changes
+
+- Flower 业务提交 08598bf；ai-fund 业务提交 8315661；任务记录 67e8b21；Flower 发布提交 33a062e。
+- 生产迁移新增三表五索引，Worker/Pages 已部署；npm latest=0.6.5，GitHub Release 与 CI 成功。
+- 决策审计无待审事项；release audit-current=written；任务归档至 .trellis/tasks/archive/2026-09/09-05-telemetry-foundation，保留原 completedAt。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `08598bf` | (see git log) |
+| `33a062e` | (see git log) |
+
+### Testing
+
+- [OK] 复用已通过的 Flower 全量与 Windows 原生验证、Worker 554 项及隔离 CLI/hook→Worker→SQLite→浏览器全链路结果。
+- [OK] 部署/发版证据：生产 schema 与构建产物一致，4 项生产接口检查通过，npm tarball 完整性与 8 个遥测文件内容一致；未写入合成事实。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 在生产实际使用中观察登录权限、新旧事件接收与幂等、每日清理；后续遥测批次继续按父 Roadmap 规划。
