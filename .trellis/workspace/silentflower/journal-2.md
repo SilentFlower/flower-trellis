@@ -1337,3 +1337,38 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Next Steps
 
 - 在生产实际使用中观察登录权限、新旧事件接收与幂等、每日清理；后续遥测批次继续按父 Roadmap 规划。
+
+
+## Session 101: 归档 Codex / Claude SessionStart 分段注入与额度保留
+
+**Date**: 2026-09-07
+**Task**: 归档 Codex / Claude SessionStart 分段注入与额度保留
+**Branch**: `main`
+
+### Summary
+
+按用户请求完成任务归档与开发日志记录。核实任务状态 completed、业务及任务记录提交已在 origin/main、任务目录干净且无待审核决策。补充 release.md，记录受管配置更新、旧检查文档阶段描述漂移，以及真实宿主接收、hook 信任复核和 Windows 实机验证边界。
+
+### Main Changes
+
+- 归档至 .trellis/tasks/archive/2026-09/09-05-codex-sessionstart-context-limit，保留 completedAt=2026-09-05。
+- 上线核对为 needs-review，待核实事项已写入归档任务 release.md。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5eaf6af` | (see git log) |
+
+### Testing
+
+- [OK] 复核既有 Check-All 通过记录：519 个 JavaScript 测试、318 个 Python 测试及隔离安装链检查通过；本次仅收尾记录，未重跑代码测试。
+- [OK] 核实业务提交 5eaf6af 与任务记录提交 0d693d9 均为 origin/main 的祖先，开始时 main 与 origin/main 同步。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 由实际使用者确认 Codex / Claude 新会话接收与必要的 hook 信任复核；Windows 实机验证仍待执行。

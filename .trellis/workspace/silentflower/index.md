@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 100
-- **Last Active**: 2026-09-06
+- **Total Sessions**: 101
+- **Last Active**: 2026-09-07
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~1339 | Active |
+| `journal-2.md` | ~1374 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 101 | 2026-09-07 | 归档 Codex / Claude SessionStart 分段注入与额度保留 | `5eaf6af` | `main` |
 | 100 | 2026-09-06 | 归档遥测第一批：生产部署与 v0.6.5 发布完成 | `08598bf`, `33a062e` | `main` |
 | 99 | 2026-09-05 | 归档 Astra SessionStart 工作流提示任务 | `1d79835` | `main` |
 | 98 | 2026-09-03 | 优化 CLI 调用契约与帮助体验 | `6199ab8`, `b7a39db` | `main` |
