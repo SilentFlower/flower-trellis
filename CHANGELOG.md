@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.6](https://github.com/SilentFlower/flower-trellis/compare/v0.6.5...v0.6.6) (2026-09-07)
+
+
+### 🐛 修复 Bug Fixes
+
+* **codex:** 明确 Astra 规划授权边界 ([07428f8](https://github.com/SilentFlower/flower-trellis/commit/07428f8c4406449656edfe2e6dd6463d4540370a))
+
 ## [0.6.5](https://github.com/SilentFlower/flower-trellis/compare/v0.6.4...v0.6.5) (2026-09-05)
 
 
