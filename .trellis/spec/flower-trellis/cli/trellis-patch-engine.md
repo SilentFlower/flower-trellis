@@ -648,6 +648,7 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
 - 提示生成失败只停用可选增强，保留原生 state 和原有诊断，追加 `systemMessage` 并写 stderr；
   后续字符超预算诊断也必须追加，不能覆盖已有诊断。不得把该失败伪装成整个原生启动上下文丢失。
 - 提示覆盖必需步骤/引用、阶段边界、模板结构、指令层级、用户当前授权及证据陈述；检查默认内部完成，
+  阶段转换与评审条件交给所属 workflow，核对已有授权的范围，不把开始规划的许可推定为最终方案批准。
   普通问答保持简短。宿主规则冲突应按真实来源、适用范围和可编辑性记录，不能承诺 Hook 覆盖所有规则，
   也不能把“已读取但执行偏离”解释成无依据的“没读”。工程注入成功与行为效果必须分别验证。
 - 大小目标、字符与 UTF-8 bytes 的区别、默认 / strict 告警规则统一见 [AI Context Budget](./ai-context-budget.md)。

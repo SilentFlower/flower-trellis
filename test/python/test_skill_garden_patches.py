@@ -1535,7 +1535,7 @@ class PatchConsumerTest(unittest.TestCase):
             brainstorm,
         )
         self.assertIn(
-            "Implementation intent expressed before the final artifacts",
+            "Ordinary implementation intent expressed before the final artifacts",
             brainstorm,
         )
         claude_brainstorm = next(

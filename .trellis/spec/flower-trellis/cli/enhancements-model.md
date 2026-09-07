@@ -1270,6 +1270,8 @@ Risks / Deferred 仅在存在时生成。Key Decisions 只提炼会影响实施�
   不用再次确认、视为已确认”绑定，且最终范围未变化时，才可同回合运行 `task.py start`。
 - `trellis-brainstorm` 的 Quality Bar 只表示 planning artifacts 可进入最终 brief handoff；
   普通实现意图或任务创建授权不能复用为 planning review，也不能解释为 Brief 预授权。
+  Quality Bar 不把 Brief 已展示或已确认作为交接前提；planning contract、readiness、review 和
+  handoff 统一引用 `trellis-task-brief` 的默认确认与明确预授权例外，不另写强制下一回合规则。
 - 预授权只取当前对话中仍明确适用于本任务的表达，不写 session runtime，也不扩展为跨会话、
   跨任务或永久偏好。范围扩大、存在未解决 Open Questions、新增高风险边界或用户撤回时失效。
 - schema 2 auto-loop 在 `start_task` 前必须返回 `review_planning_readiness`，复核验收标准可测试、

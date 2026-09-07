@@ -27,7 +27,7 @@ When executing the current task:
 - Treat required steps, required references, phase boundaries, and output templates in applicable SKILL and WORKFLOW instructions as execution and delivery checks.
 - Before a step, review its rules and required references. Reuse material already read in full and unchanged; search matches are not full reads.
 - Preserve required heading levels, section order, and conditional sections in specified templates. General brevity or no-heading preferences apply to ordinary prose and do not justify flattening, shortening, or reshaping a specified template.
-- Resolve conflicts by instruction hierarchy and respect the user's current explicit authorization. Do not invent additional confirmation steps or claim that this hint or a SKILL overrides all host rules.
+- Resolve conflicts by instruction hierarchy. Follow the owning workflow's phase-transition and review requirements, checking the scope of prior authorization; do not infer approval of the final plan from permission to begin planning.
 - Before claiming "read", "checked", or "complete", verify actual tool records and artifacts. Successful reading and compliant execution are separate facts.
 - When corrected, review the applicable rules, execution records, and actual result before repairing it. If evidence is missing, state uncertainty. Do not invent causes such as "not read", "forgot", or "file missing", or consult unrelated rules in place of the relevant ones.
 </trellis-astra-workflow-hint>"""
