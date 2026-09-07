@@ -22,17 +22,48 @@
       },
       "dependencies": {},
       "id": "flower/skill-garden",
-      "integrity": "sha256:b256d54ca1bdc8bc3d597045e5a1e1597fec8996888f2db900325ac2ba2b133b",
+      "integrity": "sha256:bb6654436a1c4359860a3fc0258a6afffbe0c575ed0a20030c92353dd3dde999",
       "source": {
         "id": "flower",
         "reference": "package:skill-garden:0.6",
         "type": "builtin"
       },
-      "version": "0.6.6"
+      "version": "0.6.7"
+    },
+    {
+      "capabilities": {
+        "approvalDigest": null,
+        "denied": [],
+        "granted": [
+          "content.skills"
+        ],
+        "profile": "standard"
+      },
+      "commit": "e0b0c411beb4284390fea126d8f4cf08ff51e610",
+      "compatibility": {
+        "flower": ">=0.6.0-0 <1.0.0"
+      },
+      "contentSelection": {
+        "skills": [
+          "xhgj-gitlab-collaboration"
+        ]
+      },
+      "dependencies": {},
+      "id": "rd-guide/rd-guide",
+      "integrity": "sha256:48d3ef9529c545b17eca29a81c7f104a6e139701e202e8fd38c91dd6b0a05b91",
+      "source": {
+        "id": "rd-guide",
+        "indexCommit": "ccb0eae334b4d5e801b2458effc711159c065e5a",
+        "indexPath": ".flower-plugin/marketplace.json",
+        "reference": "digital-rd-governance/rd-guide",
+        "type": "gitlab"
+      },
+      "version": "0.1.0"
     }
   ],
   "roots": [
-    "flower/skill-garden"
+    "flower/skill-garden",
+    "rd-guide/rd-guide"
   ],
   "schemaVersion": 1
 }

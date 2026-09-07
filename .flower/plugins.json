@@ -3,7 +3,17 @@
     {
       "id": "flower/skill-garden",
       "source": "flower",
-      "version": "0.6.6"
+      "version": "0.6.7"
+    },
+    {
+      "contentSelection": {
+        "skills": [
+          "xhgj-gitlab-collaboration"
+        ]
+      },
+      "id": "rd-guide/rd-guide",
+      "source": "rd-guide",
+      "version": "^0.1.0"
     }
   ],
   "schemaVersion": 1
