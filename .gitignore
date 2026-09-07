@@ -46,3 +46,10 @@ test-target/
 
 # ===== 依赖(若后续引入 Node 工具链) =====
 node_modules/
+# BEGIN Flower shared records
+!/.flower/
+/.flower/*
+!/.flower/.gitignore
+!/.flower/plugins.json
+!/.flower/plugin-lock.json
+# END Flower shared records
