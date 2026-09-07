@@ -1,0 +1,298 @@
+{
+  "id": "flower-team-bootstrap",
+  "name": "flower-team-bootstrap",
+  "title": "完善 Flower 团队克隆后的安装与版本记录",
+  "description": "升级时幂等修正项目 gitignore 以允许提交 Flower 声明和锁；迁移后删除旧 manifest；会话检测缺少 CLI 并引导安装项目版本。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-07",
+  "completedAt": "2026-09-07",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-09-07T04:43:19Z",
+      "contextKey": "codex_01a079bc-c598-7a23-9502-ca0964783fe6",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "0f5d3fa719b13284cb4e712132f367269fe15078",
+        "status": [
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/contract.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/references/execution-contract.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/references/source-index.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/xhgj-gitlab-collaboration/references/troubleshooting.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/contract.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/references/execution-contract.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/references/source-index.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/xhgj-gitlab-collaboration/references/troubleshooting.md"
+          },
+          {
+            "status": " M",
+            "path": ".flower/plugin-lock.json"
+          },
+          {
+            "status": " M",
+            "path": ".flower/plugins.json"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "0f5d3fa719b13284cb4e712132f367269fe15078",
+            "status": [
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/contract.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/execution-contract.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/source-index.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/troubleshooting.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/contract.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/execution-contract.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/source-index.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/troubleshooting.md"
+              },
+              {
+                "status": " M",
+                "path": ".flower/plugin-lock.json"
+              },
+              {
+                "status": " M",
+                "path": ".flower/plugins.json"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "6ead91fdb6cc38c30419aa7b4002ed3d12ae2ce39eb8d84082f1401c449b04ce",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/SKILL.md",
+                "sha256": "7d55e6c8cda953dc00295b9b9121b51b54d26dca3f39a5ae8b7df7e500ba94a3"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/agents/openai.yaml",
+                "sha256": "9da76da16d102f71ed8b791d831babe6c069ed899f66d6c1d798acaae5f58a62"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/contract.yaml",
+                "sha256": "a37961508b05c61c9e18b273a3345d4043229d03ed5cb310144eb967661627dc"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/execution-contract.md",
+                "sha256": "5235693e0a9cd96f389ed33f952fc106eea9cdf4f9ce2e99d504e77fb4b27fb8"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/source-index.md",
+                "sha256": "84ddadb4b43c46a26b3a57627fe21111a17186b4064bb7731bb3f0055a7fcf8b"
+              },
+              {
+                "path": ".agents/skills/xhgj-gitlab-collaboration/references/troubleshooting.md",
+                "sha256": "a106318698d209019b2146fb5a4ca4739e4ea4fb07aced72b7fbd438d94e3be3"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/SKILL.md",
+                "sha256": "7d55e6c8cda953dc00295b9b9121b51b54d26dca3f39a5ae8b7df7e500ba94a3"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/agents/openai.yaml",
+                "sha256": "9da76da16d102f71ed8b791d831babe6c069ed899f66d6c1d798acaae5f58a62"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/contract.yaml",
+                "sha256": "a37961508b05c61c9e18b273a3345d4043229d03ed5cb310144eb967661627dc"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/execution-contract.md",
+                "sha256": "5235693e0a9cd96f389ed33f952fc106eea9cdf4f9ce2e99d504e77fb4b27fb8"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/source-index.md",
+                "sha256": "84ddadb4b43c46a26b3a57627fe21111a17186b4064bb7731bb3f0055a7fcf8b"
+              },
+              {
+                "path": ".claude/skills/xhgj-gitlab-collaboration/references/troubleshooting.md",
+                "sha256": "a106318698d209019b2146fb5a4ca4739e4ea4fb07aced72b7fbd438d94e3be3"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md",
+                "sha256": "cdd3be0e22f13e2377a3acced9aee5806c4043b9830bcf0c2f503e9b56d571eb"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md",
+                "sha256": "8439f575162fbac22c07c456c78573328b730c315ff837aeea24d52017dddcb7"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json",
+                "sha256": "a555c3b289cb378ab9895c12c1897121f5937e01c900ba68ef1bb5874c0c54da"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "b63e87a7606d161cb590f3f598f0897b8f7143847564fc31ecd5efeb045eacad"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "77ee5d44fddcb190f11c16ee099c87419ce227f3",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "2fd16f6186c4ebabacf36ee344a0e0f61204894b270a1abc60b4a6e350672fb3"
+          }
+        ],
+        "fingerprint": "0b9c5e92205821b6d7a04e8f19572f2129e627461ea57a15e9fa69f93fc99c09"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "实现 Flower 共享声明和锁的幂等 Git 忽略规则",
+      "完成旧 manifest 策略与缓存迁移、事务删除和失败回滚",
+      "复用启动 hook 与手动入口引导安装项目锁定的 CLI 版本",
+      "修复 FBK-001，完成 Check-All 和规范更新",
+      "Skill-Garden 源文件与 Flower 实现、快照均已提交并推送"
+    ],
+    "partialStep": null,
+    "nextStep": "等待后续指令",
+    "notes": "WSL 中 Windows 原生专项跳过；未执行真实全局 npm 安装。既有及并行产生的无关变更保留在工作区。",
+    "updatedAt": "2026-09-07T06:16:02Z"
+  }
+}

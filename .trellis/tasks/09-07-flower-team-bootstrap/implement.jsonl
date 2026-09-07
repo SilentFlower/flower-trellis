@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/module-guidelines.md","reason":"模块边界、ESM 和公共接口约定"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"新旧记录、更新配置与 worktree 边界；本任务改变成功保留 legacy 的旧契约"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"源资产与 SessionStart 注册所有权"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"安装引导按需注入，避免长流程重复"}
+{"file":".trellis/tasks/09-07-flower-team-bootstrap/research/current-behavior.md","reason":"已核实的调用链、事务顺序与基线边界"}

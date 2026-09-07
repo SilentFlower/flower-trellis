@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"幂等、精确删除、失败回滚及仓库门禁"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"配置优先级、共享/本地边界及旧规范更新"}
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"真实安装后的源脚本和平台 hook 协议"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"新 bootstrap 上下文与默认预算门禁"}
+{"file":".trellis/tasks/09-07-flower-team-bootstrap/research/current-behavior.md","reason":"legacy 读取、ensureLayout 前备份和团队克隆历史行为"}
