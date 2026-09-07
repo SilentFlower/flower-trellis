@@ -148,7 +148,7 @@ function normalizeLastRemote(value) {
  * @param {object|null|undefined} value 原始 updateCheck 字段
  * @returns {{enabled:boolean,policy:string,intervalHours:number}} 归一化后的策略
  */
-function normalizeUpdateCheckPolicy(value) {
+export function normalizeUpdateCheckPolicy(value) {
   const raw = value && typeof value === "object" ? value : {};
   const policy = UPDATE_POLICIES.has(raw.policy) ? raw.policy : DEFAULT_UPDATE_CHECK.policy;
   const interval = Number(raw.intervalHours);

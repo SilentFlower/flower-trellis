@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { ENHANCEMENTS_ROOT } from "../lib/paths.js";
 import {
   resolveTrellisPythonCommand,
@@ -17,8 +18,9 @@ const VALUE_OPTIONS = new Set([
   "--task-description",
   "--developer",
   "--plan-fingerprint",
+  "--source",
 ]);
-const BOOLEAN_OPTIONS = new Set(["--json", "--dry-run", "--yes", "--inherit-route-prefs"]);
+const BOOLEAN_OPTIONS = new Set(["--json", "--dry-run", "--yes", "--inherit-route-prefs", "--inherit-flower"]);
 
 /**
  * 识别 worktree 根级或子命令级帮助请求。
@@ -64,9 +66,12 @@ needs-migration 状态选择下一步。`);
 用法:
   flower-trellis worktree prepare [--target <dir>] [--developer <name>]
                                    [--inherit-route-prefs] [--json]
+                                   [--inherit-flower --source <dir>]
 
 prepare 不创建 Git worktree，只补齐目标分支本地的 developer、runtime 和 registry 状态。
-仅在确实需要继承当前控制 worktree 的个人路由偏好时使用 --inherit-route-prefs。`);
+仅在确实需要继承当前控制 worktree 的个人路由偏好时使用 --inherit-route-prefs。
+Flower 记录缺失时，用 --inherit-flower --source <同仓 worktree> 补齐可验证的独立安装信息。
+即使 Trellis 已 ready-local，也可以运行此补配；已有目标记录不会被覆盖。`);
     return;
   }
   if (command === "migrate") {
@@ -96,7 +101,9 @@ prepare 不创建 Git worktree，只补齐目标分支本地的 developer、runt
     git worktree add <target> <existing-branch>
     flower-trellis worktree status --target <target>
   若 status 返回 needs-prepare，再运行:
-    flower-trellis worktree prepare --target <target> [--developer <name>]`);
+    flower-trellis worktree prepare --target <target> [--developer <name>]
+  create 自动将缺失的 Flower 安装信息纳入计划；目标内容不匹配时停止并回滚。
+  已有 worktree 缺少 Flower 记录时，使用 prepare --inherit-flower --source <source>。`);
     return;
   }
   if (command === "remove") {
@@ -177,6 +184,15 @@ export function parseWorktreeArgs(args) {
   if (command !== "prepare" && options.has("--inherit-route-prefs")) {
     throw new Error("--inherit-route-prefs 只用于 worktree prepare");
   }
+  if (command !== "prepare" && (options.has("--inherit-flower") || options.has("--source"))) {
+    throw new Error("--inherit-flower 和 --source 只用于 worktree prepare");
+  }
+  if (options.has("--inherit-flower") && !options.has("--source")) {
+    throw new Error("--inherit-flower 需要 --source 指定同仓来源");
+  }
+  if (options.has("--source") && !options.has("--inherit-flower")) {
+    throw new Error("--source 需要显式 --inherit-flower");
+  }
   return { command, options, json: options.has("--json") };
 }
 
@@ -194,7 +210,7 @@ export function worktreeEngineArgs(parsed, target, source) {
     args.push("--source", source, "--target", target);
   } else {
     args.push("--target", target);
-    if (parsed.command === "prepare" && parsed.options.has("--inherit-route-prefs")) {
+    if (parsed.command === "prepare" && parsed.options.has("--inherit-route-prefs") && !parsed.options.has("--source")) {
       args.push("--source", source);
     }
   }
@@ -244,6 +260,17 @@ export function printWorktreeResult(payload) {
   if (payload.localStateTransfer?.routePreferences?.action) {
     console.log(`route preferences: ${payload.localStateTransfer.routePreferences.action}`);
   }
+  if (payload.localStateTransfer?.flower) {
+    const flower = payload.localStateTransfer.flower;
+    console.log(`flower transfer: ${flower.action}${flower.reason ? ` (${flower.reason})` : ""}`);
+    if (flower.source) console.log(`flower source: ${flower.source}`);
+    if (flower.paths?.length) console.log(`flower paths: ${flower.paths.join(", ")}`);
+    if (flower.validationPending) console.log("flower validation: checkout 后核验目标内容，失败回滚创建");
+  }
+  if (payload.flower) {
+    console.log(`flower: ${payload.flower.installation}; version: ${payload.flower.version || "unknown"}`);
+    if (payload.flower.reason) console.log(`flower reason: ${payload.flower.reason}`);
+  }
   if (payload.requiresConfirmation && payload.confirmation?.fingerprint) {
     console.log(`confirmation: 使用 --yes --plan-fingerprint ${payload.confirmation.fingerprint}`);
   }
@@ -284,7 +311,11 @@ export async function worktree(ctx) {
     [...invocation.args, script, ...worktreeEngineArgs(parsed, ctx.target, source)],
     {
       cwd: source,
-      env: process.env,
+      env: {
+        ...process.env,
+        FLOWER_WORKTREE_NODE: process.execPath,
+        FLOWER_WORKTREE_HELPER: fileURLToPath(new URL("../lib/worktree-flower-state.js", import.meta.url)),
+      },
       encoding: "utf8",
       windowsHide: true,
     },

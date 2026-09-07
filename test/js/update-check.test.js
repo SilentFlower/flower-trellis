@@ -40,6 +40,50 @@ function createTarget(t) {
   return target;
 }
 
+test("项目版本缺失时返回 unknown，远端同版不能作为项目安装证明", async (t) => {
+  const target = createTarget(t);
+  fs.unlinkSync(path.join(target, ".trellis/.flower-manifest.json"));
+  const result = await buildSelfCheck(target, {
+    writeCache: false, forceRemote: true,
+    fetchMetadata: async () => ({ tags: { latest: flowerVersion(), beta: null }, releaseNotesByVersion: {} }),
+  });
+  assert.equal(result.status, "project_unknown");
+  assert.equal(result.reason, "project_flower_version_unknown");
+  assert.equal(result.project.flowerVersion, null);
+  assert.equal(result.project.flowerVersionStatus, "unknown");
+  assert.equal(result.project.flowerVersionSource, null);
+  assert.deepEqual(result.commands, {});
+  assert.equal(result.ai, null);
+  assert.equal(fs.existsSync(path.join(target, ".flower")), false);
+});
+
+test("版本缺失不吞掉远端更新或离线状态，缓存仍重算本地证据", async (t) => {
+  const target = createTarget(t);
+  writeUpdateCheck(target, { lastCheckedAt: new Date().toISOString(), lastRemote: { latest: flowerVersion(), beta: null }, lastStatus: "up_to_date" });
+  fs.unlinkSync(path.join(target, ".trellis/.flower-manifest.json"));
+  const cached = await buildSelfCheck(target, { writeCache: false, fetchMetadata: async () => assert.fail("不应联网") });
+  assert.equal(cached.status, "project_unknown");
+  assert.equal(cached.remote.fromCache, true);
+  const offline = await buildSelfCheck(target, { writeCache: false, forceRemote: true, fetchMetadata: async () => null });
+  assert.equal(offline.status, "offline");
+  assert.equal(offline.project.flowerVersionStatus, "unknown");
+  const update = await buildSelfCheck(target, { writeCache: false, forceRemote: true, fetchMetadata: async () => ({ tags: { latest: "99.0.0", beta: "99.0.0-beta.1" }, releaseNotesByVersion: {} }) });
+  assert.equal(update.status, "update_available");
+  assert.equal(update.project.flowerVersionStatus, "unknown");
+  const cli = runFlowerCliJson(["self-check", "--json", "--target", target]);
+  assert.equal(cli.status, "project_unknown");
+  const message = runFlowerCli(["self-update", "--target", target, "--yes"]);
+  assert.match(message, /版本无法确认/);
+  assert.doesNotMatch(message, /无需执行 self-update/);
+});
+
+test("旧 manifest 仍提供 known 版本来源", async (t) => {
+  const target = createTarget(t);
+  const result = await buildSelfCheck(target, { writeCache: false, forceRemote: true, fetchMetadata: async () => ({ tags: { latest: flowerVersion(), beta: null }, releaseNotesByVersion: {} }) });
+  assert.equal(result.project.flowerVersionStatus, "known");
+  assert.equal(result.project.flowerVersionSource, "legacy-manifest");
+});
+
 function writeCachedRemoteUpdate(target, version = "9.0.0") {
   writeUpdateCheck(target, {
     lastCheckedAt: new Date().toISOString(),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import importlib.util
 import os
 import shutil
@@ -842,6 +843,162 @@ class WorktreeSetupTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(payload["reason"], "not-git-worktree")
+
+    def _flower_fixture(self) -> dict[str, str]:
+        """准备被忽略的真实安装记录及随包适配器环境。"""
+        (self.main / ".gitignore").write_text(".flower/\n", encoding="utf-8")
+        self._git(self.main, "add", ".gitignore")
+        self._git(self.main, "commit", "-m", "ignore Flower local records")
+        self._git(self.linked, "merge", "--ff-only", self._git(self.main, "rev-parse", "HEAD").stdout.strip())
+        flower = self.main / ".flower"
+        flower.mkdir()
+        version = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
+        relative = ".agents/skills/example/SKILL.md"
+        digest = "sha256:" + hashlib.sha256((self.main / relative).read_bytes()).hexdigest()
+        records = {
+            "plugins.json": {"schemaVersion": 1, "plugins": [{"id": "flower/skill-garden", "source": "flower", "version": version}]},
+            "plugin-lock.json": {
+                "schemaVersion": 1, "roots": ["flower/skill-garden"], "plugins": [{
+                    "id": "flower/skill-garden", "version": version,
+                    "source": {"id": "flower", "type": "builtin", "reference": "package:skill-garden"},
+                    "commit": None, "integrity": "sha256:" + "a" * 64, "dependencies": {},
+                    "compatibility": {"flower": ">=0.5.0"},
+                    "capabilities": {"profile": "standard", "granted": ["content.skills"], "denied": [], "approvalDigest": None},
+                }],
+            },
+            "state.json": {"schemaVersion": 1, "transactionVersion": 1, "plugins": [{
+                "id": "flower/skill-garden", "version": version, "platforms": ["codex"],
+                "paths": [{"path": relative, "kind": "file", "hash": digest, "ownership": "exclusive"}], "patches": [],
+            }]},
+        }
+        for name, value in records.items():
+            (flower / name).write_text(json.dumps(value), encoding="utf-8")
+        return {"FLOWER_WORKTREE_NODE": shutil.which("node"), "FLOWER_WORKTREE_HELPER": str(ROOT / "src/lib/worktree-flower-state.js")}
+
+    def test_flower_prepare_repairs_ready_worktree_and_is_idempotent(self) -> None:
+        """已就绪 worktree 仍可补齐被忽略的 Flower，重复运行保持不变。"""
+        environment = self._flower_fixture()
+        with mock.patch.dict(os.environ, environment):
+            self._helper("prepare", "--developer", "tester")
+            _, before = self._helper("status")
+            self.assertEqual(before["status"], "ready-local")
+            self.assertEqual(before["flower"]["installation"], "incomplete")
+            _, prepared = self._helper("prepare", "--inherit-flower", "--source", str(self.main))
+            self.assertEqual(prepared["localStateTransfer"]["flower"]["action"], "inherited")
+            self.assertEqual(prepared["flower"]["installation"], "complete")
+            _, repeated = self._helper("prepare", "--inherit-flower", "--source", str(self.main))
+            self.assertFalse(repeated["changed"])
+            self.assertEqual(repeated["localStateTransfer"]["flower"]["action"], "preserved")
+        self.assertEqual(self._git(self.linked, "status", "--porcelain").stdout, "")
+
+    def test_flower_create_inherits_records_and_fingerprints_source(self) -> None:
+        """创建计划只读并包含安装信息；忽略文件变化也使原指纹失效。"""
+        environment = self._flower_fixture()
+        target = self.base / "flower-created"
+        args = ("--source", str(self.main), "--branch", "feature/flower", "--task-title", "Flower 任务", "--task-slug", "flower")
+        with mock.patch.dict(os.environ, environment):
+            _, plan = self._helper("create", *args, target=target)
+            self.assertFalse(target.exists())
+            self.assertIn(".flower/state.json", plan["localStateTransfer"]["flower"]["paths"])
+            lock = self.main / ".flower/plugin-lock.json"
+            lock.write_text(lock.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+            result, stale = self._helper("create", *args, "--yes", "--plan-fingerprint", plan["confirmation"]["fingerprint"], target=target, check=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(stale["reason"], "create-plan-changed")
+            self.assertFalse(target.exists())
+            _, created = self._create_helper(*args, target=target)
+            self.assertEqual(created["localStateTransfer"]["flower"]["action"], "inherited")
+            self.assertFalse(created["localStateTransfer"]["flower"]["validationPending"])
+            _, status = self._helper("status", target=target)
+            self.assertEqual(status["flower"]["installation"], "complete")
+
+    def test_flower_create_rolls_back_if_source_content_is_not_in_base(self) -> None:
+        """来源未提交插件内容不能靠复制记录成为目标已安装内容。"""
+        environment = self._flower_fixture()
+        relative = ".agents/skills/example/SKILL.md"
+        (self.main / relative).write_text("未提交安装内容\n", encoding="utf-8")
+        state_path = self.main / ".flower/state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["plugins"][0]["paths"][0]["hash"] = "sha256:" + hashlib.sha256((self.main / relative).read_bytes()).hexdigest()
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+        target = self.base / "flower-drift"
+        with mock.patch.dict(os.environ, environment):
+            result, payload = self._create_helper("--source", str(self.main), "--branch", "feature/flower-drift", "--task-title", "漂移", "--task-slug", "drift", target=target, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(target.exists())
+        self.assertEqual(payload["rollbackErrors"], [])
+        self.assertNotEqual(self._git(self.main, "show-ref", "--verify", "refs/heads/feature/flower-drift", check=False).returncode, 0)
+
+    def test_flower_prepare_rolls_back_after_adapter_loses_response(self) -> None:
+        """适配器写入后未能返回时，可通过项目外回执清理记录。"""
+        environment = self._flower_fixture()
+        spec = importlib.util.spec_from_file_location("flower_worktree_transfer_test", SOURCE)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        original = module._flower_call
+
+        def lose_response(operation: str, **values) -> dict:
+            """模拟写入完成后适配器输出丢失。"""
+            result = original(operation, **values)
+            if operation == "apply":
+                raise module.WorktreeSetupError("flower-adapter-failed", "模拟输出丢失")
+            return result
+
+        with mock.patch.dict(os.environ, environment), mock.patch.object(module, "_flower_call", side_effect=lose_response):
+            plan = module._analyze(str(self.linked))
+            with self.assertRaises(module.WorktreeSetupError):
+                module._prepare_local(plan, "tester", source=str(self.main), inherit_flower=True)
+        self.assertFalse((self.linked / ".flower").exists())
+
+    def test_flower_missing_configured_directory_requires_prepare_not_init(self) -> None:
+        """版本化模板声明 .flower 时，其缺失也不要求重装 Trellis。"""
+        hashes = self.linked / ".trellis/.template-hashes.json"
+        value = json.loads(hashes.read_text(encoding="utf-8"))
+        value["hashes"][".flower/plugins.json"] = "hash"
+        hashes.write_text(json.dumps(value), encoding="utf-8")
+        _, status = self._helper("status")
+        self.assertEqual(status["status"], "needs-prepare")
+
+    def test_flower_real_cli_uses_bundled_adapter_for_create_and_prepare(self) -> None:
+        """真实 CLI 使用随包 engine 和适配器完成创建及补配。"""
+        self._flower_fixture()
+
+        def cli(*args: str) -> dict:
+            """在来源工作树调用真实 Flower CLI 并解析唯一 JSON。"""
+            result = subprocess.run(
+                [shutil.which("node"), str(ROOT / "bin/flower-trellis.js"), "worktree", *args, "--json"],
+                cwd=self.main, text=True, capture_output=True,
+                env={**os.environ, "FLOWER_NO_TELEMETRY": "1", "FLOWER_WORKTREE_HELPER": "/missing/adapter", "FLOWER_WORKTREE_NODE": "/missing/node"},
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stderr, "")
+            return json.loads(result.stdout)
+
+        prepared = cli("prepare", "--target", str(self.linked), "--developer", "tester", "--inherit-flower", "--source", str(self.main))
+        self.assertEqual(prepared["flower"]["installation"], "complete")
+        target = self.base / "flower-cli"
+        args = ("create", "--target", str(target), "--branch", "feature/flower-cli", "--task-title", "CLI 任务", "--task-slug", "flower-cli")
+        plan = cli(*args)
+        self.assertFalse(target.exists())
+        result = cli(*args, "--yes", "--plan-fingerprint", plan["confirmation"]["fingerprint"])
+        self.assertEqual(result["status"], "created")
+        self.assertEqual(cli("status", "--target", str(target))["flower"]["installation"], "complete")
+
+    def test_flower_adapter_rejects_empty_payload_and_timeout(self) -> None:
+        """适配器空结果、非法 JSON 或超时不能退化为继承成功。"""
+        spec = importlib.util.spec_from_file_location("flower_worktree_adapter_test", SOURCE)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        environment = {"FLOWER_WORKTREE_NODE": "node", "FLOWER_WORKTREE_HELPER": "helper.js"}
+        for output in ('{"ok":true,"result":{}}', 'not-json', '{"ok":"true","result":{}}'):
+            with mock.patch.dict(os.environ, environment), mock.patch.object(module.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, output, "")):
+                with self.assertRaises(module.WorktreeSetupError) as captured:
+                    module._flower_call("plan", source=str(self.main), target=str(self.linked))
+                self.assertEqual(captured.exception.reason, "flower-adapter-failed")
+        with mock.patch.dict(os.environ, environment), mock.patch.object(module.subprocess, "run", side_effect=subprocess.TimeoutExpired("node", 60)):
+            with self.assertRaises(module.WorktreeSetupError) as captured:
+                module._flower_call("apply", source=str(self.main), target=str(self.linked))
+            self.assertEqual(captured.exception.reason, "flower-adapter-failed")
 
 
 if __name__ == "__main__":

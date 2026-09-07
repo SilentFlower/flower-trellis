@@ -572,8 +572,9 @@ export async function buildSelfCheck(target, options = {}) {
   const projectTrellis = readProjectTrellisVersion(absoluteTarget);
   const skillGardenLock = pluginLock?.plugins.find(({ id }) => id === SKILL_GARDEN_PLUGIN_ID);
   const projectFlower = skillGardenLock?.version || (
-    typeof manifest?.flowerVersion === "string" ? manifest.flowerVersion : null
+    typeof manifest?.flowerVersion === "string" && manifest.flowerVersion.trim() ? manifest.flowerVersion : null
   );
+  const flowerVersionSource = skillGardenLock?.version ? "plugin-lock" : projectFlower ? "legacy-manifest" : null;
   const projectOutOfSyncReasons = [];
   if (projectFlower && projectFlower !== currentFlower) {
     projectOutOfSyncReasons.push("flower_version_mismatch");
@@ -602,6 +603,8 @@ export async function buildSelfCheck(target, options = {}) {
     },
     project: {
       flowerVersion: projectFlower,
+      flowerVersionStatus: projectFlower ? "known" : "unknown",
+      flowerVersionSource,
       trellisVersion: projectTrellis,
       manifestPresent: Boolean(manifest),
       pluginStatePresent: Boolean(pluginLock && pluginState),
@@ -689,8 +692,8 @@ export async function buildSelfCheck(target, options = {}) {
     }
     return {
       ...base,
-      status: "skipped",
-      reason: "interval_not_elapsed",
+      status: projectFlower ? "skipped" : "project_unknown",
+      reason: projectFlower ? "interval_not_elapsed" : "project_flower_version_unknown",
       remote: { ...base.remote, tags, fromCache: true, skipped: true },
     };
   }
@@ -744,7 +747,8 @@ export async function buildSelfCheck(target, options = {}) {
     }
     return {
       ...resultBase,
-      status: remoteStatus,
+      status: projectFlower ? remoteStatus : "project_unknown",
+      reason: projectFlower ? null : "project_flower_version_unknown",
       remote: { ...resultBase.remote, tags },
     };
   }

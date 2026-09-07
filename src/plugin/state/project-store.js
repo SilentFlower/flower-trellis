@@ -18,7 +18,8 @@ import {
 import { validateTrellisControlState } from "../schemas/trellis-control.js";
 
 const FLOWER_DIR_NAME = ".flower";
-const REQUIRED_IGNORE_RULES = [
+/** Flower 本机安装状态的标准局部忽略规则。 */
+export const REQUIRED_IGNORE_RULES = [
   "state.json",
   "cache/",
   "transactions/",

@@ -21,7 +21,8 @@ flower-trellis self-check --json --manual --force-remote --target <target>
 3. 解析 JSON：
    - `update_available`：展示当前版本、推荐版本、release notes 摘要和 `commands.recommended`。
    - `project_out_of_sync`：展示当前 Flower/Trellis 与项目记录的差异，并展示 `commands.recommended`。
-   - `up_to_date`：说明当前安装和项目记录已一致。
+   - `up_to_date`：说明 CLI 与项目版本记录一致；版本记录不等于受管内容完整性验证。
+   - `project_unknown`：说明 CLI 未发现新版，但项目 Flower 版本无法确认。linked worktree 进入 `trellis-worktree` 的 Flower Preparation，通过 `prepare --inherit-flower --source <source>` 补齐可验证记录后重新检查；来源缺失或冲突时如实报告，不推定需要重装。
    - `disabled` / `offline` / `skipped`：说明原因；不要靠重置缓存伪造可执行状态。
 4. 写入前遵守确认和安全门槛：
    - 用户当前消息已经明确要求执行升级时，可以执行 `commands.recommended`。
@@ -32,6 +33,7 @@ flower-trellis self-check --json --manual --force-remote --target <target>
 ## Rules
 
 - 不直接读写 `.flower/update-check.tmp`。
+- 无论远端查询结果如何，都单独说明 `project.flowerVersionStatus=unknown`；不得用本机 CLI 版本替代项目安装证据。
 - 不使用 `update-check reset`、`snooze` 或 `skip` 作为升级绕过手段。
 - 不运行 `npm run release`、不打 tag、不 publish，也不修改 `package.json` 版本号。
 - 不把 `self-check --manual` 用在 SessionStart 自动 hook；自动路径必须继续尊重提示节流。

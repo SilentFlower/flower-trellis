@@ -17,6 +17,16 @@ import {
 
 const CLI = path.resolve("bin/flower-trellis.js");
 
+test("prepare 的 Flower 继承需要显式来源且参数不会重复", () => {
+  const parsed = parseWorktreeArgs(["prepare", "--inherit-flower", "--source", "/tmp/source", "--inherit-route-prefs"]);
+  const args = worktreeEngineArgs(parsed, "/tmp/target", "/tmp/control");
+  assert.equal(args.filter((arg) => arg === "--source").length, 1);
+  assert.equal(args[args.indexOf("--source") + 1], "/tmp/source");
+  assert.throws(() => parseWorktreeArgs(["prepare", "--inherit-flower"]), /需要 --source/);
+  assert.throws(() => parseWorktreeArgs(["status", "--inherit-flower"]), /只用于/);
+  assert.throws(() => parseWorktreeArgs(["prepare", "--source", "/tmp/source"]), /需要显式/);
+});
+
 test("worktree 根级帮助展示子命令导航并正常退出", () => {
   const result = spawnSync(process.execPath, [CLI, "worktree", "--help"], {
     cwd: path.resolve("."),
@@ -222,6 +232,9 @@ test("trellis-worktree Skill 读取 package context 并要求子仓独立确认"
   assert.match(skill, /get_context\.py --mode packages/);
   assert.match(skill, /independent Git package/);
   assert.match(skill, /never infer a child repository base from the root branch/);
+  assert.match(skill, /prepare --target <target> --inherit-flower --source <source>/);
+  assert.match(skill, /Trellis readiness does not prove Flower installation completeness/);
+  assert.match(skill, /same plan fingerprint/);
 });
 
 test("Python 命令拆分不经过 shell", () => {

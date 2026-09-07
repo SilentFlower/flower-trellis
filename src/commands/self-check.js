@@ -14,7 +14,9 @@ function printSelfCheckHelp() {
   --force-remote   强制检查远端版本
   --target <dir>   要检查的项目目录
 
-该命令供 SessionStart hook 和自动化读取，成功时始终输出 JSON。`);
+该命令供 SessionStart hook 和自动化读取，成功时始终输出 JSON。
+project.flowerVersionStatus 区分 known/unknown；记录缺失且无已知更新时返回
+project_unknown，不能以 CLI 最新推断项目也已更新。`);
 }
 
 /**

@@ -459,15 +459,16 @@ runWithTrellisIntegrationEnabled(projectRoot, operation)
 - Trigger: 新增或修改 `trellis-worktree` skill、`worktree_setup.py`、Flower `worktree` facade、
   linked Git worktree 的分支本地 Trellis/平台入口、schema v1 迁移、common-dir registry/锁，
   或 hook / untracked 的 worktree 根解析。
-- Scope: 每个 worktree 只加载当前分支自己的 `.trellis`、`.agents`、`.codex`、`.claude`、
-  `.flower` 和本地 runtime；普通 task、untracked、check、push 阶段语义不改变。
+- Scope: 每个 worktree 运行时只加载当前分支自己的 `.trellis`、`.agents`、`.codex`、`.claude`、
+  `.flower` 和本地 runtime；准备阶段可从同仓 worktree 继承经过目标内容验证的独立 Flower 记录。
+  普通 task、untracked、check、push 阶段语义不改变。
 
 ### 2. Signatures
 
 ```bash
 flower-trellis worktree status [--target <path>] [--json]
 flower-trellis worktree prepare [--target <path>] [--developer <name>] \
-  [--inherit-route-prefs] [--json]
+  [--inherit-route-prefs] [--inherit-flower --source <path>] [--json]
 flower-trellis worktree migrate [--target <path>] [--dry-run] [--json]
 flower-trellis worktree create --target <path> --branch <branch> [--base <ref>] \
   --task-title <title> --task-slug <slug> [--developer <name>] [--json]
@@ -497,10 +498,34 @@ flower-trellis worktree remove --target <path> [--json]
   命令；目标可能仍是 legacy symlink。只允许使用显式 `TRELLIS_PYTHON_CMD` 或当前平台默认值。
 - `prepare` 默认只创建目标自己的 `.trellis/.developer`、`.trellis/.runtime/sessions` 和 registry
   元数据；身份来自 `--developer`、目标本地文件或 common registry，不读取其它 worktree 文件。
-  仅显式 `--inherit-route-prefs` 时，Flower facade 才把当前控制 worktree 作为 engine `--source`；engine
+  显式 `--inherit-route-prefs` 时，Flower facade 把当前控制 worktree 作为 engine `--source`；同时显式
+  `--inherit-flower --source <path>` 时使用该同仓来源。engine
   必须先验证 source/target canonical git-common-dir 和开发者身份相同，再读取 source 的普通文件
   `.trellis/.route-prefs.tmp`。目标偏好已存在时保留，来源缺失或无合法值时完成 prepare 但报告未继承。
   获取 registry 锁后必须重新读取并校验 registry，再进行任何目标本地写入。
+- `.flower` 缺失单独作为 Flower 安装记录不完整处理，即使模板声明过该目录也不据此要求重装 Trellis。
+  `ready-local` 不证明 Flower 完整；skill 对 `flower.installation=incomplete` 也必须处理补配。
+- create 默认把 Flower 继承纳入计划；prepare 仅在 `--inherit-flower --source <path>` 下继承。
+  源/目标 canonical Git common dir 必须相同。白名单为缺失的 plugins、plugin-lock、state；settings
+  仅在同开发者且目标缺失时继承规范化 updateCheck 策略。目标已有记录保留原字节与权限，部分记录
+  必须与整个来源安装集合一致，不拼接不同版本。源记录缺失返回 unavailable，损坏或冲突失败。
+- 继承前使用 Flower 既有 schema、lock 可达性及状态摘要规则校验声明、lock、state、平台和内容选择。
+  源与目标的受管文件/目录/Patch 必须匹配；校验所有祖先路径，不跟随跨 worktree 软链接。
+  本地 Plugin 来源必须在目标存在且内容与来源一致。不能仅复制版本记录冒充已安装，也不调用 replay、
+  下载包或复制插件内容补平分支差异。源或目标存在 trellis-control 时停止继承，保留恢复语义。
+- Flower JS 随包服务拥有完整校验和写入；facade 提供自身 Node 与服务路径，由 Python engine 在生命周期
+  内通过 JSON 调用。不得从目标分支加载适配器；直接 engine 缺少适配器时，Flower 继承明确要求外部 CLI，
+  纯 Trellis 仍可准备。status 单独返回版本来源和 complete/incomplete/invalid；无适配器为 unchecked。
+- facade 固定 `FLOWER_WORKTREE_NODE=process.execPath` 和 `FLOWER_WORKTREE_HELPER` 为自身随包服务，
+  覆盖继承环境中的同名值。内部 stdin JSON 的 `operation=status|plan|apply|rollback`；成功必须返回
+  `{ok:true,result:{...}}` 且退出 0，非法结果或 60 秒超时返回 `flower-adapter-failed`。
+  `localStateTransfer.flower.action` 为 `inherited|preserved|unavailable|notRequested`；有计划时包含
+  `source`、`paths`、`digest`、`validationPending` 和 `reason`，回执不进入公开结果。
+  冲突沿用顶层 `status=error` 与 `reason/path`，不伪装成成功结果中的 blocked action。
+- 安装载荷原始字节摘要进入 create 指纹；忽略或未提交的白名单记录变化也使旧计划失效。
+  checkout 后、task 创建前重新验证目标。prepare 用项目外回执记录写入 inode 与摘要，失败仅清理本轮
+  创建且未被修改的文件；适配器输出丢失也能从回执恢复。已有忽略规则不覆盖 state 时拒绝写入，
+  缺少局部 `.flower/.gitignore` 时生成标准规则，不改根忽略策略，不复制缓存或事务。
 - schema v1 `.trellis-worktree.json` 只读兼容。自动迁移要求 manifest target/path 白名单有效、
   symlink 仍指向 manifest 声明来源，并且目标分支 `HEAD` 能重建全部受管真实目录。
   旧 `sourceRoot` 只用于验证 symlink，禁止作为迁移内容源。
@@ -519,20 +544,21 @@ flower-trellis worktree remove --target <path> [--json]
   `reason=create-plan-changed` 和最新计划，且零写入。
 - `create --base` 缺省时使用来源当前分支；来源 detached 时回退 `HEAD`。计划必须展示 source 仓名、
   canonical path、branch、HEAD，requested/effective base 与 resolved commit，以及 target branch/path/task。
-  来源根仓 tracked/staged/untracked/conflict 状态只作为 warning，明确 `includedInBase=false`；不得复制、
-  stash、提交或把 dirty 自动升级为 blocker。
+  来源根仓 tracked/staged/untracked/conflict 状态只作为 warning，明确 `includedInBase=false`；不得 stash、
+  提交或把 dirty 自动升级为 blocker。只有单独列入 Flower 继承计划的白名单记录可作为目标候选，
+  其它 dirty 内容不得复制。
 - 计划必须按 selected base commit 盘点根仓与 mode `160000` gitlink，记录各 repository name/path/base
   commit；根仓固定 `selected=true`、`createsBranch=true` 并记录 target branch，submodule 固定
   `selected=false`、`createsBranch=false`、`targetBranch=null`。已初始化来源 submodule 额外记录
   branch/HEAD，但不得 fetch、checkout 或复制 working tree。
-- create/prepare 唯一允许继承的个人偏好是 `.trellis/.route-prefs.tmp`：只读取普通文件，只接受
+- create/prepare 的个人偏好限于规范化 Flower 更新策略及 `.trellis/.route-prefs.tmp`。后者只读取普通文件，只接受
   `implement=inline|subagent` 和 `check=check-all-inline|check-all-subagent`，按 implement/check 固定顺序
   重写规范值，禁止复制原始字节。create 仅在目标 developer 与来源 `.developer` 相同时自动继承。
-- 不继承 current task/session、untracked/pre-check/auto-loop/Ralph、agent 临时状态、`.flower/state.json`、
+- 不继承 current task/session、untracked/pre-check/auto-loop/Ralph、agent 临时状态、Flower control/detached 状态、
   `.claude/settings.local.json`、cache、transaction 或 backup。handoff 必须返回 cwd、workspaceRoot、
   `requiresNewSession=true` 和原因；目标后续规划必须在新会话开始。
 - 确认后执行顺序为：校验 path/branch/base/fingerprint -> `git worktree add -b` -> local readiness ->
-  目标 developer/runtime/规范化 route 偏好 -> `task.py create --no-start` -> `set-branch` -> registry ->
+  目标 developer/runtime/规范化 route 偏好 -> 校验并继承 Flower -> `task.py create --no-start` -> `set-branch` -> registry ->
   handoff。失败只逆序清理本轮创建的 task/worktree/branch/registry。
 - `remove` 要求 registry 精确匹配、Git clean、无活动 session/锁，且绑定 task 不处于 planning 或
   in_progress；主 worktree 和唯一 worktree 永远不得通过该命令移除。成功只移除 worktree 和
@@ -556,8 +582,17 @@ flower-trellis worktree remove --target <path> [--json]
 | create 首次调用 | 返回只读完整计划与 fingerprint；target/branch/registry 均不变化 |
 | 来源 current branch 或显式 base ref 变化、HEAD/dirty/submodule/route 偏好变化 | 旧 fingerprint 返回 `reason=create-plan-changed` 与最新计划；零写入 |
 | 来源 route 偏好是 symlink/目录/无合法值，或 create 目标开发者不同 | 不读取或不继承；其它 create 计划事实仍可确认 |
-| prepare 未传 `--inherit-route-prefs` | 不读取任何其它 worktree；只准备目标本地身份/runtime/registry |
-| prepare 显式继承但 source/target 不同仓或不同开发者 | 稳定错误且目标本地状态零部分写入 |
+| prepare 未传 `--inherit-route-prefs` 和 `--inherit-flower` | 不读取任何其它 worktree；只准备目标本地身份/runtime/registry |
+| prepare 显式继承但 source/target 不同仓，或显式继承 route 偏好且开发者不同 | 稳定错误且目标本地状态零部分写入 |
+| prepare 仅继承 Flower 且开发者不同 | 可继承经验证的安装记录，不继承 settings 用户策略 |
+| Trellis 已 ready-local 但 Flower 三份安装记录不全 | `flower.installation=incomplete`；skill 仍进入显式 Flower prepare |
+| 目标安装记录完整有效 | `action=preserved`，保留已有字节和权限，不读取来源安装记录 |
+| 来源安装记录缺失 | `action=unavailable`、`reason=source-installation-missing`；不补出半套记录，纯 Trellis 可继续 |
+| 记录集合不一致、目标已有冲突记录或 JSON 损坏 | `flower-installation-conflict` 或 `flower-record-invalid`；写入前拒绝 |
+| 目标 Trellis 不兼容、本地 Plugin 来源缺失或不同、state 未被既有规则忽略 | `flower-trellis-incompatible`、`flower-local-source-missing`、`flower-local-source-conflict` 或 `flower-ignore-conflict`；不写安装记录 |
+| 受管内容摘要漂移、祖先软链或存在 control 状态 | 拒绝继承并报告路径/原因；不复制插件内容来补平差异 |
+| 预检后白名单记录原始字节变化 | create 返回 `create-plan-changed`；内部 apply 返回 `flower-plan-changed`，均不使用旧载荷 |
+| prepare 写入后适配器输出丢失或后续步骤失败 | 从项目外回执清理本轮新增且未改动的文件；遇到外部修改保留文件并报告回滚不完整 |
 | create 中 task 或 readiness 失败 | 回滚本轮新 worktree/branch/registry，不删除预先存在对象 |
 | remove 遇到 dirty、active task/session/lock 或 registry drift | 失败关闭，worktree 和 branch 保留 |
 | remove 目标是主 worktree 或唯一 worktree | `reason=remove-main-worktree-forbidden`；目标目录保持不变 |
@@ -571,9 +606,13 @@ flower-trellis worktree remove --target <path> [--json]
 
 - Good: 两个分支分别提交不同 workflow/spec/skill，两个 worktree 都只读取自己的文件。
 - Good: 新并行任务先运行 `flower-trellis worktree create`，再在 handoff cwd 启动新会话规划。
+- Good: `.flower/` 被 Git 忽略时，create 仍继承与目标受管内容匹配的独立安装记录。
+- Good: 手动创建的 worktree 已 ready-local，skill 通过 `prepare --inherit-flower --source <source>` 补配。
 - Good: legacy migration 的候选内容只来自目标 `HEAD`，旧 source 分支更新不会进入迁移结果。
 - Good: remove 在 registry 故障注入后恢复原 worktree、task 文件和 `.trellis/.runtime` 本地状态。
 - Base: 当前分支未启用 `.claude` 时，缺少 `.claude` 不阻断 ready-local。
+- Base: 纯 Trellis 来源无 Flower 记录时报告 unavailable，不推定需要安装 Flower。
+- Bad: 只复制 lock 或直接复制来源 state 后宣称目标已安装，未校验目标内容及完整插件集合。
 - Bad: 把 `.trellis` 或平台目录 symlink 到另一个 worktree；分支切换会跨目录污染运行语义。
 - Bad: 把 tasks/spec/workspace/session 放进 common-dir registry；registry 只能保存机器映射和锁。
 - Bad: 为了 remove 方便使用 `--force` 绕过 dirty/task/session 检查或顺带删除 branch。
@@ -590,6 +629,10 @@ flower-trellis worktree remove --target <path> [--json]
 - `test_workflow_state_hook.py` 必须覆盖 linked cwd 只输出 local-missing 诊断及嵌套 `.git` 边界。
 - `worktree-cli.test.js` 必须覆盖 facade parse、确认参数、prepare route 来源注入、无 shell Python
   命令调用、禁用 legacy 生成证据和真实 CLI status。
+- `worktree-flower-state.test.js` 必须覆盖离线继承、独立文件、幂等、目标记录保留、schema/集合冲突、
+  文件/目录/Patch 摘要、兼容范围、本地来源、软链和跨仓边界，以及回执清理与外部修改保留。
+- `test_worktree_setup.py` 的 Flower 场景必须经真实 facade 覆盖 create 和 ready-local 补配，
+  断言来源忽略文件变化使指纹失效、目标漂移时创建回滚、适配器非法结果/超时拒绝及输出丢失补偿。
 - 改动 helper 或 fallback 后至少运行相关 Python 单测、`python3 -m py_compile`、`npm run sync`、
   `npm run patch:targets:check`、`git diff --check`；Patch target 改动还要先刷新 compiled targets。
 
@@ -600,9 +643,10 @@ flower-trellis worktree remove --target <path> [--json]
 ```bash
 ln -s <main-worktree>/.trellis <linked-worktree>/.trellis
 ln -s <main-worktree>/.codex <linked-worktree>/.codex
+cp -r <main-worktree>/.flower <linked-worktree>/.flower
 ```
 
-问题:整目录链接让一个分支执行另一个分支的 workflow、spec、task 和平台配置。
+问题:整目录链接让一个分支执行另一个分支的配置；直接复制 Flower 目录会混入缓存和控制状态，且不能证明目标安装内容一致。
 
 #### Correct
 
@@ -613,6 +657,9 @@ flower-trellis worktree create --target <linked-worktree> --branch feature/examp
 flower-trellis worktree create --target <linked-worktree> --branch feature/example \
   --task-title "Example" --task-slug example \
   --yes --plan-fingerprint <returned-sha256>
+# 已有 worktree 缺安装记录时：
+flower-trellis worktree prepare --target <linked-worktree> \
+  --inherit-flower --source <main-worktree> --json
 ```
 
 原因:先确认来源分支、基线提交、多仓清单和本地状态边界，再由目标分支自己的 Trellis 创建 planning
@@ -673,7 +720,13 @@ src/assets/flower_update_hook.py
 ### 3. Contracts
 
 - `self-check --json` 始终输出 JSON,状态至少包括 `update_available`、
-  `project_out_of_sync`、`up_to_date`、`disabled`、`skipped`、`offline`。
+  `project_out_of_sync`、`project_unknown`、`up_to_date`、`disabled`、`skipped`、`offline`。
+- `project.flowerVersionStatus=known|unknown` 和 `flowerVersionSource=plugin-lock|legacy-manifest|null`
+  分别说明版本证据是否存在及来源。版本未知不能用 CLI 版本填补；known 不等于安装完整性已验证。
+  远端或有效缓存无新版、无已知本地差异且项目版本未知时，返回 `project_unknown` 与
+  `reason=project_flower_version_unknown`，查询退出 0，无推荐写命令或阻塞式启动提示。
+  远端新版、真实本地差异、离线及关闭/npx 的既有优先级不变。普通 self-update 对未知准确说明，
+  显式 project-only 沿用原边界；worktree skill 优先通过准备流程补齐可验证的安装信息。
 - `self-check --manual` / `--ignore-prompt-suppression` 是用户显式检查入口，只绕过
   prompt suppression(`prompt_cooldown` / `prompt_snooze` / `prompt_skip`)，不绕过
   `--no-update-check`、`FLOWER_NO_UPDATE_CHECK`、`policy=off`、npx 短路、远程探测、
@@ -721,7 +774,8 @@ src/assets/flower_update_hook.py
   `lastStatus` / `lastErrorCode=null`),让主动更新后的下次 SessionStart 使用最新远程证据。目标既无
   Plugin lock 又无旧 manifest 时跳过；写缓存失败不得阻断主流程。
 - `self-check --json` 本次写入远端缓存后,返回对象内的 `updateCheck` 必须重新读取写后视图;
-  顶层 `status` 与 `updateCheck.lastStatus` 不得滞后一轮。离线写入同样适用。
+  顶层结果与缓存视图不得滞后一轮。`updateCheck.lastStatus` 表示远端结果，最终 `status` 还综合
+  本地版本证据，因此可为 `project_unknown` 或 `project_out_of_sync`。离线写入同样适用。
 - `self-check --json` 由启动 hook 调用时必须记录非抑制 actionable 提示的
   `lastPromptedAt` / `lastPromptedKey`；被冷却、延后或跳过抑制时返回
   `status=skipped` 与 `reason=prompt_cooldown|prompt_snooze|prompt_skip`，并在
@@ -786,7 +840,8 @@ src/assets/flower_update_hook.py
 | 本地 `flowerVersion` 或 `.trellis/.version` 不一致,且缓存仍新鲜无更新 | 返回 `project_out_of_sync`,推荐 `self-update --project-only`,远端来源标记为 cache |
 | 本地 `flowerVersion` 不一致、缓存仍新鲜无更新,但当前范围无可复用 `lastReleaseNotes` | 为 release notes 主动补拉一次 registry metadata;有摘要则输出并只写 `lastReleaseNotes`,失败或无摘要则输出 `releaseNotes.unavailable=true`,不刷新远端缓存状态 |
 | 缓存的 `lastReleaseNotes.range.reason=update_available`,本次结果为 `project_out_of_sync`,且 `from` / `to` / `channel` 相同 | 复用缓存摘要并把输出 range reason 归一为 `project_out_of_sync` |
-| `lastCheckedAt` 仍在 interval 内且缓存无更新且项目不 out-of-sync | 返回 `skipped/interval_not_elapsed` |
+| `lastCheckedAt` 仍在 interval 内且缓存无更新、项目版本已知且不 out-of-sync | 返回 `skipped/interval_not_elapsed` |
+| 远端或新鲜缓存无更新、无已知差异、Flower 项目版本缺失 | 返回 `project_unknown`，不生成更新命令，hook 静默 |
 | `lastCheckedAt` 仍在 interval 内但缓存显示有更新 | 返回 `update_available`,来源标记为 cache |
 | 同一 `prompt.key` 已在 24 小时内提示过 | 返回 `skipped/prompt_cooldown`,hook 静默 |
 | 当前 `prompt.key` 已 snooze 且 `promptSuppressedUntil` 未到 | 返回 `skipped/prompt_snooze`,hook 静默 |
@@ -806,6 +861,8 @@ src/assets/flower_update_hook.py
 - Good: 项目 lock 记录 `flower/skill-garden@0.4.1`,当前安装 `0.4.2`,缓存仍新鲜且
   `lastRemote.latest=0.4.2`,启动 hook 注入 `project_out_of_sync` 和
   `flower-trellis self-update --target <dir> --yes --project-only`。
+- Base: 项目缺版本记录且远端无新版时返回 `project_unknown`，保留 `flowerVersion=null`；
+  CLI 最新不等于项目安装已验证，worktree 先走可验证的记录补配。
 - Good: 项目 lock 记录 `flower/skill-garden@0.4.1`,当前安装 `0.4.2`,缓存过期且
   远端 `latest=0.4.3`,启动 hook 注入 `update_available`,推荐完整
   `flower-trellis self-update --target <dir> --yes`,并保留项目 out-of-sync 证据。
@@ -834,6 +891,9 @@ src/assets/flower_update_hook.py
     是合法 JSON,且顶层字段不包含 `additional_context`。
   - `git diff --check`
 - CLI 行为:
+  - `update-check.test.js` 覆盖无 lock/旧 manifest 时的 `project_unknown`、空写命令、缓存重算、
+    legacy 回退、远端新版和离线优先级；`test_flower_update_hook.py` 断言未知状态静默，
+    `update_available` 与 `project_out_of_sync` 仍正常注入。
   - `self-check --json --target <dir> --no-update-check` 返回稳定 `disabled` JSON。
   - 强制远端成功或失败并写入 tmp 后,当次返回的 `updateCheck.lastStatus` /
     `lastErrorCode` 与写后缓存一致。

@@ -233,7 +233,7 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(untrackedState, /task_intent\.py adopt/);
   assert.match(untrackedState, /never authorizes immediate implementation/);
   assert.match(planningState, /task_intent\.py discard --task <current-task>/);
-  assert.match(brainstorm, /Wait for the user's planning review confirmation/);
+  assert.match(brainstorm, /wait for the user's planning review confirmation/i);
   assert.match(brainstormQualityBar, /contains testable acceptance criteria/);
   assert.match(brainstormQualityBar, /Repository-answerable questions have already been answered/);
   assert.match(taskBrief, /默认等待用户确认后再运行 `task\.py start`/);

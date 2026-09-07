@@ -515,7 +515,11 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         refresh = self.runner("next")
         self.assertEqual(refresh["action"], "refresh_brief")
         brief.write_text("# Brief\n\nUpdated\n", encoding="utf-8")
-        self.runner("record", "--action", "refresh_brief", "--result", "ok")
+        # 显式建立刷新后的时序，避免测试依赖连续写入时的系统时钟精度。
+        refreshed_ns = max(brief.stat().st_mtime_ns, prd.stat().st_mtime_ns + 1)
+        os.utime(brief, ns=(refreshed_ns, refreshed_ns))
+        recorded = self.runner("record", "--action", "refresh_brief", "--result", "ok")
+        self.assertEqual(recorded["status"], "recorded")
 
         self.assertEqual(self.runner("next")["action"], "start_task")
 

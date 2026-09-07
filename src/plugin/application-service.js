@@ -13,6 +13,7 @@ import { projectPluginContent } from "./install/content-projector.js";
 import { createInstallPlan } from "./install/install-planner.js";
 import { TransactionWriter } from "./install/transaction-writer.js";
 import { hashDirectoryIfExists, hashFileIfExists } from "./install/content-hash.js";
+import { assertPluginStateMatches as assertPreservedState } from "./install/state-validation.js";
 import { getPluginPatchPlanner } from "./runtime-extensions.js";
 import { isRuntimeBuiltinProviderTrusted } from "./runtime-extensions.js";
 import { compareUtf8 } from "./stable-order.js";
@@ -103,50 +104,6 @@ function standardContentPlan(graph) {
     patchPayloads: new Map(),
     patchReport: null,
   };
-}
-
-/**
- * 校验冻结 Plugin 的 lock/state 对应关系与当前目标摘要。
- *
- * @param {string} projectRoot 项目根
- * @param {import("./contracts.js").ResolvedPlugin} locked 冻结 lock entry
- * @param {import("./contracts.js").PluginStateEntry} applied 冻结 state entry
- * @returns {void}
- */
-function assertPreservedState(projectRoot, locked, applied) {
-  if (
-    applied.version !== locked.version ||
-    !contentSelectionsEqual(applied.contentSelection, locked.contentSelection)
-  ) {
-    throw new PluginRuntimeError(`冻结 Plugin 的 lock/state 不一致:${locked.id}`, {
-      code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
-      path: locked.id,
-    });
-  }
-  for (const entry of applied.paths) {
-    const target = path.join(projectRoot, ...entry.path.split("/"));
-    const actual = entry.kind === "directory"
-      ? hashDirectoryIfExists(target)
-      : hashFileIfExists(target);
-    if (actual !== entry.hash) {
-      throw new PluginRuntimeError(`冻结 Plugin 目标摘要漂移:${entry.path}`, {
-        code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
-        path: entry.path,
-        details: { expected: entry.hash, actual },
-      });
-    }
-  }
-  for (const patchEntry of applied.patches) {
-    const target = path.join(projectRoot, ...patchEntry.target.split("/"));
-    const actual = hashFileIfExists(target);
-    if (actual !== patchEntry.resultHash) {
-      throw new PluginRuntimeError(`冻结 Plugin Patch 目标摘要漂移:${patchEntry.target}`, {
-        code: PLUGIN_RUNTIME_ERROR_CODES.TARGET_DRIFT,
-        path: patchEntry.target,
-        details: { expected: patchEntry.resultHash, actual },
-      });
-    }
-  }
 }
 
 /**

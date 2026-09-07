@@ -199,7 +199,9 @@ async function executeSelfUpdate(ctx) {
   }
 
   if (!shouldInstallFlower && !projectOnly && check.status !== "project_out_of_sync") {
-    console.log(`  · 当前状态:${check.status},无需执行 self-update`);
+    console.log(check.status === "project_unknown"
+      ? "  · 项目 Flower 版本无法确认，未执行更新；worktree 可先通过 prepare --inherit-flower 补齐安装记录"
+      : `  · 当前状态:${check.status},无需执行 self-update`);
     return;
   }
 
