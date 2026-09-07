@@ -1372,3 +1372,40 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Next Steps
 
 - 由实际使用者确认 Codex / Claude 新会话接收与必要的 hook 信任复核；Windows 实机验证仍待执行。
+
+
+## Session 102: 归档 Flower 团队克隆安装与版本记录
+
+**Date**: 2026-09-07
+**Task**: 归档 Flower 团队克隆安装与版本记录
+**Branch**: `main`
+
+### Summary
+
+完成共享记录忽略规则、旧 manifest 事务迁移删除及复用 hook 的 CLI 安装引导，修复异常锁来源类型；检查通过，两仓业务和任务记录已推送。
+
+### Main Changes
+
+- Flower 主仓 e86217c：共享三文件的幂等规则、配置迁移删除与回滚、锁定版本安装引导。
+- Skill-Garden 子仓 fdfb5f1：两份手动升级 skill 复用 bootstrap-only，快照与子模块指针已同步。
+- 任务记录 cc789c0 已推送；决策审计无待审项，release.md 已记录后续项目升级、成员安装、回滚及验证事项。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e86217c` | (see git log) |
+| `fdfb5f1` | (see git log) |
+
+### Testing
+
+- [OK] 首次全量 JS 550、Python 342 及 Patch、compiled targets、上下文预算与模板门禁通过；修复后 Python 9/9、部署和分发回归 19/19 通过。
+- [OK] Windows 原生专项在 WSL 跳过，未执行真实全局 npm 安装；本次归档不重复运行未变更代码的测试。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 后续发布后按归档 release.md 升级目标项目并验证成员安装。
