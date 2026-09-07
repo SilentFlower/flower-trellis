@@ -111,9 +111,25 @@ test("Maven owner 契约区分 implement 产证与 Check-All 只读复用", () =
   assert.match(implement, /do not run extra Maven builds merely to compare thread counts/);
   assert.match(implement, /Do not broaden to `clean`, `package`, `install`, `deploy`/);
   for (const profile of [lightAgents, lightClaude, fullAgents, fullClaude]) {
-    assert.match(profile, /maven_verify\.py check --latest --require-plan/);
-    assert.match(profile, /不得调用 `plan` \/ `run`|不得调用 `maven_verify\.py plan\/run`/);
-    assert.match(profile, /不得.*Maven goal/);
+    assert.match(profile, /references\/verification\.md/);
+  }
+  for (const platform of [".agents", ".claude"]) {
+    const verification = read(
+      sourceRoot,
+      `${platform}/skills/trellis-check-all/references/verification.md`,
+    );
+    assert.match(verification, /Maven reactor 时才读取 `references\/maven-evidence\.md`/);
+    assert.match(verification, /不得调用 `plan` \/ `run`/);
+    assert.match(verification, /不得.*Maven goal/);
+    const maven = read(
+      sourceRoot,
+      `${platform}/skills/trellis-check-all/references/maven-evidence.md`,
+    );
+    assert.match(maven, /maven_verify\.py check --latest --require-plan/);
+    assert.match(maven, /不得调用 `plan` \/ `run` 或任何 Maven goal/);
+    for (const status of ["reusable", "partial", "stale", "failed", "blocked"]) {
+      assert.ok(maven.includes(`\`${status}\``), status);
+    }
   }
   assert.match(agentBody, /may only run `python3 \.\/\.trellis\/scripts\/maven_verify\.py check/);
   assert.match(agentBody, /Do not run `plan`, `run`, `mvn`, `mvnw`/);
@@ -187,7 +203,17 @@ test("Plugin 只选择 Check-All 时仍携带 Maven evidence helper", () => {
     path.join(target, ".agents/skills/trellis-check-all/references/light-profile.md"),
     "utf8",
   );
-  assert.match(light, /maven_verify\.py check --latest --require-plan/);
+  assert.match(light, /references\/verification\.md/);
+  const verification = fs.readFileSync(
+    path.join(target, ".agents/skills/trellis-check-all/references/verification.md"),
+    "utf8",
+  );
+  assert.match(verification, /references\/maven-evidence\.md/);
+  const maven = fs.readFileSync(
+    path.join(target, ".agents/skills/trellis-check-all/references/maven-evidence.md"),
+    "utf8",
+  );
+  assert.match(maven, /maven_verify\.py check --latest --require-plan/);
   assert.doesNotMatch(light, /读取 `trellis-maven-verify`/);
 });
 

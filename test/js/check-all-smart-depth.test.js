@@ -126,12 +126,17 @@ test("Light 与 Full 统一按充分验证证据判断，不把自动化文件�
   );
 
   for (const profile of [light, full]) {
-    assert.match(profile, /自动化测试优先/);
-    assert.match(profile, /可重复的手动步骤、静态检查或定向命令/);
-    assert.match(profile, /仅缺少自动化测试文件不得生成 `CHK-\*`/);
-    assert.match(profile, /项目 spec、风险等级或回归概率明确要求自动化覆盖/);
-    assert.match(profile, /缺少完成当前结论所必需的充分证据.*`CHK-\*`/s);
+    assert.match(profile, /references\/verification\.md/);
   }
+  const verification = read(
+    sourceRoot,
+    ".agents/skills/trellis-check-all/references/verification.md",
+  );
+  assert.match(verification, /自动化测试优先/);
+  assert.match(verification, /可重复的手动步骤、静态检查或定向命令/);
+  assert.match(verification, /仅缺少自动化测试文件不得生成 `CHK-\*`/);
+  assert.match(verification, /项目 spec、风险等级或回归概率明确要求自动化覆盖/);
+  assert.match(verification, /缺少完成当前结论所必需的充分证据.*`CHK-\*`/s);
 
   assert.match(reporting, /`部分验证`：当前结论必需、提交前可完成但证据不足/);
   assert.match(reporting, /`\[上线后验证\]`：仅部署后、生产或外部系统可安全验收/);
@@ -224,6 +229,7 @@ test("0.6 发布快照与智能检查源保持一致", () => {
     ".agents/skills/trellis-check-all/references/document-drift-auto-remediation.md",
     ".agents/skills/trellis-check-all/references/full-profile.md",
     ".agents/skills/trellis-check-all/references/light-profile.md",
+    ".agents/skills/trellis-check-all/references/verification.md",
     ".agents/skills/trellis-check-all/references/fallback-findings.md",
     ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
     ".claude/skills/trellis-check-all/references/depth-routing.md",
@@ -231,6 +237,7 @@ test("0.6 发布快照与智能检查源保持一致", () => {
     ".claude/skills/trellis-check-all/references/code-comment-auto-remediation.md",
     ".claude/skills/trellis-check-all/references/full-profile.md",
     ".claude/skills/trellis-check-all/references/light-profile.md",
+    ".claude/skills/trellis-check-all/references/verification.md",
     ".claude/skills/trellis-check-all/references/fallback-findings.md",
     ".claude/skills/trellis-check-all/references/reporting-and-disposition.md",
     ".agents/skills/trellis-route/SKILL.md",
