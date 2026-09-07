@@ -4,6 +4,29 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.7](https://github.com/SilentFlower/flower-trellis/compare/v0.6.6...v0.6.7) (2026-09-07)
+
+
+### ✨ 新功能 Features
+
+* **bootstrap:** 完善团队版本记录与 CLI 安装引导 ([e86217c](https://github.com/SilentFlower/flower-trellis/commit/e86217c5a121b35509ad972540c2c0adf3763b64))
+
+
+### 🐛 修复 Bug Fixes
+
+* **worktree:** 补齐 Flower 安装记录继承与版本诊断 ([17ad63e](https://github.com/SilentFlower/flower-trellis/commit/17ad63efd9f56ecf491c9402ef92469c70db3ea1))
+
+
+### ♻️ 重构 Refactor
+
+* **check-all:** 同步检查优化与回归验证 ([1409d42](https://github.com/SilentFlower/flower-trellis/commit/1409d421884cfe35a95342b6e68b3b7b80496e29))
+
+
+### 🧰 维护 Maintenance
+
+* **trellis:** 同步 Flower 0.6.6 工作流与 hooks ([11ae2b9](https://github.com/SilentFlower/flower-trellis/commit/11ae2b96b543da1a01e8a1871471d0752f1a04af))
+* **trellis:** 同步本地安装产物与 Flower 记录 ([5a78ca0](https://github.com/SilentFlower/flower-trellis/commit/5a78ca01434e26287caaed8b3e68321a1efd7cc7))
+
 ## [0.6.6](https://github.com/SilentFlower/flower-trellis/compare/v0.6.5...v0.6.6) (2026-09-07)
 
 
