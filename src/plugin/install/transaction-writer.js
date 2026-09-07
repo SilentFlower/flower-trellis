@@ -173,9 +173,13 @@ export class TransactionWriter {
     const completed = [];
     let transactionCreated = false;
     const manifestPath = path.join(transactionRoot, "transaction.json");
+    const ignorePath = this.#resolveTarget(realRoot, ".flower/.gitignore");
+    const ignoreBefore = hashFileIfExists(ignorePath) === null ? null : this.fileSystem.readFileSync(ignorePath);
+    let layoutStarted = false;
     const transactionManifest = {
       schemaVersion: 1,
       id: transactionId,
+      layout: { path: ".flower/.gitignore", existed: ignoreBefore !== null, backup: "backup/layout-ignore.bin" },
       targets: targetMutations.map(({ kind, owners, target, operation, beforeHash, afterHash }) => ({
         kind,
         owners: [...owners].sort(),
@@ -188,16 +192,23 @@ export class TransactionWriter {
     };
 
     try {
+      // ensureLayout 先于目标备份写忽略规则，必须独立保留首次写入前的字节。
+      layoutStarted = true;
       this.store.ensureLayout();
       this.fileSystem.mkdirSync(transactionRoot, { mode: 0o700 });
       transactionCreated = true;
       this.fileSystem.mkdirSync(stagingRoot);
       this.fileSystem.mkdirSync(backupRoot);
+      if (ignoreBefore !== null) this.fileSystem.writeFileSync(path.join(backupRoot, "layout-ignore.bin"), ignoreBefore);
       targetMutations.forEach((mutation, index) => {
         const absoluteTarget = this.#resolveTarget(realRoot, mutation.target);
-        const existed = this.fileSystem.existsSync(absoluteTarget);
+        const isLayoutIgnore = mutation.target === ".flower/.gitignore";
+        const existed = isLayoutIgnore ? ignoreBefore !== null : this.fileSystem.existsSync(absoluteTarget);
         const backupPath = path.join(backupRoot, `target-${index}.bin`);
-        if (existed) this.fileSystem.copyFileSync(absoluteTarget, backupPath);
+        if (existed) {
+          if (isLayoutIgnore) this.fileSystem.writeFileSync(backupPath, ignoreBefore);
+          else this.fileSystem.copyFileSync(absoluteTarget, backupPath);
+        }
         targetBackups.push({ mutation, absoluteTarget, existed, backupPath });
         if (mutation.operation === "write" && mutation.beforeHash !== mutation.afterHash) {
           const stagingPath = path.join(stagingRoot, `target-${index}.bin`);
@@ -332,6 +343,16 @@ export class TransactionWriter {
           this.#restoreBackup(backup);
         } catch (rollbackError) {
           rollbackFailures.push({ path: backup.mutation.target, error: rollbackError });
+        }
+      }
+      if (layoutStarted) {
+        try {
+          this.onOperation({ phase: "rollback", kind: "layout", path: ".flower/.gitignore", index: 0 });
+          this.#resolveTarget(realRoot, ".flower/.gitignore");
+          if (ignoreBefore !== null) this.#atomicWrite(ignorePath, ignoreBefore);
+          else this.fileSystem.rmSync(ignorePath, { force: true });
+        } catch (rollbackError) {
+          rollbackFailures.push({ path: ".flower/.gitignore", error: rollbackError });
         }
       }
       for (const directory of [...createdDirectories].sort((left, right) => right.length - left.length)) {

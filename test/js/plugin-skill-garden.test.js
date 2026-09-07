@@ -248,7 +248,7 @@ test("Pi 旧私有 Skill 被用户修改时拒绝迁移删除", (t) => {
   assert.equal(fs.existsSync(path.join(legacyRoot, "SKILL.md")), true);
 });
 
-test("legacy manifest 只读迁移到 Plugin state 且重复运行不改旧证据", (t) => {
+test("legacy manifest 迁移后删除且重复运行保留来源标记", (t) => {
   const target = createTarget(t);
   quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
   fs.rmSync(path.join(target, ".flower"), { recursive: true, force: true });
@@ -272,15 +272,13 @@ test("legacy manifest 只读迁移到 Plugin state 且重复运行不改旧证�
     schemaVersion: 1,
   });
   assert.ok(state.plugins.some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID));
-  assert.equal(fs.readFileSync(legacyPath, "utf8"), legacyText);
+  assert.equal(fs.existsSync(legacyPath), false);
 
   const second = quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
   assert.equal(first.runtime.transaction.status, "applied");
   assert.equal(second.runtime.transaction.status, "unchanged");
   assert.equal(fs.readFileSync(statePath, "utf8"), firstState);
-  assert.equal(fs.readFileSync(legacyPath, "utf8"), legacyText);
-
-  fs.unlinkSync(legacyPath);
+  assert.equal(fs.existsSync(legacyPath), false);
   quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
   assert.deepEqual(JSON.parse(fs.readFileSync(statePath, "utf8")).migration, {
     source: "legacy-flower-manifest",
@@ -379,6 +377,9 @@ test("uninstall 计划在 Trellis 删除前报告仍依赖 skill-garden 的 Plug
 test("replay 冻结 skill-garden 时保留原 lock/state 且不重算 variant", (t) => {
   const target = createTarget(t);
   quietApply(target, { variant: "0.5", skills: ["trellis-route"] });
+  const legacyPath = path.join(target, ".trellis/.flower-manifest.json");
+  const legacyText = '{"flowerVersion":"0.1.0","paths":[]}\n';
+  fs.writeFileSync(legacyPath, legacyText);
   const store = new ProjectStore(target);
   const state = store.readState();
   state.migration = { source: "legacy-flower-manifest", schemaVersion: 1 };
@@ -416,6 +417,7 @@ test("replay 冻结 skill-garden 时保留原 lock/state 且不重算 variant", 
   assert.deepEqual(preflightPlan.patchMutations, []);
   assert.equal(fs.readFileSync(path.join(target, ".flower/plugin-lock.json"), "utf8"), beforeLock);
   assert.equal(fs.readFileSync(path.join(target, ".flower/state.json"), "utf8"), beforeState);
+  assert.equal(fs.readFileSync(legacyPath, "utf8"), legacyText);
 });
 
 test("移除 skill-garden 时清理不再有 owner 的 migration", (t) => {

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { writeManifest } from "../../src/lib/manifest.js";
+import { writeLegacyManifest } from "./plugin-test-helpers.js";
 import {
   FLOWER_TELEMETRY_ENDPOINT,
   buildTelemetryPayload,
@@ -48,7 +48,7 @@ function createFixture(t) {
   fs.mkdirSync(home, { recursive: true });
   fs.writeFileSync(path.join(target, ".trellis", ".version"), `${trellisVersion()}\n`);
   fs.writeFileSync(path.join(target, ".trellis", ".developer"), "name=测试开发者\n");
-  writeManifest(target, {
+  writeLegacyManifest(target, {
     flowerVersion: flowerVersion(),
     variant: "0.6",
     version: trellisVersion(),

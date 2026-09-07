@@ -86,6 +86,7 @@ ProjectStore.writeState(value) -> {status, path}
 - 用户级 `plugin-sources.json` schemaVersion 3 以 `type=gitlab|github` 判别自定义来源，并允许内置来源 `{id,enabled}` 偏好。schemaVersion 1/2 继续兼容旧 descriptor；与内置 ID 重名的旧完整记录只继承 `enabled`，下一次写入原子压缩为 v3 偏好，不能覆盖随包连接定义。v1 中出现 GitHub 必须拒绝。
 - GitHub 来源草稿可省略 `ref`，Provider 必须先解析仓库默认分支，再把实际 ref 写入持久化 descriptor；已保存 descriptor 的 `ref` 必填。`format=auto` 与 `entryPath` 互斥，确认格式后必须同时固定非 `auto` format 与安全 `entryPath`。
 - `state.json` 保存实际平台、路径 hash/ownership、Patch operation/target/result hash、事务版本和可选迁移来源。
+- `.flower/.gitignore` 仅放开共享三文件（自身、plugins、plugin-lock），settings/state/缓存/事务留在本机；根规则修正与 legacy 清理见 [Team Clone Bootstrap](./config-and-state.md#scenario-team-clone-bootstrap)。
 - 缺失 `plugins.json` 返回 `{schemaVersion: 1, plugins: []}`；缺失 lock/state 返回 `null`。损坏 JSON、未知版本或 schema 无效不能被当作缺失覆盖。
 
 ### Canonical Bytes And Storage

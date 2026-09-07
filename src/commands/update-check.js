@@ -106,11 +106,11 @@ export async function updateCheck(ctx) {
     const cachePath = updateCheckCachePath(ctx.target);
     console.log(`settings: ${settingsPath(ctx.target)}`);
     console.log(`cache: ${cachePath}`);
-    console.log(`legacy manifest: ${manifestPath(ctx.target)}`);
+    if (manifest) console.log(`legacy manifest (待迁移): ${manifestPath(ctx.target)}`);
     console.log(JSON.stringify(readUpdateCheck(ctx.target), null, 2));
-    if (!manifest) console.log("  · manifest 不存在,当前显示默认策略");
+    if (!manifest && !fs.existsSync(settingsPath(ctx.target))) console.log("  · settings 不存在,当前显示默认策略");
     if (!fs.existsSync(cachePath)) {
-      console.log("  · cache 不存在,当前显示默认或旧 manifest 兼容缓存");
+      console.log("  · cache 不存在,当前显示默认或旧记录兼容缓存");
     }
     return;
   }

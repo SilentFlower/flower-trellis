@@ -4,13 +4,7 @@ import crypto from "node:crypto";
 import { ProjectStore } from "../plugin/state/project-store.js";
 
 /**
- * flower-trellis 自己的安装清单。
- *
- * 记录「flower 上一次为该项目铺设了哪些强化文件」,使升级(如 0.5/old → 0.6)时
- * 能精确删除当前变体不再包含的过期 skill / command —— 只删自己铺过的路径,
- * 绝不误删用户或 Trellis 本体的文件。
- *
- * 放在 .trellis/ 下,随项目的 Trellis 生命周期存在(uninstall 删 .trellis 时一并消失)。
+ * 旧安装清单的兼容读取入口；成功迁移后删除，现代状态由 ProjectStore 管理。
  */
 const MANIFEST_REL = path.join(".trellis", ".flower-manifest.json");
 const LEGACY_UPDATE_CHECK_CACHE_REL = path.join(".trellis", ".flower-update-check.tmp");
@@ -374,18 +368,51 @@ export function readManifest(target) {
  * @returns {{status:"missing"|"valid"|"corrupt",manifest:object|null,error?:Error}} 迁移证据
  */
 export function readLegacyManifestStatus(target) {
-  const filePath = manifestPath(target);
-  try {
-    const text = fs.readFileSync(filePath, "utf8");
-    const manifest = JSON.parse(text);
-    if (!isPlainObject(manifest)) {
-      return { status: "corrupt", manifest: null, error: new Error("旧 manifest 必须是对象") };
-    }
-    return { status: "valid", manifest };
-  } catch (error) {
-    if (error?.code === "ENOENT") return { status: "missing", manifest: null };
-    return { status: "corrupt", manifest: null, error };
+  const result = readJsonFileStatus(manifestPath(target));
+  if (result.status === "valid" && !isPlainObject(result.value)) {
+    return { status: "corrupt", manifest: null, error: new Error("旧 manifest 必须是对象") };
   }
+  return { status: result.status, manifest: result.value, ...(result.error ? { error: result.error } : {}) };
+}
+
+/**
+ * 规划旧清单退出所需的配置写入及文件删除，保持 preflight 只读。
+ *
+ * @param {string} target 项目根
+ * @returns {Array<{path:string,content:Buffer|null}>} 固定目标及内容，null 表示删除
+ */
+export function planLegacyManifestMigration(target) {
+  const legacy = readLegacyManifestStatus(target);
+  if (legacy.status === "missing") return [];
+  if (legacy.status === "corrupt") throw new Error(`旧 flower manifest 损坏，拒绝删除:${manifestPath(target)}`, { cause: legacy.error });
+  const writes = [];
+  const settings = readSettingsStatus(target);
+  if (settings.status === "corrupt") throw new Error(`update-check settings 损坏，拒绝迁移:${settingsPath(target)}`, { cause: settings.error });
+  const updateCheck = legacy.manifest.updateCheck;
+  if (settings.status === "missing" && hasAnyOwn(updateCheck, UPDATE_CHECK_POLICY_KEYS)) {
+    writes.push({
+      path: ".flower/settings.json",
+      content: Buffer.from(JSON.stringify({ schemaVersion: 1, updateCheck: normalizeUpdateCheckPolicy(updateCheck) }, null, 2) + "\n"),
+    });
+  }
+  const cache = readJsonFileStatus(updateCheckCachePath(target));
+  if (cache.status === "corrupt" || (cache.status === "valid" && !isPlainObject(cache.value))) {
+    throw new Error(`update-check cache 损坏，拒绝迁移:${updateCheckCachePath(target)}`);
+  }
+  if (cache.status === "missing") {
+    const oldCache = readJsonFileStatus(path.join(target, LEGACY_UPDATE_CHECK_CACHE_REL));
+    if (oldCache.status === "corrupt" || (oldCache.status === "valid" && !isPlainObject(oldCache.value))) {
+      throw new Error("旧 update-check cache 损坏，拒绝丢失迁移证据");
+    }
+    if (oldCache.status === "valid" || hasLegacyUpdateCheckCache(updateCheck)) {
+      writes.push({
+        path: ".flower/update-check.tmp",
+        content: Buffer.from(JSON.stringify(normalizeUpdateCheckCache(oldCache.value || updateCheck), null, 2) + "\n"),
+      });
+    }
+  }
+  writes.push({ path: ".trellis/.flower-manifest.json", content: null });
+  return writes;
 }
 
 /**
@@ -406,7 +433,7 @@ export function normalizeUpdateCheck(value) {
 /**
  * 读取启动更新检查配置。
  *
- * 返回 manifest 策略与 tmp 运行缓存的合并视图;tmp 不存在时兼容读取旧 manifest 缓存字段。
+ * 返回现代 settings 策略与 tmp 缓存的合并视图，尚未迁移时兼容旧记录。
  *
  * @param {string} target 目标项目根
  * @returns {ReturnType<typeof normalizeUpdateCheck>} 归一化后的配置
@@ -463,28 +490,4 @@ export function writeUpdateCheck(target, patch) {
     migrateLegacyUpdateCheckCache(target, legacy);
   }
   return readUpdateCheck(target);
-}
-
-/**
- * 写入 manifest。
- *
- * 若调用方没有显式传入 `updateCheck`,保留目标项目已有策略,避免全装重写时覆盖用户选择。
- * 运行缓存会迁移到 `.flower-update-check.tmp`,不得继续写入 manifest。
- *
- * @param {string} target 目标项目根
- * @param {object} data manifest 新内容
- */
-export function writeManifest(target, data) {
-  const current = readManifest(target);
-  const next = { ...data };
-  if (hasLegacyUpdateCheckCache(current?.updateCheck)) {
-    migrateLegacyUpdateCheckCache(target, current.updateCheck);
-  }
-  if (Object.prototype.hasOwnProperty.call(data, "updateCheck")) {
-    migrateLegacyUpdateCheckCache(target, data.updateCheck);
-    next.updateCheck = normalizeUpdateCheckPolicy(data.updateCheck);
-  } else {
-    next.updateCheck = normalizeUpdateCheckPolicy(current?.updateCheck);
-  }
-  fs.writeFileSync(manifestPath(target), JSON.stringify(next, null, 2) + "\n");
 }

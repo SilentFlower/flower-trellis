@@ -6,7 +6,7 @@ import { formatPatchDiagnostic } from "./patch-conflicts.js";
  * 叠加强化包的兼容 facade。
  *
  * 成功状态统一由 Plugin Runtime 写入 `.flower/`；旧
- * `.trellis/.flower-manifest.json` 只作为迁移证据读取，不再更新。
+ * `.trellis/.flower-manifest.json` 作为迁移证据读取，迁移成功后由同一事务删除。
  *
  * @param {string} target 目标项目根
  * @param {{variant?:string|null,skills?:string[],dryRun?:boolean}} [opts] 兼容参数

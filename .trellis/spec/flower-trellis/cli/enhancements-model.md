@@ -83,7 +83,8 @@ Plugin Runtime 的统一计划、事务、lock 和 state 管理。整条链路**
 7. 全装只刷新目标中已经启用的 common skill，并将其记录为 `shared` ownership；不会安装
    用户未启用的新 common skill，卸载不删除 shared 路径。
 8. Plugin Transaction Writer 一次性写目标 mutation、`plugins.json`、lock 和最后的 state。
-   旧 manifest 只读迁移并原字节保留，不再作为成功写链。
+   旧 manifest 的配置迁移与删除进入同一事务，失败恢复原字节；详见
+   [Team Clone Bootstrap](./config-and-state.md#scenario-team-clone-bootstrap)。
 
 `init` 默认显式声明 builtin Plugin；`--enhance-only` 使用同一 Runtime。普通 `update` 只允许
 skill-garden 以当前 Flower 精确版本刷新直接声明并重新选 variant，其它 Plugin lock-first 重放；

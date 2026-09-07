@@ -16,17 +16,10 @@ import {
   validatePluginState,
 } from "../schemas/project-files.js";
 import { validateTrellisControlState } from "../schemas/trellis-control.js";
+import { mergeFlowerIgnoreRules } from "./ignore-rules.js";
+export { REQUIRED_IGNORE_RULES } from "./ignore-rules.js";
 
 const FLOWER_DIR_NAME = ".flower";
-/** Flower 本机安装状态的标准局部忽略规则。 */
-export const REQUIRED_IGNORE_RULES = [
-  "state.json",
-  "cache/",
-  "transactions/",
-  "trellis-control.json",
-  "trellis-detached/",
-  "*.tmp",
-];
 
 /**
  * 判断 candidate 是否位于 root 内部或等于 root。
@@ -73,7 +66,7 @@ export class ProjectStore {
     );
     const gitignorePath = path.join(this.flowerDir, ".gitignore");
     const existing = this.#readTextIfExists(gitignorePath);
-    const next = this.#mergeIgnoreRules(existing || "");
+    const next = mergeFlowerIgnoreRules(existing || "");
     const result = this.#atomicWriteText(gitignorePath, next);
     return { flowerDir: this.flowerDir, gitignorePath, status: result.status };
   }
@@ -334,22 +327,6 @@ export class ProjectStore {
       if (error instanceof PluginError) throw error;
       throw new PluginIoError(`无法读取受管文件:${target}`, { path: target, cause: error });
     }
-  }
-
-  /**
-   * 合并局部 `.gitignore` 必需规则并保留用户内容。
-   *
-   * @param {string} current 当前内容
-   * @returns {string} 幂等合并后的内容
-   */
-  #mergeIgnoreRules(current) {
-    const normalized = current.replaceAll("\r\n", "\n");
-    const lines = normalized.split("\n");
-    const existing = new Set(lines.filter(Boolean));
-    const missing = REQUIRED_IGNORE_RULES.filter((rule) => !existing.has(rule));
-    if (missing.length === 0) return normalized.endsWith("\n") ? normalized : `${normalized}\n`;
-    const prefix = normalized && !normalized.endsWith("\n") ? `${normalized}\n` : normalized;
-    return `${prefix}${missing.join("\n")}\n`;
   }
 
   /**

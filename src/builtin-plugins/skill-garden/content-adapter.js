@@ -6,6 +6,7 @@ import {
   ENHANCEMENT_SKILL_TARGETS,
 } from "../../constants.js";
 import { readLegacyManifestStatus } from "../../lib/manifest.js";
+import { projectFlowerMetadata } from "./project-metadata.js";
 import { shouldInstallName } from "../../lib/skill-filter.js";
 import { listCanonicalTreeFiles, isVolatileTreeArtifact } from "../../plugin/integrity/canonical-tree.js";
 import {
@@ -893,6 +894,9 @@ export function projectSkillGardenContent(options) {
       }
     }
   }
+  const metadata = projectFlowerMetadata(projectRoot, resolved.id);
+  mutations.push(...metadata.mutations);
+  for (const [key, value] of metadata.payloads) payloads.set(key, value);
   return {
     mutations: mutations.sort((left, right) => compareUtf8(left.target, right.target)),
     payloads,

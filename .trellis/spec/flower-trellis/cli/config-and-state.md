@@ -325,10 +325,11 @@ if (shouldUseUpdateSandbox({
   `.flower/state.json`。`applyEnhancements()` 是兼容 facade，不得继续写旧 manifest。
 - `flower/skill-garden` 的普通文件 ownership 位于 state `paths[]`，Patch provenance 位于
   `patches[]`。重复应用相同 lock/variant 时目标与三类状态必须 changed-only。
-- `.trellis/.flower-manifest.json` 只读：正常迁移时校验 `paths[]` 的安全路径与目标存在性，
+- `.trellis/.flower-manifest.json` 作为兼容迁移输入：正常迁移时校验 `paths[]` 的安全路径与目标存在性，
   同版本同 variant 的普通文件还要核对最终 hash；损坏、目标缺失或可证明的漂移必须在事务前失败。
-- 迁移成功后旧 manifest 原字节保留，不删除、不清理字段、不继续更新；state 写入
-  `migration:{source:"legacy-flower-manifest",schemaVersion:1}`。重复迁移不得重复声明或改变 lock；后续旧 manifest 被人工删除时，已有 migration 标记仍须从 previous state 原样继承。
+- 迁移成功后旧 manifest 文件删除；必要策略和缓存先规划到现代位置，与删除进入同一事务，失败恢复原字节。现代有效配置优先，损坏证据在 preflight 失败。
+  state 写入 `migration:{source:"legacy-flower-manifest",schemaVersion:1}`，源文件删除后标记仍从 previous state 继承；重复迁移不重复声明或改变 lock。
+- `--no-enhance` 冻结分支不提前清理旧记录。具体共享规则、配置迁移与成员安装契约见本文件 `Scenario: Team Clone Bootstrap`。
 - `uninstall` 在 Trellis 删除前冻结 state 清理计划；Trellis 成功后只删除 hash 仍匹配的
   `exclusive` 普通文件。某个用户修改项冲突时仍清理其它 hash-clean 路径；`shared`、其它 Plugin、用户修改项和无法证明 ownership 的旧路径保留，并继续记录冲突证据。
 
@@ -675,7 +676,7 @@ task；common-dir 只保存机器映射，后续在 handoff cwd 的新会话继�
 - `readUpdateCheck(target)` 优先读新位置；缺失时依次 fallback 到旧
   `.trellis/.flower-update-check.tmp` 和旧 manifest `updateCheck`，损坏字段按默认值归一化。
 - `writeUpdateCheck(target, patch)` 只写新位置，使用 `.flower/` changed-only 原子写；不得修改
-  旧 manifest 或旧 tmp。首次新写即完成单向迁移，旧文件继续作为历史证据保留。
+  旧 manifest 或旧 tmp。配置命令本身不删除旧文件；后续成功的增强迁移负责删除旧 manifest。
 - `.flower/settings.json` 与 `.flower/update-check.tmp` 只能是普通文件；损坏 JSON、无效 settings 外层结构、目录或符号链接都必须在覆盖前失败。settings 已损坏时整次策略/缓存更新零写入，不能先刷新 cache 再报错。
 - 原子写临时文件必须位于目标同目录，以排他创建写入并 `fsync` 后 rename；失败时清理临时文件。既有目标在读取和替换前都要拒绝符号链接，不能跟随到项目外写入。
 - 默认视图固定为
@@ -685,6 +686,78 @@ task；common-dir 只保存机器映射，后续在 handoff cwd 的新会话继�
 - `lastPromptedKey` / `promptSuppressedKey` 记录当前更新提示 key；远端升级 key 固定为
   `update:<tag>:<version>`，项目追平 key 固定包含项目与当前 `flower` / `trellis` 版本差异。
   key 变化表示新提示，旧版本的冷却、延后或跳过不得误挡新版本。
+
+## Scenario: Team Clone Bootstrap
+
+### 1. Scope / Trigger
+
+修改 Flower Git 共享规则、旧 manifest 退出、首次成员安装引导或对应事务时读取本节。
+
+### 2. Signatures
+
+- `mergeFlowerIgnoreRules(current, {root?:boolean}) -> string`：纯规则规划。
+- `planLegacyManifestMigration(target) -> Array<{path:string,content:Buffer|null}>`：纯配置迁移，null 为删除。
+- `projectFlowerMetadata(projectRoot, owner) -> {mutations,payloads}`：复用 InstallPlan 的元数据目标。
+- `python3 .trellis/scripts/flower_update_hook.py [--target <project>]`：现有 SessionStart 入口。
+- `python3 .trellis/scripts/flower_update_hook.py --bootstrap-only --target <project>`：手动只读入口，无 stdin/远程检查。
+
+### 3. Contracts
+
+- 根 `.gitignore` 仅在存在时补 `# BEGIN Flower shared records` / `# END Flower shared records` 块，
+  解除 `/.flower/` 父目录排除，默认忽略内部内容，仅反选 `.gitignore`、`plugins.json`、`plugin-lock.json`。
+  局部规则也保证共享三文件可见，settings、state、缓存、事务及未知本地文件被忽略；块外字节与换行风格保留。
+- 规则块每次归位到末尾，不能重复追加。不完整/重复标记拒绝写入，不改全局 Git 配置，不自动 add/commit。
+- 元数据目标不进入 Plugin 独占 ownership。实际 Skill-Garden 投影才规划根规则和旧记录迁移，冻结不迁移。
+- 策略按有效现代 settings、旧 manifest 排序；缓存按现代 tmp、旧 tmp、旧 manifest 排序。
+  现代存在时保留原字节；损坏 settings/cache/legacy 不猜测覆盖。旧文件删除与新配置、声明、lock/state 在同一事务提交。
+- `ProjectStore.ensureLayout()` 会提前写局部规则，因此 TransactionWriter 在首次调用前保留原字节，
+  恢复时包含该文件；事务证据含 `layout` 与 `backup/layout-ignore.bin`。正常 update 的 onPreflight 扩展包含所有元数据目标。
+- 已安装 CLI 沿用 self-check。缺失时 Python 读取最大 2 MiB 锁，只提取 bootstrap 所需的 schema/roots/plugins、
+  唯一内置 `flower/skill-garden` 来源和完整 SemVer，不代替 Node 完整 schema/内容校验，不回退陈旧 manifest。
+- 安装提示为独立 `<flower-cli-bootstrap>`，通过 `hookSpecificOutput.additionalContext` 输出。
+  字段有 `status`、可选 `project_flower` / `recommended_command` / `reason`，以及确认、验证和失败处理指令。
+- 只有 `cli_missing` 且 Node/npm 可执行时推荐 `npm install -g flower-trellis@<version>`。
+  助手先取得当前成员确认，再安装和验证；全局 npm postinstall 会同步本机 Trellis 命令，不能隐式升级项目内容。
+- hook 不执行 npm、不提权。拒绝后本次对话不重复追问，失败不循环安装；真实 CLI 不可执行/超时/异常输出归为诊断，不误导重装。
+- 自动入口复用 Codex/Claude `startup` 注册。`TRELLIS_HOOKS=0`、`TRELLIS_DISABLE_HOOKS=1`、`CODEX_NON_INTERACTIVE=1` 跳过自动入口；手动 bootstrap-only 独立可调用。
+  两份 canonical 手动升级 skill 复用该模式并同步 enhancements，其他平台不新增自动 hook。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| 无根 gitignore | 不创建根文件，局部规则仍保护本机数据 |
+| 重复升级 / 用户在块后追加规则 | 单一块幂等归位，其他内容保留 |
+| legacy 损坏 / 配置不可迁移 | preflight 失败，旧记录保留 |
+| target/lock/state 写入失败 | 恢复新增写入和删除，回滚失败保留修复证据 |
+| dry-run | 不改目标字节，不创建状态或安装 CLI |
+| CLI 缺失、有效锁、Node/npm 可用 | `cli_missing`，等待成员确认安装锁定版本 |
+| 无锁、损坏锁、不可靠来源或非法版本 | `project_version_unavailable`，无安装命令 |
+| Node/npm 缺失或不可执行 | `prerequisites_missing`，说明准备项 |
+| CLI 已存在但执行失败/超时/非法结果 | `cli_unavailable`，无安装命令 |
+
+### 5. Good/Base/Bad Cases
+
+- Good：升级后提交共享锁及 hook，团队克隆无 state/CLI，仍提示安装锁定版本。
+- Base：已有 CLI 继续原 self-check；安装前项目版本未知与安装后内容未知分别说明。
+- Bad：先删除旧记录再迁策略；hook 捕获所有异常都当未安装；把整份 .flower 解除忽略后提交缓存。
+
+### 6. Tests Required
+
+- `flower-project-metadata.test.js`：真实 Git 根/局部通配与 LF/CRLF、幂等、配置优先级、preflight、回滚及外层补偿。
+- `plugin-skill-garden.test.js` / `plugin-e2e-migration.test.js`：旧记录删除、迁移标记重放、冻结保留及真实升级到克隆引导。
+- `test_flower_update_hook.py`：严格版本、异常环境、确认上下文、无命令执行、手动无 stdin 和原更新状态。
+- 平台分发、默认上下文预算及输出模板门禁继续通过；不把真实全局 npm 安装当单元测试。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+先 `ensureLayout()`，再把已被改写的局部忽略文件备份；升级失败后恢复的是新规则。
+
+#### Correct
+
+在首次 layout 写入前保存原字节，元数据目标纳入 preflight/事务/补偿，失败恢复最初内容并保留必要证据。
 
 ## Scenario: Startup Self-Update Check
 
@@ -735,7 +808,7 @@ src/assets/flower_update_hook.py
   `releaseNotes` 摘要。`update_available` 范围为 `currentFlower < version <= recommendation.version`;
   `project_out_of_sync` 范围为 `projectFlower < version <= currentFlower`。
 - Codex / Claude Code SessionStart hook 输出只使用
-  `hookSpecificOutput.additionalContext` 注入 `<flower-update>`;不要额外输出
+  `hookSpecificOutput.additionalContext` 注入 `<flower-update>`，缺失 CLI 时使用上述独立 bootstrap 块；不要额外输出
   `additional_context` 等其它顶层兼容字段。Codex 会严格校验 SessionStart JSON schema,
   多余顶层字段会导致 `hook returned invalid session start JSON output`。
 - `.trellis/scripts/common/session_context.py` / 默认 `get_context.py` 只负责项目上下文,
@@ -869,7 +942,7 @@ src/assets/flower_update_hook.py
 - Base: 远程探测失败时 hook 静默退出;`self-check --json` 仍返回 `offline` JSON,
   不阻断 Codex / Claude Code 启动。
 - Base: 用户手动运行 `flower-trellis update --target <dir>` 时,启动探测成功后会刷新
-  `.flower/update-check.tmp` 中的 `lastRemote`,随后 Plugin Runtime 不触碰 settings 和旧证据。
+  `.flower/update-check.tmp` 中的 `lastRemote`；随后增强迁移保留有效现代设置并清理旧 manifest。
 - Base: 用户配置 `policy=auto` 但 git dirty,`ai.mode` 降级为 `ask`,并给出
   `dirty_worktree` 原因。
 - Bad: 启动 hook 直接执行 `npm i -g` 或 `flower-trellis update`。启动阶段只能注入上下文。

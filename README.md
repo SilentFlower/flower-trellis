@@ -184,8 +184,12 @@ flower-trellis plugin
 |------|------|
 | `.flower/plugins.json` | 可提交;只记录用户直接声明的 Plugin |
 | `.flower/plugin-lock.json` | 可提交;记录固定版本、完整依赖图、来源与完整性摘要 |
+| `.flower/.gitignore` | 可提交;保护本机数据并放开共享记录 |
 | `.flower/state.json` | 本机;记录实际平台、生成路径、ownership 与 Patch provenance |
+| `.flower/settings.json` | 本机;保存个人更新偏好 |
 | `.flower/cache/`、`.flower/transactions/` | 本机;可清理缓存与事务恢复证据 |
+
+安装或升级内置 Skill-Garden 时，已有根 `.gitignore` 会幂等维护 Flower 共享规则，允许正常提交上述声明、锁和局部忽略文件；重复升级不会重复添加。状态、个人设置和缓存仍被忽略，不会自动暂存或提交。根 `.gitignore` 不存在时不额外创建它。
 
 `rd-guide` 是随包预注册、默认启用但惰性访问的 GitLab Marketplace。它的 GitLab 地址、项目和 ref 随 Flower 包升级，用户配置只保存启用或停用偏好，避免旧的用户级完整副本静默遮蔽包内修复；需要其它地址或分支时应新增独立 source ID。打开管理器后，`发现` 页会在已有凭据时读取远程目录；未登录时只展示授权入口，不会尝试读取仓库内容。普通交互默认使用 Device Flow，PKCE 浏览器登录保留为来源详情中的高级选项。OAuth 只申请 `read_api read_repository`，Application Secret 和 token 都不会写入项目文件。
 
@@ -218,7 +222,7 @@ flower-trellis plugin validate .flower-plugin --subject plugin --json
 flower-trellis plugin add flower/flower-plugin-author --platform codex --json
 ```
 
-旧 `.trellis/.flower-manifest.json` 只作为迁移证据读取。下一次完整 init/update 会把期望、锁定和本机状态迁移到 `.flower/`,保留旧文件供核对;普通 `flower-trellis update` 重放已锁定版本,只有显式 `plugin update` 才解析外部 Plugin 新版本。
+旧 `.trellis/.flower-manifest.json` 在下一次增强安装或升级时完成一次迁移：保留必要的更新策略和缓存，写入现代记录后事务性删除旧文件，失败恢复。现代配置优先；显式 `--no-enhance` 不提前删除未经迁移的旧记录。普通 `flower-trellis update` 重放已锁定版本，只有显式 `plugin update` 才解析外部 Plugin 新版本。
 
 ### 升级备份保留
 
@@ -251,11 +255,15 @@ flower-trellis plugin add flower/flower-plugin-author --platform codex --json
 - Codex:向 `.codex/hooks.json` 的 `SessionStart` 追加 `.trellis/scripts/flower_update_hook.py`。
 - Claude Code:只向 `.claude/settings.json` 的 `SessionStart` `startup` matcher 追加该 hook,不挂 `clear` / `compact`。
 
-启动 hook 不会直接安装 npm 包,也不会直接改项目文件。它只调用:
+启动 hook 不会直接安装 npm 包，也不会直接改项目文件。它先检查本机 CLI；CLI 可用时继续调用：
 
 ```bash
 flower-trellis self-check --json --target .
 ```
+
+团队成员克隆已提交升级文件的项目后，即使没装 Flower CLI，同一 Python hook 也会读取项目锁并注入 `<flower-cli-bootstrap>`。助手先展示锁定版本和 `npm install -g flower-trellis@<版本>`，成员确认后才安装，验证 CLI 后继续原请求。全局安装沿用现有的本机 Trellis 命令同步，不隐式升级项目内容。版本未知、缺少 Node/npm 或安装失败时会说明原因，不猜 latest、不自动提权、不循环安装。
+
+自动入口需要 Python 可用且 Codex/Claude 启用 hooks；其他平台可通过 `trellis-flower-update` 调用同一检测脚本的 `--bootstrap-only` 模式。成员拒绝安装后，本次对话不重复追问。
 
 发现可更新或项目已铺版本不一致时,向 AI 注入 `<flower-update>` 上下文。无更新、离线、关闭检查、npx 临时运行时默认不打扰;同一更新提示会按本机提示节流状态降噪。
 
@@ -296,7 +304,7 @@ tmp 中保存本地运行缓存:
 }
 ```
 
-旧项目如果已经在 manifest 的 `updateCheck` 里带有缓存字段,新版本会先读取兼容,并在下一次写入时清理这些旧字段。
+旧项目 manifest 的 `updateCheck` 在升级前仍可兼容读取；增强迁移成功后必要配置转入现代位置，旧 manifest 文件删除。
 
 `policy` 可选:
 
@@ -353,7 +361,7 @@ flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo 
 
 - **统一品牌头部**:Trellis 子进程在伪终端(`node-pty`)中运行,其原生的模板 / monorepo / 冲突等交互完整保留,但重复打印的启动 banner 被过滤,全程只呈现一个 flower banner。
 - **按平台铺设技能**:Claude 铺到 `.claude/skills`,Codex / Gemini 等铺到 `.agents/skills`;并做平台后处理:Codex 兼容清理旧 `config.toml` 的 `[features.multi_agent_v2]`,在保留上游 hooks 的基础上补全 `SessionStart`;Claude Code 只在 `startup` SessionStart 挂载启动更新检查。
-- **幂等执行**:0.6 Patch 使用受管 marker 原位升级，完整预检通过后只写 changed 文件，首次修改前备份到 `.trellis/.backup-flower/`；技能资产覆盖式铺设，并通过 `.trellis/.flower-manifest.json` 精确清理已淘汰路径。0.5/old 继续使用兼容注入路径。
+- **幂等执行**:0.6 Patch 使用受管 marker 原位升级，完整预检通过后只写 changed 文件；技能资产和现代 `.flower/state.json` 记录进入同一插件事务，通过路径 ownership 与摘要精确清理淘汰内容。0.5/old 继续使用兼容注入路径，旧 manifest 只用于迁移识别。
 - **结构化 Patch**:Trellis 0.6 的 workflow、skill、hook 与平台配置统一通过 `insert / replace / remove` 预检后应用；selector/baseline 或已知最终协议冲突时在写入前停止。
 - **上线事项账本**:强化包通过 Finish-Work Patch 在归档前智能识别 SQL、配置、批处理 / 部署脚本 / 数据修复、外部系统 / 依赖平台等上线事项,必要时写入任务 `release.md`;`trellis-release` 可在正式上线前核对任务文档、`release.md` 和 git 证据,生成 `YYYY-MM-DD-<release-slug>.md` 格式的版本 / 批次操作单。
 - **安全中止**:`Ctrl+C` 取消后不会继续叠加。

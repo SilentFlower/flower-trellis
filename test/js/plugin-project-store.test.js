@@ -64,9 +64,9 @@ test("Project Store 在无 Trellis 项目初始化独立 .flower 边界", (t) =>
   assert.equal(fs.existsSync(path.join(target, ".trellis")), false);
   assert.equal(fs.existsSync(path.join(target, ".flower", "cache")), true);
   assert.equal(fs.existsSync(path.join(target, ".flower", "transactions")), true);
-  assert.equal(
+  assert.match(
     fs.readFileSync(path.join(target, ".flower", ".gitignore"), "utf8"),
-    "state.json\ncache/\ntransactions/\ntrellis-control.json\ntrellis-detached/\n*.tmp\n",
+    /^# BEGIN Flower shared records\nstate\.json\n[\s\S]*settings\.json\n\*\n!\.gitignore\n!plugins\.json\n!plugin-lock\.json\n# END Flower shared records\n$/,
   );
   assert.equal(store.ensureLayout().status, "unchanged");
 });
@@ -78,9 +78,9 @@ test("Project Store 保留自定义 ignore 并读写三类状态", (t) => {
   const store = new ProjectStore(target);
   store.ensureLayout();
   const ignore = fs.readFileSync(path.join(target, ".flower", ".gitignore"), "utf8");
-  assert.equal(
+  assert.match(
     ignore,
-    "custom/\nstate.json\ncache/\ntransactions/\ntrellis-control.json\ntrellis-detached/\n*.tmp\n",
+    /^custom\/\n# BEGIN Flower shared records\nstate\.json\n/,
   );
 
   assert.deepEqual(store.readPlugins(), { schemaVersion: 1, plugins: [] });

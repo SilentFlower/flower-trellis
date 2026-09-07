@@ -3,6 +3,16 @@ import os from "node:os";
 import path from "node:path";
 
 /**
+ * 构造旧版清单夹具，不让生产代码保留已退出的写入 API。
+ * @param {string} target 项目根
+ * @param {object} value 旧清单值
+ * @returns {void}
+ */
+export function writeLegacyManifest(target, value) {
+  fs.writeFileSync(path.join(target, ".trellis/.flower-manifest.json"), `${JSON.stringify(value, null, 2)}\n`);
+}
+
+/**
  * 创建测试临时目录并注册清理。
  *
  * @param {import("node:test").TestContext} t 测试上下文

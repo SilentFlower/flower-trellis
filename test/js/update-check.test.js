@@ -11,7 +11,6 @@ import {
   readUpdateCheck,
   settingsPath,
   updateCheckCachePath,
-  writeManifest,
   writeUpdateCheck,
 } from "../../src/lib/manifest.js";
 import {
@@ -20,6 +19,7 @@ import {
   installFlowerVersion,
 } from "../../src/lib/update-check.js";
 import { flowerVersion, trellisVersion } from "../../src/lib/versions.js";
+import { writeLegacyManifest } from "./plugin-test-helpers.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CLI = path.join(ROOT, "bin", "flower-trellis.js");
@@ -29,7 +29,7 @@ function createTarget(t) {
   t.after(() => fs.rmSync(target, { recursive: true, force: true }));
   fs.mkdirSync(path.join(target, ".trellis"), { recursive: true });
   fs.writeFileSync(path.join(target, ".trellis", ".version"), `${trellisVersion()}\n`);
-  writeManifest(target, {
+  writeLegacyManifest(target, {
     flowerVersion: flowerVersion(),
     variant: "0.6",
     version: trellisVersion(),
@@ -72,7 +72,7 @@ test("版本缺失不吞掉远端更新或离线状态，缓存仍重算本地�
   assert.equal(update.project.flowerVersionStatus, "unknown");
   const cli = runFlowerCliJson(["self-check", "--json", "--target", target]);
   assert.equal(cli.status, "project_unknown");
-  const message = runFlowerCli(["self-update", "--target", target, "--yes"]);
+  const message = runFlowerCli(["self-update", "--target", target, "--yes"], flowerVersion());
   assert.match(message, /版本无法确认/);
   assert.doesNotMatch(message, /无需执行 self-update/);
 });
@@ -100,8 +100,10 @@ function cleanCliEnv(extra = {}) {
   return env;
 }
 
-function runFlowerCli(args) {
-  return execFileSync(process.execPath, [CLI, ...args], {
+function runFlowerCli(args, registryVersion = null) {
+  // 该断言验证未知项目分支，不能依赖实时 registry 或意外触发全局升级。
+  const preload = registryVersion === null ? [] : ["--import", `data:text/javascript,${encodeURIComponent(`globalThis.fetch = async () => ({ ok: true, json: async () => (${JSON.stringify({ "dist-tags": { latest: registryVersion }, versions: {} })}) });`)}`];
+  return execFileSync(process.execPath, [...preload, CLI, ...args], {
     cwd: ROOT,
     encoding: "utf8",
     env: cleanCliEnv(),
@@ -120,7 +122,7 @@ async function createSnoozedProjectOutOfSyncTarget(t) {
   const remoteTags = channel === "beta"
     ? { latest: "0.0.0", beta: currentFlower }
     : { latest: currentFlower, beta: null };
-  writeManifest(target, {
+  writeLegacyManifest(target, {
     flowerVersion: oldFlower,
     variant: "0.6",
     version: trellisVersion(),
