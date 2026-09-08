@@ -18,6 +18,7 @@ import {
 import { isBuiltinProviderTrusted } from "../../src/plugin/capabilities/builtin-trust.js";
 import { PluginApplicationService } from "../../src/plugin/application-service.js";
 import { hashDirectoryIfExists, hashFileIfExists } from "../../src/plugin/install/content-hash.js";
+import { TransactionWriter } from "../../src/plugin/install/transaction-writer.js";
 import { PLUGIN_RUNTIME_ERROR_CODES } from "../../src/plugin/runtime-errors.js";
 import { ProjectStore } from "../../src/plugin/state/project-store.js";
 import { SourceRegistry } from "../../src/plugin/sources/source-registry.js";
@@ -637,6 +638,43 @@ test("已启用 common skill 以 shared ownership 刷新且卸载保留", (t) =>
   applySkillGardenUninstall(target, cleanupPlan);
   assert.equal(fs.existsSync(commonSkill), true);
   assert.equal(fs.existsSync(aliyunSkill), true);
+});
+
+test("common Codex 目录迁移支持预览、事务回滚与 shared 卸载保留", (t) => {
+  const target = createTarget(t);
+  const oldSkill = path.join(target, ".codex/skills/open-idea/SKILL.md");
+  const newSkill = path.join(target, ".agents/skills/open-idea/SKILL.md");
+  fs.mkdirSync(path.dirname(oldSkill), { recursive: true });
+  fs.writeFileSync(oldSkill, "旧副本\n");
+  const before = hashDirectoryIfExists(target);
+  quietApply(target, { variant: "0.5", dryRun: true });
+  assert.equal(hashDirectoryIfExists(target), before);
+
+  const store = new ProjectStore(target);
+  const provider = new SkillGardenBuiltinProvider({ projectRoot: target, variant: "0.5" });
+  const writer = new TransactionWriter(target, {
+    store,
+    onOperation(event) {
+      if (event.phase === "before-write" && event.kind === "lock") throw new Error("模拟事务失败");
+    },
+  });
+  const service = new PluginApplicationService(target, { store, writer, registry: new SourceRegistry([provider]) });
+  assert.throws(
+    () => service.add({ id: SKILL_GARDEN_PLUGIN_ID, platforms: ["claude"], nonInteractive: true }),
+    (error) => error.code === PLUGIN_RUNTIME_ERROR_CODES.TRANSACTION_FAILED,
+  );
+  assert.equal(hashDirectoryIfExists(target), before);
+  assert.equal(fs.readFileSync(oldSkill, "utf8"), "旧副本\n");
+  assert.equal(fs.existsSync(newSkill), false);
+
+  quietApply(target, { variant: "0.5" });
+  assert.equal(fs.existsSync(path.dirname(oldSkill)), false);
+  assert.equal(fs.existsSync(newSkill), true);
+  assert.equal(store.readState().plugins.find(({ id }) => id === SKILL_GARDEN_PLUGIN_ID)
+    .paths.find(({ path: value }) => value === ".agents/skills/open-idea/SKILL.md").ownership, "shared");
+  quietApply(target, { variant: "0.5" });
+  applySkillGardenUninstall(target, planSkillGardenUninstall(target));
+  assert.equal(fs.existsSync(newSkill), true);
 });
 
 test("common craft-rpa 旧运行时软链与依赖缓存不阻断 Plugin 重放", (t) => {

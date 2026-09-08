@@ -172,7 +172,7 @@ flower-trellis plugin
 
 交互管理器采用 `发现 / 已安装 / 来源 / 问题` 四个页签。Trellis 项目的 `发现` 页会展示 `flower/skill-garden` 内置入口，按 Enter 直接管理工作流强化与可选通用技能；原 `flower-trellis skill` 命令继续保留为高级兼容入口。`发现` 同时合并全部已启用来源的 Plugin，并保留来源标签和即时搜索；未登录 GitLab 来源会直接进入 Device Flow，GitHub 公共来源无需登录。`来源` 页的“新增来源”可选择 GitHub 公共仓库或 GitLab Marketplace；GitHub 会先在临时缓存中下载固定快照、检测格式、展示可导入与忽略组件，确认后才保存。ref 留空时使用仓库默认分支；出现多个格式入口时会要求选择，公开 GitHub 跨仓 Marketplace 条目和 `plugins/*` 多 Plugin 仓库也可识别。
 
-可选通用技能包含 `aliyun-dms-query` 与 `aliyun-sls-query`：前者通过阿里云 DMS 查询纳管数据库，并让写操作以数据变更工单进入审批流；后者提供零第三方依赖的阿里云 SLS 查询脚本与排障知识。两者都支持 Codex / Claude 项目，默认不安装，也不会复制用户私有 AK/SK 配置。
+可选通用技能包含 `aliyun-ops`，统一提供阿里云 DMS、SLS 与 MSE 查询和排障能力，DMS 写操作通过数据变更工单进入审批流。通用技能需手动选择启用，不会复制用户私有 AK/SK 配置。Codex 通用技能安装到 `.agents/skills`，Claude 安装到 `.claude/skills`；已有 `.codex` 或 `.agents` 时使用共享目标，已有 `.claude` 时使用 Claude 目标，三个目录都不存在时默认同时安装两份。空目录也可通过 Skill Garden 入口管理通用技能，无需初始化 Trellis。
 
 安装、更新和卸载都会先展示 dry-run、依赖、capability 和目标文件变化，确认后才写入项目。Plugin 作者使用的 `plugin init`、`plugin validate` 继续保留在高级命令中，不占用普通用户的管理器首页。
 
@@ -381,7 +381,9 @@ flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo 
 
 - **通用技能**:`flower-trellis update` 会用新版快照覆盖仓库中已经启用的 common skill,
   未启用项不会自动安装;若某个已安装 common skill 已从新版快照移除,更新会精确删除其
-  `.codex/skills` / `.claude/skills` 或历史 `.agents/skills` 副本。
+  `.agents/skills` / `.claude/skills` 或历史 `.codex/skills` 副本。安装或更新对应技能时，
+  旧 `.codex/skills` 会迁移到 `.agents/skills`，兼容旧技能名称；新副本写入成功后才清理旧目录。
+  新旧同名技能仍按随包快照替换，不合并自定义内容；停用会清理该技能的新旧精确目录。
 
 ## 开发
 

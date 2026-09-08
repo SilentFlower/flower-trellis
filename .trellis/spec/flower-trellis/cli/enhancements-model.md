@@ -217,6 +217,16 @@ bash scripts/install.sh --scope common <target> [skill-name ...]
 
 ### 3. Contracts
 
+- common 的 canonical 安装目标为 `.agents/skills`（Codex 共享）与 `.claude/skills`；
+  `.common/.codex/skills` 是源素材路径，不能误当作安装目标批量替换。历史安装根为 `.codex/skills`。
+- `installCommonSkills()` 与独立安装器在整批写入前固定平台目标：`.codex` 或 `.agents` 存在则
+  选择共享目标，`.claude` 存在则选择 Claude；三者均不存在时默认双装，不创建 `.trellis` 或
+  `.flower` 状态。该判断不改变普通 Plugin 的逻辑平台 detector。
+- 同名历史 Codex 副本在安装对应技能或更新已启用技能时迁移到共享根，旧名称映射也直接抵达
+  共享根的最终名称；新旧并存按目标路径去重。只有源 `SKILL.md` 可用且新写入成功后才删除旧目录。
+  沿用随包快照替换语义，不合并自定义内容；卸载继续覆盖新旧精确根，不删除无关平台配置。
+- 显式名称迁移声明损坏时，同名历史副本只允许原地刷新，不做目录迁移或任何删除；旧 manifest
+  缺少声明时仍是合法空映射，允许同名目录迁移。
 - `skill-migrations.json` 是迁移关系唯一真实源。`from` / `to` 必须是安全单一路径段，来源不得重复，
   不得自映射或成环，且目标 Skill 必须在当前 Claude/Codex common 源中完整存在。
 - 同步脚本校验清单后写入 `MANIFEST.common.skillMigrations`，并把来源名称累计进
@@ -261,8 +271,10 @@ bash scripts/install.sh --scope common <target> [skill-name ...]
 ### 6. Tests Required
 
 - 快照测试断言迁移清单、`MANIFEST.common.skillMigrations`、catalog、`removedSkills` 和双平台源一致。
-- Flower 同步测试覆盖单旧、双旧、新旧并存、无旧、Codex、Claude 和 legacy `.agents/skills`，并
+- Flower 同步测试覆盖单旧、双旧、新旧并存、无旧、共享 `.agents/skills`、Claude 和 legacy `.codex/skills`，并
   断言新树去重、删除顺序、用户 Skill 保留。
+- 空目录批量双装、仅 `.agents`、仅 `.codex`、仅 `.claude`、双平台和重复安装/卸载均需验证；
+  目录迁移覆盖定向安装、只更新已启用项、来源缺失、写入失败保留旧副本及 Plugin dry-run 零写入。
 - 无效声明测试至少覆盖目标缺失、自映射、非数组和解析失败，断言 refresh/removedTargets 都为空；
   另用缺少迁移字段的旧 manifest 断言 tombstone 仍执行。
 - `installCommonSkills()` 与独立安装器测试覆盖旧别名、新名称、双别名去重、全量安装和无关定向安装。

@@ -11,22 +11,21 @@ import { ENHANCEMENTS_ROOT } from "./paths.js";
 const COMMON_SKILL_DIRS = [
   {
     source: ".common/.codex/skills",
-    target: ".codex/skills",
-    platformDir: ".codex",
-    fallback: false,
+    target: ".agents/skills",
+    platformDirs: [".codex", ".agents"],
   },
   {
     source: ".common/.claude/skills",
     target: ".claude/skills",
-    platformDir: ".claude",
-    fallback: true,
+    platformDirs: [".claude"],
   },
 ];
 
 const LEGACY_COMMON_SKILL_DIRS = [
   {
     source: ".common/.codex/skills",
-    target: ".agents/skills",
+    target: ".codex/skills",
+    canonicalTarget: ".agents/skills",
   },
 ];
 
@@ -192,10 +191,10 @@ function listCommonSnapshotNames() {
 /**
  * 汇总 common skill 的 canonical 与历史目标映射。
  *
- * 历史 `.agents/skills` 使用 Codex 快照原地刷新，避免升级时迁移到
- * `.codex/skills` 后产生双副本。
+ * 历史 `.codex/skills` 仍用于识别和卸载；安装与更新统一迁往
+ * `.agents/skills`，避免同一技能留下双副本。
  *
- * @returns {Array<{source:string,target:string}>} common skill 目标映射
+ * @returns {Array<{source:string,target:string,canonicalTarget?:string}>} common skill 目标映射
  */
 function allCommonSkillDirs() {
   return [...COMMON_SKILL_DIRS, ...LEGACY_COMMON_SKILL_DIRS];
@@ -296,23 +295,28 @@ function readCommonSkillMigrationState() {
  * 描述当前项目中已启用 common skill 的无写入同步输入。
  *
  * @param {string} target 目标项目根目录
- * @returns {{refreshes:Array<{source:string,target:string,name:string}>,removedTargets:string[]}} 快照来源与 tombstone 目标
+ * @returns {{refreshes:Array<{source:string,target:string,name:string}>,removedTargets:string[]}} 快照来源与迁移或 tombstone 删除目标
  */
 export function describeInstalledCommonSkillSync(target) {
   const refreshesByTarget = new Map();
   const currentNames = new Set(listCommonSnapshotNames());
   const migrationState = readCommonSkillMigrationState();
+  const removedTargets = new Set();
   for (const name of currentNames) {
     for (const dir of allCommonSkillDirs()) {
       const targetPath = `${dir.target}/${name}`;
       if (!fs.existsSync(path.join(target, ...targetPath.split("/")))) continue;
       const source = path.join(ENHANCEMENTS_ROOT, "common", dir.source, name);
-      if (!fs.existsSync(source)) continue;
-      refreshesByTarget.set(targetPath, { source, target: targetPath, name });
+      if (!fs.existsSync(path.join(source, "SKILL.md"))) continue;
+      // 显式迁移声明损坏时只原地刷新，不能绕过删除保护去迁移目录。
+      const newTarget = migrationState.valid
+        ? `${dir.canonicalTarget || dir.target}/${name}`
+        : targetPath;
+      refreshesByTarget.set(newTarget, { source, target: newTarget, name });
+      if (newTarget !== targetPath) removedTargets.add(targetPath);
     }
   }
   const migrationSources = new Set();
-  const removedTargets = new Set();
   for (const { from, to } of migrationState.migrations) {
     migrationSources.add(from);
     for (const dir of allCommonSkillDirs()) {
@@ -320,7 +324,7 @@ export function describeInstalledCommonSkillSync(target) {
       if (!fs.existsSync(path.join(target, ...oldTarget.split("/")))) continue;
       const source = path.join(ENHANCEMENTS_ROOT, "common", dir.source, to);
       if (!fs.existsSync(path.join(source, "SKILL.md"))) continue;
-      const newTarget = `${dir.target}/${to}`;
+      const newTarget = `${dir.canonicalTarget || dir.target}/${to}`;
       refreshesByTarget.set(newTarget, { source, target: newTarget, name: to });
       removedTargets.add(oldTarget);
     }
@@ -541,10 +545,10 @@ export function listSkillCatalog(target, variantOverride) {
  */
 function activeCommonTargets(target) {
   const active = COMMON_SKILL_DIRS.filter((dir) =>
-    fs.existsSync(path.join(target, ...dir.platformDir.split("/"))),
+    dir.platformDirs.some((platformDir) => fs.existsSync(path.join(target, platformDir))),
   );
   if (active.length > 0) return active;
-  return COMMON_SKILL_DIRS.filter((dir) => dir.fallback);
+  return COMMON_SKILL_DIRS;
 }
 
 /**
@@ -556,12 +560,14 @@ function activeCommonTargets(target) {
  */
 export function installCommonSkills(target, names) {
   const available = new Set(listCommonSnapshotNames());
-  const migrations = readCommonSkillMigrationState().migrations;
+  const { valid, migrations } = readCommonSkillMigrationState();
   const aliases = new Map(migrations.map(({ from, to }) => [from, to]));
   const installed = new Set();
   const processed = new Set();
   const paths = [];
   const skipped = [];
+  // 首个技能会创建平台目录；固定整批目标，避免后续技能因新目录而丢失默认平台。
+  const targets = activeCommonTargets(target);
 
   for (const requestedName of names) {
     const name = aliases.get(requestedName) || requestedName;
@@ -573,17 +579,21 @@ export function installCommonSkills(target, names) {
     processed.add(name);
 
     let installedOne = false;
-    for (const dir of activeCommonTargets(target)) {
+    for (const dir of targets) {
       const src = path.join(ENHANCEMENTS_ROOT, "common", dir.source, name);
-      if (!fs.existsSync(src)) continue;
+      if (!fs.existsSync(path.join(src, "SKILL.md"))) continue;
 
       const dst = path.join(target, ...dir.target.split("/"), name);
       ensureDir(path.dirname(dst));
       copyPath(src, dst);
-      for (const migration of migrations.filter(({ to }) => to === name)) {
-        const oldPath = path.join(target, ...dir.target.split("/"), migration.from);
-        if (fs.existsSync(path.join(dst, "SKILL.md")) && fs.existsSync(oldPath)) {
-          rmrf(oldPath);
+      if (valid && fs.existsSync(path.join(dst, "SKILL.md"))) {
+        const oldNames = [name, ...migrations.filter(({ to }) => to === name).map(({ from }) => from)];
+        for (const oldDir of allCommonSkillDirs()) {
+          if ((oldDir.canonicalTarget || oldDir.target) !== dir.target) continue;
+          for (const oldName of oldNames) {
+            const oldPath = path.join(target, ...oldDir.target.split("/"), oldName);
+            if (oldPath !== dst && fs.existsSync(oldPath)) rmrf(oldPath);
+          }
         }
       }
       installed.add(name);
@@ -600,8 +610,8 @@ export function installCommonSkills(target, names) {
 /**
  * 用当前随包快照同步目标仓库中已经启用的 common skill。
  *
- * 当前快照只覆盖已经存在的精确目标目录，因此不会安装用户未启用的新 skill；
- * tombstone 只删除固定 common 根目录中的历史名称，避免扫描或误删其它用户内容。
+ * 当前快照只刷新已启用技能，并将历史 Codex 目录迁往共享目标；
+ * 迁移和 tombstone 只删除固定 common 根中的精确目录，避免误删其它用户内容。
  *
  * @param {string} target 目标项目根目录
  * @returns {{refreshed:string[],removed:string[],refreshedPaths:string[],removedPaths:string[]}} 同步结果

@@ -418,10 +418,10 @@ test("无 Trellis 项目可列出、启停 common Skill 且不创建项目状态
 
   const installed = installCommonSkills(target, [SKILL_NAME]);
   assert.deepEqual(installed.installed, [SKILL_NAME]);
-  assert.deepEqual(installed.paths, [`.codex/skills/${SKILL_NAME}`]);
-  assert.equal(fs.existsSync(path.join(target, ".codex/skills", SKILL_NAME, "SKILL.md")), true);
+  assert.deepEqual(installed.paths, [`.agents/skills/${SKILL_NAME}`]);
+  assert.equal(fs.existsSync(path.join(target, ".agents/skills", SKILL_NAME, "SKILL.md")), true);
 
-  seedSkill(target, ".agents/skills", SKILL_NAME);
+  seedSkill(target, ".codex/skills", SKILL_NAME);
   const userSkill = seedSkill(target, ".codex/skills", "user-skill");
   const removed = removeCommonSkills(target, "0.6", [SKILL_NAME]);
 
@@ -450,7 +450,7 @@ for (const platforms of [["codex"], ["claude"], ["codex", "claude"]]) {
     assert.deepEqual(result.skipped, []);
     for (const platform of ["codex", "claude"]) {
       const installed = fs.existsSync(
-        path.join(target, `.${platform}`, "skills", SKILL_NAME, "SKILL.md"),
+        path.join(target, platform === "codex" ? ".agents" : ".claude", "skills", SKILL_NAME, "SKILL.md"),
       );
       assert.equal(installed, platforms.includes(platform), platform);
     }
@@ -464,9 +464,9 @@ test("多个旧名称作为安装别名时去重且最终只保留统一 Skill",
   const result = installCommonSkills(target, OLD_SKILL_NAMES);
 
   assert.deepEqual(result.installed, [SKILL_NAME]);
-  assert.deepEqual(result.paths, [`.codex/skills/${SKILL_NAME}`]);
+  assert.deepEqual(result.paths, [`.agents/skills/${SKILL_NAME}`]);
   assert.deepEqual(result.skipped, []);
-  assert.equal(fs.existsSync(path.join(target, ".codex/skills", SKILL_NAME, "SKILL.md")), true);
+  assert.equal(fs.existsSync(path.join(target, ".agents/skills", SKILL_NAME, "SKILL.md")), true);
   for (const oldName of OLD_SKILL_NAMES) {
     assert.equal(fs.existsSync(path.join(target, ".codex/skills", oldName)), false);
   }
@@ -479,7 +479,7 @@ test("停用统一 common Skill 只删除精确受管目录", (t) => {
 
   const result = removeCommonSkills(target, "0.6", [SKILL_NAME]);
 
-  assert.ok(result.removed.includes(`.codex/skills/${SKILL_NAME}`));
+  assert.ok(result.removed.includes(`.agents/skills/${SKILL_NAME}`));
   assert.equal(fs.existsSync(path.dirname(userSkill)), true);
   assert.equal(fs.readFileSync(userSkill, "utf8"), "stale:user-skill\n");
 });
@@ -503,7 +503,10 @@ test("普通同步覆盖当前、双旧、legacy 与无旧 Skill 场景", (t) =>
   assert.ok(migrated.removed.includes("aliyun-dms-query"));
   assert.ok(migrated.removed.includes("aliyun-sls-query"));
   for (const base of [".codex/skills", ".claude/skills", ".agents/skills"]) {
-    assert.equal(fs.existsSync(path.join(oldTarget, ...base.split("/"), SKILL_NAME, "SKILL.md")), true);
+    assert.equal(
+      fs.existsSync(path.join(oldTarget, ...base.split("/"), SKILL_NAME, "SKILL.md")),
+      base !== ".codex/skills",
+    );
     for (const oldName of OLD_SKILL_NAMES) {
       assert.equal(fs.existsSync(path.join(oldTarget, ...base.split("/"), oldName)), false);
     }
@@ -562,7 +565,7 @@ test("独立安装器接受旧名称并且无关安装不触发迁移", (t) => {
   for (const oldName of OLD_SKILL_NAMES) seedSkill(aliasTarget, ".codex/skills", oldName);
   const aliasResult = runInstaller(repo, aliasTarget, ["aliyun-dms-query"]);
   assert.equal(aliasResult.status, 0, `${aliasResult.stdout}\n${aliasResult.stderr}`);
-  assert.equal(fs.existsSync(path.join(aliasTarget, ".codex/skills", SKILL_NAME, "SKILL.md")), true);
+  assert.equal(fs.existsSync(path.join(aliasTarget, ".agents/skills", SKILL_NAME, "SKILL.md")), true);
   for (const oldName of OLD_SKILL_NAMES) {
     assert.equal(fs.existsSync(path.join(aliasTarget, ".codex/skills", oldName)), false);
   }
@@ -573,6 +576,7 @@ test("独立安装器接受旧名称并且无关安装不触发迁移", (t) => {
   assert.equal(unrelatedResult.status, 0, `${unrelatedResult.stdout}\n${unrelatedResult.stderr}`);
   assert.equal(fs.existsSync(oldSkill), true);
   assert.equal(fs.existsSync(path.join(unrelatedTarget, ".codex/skills", SKILL_NAME)), false);
+  assert.equal(fs.existsSync(path.join(unrelatedTarget, ".agents/skills", SKILL_NAME)), false);
 });
 
 test("独立安装器全量迁移旧 Skill 且不修改 ENV 文件", (t) => {
@@ -585,7 +589,7 @@ test("独立安装器全量迁移旧 Skill 且不修改 ENV 文件", (t) => {
   const result = runInstaller(repo, target, [], { HOME: target });
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  assert.equal(fs.existsSync(path.join(target, ".codex/skills", SKILL_NAME, "SKILL.md")), true);
+  assert.equal(fs.existsSync(path.join(target, ".agents/skills", SKILL_NAME, "SKILL.md")), true);
   for (const oldName of OLD_SKILL_NAMES) {
     assert.equal(fs.existsSync(path.join(target, ".codex/skills", oldName)), false);
   }
@@ -601,9 +605,120 @@ test("Flower 普通升级迁移旧 Skill 且不修改 ENV 文件", (t) => {
   const result = syncInstalledCommonSkills(target);
 
   assert.ok(result.refreshed.includes(SKILL_NAME));
-  assert.equal(fs.existsSync(path.join(target, ".codex/skills", SKILL_NAME, "SKILL.md")), true);
+  assert.equal(fs.existsSync(path.join(target, ".agents/skills", SKILL_NAME, "SKILL.md")), true);
   for (const oldName of OLD_SKILL_NAMES) {
     assert.equal(fs.existsSync(path.join(target, ".codex/skills", oldName)), false);
   }
   assertCredentialEnvFilesUnchanged(before);
+});
+
+test("空目录批量安装与共享平台目录选择保持一致", (t) => {
+  const names = ["open-idea", SKILL_NAME];
+  for (const platforms of [[], ["agents"], ["codex"], ["claude"], ["agents", "claude"], ["codex", "claude"]]) {
+    const target = createTarget(t, platforms, { trellis: false });
+    const expectedRoots = platforms.length === 0
+      ? [".agents/skills", ".claude/skills"]
+      : [
+        ...(platforms.includes("agents") || platforms.includes("codex") ? [".agents/skills"] : []),
+        ...(platforms.includes("claude") ? [".claude/skills"] : []),
+      ];
+    const expectedPaths = names.flatMap((name) => expectedRoots.map((root) => `${root}/${name}`));
+    for (let iteration = 0; iteration < 2; iteration++) {
+      const result = installCommonSkills(target, names);
+      assert.deepEqual(result.paths, expectedPaths, `${platforms}: ${iteration}`);
+      for (const relative of expectedPaths) {
+        assert.equal(fs.existsSync(path.join(target, relative, "SKILL.md")), true);
+      }
+    }
+    assert.equal(fs.existsSync(path.join(target, ".codex/skills")), false);
+    assert.equal(fs.existsSync(path.join(target, ".trellis")), false);
+    assert.equal(fs.existsSync(path.join(target, ".flower")), false);
+    assert.equal(listSkillCatalog(target).commonSkills.find(({ name }) => name === SKILL_NAME).installed, true);
+    assert.deepEqual(removeCommonSkills(target, null, names).removed, expectedPaths);
+    assert.deepEqual(removeCommonSkills(target, null, names).removed, []);
+  }
+});
+
+test("同名 common 目录迁移合并新旧副本且重复同步不再删除", (t) => {
+  for (const coexist of [false, true]) {
+    const target = createTarget(t, ["codex"], { trellis: false });
+    const oldSkill = seedSkill(target, ".codex/skills", "open-idea");
+    const userSkill = seedSkill(target, ".codex/skills", "user-skill");
+    if (coexist) seedSkill(target, ".agents/skills", "open-idea");
+    assert.equal(listSkillCatalog(target).commonSkills.find(({ name }) => name === "open-idea").installed, true);
+    const plan = describeInstalledCommonSkillSync(target);
+    assert.deepEqual(plan.refreshes.map(({ target: value }) => value), [".agents/skills/open-idea"]);
+    assert.deepEqual(plan.removedTargets, [".codex/skills/open-idea"]);
+    assert.equal(fs.readFileSync(oldSkill, "utf8"), "stale:open-idea\n");
+    const result = syncInstalledCommonSkills(target);
+    assert.deepEqual(result.refreshedPaths, [".agents/skills/open-idea"]);
+    assert.equal(fs.existsSync(path.dirname(oldSkill)), false);
+    assert.equal(fs.readFileSync(userSkill, "utf8"), "stale:user-skill\n");
+    assert.deepEqual(syncInstalledCommonSkills(target).removedPaths, []);
+    assert.equal(fs.existsSync(path.join(target, ".claude")), false);
+  }
+});
+
+test("定向安装只迁移选定技能的旧目录", (t) => {
+  const target = createTarget(t, ["codex"], { trellis: false });
+  const oldSkill = seedSkill(target, ".codex/skills", "open-idea");
+  const unrelated = seedSkill(target, ".codex/skills", SKILL_NAME);
+  installCommonSkills(target, ["open-idea"]);
+  assert.equal(fs.existsSync(path.dirname(oldSkill)), false);
+  assert.equal(fs.readFileSync(unrelated, "utf8"), `stale:${SKILL_NAME}\n`);
+  assert.equal(fs.existsSync(path.join(target, ".agents/skills", SKILL_NAME)), false);
+});
+
+test("迁移写入失败时安装与同步都保留旧副本", (t) => {
+  for (const operation of [installCommonSkills, syncInstalledCommonSkills]) {
+    const target = createTarget(t, ["codex"], { trellis: false });
+    const oldSkill = seedSkill(target, ".codex/skills", "open-idea");
+    const originalCopy = fs.cpSync;
+    const copy = t.mock.method(fs, "cpSync", (source, destination, options) => {
+      if (destination === path.join(target, ".agents/skills/open-idea")) throw new Error("模拟复制失败");
+      return originalCopy(source, destination, options);
+    });
+    assert.throws(() => operation(target, ["open-idea"]), /模拟复制失败/);
+    copy.mock.restore();
+    assert.equal(fs.readFileSync(oldSkill, "utf8"), "stale:open-idea\n");
+  }
+});
+
+test("来源缺少 SKILL.md 时不迁移旧目录", (t) => {
+  const target = createTarget(t, ["codex"], { trellis: false });
+  const oldSkill = seedSkill(target, ".codex/skills", "open-idea");
+  const sourceFile = path.join(SNAPSHOT_ROOT, ".codex/skills/open-idea/SKILL.md");
+  const originalExists = fs.existsSync;
+  t.mock.method(fs, "existsSync", (file) => file === sourceFile ? false : originalExists(file));
+  assert.deepEqual(describeInstalledCommonSkillSync(target), { refreshes: [], removedTargets: [] });
+  assert.deepEqual(installCommonSkills(target, ["open-idea"]).skipped, ["open-idea"]);
+  assert.equal(fs.readFileSync(oldSkill, "utf8"), "stale:open-idea\n");
+});
+
+test("损坏迁移声明禁止目录迁移但保留既有原地刷新", (t) => {
+  const target = createTarget(t, ["codex"], { trellis: false });
+  seedSkill(target, ".codex/skills", "open-idea");
+  const manifest = JSON.parse(fs.readFileSync(path.join(ENHANCEMENTS_ROOT, "MANIFEST.json"), "utf8"));
+  manifest.common.skillMigrations = null;
+  const plan = withManifestOverride(manifest, () => describeInstalledCommonSkillSync(target));
+  assert.deepEqual(plan.refreshes.map(({ target: value }) => value), [".codex/skills/open-idea"]);
+  assert.deepEqual(plan.removedTargets, []);
+});
+
+test("独立安装器覆盖空目录双装、共享平台与同名目录迁移", (t) => {
+  const repo = createInstallerRepo(t);
+  for (const platforms of [[], ["agents"], ["codex"], ["claude"], ["agents", "claude"]]) {
+    const target = createTarget(t, platforms, { trellis: false });
+    const oldSkill = platforms.includes("codex") ? seedSkill(target, ".codex/skills", "open-idea") : null;
+    const result = runInstaller(repo, target, ["open-idea", SKILL_NAME]);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    for (const name of ["open-idea", SKILL_NAME]) {
+      assert.equal(fs.existsSync(path.join(target, ".agents/skills", name, "SKILL.md")), platforms.length === 0 || platforms.includes("agents") || platforms.includes("codex"));
+      assert.equal(fs.existsSync(path.join(target, ".claude/skills", name, "SKILL.md")), platforms.length === 0 || platforms.includes("claude"));
+      assert.equal(fs.existsSync(path.join(target, ".codex/skills", name)), false);
+    }
+    if (oldSkill) assert.equal(fs.existsSync(oldSkill), false);
+    assert.equal(fs.existsSync(path.join(target, ".trellis")), false);
+    assert.equal(fs.existsSync(path.join(target, ".flower")), false);
+  }
 });
