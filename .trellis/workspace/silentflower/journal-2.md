@@ -1409,3 +1409,38 @@ Trellis 0.6.14 升级已完成质量检查、规范同步和远端推送；本�
 ### Next Steps
 
 - 后续发布后按归档 release.md 升级目标项目并验证成员安装。
+
+
+## Session 103: 统一通用技能目录与空目录双平台安装
+
+**Date**: 2026-09-08
+**Task**: 统一通用技能目录与空目录双平台安装
+**Branch**: `main`
+
+### Summary
+
+Codex 通用技能统一安装到 .agents/skills，Claude 保留 .claude/skills；空目录默认双装，旧目录按选定技能迁移，Flower 与独立安装器保持一致。两仓业务与任务记录均已推送，本次完成任务归档。
+
+### Main Changes
+
+- 安装前固定整批平台目标，兼容旧目录与技能改名，迁移写入失败保留旧副本。
+- 补充目录矩阵与事务回滚测试，同步 README 和迁移规范。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7ebdf05` | (see git log) |
+| `8360b3d` | (see git log) |
+
+### Testing
+
+- [OK] 71 项定向测试通过；npm test 通过：JS 564 通过、1 跳过，Python 343 通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 本任务已完成并归档。
