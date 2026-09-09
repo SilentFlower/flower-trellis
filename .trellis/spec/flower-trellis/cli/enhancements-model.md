@@ -2802,7 +2802,10 @@ run_check_all -> run_spec_update -> commit_only
 ```text
 planned_files <= 8  ->逐项展示
 planned_files > 8   ->按目录归组,文件摘要最多 12 行,支持“展开文件”
-retained_dirty      ->逐项标注 untracked/unstaged/staged,不折叠
+retained_per_repo <= 8 ->逐项标注 Git 状态
+retained_per_repo > 8  ->非 staged 项按目录与 Git 状态汇总,每仓最多 12 行
+retained_staged     ->始终单列,不受行数限制,不计入分组摘要
+retained_result     ->按仓库报告数量与实际核对结论,staged/异常/未核验项单列
 risk_items          ->始终逐项展示,不折叠
 ```
 
@@ -2858,7 +2861,13 @@ risk_items          ->始终逐项展示,不折叠
   `parent`、`main repo` 不得直接出现在用户输出中。
 - 每仓 planned files 不超过 8 个时完整展示;超过 8 个时按目录归组,普通文件摘要最多
   12 行,并允许用户展开同一 exact set。展开不是执行确认,也不能重新推断范围。
-- 保留 dirty 和风险条目始终逐项展示,不受阈值限制。
+- 保留 dirty 按上述阈值展示；同一路径计数一次，兼有 staged/unstaged 时同时标注。
+  风险条目始终逐项展示，不受阈值限制。“展开保留变更”在对话中展示同一 exact set，
+  不改变确认范围，也不生成清单附件。
+- 普通 push 和用户 commit-only 的计划与校验基线默认放在当前执行上下文；仅跨进程校验或
+  中断恢复确需落盘时，在 Git 忽略的 runtime 目录保存一份必要临时 JSON，复用已有记录。
+  不得仅为缩短对话或提供链接生成 `retained.md` 等附件，也不得把临时计划写进任务产物或
+  提交范围；auto-loop 沿用 runner 持久化契约。结果只报告已核验事实，不把未核验项称为保持原状。
 - 多仓库逐仓独立生成 commit message、branch/upstream、文件范围和 push 结果;普通模式对完整
   计划只确认一次。计划/结果复用原有总览 → 分仓 → 任务进度 → 保留 dirty 的视觉顺序,
   但只显示精简后的 commit/push/progress;不重复展示 Spec review、check、release 或 finish-work 信息。
@@ -2933,7 +2942,11 @@ risk_items          ->始终逐项展示,不折叠
 | auto-loop 内部 commit-only 到达交互模板读取或确认路径 | 契约回归;停止并修复 Push 分层，不修改 runner 适配错误 UI |
 | 单仓 planned files = 8 | 逐项完整展示 |
 | 单仓 planned files > 8 | 按目录归组,文件摘要最多 12 行,提供“展开文件” |
-| 存在 retained dirty | 在“保留未提交的变更（dirty）”中逐项标注 Git 状态,不作为默认阻塞 |
+| 单仓 retained dirty 不超过 8 项 | 逐项标注 Git 状态,不作为默认阻塞 |
+| 单仓 retained dirty 超过 8 项 | 非 staged 项按目录和 Git 状态汇总,每仓最多 12 行；staged 单列 |
+| 用户请求“展开保留变更” | 在对话中展示同一 exact set 与状态,不写清单附件或改变确认范围 |
+| 仅为缩短对话准备生成 retained.md | 不生成；使用分组摘要 |
+| retained 结果核对完成 | 每仓报告数量与结论，staged/异常/未核验项单列 |
 | 存在 risk items | 在独立“风险”区逐项完整展示,即使超过 12 行也不得折叠 |
 | 用户请求“展开文件” | 展示当前 exact planned files,不改变计划、不执行 |
 | 执行前 planned set / branch / upstream / conflict / push 目标变化 | 原确认失效,重新生成并确认计划 |
@@ -2974,6 +2987,8 @@ risk_items          ->始终逐项展示,不折叠
   Push 计划仍把两个问题的 ID、严重度和影响纳入风险区。
 - Good:单仓 20 个普通 planned files 按目录压成 6 行,2 个未识别 dirty 文件仍逐项展示;
   用户回复“展开文件”后看到原 20 个 exact paths。
+- Good:父仓 210 项非 staged 保留变更按目录和 Git 状态汇总，子仓 2 项逐项展示；
+  执行仍使用完整 exact set，结果按实际核对结论报告数量，不生成 Markdown 清单。
 - Good:两个业务仓库各自拥有 commit message 和 branch/upstream,顶部显示执行顺序和一行任务
   progress,用户只确认一次；业务 push 后原子进入 completed，再把包含完成态的 task-record exact files
   作为独立 commit 推送，当前 session 继续指向该待归档任务且任务目录 clean。
@@ -3026,7 +3041,8 @@ risk_items          ->始终逐项展示,不折叠
 - 静态断言 auto-loop 内部 commit-only 不读取或渲染交互模板、不重新确认，并继续返回逐仓执行数据；
   canonical、发布快照与 dogfood 的双平台主 Skill/reference 必须字节一致。
 - 静态扫描 Hub，确认只登记 `trellis-push` owner 和必要跨阶段顺序，不重复 Skill 的展示细节。
-- 用 8 个、9 个和超过 12 个目录分组行的模拟计划验证展示阈值;风险文件始终逐项显示。
+- 用 8 个、9 个和超过 12 个目录分组行的模拟计划验证 planned/retained 展示阈值；
+  retained staged 和风险始终逐项显示；展开不改 exact set，结果不重复清单或虚构核验结论。
 - 模拟单仓、多仓、无活动任务、用户展开文件、计划漂移、部分仓库失败六类输出。
 - 模拟普通多仓生成命令:生成后 dirty paths 未超出预计 exact files 时只确认一次;新增计划外
   dirty path 时停止并重新规划。静态确认 skill 没有独立 `Step 4.1`、validation 协议或新状态。
