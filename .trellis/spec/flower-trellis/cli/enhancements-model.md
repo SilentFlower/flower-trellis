@@ -1954,6 +1954,10 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   阻塞或重大问题须在开头说明。随后顺序固定为总体摘要、维度结果、`DOC-*` 自动修复、`CHK-*` 主路径问题、`FBK-*` 兜底问题、
   未覆盖与风险、统一处置批次。没有对应通道时省略该区；任一通道有问题时总体不得 strict pass，
   只在末尾询问一次修复或风险接受范围，不得附带 commit/push 计划。
+- 报告默认在对话中完整展示,不得为缩短回复、提供链接或同步任务状态新建 `check-report.md`
+  等附件。仅用户明确导出或已确认交付约定要求时由主会话保存;Maven/auto-loop 沿用机器证据契约。
+  DOC 只修正已有文档事实,不得借状态或链接修复新增报告。strict pass 可按原模板顺序紧凑展示,
+  但保留验证、风险和下一步;具体规则由 `trellis-check-all/references/reporting-and-disposition.md` 所有。
 - 用户可以明确接受当前报告中的 `CHK-*` 或 `FBK-*` 而不修复。语义明确的“接受当前报告全部风险”覆盖
   全部当前 findings,包括 P0,不要求固定句式或逐项输入 ID;部分接受仍必须唯一定位子集。只有报告版本或
   指向范围不清时才追问。接受不改变分类、严重度、证据和建议,也不能从报告中删除问题；受影响代码、
@@ -1962,7 +1966,7 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   部分验证、无未接受且未登记 `[上线后验证]` 的实质剩余风险，则结论为“通过·已接受风险”，可进入
   interactive、untracked、direct Git、Update-Spec 与 Push 的继续路径。strict pass 可以与完整登记的
   `[上线后验证]` 并存；后者由 Push 保持可见并交给既有 `trellis-release` / `release.md` 承接。
-  `仅保留报告` 不构成风险接受。
+  `仅保留报告` 不构成风险接受,也不授权写文件。
 - 用户确认 `修复全部`、混合精确问题 ID 或其它明确修复范围后,批量修复所选项并复用当前任务合法 implement route;不存在时重新进入
   `trellis-route(target=implement)`。定向验证后复用当前 check route 执行 Check-All 重检。
 - `references/platform-dispatch.json` 是平台启动契约唯一事实源，必须覆盖上游 `0.6.14` 的 21 个
