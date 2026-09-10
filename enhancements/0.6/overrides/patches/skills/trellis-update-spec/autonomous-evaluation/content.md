@@ -1,6 +1,6 @@
 ## Autonomous Spec Evaluation
 
-This section replaces the interactive “whether to update” decision. The upstream code-spec depth and seven-section requirements remain authoritative when an update is necessary.
+This section replaces the interactive “whether to update” decision. The Code-Spec First Rule remains authoritative when an update is necessary.
 
 ### Result Contract
 
@@ -41,7 +41,7 @@ Capture the current dirty baseline before writing. `written` requires all of the
 - Every change made by this Update-Spec invocation is under `.trellis/spec/**`. Do not modify business code, tests, workflow, skills, task artifacts, or any other file.
 - Modify the smallest required section in the fewest files. Do not opportunistically rewrite, expand, reorganize, or format unrelated content.
 - Prefer an existing authoritative spec. Create a new file only when no suitable spec exists, and update the corresponding index in the same invocation.
-- Do not write a generic principle merely to avoid `no-op`. New content must provide a concrete executable contract such as signatures, fields, boundaries, error matrices, examples, or test assertions, while following the upstream seven-section requirements.
+- Do not write a generic principle merely to avoid `no-op`. New content must provide a concrete executable contract such as signatures, fields, boundaries, error matrices, examples, or test assertions, while following the Code-Spec First Rule.
 
 After writing, reread the spec diff and reverse-check it against source code and tests. At minimum run:
 
@@ -54,7 +54,7 @@ When applicable, also validate indexes/links, code signatures, or project-specif
 ### Workflow Disposition
 
 - Interactive: after a passed Check-All stop, when the user says “下一步”, “继续”, `next`, `continue`, or an equivalent continuation intent, run this skill. A `no-op` or `written` result must load `trellis-push` in the same turn and present its single confirmation plan. A `needs-review` result stops and must not generate a Push plan.
-- Interactive direct Git: when the latest user message that triggered the current completion chain explicitly requests an ordinary push or a user-initiated `commit-only`, use that request only as conditional continuation after a strictly passed Check-All. After the existing standard Check-All report is shown, run this skill in the same turn when no currently valid `spec_update_result` exists. Only `no-op` or `written` may proceed to `trellis-push`; `needs-review` stops. Do not infer this intent from history, summaries, dirty state, or an auto-loop internal `commit-only`.
+- Interactive direct Git: follow the continuation decision made by Check-All's `Interactive Post-Check Stop Gate`, including strict pass and accepted-risk pass. When that gate permits continuation, run this skill in the same turn after the existing standard Check-All report if no currently valid `spec_update_result` exists. Only `no-op` or `written` may proceed to `trellis-push`; `needs-review` stops. Do not infer intent or risk acceptance from unrelated history, summaries, dirty state, or an auto-loop internal `commit-only`.
 - Validated auto-loop: for `no-op` or `written`, execute `record --action run_spec_update --result ok` and immediately run `next`. For `needs-review`, execute `record --action run_spec_update --result blocked --failure-type spec-needs-review`; never disguise it as `no-op`.
 - Untracked: keep the cursor at `spec` for `needs-review`. For `no-op` or `written`, run `untracked_flow.py advance --stage push`. Any later product edit returns the cursor to `implement`; the helper does not validate or preserve owner evidence.
 

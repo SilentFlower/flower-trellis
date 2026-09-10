@@ -17,6 +17,9 @@ const UPSTREAM_META = path.resolve(
 const UPSTREAM_BRAINSTORM = path.resolve(
   "node_modules/@mindfoldhq/trellis/dist/templates/common/skills/brainstorm.md",
 );
+const UPSTREAM_UPDATE_SPEC = path.resolve(
+  "node_modules/@mindfoldhq/trellis/dist/templates/common/skills/update-spec.md",
+);
 const UPSTREAM_SHARED_HOOK = path.resolve(
   "node_modules/@mindfoldhq/trellis/dist/templates/shared-hooks/inject-workflow-state.py",
 );
@@ -242,13 +245,9 @@ function minimalWorkflow() {
 
 function writeUpdateSpecTargets(target) {
   const body = [
-    "# Update Code-Spec",
-    "",
     "KEEP BEFORE",
     "",
-    patchSource("skills/trellis-update-spec/autonomous-evaluation", "baseline.md"),
-    "",
-    "## Quality Checklist",
+    fs.readFileSync(UPSTREAM_UPDATE_SPEC, "utf8"),
     "",
     "KEEP AFTER",
     "",
@@ -258,6 +257,24 @@ function writeUpdateSpecTargets(target) {
     write(target, ".agents/skills/trellis-update-spec/SKILL.md", skill),
     write(target, ".claude/skills/trellis-update-spec/SKILL.md", skill),
   ];
+}
+
+/**
+ * 核对实际安装入口的案例合并和可执行契约要求。
+ * @param {string} value 安装后的 Update-Spec 正文
+ * @returns {void}
+ */
+function assertUpdateSpecExamples(value) {
+  assert.match(value, /### Mandatory Output \(6 Sections\)/);
+  assert.match(value, /### 5\. Scenarios and Examples/);
+  assert.match(value, /- Incorrect use: \.\.\.\n- Correct handling: \.\.\./);
+  assert.match(value, /normal\/base cases and at least one incorrect use with its correction/);
+  assert.match(value, /Did Scenarios and Examples cover normal\/base cases and incorrect use with its correction\?/);
+  assert.doesNotMatch(value, /seven-section|Mandatory Output \(7 Sections\)|Good\/Base\/Bad Cases|### 7\. Wrong vs Correct/);
+  for (const heading of ["Scope / Trigger", "Signatures", "Contracts", "Validation & Error Matrix", "Tests Required"]) {
+    assert.ok(value.includes(heading), heading);
+  }
+  assert.match(value, /Unit\/Integration\/E2E with assertion points/);
 }
 
 function writeFinishTargets(target) {
@@ -284,27 +301,15 @@ function writeAllUpdateSpecTargets(target) {
     "skills/trellis-update-spec/autonomous-evaluation",
     "patch.json",
   ));
-  const canonicalBody = [
-    "# Update Code-Spec",
-    "",
+  const canonicalBody = fs.readFileSync(UPSTREAM_UPDATE_SPEC, "utf8");
+  const nativeBody = canonicalBody.replace(
     patchSource("skills/trellis-update-spec/autonomous-evaluation", "baseline.md"),
-    "",
-    "## Quality Checklist",
-    "",
-  ].join("\n");
-  const nativeBody = [
-    "# Update Code-Spec",
-    "",
-    "## Interactive Mode",
-    "",
-    "Legacy interactive body",
-    "",
-    "## Quality Checklist",
-    "",
-  ].join("\n");
+    "## Interactive Mode\n\nLegacy interactive body\n\n---",
+  );
   const files = new Map();
   for (const operation of declaration.operations) {
     for (const targetConfig of operation.targets) {
+      if (files.has(targetConfig.path)) continue;
       const body = operation.id === "trellis-update-spec-autonomous-evaluation"
         ? canonicalBody
         : nativeBody;
@@ -401,7 +406,10 @@ function writeIntentTargets(target) {
   write(
     target,
     ".agents/skills/trellis-start/SKILL.md",
-    `# Start\n\n${patchSource("skills/trellis-start/no-task-routing", "selector.md")}\n`,
+    fs.readFileSync(
+      path.resolve("node_modules/@mindfoldhq/trellis/dist/templates/common/commands/start.md"),
+      "utf8",
+    ).replaceAll("{{PYTHON_CMD}}", "python3").replaceAll("{{CLI_FLAG}}", "codex"),
   );
   const beforeDev = [
     "# Before Dev",
@@ -726,6 +734,8 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     assert.match(value, /### 1\. Completion State Gate/);
     assert.match(value, /### 2\. Decision Audit/);
     assert.match(value, /### 3\. Current Task Release Audit/);
+    assert.equal((value.match(/git commit --only/g) || []).length, 1);
+    assert.match(value, /the only newly ahead commit is this run's bookkeeping commit/);
   }
   const plugins = JSON.parse(
     fs.readFileSync(path.join(target, ".flower/plugins.json"), "utf8"),
@@ -890,6 +900,12 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
     const first = snapshotTree(target);
 
     const value = fs.readFileSync(workflow, "utf8");
+    const start = fs.readFileSync(path.join(target, ".agents/skills/trellis-start/SKILL.md"), "utf8");
+    assert.match(start, /Active task exists.*load `trellis-continue` and follow its recovery rules/);
+    assert.doesNotMatch(start, /Active task status|--step 2\.1/);
+    assert.match(start, /No active task.*untracked_flow\.py status/);
+    assert.match(start, /\| Done coding \/ quality check \| `trellis-route\(target=check\)` → `trellis-check-all` \|/);
+    assert.doesNotMatch(start, /\| Done coding \/ quality check \| `trellis-check` \|/);
     assert.match(value, /### Skill-Garden Workflow Owner Index/);
     assert.doesNotMatch(value, /#### Request Intent Routing/);
     assertIntentRoutingSemantics(value);
@@ -1025,6 +1041,8 @@ test("trellis-continue Patch 覆盖全部平台入口且保持 Phase 前恢复�
   for (const continueTarget of continueTargets) {
     const value = fs.readFileSync(continueTarget, "utf8");
     assert.match(value, /skill-garden patch trellis-continue-task-progress-recovery/);
+    assert.match(value, /For Steps 1 and 2, reuse task context and the Phase Index already loaded in the current turn when still valid; otherwise load them normally/);
+    assert.match(value, /Saved-progress recovery and all workflow review\/confirmation gates remain required/);
     assert.match(value, /### Planning Resume Gate/);
     assert.ok(
       value.indexOf("task_progress.py status --json")
@@ -1063,10 +1081,18 @@ test("0.6.14 shared Hook 通过局部 Patch 保留上游结构", () => {
 });
 
 test("Update-Spec 三个精细安装别名都替换现有入口且不创建缺失平台", () => {
+  const breakLoop = fs.readFileSync(
+    "node_modules/@mindfoldhq/trellis/dist/templates/common/skills/break-loop.md",
+    "utf8",
+  );
+  const analysis = breakLoop.split("## After Analysis: Immediate Actions")[0];
   for (const alias of ["trellis-update-spec", "update-spec", "update-spec-enhancement"]) {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-update-spec-${alias}-`));
     write(target, ".trellis/.version", "0.6.14\n");
     const targets = writeUpdateSpecTargets(target);
+    const breakLoopTargets = [".agents/skills", ".claude/skills"].map((root) =>
+      write(target, `${root}/trellis-break-loop/SKILL.md`, breakLoop),
+    );
 
     quietApply(target, { variant: "0.6", skills: [alias] });
     const first = snapshotTree(target);
@@ -1074,6 +1100,14 @@ test("Update-Spec 三个精细安装别名都替换现有入口且不创建缺�
       const value = fs.readFileSync(file, "utf8");
       assert.match(value, /skill-garden patch trellis-update-spec-autonomous-evaluation/);
       assert.doesNotMatch(value, /^## Interactive Mode$/m);
+      assertUpdateSpecExamples(value);
+    }
+    for (const file of breakLoopTargets) {
+      const value = fs.readFileSync(file, "utf8");
+      assert.equal(value.split("<!-- BEGIN skill-garden patch trellis-break-loop-spec-evaluation")[0], analysis);
+      assert.match(value, /`trellis-update-spec` when the workflow reaches spec evaluation/);
+      assert.match(value, /`no-op` is a valid outcome/);
+      assert.doesNotMatch(value, /MUST immediately|Sync templates|Commit the spec updates/);
     }
     assert.equal(fs.existsSync(path.join(target, ".codex")), false);
 
@@ -1086,6 +1120,19 @@ test("Update-Spec 三个精细安装别名都替换现有入口且不创建缺�
   quietApply(missing, { variant: "0.6", skills: ["update-spec-enhancement"] });
   assert.equal(fs.existsSync(path.join(missing, ".agents/skills/trellis-update-spec/SKILL.md")), false);
   assert.equal(fs.existsSync(path.join(missing, ".claude/skills/trellis-update-spec/SKILL.md")), false);
+  assert.equal(fs.existsSync(path.join(missing, ".agents/skills/trellis-break-loop/SKILL.md")), false);
+  assert.equal(fs.existsSync(path.join(missing, ".claude/skills/trellis-break-loop/SKILL.md")), false);
+});
+
+test("Update-Spec 案例模板被用户修改时预检失败且不覆盖目标", () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-update-spec-examples-drift-"));
+  write(target, ".trellis/.version", "0.6.14\n");
+  const [file] = writeUpdateSpecTargets(target);
+  fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("### 5. Good/Base/Bad Cases", "### 5. Custom Cases"));
+  const before = snapshotTree(target);
+
+  assert.throws(() => quietApply(target, { variant: "0.6", skills: ["trellis-update-spec"] }));
+  assert.deepEqual(snapshotTree(target), before);
 });
 
 test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持幂等", () => {
@@ -1110,6 +1157,10 @@ test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持�
     assert.match(value, /BEGIN skill-garden patch trellis-update-spec-(?:autonomous-evaluation|native-autonomous-evaluation)/, relativePath);
     assert.match(value, /## Autonomous Spec Evaluation/, relativePath);
     assert.doesNotMatch(value, /^## Interactive Mode$/m, relativePath);
+    assert.match(value, /Interactive direct Git: follow the continuation decision made by Check-All's `Interactive Post-Check Stop Gate`/, relativePath);
+    assert.doesNotMatch(value, /after a strictly passed Check-All/, relativePath);
+    assert.match(value, /Only `no-op` or `written` may proceed to `trellis-push`; `needs-review` stops/, relativePath);
+    assertUpdateSpecExamples(value);
   }
 
   assert.equal(finishTargets.size, 21);

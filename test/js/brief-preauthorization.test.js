@@ -67,7 +67,37 @@ test("Brief 显式预授权只形成文案级窄例外", () => {
   assert.doesNotMatch(startPatch, /brief_review_state|planning_start_authorization/);
 });
 
-test("0.6 发布快照与 Brief 预授权作者源一致", () => {
+test("Brief 规划阶段展示确认，实现及恢复阶段读取执行", () => {
+  const skill = read(sourceRoot, ".agents/skills/trellis-task-brief/SKILL.md");
+  const state = read(
+    sourceRoot,
+    "overrides/patches/workflow/states-in-progress/common-content.md",
+  );
+  const trellisVersion = JSON.parse(fs.readFileSync("package.json", "utf8"))
+    .dependencies["@mindfoldhq/trellis"];
+  const compiled = read(
+    path.resolve("vendor/skill-garden/compiled-targets", trellisVersion, "full/targets"),
+    ".trellis/workflow.md",
+  );
+
+  assert.match(state, /read `<task>\/brief\.md` and task artifacts without routine redisplay, including after context recovery/);
+  assert.match(state, /if the Brief is missing, follow `trellis-task-brief` backfill guidance/);
+  assert.match(skill, /`in_progress` 阶段只读取 brief 和任务材料，不例行重新生成、展示或确认；新会话或压缩恢复同样如此/);
+  assert.match(skill, /范围变化沿用 workflow 的既有评审门禁，用户明确要求查看时再完整展示/);
+  assert.match(skill, /只有用户明确要求当场回补并 review 时，才继续写回/);
+  assert.doesNotMatch(skill, /## 实现阶段承接|交接已完成且内容未变|恢复交接上下文|展示计数|三个展示场景都完整展示/);
+
+  for (const name of ["in_progress", "in_progress-inline"]) {
+    const body = compiled.split(`\n[workflow-state:${name}]\n`)[1]
+      ?.split(`\n[/workflow-state:${name}]`)[0];
+    assert.ok(body, name);
+    assert.match(body, /read `<task>\/brief\.md` and task artifacts without routine redisplay/, name);
+    assert.match(body, /Active Task Scope Guard/, name);
+    assert.doesNotMatch(body, /restate `<task>\/brief\.md`|implementation handoff|reuse the unchanged reviewed Brief/, name);
+  }
+});
+
+test("0.6 发布快照与 Brief 交接作者源一致", () => {
   for (const relativePath of [
     ".agents/skills/trellis-task-brief/SKILL.md",
     ".claude/skills/trellis-task-brief/SKILL.md",
@@ -75,6 +105,7 @@ test("0.6 发布快照与 Brief 预授权作者源一致", () => {
     "overrides/patches/skills/trellis-brainstorm/planning-handoff/readiness-content.md",
     "overrides/patches/skills/trellis-brainstorm/planning-handoff/summary-shape-content.md",
     "overrides/patches/workflow/task-brief-review/phase-1-activate-content.md",
+    "overrides/patches/workflow/states-in-progress/common-content.md",
     "overrides/conflicts.json",
   ]) {
     assert.equal(read(snapshotRoot, relativePath), read(sourceRoot, relativePath), relativePath);

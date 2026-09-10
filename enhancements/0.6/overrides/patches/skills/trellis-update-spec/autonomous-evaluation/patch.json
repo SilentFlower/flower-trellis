@@ -39,5 +39,83 @@
     "selector": { "type": "markdown-section", "heading": "## Interactive Mode" },
     "cleanup": [{ "type": "skill-override", "id": "trellis-update-spec" }],
     "content": { "source": "content.md" }
+  }, {
+    "id": "trellis-update-spec-examples-output",
+    "operation": "replace",
+    "targetPolicy": "each-existing",
+    "targets": [
+      {"kind": "skill", "path": ".agents/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".claude/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".agent/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".codebuddy/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".cursor/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".devin/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".factory/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".github/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".grok/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".kilocode/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".kiro/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".omp/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".opencode/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".qoder/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".reasonix/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".snow/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".trae/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".zcode/skills/trellis-update-spec/SKILL.md", "missing": "skip"}
+    ],
+    "selector": { "type": "literal", "source": "examples-output-selector.md", "expectedMatches": 1 },
+    "content": { "source": "examples-output-content.md" }
+  }, {
+    "id": "trellis-update-spec-examples-template",
+    "operation": "replace",
+    "targetPolicy": "each-existing",
+    "targets": [
+      {"kind": "skill", "path": ".agents/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".claude/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".agent/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".codebuddy/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".cursor/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".devin/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".factory/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".github/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".grok/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".kilocode/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".kiro/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".omp/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".opencode/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".qoder/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".reasonix/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".snow/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".trae/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".zcode/skills/trellis-update-spec/SKILL.md", "missing": "skip"}
+    ],
+    "selector": { "type": "literal", "source": "examples-template-selector.md", "expectedMatches": 1 },
+    "content": { "source": "examples-template-content.md" }
+  }, {
+    "id": "trellis-update-spec-examples-checklist",
+    "operation": "replace",
+    "targetPolicy": "each-existing",
+    "targets": [
+      {"kind": "skill", "path": ".agents/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".claude/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".agent/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".codebuddy/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".cursor/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".devin/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".factory/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".github/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".grok/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".kilocode/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".kiro/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".omp/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".opencode/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".qoder/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".reasonix/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".snow/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".trae/skills/trellis-update-spec/SKILL.md", "missing": "skip"},
+      {"kind": "skill", "path": ".zcode/skills/trellis-update-spec/SKILL.md", "missing": "skip"}
+    ],
+    "selector": { "type": "literal", "source": "examples-checklist-selector.md", "expectedMatches": 1 },
+    "content": { "source": "examples-checklist-content.md" }
   }]
 }

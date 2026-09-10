@@ -351,6 +351,20 @@ open IntelliJ IDEA local tool launch
             any(reason.startswith("matched body tokens") for reason in candidate.reasons)
         )
 
+    def test_combined_examples_do_not_route_document_but_heading_remains_searchable(self) -> None:
+        """合并案例的正文不参与召回，明确查询栏目名时仍可发现文档。"""
+        self.write_spec(
+            "knowledge.md",
+            "# Knowledge\n\n## 5. Scenarios and Examples\n"
+            "open IntelliJ IDEA current project local tool launch\n",
+        )
+
+        self.assertEqual(
+            SPEC_ROUTER.find_candidates(self.root, "open IntelliJ IDEA local tool launch", 3),
+            [],
+        )
+        self.first_candidate("Scenarios and Examples")
+
     def test_default_limit_and_empty_output_remain_compatible(self) -> None:
         """默认候选数和无匹配输出保持旧 CLI 契约。"""
         args = SPEC_ROUTER.parse_args([])

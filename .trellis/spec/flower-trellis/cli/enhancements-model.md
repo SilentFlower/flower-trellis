@@ -346,6 +346,8 @@ projectSkillGardenContent(options) -> ContentProjection
   实际 extension/hook/agent 能力。
 - 内容投影和 Patch target 只作用于目标中已经启用的平台 root；缺失平台返回
   `missing-target` 或不生成 mutation，不得创建整个平台目录。
+- `trellis-create-command` 创建项目入口时复用 Meta 的平台目录与格式规则，不强制创建
+  `.claude` / `.agents` 双副本；两份一致源码的约定仅用于 Skill-Garden 分发，验证与输出按实际路径展开。
 
 ### 4. Validation & Error Matrix
 
@@ -1287,6 +1289,8 @@ Risks / Deferred 仅在存在时生成。Key Decisions 只提炼会影响实施�
   handoff 统一引用 `trellis-task-brief` 的默认确认与明确预授权例外，不另写强制下一回合规则。
 - 预授权只取当前对话中仍明确适用于本任务的表达，不写 session runtime，也不扩展为跨会话、
   跨任务或永久偏好。范围扩大、存在未解决 Open Questions、新增高风险边界或用户撤回时失效。
+- Phase 1.4 负责完整展示与实施批准；实现阶段（含新会话/压缩恢复）只读取 brief 和任务材料，
+  不例行重新生成、展示或确认。范围变化沿用既有评审门禁，缺失沿用回补规则，用户要求查看时完整展示。
 - schema 2 auto-loop 在 `start_task` 前必须返回 `review_planning_readiness`，复核验收标准可测试、
   范围/非目标明确、关键决策收敛和仓库证据充分。结果绑定当前实际存在的 `prd.md` / `design.md` /
   `implement.md` 路径与内容 SHA-256；`repairable` 进入最多 3 轮 planning repair，`blocking` 只阻塞当前项。
@@ -1314,6 +1318,7 @@ Risks / Deferred 仅在存在时生成。Key Decisions 只提炼会影响实施�
 | task/artifact 文件访问或解析失败 | 默认失败关闭，输出可恢复错误，不抛 traceback |
 | 普通实现意图或任务创建授权 | 完整展示 brief 后等待后续确认 |
 | 当前最终 Brief 有明确预授权且范围未变化 | 完整展示后允许同回合启动 |
+| in_progress 首次实现或上下文恢复 | 读取 brief 和任务材料，不例行展示或重新确认 |
 | 范围扩大、Open Questions、高风险边界或用户撤回 | 预授权失效，回到默认确认路径 |
 | brief 存在且不早于所有实际存在的权威 artifact | 允许现有 start 流程进入 `in_progress` |
 | 历史任务已经是 `in_progress` 且没有 brief | 允许重新绑定，不批量强制迁移 |
@@ -1357,6 +1362,7 @@ Risks / Deferred 仅在存在时生成。Key Decisions 只提炼会影响实施�
   的最终 marker 与语义；`.agents`、`.claude` 目标至少各覆盖一次。
 - 文案契约测试必须覆盖默认等待、显式预授权同回合启动、普通意图不构成预授权，以及范围扩大、
   Open Questions 和高风险边界使预授权失效；同时断言没有新增 session helper 或 `task.py` 授权状态。
+- 断言 compiled workflow 两种 in_progress 状态均要求读取而非例行重述，保留规划评审、范围门禁和缺失回补。
 - Patch conflict policy 同时要求 handoff/readiness 两个 operation，并检查最终 workflow、skill、
   script 的唯一签名；selector/baseline 漂移继续保持全量预检零写入。
 - 运行 `npm run sync`、enhance-only 二次幂等、`npm test`、Patch conflict、默认及 strict context
@@ -1898,6 +1904,8 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   `--doc-remediation-file`,写入后必须重读最终 diff、重算范围、复核 `check_profile` 并重跑定向验证。
 - 所有用户可见 check 入口都调用 Check-All。`trellis-route(target=check)` 只决定执行位置,
   用户说 light/full 不创建新的 route mode。
+- `trellis-start` 的质量检查快捷表和 `trellis-run-full-chain` 的非全链路检查指引，均经
+  `trellis-route(target=check)` 进入 Check-All，不得把 lint/typecheck/spec 检查导向自修入口。
 - requested depth 优先使用当前请求内最后一次明确表达:`简单检查` / `轻量检查` /
   `light check` 表示 light;`全面检查` / `全量检查` / `full check` 表示 full;其次读取
   validated auto-loop action,否则为 auto。单独说 `check` / `check-all` / `最终检查` /
@@ -2103,7 +2111,8 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   操作路径、接口协议、安全边界、上线承诺和验收口径改写。`code-comment-fact` 测试覆盖机械引用、
   有双重证据的局部实现事实、全部禁止类别、subagent 只返回候选以及修复后 diff/profile/定向验证。
 - 快速路径场景断言未命中 Trigger 的维度为 `N/A`,不会展开无关检查。
-- collect-all 场景断言多个独立失败被完整收集,报告只出现一次修复范围选择,检查阶段文件无变化。
+- collect-all 场景断言多个独立失败被完整收集,处置选择只在报告末尾“下一步”出现一次,
+  “修复批次”只说明分组与验证安排,检查阶段文件无变化。
 - fallback 场景断言分类先于严重度、明确兜底契约不改变 `FBK-*` 归属、三项分类准入完整、
   缺少提交前验证环境时保留 ID 并标记部分验证、生产/外部验收登记 `[上线后验证]` 且非阻断、纯偏好不报告、
   `修复全部` 覆盖 `CHK-*` 与 `FBK-*`,未处置 finding 阻断交互完成链,当前有效风险接受允许继续但不隐藏问题,
@@ -2204,7 +2213,7 @@ python3 ./.trellis/scripts/spec_router.py --json "<short query describing the in
   原文件 1-based 行号。章节范围从当前标题延伸到下一个同级或更高级标题前；章节正文样本从
   当前标题下一行开始，到下一个任意标题前，不能把标题 token 再计为正文证据，也不能让父章节
   吸收子章节的零散正文证据。
-- `Tests Required`、validation matrix、Good/Base/Bad cases、Wrong vs Correct 等测试、验证和
+- `Tests Required`、validation matrix、Good/Base/Bad cases、Wrong vs Correct、Scenarios and Examples 等测试、验证和
   示例章节的正文不得参与文件或章节路由，避免规范中的负例关键词反向召回整份文档；其标题
   仍可参与明确查询。带编号标题应先去除编号再判断。已有文件锚点继续使用前缀证据时，必须在
   原 `MAX_BODY_CHARS` 字符窗口内遮蔽这些章节正文，不得通过删除正文把更靠后的内容拉入前缀。
@@ -2396,7 +2405,7 @@ python3 ./.trellis/scripts/decision_log.py review \
 - `retry-blocked` 只重置稳定 recoverable reason，复用同一 run；不得用 `start --force` 替代正常恢复。schema 2 队列含 blocked 项时终态为 `completed_with_blocked`。
 - `commit_only` 必须复用 `trellis-push` 内部执行路径。Push 根据当前任务 design/implement、项目 SOP/spec、受版本控制的脚本入口及明确输入输出、可验证的 Git/submodule 关系，动态组织任意数量的 `commit -> generate -> commit`；不得硬编码仓库、命令或步骤数，也不得仅因多个仓库、submodule pin 或证据充分的本地生成而 blocked。
 - 生成命令必须来自受版本控制的稳定入口，并能证明工作目录、依赖顺序和预期影响路径；只允许本地、确定性、可重复、无外部副作用的 argv。证据冲突、任意 shell、网络写入、push、发布、部署、归档、凭证或生产数据操作必须在执行前失败关闭。
-- Push 在每个 commit/generate 前后重新检查 branch、HEAD、未完成 Git 集成、staged、全部 dirty 和 retained 摘要；只使用 exact paths 和 `git commit --only`，排除 runtime、route prefs、protected paths 及其它任务目录。retained 只有在前后内容摘要不变且与 planned/generated paths 不冲突时才可保留；计划外 dirty、未知 staged、retained 漂移、归属歧义或 branch/HEAD 漂移必须在后续副作用前停止。
+- Push 在每个 commit/generate 前后重新检查 branch、HEAD、未完成 Git 集成、staged、全部 dirty 和 retained 摘要；只使用 exact paths 和 `git commit --only`，排除 runtime、route prefs、protected paths 及其它任务目录。已登记的 retained 只有在前后内容摘要不变且与 planned/generated paths 不冲突时才可保留，并从生成后的预计文件范围比较中排除；计划外 dirty、未知 staged、retained 漂移、归属歧义或 branch/HEAD 漂移必须在后续副作用前停止。
 - 已完成的前置提交不得自动 reset、rebase、revert、amend 或改写。重试时 Push 从真实 Git 状态重新规划，验证已记录 commit 的仓库、对象、message 和文件集合后跳过；确定性生成可以重跑，最终无变化的提交步骤可以跳过。
 - `record --repo-commit` 只接受 run 已登记仓库中的 7-64 位十六进制本地 commit object；仓库不可读返回 `repo-commit-repository-unreadable`，同仓同 hash 重复记录幂等，同仓不同 hash 返回 `repo-commit-conflict`。成功、failed 和 blocked 都保留可选 `commits[]`，不提升 schema version。
 - `commit` 继续作为主仓或最后提交的兼容字段。存在 `commits[]` 时，显式 `--commit` 必须唯一匹配其中一个已验证完整 hash 或其前缀，否则返回 `repo-commit-primary-mismatch`；未传时使用最后一个 repo commit。没有 `--repo-commit` 的旧单仓 `--commit` 调用保持原行为。
@@ -2623,13 +2632,20 @@ run_check_all -> run_spec_update -> commit_only
   dirty 状态或 auto-loop 内部 action 推断该意图或风险接受，也不得新增 direct Git 专用摘要。
 - 该窄例外只控制已经启动的 Check-All completion chain，不授权 Check-All 或 Update-Spec 拦截
   已经进入 `trellis-push` 的请求；Push owner 只读取完成链证据并决定 Git 计划。
+- Update-Spec 的 direct Git 入口承接 Check-All `Interactive Post-Check Stop Gate` 的当前继续判断，
+  不另设仅限 strict pass 的门槛；自身 `needs-review` 仍停止后续 Push 计划。
 - 通过后用户表达 next/continue,或当前 Check-All 完成链内的 direct Git strict pass / 已接受风险通过时,若没有当前有效结果,同一轮必须先调用
   `trellis-update-spec`;不得询问“是否更新 spec”或先生成提交计划。
 - `no-op` 用于无可复用契约、现有 spec 已覆盖、一次性实现、纯文案/格式变化或用户当前明确
   skip;不得为了避免 no-op 写原则性总结。
+- Break-Loop 保留复盘分析，把发现和证据交给正常规范更新阶段或用户显式请求的 Update-Spec。
+  规范是否修改沿用同一三态协议，已有规范覆盖时允许 `no-op`；不强制同步模板、提交规范或提前跳阶段。
 - `written` 只在代码/测试证据充分且目标权威 spec 唯一时成立。新增修改只能位于
   `.trellis/spec/**`,并且只改承载新契约所需的最小章节和最少文件;不得顺带整理、扩写或格式化
   无关内容。新增 spec 文件时同步对应 index。
+- code-spec 模板统一六栏：Scope / Trigger、Signatures、Contracts、Validation & Error Matrix、
+  Scenarios and Examples、Tests Required。第五栏集中保留正常/基础场景及至少一组错误用法与正确处理，
+  不再单列重复的 Wrong vs Correct；规则、模板和自检清单保持一致。现有规范沿用最小修改边界。
 - `needs-review` 只用于目标、语义、冲突或验证失败无法从仓库证据唯一解决的情况,只问一个
   解除当前歧义所需的问题。
 - 证据顺序固定为任务 JSONL 引用 -> prd/design/implement -> Check-All 证据 -> 实际 diff、源码、
@@ -2689,6 +2705,8 @@ run_check_all -> run_spec_update -> commit_only
 
 - 静态断言 override 包含三态、证据顺序、`.trellis/spec/**`、最小修改、self-validation、
   interactive/auto-loop disposition。
+- 验证最终 Update-Spec 入口的六栏规则、合并案例模板和自检清单一致，签名、契约、错误矩阵及测试断言要求完整；
+  新旧案例标题的正文均不参与规范检索，明确查询标题仍能找到该规范。
 - 静态断言 Check-All 仍只有一个 Interactive Post-Check Stop Gate;普通检查报告后停止,当前
   Check-All 完成链内的 direct Git strict pass / accepted-risk pass 使用原标准报告并同轮进入 Update-Spec,其它结果
   停止；同时断言已经进入 `trellis-push` 后不会反向加载 Check-All/Update-Spec。
@@ -2855,7 +2873,7 @@ risk_items          ->始终逐项展示,不折叠
 - `trellis-push` 内部始终保存 exact planned files 与 exact retained/unrecognized dirty paths;
   紧凑展示只影响对话,执行仍只能 `git add -- <exact files>` 和
   `git commit --only -- <exact files>`。
-- 普通确认模式下,计划外 untracked、unstaged、staged 文件全部保留并展示,不阻塞当前任务
+- 普通确认模式下,计划外 untracked、unstaged、staged 文件全部保留并在计划中展示,不阻塞当前任务
   提交;提交前后必须验证计划外 staged 列表保持不变。auto-loop commit-only 继续要求 staged
   区为空,不扩大预授权。
 - `retained` 只作为内部集合名,含义固定为“本次排除并保持原状的 dirty paths”。用户界面统一
@@ -2863,9 +2881,9 @@ risk_items          ->始终逐项展示,不折叠
   branch/upstream 异常和归属不确定等真正风险单独进入“风险”区。
 - 分仓标题优先使用 config package 名,否则使用 Git top-level 目录名。内部输入别名 `root`、
   `parent`、`main repo` 不得直接出现在用户输出中。
-- 每仓 planned files 不超过 8 个时完整展示;超过 8 个时按目录归组,普通文件摘要最多
+- 计划中每仓 planned files 不超过 8 个时完整展示;超过 8 个时按目录归组,普通文件摘要最多
   12 行,并允许用户展开同一 exact set。展开不是执行确认,也不能重新推断范围。
-- 保留 dirty 按上述阈值展示；同一路径计数一次，兼有 staged/unstaged 时同时标注。
+- 计划中的保留 dirty 按上述阈值展示；同一路径计数一次，兼有 staged/unstaged 时同时标注。
   风险条目始终逐项展示，不受阈值限制。“展开保留变更”在对话中展示同一 exact set，
   不改变确认范围，也不生成清单附件。
 - 普通 push 和用户 commit-only 的计划与校验基线默认放在当前执行上下文；仅跨进程校验或
@@ -2873,8 +2891,12 @@ risk_items          ->始终逐项展示,不折叠
   不得仅为缩短对话或提供链接生成 `retained.md` 等附件，也不得把临时计划写进任务产物或
   提交范围；auto-loop 沿用 runner 持久化契约。结果只报告已核验事实，不把未核验项称为保持原状。
 - 多仓库逐仓独立生成 commit message、branch/upstream、文件范围和 push 结果;普通模式对完整
-  计划只确认一次。计划/结果复用原有总览 → 分仓 → 任务进度 → 保留 dirty 的视觉顺序,
-  但只显示精简后的 commit/push/progress;不重复展示 Spec review、check、release 或 finish-work 信息。
+  计划只确认一次。成功结果只保留结论、每仓一行分支/推送目标/实际 hashes、任务记录同步状态与
+  保留 dirty 数量及核验结论；不重复文件清单、message、生成命令、文件统计或完整进度字段。
+  无 task/untracked 和 commit-only 按实际情况省略任务行，commit-only 不显示推送箭头；untracked
+  显示 work id 与清理结果。计划外 staged 仍逐项核验，成功结果汇总显示，异常/未核验项明确列出。
+  失败或部分完成必须报告失败位置、已成功/保留现场、未执行步骤与恢复动作；仍适用的完成链风险、
+  已接受问题和上线后验证继续展示。用户要求详情时再展开，不新增存储或削弱执行校验。
 - 普通模式存在活动任务时,当前任务目录中可归属的 dirty/untracked 产物与预计由 helper 更新的
   `task.json` 组成独立任务记录 exact files。它们不进入业务 commit,也不显示为 retained;
   其他任务目录和无关 dirty/staged 文件保持原状。计划顶部的仓库/commit/file 总数必须包含
@@ -2900,7 +2922,10 @@ risk_items          ->始终逐项展示,不折叠
   `updatedAt` 时生成 UTC 时间，显式空值仍失败；同时必须拒绝额外字段,
   只接受 `status=in_progress`；普通最终分支携带 `--complete` 时在同一次原子替换中写 progress、
   `status=completed` 和 UTC 日期 `completedAt`，并移除 legacy `last_push_snapshot`。
-- Task Progress Recovery 的读取 owner 是 `trellis-continue`：它在加载 Phase Index/选择恢复步骤前运行
+- `trellis-start` 遇到已有任务时交给 `trellis-continue` 恢复，不再维护另一份状态到阶段的映射。
+  Continue 的 Step 1/2 可复用本轮已加载且仍有效的任务上下文与 Phase Index；进度恢复和各阶段
+  评审/确认门槛仍须执行，缺失或失效的上下文照常加载。
+- Task Progress Recovery 的读取 owner 是 `trellis-continue`：它在选择恢复步骤前运行
   `task_progress.py status --json`。`in_progress` 只 relay `partialStep`、`nextStep` 和必要 notes；
   `completed` 当前任务或 candidate 一跳进入 `trellis-push` completed-task preflight。Continue 不检查
   Git/runtime、不复制恢复矩阵，也不得自动 rebind、由 progress 推断 Phase 或恢复 push mode。
@@ -3046,12 +3071,12 @@ risk_items          ->始终逐项展示,不折叠
   canonical、发布快照与 dogfood 的双平台主 Skill/reference 必须字节一致。
 - 静态扫描 Hub，确认只登记 `trellis-push` owner 和必要跨阶段顺序，不重复 Skill 的展示细节。
 - 用 8 个、9 个和超过 12 个目录分组行的模拟计划验证 planned/retained 展示阈值；
-  retained staged 和风险始终逐项显示；展开不改 exact set，结果不重复清单或虚构核验结论。
+  计划中的 retained staged 和风险始终逐项显示；展开不改 exact set，结果不重复清单或虚构核验结论。
 - 模拟单仓、多仓、无活动任务、用户展开文件、计划漂移、部分仓库失败六类输出。
 - 模拟普通多仓生成命令:生成后 dirty paths 未超出预计 exact files 时只确认一次;新增计划外
   dirty path 时停止并重新规划。静态确认 skill 没有独立 `Step 4.1`、validation 协议或新状态。
-- 静态验证计划和结果模板保留原有总览/分仓结构,用户可见文本不单独使用裸 `retained`,
-  retained dirty 与真正 risk 分区展示。
+- 验证成功结果每仓一行，省略无效或空字段；失败/部分完成保留逐仓状态和精确恢复位置，
+  commit-only 不暗示推送，untracked 不暗示任务记录提交，retained dirty 与真正 risk 分开展示。
 - 在临时 Git 仓库验证 `git commit --only -- <planned files>` 不消费计划外 staged 文件,
   并验证 retained-only 变化不会触发计划重确认。
 - `python3 -m py_compile` 验证 `task_progress.py`；临时任务覆盖新 progress 读写、额外字段拒绝、
@@ -3193,18 +3218,19 @@ completed -> explicit reopen -> in_progress
 - 普通 `trellis-release` 批次模式仍按既有任务集合核对、生成批次草案并在写盘前等待用户确认;
   `audit-current` 的无确认语义不得泄漏到批次模式。
 - archive 和 journal 写入统一使用原生命令的 `--no-commit`,再由 finish-work 使用 exact paths
-  和 `git commit --only` 生成 bookkeeping commits。
-- archive commit 只允许归档前源路径、`task.py archive` stdout 返回的
-  `.trellis/tasks/archive/YYYY-MM/<task>` 目标路径,以及实际被修改的 child `task.json`。
+  和一次 `git commit --only` 合并生成 bookkeeping commit，沿用配置的 session commit message。
+- 合并提交只允许归档前源路径、`task.py archive` stdout 返回的
+  `.trellis/tasks/archive/YYYY-MM/<task>` 目标路径、实际被修改的 child `task.json`，以及
+  `add_session.py` 本次实际修改的 journal/index 文件；未变化的 child 或 journal/index 不加入路径集。
   禁止暂存 `.trellis/tasks/archive`、`.trellis/tasks`、`.trellis/workspace` 或 `.trellis` 根目录。
-- journal commit 只允许 `add_session.py` 本次实际修改的 journal/index 文件。计划外 staged
-  文件在提交前后必须保持原状。
+- 计划外 staged 文件在提交前后必须保持原状。最终结果分别报告 archive destination 与 journal paths，
+  两者对应的同一个 bookkeeping commit 只报告一次。
 - `session_auto_commit=false` 时只落盘和报告精确 dirty paths,不生成 bookkeeping commit,
   不自动 push。
-- `baseline_synced=true` 时,完成 exact bookkeeping commits 后确认 branch/upstream 未变化,且
-  新增 ahead set 只包含本轮 archive/journal commits,然后自动 push。无关 dirty/staged 不阻断。
+- `baseline_synced=true` 时,完成 exact bookkeeping commit 后确认 branch/upstream 未变化,且
+  新增 ahead set 只有本轮合并的 bookkeeping commit,然后自动 push。无关 dirty/staged 不阻断。
 - finish-work 开始时已有 ahead、分支 behind/diverged、无 upstream,或执行期间出现并发 commit /
-  branch/upstream 变化时,完成本地 bookkeeping commits 但不自动 push。不得读取 progress 或
+  branch/upstream 变化时,完成本地 bookkeeping commit 但不自动 push。不得读取 progress 或
   legacy task 字段决定 Git 行为。
 - `task.py archive` 重复 completion-state 与 decision guard，只接受 completed。已有 `completedAt`
   必须原样保留；字段缺失时在 guard 通过后补为归档当天，补写失败必须在目录移动前停止。归档不改变
@@ -3228,9 +3254,9 @@ completed -> explicit reopen -> in_progress
 | audit-current 高置信无上线事项 | status=no-op,不创建 release.md,继续 finish-work |
 | audit-current 高置信有上线事项 | 写/更新当前任务 release.md,由 archive 自然纳入 |
 | audit-current 证据不确定 | 写 Needs human review,继续并在最终结果保留风险 |
-| 开始时 `HEAD == upstream HEAD` | push 本轮 bookkeeping commits,不要求工作区 clean |
-| finish-work 前已有 ahead commits | 完成本地 bookkeeping commits,不自动 push |
-| 无 upstream 或分支 behind/diverged | 完成本地 bookkeeping commits,不猜测远端目标 |
+| 开始时 `HEAD == upstream HEAD` | push 本轮合并的 bookkeeping commit,不要求工作区 clean |
+| finish-work 前已有 ahead commits | 完成本地 bookkeeping commit,不自动 push |
+| 无 upstream 或分支 behind/diverged | 完成本地 bookkeeping commit,不猜测远端目标 |
 | `session_auto_commit=false` | 只落盘,不 commit/push |
 
 ### 5. Good / Base / Bad Cases
@@ -3251,11 +3277,12 @@ completed -> explicit reopen -> in_progress
 ### 6. Tests Required
 
 - 临时仓库中同时创建当前任务、旧 archive、其他规划任务 untracked 文件和计划外 staged 文件;
-  验证 archive/journal commits 的 `git show --name-only` 只包含 exact allowed paths。
-- 验证两个 `git commit --only` 完成后,计划外 staged/untracked/unstaged 状态保持不变。
+  验证合并提交的 `git show --name-only` 只包含 archive/journal 的 exact allowed paths，且只新增一个 commit。
+- 验证一次 `git commit --only` 完成后,计划外 staged/untracked/unstaged 状态保持不变；覆盖 journal
+  有变化与无变化，并验证未修改的 child/journal 路径可省略。
 - 验证 `audit-current` 的 `no-op` / `written` / `needs-review` 三种结果,并回归普通批次模式仍需确认。
 - 验证工作区 dirty 但开始 `HEAD == upstream HEAD` 时允许 push;验证开始已有 ahead、无 upstream、
-  behind/diverged 时只生成本地 bookkeeping commits。
+  behind/diverged 时只生成本地 bookkeeping commit。
 - 验证 archive 拒绝 in_progress，接受 completed；已有 completedAt 原样保留，缺失时补写当天，补写失败
   不移动任务。覆盖 decision 失败零写入、completed parent/child 解除关系和归档后 session pointer 清理。
 - 覆盖普通已同步、validated auto-loop handoff、completed dirty、task-record ahead commit 与矛盾 runtime

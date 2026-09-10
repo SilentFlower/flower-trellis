@@ -173,6 +173,43 @@ class PatchConsumerTest(unittest.TestCase):
         shutil.copytree(COMPILED_TARGETS, self.target, dirs_exist_ok=True)
         _write(self.target, ".trellis/.version", "0.6.14\n")
 
+    def test_update_spec_examples_merge_from_upstream_and_reapply(self) -> None:
+        """真实 Update-Spec Patch 合并案例且保留契约，重复安装不再改写。"""
+        self.overrides = OVERRIDES
+        _write(self.target, ".trellis/.version", "0.6.14\n")
+        upstream = ROOT / "node_modules/@mindfoldhq/trellis/dist/templates/common/skills/update-spec.md"
+        body = upstream.read_text(encoding="utf-8")
+        files = [
+            _write(self.target, f"{root}/trellis-update-spec/SKILL.md", body)
+            for root in [".agents/skills", ".claude/skills", ".cursor/skills"]
+        ]
+        break_loop = (upstream.parent / "break-loop.md").read_text(encoding="utf-8")
+        analysis = break_loop.split("## After Analysis: Immediate Actions")[0]
+        break_loop_files = [
+            _write(self.target, f"{root}/trellis-break-loop/SKILL.md", break_loop)
+            for root in [".agents/skills", ".claude/skills", ".cursor/skills"]
+        ]
+        result = self.run_runner("trellis-update-spec")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        first = [file.read_text(encoding="utf-8") for file in files]
+        for value in first:
+            self.assertIn("### Mandatory Output (6 Sections)", value)
+            self.assertIn("### 5. Scenarios and Examples", value)
+            self.assertIn("- Incorrect use: ...\n- Correct handling: ...", value)
+            self.assertIn("### 4. Validation & Error Matrix", value)
+            self.assertIn("Unit/Integration/E2E with assertion points", value)
+            self.assertNotIn("### 7. Wrong vs Correct", value)
+            self.assertNotIn("seven-section", value)
+        break_loop_first = [file.read_text(encoding="utf-8") for file in break_loop_files]
+        for value in break_loop_first:
+            self.assertEqual(value.split("<!-- BEGIN skill-garden patch trellis-break-loop-spec-evaluation")[0], analysis)
+            self.assertIn("`no-op` is a valid outcome", value)
+            self.assertNotIn("MUST immediately", value)
+        repeated = self.run_runner("trellis-update-spec")
+        self.assertEqual(repeated.returncode, 0, repeated.stdout + repeated.stderr)
+        self.assertEqual([file.read_text(encoding="utf-8") for file in files], first)
+        self.assertEqual([file.read_text(encoding="utf-8") for file in break_loop_files], break_loop_first)
+
     def use_real_conflicts(self) -> None:
         """把生产 conflicts policy 写入当前临时 overrides。"""
         _write(

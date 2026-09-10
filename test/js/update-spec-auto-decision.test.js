@@ -28,9 +28,10 @@ test("Update-Spec Patch 使用英文协议、自主返回三态且限制最小�
   assert.match(override, /A `no-op` or `written` result must load `trellis-push` in the same turn/);
   assert.match(override, /spec-needs-review/);
   assert.match(override, /“下一步”, “继续”, `next`, `continue`/);
-  assert.match(override, /ordinary push or a user-initiated `commit-only`/);
+  assert.match(override, /follow the continuation decision made by Check-All's `Interactive Post-Check Stop Gate`/);
+  assert.match(override, /including strict pass and accepted-risk pass/);
   assert.match(override, /existing standard Check-All report/);
-  assert.match(override, /Do not infer this intent from history, summaries, dirty state/);
+  assert.match(override, /Do not infer intent or risk acceptance from unrelated history, summaries, dirty state/);
   assert.doesNotMatch(
     override.replace("“下一步”, “继续”", ""),
     /\p{Script=Han}/u,

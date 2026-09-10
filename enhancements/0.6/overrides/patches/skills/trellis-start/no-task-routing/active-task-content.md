@@ -1,0 +1,1 @@
+- **Active task exists** -> load `trellis-continue` and follow its recovery rules to decide the next step.

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "id": "trellis-break-loop-spec-evaluation",
+  "purpose": "skill_override",
+  "operations": [{
+    "id": "trellis-break-loop-spec-evaluation",
+    "operation": "replace",
+    "targetPolicy": "each-existing",
+    "targets": [
+      { "kind": "skill", "path": ".agent/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".agents/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".claude/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".codebuddy/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".cursor/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".devin/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".factory/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".github/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".grok/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kilocode/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".kiro/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".omp/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".opencode/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".qoder/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".reasonix/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".snow/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".trae/skills/trellis-break-loop/SKILL.md", "missing": "skip" },
+      { "kind": "skill", "path": ".zcode/skills/trellis-break-loop/SKILL.md", "missing": "skip" }
+    ],
+    "selector": { "type": "markdown-section", "heading": "## After Analysis: Immediate Actions" },
+    "baselines": ["baseline.md"],
+    "content": { "source": "content.md" }
+  }]
+}

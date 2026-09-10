@@ -106,7 +106,10 @@ test("统一报告分别展示 CHK 与 FBK，并支持显式风险接受", () =>
   assert.doesNotMatch(agents, /报告按严重度排序，但不得因此/);
   assert.match(agents, /兜底场景/);
   assert.match(agents, /保护收益/);
-  assert.match(agents, /操作：`修复全部`、`修复 CHK-001,FBK-002`、`接受当前报告全部风险并继续`、`接受风险 CHK-001,FBK-002 并继续`、`仅保留报告`/);
+  assert.doesNotMatch(agents, /^操作：/m);
+  assert.match(agents, /处置选择统一在报告末尾“下一步”中提供一次/);
+  const nextStep = agents.slice(agents.indexOf("### 交互式下一步引导"));
+  assert.match(nextStep, /有未处置 findings：提示 `修复全部`、精确 ID、接受当前报告全部风险、`接受风险 <ID> 并继续` 或 `仅保留报告`/);
   assert.match(agents, /`修复全部` 始终覆盖全部 `CHK-\*` 与 `FBK-\*`/);
   assert.match(agents, /“接受当前报告全部风险”.*覆盖全部 `CHK-\*` \/ `FBK-\*`，包括 P0/s);
   assert.match(agents, /无固定句式/);

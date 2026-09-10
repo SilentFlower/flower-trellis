@@ -19,5 +19,93 @@
     "selector": { "type": "literal", "source": "selector.md" },
     "content": { "source": "content.md" },
     "legacyMarkers": [{ "namespace": "transform", "id": "start-no-task-routing" }]
+  }, {
+    "id": "start-active-task-recovery-codex",
+    "operation": "replace",
+    "targets": [
+      { "kind": "skill", "path": ".agents/skills/trellis-start/SKILL.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "active-task-codex-selector.md", "expectedMatches": 1 },
+    "content": { "source": "active-task-content.md" }
+  }, {
+    "id": "start-active-task-recovery-antigravity",
+    "operation": "replace",
+    "targets": [
+      { "kind": "command", "path": ".agent/workflows/start.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "active-task-antigravity-selector.md", "expectedMatches": 1 },
+    "content": { "source": "active-task-content.md" }
+  }, {
+    "id": "start-active-task-recovery-devin",
+    "operation": "replace",
+    "targets": [
+      { "kind": "command", "path": ".devin/workflows/trellis-start.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "active-task-devin-selector.md", "expectedMatches": 1 },
+    "content": { "source": "active-task-content.md" }
+  }, {
+    "id": "start-active-task-recovery-grok",
+    "operation": "replace",
+    "targets": [
+      { "kind": "command", "path": ".grok/commands/trellis-start.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "active-task-grok-selector.md", "expectedMatches": 1 },
+    "content": { "source": "active-task-content.md" }
+  }, {
+    "id": "start-active-task-recovery-kilo",
+    "operation": "replace",
+    "targets": [
+      { "kind": "command", "path": ".kilocode/workflows/start.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "active-task-kilo-selector.md", "expectedMatches": 1 },
+    "content": { "source": "active-task-content.md" }
+  }, {
+    "id": "start-active-task-recovery-kimi",
+    "operation": "replace",
+    "targets": [
+      { "kind": "skill", "path": ".kimi-code/skills/trellis-start/SKILL.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "active-task-kimi-selector.md", "expectedMatches": 1 },
+    "content": { "source": "active-task-content.md" }
+  }, {
+    "id": "start-active-task-recovery-opencode",
+    "operation": "replace",
+    "targets": [
+      { "kind": "command", "path": ".opencode/commands/trellis/start.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "active-task-opencode-selector.md", "expectedMatches": 1 },
+    "content": { "source": "active-task-content.md" }
+  }, {
+    "id": "start-active-task-recovery-pi",
+    "operation": "replace",
+    "targets": [
+      { "kind": "command", "path": ".pi/prompts/trellis-start.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "active-task-pi-selector.md", "expectedMatches": 1 },
+    "content": { "source": "active-task-content.md" }
+  }, {
+    "id": "start-active-task-recovery-reasonix",
+    "operation": "replace",
+    "targets": [
+      { "kind": "skill", "path": ".reasonix/skills/trellis-start/SKILL.md", "missing": "skip" }
+    ],
+    "selector": { "type": "literal", "source": "active-task-reasonix-selector.md", "expectedMatches": 1 },
+    "content": { "source": "active-task-content.md" }
+  }, {
+    "id": "start-quality-check-routing",
+    "operation": "replace",
+    "targets": [
+      { "kind": "skill", "path": ".agents/skills/trellis-start/SKILL.md", "missing": "skip", "markerStyle": "none" },
+      { "kind": "command", "path": ".agent/workflows/start.md", "missing": "skip", "markerStyle": "none" },
+      { "kind": "command", "path": ".devin/workflows/trellis-start.md", "missing": "skip", "markerStyle": "none" },
+      { "kind": "command", "path": ".grok/commands/trellis-start.md", "missing": "skip", "markerStyle": "none" },
+      { "kind": "command", "path": ".kilocode/workflows/start.md", "missing": "skip", "markerStyle": "none" },
+      { "kind": "skill", "path": ".kimi-code/skills/trellis-start/SKILL.md", "missing": "skip", "markerStyle": "none" },
+      { "kind": "command", "path": ".opencode/commands/trellis/start.md", "missing": "skip", "markerStyle": "none" },
+      { "kind": "command", "path": ".pi/prompts/trellis-start.md", "missing": "skip", "markerStyle": "none" },
+      { "kind": "skill", "path": ".reasonix/skills/trellis-start/SKILL.md", "missing": "skip", "markerStyle": "none" }
+    ],
+    "selector": { "type": "literal", "source": "quality-check-selector.md", "expectedMatches": 1 },
+    "content": { "source": "quality-check-content.md" }
   }]
 }
