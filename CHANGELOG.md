@@ -4,6 +4,25 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.8-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.6.8-beta.0...v0.6.8-beta.1) (2026-09-10)
+
+
+### 🐛 修复 Bug Fixes
+
+* **trellis:** 减少重复确认与输出，修复技能之间的流程衔接 ([01f79eb](https://github.com/SilentFlower/flower-trellis/commit/01f79eb94dc61b1283f35187b1756f0d2fbe1206))
+  - **任务 Brief**：避免进入实现或恢复会话时重复展示、确认已批准的内容。
+  - **任务恢复**：Start 统一交给 Continue 恢复进度，复用已加载的有效上下文。
+  - **收尾提交**：归档与会话日志合并为一次精确提交，保留原有自动推送条件。
+  - **输出精简**：Push 成功后简要显示结果；Check-All 的问题处置选项只展示一次。
+  - **规范更新**：统一 Check-All、Update-Spec 和 Break-Loop 的承接规则；已有规范覆盖时允许无需修改。
+  - **需求处理**：修正 PRD 创建顺序、需求准确性与覆盖率检查方向，避免把必要的实现细节误判为需求扩张。
+  - **平台与入口**：创建命令时遵循实际平台目录；修正普通检查和软件发版的入口指引。
+
+
+### 🧰 维护 Maintenance
+
+* **trellis:** 同步 Flower 0.6.8-beta.0 安装记录 ([2ea16ed](https://github.com/SilentFlower/flower-trellis/commit/2ea16ed3f0ddfe8a7d34d1b132fb3cb55d419344))
+
 ## [0.6.8-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.6.7...v0.6.8-beta.0) (2026-09-10)
 
 
