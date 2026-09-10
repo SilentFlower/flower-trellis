@@ -50,6 +50,7 @@ const localizedSubjects = new Map([
   ["44ba195", "将 DMS、SLS、MSE/Nacos 整合为阿里云运维查询 Skill"],
   ["eda90ec", "将 Check-All 可选问题收敛为统一兜底分类"],
   ["update development journal", "更新开发日志"],
+  ["01f79eb", "减少重复确认与输出，修复技能之间的流程衔接"],
 ]);
 
 const detailedReleaseSubjects = new Map([
@@ -100,6 +101,21 @@ const detailedReleaseSubjects = new Map([
         "结构化配置只修改受管字段，损坏 JSON/YAML/TOML、required Patch 漂移或冲突检查失败时保持零写入。",
         "Trellis `0.6.5` 已完成完整验证；未登记的同线 `0.6.x` 通过全量检查后 warning 放行，`0.7+`、`1.x` 或无效版本会阻断强化。",
         "`0.5` / `old` 继续使用原有 legacy 注入路径，避免稳定版升级破坏旧项目。",
+      ],
+    },
+  ],
+  [
+    "01f79eb",
+    {
+      order: 4,
+      details: [
+        "**任务 Brief**：避免进入实现或恢复会话时重复展示、确认已批准的内容。",
+        "**任务恢复**：Start 统一交给 Continue 恢复进度，复用已加载的有效上下文。",
+        "**收尾提交**：归档与会话日志合并为一次精确提交，保留原有自动推送条件。",
+        "**输出精简**：Push 成功后简要显示结果；Check-All 的问题处置选项只展示一次。",
+        "**规范更新**：统一 Check-All、Update-Spec 和 Break-Loop 的承接规则；已有规范覆盖时允许无需修改。",
+        "**需求处理**：修正 PRD 创建顺序、需求准确性与覆盖率检查方向，避免把必要的实现细节误判为需求扩张。",
+        "**平台与入口**：创建命令时遵循实际平台目录；修正普通检查和软件发版的入口指引。",
       ],
     },
   ],
