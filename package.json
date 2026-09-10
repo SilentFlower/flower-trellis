@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.7",
+  "version": "0.6.8-beta.0",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -70,9 +70,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.7",
+    "version": "0.6.8-beta.0",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **bootstrap:** 完善团队版本记录与 CLI 安装引导 ([e86217c](https://github.com/SilentFlower/flower-trellis/commit/e86217c5a121b35509ad972540c2c0adf3763b64))\n\n\n### 🐛 修复 Bug Fixes\n\n* **worktree:** 补齐 Flower 安装记录继承与版本诊断 ([17ad63e](https://github.com/SilentFlower/flower-trellis/commit/17ad63efd9f56ecf491c9402ef92469c70db3ea1))\n\n\n### ♻️ 重构 Refactor\n\n* **check-all:** 同步检查优化与回归验证 ([1409d42](https://github.com/SilentFlower/flower-trellis/commit/1409d421884cfe35a95342b6e68b3b7b80496e29))\n\n\n### 🧰 维护 Maintenance\n\n* **trellis:** 同步 Flower 0.6.6 工作流与 hooks ([11ae2b9](https://github.com/SilentFlower/flower-trellis/commit/11ae2b96b543da1a01e8a1871471d0752f1a04af))\n* **trellis:** 同步本地安装产物与 Flower 记录 ([5a78ca0](https://github.com/SilentFlower/flower-trellis/commit/5a78ca01434e26287caaed8b3e68321a1efd7cc7))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **check-all:** 同步报告落盘规则与规范 ([0477456](https://github.com/SilentFlower/flower-trellis/commit/04774560d8cde20b6bb6abe025bcaa0bf1bb5514))\n* **push:** 同步保留变更展示与落盘规则 ([9bcd747](https://github.com/SilentFlower/flower-trellis/commit/9bcd74761777f108be0a7286f0e253c06b0cb0ba))\n* **skills:** 迁移通用技能到共享 agents 目录 ([7ebdf05](https://github.com/SilentFlower/flower-trellis/commit/7ebdf0560ccc53ecd252f6e8b259d417d0a53d78))\n\n\n### 🧰 维护 Maintenance\n\n* **trellis:** 同步 Flower 0.6.7 与插件安装记录 ([690f1b4](https://github.com/SilentFlower/flower-trellis/commit/690f1b4e87d4bffdb02800e576acf882382de566))",
     "truncated": false
   },
   "optionalDependencies": {

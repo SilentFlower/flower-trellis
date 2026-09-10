@@ -4,6 +4,20 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.8-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.6.7...v0.6.8-beta.0) (2026-09-10)
+
+
+### 🐛 修复 Bug Fixes
+
+* **check-all:** 同步报告落盘规则与规范 ([0477456](https://github.com/SilentFlower/flower-trellis/commit/04774560d8cde20b6bb6abe025bcaa0bf1bb5514))
+* **push:** 同步保留变更展示与落盘规则 ([9bcd747](https://github.com/SilentFlower/flower-trellis/commit/9bcd74761777f108be0a7286f0e253c06b0cb0ba))
+* **skills:** 迁移通用技能到共享 agents 目录 ([7ebdf05](https://github.com/SilentFlower/flower-trellis/commit/7ebdf0560ccc53ecd252f6e8b259d417d0a53d78))
+
+
+### 🧰 维护 Maintenance
+
+* **trellis:** 同步 Flower 0.6.7 与插件安装记录 ([690f1b4](https://github.com/SilentFlower/flower-trellis/commit/690f1b4e87d4bffdb02800e576acf882382de566))
+
 ## [0.6.7](https://github.com/SilentFlower/flower-trellis/compare/v0.6.6...v0.6.7) (2026-09-07)
 
 
