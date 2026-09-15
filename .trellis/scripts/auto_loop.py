@@ -282,109 +282,49 @@ def _current_pointer(repo_root: Path) -> Path:
     return _auto_dir(repo_root) / "current.json"
 
 
-def _read_route_prefs(repo_root: Path) -> dict[str, str]:
-    """读取个人 route 默认配置，用于 start gate 判断是否需要 JSONL context。"""
-    path = repo_root / ".trellis/.route-prefs.tmp"
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return {}
-
-    prefs: dict[str, str] = {}
-    for raw in lines:
-        if "=" not in raw:
-            continue
-        key, value = raw.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if key == "implement" and value in VALID_IMPLEMENT_ROUTES:
-            prefs[key] = value
-        elif key == "check" and value in VALID_CHECK_ROUTES:
-            prefs[key] = value
-    return prefs
-
-
 def _route_state_helper(repo_root: Path) -> Path | None:
     """返回本地 trellis-route helper 路径，缺失时返回 None。"""
     candidates = [
         repo_root / ".agents/skills/trellis-route/scripts/route_state.py",
         repo_root / ".claude/skills/trellis-route/scripts/route_state.py",
     ]
+    # 其它平台把同一 helper 投影到各自原生 skill root；不能因为没有
+    # .agents/.claude 就把已安装的路由能力当作缺失。
+    candidates.extend(sorted(repo_root.glob(".*/skills/trellis-route/scripts/route_state.py")))
     for path in candidates:
-        if path.is_file():
+        if path.is_file() and path.resolve().is_relative_to(repo_root.resolve()):
             return path
     return None
 
 
-def _current_task_ref(repo_root: Path) -> str | None:
-    """读取当前活动任务路径，失败时返回 None。"""
-    result = subprocess.run(
-        ["python3", str(repo_root / ".trellis/scripts/task.py"), "current"],
-        cwd=repo_root,
-        check=False,
-        text=True,
-        capture_output=True,
-    )
-    for raw in result.stdout.splitlines():
-        line = raw.strip()
-        if line.startswith(".trellis/tasks/"):
-            return line
-        if "Current task:" in line:
-            value = line.split("Current task:", 1)[1].strip()
-            if value.startswith(".trellis/tasks/"):
-                return value
-    return None
-
-
-def _resolve_existing_route(repo_root: Path, task_ref: str, target: str) -> str | None:
-    """通过 trellis-route helper 解析已有 runtime/prefs route，失败时不阻断。"""
+def _effective_route_authorization(repo_root: Path, task_ref: str, route_authorization: Any) -> dict[str, str]:
+    """通过唯一 route helper 只读解析预检模式，缺失证据时保守要求上下文。"""
     helper = _route_state_helper(repo_root)
     if helper is None:
-        return None
-    if _current_task_ref(repo_root) != task_ref:
-        return None
-    result = subprocess.run(
-        ["python3", str(helper), "resolve", "--target", target],
-        cwd=repo_root,
-        check=False,
-        text=True,
-        capture_output=True,
-    )
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(data, dict) or data.get("status") != "hit":
-        return None
-    if data.get("task") != task_ref:
-        return None
-    mode = data.get("mode")
-    if target == "implement" and mode in VALID_IMPLEMENT_ROUTES:
-        return str(mode)
-    if target == "check" and mode in VALID_CHECK_ROUTES:
-        return str(mode)
-    return None
-
-
-def _effective_route_authorization(repo_root: Path, task_ref: str, route_authorization: Any) -> dict[str, str]:
-    """按 route 优先级估算 start gate 需要的 context 类型。"""
+        return {}
+    authorization = route_authorization if isinstance(route_authorization, dict) else {}
     effective: dict[str, str] = {}
-    if isinstance(route_authorization, dict):
-        implement = route_authorization.get("implement")
-        check = route_authorization.get("check")
-        if implement in VALID_IMPLEMENT_ROUTES:
-            effective["implement"] = str(implement)
-        if check in VALID_CHECK_ROUTES:
-            effective["check"] = str(check)
-
-    # 个人默认优先于 auto 临时授权；start gate 的 JSONL 判断也要遵守同一优先级，
-    # 否则可能在个人 subagent 默认下误放行，或在个人 inline 默认下误阻塞。
-    effective.update(_read_route_prefs(repo_root))
-    for target in ("implement", "check"):
-        if target not in effective:
-            mode = _resolve_existing_route(repo_root, task_ref, target)
-            if mode:
-                effective[target] = mode
+    for target, valid_modes in (("implement", VALID_IMPLEMENT_ROUTES), ("check", VALID_CHECK_ROUTES)):
+        command = [
+            "python3", str(helper), "resolve", "--target", target,
+            "--read-only", "--task", task_ref,
+        ]
+        mode = authorization.get(target)
+        if mode in valid_modes:
+            command.extend(["--auto-mode", str(mode)])
+        result = subprocess.run(command, cwd=repo_root, check=False, text=True, capture_output=True)
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            continue
+        if (
+            result.returncode == 0
+            and isinstance(data, dict)
+            and data.get("status") == "hit"
+            and data.get("task") == task_ref
+            and data.get("mode") in valid_modes
+        ):
+            effective[target] = str(data["mode"])
     return effective
 
 

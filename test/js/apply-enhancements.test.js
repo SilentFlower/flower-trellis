@@ -1017,7 +1017,9 @@ test("trellis-continue 精细安装同时恢复入口与 task_progress helper", 
       assert.match(value, /status=candidates/);
       assert.match(value, /Never rebind the session or task automatically/);
       assert.match(value, /enter `trellis-brainstorm` before using artifact presence/);
-      assert.match(value, /current explicit user confirmation before `task\.py start`/);
+      assert.match(value, /follow its confirmation or explicit preauthorization rules before `task\.py start`/);
+      assert.match(value, /Missing, stopped, or terminal runs do not grant this exception/);
+      assert.ok(value.indexOf("auto_loop.py status") < value.indexOf("task_progress.py status --json"));
       assert.ok(
         value.indexOf("task_progress.py status --json")
           < value.indexOf("## Step 2: Load the Phase Index"),

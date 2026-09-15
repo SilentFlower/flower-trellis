@@ -193,6 +193,75 @@ class RouteStateCompatibilityTest(unittest.TestCase):
                     self.module._write_json(path, {"new": True})
             self.assertEqual(path.read_text(encoding="utf-8"), '{"old": true}\n')
 
+    def test_read_only_preview_preserves_state_and_uses_explicit_task(self) -> None:
+        """预检不同任务不能复用旧任务决策或写 session，缺省时才取 runner 候选。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-preview-") as temp:
+            root = Path(temp)
+            task_ref = ".trellis/tasks/queued"
+            task = root / task_ref
+            task.mkdir(parents=True)
+            (task / "task.json").write_text('{}\n', encoding="utf-8")
+            session = root / ".trellis/.runtime/sessions/codex_test.json"
+            session.parent.mkdir(parents=True)
+            session.write_text(json.dumps({
+                "current_task": ".trellis/tasks/old",
+                "route_decisions": {"check": {
+                    "task": ".trellis/tasks/old", "target": "check", "scope": "task",
+                    "source": "trellis-route", "mode": "check-all-subagent",
+                }},
+            }), encoding="utf-8")
+            pref = root / ".trellis/.route-prefs.tmp"
+            for mode, origin in (("check-inline", "route-prefs"), (None, "auto-loop")):
+                if mode:
+                    pref.write_text(f"check={mode}\n", encoding="utf-8")
+                elif pref.exists():
+                    pref.unlink()
+                before = {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+                args = self.module.build_parser().parse_args([
+                    "resolve", "--target", "check", "--read-only", "--task", task_ref,
+                    "--auto-mode", "check-all-inline", "--verbose",
+                ])
+                with mock.patch.object(self.module, "_repo_root", return_value=root), mock.patch.object(
+                    self.module, "_current_task",
+                    return_value=(".trellis/tasks/old", "session:codex_test", "codex_test"),
+                ), mock.patch.object(self.module, "_auto_route_mode") as auto_lookup:
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        self.module.resolve_route(args)
+                result = json.loads(output.getvalue())
+                self.assertEqual(result["origin"], origin)
+                self.assertEqual(result["mode"], "check-all-inline")
+                self.assertEqual(result["task"], task_ref)
+                self.assertFalse(result["wrote_runtime"])
+                auto_lookup.assert_not_called()
+                self.assertEqual(before, {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()})
+
+    def test_preview_rejects_invalid_scope_and_does_not_grant_write_authorization(self) -> None:
+        """显式任务与候选仅用于只读预检；非法路径和模式不能产生有效路由。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-preview-invalid-") as temp:
+            root = Path(temp)
+            task = root / ".trellis/tasks/valid"
+            task.mkdir(parents=True)
+            (task / "task.json").write_text('{}\n', encoding="utf-8")
+            (root / ".trellis/tasks/link").symlink_to(task, target_is_directory=True)
+            cases = [
+                (["--task", ".trellis/tasks/valid"], "preview-requires-read-only"),
+                (["--auto-mode", "inline"], "preview-requires-read-only"),
+                (["--read-only", "--auto-mode", "check-all-inline"], "invalid-auto-route-mode"),
+            ]
+            for task_ref in (str(task), "valid", ".trellis/tasks/missing", ".trellis/tasks/../outside", ".trellis/tasks/link"):
+                cases.append((["--read-only", "--task", task_ref], "invalid-task-path"))
+            for extra, reason in cases:
+                with self.subTest(extra=extra), mock.patch.object(self.module, "_repo_root", return_value=root), mock.patch.object(
+                    self.module, "_current_task", return_value=(None, None, None),
+                ):
+                    args = self.module.build_parser().parse_args(["resolve", "--target", "implement", *extra])
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        self.module.resolve_route(args)
+                    self.assertEqual(json.loads(output.getvalue())["reason"], reason)
+            self.assertFalse((root / ".trellis/.runtime").exists())
+
     def test_no_task_preference_read_write_does_not_use_session(self) -> None:
         """无任务偏好读写不得依赖 current task 或 session runtime。"""
         with tempfile.TemporaryDirectory(prefix="flower-route-pref-") as temp:

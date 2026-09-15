@@ -1280,14 +1280,14 @@ Risks / Deferred 仅在存在时生成。Key Decisions 只提炼会影响实施�
 
 ### 3. Contracts
 
-- Phase 1.4 必须加载 `trellis-task-brief`，从最终 planning artifacts 刷新 `brief.md` 并在对话中
+- 普通交互 Phase 1.4 必须加载 `trellis-task-brief`，从最终 planning artifacts 刷新 `brief.md` 并在对话中
   完整展示。默认结束当前回合等待确认；只有用户明确把当前任务或最终 Brief 与“展示后直接开始、
   不用再次确认、视为已确认”绑定，且最终范围未变化时，才可同回合运行 `task.py start`。
 - `trellis-brainstorm` 的 Quality Bar 只表示 planning artifacts 可进入最终 brief handoff；
   普通实现意图或任务创建授权不能复用为 planning review，也不能解释为 Brief 预授权。
   Quality Bar 不把 Brief 已展示或已确认作为交接前提；planning contract、readiness、review 和
   handoff 统一引用 `trellis-task-brief` 的默认确认与明确预授权例外，不另写强制下一回合规则。
-- 预授权只取当前对话中仍明确适用于本任务的表达，不写 session runtime，也不扩展为跨会话、
+- 普通交互预授权只取当前对话中仍明确适用于本任务的表达，不写 session runtime，也不扩展为跨会话、
   跨任务或永久偏好。范围扩大、存在未解决 Open Questions、新增高风险边界或用户撤回时失效。
 - Phase 1.4 负责完整展示与实施批准；实现阶段（含新会话/压缩恢复）只读取 brief 和任务材料，
   不例行重新生成、展示或确认。范围变化沿用既有评审门禁，缺失沿用回补规则，用户要求查看时完整展示。
@@ -2339,6 +2339,58 @@ project-specific SOP content stays in `.trellis/spec/`.
 
 原因:高频提示保持短小,发现和局部加载逻辑可测试,项目私有内容不进入 skill-garden,
 spec 文档不需要额外维护一套 triggers,长文档也不再默认整份进入上下文。
+
+## Scenario: Auto Loop Entry And Route Consistency
+
+### 1. Scope / Trigger
+
+- 修复 Brief/Continue 交互确认与有效 auto-loop 授权冲突，以及 runner readiness 与执行路由优先级不一致。
+- route helper 独占模式解析；runner 只消费只读结果，不复制个人配置解析、切换任务或写入执行决策。
+
+### 2. Signatures
+
+```bash
+python3 .agents/skills/trellis-route/scripts/route_state.py resolve \
+  --target implement|check --read-only --task .trellis/tasks/<task> \
+  [--auto-mode <runner-candidate>] [--verbose]
+python3 .trellis/scripts/auto_loop.py status
+python3 .trellis/scripts/auto_loop.py next
+```
+
+### 3. Contracts
+
+- `resolve` 执行与只读预检共用 runtime → prefs → auto 授权优先级；runtime 必须匹配 task/target/scope/source，旧 check mode 归一为 `check-all-*`。
+- `--task` 与 `--auto-mode` 仅用于 `--read-only`。任务必须以 `.trellis/tasks/` 开头、存在 `task.json`，不得使用绝对路径、`..` 或软链；不接受模糊任务名。
+- 只读预检允许目标任务尚未绑定 session。缺少当前任务时仍可解析个人偏好或显式候选；不能复用其它任务决策，也不能扫描其它 run 借用授权。
+- 只读预检不写 session、个人偏好或任务 pointer；命中返回 `status=hit`、`task/mode/source/origin`，verbose 中 `wrote_runtime=false`（prefs/auto 命中）。结果不是持久化执行决策。
+- runner 优先查找 `.agents` / `.claude`，再发现其它原生 skill root 下已安装的同名 helper；helper 缺失、失败或无合法模式时不猜测 inline，readiness 保守要求相应 JSONL context。
+- Continue 先查询 runner。存在有效 active run 且用户未切到无关工作时，交给 `trellis-auto-loop` 恢复并返回，不再进入普通 planning gate；普通交互恢复仍遵循 Brief 的确认或明确预授权规则。
+- Brief 仅在 runner 验证 schema 2、`profile=commit-only`、`run_status=preparing`，且 `next` 返回本任务 `refresh_brief` 时免逐任务确认。刷新并完整展示后交回 runner `record + next`，不直接启动任务。
+- schema 1 的刷新也交回 runner，由后续 `confirm_brief` 等待人工确认；停止/终态/损坏/任务或 action 不匹配不提供免确认授权。Open Questions、readiness 和 artifact hash 边界不变。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| `--task` / `--auto-mode` 未配 `--read-only` | `status=error reason=preview-requires-read-only`，零写入 |
+| 任务路径越界、软链、模糊或不存在 | `status=error reason=invalid-task-path` |
+| auto 候选不是 target 合法模式 | `status=error reason=invalid-auto-route-mode` |
+| 当前 session 损坏或不可读 | `status=miss`，reason 为 `session-runtime-corrupt` 或 `session-runtime-io_error`，不覆盖原文件 |
+| runtime/prefs/显式候选都不命中 | `status=miss reason=no-valid-decision-pref-or-auto` |
+| 历史启动表述，但没有有效 active run | 不能跳过普通确认或恢复终态 run |
+
+### 5. Scenarios and Examples
+
+- Normal：当前任务 session 选 subagent、个人默认 inline；预检与实际执行均取 subagent，缺失 JSONL 时预检阻塞。反向组合均取 inline。
+- Base：队列任务 B 尚未绑定，session 仍为 A；预检 B 忽略 A 的决策，取个人默认或 runner 候选，并保持 A 的 session 字节不变。
+- Incorrect use：Brief 刷新后自行 `task.py start`，或 Continue 根据旧聊天授权跳过评审。
+- Correct handling：验证真实 runner action，展示后回写并获取下一动作；无有效 run 时回到普通交互规则。
+
+### 6. Tests Required
+
+- 两种优先级冲突方向 × implement/check，断言 readiness 的上下文要求与真实 `resolve` 结果相同。
+- 未绑定任务、其它任务 session、历史 mode、无偏好、非法模式/路径和软链，断言只读路径零写入且不扫描其它 run。
+- Brief/Continue 契约覆盖 schema 2 action 例外、schema 1 确认、终态不授权、先识别 runner 再恢复 progress；双平台与 compiled targets 同步。
 
 ## Scenario: Auto Loop Unattended Runner
 

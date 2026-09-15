@@ -38,6 +38,12 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         shutil.copy2(SOURCE_SCRIPTS / "task.py", scripts / "task.py")
         shutil.copy2(SOURCE_SCRIPTS / "task_progress.py", scripts / "task_progress.py")
         shutil.copytree(SOURCE_SCRIPTS / "common", scripts / "common")
+        route_helper = self.root / ".agents/skills/trellis-route/scripts/route_state.py"
+        route_helper.parent.mkdir(parents=True)
+        shutil.copy2(
+            PROJECT_ROOT / "vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-route/scripts/route_state.py",
+            route_helper,
+        )
         (self.root / ".trellis/.developer").write_text("name=tester\n", encoding="utf-8")
         (self.root / ".trellis/config.yaml").write_text(
             "project:\n  type: single\n",
@@ -369,6 +375,64 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_planning_route_preflight_matches_session_before_preferences(self) -> None:
+        """预检和执行都优先复用当前任务会话模式，覆盖两个方向和两个 target。"""
+        for target, inline, subagent in (
+            ("implement", "inline", "subagent"),
+            ("check", "check-all-inline", "check-all-subagent"),
+        ):
+            for runtime_mode, pref_mode in ((inline, subagent), (subagent, inline)):
+                with self.subTest(target=target, runtime=runtime_mode):
+                    shutil.rmtree(self.root / ".trellis/.runtime", ignore_errors=True)
+                    self.write_planning_task("")
+                    task_ref = ".trellis/tasks/task-planning"
+                    session = self.root / ".trellis/.runtime/sessions/auto-loop-test.json"
+                    session.parent.mkdir(parents=True)
+                    session.write_text(json.dumps({
+                        "current_task": task_ref,
+                        "route_decisions": {target: {
+                            "target": target, "task": task_ref, "scope": "task",
+                            "source": "trellis-route", "mode": runtime_mode,
+                        }},
+                    }), encoding="utf-8")
+                    (self.root / ".trellis/.route-prefs.tmp").write_text(
+                        f"{target}={pref_mode}\n", encoding="utf-8",
+                    )
+                    self.start_planning()
+                    before = json.loads(session.read_text(encoding="utf-8"))
+                    action = self.runner("next")
+                    after = json.loads(session.read_text(encoding="utf-8"))
+                    # next 自身会刷新 run 的会话心跳；只读 helper 不得改变
+                    # 任务绑定或路由等其它字段，避免测试依赖两个命令落在同一秒。
+                    before.pop("last_seen_at", None)
+                    after.pop("last_seen_at", None)
+                    self.assertEqual(after, before)
+                    if runtime_mode == inline:
+                        self.assertEqual(action["action"], "review_planning_readiness")
+                    else:
+                        blocked = json.loads(self.state_path().read_text(encoding="utf-8"))
+                        self.assertEqual(
+                            blocked["queue"][0]["blocked"]["reason"],
+                            f"missing-{target}-context",
+                        )
+                    actual = subprocess.run(
+                        ["python3", ".agents/skills/trellis-route/scripts/route_state.py",
+                         "resolve", "--target", target],
+                        cwd=self.root, env=self.env, capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(actual.returncode, 0, actual.stderr)
+                    self.assertEqual(json.loads(actual.stdout)["mode"], runtime_mode)
+
+    def test_planning_preflight_finds_native_platform_route_helper(self) -> None:
+        """只有其它平台的原生 skill root 时，预检仍使用已安装的同一 helper。"""
+        helper = self.root / ".agents/skills/trellis-route/scripts/route_state.py"
+        native_helper = self.root / ".cursor/skills/trellis-route/scripts/route_state.py"
+        native_helper.parent.mkdir(parents=True)
+        helper.rename(native_helper)
+        self.write_planning_task("")
+        self.start_planning()
+        self.assertEqual(self.runner("next")["action"], "review_planning_readiness")
 
     def test_open_questions_checkbox_contract(self) -> None:
         """unchecked 进入人工批量门禁，checked 与空章节进入 readiness。"""

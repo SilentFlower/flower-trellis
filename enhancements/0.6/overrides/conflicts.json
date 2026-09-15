@@ -614,7 +614,10 @@
           "Enter the `trellis-push` completed-task preflight",
           "### Planning Resume Gate",
           "enter `trellis-brainstorm` before using artifact presence",
-          "wait for a current explicit user confirmation before `task.py start`"
+          "follow its confirmation or explicit preauthorization rules before `task.py start`",
+          "python3 ./.trellis/scripts/auto_loop.py status",
+          "then return without entering the ordinary planning gate below",
+          "Missing, stopped, or terminal runs do not grant this exception"
         ]
       },
       "owner": "trellis-continue",
@@ -639,7 +642,10 @@
           "Enter the `trellis-push` completed-task preflight",
           "### Planning Resume Gate",
           "enter `trellis-brainstorm` before using artifact presence",
-          "wait for a current explicit user confirmation before `task.py start`"
+          "follow its confirmation or explicit preauthorization rules before `task.py start`",
+          "python3 ./.trellis/scripts/auto_loop.py status",
+          "then return without entering the ordinary planning gate below",
+          "Missing, stopped, or terminal runs do not grant this exception"
         ]
       },
       "owner": "trellis-continue",

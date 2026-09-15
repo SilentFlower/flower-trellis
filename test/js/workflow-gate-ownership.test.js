@@ -314,7 +314,7 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(continueRecovery, /Never rebind the session or task automatically/);
   assert.match(continueRecovery, /taskStatus=completed/);
   assert.match(continueRecovery, /Enter the `trellis-push` completed-task preflight/);
-  assert.doesNotMatch(continueRecovery, /auto_loop\.py status|@\{u\}\.\.HEAD|pending_archive\.tasks_awaiting_archive/);
+  assert.doesNotMatch(continueRecovery, /@\{u\}\.\.HEAD|pending_archive\.tasks_awaiting_archive/);
   assert.match(continueRecovery, /task_progress\.py reopen --task <task-name> --json/);
   assert.match(completedState, /Business work and final task progress are complete/);
   assert.match(completedState, /Enter the `trellis-push` completed-task preflight/);
@@ -422,7 +422,7 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.match(continueRecovery, /### Planning Resume Gate/);
   assert.match(continueRecovery, /enter `trellis-brainstorm` before using artifact presence/);
   assert.match(continueRecovery, /files exist; they do not prove that acceptance criteria are testable/);
-  assert.match(continueRecovery, /wait for a current explicit user confirmation before `task\.py start`/);
+  assert.match(continueRecovery, /follow its confirmation or explicit preauthorization rules before `task\.py start`/);
 
   assertOrdered(
     inProgress,

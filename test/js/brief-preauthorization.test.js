@@ -97,6 +97,25 @@ test("Brief 规划阶段展示确认，实现及恢复阶段读取执行", () =>
   }
 });
 
+test("自动循环的 Brief 与 Continue 交接保留 runner 授权和旧 schema 确认边界", () => {
+  const brief = read(sourceRoot, ".agents/skills/trellis-task-brief/SKILL.md");
+  const recovery = read(sourceRoot, "overrides/patches/skills/trellis-continue/task-progress-recovery/content.md");
+  const autoLoop = read(sourceRoot, ".agents/skills/trellis-auto-loop/SKILL.md");
+
+  assert.match(brief, /只有 schema 2、`profile=commit-only`、run 为 `preparing`/);
+  assert.match(brief, /`next` 返回本任务的 `refresh_brief`/);
+  assert.match(brief, /不等待逐任务人工确认，也不直接执行 `task.py start`/);
+  assert.match(brief, /schema 1.*后续 `confirm_brief` action 等待人工确认/);
+  assert.match(brief, /run 已停止、终态、损坏或 action\/task 不匹配时不得免确认/);
+  assert.match(brief, /经校验的 auto-loop `refresh_brief`：展示后返回 runner，不进入下方交互分支/);
+  assert.match(autoLoop, /不逐任务执行 `confirm_brief`/);
+  assert.ok(recovery.indexOf("auto_loop.py status") < recovery.indexOf("task_progress.py status"));
+  assert.match(recovery, /`preparing`, `awaiting_input`, or `running`/);
+  assert.match(recovery, /then return without entering the ordinary planning gate/);
+  assert.match(recovery, /Missing, stopped, or terminal runs do not grant this exception/);
+  assert.doesNotMatch(recovery, /Earlier implementation intent, auto-loop startup, or confirmation/);
+});
+
 test("0.6 发布快照与 Brief 交接作者源一致", () => {
   for (const relativePath of [
     ".agents/skills/trellis-task-brief/SKILL.md",
