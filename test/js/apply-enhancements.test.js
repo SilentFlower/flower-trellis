@@ -1157,7 +1157,7 @@ test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持�
     assert.match(value, /BEGIN skill-garden patch trellis-update-spec-(?:autonomous-evaluation|native-autonomous-evaluation)/, relativePath);
     assert.match(value, /## Autonomous Spec Evaluation/, relativePath);
     assert.doesNotMatch(value, /^## Interactive Mode$/m, relativePath);
-    assert.match(value, /Interactive direct Git: follow the continuation decision made by Check-All's `Interactive Post-Check Stop Gate`/, relativePath);
+    assert.match(value, /Interactive direct Git or explicit continuation: follow the continuation decision made by Check-All's `Interactive Post-Check Stop Gate`/, relativePath);
     assert.doesNotMatch(value, /after a strictly passed Check-All/, relativePath);
     assert.match(value, /Only `no-op` or `written` may proceed to `trellis-push`; `needs-review` stops/, relativePath);
     assertUpdateSpecExamples(value);

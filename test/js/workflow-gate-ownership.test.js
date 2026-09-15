@@ -438,7 +438,7 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.match(push, /普通 push 或用户 `commit-only` 已经构成明确 Git 意图/);
   assert.match(push, /不会阻止读取 Git 状态或生成提交计划/);
   assert.match(pushTemplates, /### 完成链证据/);
-  assert.match(pushTemplates, /\*\*Check-All\*\*：<通过 \/ 通过（已接受风险：CHK-001,FBK-002） \/ 未运行 \/ 已失效 \/ 存在未处置 findings \/ blocked \/ 部分验证>/);
+  assert.match(pushTemplates, /\*\*Check-All\*\*：<通过 \/ 通过（N 项风险已接受） \/ 未运行 \/ 已失效 \/ 存在未处置 findings \/ blocked \/ 部分验证>/);
   assert.match(pushTemplates, /\*\*Update-Spec\*\*：<no-op \/ written \/ needs-review \/ 未运行 \/ 已失效>/);
   assert.match(pushTemplates, /`\[上线后验证\]` 作为非阻断风险逐项保留/);
   assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);

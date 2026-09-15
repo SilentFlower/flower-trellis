@@ -30,7 +30,7 @@ test("Update-Spec Patch 使用英文协议、自主返回三态且限制最小�
   assert.match(override, /“下一步”, “继续”, `next`, `continue`/);
   assert.match(override, /follow the continuation decision made by Check-All's `Interactive Post-Check Stop Gate`/);
   assert.match(override, /including strict pass and accepted-risk pass/);
-  assert.match(override, /existing standard Check-All report/);
+  assert.match(override, /Check-All report or brief acceptance acknowledgment/);
   assert.match(override, /Do not infer intent or risk acceptance from unrelated history, summaries, dirty state/);
   assert.doesNotMatch(
     override.replace("“下一步”, “继续”", ""),
@@ -93,11 +93,11 @@ test("交互 Check-All 默认停止，direct Git 通过或风险接受后同轮�
   assert.match(postCheck, /只从当前完成链证据识别 direct Git intent/);
   assert.match(postCheck, /全部 findings 已有效接受/);
   assert.match(postCheck, /用户在当前报告上明确接受风险并要求继续/);
-  assert.match(postCheck, /报告后同轮进入 Update-Spec/);
-  assert.match(postCheck, /普通 interactive 检查保持原行为：报告后立即停止并等待用户选择/);
+  assert.match(postCheck, /报告或简短确认后同轮进入 Update-Spec/);
+  assert.match(postCheck, /用户未要求继续的普通 interactive 检查保持原行为：报告或简短确认后停止并等待用户选择/);
   assert.match(postCheck, /### 交互式下一步引导/);
-  assert.match(postCheck, /direct Git strict pass 或已接受风险通过：说明本轮正在进入 `trellis-update-spec`/);
-  assert.match(postCheck, /无 direct Git intent 且 strict pass \/ 已接受风险通过：提示用户回复 `继续`/);
+  assert.match(postCheck, /direct Git 或用户已要求继续，且 strict pass \/ 已接受风险通过：说明本轮正在进入 `trellis-update-spec`/);
+  assert.match(postCheck, /无 direct Git intent、用户未要求继续且 strict pass \/ 已接受风险通过：提示用户回复 `继续`/);
   assert.match(postCheck, /完成后重跑 Check-All/);
   assert.match(postCheck, /不新增 direct Git 摘要或 Git 计划/);
   assert.match(workflow, /Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`/);

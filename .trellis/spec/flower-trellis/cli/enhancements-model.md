@@ -1960,16 +1960,21 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 - 检查和重检报告先用自然段解释实际改动、行为影响与结论,复用最终 diff 和已有检查证据;
   不另启 Diff Brief 或重复扫描,不把规划、未验证效果或无关 dirty 当作已交付。重检只讲本轮修复,
   阻塞或重大问题须在开头说明。随后顺序固定为总体摘要、维度结果、`DOC-*` 自动修复、`CHK-*` 主路径问题、`FBK-*` 兜底问题、
-  未覆盖与风险、统一处置批次。没有对应通道时省略该区；任一通道有问题时总体不得 strict pass，
+  未覆盖与风险、统一处置批次。本轮无须展开的通道省略该区；任一通道有问题时总体不得 strict pass，
   只在末尾询问一次修复或风险接受范围，不得附带 commit/push 计划。
-- 报告默认在对话中完整展示,不得为缩短回复、提供链接或同步任务状态新建 `check-report.md`
+- 首次报告在对话中完整展示;仅接受处置时简短确认 ID、结论和必要的下一步,不重贴报告或重跑检查。
+  重检完整展示新增、实质变化、接受失效和仍待处置项;未变化的有效已接受项只汇总数量,仍计入总数。
+  恢复会话、验证进展和 Update-Spec 内部沿用接受记录,用户要求详情时再展开。不得为展示去重新增状态、
+  次数记录或附件。原报告或接受依据无法恢复时针对受影响项补核,不得凭摘要伪报有效或要求全部重接受。
+  不得为缩短回复、提供链接或同步任务状态新建 `check-report.md`
   等附件。仅用户明确导出或已确认交付约定要求时由主会话保存;Maven/auto-loop 沿用机器证据契约。
   DOC 只修正已有文档事实,不得借状态或链接修复新增报告。strict pass 可按原模板顺序紧凑展示,
   但保留验证、风险和下一步;具体规则由 `trellis-check-all/references/reporting-and-disposition.md` 所有。
 - 用户可以明确接受当前报告中的 `CHK-*` 或 `FBK-*` 而不修复。语义明确的“接受当前报告全部风险”覆盖
   全部当前 findings,包括 P0,不要求固定句式或逐项输入 ID;部分接受仍必须唯一定位子集。只有报告版本或
-  指向范围不清时才追问。接受不改变分类、严重度、证据和建议,也不能从报告中删除问题；受影响代码、
-  契约、验证结果、问题内容或严重度变化后自动失效。
+  指向范围不清时才追问。接受不改变分类、严重度、证据和建议,原报告与接受记录保留完整问题。
+  仅实质改变该问题证据、触发条件、影响或严重度时该项接受失效;无关 diff、行号移动或报告整理不撤销接受。
+  无法确认关联证据有效时说明缺口,不得推断继续有效。部分接受保留待处置 ID,不能误报通过。
 - `strict pass` 只表示两类问题均为 0。若全部剩余问题都有当前有效的用户风险接受，且无阻塞、无阻断型
   部分验证、无未接受且未登记 `[上线后验证]` 的实质剩余风险，则结论为“通过·已接受风险”，可进入
   interactive、untracked、direct Git、Update-Spec 与 Push 的继续路径。strict pass 可以与完整登记的
@@ -2040,14 +2045,17 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 | 用户明确接受当前报告全部风险 | 保留全部问题与严重度并标记已接受风险,包括 P0;不要求二次固定口令确认 |
 | 用户只接受部分 `CHK-*` / `FBK-*` | 只有能唯一定位当前报告子集时生效 |
 | 用户只说 `仅保留报告` | 停止处置，不记录风险接受，不进入通过路径 |
-| 受影响代码、契约、验证结果或问题证据变化 | 原风险接受失效，问题恢复为未处置并重新检查 |
+| 关联证据、触发条件、影响或严重度实质变化 | 仅该项风险接受失效,展示变化并重新处置 |
+| 无关 diff、行号移动或不改变问题语义的报告整理 | 保留仍有效的接受,不重复确认 |
+| 仅接受当前报告部分问题 | 简短确认接受 ID 与剩余待处置 ID,不重贴报告或误报通过 |
+| 接受并继续且已满足通过门禁 | 简短确认后同轮进入 Update-Spec,不再等待一句继续;Push 精确计划确认保留 |
 | subagent 只有自修复型 `trellis-check` agent | 禁止 dispatch,让用户改选 `check-all-inline` |
 | subagent 已选中但 catalog target 或 host launcher 不可用 | dispatch fail closed,展示原因并让用户重选 inline,不得声称 subagent 已执行 |
 | subagent 已选中但当前平台 `checkAll.eligible=false` | dispatch 停止,展示 `inlineOnlyReason` 并让用户重选 inline |
 | workspace-write `trellis-check` 收到统一检查意图 | Intent Guard 停止且零写入,指向专用 `trellis-check-all` |
 | 普通 interactive Check-All 无问题 | 报告画像、通过和剩余风险,指向 Phase 3.3/3.4,停止等待 |
 | direct Git + Check-All 严格通过 | 展示同一标准报告,同轮进入 Update-Spec;不生成专用摘要或 Git 计划 |
-| direct Git + 全部剩余 `CHK-*`/`FBK-*` 已接受风险 | 展示保留 findings 的标准报告,同轮进入 Update-Spec |
+| direct Git + 全部剩余 `CHK-*`/`FBK-*` 已接受风险 | 按增量展示规则报告或简短确认,同轮进入 Update-Spec |
 | direct Git + 未处置 `CHK-*`/`FBK-*`/blocked/阻断型部分验证/未接受实质风险 | 展示标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
 | direct Git + 仅有完整登记的 `[上线后验证]` | 保持通过结论并继续,Push 风险摘要保留交接事项 |
 | validated auto-loop 存在 `CHK-*` 或 `FBK-*` | `record failed`,进入 fix/recheck |
@@ -2609,7 +2617,7 @@ Check-All passed -> report + stop -> user next/continue
 
 ```text
 latest user intent = ordinary push | user commit-only
-  -> Check-All strict pass | accepted-risk pass -> existing standard report -> trellis-update-spec
+  -> Check-All strict pass | accepted-risk pass -> report or acceptance acknowledgment -> trellis-update-spec
      no-op/written -> trellis-push plan in the same turn
      needs-review  -> stop, no Push plan
   -> unaccepted CHK/FBK/blocked/partial/material risk -> standard report + stop
@@ -2627,8 +2635,9 @@ run_check_all -> run_spec_update -> commit_only
 
 - Check-All 的 interactive stop 保持默认行为。已经进入当前 Check-All 完成链，且当前链有普通 push 或用户主动
   `commit-only` 意图时，Check-All strict pass 或全部剩余 `CHK-*` / `FBK-*` 已被用户有效接受，且无阻塞、
-  无部分验证、无未接受的实质风险，都先展示现有标准报告，再同轮运行 Update-Spec。Check-All 因 findings
-  停止后，用户在当前报告上明确接受风险并要求继续，可恢复该 pending direct Git 链。不得从无关历史、摘要、
+  无部分验证、无未接受的实质风险，按 reporting reference 展示报告或接受状态的简短确认，再同轮运行 Update-Spec。Check-All 因 findings
+  停止后，用户在当前报告上明确接受风险并要求继续，可恢复该 pending direct Git 链;无 direct Git 时明确继续也
+  同轮进入 Update-Spec,不再等待第二句继续,不替代 Push 精确计划确认。不得从无关历史、摘要、
   dirty 状态或 auto-loop 内部 action 推断该意图或风险接受，也不得新增 direct Git 专用摘要。
 - 该窄例外只控制已经启动的 Check-All completion chain，不授权 Check-All 或 Update-Spec 拦截
   已经进入 `trellis-push` 的请求；Push owner 只读取完成链证据并决定 Git 计划。
@@ -2669,7 +2678,7 @@ run_check_all -> run_spec_update -> commit_only
 |------|------|
 | 普通 Check-All passed,用户尚未继续 | 报告并停止,不运行 Update-Spec |
 | 当前 Check-All 完成链内 direct Git + strict pass | 展示现有标准报告,同轮运行 Update-Spec |
-| 当前 Check-All 完成链内 direct Git + accepted-risk pass | 保留已接受 findings 的标准报告,同轮运行 Update-Spec |
+| 当前 Check-All 完成链内 direct Git + accepted-risk pass | 报告或简短接受确认,同轮运行 Update-Spec,不重贴未变化项 |
 | 当前 Check-All 完成链内 direct Git + 未处置 `CHK-*`/`FBK-*`/blocked/partial/material risk | 标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
 | 用户 next/continue,无新契约 | 返回 no-op,同轮进入 Trellis Push |
 | 新契约有代码/测试证据且目标唯一 | 最小 written + 自校验,同轮进入 Trellis Push |
@@ -2837,7 +2846,7 @@ risk_items          ->始终逐项展示,不折叠
   等待用户继续;direct Git 在 strict pass 或全部当前 findings 已被用户有效接受时可同轮续行。不得包含 commit message、planned/staged
   files、`Proposed commits`、commit-only 决策或提交确认提示,也不维护专用精简摘要。
 - 普通 Check-All 通过后仍停止;用户继续后 Phase 3.3 自主返回三态。用户在检查前已明确请求
-  普通 push/用户 `commit-only` 时,strict pass 或已接受风险通过展示标准报告后同轮进入 Phase 3.3。两条路径均由
+  普通 push/用户 `commit-only` 时,strict pass 或已接受风险通过按增量展示规则报告或简短确认后同轮进入 Phase 3.3。两条路径均由
   no-op/written 同轮加载 `trellis-push`,needs-review 停止。
 - 除 auto-loop 内部 commit-only 外，普通 push 或用户 `commit-only` 已经构成明确 Git 意图。
   `trellis-push` 在读取 Git 计划前只记录当前可验证的 Check-All / Update-Spec 证据，不补跑、
@@ -2848,8 +2857,9 @@ risk_items          ->始终逐项展示,不折叠
   `no-op`、`written`、`needs-review`、`未运行` 或
   `已失效`。没有当前可验证证据时使用 `未运行`，不得从历史、摘要或 dirty 状态猜测通过。
 - 完成链状态不阻止读取 Git 状态或生成提交计划。`未运行`、`已失效`、任一未处置 `CHK-*` / `FBK-*`、
-  blocked、部分验证或 `needs-review` 必须同时进入计划风险区；已接受问题也按 ID、严重度与影响进入风险区，
-  但不得改标为阻断 finding，也不得派生第二次确认。
+  blocked、部分验证或 `needs-review` 必须同时进入计划风险区；未变化的有效已接受项只在完成链证据汇总数量,
+  不再进入风险区或顶部风险计数,内部保留 ID、严重度、影响与接受依据。接受失效或证据缺失时说明变化或缺口,
+  不得继续伪报有效,也不得派生第二次确认。
 - 当前 `spec_update_result.status=written` 只有在结果仍适用于实际 diff 时才展示为 `written`；
   结果外出现其它变化时标记为 `已失效` 并披露风险，不得因此把请求拉回 Phase 2.2。
 - 只有 Git 层面的确定性安全条件可以阻断计划，包括冲突或未完成集成状态、exact files 无法
@@ -2896,7 +2906,8 @@ risk_items          ->始终逐项展示,不折叠
   无 task/untracked 和 commit-only 按实际情况省略任务行，commit-only 不显示推送箭头；untracked
   显示 work id 与清理结果。计划外 staged 仍逐项核验，成功结果汇总显示，异常/未核验项明确列出。
   失败或部分完成必须报告失败位置、已成功/保留现场、未执行步骤与恢复动作；仍适用的完成链风险、
-  已接受问题和上线后验证继续展示。用户要求详情时再展开，不新增存储或削弱执行校验。
+  上线后验证和接受失效/无法验证项继续展示。成功结果省略未变化且仍有效的已接受问题,不复述数量或影响。
+  用户要求详情时再展开，不新增存储或削弱执行校验。
 - 普通模式存在活动任务时,当前任务目录中可归属的 dirty/untracked 产物与预计由 helper 更新的
   `task.json` 组成独立任务记录 exact files。它们不进入业务 commit,也不显示为 retained;
   其他任务目录和无关 dirty/staged 文件保持原状。计划顶部的仓库/commit/file 总数必须包含
@@ -2959,7 +2970,7 @@ risk_items          ->始终逐项展示,不折叠
 | 显式 Push 缺少 Check-All | 记录 `未运行` 并进入风险区，继续 Git 预检与计划 |
 | Check-All 报告过期、存在未处置 findings、blocked 或部分验证 | 记录对应状态并进入风险区，继续 Git 预检与计划 |
 | Check-All 报告存在未处置 `CHK-*` 或 `FBK-*` | 记录 `存在未处置 findings` 并进入风险区 |
-| Check-All 报告的剩余 `CHK-*` / `FBK-*` 均有有效风险接受 | 记录 `通过（已接受风险）`，并把问题详情保留在风险区 |
+| Check-All 报告的剩余 `CHK-*` / `FBK-*` 均有有效风险接受 | 内部保留完整记录;计划只显示通过与接受数量,不重复风险详情 |
 | Update-Spec 缺少/过期或为 needs-review | 记录对应状态并进入风险区，继续 Git 预检与计划 |
 | Check-All / Update-Spec 均有效 | 展示实际状态，继续 Git 预检与计划 |
 | 计划存在冲突、无法归属 exact files 或其它 Git 安全阻塞 | 停止并报告确定性 Git 问题 |
@@ -3013,7 +3024,7 @@ risk_items          ->始终逐项展示,不折叠
   不再追加“是否跳过”确认，Git 安全预检通过后仍可由用户一次确认执行。
 - Good:当前 Check-All 存在未处置 `FBK-001`；完成链证据显示 `存在未处置 findings`,Push 计划把它纳入风险区而不伪装通过。
 - Good:当前 `CHK-001` 与 `FBK-001` 均有有效用户风险接受；完成链证据显示 `通过（已接受风险）`,
-  Push 计划仍把两个问题的 ID、严重度和影响纳入风险区。
+  Push 计划只显示“通过（2 项风险已接受）”,不再列入风险区;成功结果省略未变化的已接受问题。
 - Good:单仓 20 个普通 planned files 按目录压成 6 行,2 个未识别 dirty 文件仍逐项展示;
   用户回复“展开文件”后看到原 20 个 exact paths。
 - Good:父仓 210 项非 staged 保留变更按目录和 Git 状态汇总，子仓 2 项逐项展示；
@@ -3056,7 +3067,7 @@ risk_items          ->始终逐项展示,不折叠
 - 静态扫描普通用户继续和当前 Check-All completion chain 内的 direct Git strict-pass / accepted-risk-pass 两条
   resume-chain，确认正常 workflow 仍沿用标准报告并经 Update-Spec 进入 `trellis-push`。
 - 静态与行为测试覆盖显式 Push 在 Check-All/Update-Spec 未运行、已失效、任一未处置 `CHK-*` / `FBK-*`、
-  已接受风险、blocked、部分验证或 `needs-review` 时仍生成计划，并把状态写入“完成链证据”与风险区。
+  已接受风险、blocked、部分验证或 `needs-review` 时仍生成计划。有效接受只在完成链证据汇总,其它异常进入风险区。
 - 静态断言 `trellis-push` 不返回 Phase 2.2、不加载 `trellis-check-all` / `trellis-update-spec`、
   不包含运行/跳过检查二选一；auto-loop internal commit-only 继续复用既有
   `run_spec_update -> commit_only` 预授权而不重复记录交互证据。
