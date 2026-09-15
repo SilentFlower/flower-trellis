@@ -660,7 +660,7 @@ test("common Codex 目录迁移支持预览、事务回滚与 shared 卸载保�
   });
   const service = new PluginApplicationService(target, { store, writer, registry: new SourceRegistry([provider]) });
   assert.throws(
-    () => service.add({ id: SKILL_GARDEN_PLUGIN_ID, platforms: ["claude"], nonInteractive: true }),
+    () => service.add({ id: SKILL_GARDEN_PLUGIN_ID, version: provider.manifest.version, platforms: ["claude"], nonInteractive: true }),
     (error) => error.code === PLUGIN_RUNTIME_ERROR_CODES.TRANSACTION_FAILED,
   );
   assert.equal(hashDirectoryIfExists(target), before);

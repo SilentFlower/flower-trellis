@@ -77,7 +77,8 @@ class RouteStateCompatibilityTest(unittest.TestCase):
                 json.dumps({
                     "status": "running",
                     "route_authorization": {"implement": "subagent"},
-                    "queue": [{"task": ".trellis/tasks/task-a", "status": "running"}],
+                    "queue": [{"task": ".trellis/tasks/task-a", "status": "running",
+                               "artifact_recovery": {"attempts": 2, "resolved": False}}],
                 }),
                 encoding="utf-8",
             )

@@ -2375,7 +2375,11 @@ python3 ./.trellis/scripts/auto_loop.py record \
 python3 ./.trellis/scripts/auto_loop.py decide \
   --task <task> --topic <topic> --option <option> [--option <option> ...] \
   --choice <choice> --summary <summary> --risk low|medium \
-  --confidence low|medium|high [--requirement <id>] [--file <repository>::<path>]
+  --confidence low|medium|high [--requirement <id>] [--task-file <name>] [--file <repository>::<path>]
+python3 ./.trellis/scripts/auto_loop.py reconcile \
+  --run-id <run-id> --task <task> --recovery-id <id> --attempt-id <id> \
+  --result ok|failed|blocked --summary <conclusion> \
+  [--evidence <evidence>] [--file-map <old-key>=<new-key>]
 python3 ./.trellis/scripts/auto_loop.py retry-blocked [--run-id <run-id>] [--task <task>] [--check-depth auto|light|full] [--route-implement inline|subagent] [--route-check check-all-inline|check-all-subagent] [--all] [--verbose]
 python3 ./.trellis/scripts/auto_loop.py status [--run-id <run-id>] [--verbose]
 python3 ./.trellis/scripts/auto_loop.py stop --reason "<reason>"
@@ -2402,14 +2406,18 @@ python3 ./.trellis/scripts/decision_log.py review \
 - 依赖只来自 `--depends-on` 或 planning artifacts 的明确契约，不从任务顺序、parent/child 或代码引用猜测。prepare 拒绝缺失、自依赖和循环；稳定拓扑排序只移动满足依赖所需的任务，并把原始/执行顺序写入 manifest。
 - AI 只可通过 `decide` 记录任务目标内、低/中风险、可逆且可测试的自主选择。Open Questions、高风险、生产/费用/权限/隐私、破坏性公开契约、push/merge/release/deploy/archive 必须 blocked。
 - `decisions.jsonl` 使用 append-only decision/review 事件；decision ID 单调递增，review 绑定当前全部 decision digest。新增 decision 会使旧 review 失效，损坏 JSONL 默认失败关闭。
-- decision 修改 planning/handoff 时，`--file` 必须列出全部 `<repository>::<path>`。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则进入匹配 action 的 artifact drift 处理。
-- `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。`run_check_all` / `run_recheck` 的 outstanding action 还要保存 `prd.md`、`design.md`、`implement.md`、`brief.md` 的逐文件 baseline；检查结果必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
+- decision 修改 planning/handoff 时，优先用重复的 `--task-file prd.md|design.md|implement.md|brief.md`，或用完整 `--file <repository>::<path>` 列出全部目标。`--task-file` 要求当前任务已有普通文件；`--file` 保持仓库相对语义并允许待创建代码文件，预检拒绝未知仓库、绝对/越界路径、软链和 protected 冲突，裸四文档名不静默解释为任务路径。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则进入匹配 action 的 artifact drift 处理。
+- `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。schema 2 running action 保存原 payload、issued_at、递增 generation 和四文档逐文件 baseline；重复 next 重放原 action，不重取 baseline、depth、route 或预算。正确 pending 覆盖的变化允许继续原 action，但只有真实 record 才消费决策并重绑 manifest；检查结果必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
 - Check-All record 以剩余 `CHK-*` 与 `FBK-*` 共同决定 `failed|ok`：任一通道存在问题时必须 `record failed` 并进入 fix/recheck；只有两类问题均为 0 时才能 `record ok`。
 - Check-All 自动修复当前任务 `implement.md` 或 `brief.md` 时，每个实际变化文件必须通过重复的 `--doc-remediation-file` 精确声明。声明集合必须与 action baseline 后的真实变化完全一致；`prd.md`、`design.md`、其它任务和其它文件拒绝重绑。合法 DOC 修复重算 planning/handoff hash，追加 `change_source=check-doc-remediation` 和 files 的 manifest revision 与 item audit event。
-- 未声明或未完全授权的 Check record artifact drift 返回 `status=retryable`，保持 item running 和原 outstanding action，不得调用 `next`。agent 只能撤回本 action 误改、补充合法 DOC 声明后重录，或用 `--result blocked --failure-type artifact-drift` 明确结束。其它 action、protected drift 和 `next` 发出 action 前的跨 action 漂移继续 terminal blocked。
+- 未声明或未完全授权的 Check record artifact drift 返回 `status=retryable`，保持 item running 和原 outstanding action，不得调用 `next`。agent 只能撤回本 action 误改、补充合法 DOC 声明后重录，或用 `--result blocked --failure-type artifact-drift` 明确结束。确定 pending 路径错误可由下述 action 内恢复处理；protected drift、未知外部/跨 action 漂移或无可信基线仍 terminal blocked。
+- schema 2 的 `decide` / `next` / 非 Check `record` 对确定 basename 误填返回 `retryable + artifact-recovery-required`，持久 run/item 仍 running；无效登记不写 decision/pending/manifest。旧 pending 必须与原 decision、run、冻结摘要及已有 action baseline 一致；根目录存在同名文件时不推断映射。Check 尚未 record 且只有 implement/brief 的 DOC 变化时保留原基线并要求精确声明；既有 Check retryable 继续原重录通道。
+- `artifact_recovery` 按 run/task/action 身份和原 baseline 绑定 recovery-id，保存 source、原 decision ID、候选映射、观察到的变化、attempts 和至多三条回执。初始诊断、next/status/resume 和同 attempt 同载荷重放不计数；三次实际 reconcile 允许第三次成功，第三次失败才 blocked，更换诊断不能重置同 action 预算。不同载荷复用 attempt-id 返回冲突；新 action 使用递增代次，避免秒级时钟碰撞。
+- agent 必须同轮核对原决策、真实 diff 和修改归属，再提交 reconcile；runner 重读文件、核验精确一对一的当前任务同名映射与 protected 边界，不根据 `ok` 或自然语言自行扩大授权。只能撤回已证明属于本 action 的误改；runner 不覆盖文件，无法安全归因时明确 blocked。成功仍需重试被拒绝的 decide 或原真实 record，不新增业务 action、不推进阶段、不改已完成 commits。
+- 旧路径纠正复用 `load_events` / `append_decision` 追加普通决策，保留原语义和修改前 baseline，evidence 绑定原 decision/recovery/attempt/映射；不改旧日志。日志先落盘而 runtime 写失败时按尝试标记恢复，重放不重复追加；回执观察值变化或 run 已停止时不能沿用旧成功。默认摘要只给纠正必需上下文和准确入口，完整回执留在 runtime。查询 protected 漂移不得消费或移动 retained 基线。
 - 任务级 failure、planning repair 预算耗尽、terminal artifact drift、protected 冲突、spec needs-review 或 commit-only 归属失败只阻塞当前项，并传播到显式依赖项；独立任务继续。队列结束后不自动执行第二遍恢复扫描。
 - `fix_recheck` 预算计数表示已记录的 failed recheck 次数；`MAX_FIX_RECHECK=3` 必须实际允许 3 个 `run_fix` action。只有计数大于预算时才以 `retry-budget-exhausted` 阻塞；用户显式 `retry-blocked` 恢复该原因时必须把 `attempts.fix_recheck` 重置为 `0`，避免刚恢复就再次阻断。
-- `artifact_reconcile` 只属于同一个 Check outstanding action；`MAX_ARTIFACT_RECONCILE=3` 允许前 3 次 retryable 重录，第 4 次转为 terminal `artifact-drift`。成功 Check record 把计数重置为 `0`；用户显式 `retry-blocked` 恢复 terminal artifact drift 时也重置该预算。
+- 新恢复通道与 Check 重录不得叠加预算；已进入 Check retryable 时拒绝 reconcile，已有未解决恢复诊断时先纠正再 record。`artifact_reconcile` 只属于同一个 Check outstanding action；`MAX_ARTIFACT_RECONCILE=3` 允许前 3 次 retryable 重录，第 4 次转为 terminal `artifact-drift`。成功 Check record 把计数重置为 `0`；用户显式 `retry-blocked` 恢复 terminal artifact drift 时也重置该预算。
 - `retry-blocked` 只重置稳定 recoverable reason，复用同一 run；不得用 `start --force` 替代正常恢复。schema 2 队列含 blocked 项时终态为 `completed_with_blocked`。
 - `commit_only` 必须复用 `trellis-push` 内部执行路径。Push 根据当前任务 design/implement、项目 SOP/spec、受版本控制的脚本入口及明确输入输出、可验证的 Git/submodule 关系，动态组织任意数量的 `commit -> generate -> commit`；不得硬编码仓库、命令或步骤数，也不得仅因多个仓库、submodule pin 或证据充分的本地生成而 blocked。
 - 生成命令必须来自受版本控制的稳定入口，并能证明工作目录、依赖顺序和预期影响路径；只允许本地、确定性、可重复、无外部副作用的 argv。证据冲突、任意 shell、网络写入、push、发布、部署、归档、凭证或生产数据操作必须在执行前失败关闭。
@@ -2443,6 +2451,13 @@ python3 ./.trellis/scripts/decision_log.py review \
 | 前置任务 blocked | 依赖项以 `blocked-dependency` 结束，独立项继续 |
 | 非 Check action 的 manifest 后 artifact 无 decision 变化 | 当前项以 `artifact-drift` 阻塞 |
 | decision 列明全部变化 artifact | record 重算 planning/handoff hash，追加绑定 decision ID 的 manifest revision |
+| 正确 pending 后未 record 就 next | 返回原 action，pending 和原 baseline 保留，manifest 不变 |
+| 新登记确定裸文档名误填 / 旧 pending 可证实同名误填 | `artifact-recovery-required`；初始计数为 0，agent 同轮按恢复协议纠正 |
+| 映射跨任务、根同名歧义、越界、软链或未恢复额外误改 | 拒绝接受；安全边界不放宽，实际纠正失败消耗对应预算 |
+| reconcile 第 1/2 次失败 / 第 3 次成功 / 第 3 次失败 | retryable / reconciled 且继续原 action / terminal artifact-drift |
+| 同 attempt-id 同请求 / 不同请求 / 当前观察值变化 | 重放原回执不计数 / attempt-id-conflict / recovery-observation-changed |
+| 用户停止 run 后重放旧成功回执 | recovery-action-not-running，不复活终态 |
+| 日志已落盘、runtime 写失败 | 不报告成功；同尝试重放复用原追加事件，不重复授权 |
 | Check action 修改当前任务 implement/brief 且声明集合完全匹配 | record 重算 hash，追加 `check-doc-remediation` manifest revision 后继续消费检查结果 |
 | DOC 声明包含 PRD/design/其它任务或声明与实际变化不一致 | 返回 `doc-remediation-file-not-allowed` / `doc-remediation-files-mismatch`，outstanding action 保留 |
 | Check record 存在未声明或 decision 未覆盖的 artifact 变化 | 前 3 次返回 `status=retryable reason=artifact-drift`，保留 outstanding action；不得 `next` |
@@ -2476,6 +2491,10 @@ python3 ./.trellis/scripts/decision_log.py review \
 
 ### 5. Good/Base/Bad Cases
 
+- Good:旧 `--file brief.md` 错登记后恢复，原决策与基线可核验且根目录无同名文件；agent 读取 diff，提交 `.::brief.md=.::.trellis/tasks/x/brief.md` 映射，reconcile 追加纠正决策，原 record 才生成新 manifest。
+- Base:旧 schema 2 缺少 action 逐文件 baseline，但有可信 pending 原基线时可纠正；只有 aggregate hash 且发生未知漂移仍阻塞，不迁移真实历史终态。
+- Bad:发现路径错误后直接接受当前所有文档、重写旧 decision 或把纠正当作 Check 通过。正确做法是先核对候选映射和归属，以唯一 attempt-id 提交 reconcile，再完成原 action 的真实回写。
+
 - Good:三个 planning 任务先共同完成 dirty 分类、Open Questions 收敛、readiness/repair 和 brief
   刷新，再生成 manifest；running 后连续执行，不出现逐任务 `confirm_brief`。
 - Good:任务 B 显式依赖 A，任务 C 独立；A blocked 后 B 记录完整依赖链并进入
@@ -2500,12 +2519,10 @@ python3 ./.trellis/scripts/decision_log.py review \
 - Base:auto-loop 本地提交完成后只写 `task.json.progress.nextStep` 提示 finish/archive，任务仍保持
   `in_progress`。
 - Bad:prepare 只检查第一个任务就进入 running；后续任务的 Open Questions 会重新制造人工卡点。
-- Bad:AI 直接编辑 planning artifacts，再补 decision；旧 manifest 已经失去内容绑定，必须按
-  `artifact-drift` 处理。
+- Bad:AI 直接编辑 planning artifacts，再补 decision；新 action 基线已变化时返回 `decision-baseline-drift`，不写新决策，须先处理原漂移。
 - Bad:任何 `record` 漂移都立即清空 `last_action` 并进入 `completed_with_blocked`；这会让本 action
   可证明的 Check-All DOC 修复无法补充声明，也迫使用户手工恢复内部协议错误。
-- Bad:把 Check record 的 `status=retryable` 扩大到 implement、spec update、commit-only 或 protected
-  drift；commit-only 自修复必须使用普通 `failed + commit-repairable`，其它变化继续失败关闭。
+- Bad:把 Check 重录预算与 reconcile 叠加，或仅凭路径映射接受未知/protected 漂移；commit-only 的业务修复仍使用 `failed + commit-repairable`，文档纠正不扩大提交权限。
 - Bad:把完整 commit plan/cursor 写进 runtime，新增 `commit-plan` / `commit-step`，或让 runner 执行 Git、
   generator 和任意 shell；这些都重复 Push 所有权并扩大持久化攻击面。
 - Bad:接受未登记仓库、不可解析 commit、与 `commits[]` 不一致的主 commit，或因仓库目录消失直接抛异常；
@@ -2518,6 +2535,9 @@ python3 ./.trellis/scripts/decision_log.py review \
 - Bad:为缩短 Skill 删除安全边界但没有 runner/helper 或其它 owner 承接；上下文预算不是减少契约的理由。
 
 ### 6. Tests Required
+
+- 隔离 Git CLI 场景覆盖正确 pending 跨 next、旧 basename pending 追加纠正、第三次成功/失败、查询零计数、重复回执/冲突、日志成功而 runtime 失败、停止后拒绝重放、同秒新 action 身份与未授权/软链/protected/损坏日志反例。
+- 恢复期间依赖仍 pending，真正 terminal 后才传播且独立任务继续；Check 原 baseline/depth 与单通道预算保持。源/快照/受管安装应逐字节一致，第二次应用零修改，不通过提高上下文预算阈值规避超限。
 
 - runner 测试覆盖 schema 1 恢复和 schema 2 全状态链：全队列 prepare、Open Questions、readiness/
   repair 预算、brief、manifest、依赖排序/传播、部分失败继续和三种终态。

@@ -219,6 +219,7 @@ test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {
   assert.match(runner, /legacy-default-full/);
   assert.match(runner, /MAX_ARTIFACT_RECONCILE = 3/);
   assert.match(runner, /doc-remediation-file/);
+  assert.match(reporting, /不叠加 Check 重录预算/);
 });
 
 test("0.6 发布快照与智能检查源保持一致", () => {

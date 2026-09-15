@@ -292,7 +292,9 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(autoLoop, /`resolve_open_questions`/);
   assert.match(autoLoop, /不逐任务执行 `confirm_brief`/);
   assert.match(autoLoop, /Check record 中其它变化进入有限自纠/);
-  assert.match(autoLoop, /其它 action 仍按 `artifact-drift` 阻塞/);
+  assert.match(autoLoop, /其它 action 的确定路径错误先进入恢复诊断/);
+  assert.match(autoLoop, /未知或越界漂移仍按 `artifact-drift` 阻塞/);
+  assert.match(autoLoop, /references\/artifact-recovery\.md/);
   assert.match(finish, /This skill owns only the current task's release audit, archive bookkeeping/);
   assert.match(finish, /### 1\. Completion State Gate/);
   assert.match(finish, /taskStatus=completed/);

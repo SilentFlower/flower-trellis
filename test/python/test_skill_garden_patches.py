@@ -1121,10 +1121,12 @@ class PatchConsumerTest(unittest.TestCase):
         self.assertEqual((self.target / "hook.py").read_text(), "PATCHED\n")
 
     def test_real_catalog_preflight_matches_compiled_0614_target(self) -> None:
+        """按编译清单核对完整 Patch 集合，避免固定数量随 catalog 演进失效。"""
         self.load_compiled_targets()
         runner = _load_runner()
         plan = runner.prepare_patches(OVERRIDES, self.target)
-        self.assertEqual(len(plan["patches"]), 43)
+        compiled = json.loads((COMPILED_TARGETS.parent / "plan.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(plan["patches"]), {item["id"] for item in compiled["selectedPatches"]})
         self.assertGreaterEqual(len(plan["files"]), 300)
         self.assertGreaterEqual(
             sum(item["status"] == "ready" for item in plan["results"]),

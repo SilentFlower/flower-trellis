@@ -216,7 +216,7 @@ validated auto-loop 复用相同的画像、profile、`DOC-*` 通道和问题模
 - 产品决策、越权、提交前生产副作用授权或破坏性决策：`record --result blocked`。
 - 无 `CHK-*` / `FBK-*` 和阻断型部分验证：`record --result ok --effective-check-depth <light|full> --check-depth-reason <summary>`；摘要包含自动修复和全部 `[上线后验证]`，后者不阻断且不得代执行。
 - record 成功后立即 `next`；若返回 `status=retryable reason=artifact-drift`，不得 `next`，先按 runner 指令在同一 outstanding action 内自纠并重录。validated auto-loop 不渲染交互式下一步段、不提示用户回复“继续”、不等待普通修复范围选择。
-- 不修改 runner 的 fix/recheck 预算、commit-only 授权或队列行为。
+- `artifact-recovery-required` 交由 `trellis-auto-loop`；不叠加 Check 重录预算，不改 fix/recheck、commit-only、队列。
 
 subagent 只返回结构化 `CHK-*`、`FBK-*`、`DOC-*` 候选、报告和 `check_profile`；主会话收到后必须完成允许的 `DOC-*` 处理，再完成匹配 action 的 `record + next`。
 

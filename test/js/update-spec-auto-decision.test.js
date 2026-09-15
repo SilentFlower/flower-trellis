@@ -89,6 +89,8 @@ test("交互 Check-All 默认停止，direct Git 通过或风险接受后同轮�
   assert.match(autoLoopReturn, /record 成功后立即 `next`/);
   assert.match(autoLoopReturn, /status=retryable reason=artifact-drift/);
   assert.match(autoLoopReturn, /不得 `next`/);
+  assert.match(updateSpec, /only after a successful record immediately run `next`/);
+  assert.match(updateSpec, /resubmit the original truthful record/);
   assert.doesNotMatch(autoLoopReturn, /提示用户回复 `继续`/);
   assert.match(postCheck, /只从当前完成链证据识别 direct Git intent/);
   assert.match(postCheck, /全部 findings 已有效接受/);

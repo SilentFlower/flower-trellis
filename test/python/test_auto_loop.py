@@ -984,6 +984,15 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         )
         (task_dir / "brief.md").write_text("# Brief\n\n已补充边界。\n", encoding="utf-8")
 
+        before = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.runner("status")
+        self.runner("resume")
+        self.assertEqual(self.runner("next")["action"], "run_implement")
+        resumed = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(resumed["queue"][0]["last_action"], before["queue"][0]["last_action"])
+        self.assertEqual(resumed["manifest_revision"], 1)
+        self.assertIsNotNone(resumed["queue"][0]["pending_artifact_decision"])
+
         recorded = self.runner(
             "record",
             "--action",
@@ -999,6 +1008,317 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         self.assertEqual(self.manifest_events()[-1]["payload"]["decision_id"], "DEC-0001")
         self.assertEqual(state["queue"][0]["decision_ids"], ["DEC-0001"])
         self.assertIsNone(state["queue"][0]["pending_artifact_decision"])
+
+    def prepare_artifact_recovery(self, *, legacy: bool = False) -> tuple[str, dict]:
+        """构造隔离的原 action 及文档决策，legacy 模式复现旧 basename 错登记。
+
+        Args:
+            legacy: 是否把已登记路径还原为旧 runner 允许的错误 basename。
+
+        Returns:
+            任务引用和首次诊断。
+        """
+        self.write_planning_task("")
+        self.init_git_repo()
+        self.start_planning()
+        self.advance_planning_to_start()
+        self.runner("record", "--action", "start_task", "--result", "ok")
+        self.runner("next")
+        task = ".trellis/tasks/task-planning"
+        args = ["decide", "--task", task, "--topic", "文档边界", "--option", "补充说明",
+                "--choice", "补充说明", "--summary", "原需求内补充说明", "--risk", "low", "--confidence", "high"]
+        if not legacy:
+            return task, self.runner(*args, "--file", "brief.md")
+        self.runner(*args, "--task-file", "brief.md")
+        state = json.loads(self.state_path().read_text())
+        state["queue"][0]["pending_artifact_decision"]["files"] = [".::brief.md"]
+        # 旧 schema 2 没有所有 action 的逐文件基线，仍有可信 pending 原始基线。
+        state["queue"][0]["last_action"].pop("artifact_sha256", None)
+        state["queue"][0]["last_action"].pop("payload", None)
+        self.state_path().write_text(json.dumps(state))
+        log = self.root / task / "decisions.jsonl"
+        events = [json.loads(line) for line in log.read_text().splitlines()]
+        events[-1]["files"] = [".::brief.md"]
+        log.write_text("\n".join(json.dumps(event) for event in events) + "\n")
+        document = self.root / task / "brief.md"
+        document.write_text(document.read_text() + "\n本 action 补充执行说明。\n")
+        return task, self.runner("next")
+
+    def reconcile_artifact(self, task: str, diagnosis: dict, attempt: str, *extra: str) -> dict:
+        """按真实 CLI 提交纠正。
+
+        Args:
+            task: 任务引用。
+            diagnosis: runner 诊断。
+            attempt: 本次尝试标识。
+            extra: 结果及映射参数。
+
+        Returns:
+            纠正回执。
+        """
+        return self.runner("reconcile", "--task", task,
+                           "--recovery-id", diagnosis["recovery"]["recovery_id"],
+                           "--attempt-id", attempt, "--summary", "已核对原决策与当前 diff", *extra)
+
+    def test_legacy_wrong_path_reconcile_preserves_baseline_until_record(self) -> None:
+        """真实旧路径事件追加纠正决策，恢复查询不消费 pending，record 才重绑 manifest。"""
+        task, diagnosis = self.prepare_artifact_recovery(legacy=True)
+        self.assertEqual(diagnosis["status"], "retryable")
+        before = json.loads(self.state_path().read_text())
+        baseline = before["queue"][0]["pending_artifact_decision"]["artifact_sha256"]
+        for command in ("status", "resume", "next", "next"):
+            self.runner(command)
+        self.assertEqual(json.loads(self.state_path().read_text())["queue"][0]["artifact_recovery"]["attempts"], 0)
+        args = ("--result", "ok", "--file-map", f".::brief.md=.::{task}/brief.md")
+        receipt = self.reconcile_artifact(task, diagnosis, "fix-1", *args)
+        self.assertEqual(receipt["status"], "reconciled")
+        self.assertEqual(self.reconcile_artifact(task, diagnosis, "fix-1", *args), receipt)
+        state = json.loads(self.state_path().read_text())
+        self.assertEqual(state["manifest_revision"], 1)
+        self.assertEqual(state["queue"][0]["pending_artifact_decision"]["artifact_sha256"], baseline)
+        self.assertEqual(state["queue"][0]["decision_ids"], ["DEC-0001", "DEC-0002"])
+        self.assertEqual(self.runner("next")["action"], "run_implement")
+        self.runner("record", "--action", "run_implement", "--result", "ok")
+        self.assertEqual(json.loads(self.state_path().read_text())["manifest_revision"], 2)
+        events = [json.loads(line) for line in (self.root / task / "decisions.jsonl").read_text().splitlines()]
+        self.assertEqual(events[0]["files"], [".::brief.md"])
+        for key in ("choice", "requirements", "risk", "summary", "planning_sha256", "handoff_sha256"):
+            self.assertEqual(events[0][key], events[1][key])
+
+    def test_third_correction_can_succeed_without_query_budget(self) -> None:
+        """初始坏登记不落决策；失败两次后第三次可成功，查询与回执重放不计数。"""
+        task, diagnosis = self.prepare_artifact_recovery()
+        self.assertFalse((self.root / task / "decisions.jsonl").exists())
+        for attempt in ("one", "two"):
+            response = self.reconcile_artifact(task, diagnosis, attempt, "--result", "ok")
+            self.assertEqual(response["status"], "retryable")
+            self.assertEqual(self.reconcile_artifact(task, diagnosis, attempt, "--result", "ok"), response)
+            self.runner("next")
+            self.runner("resume")
+        response = self.reconcile_artifact(task, diagnosis, "three", "--result", "ok",
+                                          "--file-map", f".::brief.md=.::{task}/brief.md")
+        self.assertEqual(response["status"], "reconciled")
+        self.assertEqual(response["attempt"], 3)
+        (self.root / "design.md").write_text("仓库设计文档，当前任务没有同名文档")
+        decided = self.runner("decide", "--task", task, "--topic", "说明", "--option", "说明",
+                              "--choice", "说明", "--summary", "核实后登记", "--risk", "low", "--confidence", "high",
+                              "--task-file", "brief.md", "--file", "src/new_file.py", "--file", "design.md")
+        self.assertEqual(decided["status"], "decided")
+        self.assertIn(".::src/new_file.py", decided["decision"]["files"])
+        self.assertIn(".::design.md", decided["decision"]["files"])
+
+    def test_third_failed_correction_blocks_with_evidence(self) -> None:
+        """第三次实际纠正失败才终态阻塞，不静默丢失失败细节。"""
+        task, diagnosis = self.prepare_artifact_recovery()
+        for attempt in range(1, 4):
+            response = self.reconcile_artifact(task, diagnosis, str(attempt), "--result", "failed")
+            self.assertEqual(response["attempt"], attempt)
+            self.assertEqual(response["status"], "blocked" if attempt == 3 else "retryable")
+        item = json.loads(self.state_path().read_text())["queue"][0]
+        self.assertTrue(item["blocked"]["detail"]["exhausted"])
+        self.assertEqual(len(item["artifact_recovery"]["receipts"]), 3)
+
+    def test_reconcile_rejects_conflict_and_changed_observation(self) -> None:
+        """同尝试不同载荷冲突；成功后新变化不能沿用旧成功回执。"""
+        task, diagnosis = self.prepare_artifact_recovery(legacy=True)
+        args = ("--result", "ok", "--file-map", f".::brief.md=.::{task}/brief.md")
+        self.reconcile_artifact(task, diagnosis, "one", *args)
+        self.assertEqual(self.reconcile_artifact(task, diagnosis, "one", "--result", "failed")["reason"], "attempt-id-conflict")
+        (self.root / task / "prd.md").write_text("外部需求变更")
+        self.assertEqual(self.reconcile_artifact(task, diagnosis, "one", *args)["reason"], "recovery-observation-changed")
+        self.assertEqual(self.runner("next")["status"], "completed_with_blocked")
+
+    def test_check_next_retains_original_doc_baseline(self) -> None:
+        """Check 的恢复查询不重采样 baseline，DOC 变化仍须精确申报。"""
+        self.advance_to_check()
+        before = json.loads(self.state_path().read_text())["queue"][0]["last_action"]
+        document = self.root / ".trellis/tasks/task-one/brief.md"
+        document.write_text("# 已核验的执行记录\n")
+        resumed = self.runner("next")
+        self.assertEqual(resumed["action"], "run_check_all")
+        self.assertIn("--doc-remediation-file", resumed["instruction"])
+        self.assertEqual(json.loads(self.state_path().read_text())["queue"][0]["last_action"], before)
+        decided = self.runner("decide", "--task", ".trellis/tasks/task-one", "--topic", "事后补登记",
+                              "--option", "文档", "--choice", "文档", "--summary", "不应接受事后基线",
+                              "--risk", "low", "--confidence", "high", "--task-file", "brief.md")
+        self.assertEqual(decided["reason"], "decision-baseline-drift")
+        self.assertFalse((self.root / ".trellis/tasks/task-one/decisions.jsonl").exists())
+        response = self.runner("record", "--action", "run_check_all", "--result", "ok",
+                               "--effective-check-depth", "light", "--check-depth-reason", "仅低风险文档")
+        self.assertEqual(response["status"], "retryable")
+        repeated = self.runner("next")
+        self.assertEqual(repeated["status"], "retryable")
+        self.assertEqual(repeated["attempt"], 1)
+        self.assertEqual(json.loads(self.state_path().read_text())["queue"][0]["last_action"], before)
+
+    def test_decision_file_validation_rejects_unsafe_paths(self) -> None:
+        """拒绝未知仓库、越界、绝对路径、软链和根同名歧义，且不写错误决策。"""
+        task, diagnosis = self.prepare_artifact_recovery()
+        (self.root / "linked").symlink_to(self.root / task, target_is_directory=True)
+        (self.root / "brief.md").write_text("根目录真实文档")
+        for value in ("../escape.py", "/tmp/escape.py", "unknown::new.py", "linked/brief.md", "brief.md"):
+            with self.subTest(value=value):
+                result = self.runner("decide", "--task", task, "--topic", "路径", "--option", "路径",
+                                     "--choice", "路径", "--summary", "校验", "--risk", "low", "--confidence", "high", "--file", value)
+                self.assertEqual(result["status"], "error")
+        self.assertFalse((self.root / task / "decisions.jsonl").exists())
+
+    def test_reconcile_recovers_audit_after_runtime_write_failure(self) -> None:
+        """纠正日志已落盘而 runtime 失败时，同尝试重放不会重复追加或改变基线。"""
+        task, diagnosis = self.prepare_artifact_recovery(legacy=True)
+        module = self.load_runner_module()
+        args = module.build_parser().parse_args([
+            "reconcile", "--run-id", "auto-test", "--task", task,
+            "--recovery-id", diagnosis["recovery"]["recovery_id"], "--attempt-id", "lost",
+            "--result", "ok", "--summary", "已核对原决策与当前 diff",
+            "--file-map", f".::brief.md=.::{task}/brief.md",
+        ])
+        with mock.patch.object(module, "_repo_root", return_value=self.root), mock.patch.object(module, "_write_state", side_effect=OSError("模拟 runtime 写失败")):
+            with self.assertRaises(OSError):
+                module.cmd_reconcile(args)
+        log = self.root / task / "decisions.jsonl"
+        self.assertEqual(len(log.read_text().splitlines()), 2)
+        self.assertEqual(json.loads(self.state_path().read_text())["queue"][0]["artifact_recovery"]["attempts"], 0)
+        conflict = self.reconcile_artifact(task, diagnosis, "lost", "--result", "failed")
+        self.assertEqual(conflict["reason"], "attempt-id-conflict")
+        response = self.reconcile_artifact(task, diagnosis, "lost", "--result", "ok",
+                                          "--file-map", f".::brief.md=.::{task}/brief.md")
+        self.assertEqual(response["status"], "reconciled")
+        self.assertEqual(response["attempt"], 1)
+        self.assertEqual(len(log.read_text().splitlines()), 2)
+
+    def test_record_diagnoses_wrong_path_without_advancing(self) -> None:
+        """非 Check record 复用相同诊断，纠正后仍须重新回写真实结果。"""
+        task, diagnosis = self.prepare_artifact_recovery(legacy=True)
+        response = self.runner("record", "--action", "run_implement", "--result", "ok")
+        self.assertEqual(response["recovery"]["recovery_id"], diagnosis["recovery"]["recovery_id"])
+        self.assertEqual(response["recovery"]["attempts"], 0)
+        self.reconcile_artifact(task, diagnosis, "fix", "--result", "ok",
+                                "--file-map", f".::brief.md=.::{task}/brief.md")
+        state = json.loads(self.state_path().read_text())
+        self.assertEqual(state["queue"][0]["current_step"], "implement")
+        self.assertEqual(state["queue"][0]["last_action"]["action"], "run_implement")
+
+    def test_reconcile_requires_restore_of_unlisted_own_changes(self) -> None:
+        """映射不能扩大原文件范围，撤回本 action 额外误改后才可成功。"""
+        task, diagnosis = self.prepare_artifact_recovery(legacy=True)
+        prd = self.root / task / "prd.md"
+        original = prd.read_text()
+        prd.write_text(original + "\n本 action 误写的备注\n")
+        args = ("--result", "ok", "--file-map", f".::brief.md=.::{task}/brief.md")
+        self.assertEqual(self.reconcile_artifact(task, diagnosis, "one", *args)["status"], "retryable")
+        prd.write_text(original)
+        self.assertEqual(self.reconcile_artifact(task, diagnosis, "two", *args)["status"], "reconciled")
+
+    def test_recovery_queries_do_not_consume_protected_drift(self) -> None:
+        """next 的受保护检查不得移动 retained 基线或修改用户文件。"""
+        task, diagnosis = self.prepare_artifact_recovery(legacy=True)
+        protected = self.root / "user.txt"
+        protected.write_text("用户原内容")
+        module = self.load_runner_module()
+        state = json.loads(self.state_path().read_text())
+        entry = {"path": "user.txt", "sha256": module._file_sha256(protected)}
+        state["repositories"] = [{"root": ".", "protected_retained": [entry]}]
+        self.state_path().write_text(json.dumps(state))
+        protected.write_text("用户新内容")
+        self.assertEqual(self.runner("next")["status"], "completed_with_blocked")
+        after = json.loads(self.state_path().read_text())
+        self.assertEqual(after["repositories"][0]["protected_retained"][0], entry)
+        self.assertEqual(after["queue"][0]["artifact_recovery"]["attempts"], 0)
+        self.assertEqual(protected.read_text(), "用户新内容")
+
+    def test_reconcile_does_not_accept_expanded_or_symlink_mapping(self) -> None:
+        """跨任务、新增映射和诊断后的软链替换不能获授权。"""
+        task, diagnosis = self.prepare_artifact_recovery(legacy=True)
+        response = self.reconcile_artifact(task, diagnosis, "one", "--result", "ok",
+                                          "--file-map", ".::brief.md=.::.trellis/tasks/task-one/brief.md")
+        self.assertEqual(response["status"], "retryable")
+        document = self.root / task / "brief.md"
+        content = document.read_text()
+        document.unlink()
+        target = self.root / "outside.md"
+        target.write_text(content)
+        document.symlink_to(target)
+        response = self.reconcile_artifact(task, diagnosis, "two", "--result", "ok",
+                                          "--file-map", f".::brief.md=.::{task}/brief.md")
+        self.assertEqual(response["status"], "retryable")
+        self.assertEqual(len((self.root / task / "decisions.jsonl").read_text().splitlines()), 1)
+
+    def test_recovery_cannot_reset_budget_with_new_diagnosis(self) -> None:
+        """同 action 第三次成功后再造新错登记不能获得新三轮预算。"""
+        task, diagnosis = self.prepare_artifact_recovery()
+        for attempt in ("one", "two"):
+            self.reconcile_artifact(task, diagnosis, attempt, "--result", "failed")
+        self.reconcile_artifact(task, diagnosis, "three", "--result", "ok",
+                                "--file-map", f".::brief.md=.::{task}/brief.md")
+        response = self.runner("decide", "--task", task, "--topic", "新诊断", "--option", "说明",
+                               "--choice", "说明", "--summary", "再次错误登记", "--risk", "low", "--confidence", "high", "--file", "prd.md")
+        self.assertEqual(response["status"], "blocked")
+        self.assertEqual(response["recovery"]["attempts"], 3)
+
+    def test_recovery_blocks_tampered_decision_evidence(self) -> None:
+        """原决策日志损坏后恢复不能相信旧 pending 或继续追加授权。"""
+        task, diagnosis = self.prepare_artifact_recovery(legacy=True)
+        (self.root / task / "decisions.jsonl").write_text("{broken\n")
+        self.assertEqual(self.runner("next")["status"], "completed_with_blocked")
+        self.assertIn("可信", json.loads(self.state_path().read_text())["queue"][0]["blocked"]["summary"])
+
+    def test_recovery_keeps_dependents_pending_until_terminal_failure(self) -> None:
+        """可纠正阶段不传播依赖阻塞，真正耗尽后独立任务继续。"""
+        task, diagnosis = self.prepare_artifact_recovery(legacy=True)
+        module = self.load_runner_module()
+        state = json.loads(self.state_path().read_text())
+        dependent = module._make_item(self.root, ".trellis/tasks/task-one")
+        dependent["depends_on"] = [task]
+        state["queue"].extend([dependent, module._make_item(self.root, ".trellis/tasks/task-two")])
+        self.state_path().write_text(json.dumps(state))
+        self.assertEqual(self.runner("next")["status"], "retryable")
+        self.assertEqual(json.loads(self.state_path().read_text())["queue"][1]["status"], "pending")
+        for attempt in ("one", "two", "three"):
+            self.reconcile_artifact(task, diagnosis, attempt, "--result", "failed")
+        self.assertEqual(self.runner("next")["task"], ".trellis/tasks/task-two")
+        self.assertEqual(json.loads(self.state_path().read_text())["queue"][1]["blocked"]["reason"], "blocked-dependency")
+
+    def test_same_second_new_action_has_distinct_recovery_identity(self) -> None:
+        """秒级时钟相同的重发 action 也不能复用上一 action 的恢复 ID。"""
+        task, diagnosis = self.prepare_artifact_recovery()
+        module = self.load_runner_module()
+        state = json.loads(self.state_path().read_text())
+        item = state["queue"][0]
+        payload = module._replay_action(state, item)
+        candidates = {".::brief.md": f".::{task}/brief.md"}
+        with mock.patch.object(module, "_utc_now", return_value=item["last_action"]["issued_at"]):
+            module._issue_running_action(self.root, item, payload)
+        result = module._diagnose_recovery(state, item, "decide", module._task_artifact_hashes(self.root, item), candidates, [])
+        self.assertNotEqual(result["recovery"]["recovery_id"], diagnosis["recovery"]["recovery_id"])
+
+    def test_status_recovery_summary_omits_receipt_payloads(self) -> None:
+        """默认恢复摘要给出精确入口，不展开多次完整观察回执。"""
+        task, diagnosis = self.prepare_artifact_recovery()
+        self.reconcile_artifact(task, diagnosis, "one", "--result", "failed")
+        summary = self.runner("resume")["artifact_recovery"]
+        self.assertEqual(summary["attempts"], 1)
+        self.assertNotIn("receipts", summary)
+        self.assertIn(diagnosis["recovery"]["recovery_id"], summary["command"])
+
+    def test_stopped_run_cannot_replay_success_as_continuation(self) -> None:
+        """用户停止后旧成功回执不能再发出继续指令，也不复活历史 run。"""
+        task, diagnosis = self.prepare_artifact_recovery()
+        args = ("--result", "ok", "--file-map", f".::brief.md=.::{task}/brief.md")
+        self.assertEqual(self.reconcile_artifact(task, diagnosis, "one", *args)["status"], "reconciled")
+        self.runner("stop", "--reason", "用户停止")
+        result = self.runner("reconcile", "--run-id", "auto-test", "--task", task,
+                             "--recovery-id", diagnosis["recovery"]["recovery_id"], "--attempt-id", "one",
+                             "--summary", "已核对原决策与当前 diff", *args)
+        self.assertEqual(result["reason"], "recovery-action-not-running")
+        self.assertEqual(json.loads(self.state_path().read_text())["status"], "stopped")
+
+    def test_explicit_recovery_block_retains_agent_conclusion(self) -> None:
+        """无法归因时无需伪造映射，终态保留 agent 的真实阻塞结论。"""
+        task, diagnosis = self.prepare_artifact_recovery()
+        result = self.reconcile_artifact(task, diagnosis, "blocked", "--result", "blocked")
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["message"], "已核对原决策与当前 diff")
 
     def test_cross_repo_jsonl_entries_remain_valid(self) -> None:
         """相对越过仓库根和绝对外部路径继续可作为 context。"""
