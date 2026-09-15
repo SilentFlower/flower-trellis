@@ -4,6 +4,16 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.8-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.8-beta.1...v0.6.8-beta.2) (2026-09-15)
+
+
+### 🐛 修复 Bug Fixes
+
+* **auto-loop:** 同步恢复自纠与回归验证 ([288bd9f](https://github.com/SilentFlower/flower-trellis/commit/288bd9f1fd029203243cc41cb8bdf7858d831c77))
+* **auto-loop:** 同步框架冲突修复与回归验证 ([f240a17](https://github.com/SilentFlower/flower-trellis/commit/f240a172d16abb6e7826b4ae79e37d8ce9ff5fcc))
+* **codex:** 强化 Astra 工作流确认边界 ([fd14a49](https://github.com/SilentFlower/flower-trellis/commit/fd14a49df6f5086b3097a06a1d1355fd7e0a6915))
+* **trellis:** 同步风险展示优化与回归验证 ([07f17a8](https://github.com/SilentFlower/flower-trellis/commit/07f17a8ea40c72fe62d3c99ffef37beb36c06101))
+
 ## [0.6.8-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.6.8-beta.0...v0.6.8-beta.1) (2026-09-10)
 
 
