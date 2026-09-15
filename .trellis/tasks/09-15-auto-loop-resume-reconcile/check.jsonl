@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "CLI 工程约定与质量入口"}
+{"file": ".trellis/tasks/09-15-auto-loop-resume-reconcile/research/relevant-spec-extract.md", "reason": "Auto Loop 规范精确摘录与原文定位，避免整份大规范注入截断；本任务 design 指明要修改的恢复边界"}
+{"file": ".trellis/tasks/09-15-auto-loop-resume-reconcile/research/runner-evidence.md", "reason": "原事故、真实 runner 定义与兼容边界"}
+{"file": ".trellis/tasks/09-15-auto-loop-resume-reconcile/research/recovery-test-coverage.md", "reason": "真实 CLI 回归、消费者与旧断言冲突"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "幂等、零误伤、查询/写入矩阵与验证要求"}
