@@ -4,6 +4,34 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.8](https://github.com/SilentFlower/flower-trellis/compare/v0.6.7...v0.6.8) (2026-09-16)
+
+
+### 🐛 修复 Bug Fixes
+
+* **trellis:** 减少重复确认与输出，修复技能之间的流程衔接 ([01f79eb](https://github.com/SilentFlower/flower-trellis/commit/01f79eb94dc61b1283f35187b1756f0d2fbe1206))
+  - **任务 Brief**：避免进入实现或恢复会话时重复展示、确认已批准的内容。
+  - **任务恢复**：Start 统一交给 Continue 恢复进度，复用已加载的有效上下文。
+  - **收尾提交**：归档与会话日志合并为一次精确提交，保留原有自动推送条件。
+  - **输出精简**：Push 成功后简要显示结果；Check-All 的问题处置选项只展示一次。
+  - **规范更新**：统一 Check-All、Update-Spec 和 Break-Loop 的承接规则；已有规范覆盖时允许无需修改。
+  - **需求处理**：修正 PRD 创建顺序、需求准确性与覆盖率检查方向，避免把必要的实现细节误判为需求扩张。
+  - **平台与入口**：创建命令时遵循实际平台目录；修正普通检查和软件发版的入口指引。
+* **auto-loop:** 同步恢复自纠与回归验证 ([288bd9f](https://github.com/SilentFlower/flower-trellis/commit/288bd9f1fd029203243cc41cb8bdf7858d831c77))
+* **auto-loop:** 同步框架冲突修复与回归验证 ([f240a17](https://github.com/SilentFlower/flower-trellis/commit/f240a172d16abb6e7826b4ae79e37d8ce9ff5fcc))
+* **check-all:** 同步报告落盘规则与规范 ([0477456](https://github.com/SilentFlower/flower-trellis/commit/04774560d8cde20b6bb6abe025bcaa0bf1bb5514))
+* **codex:** 强化 Astra 工作流确认边界 ([fd14a49](https://github.com/SilentFlower/flower-trellis/commit/fd14a49df6f5086b3097a06a1d1355fd7e0a6915))
+* **hooks:** 修复 Windows 更新检查入口与路径参数 ([ed7e68f](https://github.com/SilentFlower/flower-trellis/commit/ed7e68f0cfac6cead9c88817d82ab795450bd724))
+* **push:** 同步保留变更展示与落盘规则 ([9bcd747](https://github.com/SilentFlower/flower-trellis/commit/9bcd74761777f108be0a7286f0e253c06b0cb0ba))
+* **skills:** 迁移通用技能到共享 agents 目录 ([7ebdf05](https://github.com/SilentFlower/flower-trellis/commit/7ebdf0560ccc53ecd252f6e8b259d417d0a53d78))
+* **trellis:** 同步风险展示优化与回归验证 ([07f17a8](https://github.com/SilentFlower/flower-trellis/commit/07f17a8ea40c72fe62d3c99ffef37beb36c06101))
+
+
+### 🧰 维护 Maintenance
+
+* **trellis:** 同步 Flower 0.6.7 与插件安装记录 ([690f1b4](https://github.com/SilentFlower/flower-trellis/commit/690f1b4e87d4bffdb02800e576acf882382de566))
+* **trellis:** 同步 Flower 0.6.8-beta.0 安装记录 ([2ea16ed](https://github.com/SilentFlower/flower-trellis/commit/2ea16ed3f0ddfe8a7d34d1b132fb3cb55d419344))
+
 ## [0.6.8-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.8-beta.1...v0.6.8-beta.2) (2026-09-15)
 
 
