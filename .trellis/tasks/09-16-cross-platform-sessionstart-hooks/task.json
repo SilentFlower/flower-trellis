@@ -123,15 +123,16 @@
     }
   },
   "progress": {
-    "updatedAt": "2026-09-17T00:04:22+08:00",
     "completedSteps": [
-      "实现 SessionStart state 子进程隔离并保持分段契约",
-      "完成 Linux/Windows Codex/Claude 四象限验证",
-      "新增 Ubuntu/Windows GitHub Actions 专项矩阵并通过 Full Check-All",
-      "更新 SessionStart 可执行规范"
+      "实现 SessionStart state 子进程隔离并完成 Linux/Windows Codex/Claude 四象限验证",
+      "修复 CI 夹具对本地忽略 .developer 文件的依赖",
+      "干净检出 Linux 与 Windows 原生 Python 各通过 14 个专项测试，Check-All 通过",
+      "更新 SessionStart 夹具规范并推送修复",
+      "GitHub Actions 35121142010 的 Ubuntu 与 Windows job 均通过"
     ],
     "partialStep": null,
-    "nextStep": "核对 GitHub Actions Ubuntu/Windows SessionStart job",
-    "notes": "业务提交已推送；远端 CI 作为上线后验证。"
+    "nextStep": "本次修复完成；后续按需归档或发布",
+    "notes": "远端 CI 已核对成功：https://github.com/SilentFlower/flower-trellis/actions/runs/35121142010；未发布 npm 或创建版本标签。",
+    "updatedAt": "2026-09-16T16:20:40Z"
   }
 }
