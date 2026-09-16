@@ -1,0 +1,87 @@
+# xhgj-gitlab-collaboration 的可离线机器契约；使用 JSON-compatible YAML 供标准库解析。
+{
+  "schema_version": 2,
+  "name": "xhgj-gitlab-collaboration",
+  "aliases": [],
+  "status": "active",
+  "version": "0.8.1",
+  "owner": "rd-guide-maintainers",
+  "authority": "rd-guide-maintainers",
+  "source": "native",
+  "entrypoint": "SKILL.md",
+  "self_check": "scripts/skills/xhgj-gitlab-collaboration/self_check.py",
+  "tests": [
+    "tests/skills/xhgj-gitlab-collaboration/test_self_check.py",
+    "tests/skills/xhgj-gitlab-collaboration/cases.json"
+  ],
+  "compatibility": {
+    "skill_format": "codex-skill-v1",
+    "python": ">=3.7",
+    "offline": true,
+    "clients": [
+      "codex"
+    ],
+    "client_verification": {
+      "required_layers": [
+        "discovery",
+        "routing",
+        "constraints"
+      ],
+      "results": [
+        {
+          "client": "codex",
+          "verified_layers": [
+            "discovery",
+            "routing",
+            "constraints"
+          ],
+          "as_of": "2026-07-31",
+          "evidence": [
+            "repo:tests/skills/xhgj-gitlab-collaboration/fixtures/real-usage.json",
+            "repo:docs/playbooks/skill-controlled-installation.md"
+          ],
+          "limitations": [
+            "installed-copy verification is scoped to an owner-controlled Windows workstation"
+          ]
+        },
+        {
+          "client": "claude",
+          "verified_layers": [
+            "discovery"
+          ],
+          "as_of": "2026-08-13",
+          "evidence": [
+            "repo:docs/playbooks/skill-controlled-installation.md"
+          ],
+          "limitations": [
+            "routing and constraints behavior validation is pending",
+            "verification-only placement is permitted without per-install authority approval; installability does not imply behavioral compatibility",
+            "SKILL.md requires the unverified client and its verified layers to be recorded in completion evidence",
+            "routing and constraint findings on this client flow back to rd-guide issue:6"
+          ]
+        }
+      ]
+    },
+    "project_rule_entries": []
+  },
+  "upgrade_protection": {
+    "mode": "detect-and-stop",
+    "compare_command": "python scripts/skills/xhgj-gitlab-collaboration/self_check.py --compare <installed-skill-directory>",
+    "protected_paths": [
+      "SKILL.md",
+      "agents/openai.yaml",
+      "contract.yaml",
+      "references"
+    ],
+    "on_difference": "report differences and require an explicit choice; never overwrite"
+  },
+  "real_usage": {
+    "status": "passed",
+    "evidence": "tests/skills/xhgj-gitlab-collaboration/fixtures/real-usage.json",
+    "review_projection": "tests/skills/xhgj-gitlab-collaboration/fixtures/real-usage.md",
+    "environment": "Maintainer-controlled Windows workstation; prior controlled workflows plus rd-guide Project 238 merge-gate readback, MR !39 squash-result readback, cross-Project GitLab Markdown render validation, GitLab 18.10.1 CE MR !108 assignee/reviewer responsibility readback, onboarding-sandbox issue 8 scoped-authorization feedback review, and onboarding-sandbox issue 2 action-scoped preflight feedback with rd-guide issue 6 note 28898",
+    "review_status": "passed",
+    "as_of": "2026-08-24"
+  },
+  "feedback": "issue:6"
+}
