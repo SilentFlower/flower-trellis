@@ -723,6 +723,9 @@ Python 回归必须使用 `sys.executable` 和显式 UTF-8，不依赖 Windows �
 须让伪原生 `main()` 实际对捕获流调用 `detach()`，先证明旧同进程边界失败，再断言隔离 state 成功。
 同一专项测试必须在 GitHub Actions 的 `ubuntu-latest` / `windows-latest` 矩阵运行；本地或 CI 脚本结果
 不能冒充需要认证的 Codex / Claude 真实宿主加载证据。
+SessionStart 测试夹具必须自行创建 `.trellis/.developer`（固定写入 `name=tester\n`，UTF-8），不能从
+开发者工作区复制该 Git 忽略文件。验证须覆盖源检出中没有 `.developer` 的情况；否则本地通过仍可能
+在 Ubuntu / Windows CI 的 `setUp()` 阶段全部失败，尚未执行任何 Hook 断言。
 模型提示回归覆盖三种 source × 两平台 × 三分段、同一会话连续切换模型、未知别名与非法值、缺省/关闭/
 非法配置、全局禁用、resume、非交互、生成器异常与真实 UTF-8 超限；移除新增换行和提示后，原上下文逐字一致。
 通过正常安装验证资产投影、独立开关保留及重复更新幂等；此源资产不属于 Skill-Garden 快照，不为它制造同步漂移。

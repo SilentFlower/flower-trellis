@@ -36,8 +36,10 @@ class FlowerSessionStartTest(unittest.TestCase):
         for name in ["scripts", "spec"]:
             shutil.copytree(ROOT / ".trellis" / name, self.root / ".trellis" / name,
                             ignore=shutil.ignore_patterns("__pycache__"))
-        for name in ["workflow.md", "config.yaml", ".developer"]:
+        for name in ["workflow.md", "config.yaml"]:
             shutil.copy2(ROOT / ".trellis" / name, self.root / ".trellis" / name)
+        # `.developer` 是本地忽略文件；夹具必须自行创建，避免依赖开发者工作区。
+        (self.root / ".trellis/.developer").write_text("name=tester\n", encoding="utf-8")
         for platform in ["codex", "claude"]:
             target = self.root / f".{platform}/hooks/session-start.py"
             target.parent.mkdir(parents=True)
