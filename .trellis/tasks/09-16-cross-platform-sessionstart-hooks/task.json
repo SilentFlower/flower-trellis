@@ -1,0 +1,137 @@
+{
+  "id": "cross-platform-sessionstart-hooks",
+  "name": "cross-platform-sessionstart-hooks",
+  "title": "修复跨平台 SessionStart 分段 Hook",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-16",
+  "completedAt": "2026-09-16",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-09-16T14:51:38Z",
+      "contextKey": "codex_01a0a9ba-e979-7191-83c9-59056bc8e7b0",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "d351a3eb753c6cc2438dc6ecc5a13e9c169ac6ae",
+        "status": [
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "d351a3eb753c6cc2438dc6ecc5a13e9c169ac6ae",
+            "status": [
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md",
+                "sha256": "cdd3be0e22f13e2377a3acced9aee5806c4043b9830bcf0c2f503e9b56d571eb"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md",
+                "sha256": "8439f575162fbac22c07c456c78573328b730c315ff837aeea24d52017dddcb7"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json",
+                "sha256": "a555c3b289cb378ab9895c12c1897121f5937e01c900ba68ef1bb5874c0c54da"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "bf4785978d1c113a001e01e0aa9f5cde7813dc8782c697ca73702960f4f52af2"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "66f538fafba63953cf40b7044bc390055012c4a7",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "7e1be151214671dd50737bf791f6272eede018b285bcd0e495e8e713c8e0d410"
+          }
+        ],
+        "fingerprint": "2390a58a9b2cbbdf35601281e551a3f98f705150fef44d32e3c15b0b6e370039"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-09-17T00:04:22+08:00",
+    "completedSteps": [
+      "实现 SessionStart state 子进程隔离并保持分段契约",
+      "完成 Linux/Windows Codex/Claude 四象限验证",
+      "新增 Ubuntu/Windows GitHub Actions 专项矩阵并通过 Full Check-All",
+      "更新 SessionStart 可执行规范"
+    ],
+    "partialStep": null,
+    "nextStep": "核对 GitHub Actions Ubuntu/Windows SessionStart job",
+    "notes": "业务提交已推送；远端 CI 作为上线后验证。"
+  }
+}

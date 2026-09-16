@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"实现前读取 SessionStart 分段、平台 Patch、作者源投影、注册与安装验证合同。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"实现与验证需保持六个分段的字符、UTF-8 字节和总量预算。"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"核对 Hook 诊断、配置与运行状态边界，避免隔离进程改变既有语义。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"覆盖作者源、投影、平台注册、运行时与宿主验证的跨层数据流。"}
