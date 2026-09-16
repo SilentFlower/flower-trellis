@@ -80,7 +80,7 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [Flower Plugin Authoring And Marketplace CI](./flower-plugin-authoring.md) | 作者 Plugin/Skill、确定性 scaffold、ownership、validate、rd-guide CI 与 CODEOWNERS 契约 |
 | [AI Context Budget](./ai-context-budget.md) | 最终 workflow/state/skill、Phase summary、SessionStart 场景及 Astra 提示计量与控制面预算 |
 | [Release & Publishing](./release-and-publishing.md) | 发版流程、CI 发布(OIDC)、CHANGELOG 约定 |
-| [Quality Guidelines](./quality-guidelines.md) | 必守模式、禁用模式、评审清单 |
+| [Quality Guidelines](./quality-guidelines.md) | 必守模式、禁用模式、评审清单；Python 3.8 跨平台解释器、UTF-8、标准流与原生验证合同 |
 
 ---
 

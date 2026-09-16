@@ -1,7 +1,7 @@
+import { execPythonSync } from "./python-runtime.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { PKG_ROOT } from "../src/lib/paths.js";
 import { FLOWER_SESSION_HOOK, FLOWER_SESSION_HOOK_REL } from "../src/lib/flower-assets.js";
@@ -133,9 +133,7 @@ function copyIfExists(source, target) {
 }
 
 function measurePhaseSummary() {
-  return execFileSync(
-    "python3",
-    ["./.trellis/scripts/get_context.py", "--mode", "phase"],
+  return execPythonSync(["./.trellis/scripts/get_context.py", "--mode", "phase"],
     { cwd: PKG_ROOT, encoding: "utf8" },
   );
 }
@@ -189,7 +187,7 @@ function measureSessionStart() {
         `codex:\n  dispatch_mode: auto\n  astra_workflow_hint: ${scenario.enabled !== false}\n`);
       const parts = [];
       for (const part of ["state", "rules", "stages"]) {
-        const output = execFileSync("python3", [FLOWER_SESSION_HOOK_REL, "--hook", hook, "--part", part], {
+        const output = execPythonSync([FLOWER_SESSION_HOOK_REL, "--hook", hook, "--part", part], {
           cwd: fixture,
           encoding: "utf8",
           input: JSON.stringify({ cwd: fixture, session_id: "context-budget-fixture", source, model }),

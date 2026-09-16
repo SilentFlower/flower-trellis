@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from platform_test_utils import symlink_or_skip
 from argparse import Namespace
 from contextlib import contextmanager
 from importlib import util as importlib_util
@@ -90,7 +91,7 @@ class TaskIntentTest(unittest.TestCase):
     def helper(self, *args: str, check: bool = True) -> tuple[subprocess.CompletedProcess, dict]:
         """执行 helper 并解析 stdout JSON。"""
         result = self.run_command(
-            ["python3", ".trellis/scripts/task_intent.py", *args],
+            [sys.executable, "-X", "utf8", ".trellis/scripts/task_intent.py", *args],
             env=self.env,
             check=False,
         )
@@ -125,6 +126,9 @@ class TaskIntentTest(unittest.TestCase):
         module = importlib_util.module_from_spec(spec)
         scripts_path = str(self.root / ".trellis/scripts")
         old_cwd = Path.cwd()
+        previous = {key: value for key, value in sys.modules.items() if key == "common" or key.startswith("common.")}
+        for key in previous:
+            sys.modules.pop(key)
         sys.path.insert(0, scripts_path)
         try:
             spec.loader.exec_module(module)
@@ -135,6 +139,10 @@ class TaskIntentTest(unittest.TestCase):
             os.chdir(old_cwd)
             sys.path.remove(scripts_path)
             sys.modules.pop(module_name, None)
+            for key in list(sys.modules):
+                if key == "common" or key.startswith("common."):
+                    sys.modules.pop(key, None)
+            sys.modules.update(previous)
 
     def test_create_records_pre_task_dirty_baseline(self) -> None:
         """create 在 task 文件出现前记录 tracked 与 untracked dirty。"""
@@ -167,7 +175,7 @@ class TaskIntentTest(unittest.TestCase):
         (self.root / ".trellis/.gitignore").write_text(".runtime/\n", encoding="utf-8")
         self.run_command(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/untracked_flow.py",
                 "begin",
                 "--summary",
@@ -254,7 +262,7 @@ class TaskIntentTest(unittest.TestCase):
         (self.root / ".trellis/.gitignore").write_text(".runtime/\n", encoding="utf-8")
         self.run_command(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/untracked_flow.py",
                 "begin",
                 "--summary",
@@ -332,7 +340,7 @@ class TaskIntentTest(unittest.TestCase):
         """child discard 会从 parent children 中精确移除引用。"""
         parent_result = self.run_command(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/task.py",
                 "create",
                 "Parent",
@@ -353,7 +361,7 @@ class TaskIntentTest(unittest.TestCase):
         """目录删除失败时 parent 引用必须恢复且 child 保留。"""
         parent_result = self.run_command(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/task.py",
                 "create",
                 "Parent rollback",
@@ -419,7 +427,7 @@ class TaskIntentTest(unittest.TestCase):
         """session 删除失败时 parent、task 与 session 必须全部保持。"""
         parent_result = self.run_command(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/task.py",
                 "create",
                 "Parent session rollback",
@@ -522,7 +530,7 @@ class TaskIntentTest(unittest.TestCase):
         other_env = {**self.env, "TRELLIS_CONTEXT_ID": "other-session"}
         result = self.run_command(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/task_intent.py",
                 "discard",
                 "--task",
@@ -541,10 +549,11 @@ class TaskIntentTest(unittest.TestCase):
         outside = self.root / "outside-task"
         outside.mkdir()
         symlink = self.root / ".trellis/tasks/symlink-task"
-        symlink.symlink_to(outside, target_is_directory=True)
-        result, payload = self.helper("discard", "--task", "symlink-task", check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(payload["reason"], "unsafe-task-path")
+        with self.subTest(path="symlink-task"):
+            symlink_or_skip(outside, symlink, target_is_directory=True)
+            result, payload = self.helper("discard", "--task", "symlink-task", check=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(payload["reason"], "unsafe-task-path")
 
         archive_task = self.root / ".trellis/tasks/archive/archived"
         archive_task.mkdir(parents=True)

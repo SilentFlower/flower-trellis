@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-09-16T09:56:10.375Z",
+  "syncedAt": "2026-09-16T23:43:48.725Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "66f538fafba63953cf40b7044bc390055012c4a7",
+  "sourceCommit": "cc15c7b91af69ee2a98813d8012804682931aafd",
   "common": {
     "codexSkills": [
       "aliyun-ops",
@@ -258,6 +258,13 @@
         "scripts/task-store-write-integrity/set-meta-selector.py",
         "scripts/task-store-write-integrity/set-scope-content.py",
         "scripts/task-store-write-integrity/set-scope-selector.py",
+        "scripts/windows-streams/common-content.py",
+        "scripts/windows-streams/common-selector.py",
+        "scripts/windows-streams/hook-content.py",
+        "scripts/windows-streams/hook-selector.py",
+        "scripts/windows-streams/patch.json",
+        "scripts/windows-streams/prefix-content.py",
+        "scripts/windows-streams/prefix-selector.py",
         "skills/trellis-before-dev/project-knowledge-discovery/content.md",
         "skills/trellis-before-dev/project-knowledge-discovery/patch.json",
         "skills/trellis-before-dev/project-knowledge-discovery/selector.md",

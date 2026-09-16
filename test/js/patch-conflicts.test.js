@@ -1,8 +1,8 @@
+import { execPythonSync } from "../../scripts/python-runtime.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import test from "node:test";
 import {
   assertNoPatchConflictErrors,
@@ -435,9 +435,7 @@ test("JS/Python 对共享 fixture 返回完全相同的结构化报告", () => {
     plan: fixture.plan,
     policy: fixture.policy,
   });
-  const pythonReport = JSON.parse(execFileSync(
-    "python3",
-    ["test/python/patch_conflict_report_helper.py", fixturePath],
+  const pythonReport = JSON.parse(execPythonSync(["test/python/patch_conflict_report_helper.py", fixturePath],
     { encoding: "utf8" },
   ));
 

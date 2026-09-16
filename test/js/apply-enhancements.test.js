@@ -385,6 +385,11 @@ function writeTaskUtilsTarget(target) {
 function writeControlPlaneTargets(target) {
   write(
     target,
+    ".trellis/scripts/common/__init__.py",
+    fs.readFileSync(path.join(UPSTREAM_SCRIPTS, "common/__init__.py"), "utf8"),
+  );
+  write(
+    target,
     ".trellis/scripts/common/paths.py",
     fs.readFileSync(path.join(UPSTREAM_SCRIPTS, "common/paths.py"), "utf8"),
   );

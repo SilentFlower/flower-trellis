@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import sys
 import importlib.util
 import json
 import shutil
 import subprocess
 import tempfile
 import unittest
+from platform_test_utils import symlink_or_skip
 from pathlib import Path
 
 
@@ -148,7 +150,7 @@ class PatchConsumerTest(unittest.TestCase):
 
     def run_runner(self, *skills: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["python3", str(RUNNER), str(self.overrides), str(self.target), *skills],
+            [sys.executable, "-X", "utf8", str(RUNNER), str(self.overrides), str(self.target), *skills],
             cwd=ROOT,
             text=True,
             capture_output=True,
@@ -855,7 +857,7 @@ class PatchConsumerTest(unittest.TestCase):
     def test_create_parent_symlink_escape_is_rejected(self) -> None:
         """验证新建配置不会沿项目内软链写到项目外。"""
         with tempfile.TemporaryDirectory(prefix="patch-outside-") as outside:
-            (self.target / "generated").symlink_to(outside, target_is_directory=True)
+            symlink_or_skip(outside, self.target / "generated", target_is_directory=True)
             self.add_patch(
                 "targets/symlink-create",
                 {
@@ -931,7 +933,7 @@ class PatchConsumerTest(unittest.TestCase):
             runner = _load_runner()
             plan = runner.prepare_patches(self.overrides, self.target)
             (self.target / "generated").rmdir()
-            (self.target / "generated").symlink_to(outside, target_is_directory=True)
+            symlink_or_skip(outside, self.target / "generated", target_is_directory=True)
 
             with self.assertRaisesRegex(
                 runner.PatchError,
@@ -944,8 +946,8 @@ class PatchConsumerTest(unittest.TestCase):
         """验证首次备份不会沿 `.backup-flower` 软链写到项目外。"""
         with tempfile.TemporaryDirectory(prefix="backup-outside-") as outside:
             _write(self.target, "sample.md", "OLD\n")
-            (self.target / ".trellis/.backup-flower").symlink_to(
-                outside,
+            symlink_or_skip(
+                outside, self.target / ".trellis/.backup-flower",
                 target_is_directory=True,
             )
             self.add_patch(

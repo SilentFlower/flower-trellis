@@ -1,5 +1,5 @@
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawnPythonSync } from "./python-runtime.mjs";
 import { PKG_ROOT } from "../src/lib/paths.js";
 import { resolveTrellisBin } from "../src/lib/trellis-runner.js";
 
@@ -10,8 +10,7 @@ const generator = path.join(
   "scripts",
   "generate-compiled-targets.py",
 );
-const result = spawnSync(
-  process.env.PYTHON || "python3",
+const result = spawnPythonSync(
   [
     generator,
     "--trellis-bin",

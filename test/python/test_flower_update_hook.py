@@ -7,6 +7,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from platform_test_utils import symlink_or_skip
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
@@ -122,14 +123,12 @@ class FlowerUpdateHookTest(unittest.TestCase):
             before = (self.project / ".flower/plugin-lock.json").read_bytes()
             for args in [[], ["--bootstrap-only"]]:
                 output = io.StringIO()
-                with (
-                    self.subTest(reference=reference, args=args),
-                    mock.patch.dict(os.environ, {"TRELLIS_HOOKS": "1", "TRELLIS_DISABLE_HOOKS": "0", "CODEX_NON_INTERACTIVE": "0"}),
-                    mock.patch.object(module, "_executable_status", return_value="missing"),
-                    mock.patch.object(module.subprocess, "run") as run,
-                    mock.patch("sys.stdin", io.StringIO("{}")),
-                    redirect_stdout(output),
-                ):
+                with self.subTest(reference=reference, args=args), \
+                    mock.patch.dict(os.environ, {"TRELLIS_HOOKS": "1", "TRELLIS_DISABLE_HOOKS": "0", "CODEX_NON_INTERACTIVE": "0"}), \
+                    mock.patch.object(module, "_executable_status", return_value="missing"), \
+                    mock.patch.object(module.subprocess, "run") as run, \
+                    mock.patch("sys.stdin", io.StringIO("{}")), \
+                    redirect_stdout(output):
                     module.main([*args, "--target", str(self.project)])
                     result = json.loads(output.getvalue())
                     self.assertEqual(result["hookSpecificOutput"]["hookEventName"], "SessionStart")
@@ -234,8 +233,9 @@ class FlowerUpdateHookTest(unittest.TestCase):
             executable.chmod(0o600)
             self.assertEqual(module._executable_status("flower-trellis"), "unavailable")
             executable.unlink()
-            executable.symlink_to(self.project / "missing")
-            self.assertEqual(module._executable_status("flower-trellis"), "unavailable")
+            with self.subTest(path="dangling-symlink"):
+                symlink_or_skip(self.project / "missing", executable)
+                self.assertEqual(module._executable_status("flower-trellis"), "unavailable")
 
     def test_disabled_hooks_do_not_inject_bootstrap(self) -> None:
         """尊重宿主已有的 hooks 禁用开关。"""

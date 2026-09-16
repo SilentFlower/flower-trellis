@@ -4,6 +4,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -25,7 +26,7 @@ class TelemetryHookTest(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="flower-activity-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.env = {"XDG_CONFIG_HOME": str(self.root / "config")}
+        self.env = {"XDG_CONFIG_HOME": str(self.root / "config"), "USERPROFILE": str(self.root), "HOME": str(self.root)}
 
     def run_hook(self, event="SessionStart", platform="codex", env=None):
         """用受控 subprocess 验证入口参数与静默输出。"""
@@ -77,6 +78,11 @@ class TelemetryHookTest(unittest.TestCase):
         self.run_hook().assert_called_once()
         self.assertEqual(file.read_text(), "{broken")
 
+    def test_missing_home_does_not_crash_optional_hint(self):
+        """宿主没有提供用户目录时不让可选提示检查中断 Hook。"""
+        with patch.object(HOOK.Path, "home", side_effect=RuntimeError("no home")):
+            self.assertFalse(HOOK._can_skip("codex"))
+
     def test_config_directory_contract(self):
         """真实 Node 目录函数对照 XDG 优先级、Windows APPDATA 与默认 home。"""
         module = (ROOT / "src/plugin/sources/user-source-store.js").as_uri()
@@ -86,6 +92,30 @@ class TelemetryHookTest(unittest.TestCase):
             self.assertEqual(str(HOOK.config_directory(environment, HOOK.sys.platform, Path.home())), result.stdout.strip())
         self.assertEqual(HOOK.config_directory({"APPDATA": "C:/Users/test/AppData/Roaming"}, "win32", Path("C:/Users/test")), Path("C:/Users/test/AppData/Roaming/flower-trellis"))
         self.assertEqual(HOOK.config_directory({**self.env, "APPDATA": "ignored"}, "win32", self.root), self.root / "config/flower-trellis")
+
+    @unittest.skipUnless(os.name == "nt", "仅 Windows 存在 CMD/BAT 执行边界")
+    def test_windows_cmd_preserves_literal_paths(self):
+        """原生 CMD 本地替身逐字接收特殊路径，且禁用开关阻止启动。"""
+        target = self.root / "中文 空格 %FLOWER_TEST_EXPAND% ! & ^"
+        target.mkdir()
+        capture = self.root / "capture.json"
+        receiver = target / "capture.py"
+        receiver.write_text("import json, os, sys\nfrom pathlib import Path\nPath(os.environ['FLOWER_TEST_CAPTURE']).write_text(json.dumps(sys.argv[1:]), encoding='utf-8')\n", encoding="utf-8")
+        command = target / "flower-trellis.cmd"
+        command.write_text('@"' + sys.executable + '" -X utf8 "%~dp0capture.py" %*\n', encoding="utf-8")
+        environment = {**os.environ, **self.env, "FLOWER_NO_TELEMETRY": "", "TRELLIS_HOOKS": "1", "TRELLIS_DISABLE_HOOKS": "0", "CODEX_NON_INTERACTIVE": "0", "FLOWER_TEST_EXPAND": "EXPANDED", "FLOWER_TEST_CAPTURE": str(capture), "CODEX_PROJECT_DIR": "", "CLAUDE_PROJECT_DIR": ""}
+        for platform in ("codex", "claude"):
+            with patch.dict(os.environ, environment, clear=True), \
+                 patch.object(HOOK.shutil, "which", return_value=str(command)), \
+                 patch.object(HOOK.sys, "argv", ["hook", "--platform", platform]), \
+                 patch.object(HOOK.sys, "stdin", io.StringIO(json.dumps({"cwd": str(target), "hook_event_name": "SessionStart"}))):
+                HOOK.main()
+            self.assertEqual(json.loads(capture.read_text(encoding="utf-8")), ["telemetry", "record-activity", platform, "--target", str(target)])
+            capture.unlink()
+        with patch.dict(os.environ, {**environment, "FLOWER_NO_TELEMETRY": "1"}, clear=True), \
+             patch.object(HOOK.subprocess, "run") as run:
+            HOOK.main()
+        run.assert_not_called()
 
 
 if __name__ == "__main__":

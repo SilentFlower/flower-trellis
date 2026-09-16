@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import importlib.util
 import json
 import os
@@ -84,7 +85,7 @@ class DecisionLogTest(unittest.TestCase):
         if not (scripts_dir / "common").exists():
             shutil.copytree(COMMON_SOURCE, scripts_dir / "common")
         result = subprocess.run(
-            ["python3", str(SOURCE), *args],
+            [sys.executable, "-X", "utf8", str(SOURCE), *args],
             cwd=root,
             capture_output=True,
             text=True,

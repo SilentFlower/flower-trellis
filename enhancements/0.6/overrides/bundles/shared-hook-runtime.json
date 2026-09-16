@@ -3,5 +3,5 @@
   "id": "shared-hook-runtime",
   "aliases": [],
   "installMode": "full-only",
-  "patches": ["hooks/inject-workflow-state/shared-runtime"]
+  "patches": ["hooks/inject-workflow-state/shared-runtime", "scripts/windows-streams"]
 }

@@ -76,7 +76,7 @@ class AliyunCommonEnvTest(unittest.TestCase):
 
         with mock.patch.dict(
             os.environ,
-            {"HOME": str(self.home), "SHARED": "process"},
+            {"HOME": str(self.home), "USERPROFILE": str(self.home), "SHARED": "process"},
             clear=True,
         ):
             loaded = aliyun_common.load_product_env("dms")

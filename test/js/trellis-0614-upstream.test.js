@@ -1,3 +1,4 @@
+import { spawnPythonSync } from "../../scripts/python-runtime.mjs";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -159,9 +160,7 @@ test("Trellis 0.6.14 全平台初始化保留上游修复并收敛 Flower 更新
     tool_name: "execute_command",
     tool_input: { command: "python3 ./.trellis/scripts/task.py current" },
   };
-  const hookResult = spawnSync(
-    "python3",
-    [path.join(target, ".codebuddy/hooks/inject-shell-session-context.py")],
+  const hookResult = spawnPythonSync([path.join(target, ".codebuddy/hooks/inject-shell-session-context.py")],
     {
       cwd: target,
       encoding: "utf8",
@@ -174,15 +173,13 @@ test("Trellis 0.6.14 全平台初始化保留上游修复并收敛 Flower 更新
   const tickets = fs.readdirSync(ticketDir);
   assert.equal(tickets.length, 1);
   const ticket = JSON.parse(fs.readFileSync(path.join(ticketDir, tickets[0]), "utf8"));
-  assert.equal(ticket.cwd, target);
+  assert.equal(fs.realpathSync.native(ticket.cwd), fs.realpathSync.native(target));
   assert.equal(ticket.host_cwd, "/");
   assert.equal(ticket.platform, "codebuddy");
   assert.deepEqual(ticket.subcommands, [{ name: "current" }]);
 
   const scriptsDir = path.join(target, ".trellis/scripts");
-  const consumer = spawnSync(
-    "python3",
-    [
+  const consumer = spawnPythonSync([
       "-c",
       `import sys; sys.path.insert(0, ${JSON.stringify(scriptsDir)}); sys.argv = ["task.py", "current"]; from common.active_task import resolve_context_key; print(resolve_context_key() or "")`,
     ],

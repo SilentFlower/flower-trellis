@@ -318,11 +318,13 @@ def append_decision(
         raise DecisionLogError("choice 必须存在于非空 options 中")
 
     events = load_events(task_dir)
-    existing_ids = [
-        int(str(event["decision_id"]).removeprefix("DEC-"))
-        for event in _decision_events(events)
-        if str(event.get("decision_id", "")).removeprefix("DEC-").isdigit()
-    ]
+    existing_ids = []
+    for previous in _decision_events(events):
+        number = str(previous.get("decision_id", ""))
+        if number.startswith("DEC-"):
+            number = number[4:]
+        if number.isdigit():
+            existing_ids.append(int(number))
     event = {
         "schema_version": SCHEMA_VERSION,
         "event": "decision",

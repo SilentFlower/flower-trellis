@@ -54,7 +54,7 @@ class UntrackedFlowTest(unittest.TestCase):
     def _helper(self, *args: str, check: bool = True) -> tuple[subprocess.CompletedProcess[str], dict]:
         """运行 untracked helper 并解析 JSON。"""
         result = self._run(
-            "python3",
+            sys.executable, "-X", "utf8",
             ".trellis/scripts/untracked_flow.py",
             *args,
             check=False,
@@ -135,7 +135,7 @@ class UntrackedFlowTest(unittest.TestCase):
     def test_begin_requires_tracked_direct_edit_mode(self) -> None:
         """小改和 workflow action 不应创建可恢复 untracked 游标。"""
         result = self._run(
-            "python3",
+            sys.executable, "-X", "utf8",
             ".trellis/scripts/untracked_flow.py",
             "begin",
             "--summary",
@@ -149,7 +149,7 @@ class UntrackedFlowTest(unittest.TestCase):
         self.assertIn("the following arguments are required: --mode", result.stderr)
 
         result = self._run(
-            "python3",
+            sys.executable, "-X", "utf8",
             ".trellis/scripts/untracked_flow.py",
             "begin",
             "--summary",
@@ -311,7 +311,7 @@ class UntrackedFlowTest(unittest.TestCase):
         )
         other_env = {**self.env, "TRELLIS_CONTEXT_ID": "codex_other"}
         result = subprocess.run(
-            ["python3", ".trellis/scripts/untracked_flow.py", "status"],
+            [sys.executable, "-X", "utf8", ".trellis/scripts/untracked_flow.py", "status"],
             cwd=self.root,
             env=other_env,
             capture_output=True,
@@ -423,7 +423,7 @@ class UntrackedFlowTest(unittest.TestCase):
     def test_removed_evidence_commands_are_not_exposed(self) -> None:
         """旧证据子命令不再出现在 CLI 帮助中。"""
         result = self._run(
-            "python3",
+            sys.executable, "-X", "utf8",
             ".trellis/scripts/untracked_flow.py",
             "--help",
         )
@@ -454,7 +454,7 @@ class UntrackedFlowTest(unittest.TestCase):
 
         result = subprocess.run(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 str(self.root / ".trellis/scripts/untracked_flow.py"),
                 "status",
             ],
@@ -478,7 +478,7 @@ class UntrackedFlowTest(unittest.TestCase):
         (nested / ".git").write_text("gitdir: /tmp/example\n", encoding="utf-8")
 
         result = subprocess.run(
-            ["python3", str(self.root / ".trellis/scripts/untracked_flow.py"), "status"],
+            [sys.executable, "-X", "utf8", str(self.root / ".trellis/scripts/untracked_flow.py"), "status"],
             cwd=nested,
             env=self.env,
             capture_output=True,

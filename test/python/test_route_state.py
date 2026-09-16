@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from platform_test_utils import symlink_or_skip
 from unittest import mock
 
 
@@ -243,7 +244,6 @@ class RouteStateCompatibilityTest(unittest.TestCase):
             task = root / ".trellis/tasks/valid"
             task.mkdir(parents=True)
             (task / "task.json").write_text('{}\n', encoding="utf-8")
-            (root / ".trellis/tasks/link").symlink_to(task, target_is_directory=True)
             cases = [
                 (["--task", ".trellis/tasks/valid"], "preview-requires-read-only"),
                 (["--auto-mode", "inline"], "preview-requires-read-only"),
@@ -255,6 +255,8 @@ class RouteStateCompatibilityTest(unittest.TestCase):
                 with self.subTest(extra=extra), mock.patch.object(self.module, "_repo_root", return_value=root), mock.patch.object(
                     self.module, "_current_task", return_value=(None, None, None),
                 ):
+                    if ".trellis/tasks/link" in extra:
+                        symlink_or_skip(task, root / ".trellis/tasks/link", target_is_directory=True)
                     args = self.module.build_parser().parse_args(["resolve", "--target", "implement", *extra])
                     output = io.StringIO()
                     with redirect_stdout(output):

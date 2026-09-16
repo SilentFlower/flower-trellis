@@ -63,6 +63,31 @@ class GitEvidenceFailureTest(unittest.TestCase):
 
         self.assertEqual(raised.exception.reason, "git-submodule-unreadable")
 
+    def test_real_submodule_path_is_discovered(self) -> None:
+        """真实 Git 子仓路径在原生 Windows 和 Linux 都可被 Python 识别。"""
+        source = self.root.parent / (self.root.name + "-source")
+        source.mkdir()
+        # Windows 的 Git 对象可能是只读文件，由 Git 清理前先恢复写权限。
+        self.addCleanup(self._remove_repository, source)
+        subprocess.run(["git", "init", "-q", str(source)], check=True)
+        subprocess.run(["git", "-C", str(source), "-c", "user.name=Tester", "-c", "user.email=test@example.invalid", "commit", "--allow-empty", "-qm", "fixture"], check=True)
+        subprocess.run(["git", "-c", "protocol.file.allow=always", "submodule", "add", str(source), "vendor/中文 空格"], cwd=self.root, check=True, capture_output=True)
+        repositories = self.module.discover_git_repositories(self.root)
+        self.assertIn((self.root / "vendor/中文 空格").resolve(), repositories)
+
+    @staticmethod
+    def _remove_repository(root: Path) -> None:
+        """移除测试自建仓库，包括 Windows 只读 Git 对象。"""
+        import os
+        import shutil
+        import stat
+
+        def writable_remove(function, path, error):
+            os.chmod(path, stat.S_IWRITE)
+            function(path)
+
+        shutil.rmtree(root, onerror=writable_remove)
+
     def test_configured_package_must_be_independent_repository_root(self) -> None:
         """git:true package 解析到父仓时必须拒绝。"""
         package = self.root / "packages/api"

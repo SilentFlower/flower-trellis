@@ -1,3 +1,4 @@
+import { execPythonSync } from "../../scripts/python-runtime.mjs";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -30,7 +31,7 @@ test("真实升级后提交并克隆的项目复用启动 hook 引导安装", { 
   fs.mkdirSync(bin);
   fs.symlinkSync(process.execPath, path.join(bin, "node"));
   fs.writeFileSync(path.join(bin, "npm"), "#!/bin/sh\nexit 99\n", { mode: 0o755 });
-  const python = execFileSync("python3", ["-c", "import sys; print(sys.executable)"], { encoding: "utf8" }).trim();
+  const python = execPythonSync(["-c", "import sys; print(sys.executable)"], { encoding: "utf8" }).trim();
   const env = { ...process.env, PATH: bin, CLAUDE_PROJECT_DIR: clone, CODEX_PROJECT_DIR: clone, TRELLIS_HOOKS: "1", TRELLIS_DISABLE_HOOKS: "0", CODEX_NON_INTERACTIVE: "0" };
   const invoke = (args = []) => spawnSync(python, [path.join(clone, ".trellis/scripts/flower_update_hook.py"), ...args], { cwd: clone, input: JSON.stringify({ cwd: clone }), encoding: "utf8", env, timeout: 10_000 });
   const before = snapshotProjectFiles(clone);

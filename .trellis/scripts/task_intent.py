@@ -60,6 +60,7 @@ def _run_git(repo_root: Path, args: list[str], *, binary: bool = False) -> subpr
         cwd=repo_root,
         capture_output=True,
         text=not binary,
+        encoding=None if binary else "utf-8",
         check=False,
     )
 
@@ -124,6 +125,8 @@ def _create_planning_task(
     """调用 task.py 创建 planning task 并读取元数据。"""
     command = [
         sys.executable,
+        "-X",
+        "utf8",
         str(_task_script()),
         "create",
         args.title,
@@ -144,6 +147,7 @@ def _create_planning_task(
         cwd=repo_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if result.stderr:

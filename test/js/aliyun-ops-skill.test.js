@@ -1,3 +1,4 @@
+import { spawnPythonSync } from "../../scripts/python-runtime.mjs";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -143,7 +144,7 @@ function seedSkill(target, base, name) {
  * @returns {import("node:child_process").SpawnSyncReturns<string>} 执行结果
  */
 function runDms(args) {
-  return spawnSync("python3", [DMS_SCRIPT, "--tid", "1", ...args], {
+  return spawnPythonSync([DMS_SCRIPT, "--tid", "1", ...args], {
     encoding: "utf8",
     timeout: 5000,
     env: {

@@ -1,0 +1,98 @@
+name: Python 跨平台兼容回归
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/python-compatibility.yml"
+      - ".trellis/scripts/**"
+      - ".claude/hooks/**"
+      - ".codex/hooks/**"
+      - "src/assets/**"
+      - "scripts/**"
+      - "test/**"
+      - "enhancements/**"
+      - "vendor/skill-garden"
+      - "package*.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/python-compatibility.yml"
+      - ".trellis/scripts/**"
+      - ".claude/hooks/**"
+      - ".codex/hooks/**"
+      - "src/assets/**"
+      - "scripts/**"
+      - "test/**"
+      - "enhancements/**"
+      - "vendor/skill-garden"
+      - "package*.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-compatibility:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.8", "3.12"]
+    env:
+      FLOWER_NO_TELEMETRY: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - name: 检出作者源和分发产物
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: 配置 Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: 配置 Python
+        id: python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: 安装测试依赖
+        run: npm ci --ignore-scripts
+      - name: 运行受影响 Python 套件
+        env:
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: >-
+          node scripts/run-python-tests.mjs
+          test/python/test_python_compatibility.py
+          test/python/test_auto_loop.py
+          test/python/test_decision_log.py
+          test/python/test_pre_check_state.py
+          test/python/test_route_state.py
+          test/python/test_git_evidence.py
+          test/python/test_worktree_setup.py
+          test/python/test_task_current_query.py
+          test/python/test_task_intent.py
+          test/python/test_task_progress.py
+          test/python/test_task_start_brief_gate.py
+          test/python/test_untracked_flow.py
+          test/python/test_maven_verify.py
+          test/python/test_skill_garden_patches.py
+          test/python/test_flower_session_start.py
+          test/python/test_flower_telemetry_hook.py
+          test/python/test_flower_update_hook.py
+          test/python/test_session_context_update_markers.py
+      - name: 验证 Node 到 Python 启动入口
+        env:
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: node --test test/js/python-runtime.test.js test/js/trellis-0614-upstream.test.js
+      - name: 验证编译产物
+        env:
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: npm run patch:targets:check
+      - name: 验证上下文预算
+        env:
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: node scripts/check-ai-context-budget.mjs --strict

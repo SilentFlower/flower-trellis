@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from platform_test_utils import symlink_or_skip
 from datetime import datetime
 from pathlib import Path
 from unittest import mock
@@ -127,7 +128,7 @@ class WorktreeSetupTest(unittest.TestCase):
             target = self.linked / relative
             if target.is_dir() and not target.is_symlink():
                 shutil.rmtree(target)
-            os.symlink(self.main / relative, target, target_is_directory=True)
+            symlink_or_skip(self.main / relative, target, target_is_directory=True)
             links.append(
                 {
                     "path": relative,
@@ -255,7 +256,7 @@ class WorktreeSetupTest(unittest.TestCase):
         """manifest 受管 symlink 漂移后进入 blocked，迁移不覆盖。"""
         self._install_legacy_projection()
         (self.linked / ".codex").unlink()
-        os.symlink(self.base / "elsewhere", self.linked / ".codex", target_is_directory=True)
+        symlink_or_skip(self.base / "elsewhere", self.linked / ".codex", target_is_directory=True)
 
         _, status = self._helper("status")
         self.assertEqual(status["status"], "blocked")
@@ -566,7 +567,7 @@ class WorktreeSetupTest(unittest.TestCase):
         target = self.base / "unsafe-route"
         external = self.base / "external-prefs"
         external.write_text("implement=subagent\n", encoding="utf-8")
-        os.symlink(external, self.main / ".trellis/.route-prefs.tmp")
+        symlink_or_skip(external, self.main / ".trellis/.route-prefs.tmp")
 
         _, plan = self._helper(
             "create",

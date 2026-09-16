@@ -35,14 +35,11 @@ class SessionContextUpdateMarkerTest(unittest.TestCase):
     def test_output_text_does_not_create_update_marker(self) -> None:
         """默认文本上下文不执行旧更新检查，也不创建 marker。"""
         output = StringIO()
-        with (
-            mock.patch.object(
+        with mock.patch.object(
                 session_context,
                 "get_context_text",
                 return_value="SESSION CONTEXT",
-            ) as get_context_text,
-            redirect_stdout(output),
-        ):
+            ) as get_context_text, redirect_stdout(output):
             session_context.output_text(self.root)
 
         get_context_text.assert_called_once_with(self.root)

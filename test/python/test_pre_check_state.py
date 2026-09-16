@@ -260,10 +260,8 @@ class PreCheckStateTest(unittest.TestCase):
         """runtime 读取 I/O 错误不会退化为缺失或触发覆盖。"""
         path = self._activate("codex_io_error")
         before = path.read_text(encoding="utf-8")
-        with (
-            mock.patch.dict(os.environ, {"TRELLIS_CONTEXT_ID": "codex_io_error"}, clear=False),
-            mock.patch.object(self.helper.Path, "read_text", side_effect=OSError("read failed")),
-        ):
+        with mock.patch.dict(os.environ, {"TRELLIS_CONTEXT_ID": "codex_io_error"}, clear=False), \
+            mock.patch.object(self.helper.Path, "read_text", side_effect=OSError("read failed")):
             status = self.helper.read_pre_check_preference(self.root)
             held = self.helper.set_pre_check_hold(self.root, "user-explicit")
             cleared = self.helper.clear_pre_check_preference(self.root)
@@ -277,10 +275,8 @@ class PreCheckStateTest(unittest.TestCase):
         """原子写入失败时返回稳定错误并保留原 runtime。"""
         path = self._activate("codex_write_error")
         before = path.read_text(encoding="utf-8")
-        with (
-            mock.patch.dict(os.environ, {"TRELLIS_CONTEXT_ID": "codex_write_error"}, clear=False),
-            mock.patch.object(self.helper, "_write_json", side_effect=OSError("write failed")),
-        ):
+        with mock.patch.dict(os.environ, {"TRELLIS_CONTEXT_ID": "codex_write_error"}, clear=False), \
+            mock.patch.object(self.helper, "_write_json", side_effect=OSError("write failed")):
             held = self.helper.set_pre_check_hold(self.root, "user-explicit")
             cleared = self.helper.clear_pre_check_preference(self.root)
 

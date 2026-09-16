@@ -282,6 +282,15 @@ def _current_pointer(repo_root: Path) -> Path:
     return _auto_dir(repo_root) / "current.json"
 
 
+def _is_relative_to(path: Path, root: Path) -> bool:
+    """兼容 Python 3.8 的路径包含判断；由调用方决定是否解析软链。"""
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
 def _route_state_helper(repo_root: Path) -> Path | None:
     """返回本地 trellis-route helper 路径，缺失时返回 None。"""
     candidates = [
@@ -292,7 +301,7 @@ def _route_state_helper(repo_root: Path) -> Path | None:
     # .agents/.claude 就把已安装的路由能力当作缺失。
     candidates.extend(sorted(repo_root.glob(".*/skills/trellis-route/scripts/route_state.py")))
     for path in candidates:
-        if path.is_file() and path.resolve().is_relative_to(repo_root.resolve()):
+        if path.is_file() and _is_relative_to(path.resolve(), repo_root.resolve()):
             return path
     return None
 
@@ -306,13 +315,13 @@ def _effective_route_authorization(repo_root: Path, task_ref: str, route_authori
     effective: dict[str, str] = {}
     for target, valid_modes in (("implement", VALID_IMPLEMENT_ROUTES), ("check", VALID_CHECK_ROUTES)):
         command = [
-            "python3", str(helper), "resolve", "--target", target,
+            sys.executable, "-X", "utf8", str(helper), "resolve", "--target", target,
             "--read-only", "--task", task_ref,
         ]
         mode = authorization.get(target)
         if mode in valid_modes:
             command.extend(["--auto-mode", str(mode)])
-        result = subprocess.run(command, cwd=repo_root, check=False, text=True, capture_output=True)
+        result = subprocess.run(command, cwd=repo_root, check=False, text=True, encoding="utf-8", capture_output=True)
         try:
             data = json.loads(result.stdout)
         except json.JSONDecodeError:
@@ -734,8 +743,9 @@ def _normalize_record_file(raw: str) -> str:
     if "::" in value:
         repository, path = value.split("::", 1)
         repository = repository.strip() or "."
-        return _baseline_key(repository, path.strip().removeprefix("./"))
-    return _baseline_key(".", value.removeprefix("./"))
+        path = path.strip()
+        return _baseline_key(repository, path[2:] if path.startswith("./") else path)
+    return _baseline_key(".", value[2:] if value.startswith("./") else value)
 
 
 def _normalize_repository_root(raw: str) -> str:
@@ -743,7 +753,7 @@ def _normalize_repository_root(raw: str) -> str:
     value = raw.strip()
     if value == ".":
         return "."
-    return value.removeprefix("./").rstrip("/")
+    return (value[2:] if value.startswith("./") else value).rstrip("/")
 
 
 def _planning_digest(task_dir: Path) -> tuple[str, list[str]]:
@@ -1349,10 +1359,11 @@ def _current_session_key(repo_root: Path) -> str | None:
         return override.strip() or None
 
     result = subprocess.run(
-        ["python3", str(repo_root / ".trellis/scripts/task.py"), "current", "--source"],
+        [sys.executable, "-X", "utf8", str(repo_root / ".trellis/scripts/task.py"), "current", "--source"],
         cwd=repo_root,
         check=False,
         text=True,
+        encoding="utf-8",
         capture_output=True,
     )
     for line in result.stdout.splitlines():
@@ -3883,9 +3894,9 @@ def _validate_decision_file(repo_root: Path, state: dict[str, Any], key: str) ->
         raise ValueError(f"非法文件路径:{key}")
     root = (repo_root / repository).resolve()
     target = root / path
-    if not target.resolve().is_relative_to(root):
+    if not _is_relative_to(target.resolve(), root):
         raise ValueError(f"文件越过仓库边界:{key}")
-    if any(part.is_symlink() for part in [target, *target.parents] if part != root and part.is_relative_to(root)):
+    if any(part.is_symlink() for part in [target, *target.parents] if part != root and _is_relative_to(part, root)):
         raise ValueError(f"不接受软链文件或父目录:{key}")
     if target.exists() and not target.is_file():
         raise ValueError(f"目标不是普通文件:{key}")
@@ -3959,7 +3970,7 @@ def _recovery_summary(state: dict[str, Any], item: dict[str, Any]) -> dict[str, 
     if recovery.get("resolved"):
         summary["instruction"] = "纠正已完成；原登记被拒绝时先重试 decide，否则继续原 action 并真实 record。不要重放纠正来推进阶段。"
         return summary
-    summary["command"] = ["python3", "./.trellis/scripts/auto_loop.py", "reconcile",
+    summary["command"] = [sys.executable, "-X", "utf8", "./.trellis/scripts/auto_loop.py", "reconcile",
                           "--run-id", state["run_id"], "--task", item["task"],
                           "--recovery-id", recovery["recovery_id"], "--attempt-id", "<本次唯一ID>",
                           "--result", "<ok|failed|blocked>", "--summary", "<纠正结论>"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import json
 import os
 from pathlib import Path
@@ -21,7 +22,7 @@ class TaskCurrentQueryTest(unittest.TestCase):
         """在隔离 Trellis 根运行 current 命令。"""
         env = {**os.environ, "TRELLIS_CONTEXT_ID": "codex_task_current_test"}
         return subprocess.run(
-            ["python3", str(TASK_SCRIPT), "current", *args],
+            [sys.executable, "-X", "utf8", str(TASK_SCRIPT), "current", *args],
             cwd=root,
             env=env,
             capture_output=True,

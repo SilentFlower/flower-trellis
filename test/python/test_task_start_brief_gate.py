@@ -59,9 +59,9 @@ class TaskStartBriefGateTest(unittest.TestCase):
         (self.root / ".trellis/config.yaml").write_text(
             "hooks:\n"
             "  after_start:\n"
-            "    - \"touch hook-ran.txt\"\n"
+            "    - \"echo hook>hook-ran.txt\"\n"
             "  after_finish:\n"
-            "    - \"touch finish-hook-ran.txt\"\n",
+            "    - \"echo hook>finish-hook-ran.txt\"\n",
             encoding="utf-8",
         )
         self.task_dir = self.root / ".trellis/tasks/07-22-brief-gate"
@@ -113,7 +113,7 @@ class TaskStartBriefGateTest(unittest.TestCase):
         """
         return subprocess.run(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/task.py",
                 "start",
                 self.task_dir.relative_to(self.root).as_posix(),
@@ -200,7 +200,7 @@ class TaskStartBriefGateTest(unittest.TestCase):
         """真实 create 后同一流程直接 start 时保留 planning 指针并拒绝启动。"""
         create = subprocess.run(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/task.py",
                 "create",
                 "Same turn brief gate",

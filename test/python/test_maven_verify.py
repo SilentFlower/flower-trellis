@@ -196,6 +196,7 @@ REPACKAGE_EFFECTIVE_POM = """
 """
 
 
+@unittest.skipIf(os.name == "nt", "本组验证 POSIX shell、Java 和 Maven 路径；Windows 使用原生 CMD 专项")
 class MavenVerifyTest(unittest.TestCase):
     """在隔离 Git/Maven fixture 验证 helper 完整行为。"""
 
@@ -301,7 +302,7 @@ class MavenVerifyTest(unittest.TestCase):
     ) -> tuple[subprocess.CompletedProcess[str], dict]:
         """执行 helper 并解析 stdout JSON。"""
         result = self.run_command(
-            ["python3", str(HELPER), *args],
+            [sys.executable, "-X", "utf8", str(HELPER), *args],
             env=env or self.env,
             input_text=input_text,
             check=False,
@@ -1466,17 +1467,29 @@ class MavenVerifyTest(unittest.TestCase):
 
 
 @unittest.skipUnless(
+    os.name == "nt" or (
     Path("/proc/sys/kernel/osrelease").is_file()
     and "microsoft" in Path("/proc/sys/kernel/osrelease").read_text(encoding="utf-8").lower()
     and shutil.which("cmd.exe")
-    and shutil.which("wslpath"),
-    "仅在可调用 Windows 工具链的 WSL 中运行",
+    and shutil.which("wslpath")),
+    "仅在原生 Windows 或可调用 Windows 工具链的 WSL 中运行",
 )
 class WslWindowsMavenVerifyTest(unittest.TestCase):
     """验证 WSL 中 Windows 文件系统项目始终使用 Windows 工具链。"""
 
     def setUp(self) -> None:
         """在 Windows 临时目录创建带空格的 Git/Maven fixture。"""
+        if os.name == "nt":
+            self.temp = tempfile.TemporaryDirectory(prefix="flower-maven-windows-")
+            self.addCleanup(self.temp.cleanup)
+            self.root = Path(self.temp.name) / "repo with spaces"
+        else:
+            self.root = self._wsl_temporary_root()
+        self.root.mkdir()
+        self._create_fixture()
+
+    def _wsl_temporary_root(self) -> Path:
+        """将 Windows 临时目录映射到当前 WSL 文件系统。"""
         temp_result = subprocess.run(
             [
                 "powershell.exe",
@@ -1495,8 +1508,10 @@ class WslWindowsMavenVerifyTest(unittest.TestCase):
             text=True,
             check=True,
         ).stdout.strip()
-        self.root = Path(host_temp) / f"flower maven windows {os.getpid()}"
-        self.root.mkdir()
+        return Path(host_temp) / f"flower maven windows {os.getpid()}"
+
+    def _create_fixture(self) -> None:
+        """准备同一份可供原生 Windows 和 WSL 调用的 CMD Maven。"""
         self.write("pom.xml", ROOT_POM)
         self.write("core/pom.xml", CORE_POM)
         self.write("core/src/main/java/Core.java", "class Core {}")
@@ -1543,7 +1558,7 @@ class WslWindowsMavenVerifyTest(unittest.TestCase):
     def helper(self, *args: str, expected_code: int = 0) -> dict:
         """执行 helper 并返回 JSON。"""
         result = subprocess.run(
-            ["python3", str(HELPER), *args],
+            [sys.executable, "-X", "utf8", str(HELPER), *args],
             cwd=self.root,
             capture_output=True,
             text=True,
@@ -1577,7 +1592,10 @@ class WslWindowsMavenVerifyTest(unittest.TestCase):
         self.assertTrue(plan["argv"][0].lower().endswith("mvnw.cmd"))
         self.assertEqual(plan["toolchain"]["java"]["major"], 8)
         self.assertRegex(plan["toolchain"]["maven"]["localRepositoryBuildPath"], r"^[A-Za-z]:\\")
-        self.assertTrue(plan["toolchain"]["maven"]["localRepository"].startswith("/mnt/"))
+        if os.name == "nt":
+            self.assertTrue(Path(plan["toolchain"]["maven"]["localRepository"]).is_absolute())
+        else:
+            self.assertTrue(plan["toolchain"]["maven"]["localRepository"].startswith("/mnt/"))
         self.assertFalse(
             any(
                 item["id"] == "user-settings" and item["path"].startswith("/root/")
@@ -1592,6 +1610,7 @@ class WslWindowsMavenVerifyTest(unittest.TestCase):
         self.assertEqual(evidence["toolchain"]["maven"]["buildSide"], "windows")
         self.assertEqual(evidence["execution"]["hostArgv"][:4], ["cmd.exe", "/d", "/c", "call"])
 
+    @unittest.skipIf(os.name == "nt", "该场景只验证 WSL 到 Windows 的文件系统边界")
     def test_windows_mount_rejects_wsl_ext4_repository(self) -> None:
         """Windows Maven 不得显式混用 WSL ext4 本地仓库。"""
         self.write("core/src/main/java/Core.java", "class Core { int value; }")

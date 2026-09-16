@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 2,
+  "id": "windows-streams",
+  "purpose": "hook_override",
+  "operations": [
+    {
+      "id": "common-stream-ownership",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "file",
+          "path": ".trellis/scripts/common/__init__.py",
+          "missing": "error",
+          "markerStyle": "hash"
+        }
+      ],
+      "selector": {
+        "type": "literal",
+        "source": "common-selector.py"
+      },
+      "content": {
+        "source": "common-content.py"
+      }
+    },
+    {
+      "id": "subagent-stream-ownership",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        {
+          "kind": "file",
+          "path": ".claude/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".codex/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".cursor/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".gemini/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".qoder/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".github/copilot/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".codebuddy/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".factory/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".kiro/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".trae/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".zcode/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        }
+      ],
+      "selector": {
+        "type": "literal",
+        "source": "hook-selector.py"
+      },
+      "content": {
+        "source": "hook-content.py"
+      }
+    },
+    {
+      "id": "subagent-python38-prefix",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        {
+          "kind": "file",
+          "path": ".claude/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".codex/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".cursor/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".gemini/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".qoder/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".github/copilot/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".codebuddy/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".factory/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".kiro/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".trae/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        },
+        {
+          "kind": "file",
+          "path": ".zcode/hooks/inject-subagent-context.py",
+          "missing": "skip",
+          "markerStyle": "hash"
+        }
+      ],
+      "selector": {
+        "type": "literal",
+        "source": "prefix-selector.py"
+      },
+      "content": {
+        "source": "prefix-content.py"
+      }
+    }
+  ]
+}

@@ -89,3 +89,91 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 - [ ] 查询型空状态是否返回 0 并用结构化字段表达，写入型错误仍保持非零?
 - [ ] `npm test` 通过，context budget warning 已审阅且没有通过调高阈值掩盖重复内容?
 - [ ] `check-patch-conflicts` 覆盖全部声明 target，旧互斥协议未复现，vendor/snapshot overrides 一致?
+
+---
+
+## Scenario: Python Cross-Platform Runtime And Verification
+
+### 1. Scope / Trigger
+
+修改 Python 运行脚本、Hook、Node 到 Python 的启动入口、测试夹具或 compiled targets 生成器时适用。
+支持基线为 Python 3.8+；本地回归至少区分原生 Windows 3.8 与 Linux 3.12。
+安装到目标项目的命令文本继续遵守 [Target Python Command Materialization](./trellis-patch-engine.md#scenario-target-python-command-materialization)，不能用开发机探测结果改写 canonical 文本。
+
+### 2. Signatures
+
+```text
+scripts/python-runtime.mjs:
+  resolvePythonExecutable({ env = process.env, platform = process.platform, probe = spawnSync } = {}) -> string
+  execPythonSync(args, options = {}) -> string | Buffer
+  spawnPythonSync(args, options = {}) -> subprocess result
+node scripts/run-python-tests.mjs [test/python/test_<name>.py ...]
+common._configure_stream(stream: object) -> object
+```
+
+### 3. Contracts
+
+- Python 内部调用 Python 使用 `sys.executable` 的 argv；明确为 UTF-8 的子进程协议同时设置
+  子进程 `-X utf8` 与父进程 `encoding="utf-8"`。不能依赖 PATH 中存在 `python3`，也不能只改父进程解码。
+- Node 开发入口先取 `FLOWER_TEST_PYTHON || PYTHON`；未覆盖时 Windows 按 `python`、`py -3`、
+  `python3` 探测，其它平台按 `python3`、`python` 探测。候选须实际运行、满足 3.8+ 并返回
+  `sys.executable`；显式覆盖无效时失败，不偷偷回退。现存可执行文件路径整体传入，保留空格；
+  命令形式交给 `trellisPythonInvocation()` 拆分。两个执行 wrapper 在进程内缓存解释器并添加 `-X utf8`。
+- 测试入口用 argv 传递 `unittest discover -s test/python -p test_*.py`，不经过 shell 引号或 glob；
+  显式测试路径转模块名，并将绝对 `test/python` 加入 `PYTHONPATH`，避免 Windows 自带 `test` 包遮蔽。
+  入口固定 `FLOWER_NO_TELEMETRY=1`；专项仅使用隔离目录和本地替身。
+- Python 3.8 不使用 `str.removeprefix`、`Path.is_relative_to` 或括号式多 context manager。
+  完整前缀用 `startswith` 后切片；路径包含关系用 `relative_to` 捕获 `ValueError`，仍保留调用处的
+  `resolve`、软链拒绝和会话绑定校验。不能用字符串前缀近似路径包含关系。
+- Windows 共享流和 subagent Hook 只对可调用的 `reconfigure` 尝试 UTF-8，容忍 `OSError` /
+  `ValueError`；内存流原样保留，不 `detach`、不关闭、不替换调用方持有的流。
+- 遥测 `.cmd` / `.bat` 使用绝对 `COMSPEC` 或 `SystemRoot/System32/cmd.exe`，参数为
+  `/d /v:off /s /c`；入口和 target 分别通过带引号的 `%FLOWER_ACTIVITY_HOOK_CLI%`、
+  `%FLOWER_ACTIVITY_HOOK_TARGET%` 环境占位符传递。保留 `%`、`!`、`&`、`^`、中文和空格，
+  不把实际路径直接拼入 shell 命令。非 CMD/BAT 保持 argv；失败静默，超时仍为 3 秒。
+- Git 子仓路径使用 `git rev-parse --show-toplevel`，不使用 MSYS `pwd` 的 `/c/...` 或 `/tmp/...`
+  作为原生 Windows pathlib 路径。测试中比较 Windows 短名与长名目录使用 `fs.realpathSync.native`。
+- Skill-Garden compiled targets 生成时固定 `TRELLIS_PYTHON_CMD=python3`，文本明确写 LF；
+  Windows/Linux 生成物须逐字节一致。作者源 → Patch/compiled targets → 快照 → Plugin 投影保持原分发链。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 预期行为 |
+| --- | --- |
+| WindowsApps 占位别名返回 9009 | 不选中；无显式覆盖时继续探测下一候选 |
+| 显式解释器无效、低于 3.8 或全部候选失败 | 抛出找不到 Python 3.8+ 的错误，测试入口非零退出 |
+| PATH 无 Python，但当前 Python 正在运行 | 内部 route/auto-loop 调用仍成功，中文 JSON 不损坏 |
+| StringIO、已关闭流或不可重配置流 | 不 detach、不丢正文、不因初始化破坏宿主流 |
+| CMD 处理器缺失或非绝对路径 | 遥测 Hook 静默退出；不得用不可信相对处理器代替 |
+| 路径越界、软链绕过、损坏会话 | 保持原拒绝/诊断语义，不能为兼容而放宽 |
+| Windows 创建软链报 WinError 1314 | 仅跳过该能力依赖的子场景；其它错误继续失败 |
+| compiled targets 受平台命令或换行影响 | 零漂移门禁失败，不更新基线掩盖平台差异 |
+
+### 5. Scenarios and Examples
+
+- Normal：Windows 仅有有效 `python.exe`，Node 探测后启动其绝对路径；route/auto-loop 子调用继续使用
+  同一解释器，中文任务和会话标识完整往返。
+- Base：宿主用 StringIO 捕获 Hook 输出；初始化返回原对象，已有内容仍可读，流仍打开。
+- Incorrect use：`subprocess.run(["python3", helper], text=True)` 在 Windows 可能命中失效别名且按本地代码页解码。
+  对输出 UTF-8 的 Python helper 应使用：
+
+  ```python
+  subprocess.run([sys.executable, "-X", "utf8", helper], text=True, encoding="utf-8")
+  ```
+
+- Incorrect use：`name.lstrip("DEC-")` 会删除字符集合，破坏日志编号；改为
+  `name[len("DEC-"):] if name.startswith("DEC-") else name`，只删除完整前缀。
+- 边界证据：受控 CP936 测试只能证明指定编解码边界；不能冒充本机默认代码页或真实 Codex/Claude 会话加载。
+  语法扫描也不能替代实际运行，括号式 `with` 在 3.8 可能解析成功却在运行时报错。
+
+### 6. Tests Required
+
+- `test/js/python-runtime.test.js`：断言候选顺序、失效别名排除、显式覆盖与 argv 边界。
+- `test/python/test_python_compatibility.py`：无 PATH 别名仍能启动 helper，中文 JSON 在受控 CP936 下
+  往返，路径包含正反例，真实流/StringIO/关闭流所有权与 subagent 标题生成。
+- `test_flower_telemetry_hook.py`：原生 Windows CMD 特殊路径与完整 argv、禁用零调用和缺失 home 降级；
+  `test_git_evidence.py`：真实中文空格子仓路径；`test_task_start_brief_gate.py`：两平台真实生命周期 Hook。
+- 顺序回归同时运行 auto-loop 与 task-intent，确保临时模块缓存和 `sys.path` 恢复，不指向已删除夹具目录。
+- `.github/workflows/python-compatibility.yml` 运行 Ubuntu/Windows × Python 3.8/3.12，包含受影响 Python、
+  Node 启动入口、compiled targets 与 strict budget。明确区分 CI 配置、实际 job、实机、模拟与条件 skip；
+  Linux skip 不作 Windows 通过证据，局部复验不声称完整套件重跑全绿。

@@ -12,6 +12,7 @@ import unittest
 from importlib import util as importlib_util
 from pathlib import Path
 from unittest import mock
+from platform_test_utils import symlink_or_skip
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -76,7 +77,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
             runner 输出的 JSON 对象。
         """
         result = subprocess.run(
-            ["python3", ".trellis/scripts/auto_loop.py", *args],
+            [sys.executable, "-X", "utf8", ".trellis/scripts/auto_loop.py", *args],
             cwd=self.root,
             env=self.env,
             capture_output=True,
@@ -163,7 +164,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         """
         result = subprocess.run(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/task_progress.py",
                 "status",
                 "--task",
@@ -344,6 +345,19 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
 
     def load_runner_module(self):
         """加载隔离目录中的 runner 以测试底层 runtime helper。"""
+        old_path = sys.path[:]
+        dependency_names = ("common", "decision_log", "git_evidence")
+        previous = {key: value for key, value in sys.modules.items() if key.split(".")[0] in dependency_names}
+
+        def restore_imports():
+            # 临时仓库被删除后，不能让后续测试继续复用其 common 包路径。
+            sys.path[:] = old_path
+            for key in list(sys.modules):
+                if key.split(".")[0] in dependency_names:
+                    sys.modules.pop(key, None)
+            sys.modules.update(previous)
+
+        self.addCleanup(restore_imports)
         name = f"auto_loop_test_{id(self)}"
         spec = importlib_util.spec_from_file_location(
             name,
@@ -417,7 +431,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
                             f"missing-{target}-context",
                         )
                     actual = subprocess.run(
-                        ["python3", ".agents/skills/trellis-route/scripts/route_state.py",
+                        [sys.executable, "-X", "utf8", ".agents/skills/trellis-route/scripts/route_state.py",
                          "resolve", "--target", target],
                         cwd=self.root, env=self.env, capture_output=True, text=True, check=False,
                     )
@@ -1218,14 +1232,20 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
     def test_decision_file_validation_rejects_unsafe_paths(self) -> None:
         """拒绝未知仓库、越界、绝对路径、软链和根同名歧义，且不写错误决策。"""
         task, diagnosis = self.prepare_artifact_recovery()
-        (self.root / "linked").symlink_to(self.root / task, target_is_directory=True)
         (self.root / "brief.md").write_text("根目录真实文档")
-        for value in ("../escape.py", "/tmp/escape.py", "unknown::new.py", "linked/brief.md", "brief.md"):
+        for value in ("../escape.py", "/tmp/escape.py", "unknown::new.py", "brief.md"):
             with self.subTest(value=value):
                 result = self.runner("decide", "--task", task, "--topic", "路径", "--option", "路径",
                                      "--choice", "路径", "--summary", "校验", "--risk", "low", "--confidence", "high", "--file", value)
                 self.assertEqual(result["status"], "error")
         self.assertFalse((self.root / task / "decisions.jsonl").exists())
+
+        with self.subTest(value="linked/brief.md"):
+            symlink_or_skip(self.root / task, self.root / "linked", target_is_directory=True)
+            result = self.runner("decide", "--task", task, "--topic", "路径", "--option", "路径",
+                                 "--choice", "路径", "--summary", "校验", "--risk", "low", "--confidence", "high", "--file", "linked/brief.md")
+            self.assertEqual(result["status"], "error")
+            self.assertFalse((self.root / task / "decisions.jsonl").exists())
 
     def test_reconcile_recovers_audit_after_runtime_write_failure(self) -> None:
         """纠正日志已落盘而 runtime 失败时，同尝试重放不会重复追加或改变基线。"""
@@ -1302,7 +1322,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         document.unlink()
         target = self.root / "outside.md"
         target.write_text(content)
-        document.symlink_to(target)
+        symlink_or_skip(target, document)
         response = self.reconcile_artifact(task, diagnosis, "two", "--result", "ok",
                                           "--file-map", f".::brief.md=.::{task}/brief.md")
         self.assertEqual(response["status"], "retryable")
@@ -1940,7 +1960,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
 
         archived = subprocess.run(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/task.py",
                 "archive",
                 "task-one",
@@ -2228,7 +2248,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         """健康 create、active、start_task、record/next 链路保持兼容。"""
         create = subprocess.run(
             [
-                "python3",
+                sys.executable, "-X", "utf8",
                 ".trellis/scripts/task.py",
                 "create",
                 "Healthy chain",
@@ -2262,7 +2282,7 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         )
         self.advance_planning_to_start()
         started = subprocess.run(
-            ["python3", ".trellis/scripts/task.py", "start", task_ref],
+            [sys.executable, "-X", "utf8", ".trellis/scripts/task.py", "start", task_ref],
             cwd=self.root,
             env=self.env,
             capture_output=True,
