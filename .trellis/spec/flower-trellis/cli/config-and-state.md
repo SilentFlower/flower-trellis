@@ -714,6 +714,16 @@ task；common-dir 只保存机器映射，后续在 handoff cwd 的新会话继�
   恢复时包含该文件；事务证据含 `layout` 与 `backup/layout-ignore.bin`。正常 update 的 onPreflight 扩展包含所有元数据目标。
 - 已安装 CLI 沿用 self-check。缺失时 Python 读取最大 2 MiB 锁，只提取 bootstrap 所需的 schema/roots/plugins、
   唯一内置 `flower/skill-garden` 来源和完整 SemVer，不代替 Node 完整 schema/内容校验，不回退陈旧 manifest。
+- 执行 self-check 时使用 `shutil.which("flower-trellis")` 返回的入口路径。POSIX 与 Windows 非批处理入口
+  直接以解析路径作为 argv 首项，参数逐项传入。Windows 的 PATH 探测会按 PATHEXT 找到 `.CMD`，
+  裸命令启动却不会自动补该后缀，不能在探测后重新传入裸命令名。
+- Windows `.CMD` / `.BAT` 即使 `shell=False` 也会经过 CMD。入口与目标路径仅放入子进程环境的
+  `FLOWER_UPDATE_HOOK_CLI` / `FLOWER_UPDATE_HOOK_TARGET`，固定命令使用带引号的环境占位符，
+  保留空格、中文、`&`、`^`、`%变量名%` 与 `!`。不得把路径直接插入 CMD 命令文本。
+  显式启动 `COMSPEC` 的绝对路径，缺失时只回退 `SystemRoot/System32/cmd.exe`；两者均无法提供
+  绝对路径时返回 `cli_unavailable`，不按项目 cwd/PATH 搜索命令解释器。使用 `/d /v:off /s /c`
+  关闭 AutoRun、延迟展开并保留内层引号；子进程环境从宿主复制，不修改宿主环境。
+- 探测通过后再次解析入口为空时，返回 `cli_unavailable` 和“执行前已不可用”诊断，不启动子进程，不推荐重装。
 - 安装提示为独立 `<flower-cli-bootstrap>`，通过 `hookSpecificOutput.additionalContext` 输出。
   字段有 `status`、可选 `project_flower` / `recommended_command` / `reason`，以及确认、验证和失败处理指令。
 - 只有 `cli_missing` 且 Node/npm 可执行时推荐 `npm install -g flower-trellis@<version>`。
@@ -734,11 +744,16 @@ task；common-dir 只保存机器映射，后续在 handoff cwd 的新会话继�
 | CLI 缺失、有效锁、Node/npm 可用 | `cli_missing`，等待成员确认安装锁定版本 |
 | 无锁、损坏锁、不可靠来源或非法版本 | `project_version_unavailable`，无安装命令 |
 | Node/npm 缺失或不可执行 | `prerequisites_missing`，说明准备项 |
+| Windows 批处理入口或项目路径含空格、中文、`&`、`^`、`%变量名%`、`!` | 环境占位符保留路径，不执行路径中的命令片段或展开字面量变量 |
+| Windows 命令解释器无法确认绝对路径 | `cli_unavailable`，无安装命令、无进程启动 |
+| CLI 探测通过后入口解析为空 | `cli_unavailable`，无安装命令、无进程启动 |
 | CLI 已存在但执行失败/超时/非法结果 | `cli_unavailable`，无安装命令 |
 
 ### 5. Good/Base/Bad Cases
 
 - Good：升级后提交共享锁及 hook，团队克隆无 state/CLI，仍提示安装锁定版本。
+- Good：Windows 通过已解析的 `.CMD` 路径启动 self-check，避免“PATH 探测可用但裸命令执行 WinError 2”。
+- Good：项目名 `项目&ver` 或 `项目%变量名%` 逐字到达 CLI，不因批处理解释检查另一个目录或执行额外命令。
 - Base：已有 CLI 继续原 self-check；安装前项目版本未知与安装后内容未知分别说明。
 - Bad：先删除旧记录再迁策略；hook 捕获所有异常都当未安装；把整份 .flower 解除忽略后提交缓存。
 
@@ -746,7 +761,13 @@ task；common-dir 只保存机器映射，后续在 handoff cwd 的新会话继�
 
 - `flower-project-metadata.test.js`：真实 Git 根/局部通配与 LF/CRLF、幂等、配置优先级、preflight、回滚及外层补偿。
 - `plugin-skill-garden.test.js` / `plugin-e2e-migration.test.js`：旧记录删除、迁移标记重放、冻结保留及真实升级到克隆引导。
-- `test_flower_update_hook.py`：严格版本、异常环境、确认上下文、无命令执行、手动无 stdin 和原更新状态。
+- `test_flower_update_hook.py`：严格版本、异常环境、确认上下文、无命令执行、手动无 stdin 和原更新状态；
+  断言非批处理入口使用解析路径，Windows CMD/BAT 的固定命令、解释器回退和子进程环境隔离，
+  以及入口消失或解释器路径无法确认时无安装命令、无子进程启动。
+- `flower-update-windows.test.js`：在真实 Windows 上执行分发后的 hook，覆盖入口与目标路径的空格、
+  中文、`&`、`%变量名%`、`!`、`^`/括号；临时根目录不主动添加空格，避免掩盖无空格路径的解释问题。
+  断言 self-check 参数逐字完整且宿主已有占位变量无法覆盖实际路径，`up_to_date` 时 stdout/stderr 均为空。
+  Windows 短路径按真实路径比较。
 - 平台分发、默认上下文预算及输出模板门禁继续通过；不把真实全局 npm 安装当单元测试。
 
 ### 7. Wrong vs Correct

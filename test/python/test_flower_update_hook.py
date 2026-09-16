@@ -147,10 +147,82 @@ class FlowerUpdateHookTest(unittest.TestCase):
         module = self.module
         cases = [subprocess.TimeoutExpired("flower-trellis", 30), FileNotFoundError("interpreter"), PermissionError("denied"), subprocess.CompletedProcess([], 1, "", "failed"), subprocess.CompletedProcess([], 0, "invalid", ""), subprocess.CompletedProcess([], 0, "[]", ""), subprocess.CompletedProcess([], 0, "{}", "")]
         for result in cases:
-            with self.subTest(result=result), mock.patch.object(module, "_executable_status", return_value="available"), mock.patch.object(module.subprocess, "run", **({"side_effect": result} if isinstance(result, Exception) else {"return_value": result})):
+            with self.subTest(result=result), mock.patch.object(module, "_executable_status", return_value="available"), mock.patch.object(module.shutil, "which", return_value="/fixture/flower-trellis"), mock.patch.object(module.subprocess, "run", **({"side_effect": result} if isinstance(result, Exception) else {"return_value": result})):
                 data = module._run_self_check(self.project)
                 self.assertEqual(data["status"], "cli_unavailable")
                 self.assertNotIn("command", data)
+
+    def test_self_check_uses_the_resolved_cli_path(self) -> None:
+        """Windows 可执行文件和 POSIX 入口直接使用探测路径，保留参数边界。
+
+        Returns:
+            无返回值；断言启动路径、参数和 JSON 状态。
+        """
+        module = self.module
+        for platform, executable in [("nt", r"C:\Program Files\flower-trellis.EXE"), ("posix", "/fixture/bin with spaces/flower-trellis"), ("posix", "/fixture/flower-trellis.cmd")]:
+            with self.subTest(platform=platform, executable=executable), mock.patch.object(module.os, "name", platform), mock.patch.object(module.shutil, "which", return_value=executable), mock.patch.object(module.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, '{"status":"up_to_date"}', "")) as run:
+                self.assertEqual(module._run_self_check(self.project), {"status": "up_to_date"})
+                self.assertEqual(run.call_args.args[0], [executable, "self-check", "--json", "--target", str(self.project)])
+                self.assertEqual(run.call_args.kwargs["cwd"], str(self.project))
+                self.assertEqual(run.call_args.kwargs["timeout"], module.SELF_CHECK_TIMEOUT_SECONDS)
+                self.assertFalse(run.call_args.kwargs.get("shell", False))
+
+    def test_windows_batch_paths_only_enter_the_child_environment(self) -> None:
+        """批处理入口和目标通过子进程环境传递，固定命令关闭延迟展开。
+
+        Returns:
+            无返回值；断言路径不进入命令文本且宿主环境不被修改。
+        """
+        module = self.module
+        processor = r"C:\Windows\System32\cmd.exe"
+        for extension in ["CMD", "bat"]:
+            executable = rf"C:\bin&ver%FLOWER_TEST_LITERAL%!literal!\flower-trellis.{extension}"
+            with self.subTest(extension=extension), mock.patch.object(module.os, "name", "nt"), mock.patch.dict(module.os.environ, {"COMSPEC": processor, "FLOWER_UPDATE_HOOK_CLI": "inherited CLI", "FLOWER_UPDATE_HOOK_TARGET": "inherited target"}), mock.patch.object(module.shutil, "which", return_value=executable), mock.patch.object(module.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, '{"status":"up_to_date"}', "")) as run:
+                self.assertEqual(module._run_self_check(self.project), {"status": "up_to_date"})
+                command = run.call_args.args[0]
+                self.assertEqual(command, f'"{processor}" /d /v:off /s /c ""%FLOWER_UPDATE_HOOK_CLI%" self-check --json --target "%FLOWER_UPDATE_HOOK_TARGET%""')
+                self.assertNotIn(executable, command)
+                self.assertNotIn(str(self.project), command)
+                self.assertEqual(run.call_args.kwargs["executable"], processor)
+                self.assertEqual(run.call_args.kwargs["env"]["FLOWER_UPDATE_HOOK_CLI"], executable)
+                self.assertEqual(run.call_args.kwargs["env"]["FLOWER_UPDATE_HOOK_TARGET"], str(self.project))
+                self.assertEqual(module.os.environ["FLOWER_UPDATE_HOOK_CLI"], "inherited CLI")
+                self.assertEqual(module.os.environ["FLOWER_UPDATE_HOOK_TARGET"], "inherited target")
+                self.assertFalse(run.call_args.kwargs.get("shell", False))
+
+    def test_windows_batch_processor_fallback_and_missing_path(self) -> None:
+        """COMSPEC 缺失时只回退系统目录，无法确认绝对路径时不启动进程。
+
+        Returns:
+            无返回值；断言系统目录回退及缺失或相对解释器路径的诊断。
+        """
+        module = self.module
+        executable = r"C:\bin\flower-trellis.cmd"
+        for processor, system_root in [("", r"C:\Windows"), ("", ""), ("cmd.exe", r"C:\Windows")]:
+            with self.subTest(processor=processor, system_root=system_root), mock.patch.object(module.os, "name", "nt"), mock.patch.dict(module.os.environ, {"COMSPEC": processor, "SystemRoot": system_root}), mock.patch.object(module.shutil, "which", return_value=executable), mock.patch.object(module.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, '{"status":"up_to_date"}', "")) as run:
+                data = module._run_self_check(self.project)
+                if not processor and system_root:
+                    self.assertEqual(data, {"status": "up_to_date"})
+                    self.assertEqual(run.call_args.kwargs["executable"], os.path.join(system_root, "System32", "cmd.exe"))
+                else:
+                    self.assertEqual(data["status"], "cli_unavailable")
+                    self.assertIn("Windows 命令解释器", data["reason"])
+                    self.assertNotIn("command", data)
+                    run.assert_not_called()
+
+    def test_cli_disappearing_before_execution_returns_diagnostic(self) -> None:
+        """探测后入口消失时返回诊断，避免把空路径交给子进程。
+
+        Returns:
+            无返回值；断言诊断状态、无安装命令及无进程启动。
+        """
+        module = self.module
+        with mock.patch.object(module.shutil, "which", side_effect=["/fixture/flower-trellis", None]), mock.patch.object(module.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, '{"status":"up_to_date"}', "")) as run:
+            data = module._run_self_check(self.project)
+            self.assertEqual(data["status"], "cli_unavailable")
+            self.assertIn("执行前已不可用", data["reason"])
+            self.assertNotIn("command", data)
+            run.assert_not_called()
 
     def test_path_probe_rejects_non_executable_and_broken_links(self) -> None:
         """真实 PATH 区分缺失、普通不可执行文件与断链。"""

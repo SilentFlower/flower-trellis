@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import ntpath
 import os
 import re
 import shutil
@@ -144,25 +145,45 @@ def _project_dir(hook_input: dict) -> Path:
 
 
 def _run_self_check(project_dir: Path) -> dict | None:
-    """执行 flower-trellis self-check 并解析 JSON。"""
+    """执行 flower-trellis self-check，保留目标路径并解析 JSON。
+
+    Args:
+        project_dir: 要检查的项目目录。
+    Returns:
+        CLI 检查结果或安装、环境诊断。
+    """
     bootstrap = _check_cli(project_dir)
     if bootstrap:
         return bootstrap
+    # Windows 不会按 PATHEXT 为裸命令补 .CMD，执行时必须使用探测到的入口路径。
+    cli_path = shutil.which("flower-trellis")
+    if not cli_path:
+        return {"status": "cli_unavailable", "reason": "Flower 入口在执行前已不可用，请检查 PATH"}
+    command = [cli_path, "self-check", "--json", "--target", str(project_dir)]
+    run_options = {}
+    if os.name == "nt" and os.path.splitext(cli_path)[1].lower() in {".cmd", ".bat"}:
+        command_processor = os.environ.get("COMSPEC")
+        if not command_processor and os.environ.get("SystemRoot"):
+            command_processor = os.path.join(os.environ["SystemRoot"], "System32", "cmd.exe")
+        if not command_processor or not ntpath.isabs(command_processor):
+            return {"status": "cli_unavailable", "reason": "Windows 命令解释器的绝对路径无法确认，请检查 COMSPEC 与 SystemRoot"}
+        # 批处理即使 shell=False 也会经过 CMD；带引号的环境占位符保留路径中的 &、^ 和 %。
+        # 禁用 AutoRun 与延迟展开，避免宿主配置或 !变量! 改变检查命令及路径。
+        environment = os.environ.copy()
+        environment["FLOWER_UPDATE_HOOK_CLI"] = cli_path
+        environment["FLOWER_UPDATE_HOOK_TARGET"] = str(project_dir)
+        command = f'"{command_processor}" /d /v:off /s /c ""%FLOWER_UPDATE_HOOK_CLI%" self-check --json --target "%FLOWER_UPDATE_HOOK_TARGET%""'
+        run_options = {"executable": command_processor, "env": environment}
     try:
         result = subprocess.run(
-            [
-                "flower-trellis",
-                "self-check",
-                "--json",
-                "--target",
-                str(project_dir),
-            ],
+            command,
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
             timeout=SELF_CHECK_TIMEOUT_SECONDS,
             cwd=str(project_dir),
+            **run_options,
         )
     except subprocess.TimeoutExpired:
         return {"status": "cli_unavailable", "reason": "Flower CLI 检查超时，不能据此判定未安装"}
