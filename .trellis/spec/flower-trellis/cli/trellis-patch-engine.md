@@ -605,10 +605,23 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
 
 - `--hook` 只接受上述两个原生路径；`--part` 只接受 `state | rules | stages`。
 - `render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | None`。
+- `_run_native_hook(root: Path, hook: str, hook_input: dict) -> dict | None`：在当前
+  `sys.executable` 的独立解释器中执行白名单原生 Hook；空 stdout 表示原生跳过。
 - `_astra_workflow_hint(root: Path) -> str`：读取项目开关，返回完整英文提示或空串；非法显式配置或正文超限时抛出异常，由 state 的可选增强分支处理。
 - `split_workflow(summary: str) -> dict[str, str]` 返回 `rules` / `stages`，拼接后等于原始摘要。
 - `json-hook-command` 的 `content.value.sessionParts` 只允许固定数组 `["state", "rules", "stages"]`，
   且仅用于 `event=SessionStart`、`commandResolver=codex-session-start|claude-session-start`。
+
+```python
+subprocess.run(
+    [sys.executable, "-X", "utf8", str(root / hook)],
+    cwd=root,
+    env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    input=json.dumps(hook_input, ensure_ascii=False).encode("utf-8"),
+    capture_output=True,
+    check=False,
+)
+```
 
 ### 3. Contracts
 
@@ -621,10 +634,17 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
   供既有 bootstrap 检测与后续迁移识别；不能把原生路径一并删除。
 - stdin 为宿主 JSON 对象；原生入口继续消费 session 字段。wrapper 按自身部署位置确定项目根并设置
   输入 `cwd`；宿主的项目目录环境变量应与目标项目一致。CLI 注册仍沿用项目根目录的相对命令约定。
-- `state` 调用原生 `main()`，从标准 additionalContext 移除唯一完整 `trellis-workflow` 块，
-  独占会话绑定等副作用；`rules` / `stages` 只调用 Codex `_build_workflow_toc` 或 Claude
+- `state` 通过 `_run_native_hook()` 在独立 Python 子进程调用原生 `main()`，父进程不得先导入原生模块，
+  避免 Windows 原生 Hook 重配或 `detach` 标准流时破坏 wrapper 的内存捕获。state 从标准
+  additionalContext 移除唯一完整 `trellis-workflow` 块，独占会话绑定等副作用；`rules` / `stages`
+  仍在 wrapper 进程只调用 Codex `_build_workflow_toc` 或 Claude
   `_build_workflow_overview`，读取同一 `.trellis/workflow.md`，在 `### Planning Artifacts` 前无损分割。
   handler 可并行，不能依赖执行顺序、其他分段的缓存或绑定结果。
+- state 子进程固定 `cwd=root`，继承当前环境并设置 `PYTHONIOENCODING=utf-8`；命令必须使用参数数组、
+  `sys.executable -X utf8` 和 `shell=False` 语义。stdin 发送 UTF-8 JSON bytes，stdout 按严格
+  `utf-8-sig` 解码并要求 JSON 对象，stderr 按 UTF-8 replacement 解码后原样转发。空 stdout 返回
+  `None`；非零退出、解码/JSON/结构错误交给 wrapper 的可见 `trellis-injection-error` 降级。
+- wrapper 不增加内部超时；平台注册的 30 秒超时是唯一 state 外层计时边界，避免双计时器产生不同错误语义。
 - 每份输出为 `hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: "..."}`，
   正文由独立闭合的 `<trellis-session-part name="state|rules|stages">` 包裹。state 去掉原生
   `additional_context` 兼容副本与旧全文字符计数消息，保留其他原生诊断。
@@ -632,7 +652,8 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
   handler 的值；`0` 必须原样保留，不能用 truthy 判断丢弃。无显式值时不写该字段；不主动向 Claude
   加入 Codex 专属额度。同一分段或旧单 handler 存在矛盾的显式额度时，preflight 报错而不任选其一。
 - `TRELLIS_HOOKS=0`、`TRELLIS_DISABLE_HOOKS=1` 时无输出；Codex 还尊重 `CODEX_NON_INTERACTIVE=1`。
-  `source=resume` 无输出；其余原生跳过条件继续交给 `should_skip_injection()`。
+  `source=resume` 无输出；state 的其余原生跳过条件在子进程 `main()` 内执行，rules/stages 继续在加载后
+  调用 `should_skip_injection()`。
 - Astra 提示正文唯一来源为源脚本的 `ASTRA_WORKFLOW_HINT`，英文与 workflow 主体一致，含闭合的
   `<trellis-astra-workflow-hint model="gpt-6-astra" version="1">` 块，完整块不超过 2048 UTF-8 字节。
   仅当 `hook` 为 Codex 原生路径、`part=state`、输入 `model` 精确等于字符串 `gpt-6-astra`，且
@@ -667,6 +688,9 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
 | 已有额度非法或同一分段额度冲突 | Patch preflight 失败，目标配置不写入 |
 | sessionParts 非固定数组，或 event / resolver 不支持 | Patch preflight 失败 |
 | resume 或显式禁用 | wrapper 退出 0，无注入输出 |
+| Windows 原生入口重配真实标准流或调用 `sys.stdout.detach()` | state 在独立解释器成功，父 wrapper 标准流不受影响 |
+| 原生 stdout 为空 | state 返回 `None`，wrapper 退出 0 且无 stdout |
+| 原生 stderr 非空且退出码非 0 | stderr 原样转发；stdout 输出含退出码的 systemMessage 与 trellis-injection-error，wrapper 退出 0 |
 | Astra + startup/clear/compact + state + 开关开启 | 原状态后追加一个英文块，三段合计一次 |
 | 其他模型、缺失/非法 model、别名、非目标 source、Claude 或 rules/stages | 不新增提示，保留原路径输出 |
 | astra_workflow_hint=false | 原工作流保留，后续 SessionStart 不新增；历史提示不撤回 |
@@ -695,6 +719,10 @@ python3 -m unittest discover -s test/python -p 'test_flower_session_start.py'
 断言：原文拼回等价、关键路由完整、并行无状态副作用、禁用与 resume 无输出；原额度 / 分段独立额度 /
 0 / 缺省 / 冲突 / 非法值迁移；缺少或损坏源的可见诊断与超限尾部保留；真实内容投影、目标 ownership
 和二次安装文件树不变。预算场景和汇总规则见 AI Context Budget，不得只测缺失 model 的旧路径。
+Python 回归必须使用 `sys.executable` 和显式 UTF-8，不依赖 Windows 的 `python3` 别名或系统代码页；事故夹具
+须让伪原生 `main()` 实际对捕获流调用 `detach()`，先证明旧同进程边界失败，再断言隔离 state 成功。
+同一专项测试必须在 GitHub Actions 的 `ubuntu-latest` / `windows-latest` 矩阵运行；本地或 CI 脚本结果
+不能冒充需要认证的 Codex / Claude 真实宿主加载证据。
 模型提示回归覆盖三种 source × 两平台 × 三分段、同一会话连续切换模型、未知别名与非法值、缺省/关闭/
 非法配置、全局禁用、resume、非交互、生成器异常与真实 UTF-8 超限；移除新增换行和提示后，原上下文逐字一致。
 通过正常安装验证资产投影、独立开关保留及重复更新幂等；此源资产不属于 Skill-Garden 快照，不为它制造同步漂移。
@@ -710,7 +738,7 @@ Codex 0.153.4 的 exec resume usage 经真实 rollout 核对为会话累计值�
 Wrong：`if (limit) handler.additionalContextLimit = limit`，且三个分段都先执行完整 SessionStart。
 
 Correct：`limit !== undefined` 时写回；按分段保留已有值，再继承旧单 handler 的额度；只有 state
-调用原生 main，规则分段只读生成器。配置和脚本一起经过 Plugin 事务安装，最后验证真实 handler 输出。
+在独立解释器调用原生 main，规则分段只读生成器。配置和脚本一起经过 Plugin 事务安装，最后验证真实 handler 输出。
 
 Wrong：用 `bool(config_value)` 解析字符串 false，或每个分段/用户轮次都重复注入模型提示。
 

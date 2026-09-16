@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import redirect_stdout
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
@@ -60,10 +63,54 @@ class FlowerSessionStartTest(unittest.TestCase):
         """
         hook = f".{platform}/hooks/session-start.py"
         args = [hook] if part is None else [".trellis/scripts/flower_session_start.py", "--hook", hook, "--part", part]
-        return subprocess.run(["python3", *args], cwd=self.root, env=env or self.env,
+        return subprocess.run([sys.executable, "-X", "utf8", *args], cwd=self.root, env=env or self.env,
                               input=json.dumps({"cwd": str(self.root), "session_id": "session-parts-test",
-                                                "source": source, **(hook_input or {})}),
-                              text=True, capture_output=True, timeout=20)
+                                                "source": source, **(hook_input or {})}, ensure_ascii=False),
+                              text=True, encoding="utf-8", errors="strict", capture_output=True, timeout=20)
+
+    def test_state_uses_real_stdio_boundary_for_native_reconfiguration(self) -> None:
+        """原生入口可重配真实标准流，不再对包装器的内存流执行 detach。"""
+        hook = self.root / ".codex/hooks/session-start.py"
+        hook.write_text(
+            """import io
+import json
+import sys
+
+def should_skip_injection():
+    return False
+
+def main():
+    sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding="utf-8", errors="replace")
+    hook_input = json.loads(sys.stdin.read())
+    context = (
+        f"原生状态:{hook_input.get('session_id')}\\n"
+        "<trellis-workflow>\\n"
+        "### Request Triage\\n规则\\n"
+        "### Planning Artifacts\\n阶段\\n"
+        "</trellis-workflow>\\n"
+    )
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "SessionStart", "additionalContext": context,
+    }}, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+""",
+            encoding="utf-8",
+        )
+        native = SESSION._load_hook(self.root, SESSION.HOOKS[0])
+        # 先证明该夹具会稳定击中旧版同进程 StringIO 捕获的真实故障。
+        with self.assertRaises(io.UnsupportedOperation):
+            with redirect_stdout(io.StringIO()):
+                native.main()
+
+        result = self.run_hook("codex", "state")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("原生状态:session-parts-test", context)
+        self.assertNotIn("trellis-workflow", context)
+        self.assertNotIn("trellis-injection-error", context)
 
     def test_parallel_parts_preserve_native_content_and_fit_budget(self) -> None:
         """三段正文无损保留原始规则，独立并行运行且低于预算。"""
@@ -177,12 +224,11 @@ class FlowerSessionStartTest(unittest.TestCase):
 
     def test_astra_generation_failure_preserves_native_diagnostics(self) -> None:
         """可选提示异常和超预算均不能丢掉原生状态及既有诊断。"""
-        def native_main():
-            """输出具有已有诊断的原生夹具。"""
-            print(json.dumps({"systemMessage": "已有诊断", "hookSpecificOutput": {
-                "hookEventName": "SessionStart", "additionalContext": "原生状态\n<trellis-workflow>\n规则\n</trellis-workflow>\n"}}))
-        native = SimpleNamespace(should_skip_injection=lambda: False, main=native_main)
-        with patch.object(SESSION, "_load_hook", return_value=native):
+        def native_result(*_args):
+            """返回具有已有诊断的原生夹具。"""
+            return {"systemMessage": "已有诊断", "hookSpecificOutput": {
+                "hookEventName": "SessionStart", "additionalContext": "原生状态\n<trellis-workflow>\n规则\n</trellis-workflow>\n"}}
+        with patch.object(SESSION, "_run_native_hook", side_effect=native_result):
             for error in (ImportError("配置读取器不可用"), ValueError("提示超预算")):
                 with patch.object(SESSION, "_astra_workflow_hint", side_effect=error):
                     result = SESSION.render_part(self.root, SESSION.HOOKS[0], "state",
@@ -215,13 +261,33 @@ class FlowerSessionStartTest(unittest.TestCase):
         hook = self.root / ".codex/hooks/session-start.py"
         for source in [
             "def broken(\n",
-            "def should_skip_injection(): return False\ndef main(): print('invalid json')\n",
+            "def main(): print('invalid json')\nif __name__ == '__main__': main()\n",
         ]:
             hook.write_text(source, encoding="utf-8")
             result = self.run_hook("codex", "state")
             self.assertEqual(result.returncode, 0)
             self.assertIn("注入失败", json.loads(result.stdout)["systemMessage"])
             self.assertIn("trellis-injection-error", result.stdout)
+
+    def test_native_empty_output_and_failure_preserve_process_contract(self) -> None:
+        """原生跳过保持零输出，失败退出码与 stderr 进入可见诊断。"""
+        hook = self.root / ".codex/hooks/session-start.py"
+        hook.write_text("raise SystemExit(0)\n", encoding="utf-8")
+        skipped = self.run_hook("codex", "state")
+        self.assertEqual(skipped.returncode, 0)
+        self.assertEqual(skipped.stdout, "")
+        self.assertEqual(skipped.stderr, "")
+
+        hook.write_text(
+            "import sys\nprint('原生子进程诊断', file=sys.stderr)\nraise SystemExit(7)\n",
+            encoding="utf-8",
+        )
+        failed = self.run_hook("codex", "state")
+        self.assertEqual(failed.returncode, 0)
+        self.assertIn("原生子进程诊断", failed.stderr)
+        data = json.loads(failed.stdout)
+        self.assertIn("退出码 7", data["systemMessage"])
+        self.assertIn("trellis-injection-error", failed.stdout)
 
     def test_oversized_part_keeps_tail_and_reports_growth(self) -> None:
         """超预算不静默截掉尾部规则，并提供诊断。"""

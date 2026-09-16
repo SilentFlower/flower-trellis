@@ -8,10 +8,9 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
-from contextlib import redirect_stdout
 from importlib.util import module_from_spec, spec_from_file_location
-from io import StringIO
 from pathlib import Path
 
 
@@ -86,6 +85,40 @@ def _load_hook(root: Path, hook: str):
     return module
 
 
+def _run_native_hook(root: Path, hook: str, hook_input: dict) -> dict | None:
+    """在独立解释器中执行原生 hook，保留真实标准流边界。
+
+    @param root: 当前部署项目根目录。
+    @param hook: 已验证的原生平台 hook 相对路径。
+    @param hook_input: 宿主传入并已规范化 cwd 的事件 JSON。
+    @return: 原生标准 SessionStart 输出；原生 hook 跳过时返回 None。
+    """
+    environment = os.environ.copy()
+    environment["PYTHONIOENCODING"] = "utf-8"
+    result = subprocess.run(
+        [sys.executable, "-X", "utf8", str(root / hook)],
+        cwd=root,
+        env=environment,
+        input=json.dumps(hook_input, ensure_ascii=False).encode("utf-8"),
+        capture_output=True,
+        check=False,
+    )
+    stderr = result.stderr.decode("utf-8", errors="replace")
+    if stderr:
+        # 原生诊断属于真实 Hook 证据，不能因包装器捕获输出而被吞掉。
+        sys.stderr.write(stderr)
+        sys.stderr.flush()
+    if result.returncode != 0:
+        raise ValueError(f"原生 hook 退出码 {result.returncode}")
+    stdout = result.stdout.decode("utf-8-sig")
+    if not stdout.strip():
+        return None
+    output = json.loads(stdout)
+    if not isinstance(output, dict):
+        raise ValueError("原生 hook 输出必须为 JSON 对象")
+    return output
+
+
 def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | None:
     """生成指定分段，只有 state 执行原生主入口的副作用。
 
@@ -97,21 +130,10 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
     """
     if hook not in HOOKS or part not in PARTS:
         raise ValueError("不支持的 SessionStart hook 或分段")
-    module = _load_hook(root, hook)
-    if module.should_skip_injection():
-        return None
     if part == "state":
-        output = StringIO()
-        original_stdin = sys.stdin
-        try:
-            sys.stdin = StringIO(json.dumps(hook_input, ensure_ascii=False))
-            with redirect_stdout(output):
-                module.main()
-        finally:
-            sys.stdin = original_stdin
-        if not output.getvalue().strip():
+        result = _run_native_hook(root, hook, hook_input)
+        if result is None:
             return None
-        result = json.loads(output.getvalue())
         context = result["hookSpecificOutput"]["additionalContext"]
         if len(WORKFLOW_BLOCK.findall(context)) != 1:
             raise ValueError("原生启动输出必须包含且仅包含一个 trellis-workflow 块")
@@ -133,6 +155,9 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
                 result["systemMessage"] = "\n".join(filter(None, [result.get("systemMessage"), message]))
                 print(message, file=sys.stderr)
     else:
+        module = _load_hook(root, hook)
+        if module.should_skip_injection():
+            return None
         builder = module._build_workflow_toc if hook == HOOKS[0] else module._build_workflow_overview
         context = split_workflow(builder(root / ".trellis/workflow.md"))[part]
         result = {"hookSpecificOutput": {"hookEventName": "SessionStart"}}
