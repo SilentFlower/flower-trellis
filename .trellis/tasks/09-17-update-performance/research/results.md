@@ -103,6 +103,33 @@ Windows 更新回归发现两个根因：
 1. 真实 `init --yes` 已输出安装成功，但主进程未退出，60 秒后测试超时。现有显式退出仅覆盖交互完成菜单，非交互返回后 ConPTY worker/socket 仍可持有事件循环。补修放在 Windows 顶层 init/update 命令 Promise 返回后，排空 stdout/stderr，再复用终端退出 helper，保留退出码；嵌套更新函数不强制退出宿主。
 2. 四个补偿恢复测试把 POSIX `0640` 作为 Windows 预期，而实际初始权限为 `0666`。改为在创建后读取实际 mode，恢复后比较相同值；内容、目录、备份和失败退出断言保留，不跳过 Windows 用例。
 
-补修当前仅在本地；37 项定向测试通过，包括真实 init/重复 update/沙箱预演、补偿恢复、终端及完成菜单。新增断言覆盖非 TTY 零控制序列、延后退出和原退出码保留。四个 JS 文件语法与 diff 检查通过。补修须单独确认提交范围，并以新代码 SHA 的原生 CI 重新验收；首轮失败不能按本地模拟结果改写为成功。
+第一轮补修提交前，37 项定向测试通过，包括真实 init/重复 update/沙箱预演、补偿恢复、终端及完成菜单。新增断言覆盖非 TTY 零控制序列、延后退出和原退出码保留。四个 JS 文件语法与 diff 检查通过。用户随后确认了这 5 个补修文件，已提交推送，第二轮原生 CI 结果见下方；首轮失败不能按本地模拟结果改写为成功。
 
 补修本地全量 `npm test` 退出 0：601 个 JS 测试中 599 通过、2 个平台场景跳过；Python 382 项完成、2 项跳过；Patch 52 / operation 163 / ready target 1008 零冲突，compiled 891 文件零漂移，输出模板通过。既有 states-total 13217B 告警不变。首轮原生 CI 最终 7/8 job 成功，Windows 更新回归失败；不标记任务完成。
+
+
+## 其他入口补充调查
+
+同一 Linux / Node 22 环境，每项五轮中位数：help 154ms、version 242ms、plugin list 425ms、status 515ms、禁用联网 self-check 338ms、get_context 219ms、task list 98ms。SessionStart 隔离副本 state/rules/stages 分别为 234/61/66ms，不代表宿主实际并行启动总时间。
+
+源码和隔离进程加载实验发现 status 入口加载上游配置器（命令模块导入中位数 301ms），plugin list 提前初始化 Provider/摘要及 Patch runtime，根帮助提前加载 ProjectStore 和 PTY。单次计数中 plugin list 有 815 次 readFileSync、180 次 readdirSync；这些计数包含加载成本，不能全部当作可删除的工作。get_context 对同一仓库分别运行 porcelain 与 short 两次 status。
+
+以上只表明有可减少的开销，未证明实际用户痛点或大规模优化收益。本轮不继续扩大实现范围，优先完成 Windows 补修验收；这些入口尚未实施优化。
+
+
+## 第二轮原生 CI 与边界补修
+
+第一轮补修业务提交：`8c71a2b393288b1d7b5530c3d91510d72992fbc1`，已推送。
+
+- [更新链路跨平台回归](https://github.com/SilentFlower/flower-trellis/actions/runs/35176762626)：Ubuntu、Windows 均失败。Windows 真实 init 已正常退出，四个权限恢复用例通过，确认上一轮补修生效。
+- [SessionStart 跨平台回归](https://github.com/SilentFlower/flower-trellis/actions/runs/35176762765)：两个平台均成功。
+- [Python 跨平台兼容回归](https://github.com/SilentFlower/flower-trellis/actions/runs/35176762578)：Ubuntu/Windows × Python 3.8/3.12 四个 job 全部成功。第二轮必需 CI 共 6/8 job 成功，两个更新回归 job 失败。
+
+此次更新回归的两个根因及本地补修：
+
+1. Ubuntu 的 25ms 超时测试偶发第二次请求：计时器触发后，单调时钟仍可能小于 deadline，单靠 Math.ceil 无法持久表示预算已经耗尽。读取器现在共享 AbortController，超时取消后后续标签或摘要读取直接降级为 null。
+2. Windows ConPTY 从首帧出现隐藏光标序列后进入 raw 模式，按行替换无法显示 Flower 的受管查询说明。宿主现在在转发 PTY 输出前打印说明；按行模式抑制重复说明，raw 模式继续完整透传控制序列和正文。
+
+新增三条确定性回归在未修复源码上全部失败，修复后两个测试文件 17/17 通过。测试强制计时器早于 deadline 唤醒，并分别覆盖 PTY 按行与 raw 模式；原生集成断言没有放宽或跳过。第二轮边界补修当前未提交，最终原生 CI 仍待新代码 SHA 验收。
+
+第二轮补修本地全量 `npm test` 退出 0：604 个 JS 测试中 602 通过、2 个平台场景跳过；Python 382 项完成、2 项跳过。Patch 52 / operation 163 / ready target 1008 零冲突，compiled 891 文件零漂移，输出模板通过；既有 states-total 13217B 告警不变。四个变更 JS 文件语法和 diff 检查通过。Full Check-All 三个维度通过、无剩余 CHK/FBK；新增共享取消状态与 PTY 宿主说明规范已与源码/测试反向核对。

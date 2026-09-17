@@ -70,4 +70,14 @@ node --check src/cli.js
 
 ## 当前验证事实
 
-首轮实现、Check-All、规范复核与业务推送已完成，证据见 research/results.md。Windows CI 发现非交互 CLI 退出挂起和四个权限断言的平台假设问题，已完成本地补修；待补充提交与新 SHA 原生 CI 验收，任务保持 in_progress。
+首轮实现、Check-All、规范复核与业务推送已完成，证据见 research/results.md。Windows 非交互退出与权限断言补修已推送，并在原生 CI 验证生效；第二轮发现共享超时状态与 PTY 提示问题，已本地补修，待补充提交与新代码原生 CI 验收，任务保持 in_progress。
+
+## CI 补修收尾
+
+- [x] Windows 顶层 init/update 等待命令收尾与输出排空后复用显式退出；嵌套操作不强制退出宿主。
+- [x] 四个补偿恢复测试比较实际初始 mode，保留 Windows 场景执行和数据恢复断言。
+- [x] 定向 37/37、全量 npm test、语法和 diff 检查通过。
+- [x] 第一轮补修精确提交并推送，核验新代码原生 CI，确认退出与权限用例通过。
+- [x] 第二轮补修：共享 AbortController 持久记录预算耗尽；受管 PTY 提前说明跳过查询，保留原始交互序列。新增三条用例先失败再通过，两个定向测试文件共 17/17 通过。
+- [x] 第二轮补修全量 npm test、语法与 diff 检查、Full Check-All 和规范同步通过。
+- [ ] 第二轮补修精确提交并核验新代码 SHA 的原生必需 CI，通过后同步 A7 与最终完成态。
