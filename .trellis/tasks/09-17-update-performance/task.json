@@ -3,7 +3,7 @@
   "name": "update-performance",
   "title": "升级链路性能诊断与优化",
   "description": "",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "silentflower",
   "assignee": "silentflower",
   "createdAt": "2026-09-17",
-  "completedAt": null,
+  "completedAt": "2026-09-17",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -124,17 +124,16 @@
   },
   "progress": {
     "completedSteps": [
-      "用户 Brief 确认并启动任务",
-      "升级缓存、上游隔离、全局版本快路径与阶段计时实现",
-      "五轮性能对照、Full Check-All 与规范更新",
-      "首轮业务提交推送及原生 CI 结果核验",
-      "Windows 非交互退出与权限断言本地补修，定向及全量测试通过",
-      "Windows 退出与权限补修已提交推送，原生 CI 验证对应问题修复",
-      "第二轮共享超时与 PTY 提示问题已本地修复，确定性回归、全量测试及规范复核通过"
+      "完成升级链路性能诊断、规划评审及五轮前后基准",
+      "实现有效版本缓存、轻量查询、上游隔离、全局版本快路径和阶段计时",
+      "完成 Windows 非交互退出、权限断言、共享超时状态与 PTY 提示补修",
+      "完整本地测试、Full Check-All 与规范同步通过",
+      "业务代码已提交推送，最终代码原生 CI 8/8 job 成功，A1–A7 全部验收",
+      "完成其他入口性能调查，本轮不扩大实现范围"
     ],
-    "partialStep": "第二轮原生 CI 为 6/8 job 成功；两个更新回归问题已本地修复，补充代码尚未提交",
-    "nextStep": "确认新增补修范围并推送，核验最终代码的全部必需原生 CI",
-    "notes": "Git 推送成功，任务保持 in_progress，A7 尚未完成。第二轮补修有 6 个源码、测试和规范文件待提交；其他入口仅调查，不扩大实现。完整证据见 research/results.md。",
-    "updatedAt": "2026-09-17T03:17:00Z"
+    "partialStep": null,
+    "nextStep": "任务已完成；需要归档时由用户显式发起 finish-work",
+    "notes": "最终代码的 Ubuntu/Windows 更新、SessionStart 与 Python 3.8/3.12 兼容矩阵全部通过，详细证据见 research/results.md。未执行发版或归档；实际全局下载、解包与用户机器原生构建耗时未测。",
+    "updatedAt": "2026-09-17T03:30:49Z"
   }
 }

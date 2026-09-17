@@ -19,7 +19,7 @@
 7. [x] 更新 README 诊断用法和 CLI specs；不改模板快照，除非实际变更触及生成资产，触及时遵守作者源/快照同步规范。
 8. [x] 补受影响 CLI 的 Ubuntu/Windows Actions workflow（触发覆盖 src/lib、src/commands、入口、scripts、tests、package、workflow）；真实执行目标行为，不靠 skip 达标。
 9. [x] 五轮以上前后对照；报告阶段与总时长、样本离散、请求/子进程数、失败和未测环境；检查 Plugin 本地成本未被显著放大。
-10. [ ] 通过 trellis-route(target=check) 进入 Check-All；完成规范更新后按 trellis-push 展示精确提交范围等待确认。最终提交的必需 CI job 成功前不标记任务完成。
+10. [x] 通过 trellis-route(target=check) 进入 Check-All；完成规范更新后按 trellis-push 展示精确提交范围等待确认。最终提交的必需 CI job 成功前不标记任务完成。
 
 ## Validation Plan
 
@@ -58,7 +58,7 @@ node --check src/cli.js
 
 ### 原生 CI
 
-按 quality-guidelines.md 的跨平台门禁，Ubuntu/Windows 真实 CLI 回归均执行；保留现有 Python 3.8/3.12 验证链。记录 run URL、headSha、job 结果与合理 skip 原因。需提交/推送后才能得到最终 SHA 证据，当前规划阶段不声称已通过。
+按 quality-guidelines.md 的跨平台门禁，Ubuntu/Windows 真实 CLI 回归均执行；保留现有 Python 3.8/3.12 验证链。记录 run URL、headSha、job 结果与合理 skip 原因。最终业务 SHA 的原生 CI 已通过，结果与合理 skip 原因见 research/results.md。
 
 ## Risks And Rollback Points
 
@@ -70,7 +70,7 @@ node --check src/cli.js
 
 ## 当前验证事实
 
-首轮实现、Check-All、规范复核与业务推送已完成，证据见 research/results.md。Windows 非交互退出与权限断言补修已推送，并在原生 CI 验证生效；第二轮发现共享超时状态与 PTY 提示问题，已本地补修，待补充提交与新代码原生 CI 验收，任务保持 in_progress。
+实现、两轮 CI 补修、Full Check-All、规范复核和业务推送均已完成。最终业务提交的更新回归、SessionStart 与 Python 兼容矩阵共 8/8 job 成功，所有验收标准完成；证据见 research/results.md。
 
 ## CI 补修收尾
 
@@ -80,4 +80,4 @@ node --check src/cli.js
 - [x] 第一轮补修精确提交并推送，核验新代码原生 CI，确认退出与权限用例通过。
 - [x] 第二轮补修：共享 AbortController 持久记录预算耗尽；受管 PTY 提前说明跳过查询，保留原始交互序列。新增三条用例先失败再通过，两个定向测试文件共 17/17 通过。
 - [x] 第二轮补修全量 npm test、语法与 diff 检查、Full Check-All 和规范同步通过。
-- [ ] 第二轮补修精确提交并核验新代码 SHA 的原生必需 CI，通过后同步 A7 与最终完成态。
+- [x] 第二轮补修已精确提交推送，最终代码 SHA 的原生必需 CI 8/8 job 成功，A7 已完成。

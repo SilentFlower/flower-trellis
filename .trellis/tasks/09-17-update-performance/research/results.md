@@ -79,7 +79,7 @@
 - 新真实 CLI 集成测试包含临时 init、重复真实 update、同/跨版本预演、中文/空格/& 路径、配置保留、独立上游查询对照、降级拒绝、help/JSON/version 和卸载预演。
 - 19 个改动/新增 JS 文件语法通过，benchmark 与 JSDoc 后续变动补查通过；`git diff --check` 通过。
 - `npm pack --dry-run --ignore-scripts --json`：731 项；四个新增运行模块全部进入发布载荷，没有执行发布/安装。
-- 新 workflow YAML 与 13 个测试入口存在性通过；Windows/Ubuntu 原生 CI 必须验证最终 headSha；首轮远端结果见下方，任务尚不能标记 completed。
+- 新 workflow YAML 与 13 个测试入口存在性通过；最终业务 headSha 的 Windows/Ubuntu 原生 CI 已通过，历轮结果与最终验收见下方。
 - npm 真实下载、解包、原生构建、用户机器文件系统及安装总耗时未测；仅新增本地阶段诊断供继续定位。
 
 ## 最终补修与重检证据
@@ -105,7 +105,7 @@ Windows 更新回归发现两个根因：
 
 第一轮补修提交前，37 项定向测试通过，包括真实 init/重复 update/沙箱预演、补偿恢复、终端及完成菜单。新增断言覆盖非 TTY 零控制序列、延后退出和原退出码保留。四个 JS 文件语法与 diff 检查通过。用户随后确认了这 5 个补修文件，已提交推送，第二轮原生 CI 结果见下方；首轮失败不能按本地模拟结果改写为成功。
 
-补修本地全量 `npm test` 退出 0：601 个 JS 测试中 599 通过、2 个平台场景跳过；Python 382 项完成、2 项跳过；Patch 52 / operation 163 / ready target 1008 零冲突，compiled 891 文件零漂移，输出模板通过。既有 states-total 13217B 告警不变。首轮原生 CI 最终 7/8 job 成功，Windows 更新回归失败；不标记任务完成。
+补修本地全量 `npm test` 退出 0：601 个 JS 测试中 599 通过、2 个平台场景跳过；Python 382 项完成、2 项跳过；Patch 52 / operation 163 / ready target 1008 零冲突，compiled 891 文件零漂移，输出模板通过。既有 states-total 13217B 告警不变。首轮原生 CI 最终 7/8 job 成功，Windows 更新回归失败；当时保持任务未完成。
 
 
 ## 其他入口补充调查
@@ -114,7 +114,7 @@ Windows 更新回归发现两个根因：
 
 源码和隔离进程加载实验发现 status 入口加载上游配置器（命令模块导入中位数 301ms），plugin list 提前初始化 Provider/摘要及 Patch runtime，根帮助提前加载 ProjectStore 和 PTY。单次计数中 plugin list 有 815 次 readFileSync、180 次 readdirSync；这些计数包含加载成本，不能全部当作可删除的工作。get_context 对同一仓库分别运行 porcelain 与 short 两次 status。
 
-以上只表明有可减少的开销，未证明实际用户痛点或大规模优化收益。本轮不继续扩大实现范围，优先完成 Windows 补修验收；这些入口尚未实施优化。
+以上只表明有可减少的开销，未证明实际用户痛点或大规模优化收益。本轮未继续扩大实现范围，Windows 补修验收已完成；这些入口未实施优化。
 
 
 ## 第二轮原生 CI 与边界补修
@@ -130,6 +130,23 @@ Windows 更新回归发现两个根因：
 1. Ubuntu 的 25ms 超时测试偶发第二次请求：计时器触发后，单调时钟仍可能小于 deadline，单靠 Math.ceil 无法持久表示预算已经耗尽。读取器现在共享 AbortController，超时取消后后续标签或摘要读取直接降级为 null。
 2. Windows ConPTY 从首帧出现隐藏光标序列后进入 raw 模式，按行替换无法显示 Flower 的受管查询说明。宿主现在在转发 PTY 输出前打印说明；按行模式抑制重复说明，raw 模式继续完整透传控制序列和正文。
 
-新增三条确定性回归在未修复源码上全部失败，修复后两个测试文件 17/17 通过。测试强制计时器早于 deadline 唤醒，并分别覆盖 PTY 按行与 raw 模式；原生集成断言没有放宽或跳过。第二轮边界补修当前未提交，最终原生 CI 仍待新代码 SHA 验收。
+新增三条确定性回归在未修复源码上全部失败，修复后两个测试文件 17/17 通过。测试强制计时器早于 deadline 唤醒，并分别覆盖 PTY 按行与 raw 模式；原生集成断言没有放宽或跳过。上述记录为第二轮边界补修提交前状态；随后已获确认并推送，最终验收结果见下节。
 
 第二轮补修本地全量 `npm test` 退出 0：604 个 JS 测试中 602 通过、2 个平台场景跳过；Python 382 项完成、2 项跳过。Patch 52 / operation 163 / ready target 1008 零冲突，compiled 891 文件零漂移，输出模板通过；既有 states-total 13217B 告警不变。四个变更 JS 文件语法和 diff 检查通过。Full Check-All 三个维度通过、无剩余 CHK/FBK；新增共享取消状态与 PTY 宿主说明规范已与源码/测试反向核对。
+
+
+## 最终原生 CI 验收
+
+最终业务提交：`7c2c4dc8a25c755cfd79864e80bd4a8305f362f5`，已推送至 origin/main。
+
+| 工作流 | 原生 job | 结果 |
+| --- | --- | --- |
+| [更新链路跨平台回归](https://github.com/SilentFlower/flower-trellis/actions/runs/35177728976) | Ubuntu / Windows · Node 22 | 2/2 成功 |
+| [SessionStart 跨平台回归](https://github.com/SilentFlower/flower-trellis/actions/runs/35177729007) | Ubuntu / Windows | 2/2 成功 |
+| [Python 跨平台兼容回归](https://github.com/SilentFlower/flower-trellis/actions/runs/35177729141) | Ubuntu / Windows × Python 3.8 / 3.12 | 4/4 成功 |
+
+三条工作流 headSha 均与上述业务提交一致，合计 8/8 job 成功；没有以旧 SHA 或重跑旧代码替代最终验收。
+
+更新回归 Ubuntu 共 140 项：139 通过、1 个 Windows 专属 hook 场景跳过；Windows 共 150 项：147 通过、3 个软链场景跳过。三个 Windows 跳过项为 disabled 外层回滚不完整、Update 补偿不完整、版本缓存拒绝软链，均依赖软链夹具；本轮补修没有新增跳过或放宽原生集成断言。真实 init、重复 update、跨版本预演、超时预算和 PTY 提示已在两个平台成功执行。
+
+本地完整 npm test、语法、diff 检查及 Full Check-All 证据见上一节。A1–A7 全部完成；任务完成记录作为独立提交同步。其他入口仅完成性能调查，本轮未实施额外优化；npm 实际下载、解包和用户机器上的原生构建耗时仍不属于已测结论。

@@ -48,9 +48,9 @@ init/update 自动检查复用配置中的有效远程缓存；过期或无效�
 - [x] A4（R4）：标准有效全局安装快速识别版本且不执行 trellis --version；异常/自定义入口正确回退；同版本不重装，异版本仍按精确目标同步。
 - [x] A5（R1）：诊断开启时成功/失败与嵌套阶段可追踪，关闭时无计时噪声；JSON stdout 可解析，帮助无副作用；正常慢步骤有中文状态提示。
 - [x] A6（R2/R3/R4）：重复更新、同/跨版本 dry-run、冲突策略透传、配置保留、外部 Plugin 冻结、disabled 状态与补偿恢复回归通过；保留 ETARGET 一次重试语义。
-- [ ] A7（R5）：本地相关测试、全套 npm test、语法与临时目标 dogfood 完成；新增受影响 CLI 回归由原生 Ubuntu/Windows GitHub Actions 实际执行，匹配最终提交且必需 job 成功后才宣称跨平台验收完成。
+- [x] A7（R5）：本地相关测试、全套 npm test、语法与临时目标 dogfood 完成；新增受影响 CLI 回归由原生 Ubuntu/Windows GitHub Actions 实际执行，匹配最终提交且必需 job 成功后才宣称跨平台验收完成。
 
-A7 当前状态：Windows 非交互退出与权限断言补修已推送；第二轮更新回归暴露共享超时状态与 PTY 提示问题，均已本地修复。最终代码 SHA 原生 CI 尚未通过，当前不勾选 A7。
+A7 已完成：最终业务代码的原生 Ubuntu/Windows 更新、SessionStart 与 Python 3.8/3.12 兼容回归共 8/8 job 成功；本地全量验证通过。提交与 CI 证据见 research/results.md。
 
 ## Non-Goals
 
