@@ -61,6 +61,9 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: 安装测试依赖
         run: npm ci --ignore-scripts
+      # 真实 CLI 会加载 node-pty；只构建该依赖，避免执行项目的全局同步 postinstall。
+      - name: 准备原生终端依赖
+        run: npm rebuild node-pty
       - name: 运行受影响 Python 套件
         env:
           FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}

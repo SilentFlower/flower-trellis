@@ -122,6 +122,8 @@ common._configure_stream(stream: object) -> object
 - 测试入口用 argv 传递 `unittest discover -s test/python -p test_*.py`，不经过 shell 引号或 glob；
   显式测试路径转模块名，并将绝对 `test/python` 加入 `PYTHONPATH`，避免 Windows 自带 `test` 包遮蔽。
   入口固定 `FLOWER_NO_TELEMETRY=1`；专项仅使用隔离目录和本地替身。
+- CI 用 `npm ci --ignore-scripts` 安装依赖后，真实 Flower CLI 测试前必须执行 `npm rebuild node-pty`；
+  否则 Linux 干净环境可能缺少 `pty.node`。只构建该依赖，保持项目全局同步 postinstall 不执行。
 - Python 3.8 不使用 `str.removeprefix`、`Path.is_relative_to` 或括号式多 context manager。
   完整前缀用 `startswith` 后切片；路径包含关系用 `relative_to` 捕获 `ValueError`，仍保留调用处的
   `resolve`、软链拒绝和会话绑定校验。不能用字符串前缀近似路径包含关系。
@@ -133,6 +135,9 @@ common._configure_stream(stream: object) -> object
   不把实际路径直接拼入 shell 命令。非 CMD/BAT 保持 argv；失败静默，超时仍为 3 秒。
 - Git 子仓路径使用 `git rev-parse --show-toplevel`，不使用 MSYS `pwd` 的 `/c/...` 或 `/tmp/...`
   作为原生 Windows pathlib 路径。测试中比较 Windows 短名与长名目录使用 `fs.realpathSync.native`。
+- legacy manifest 夹具中，`targetRoot` 与 `links[].target` 必须使用同一父目录规范化结果：
+  `str(linked.resolve() / relative)`。`target.absolute()` 可能保留 Windows 8.3 短名，
+  `target.resolve()` 又会跟随最终受管软链，两者都不能替代该写法；产品严格 manifest 校验不因此放宽。
 - Skill-Garden compiled targets 生成时固定 `TRELLIS_PYTHON_CMD=python3`，文本明确写 LF；
   Windows/Linux 生成物须逐字节一致。作者源 → Patch/compiled targets → 快照 → Plugin 投影保持原分发链。
 
@@ -174,6 +179,8 @@ common._configure_stream(stream: object) -> object
 - `test_flower_telemetry_hook.py`：原生 Windows CMD 特殊路径与完整 argv、禁用零调用和缺失 home 降级；
   `test_git_evidence.py`：真实中文空格子仓路径；`test_task_start_brief_gate.py`：两平台真实生命周期 Hook。
 - 顺序回归同时运行 auto-loop 与 task-intent，确保临时模块缓存和 `sys.path` 恢复，不指向已删除夹具目录。
+- 原生依赖安装问题须用干净依赖目录复现并复验真实 CLI；不能只使用维护者已经构建的 node_modules。
+  短名路径问题须以原生 Windows 路径校验为证据；权限隔离探针不能冒充真实软链迁移回归。
 - `.github/workflows/python-compatibility.yml` 运行 Ubuntu/Windows × Python 3.8/3.12，包含受影响 Python、
   Node 启动入口、compiled targets 与 strict budget。明确区分 CI 配置、实际 job、实机、模拟与条件 skip；
   Linux skip 不作 Windows 通过证据，局部复验不声称完整套件重跑全绿。

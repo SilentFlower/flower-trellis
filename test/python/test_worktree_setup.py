@@ -133,7 +133,8 @@ class WorktreeSetupTest(unittest.TestCase):
                 {
                     "path": relative,
                     "source": str((self.main / relative).resolve()),
-                    "target": str(target.absolute()),
+                    # Windows 临时目录可能使用短名；只规范化父目录，不跟随最终的受管软链。
+                    "target": str(self.linked.resolve() / relative),
                 }
             )
         (self.linked / ".trellis-worktree.json").write_text(
