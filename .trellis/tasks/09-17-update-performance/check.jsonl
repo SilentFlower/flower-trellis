@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "CLI 分层与检查入口"}
+{"file": ".trellis/spec/flower-trellis/cli/module-guidelines.md", "reason": "ESM、加载和模块契约"}
+{"file": ".trellis/spec/flower-trellis/cli/cli-output.md", "reason": "帮助、长操作进度、JSON 与 PTY/Windows 退出"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "本地测试和原生 Ubuntu/Windows CI 门禁"}
+{"file": ".trellis/tasks/09-17-update-performance/research/baseline.md", "reason": "性能调查原始证据、复现方法与测量边界"}
+{"file": ".trellis/tasks/09-17-update-performance/research/spec-map.md", "reason": "大规范按章节读取，避免注入截断漏掉更新和事务契约"}
+{"file": ".trellis/tasks/09-17-update-performance/research/results.md", "reason": "最终五轮性能对照、验证范围、已知延迟取舍和原生 CI 待验收边界"}

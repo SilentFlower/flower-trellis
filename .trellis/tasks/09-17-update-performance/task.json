@@ -1,0 +1,138 @@
+{
+  "id": "update-performance",
+  "name": "update-performance",
+  "title": "升级链路性能诊断与优化",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-17",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-09-17T01:39:35Z",
+      "contextKey": "codex_01a0ad01-e7a8-70d0-b1f6-b7bd51d8ce6c",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "b1c574af356fa3269b24fa799f6cbeabe59bc613",
+        "status": [
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "b1c574af356fa3269b24fa799f6cbeabe59bc613",
+            "status": [
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md",
+                "sha256": "cdd3be0e22f13e2377a3acced9aee5806c4043b9830bcf0c2f503e9b56d571eb"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md",
+                "sha256": "8439f575162fbac22c07c456c78573328b730c315ff837aeea24d52017dddcb7"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json",
+                "sha256": "a555c3b289cb378ab9895c12c1897121f5937e01c900ba68ef1bb5874c0c54da"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "d63c673d6798deba9835c949d49160c3685d81544ff9801b552998c088c26eee"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "94df742fdf6530a2bf8f72df68a5a9a30b929d7d",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "789c0309ed8deca83f06042b1729db4e378d42c7f7a3167f3149f8dcc51ea69a"
+          }
+        ],
+        "fingerprint": "ed2cb593a9e377a74371efd3b60989d3f85172ae2223ad02b9346d9b8129da73"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "用户 Brief 确认并启动任务",
+      "升级缓存、上游隔离、全局版本快路径与阶段计时实现",
+      "五轮性能对照、Full Check-All 与规范更新",
+      "首轮业务提交推送及原生 CI 结果核验",
+      "Windows 非交互退出与权限断言本地补修，定向及全量测试通过"
+    ],
+    "partialStep": "Windows 更新回归首轮失败；补修待确认提交及新代码原生 CI 复验",
+    "nextStep": "确认补修精确提交范围，推送后核验新代码全部必需 CI",
+    "notes": "任务保持 in_progress。首轮原生 CI 为 7/8 job 成功；失败、补修与本地验证证据见 research/results.md。新增 5 个代码、测试和规范文件尚未提交。",
+    "updatedAt": "2026-09-17T02:51:01Z"
+  }
+}

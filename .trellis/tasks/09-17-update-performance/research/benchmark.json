@@ -1,0 +1,947 @@
+{
+  "environment": {
+    "node": "v22.21.1",
+    "platform": "linux",
+    "arch": "x64",
+    "baselineSha": "b1c574af356fa3269b24fa799f6cbeabe59bc613",
+    "flower": "0.6.9-beta.0",
+    "trellis": "0.6.14"
+  },
+  "rounds": 5,
+  "network": "受控延迟，每次请求固定；没有真实 registry/下载/安装",
+  "checks": [
+    {
+      "version": "before",
+      "delay": 0,
+      "scenario": "cold-current",
+      "elapsedMs": {
+        "median": 16,
+        "min": 12,
+        "max": 50,
+        "samples": [
+          50,
+          12,
+          18,
+          16,
+          14
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314173,
+        314173,
+        314173,
+        314173,
+        314173
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 0,
+      "scenario": "warm-current",
+      "elapsedMs": {
+        "median": 9,
+        "min": 8,
+        "max": 13,
+        "samples": [
+          8,
+          13,
+          10,
+          9,
+          8
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314173,
+        314173,
+        314173,
+        314173,
+        314173
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 0,
+      "scenario": "new-version",
+      "elapsedMs": {
+        "median": 13,
+        "min": 12,
+        "max": 14,
+        "samples": [
+          13,
+          12,
+          14,
+          14,
+          13
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314152,
+        314152,
+        314152,
+        314152,
+        314152
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 0,
+      "scenario": "project-out-of-sync",
+      "elapsedMs": {
+        "median": 250,
+        "min": 204,
+        "max": 306,
+        "samples": [
+          204,
+          306,
+          296,
+          235,
+          250
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314173,
+        314173,
+        314173,
+        314173,
+        314173
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 200,
+      "scenario": "cold-current",
+      "elapsedMs": {
+        "median": 214,
+        "min": 212,
+        "max": 219,
+        "samples": [
+          214,
+          212,
+          215,
+          219,
+          212
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314173,
+        314173,
+        314173,
+        314173,
+        314173
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 200,
+      "scenario": "warm-current",
+      "elapsedMs": {
+        "median": 214,
+        "min": 207,
+        "max": 227,
+        "samples": [
+          219,
+          208,
+          227,
+          207,
+          214
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314173,
+        314173,
+        314173,
+        314173,
+        314173
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 200,
+      "scenario": "new-version",
+      "elapsedMs": {
+        "median": 214,
+        "min": 211,
+        "max": 223,
+        "samples": [
+          214,
+          217,
+          213,
+          211,
+          223
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314152,
+        314152,
+        314152,
+        314152,
+        314152
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 200,
+      "scenario": "project-out-of-sync",
+      "elapsedMs": {
+        "median": 424,
+        "min": 395,
+        "max": 446,
+        "samples": [
+          415,
+          395,
+          424,
+          446,
+          428
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314173,
+        314173,
+        314173,
+        314173,
+        314173
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 1000,
+      "scenario": "cold-current",
+      "elapsedMs": {
+        "median": 1016,
+        "min": 1013,
+        "max": 1017,
+        "samples": [
+          1013,
+          1013,
+          1017,
+          1017,
+          1016
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314173,
+        314173,
+        314173,
+        314173,
+        314173
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 1000,
+      "scenario": "warm-current",
+      "elapsedMs": {
+        "median": 1010,
+        "min": 1010,
+        "max": 1018,
+        "samples": [
+          1012,
+          1018,
+          1010,
+          1010,
+          1010
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314173,
+        314173,
+        314173,
+        314173,
+        314173
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 1000,
+      "scenario": "new-version",
+      "elapsedMs": {
+        "median": 1014,
+        "min": 1013,
+        "max": 1024,
+        "samples": [
+          1014,
+          1024,
+          1013,
+          1016,
+          1014
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314152,
+        314152,
+        314152,
+        314152,
+        314152
+      ]
+    },
+    {
+      "version": "before",
+      "delay": 1000,
+      "scenario": "project-out-of-sync",
+      "elapsedMs": {
+        "median": 1200,
+        "min": 1195,
+        "max": 1204,
+        "samples": [
+          1195,
+          1204,
+          1202,
+          1200,
+          1198
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        314173,
+        314173,
+        314173,
+        314173,
+        314173
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 0,
+      "scenario": "cold-current",
+      "elapsedMs": {
+        "median": 7,
+        "min": 6,
+        "max": 13,
+        "samples": [
+          13,
+          7,
+          6,
+          7,
+          6
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 0,
+      "scenario": "warm-current",
+      "elapsedMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "samples": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "requests": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "fixtureBytes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 0,
+      "scenario": "new-version",
+      "elapsedMs": {
+        "median": 11,
+        "min": 11,
+        "max": 13,
+        "samples": [
+          13,
+          12,
+          11,
+          11,
+          11
+        ]
+      },
+      "requests": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "fixtureBytes": [
+        314183,
+        314183,
+        314183,
+        314183,
+        314183
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 0,
+      "scenario": "project-out-of-sync",
+      "elapsedMs": {
+        "median": 203,
+        "min": 198,
+        "max": 238,
+        "samples": [
+          198,
+          225,
+          198,
+          238,
+          203
+        ]
+      },
+      "requests": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "fixtureBytes": [
+        314213,
+        314213,
+        314213,
+        314213,
+        314213
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 200,
+      "scenario": "cold-current",
+      "elapsedMs": {
+        "median": 208,
+        "min": 207,
+        "max": 208,
+        "samples": [
+          208,
+          207,
+          208,
+          208,
+          208
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 200,
+      "scenario": "warm-current",
+      "elapsedMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "samples": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "requests": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "fixtureBytes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 200,
+      "scenario": "new-version",
+      "elapsedMs": {
+        "median": 414,
+        "min": 412,
+        "max": 417,
+        "samples": [
+          417,
+          413,
+          414,
+          412,
+          414
+        ]
+      },
+      "requests": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "fixtureBytes": [
+        314183,
+        314183,
+        314183,
+        314183,
+        314183
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 200,
+      "scenario": "project-out-of-sync",
+      "elapsedMs": {
+        "median": 617,
+        "min": 597,
+        "max": 704,
+        "samples": [
+          655,
+          704,
+          617,
+          597,
+          597
+        ]
+      },
+      "requests": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "fixtureBytes": [
+        314213,
+        314213,
+        314213,
+        314213,
+        314213
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 1000,
+      "scenario": "cold-current",
+      "elapsedMs": {
+        "median": 1009,
+        "min": 1007,
+        "max": 1014,
+        "samples": [
+          1010,
+          1009,
+          1008,
+          1007,
+          1014
+        ]
+      },
+      "requests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "fixtureBytes": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 1000,
+      "scenario": "warm-current",
+      "elapsedMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "samples": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "requests": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "fixtureBytes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 1000,
+      "scenario": "new-version",
+      "elapsedMs": {
+        "median": 2020,
+        "min": 2015,
+        "max": 2022,
+        "samples": [
+          2015,
+          2020,
+          2022,
+          2021,
+          2015
+        ]
+      },
+      "requests": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "fixtureBytes": [
+        314183,
+        314183,
+        314183,
+        314183,
+        314183
+      ]
+    },
+    {
+      "version": "after",
+      "delay": 1000,
+      "scenario": "project-out-of-sync",
+      "elapsedMs": {
+        "median": 2202,
+        "min": 2200,
+        "max": 2278,
+        "samples": [
+          2202,
+          2202,
+          2200,
+          2278,
+          2222
+        ]
+      },
+      "requests": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "fixtureBytes": [
+        314213,
+        314213,
+        314213,
+        314213,
+        314213
+      ]
+    }
+  ],
+  "update": {
+    "before": {
+      "elapsedMs": {
+        "median": 2144,
+        "min": 2074,
+        "max": 2354,
+        "samples": [
+          2354,
+          2074,
+          2178,
+          2144,
+          2115
+        ]
+      },
+      "work": [
+        {
+          "requests": 1,
+          "versionProbes": 1
+        },
+        {
+          "requests": 1,
+          "versionProbes": 1
+        },
+        {
+          "requests": 1,
+          "versionProbes": 1
+        },
+        {
+          "requests": 1,
+          "versionProbes": 1
+        },
+        {
+          "requests": 1,
+          "versionProbes": 1
+        }
+      ],
+      "phaseTimings": [
+        [],
+        [],
+        [],
+        [],
+        []
+      ],
+      "exitCodes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "completion": "完整 Flower update --dry-run / Plugin 预演通过"
+    },
+    "after": {
+      "elapsedMs": {
+        "median": 1524,
+        "min": 1428,
+        "max": 1681,
+        "samples": [
+          1475,
+          1681,
+          1605,
+          1428,
+          1524
+        ]
+      },
+      "work": [
+        {
+          "requests": 0,
+          "versionProbes": 0
+        },
+        {
+          "requests": 0,
+          "versionProbes": 0
+        },
+        {
+          "requests": 0,
+          "versionProbes": 0
+        },
+        {
+          "requests": 0,
+          "versionProbes": 0
+        },
+        {
+          "requests": 0,
+          "versionProbes": 0
+        }
+      ],
+      "phaseTimings": [
+        [
+          "  · [耗时 update/总计（包含子阶段）] 开始",
+          "  · [耗时 update/版本检查（含确认等待）] 开始",
+          "  · [耗时 update/版本检查（含确认等待）] 完成 0 ms",
+          "  · [耗时 update/同步全局Trellis] 开始",
+          "  · [耗时 全局Trellis/定位安装] 开始",
+          "  · [耗时 全局Trellis/定位安装] 完成 0 ms",
+          "  · [耗时 全局Trellis/读取版本] 开始",
+          "  · [耗时 全局Trellis/读取版本] 完成 1 ms",
+          "  · [耗时 update/同步全局Trellis] 完成 2 ms",
+          "  · [耗时 update/上游更新（含交互等待）] 开始",
+          "  · [耗时 update/上游更新（含交互等待）] 完成 596 ms",
+          "  · [耗时 update/插件重放] 开始",
+          "  · [耗时 update/插件重放] 完成 380 ms",
+          "  · [耗时 update/清理旧备份] 开始",
+          "  · [耗时 update/清理旧备份] 完成 1 ms",
+          "  · [耗时 update/总计（包含子阶段）] 完成 992 ms"
+        ],
+        [
+          "  · [耗时 update/总计（包含子阶段）] 开始",
+          "  · [耗时 update/版本检查（含确认等待）] 开始",
+          "  · [耗时 update/版本检查（含确认等待）] 完成 0 ms",
+          "  · [耗时 update/同步全局Trellis] 开始",
+          "  · [耗时 全局Trellis/定位安装] 开始",
+          "  · [耗时 全局Trellis/定位安装] 完成 0 ms",
+          "  · [耗时 全局Trellis/读取版本] 开始",
+          "  · [耗时 全局Trellis/读取版本] 完成 1 ms",
+          "  · [耗时 update/同步全局Trellis] 完成 2 ms",
+          "  · [耗时 update/上游更新（含交互等待）] 开始",
+          "  · [耗时 update/上游更新（含交互等待）] 完成 596 ms",
+          "  · [耗时 update/插件重放] 开始",
+          "  · [耗时 update/插件重放] 完成 579 ms",
+          "  · [耗时 update/清理旧备份] 开始",
+          "  · [耗时 update/清理旧备份] 完成 1 ms",
+          "  · [耗时 update/总计（包含子阶段）] 完成 1191 ms"
+        ],
+        [
+          "  · [耗时 update/总计（包含子阶段）] 开始",
+          "  · [耗时 update/版本检查（含确认等待）] 开始",
+          "  · [耗时 update/版本检查（含确认等待）] 完成 0 ms",
+          "  · [耗时 update/同步全局Trellis] 开始",
+          "  · [耗时 全局Trellis/定位安装] 开始",
+          "  · [耗时 全局Trellis/定位安装] 完成 0 ms",
+          "  · [耗时 全局Trellis/读取版本] 开始",
+          "  · [耗时 全局Trellis/读取版本] 完成 1 ms",
+          "  · [耗时 update/同步全局Trellis] 完成 3 ms",
+          "  · [耗时 update/上游更新（含交互等待）] 开始",
+          "  · [耗时 update/上游更新（含交互等待）] 完成 557 ms",
+          "  · [耗时 update/插件重放] 开始",
+          "  · [耗时 update/插件重放] 完成 471 ms",
+          "  · [耗时 update/清理旧备份] 开始",
+          "  · [耗时 update/清理旧备份] 完成 0 ms",
+          "  · [耗时 update/总计（包含子阶段）] 完成 1050 ms"
+        ],
+        [
+          "  · [耗时 update/总计（包含子阶段）] 开始",
+          "  · [耗时 update/版本检查（含确认等待）] 开始",
+          "  · [耗时 update/版本检查（含确认等待）] 完成 0 ms",
+          "  · [耗时 update/同步全局Trellis] 开始",
+          "  · [耗时 全局Trellis/定位安装] 开始",
+          "  · [耗时 全局Trellis/定位安装] 完成 0 ms",
+          "  · [耗时 全局Trellis/读取版本] 开始",
+          "  · [耗时 全局Trellis/读取版本] 完成 1 ms",
+          "  · [耗时 update/同步全局Trellis] 完成 2 ms",
+          "  · [耗时 update/上游更新（含交互等待）] 开始",
+          "  · [耗时 update/上游更新（含交互等待）] 完成 481 ms",
+          "  · [耗时 update/插件重放] 开始",
+          "  · [耗时 update/插件重放] 完成 421 ms",
+          "  · [耗时 update/清理旧备份] 开始",
+          "  · [耗时 update/清理旧备份] 完成 1 ms",
+          "  · [耗时 update/总计（包含子阶段）] 完成 919 ms"
+        ],
+        [
+          "  · [耗时 update/总计（包含子阶段）] 开始",
+          "  · [耗时 update/版本检查（含确认等待）] 开始",
+          "  · [耗时 update/版本检查（含确认等待）] 完成 0 ms",
+          "  · [耗时 update/同步全局Trellis] 开始",
+          "  · [耗时 全局Trellis/定位安装] 开始",
+          "  · [耗时 全局Trellis/定位安装] 完成 0 ms",
+          "  · [耗时 全局Trellis/读取版本] 开始",
+          "  · [耗时 全局Trellis/读取版本] 完成 1 ms",
+          "  · [耗时 update/同步全局Trellis] 完成 2 ms",
+          "  · [耗时 update/上游更新（含交互等待）] 开始",
+          "  · [耗时 update/上游更新（含交互等待）] 完成 612 ms",
+          "  · [耗时 update/插件重放] 开始",
+          "  · [耗时 update/插件重放] 完成 424 ms",
+          "  · [耗时 update/清理旧备份] 开始",
+          "  · [耗时 update/清理旧备份] 完成 0 ms",
+          "  · [耗时 update/总计（包含子阶段）] 完成 1054 ms"
+        ]
+      ],
+      "exitCodes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "completion": "完整 Flower update --dry-run / Plugin 预演通过"
+    }
+  }
+}
