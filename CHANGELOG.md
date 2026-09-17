@@ -4,6 +4,29 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.9](https://github.com/SilentFlower/flower-trellis/compare/v0.6.8...v0.6.9) (2026-09-17)
+
+
+### 🐛 修复 Bug Fixes
+
+* **ci:** 修复跨平台初始化、检出与迁移兼容 ([a06facc](https://github.com/SilentFlower/flower-trellis/commit/a06faccdcd7a6e8bd1829f4b41d35c252e814dd5))
+* **ci:** 补齐原生依赖构建并修正 Windows 迁移夹具 ([99ff392](https://github.com/SilentFlower/flower-trellis/commit/99ff392299612912c028686ff9b3c7204bf67aec))
+* **cli:** 修复 Windows 非交互完成后挂起 ([8c71a2b](https://github.com/SilentFlower/flower-trellis/commit/8c71a2b393288b1d7b5530c3d91510d72992fbc1))
+* **compat:** 修复 Windows/Linux Python 运行与跨平台回归 ([311c4ea](https://github.com/SilentFlower/flower-trellis/commit/311c4eac99c7fd9269f62d2b10a36fdda7618b40))
+* **hooks:** 修复跨平台 SessionStart 分段注入 ([5f6a0d4](https://github.com/SilentFlower/flower-trellis/commit/5f6a0d4325e6e8e4d39f230c7ac3a1de9fd0c9af))
+* **test:** 修复 SessionStart CI 对本地身份文件的依赖 ([28d8bcf](https://github.com/SilentFlower/flower-trellis/commit/28d8bcff8bdde2dbcb0b37468ec3937e9d17d543))
+* **update:** 修复共享超时状态与 PTY 受管提示 ([7c2c4dc](https://github.com/SilentFlower/flower-trellis/commit/7c2c4dc8a25c755cfd79864e80bd4a8305f362f5))
+
+
+### ⚡ 性能 Performance
+
+* **update:** 缩短升级等待并补充阶段耗时诊断 ([94788f4](https://github.com/SilentFlower/flower-trellis/commit/94788f4023b2af047e71b4689bc3716bed32fd21))
+
+
+### 📝 文档 Docs
+
+* **spec:** 要求跨平台脚本和指令通过 GitHub Actions 验收 ([87aa9b8](https://github.com/SilentFlower/flower-trellis/commit/87aa9b8936167d422f3752d4bb9f5cd958a41471))
+
 ## [0.6.9-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.6.8...v0.6.9-beta.0) (2026-09-16)
 
 
