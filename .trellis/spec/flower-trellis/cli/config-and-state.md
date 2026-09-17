@@ -70,17 +70,23 @@ gitignored 的 `.flower/update-check.tmp` 运行缓存)。旧 `.trellis/.flower-
 > `self-check` 的远程版本探测。任何联网探测都必须「尽力而为」:
 > 带超时、失败静默、**绝不阻断主流程**。这是「Version Reading」降级约定在网络场景的延伸。
 
-- **签名 / 契约**:`fetchPackageUpdateMetadata(): Promise<{tags,releaseNotesByVersion}|null>`
-  —— 成功一次读取 npm registry 根文档,同时解析 `dist-tags.latest` / `dist-tags.beta`
-  与各版本 package metadata 中的 `flowerReleaseNotes`;**任何失败一律 `null`**(调用方据此
-  「拿不到就当没这回事」继续)。`fetchPackageDistTags()` 作为兼容导出保留,只返回
-  `metadata.tags`;`fetchLatestVersion()` 仅作为旧兼容导出保留,新逻辑不要继续扩展它。
+- **签名 / 契约**：`fetchPackageDistTags(options?)` 请求 `/-/package/flower-trellis/dist-tags`，
+  返回 `{latest,beta}|null`；`fetchPackageUpdateMetadata(options?)` 读取根文档，返回
+  `{tags,releaseNotesByVersion}|null`。`createUpdateMetadataReader(options?)` 提供
+  `readTags()` / `readMetadata()`，完整 metadata 按需且每轮至多一次；没有新版或项目差异时只取标签。
+  `fetchLatestVersion()` 仅作旧兼容导出。网络/解析失败返回 `null`。
+- `init/update` 与 `self-check` 共用 `isRemoteCacheFresh()`；有效缓存不重发版本请求或
+  版本检查遥测。过期、offline 或带 `lastErrorCode` 的缓存不可复用；关闭开关、policy、npx
+  仍优先短路。`self-check --force-remote` 与 self-update 原强制检查绕过 interval。
+- 摘要复用必须匹配 from/to/channel；标签成功、摘要失败时仍保留有效版本判断和旧可用摘要，
+  不把旧摘要当作新范围内容。仅补摘要不得重写 lastCheckedAt/lastRemote/lastStatus。
 - `flowerReleaseNotes` 是 flower 内部 npm metadata 字段,每个版本只保存自己的 CHANGELOG
   段落;客户端跨版本聚合时从同一次 registry 根文档的 `versions` 字典读取并按目标通道过滤。
 - release notes 摘要上限固定为最多 5 个版本、单版本 500 字符、总计 1600 字符;截断或还有
   更多版本时必须设置 `truncated` / `moreVersions`。
-- **超时**:用 `AbortController` + `setTimeout(ac.abort, 5000)`,`signal` 传入内置 `fetch`;
-  `finally` 里 `clearTimeout` 防句柄泄漏(否则 timer 可能拖住进程不退出)。
+- **超时**：一轮标签与必要摘要共用 `performance.now()` 计算的 5000ms deadline，
+  包含响应体读取；第二次请求仅使用剩余预算，耗尽后不再请求。`AbortController` 的
+  timer 对剩余小数毫秒向上取整，防止 Node 截断后提前中止却仍有残余预算；finally 清 timer。
 - **三道防线 → `null`**:① `!res.ok`(非 200);② `catch`(AbortError 超时 / `fetch failed`
   离线 / JSON 解析失败);③ 字段类型不符(`dist-tags.latest` / `dist-tags.beta` 都不是字符串)。
   `flowerReleaseNotes` 缺失或损坏只影响摘要,不得影响版本判断。
@@ -99,7 +105,7 @@ gitignored 的 `.flower/update-check.tmp` 运行缓存)。旧 `.trellis/.flower-
 
 | 失败条件 | 行为 |
 |---|---|
-| 离线 / DNS 失败 / 超时(>5s) | `catch` → `null` → 不打印,主流程继续 |
+| 离线 / DNS 失败 / 共享预算耗尽 | `catch` → `null`，不打印网络错误，主流程继续 |
 | 非 200(404/5xx) | `null` → 静默 |
 | 响应无可用 `dist-tags.latest` / `dist-tags.beta` | `null` → 静默 |
 | 关闭开关 / npx | 不发请求,直接返回 |
@@ -107,6 +113,77 @@ gitignored 的 `.flower/update-check.tmp` 运行缓存)。旧 `.trellis/.flower-
 **Wrong**:`const v = (await fetch(url)).json(); return v.version;` —— 无超时(离线时挂起)、
 无 try/catch(失败抛进 init/update 主流程)、无字段校验。
 **Correct**:见 `src/lib/update-check.js#fetchPackageUpdateMetadata`(AbortController + 三道防线 + `finally` 清 timer)。
+
+## Scenario: Update Performance Boundaries
+
+### 1. Scope / Trigger
+
+修改版本检查、Flower 管理的上游更新入口、全局 Trellis 版本识别或阶段计时时适用。
+
+### 2. Signatures
+
+- `trellisLaunchArgs(args, {managedUpdate?}) -> string[]`；普通/PTY runner 均使用该入口。
+- `installedGlobalTrellisVersion(prefix, command, platform?) -> string|null`。
+- `beginOperationTiming(scope, stage, options?) -> finish(success?)`。
+- `timeOperation(scope, stage, operation, options?) -> 原同步值或 Promise`。
+- 开发基准：`node scripts/benchmark-update.mjs <baseline-ref>`。
+
+### 3. Contracts
+
+- 仅 Flower 的普通 update、self-update 项目子阶段和跨版本沙箱启用 managedUpdate。
+  ESM 引导还原 argv 后加载实际捆绑 bin；仅精确 GET
+  `https://registry.npmjs.org/@mindfoldhq/trellis/latest` 走上游已有失败降级，不发网络、
+  不虚构远端版本。其它 URL/方法、独立 trellis、模板/迁移与降级拒绝保持上游行为。
+  不改 node_modules、不设置全局 NODE_OPTIONS；只在已管理的输出中说明跳过独立查询。
+- 全局 metadata 快路径需匹配 package name、合法 version/bin、bin 实际落在包根内和启动器归属。
+  POSIX 比较真实路径；Windows 只接受 prefix/trellis.cmd 的 npm Node 标准 shim 全文。
+  非标准、损坏或不匹配时回退原 `--version` 探测，不得用捆绑版本冒充全局版本。
+  同版本不安装；异版/缺失仍精确安装，保留 npx 和 postinstall 的既有边界。
+- 只有 `FLOWER_TIMING=1` 开启本地 stderr 计时；固定阶段名、单调时钟、开始/完成/失败，
+  不输出路径/argv/异常内容，不增加遥测。关闭时不读时钟；输出失败不能改变操作结果。
+  异常重抛，网络降级 `null`、数字非零、子进程失败或恢复 `ok=false` 标失败，保留原返回值。
+- update 总计包含子阶段，在完成菜单前结束；上游阶段明确含交互等待。
+  self-update 流程总计包含子进程交互等待，不能当作纯执行时间；父子耗时不得相加。
+  帮助先于计时；self-check JSON stdout 兼容。
+- `checkForUpdate()` 自己持有版本检查阶段的幂等结束函数；init/update 交互确认后的
+  全局安装也独立计时。安装成功直接 `process.exit(0)` 前，先结束安装、检查与已有父总计，
+  不能依赖退出后不会执行的外层 finally；安装失败记录失败耗时后仍继续原主流程。
+- 性能优化不能绕过快照、配置保留、冻结 Plugin、disabled 包装、校验或补偿恢复。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| 上游提示 GET | managed update 零发送，独立 trellis 照常请求 |
+| 同 URL 的 POST / 其它资源 | 原 fetch 原参透传 |
+| 标准有效全局入口 | 直接读实际版本，零版本探测子进程 |
+| 自定义/损坏入口 | 兼容探测；安装错误继续传播 |
+| 计时默认关闭 / help | 零计时输出；help stderr 为空 |
+| 恢复失败或子进程失败 | 阶段标失败，保留原结果/异常 |
+| 交互升级成功直接退出 | 安装、检查、父总计均有结束记录，退出 0 |
+| 交互升级安装失败 | 安装阶段标失败，继续原 init/update 降级流程 |
+
+### 5. Scenarios and Examples
+
+- 正常：`FLOWER_TIMING=1 ftl update --dry-run` 可看到全局同步、上游和 Plugin 阶段；
+  跨版本时先在项目外沙箱真实升级，原项目版本不变。
+- 基础：已有新鲜无更新缓存的 init/update 不联网；全局同版不启动完整 Trellis 取版本。
+- 错误：用 `node -e` 改 argv 启动上游。正确：执行真实 ESM 文件入口，避免 Commander
+  eval 模式重新解释 argv；URL 或上游实现改变时必须更新实际 bin 回归，不能只测试 mock。
+
+### 6. Tests Required
+
+- `update-check-performance.test.js`：无更新仅标签、缓存零请求、force、离线不续期、摘要
+  保留/补拉、响应体挂起及共享 deadline；隔离子进程断言交互升级成功退出前各阶段完成，
+  安装失败则标失败并继续，测试不得执行真实全局安装。
+- `managed-update-performance.test.js`：真实 init、PTY update、重复更新、跨版本沙箱、
+  特殊字符路径、独立上游对照、降级拒绝、配置保留、help/JSON 与卸载预演。
+- `global-trellis-sync-performance.test.js`：安装证据/标准 Windows shim、异常回退、同版
+  零探测零安装、异版精确安装与错误传播。
+- `operation-timing.test.js`：默认关闭、先开始再执行、成功/失败、幂等结束、输出失效。
+- `.github/workflows/update-performance.yml`：原生 Ubuntu/Windows 真实 CLI/PTY 回归。
+  保留完整 npm test 的事务、冻结外部 Plugin、disabled 与 ETARGET 回归；最终 SHA 必需 CI
+  成功前不能声称跨平台验收完成。
 
 ## Scenario: Update Command Passthrough Boundaries
 

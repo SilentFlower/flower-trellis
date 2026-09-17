@@ -4,10 +4,11 @@ import path from "node:path";
 import { readManifest, readUpdateCheck, writeUpdateCheck } from "./manifest.js";
 import {
   buildReleaseNotesSummary,
-  fetchPackageUpdateMetadata,
+  createUpdateMetadataReader,
   getUpdateRecommendation,
   isPrerelease,
 } from "./update-check.js";
+import { isRemoteCacheFresh, cachedReleaseNotes } from "./update-check-cache.js";
 import { isRunningViaNpx } from "./runtime-env.js";
 import { flowerVersion, trellisVersion } from "./versions.js";
 import { ProjectStore } from "../plugin/state/project-store.js";
@@ -35,48 +36,6 @@ function readProjectTrellisVersion(target) {
   } catch {
     return null;
   }
-}
-
-/** 判断远程探测缓存是否仍在 interval 内。 */
-function isRemoteCacheFresh(updateCheck, now = new Date()) {
-  if (updateCheck.lastStatus === "offline" || updateCheck.lastErrorCode) return false;
-  if (!updateCheck.lastRemote) return false;
-  if (!updateCheck.lastCheckedAt) return false;
-  const checkedAt = new Date(updateCheck.lastCheckedAt).getTime();
-  if (!Number.isFinite(checkedAt)) return false;
-  return now.getTime() - checkedAt < updateCheck.intervalHours * 60 * 60 * 1000;
-}
-
-/**
- * 判断缓存的 release notes 是否匹配本次检查范围。
- *
- * @param {object} updateCheck 归一化 updateCheck 配置
- * @param {{from:string|null,to:string|null,channel:string,reason:string}|null} range 本次期望范围
- * @returns {object|null} 可复用的缓存摘要
- */
-function cachedReleaseNotes(updateCheck, range) {
-  const cached = updateCheck.lastReleaseNotes;
-  if (!cached || !range || cached.unavailable) return null;
-  const cachedRange = cached.range || {};
-  if (
-    cachedRange.from !== range.from ||
-    cachedRange.to !== range.to ||
-    cachedRange.channel !== range.channel
-  ) {
-    return null;
-  }
-  if (!Array.isArray(cached.versions) || !cached.versions.length) return null;
-  // 同一版本范围的内容相同;reason 只是触发路径,不能让项目追平场景丢失摘要。
-  return {
-    ...cached,
-    range: {
-      ...cachedRange,
-      from: range.from,
-      to: range.to,
-      channel: range.channel,
-      reason: range.reason,
-    },
-  };
 }
 
 /**
@@ -544,7 +503,7 @@ export function safetyState(target, status, command) {
  * 构建启动自更新检查结果。
  *
  * @param {string} target 目标项目根
- * @param {{writeCache?: boolean, forceRemote?: boolean, fetchMetadata?: () => Promise<object|null>,onRemoteCheck?:()=>Promise<unknown>,recordPrompt?:boolean,ignorePromptSuppression?:boolean}} options 检查选项
+ * @param {{writeCache?:boolean,forceRemote?:boolean,fetchMetadata?:Function,fetchTags?:Function,fetchImpl?:Function,timeoutMs?:number,onRemoteCheck?:()=>Promise<unknown>,recordPrompt?:boolean,ignorePromptSuppression?:boolean}} [options] 检查选项
  * @returns {Promise<object>} 结构化检查结果
  */
 export async function buildSelfCheck(target, options = {}) {
@@ -552,9 +511,8 @@ export async function buildSelfCheck(target, options = {}) {
   const forceRemote = options.forceRemote === true;
   const recordPrompt = options.recordPrompt === true;
   const ignorePromptSuppression = options.ignorePromptSuppression === true;
-  const fetchMetadata = typeof options.fetchMetadata === "function"
-    ? options.fetchMetadata
-    : fetchPackageUpdateMetadata;
+  const reader = createUpdateMetadataReader(options);
+  const fetchMetadata = reader.readMetadata;
   const onRemoteCheck = typeof options.onRemoteCheck === "function"
     ? options.onRemoteCheck
     : null;
@@ -698,11 +656,11 @@ export async function buildSelfCheck(target, options = {}) {
     };
   }
 
-  const [metadata] = await Promise.all([
-    safeFetchPackageUpdateMetadata(fetchMetadata),
+  const [remoteTags] = await Promise.all([
+    reader.readTags(),
     onRemoteCheck ? Promise.resolve().then(onRemoteCheck).catch(() => null) : null,
   ]);
-  if (!metadata) {
+  if (!remoteTags) {
     const resultBase = persistRemoteCache({
       lastStatus: "offline",
       lastErrorCode: "fetch_failed",
@@ -726,17 +684,19 @@ export async function buildSelfCheck(target, options = {}) {
     };
   }
 
-  tags = metadata.tags;
+  tags = remoteTags;
   const recommendation = getUpdateRecommendation(currentFlower, tags);
   const remoteStatus = recommendation ? "update_available" : "up_to_date";
   const releaseNotesRange = recommendation
     ? updateReleaseNotesRange(currentFlower, recommendation)
-    : projectReleaseNotesRange(projectFlower, currentFlower);
-  const releaseNotes = releaseNotesFromMetadata(metadata, releaseNotesRange);
+    : projectOutOfSync ? projectReleaseNotesRange(projectFlower, currentFlower) : null;
+  const releaseNotes = cachedReleaseNotes(updateCheck, releaseNotesRange) || (releaseNotesRange
+    ? releaseNotesFromMetadata(await fetchMetadata(), releaseNotesRange)
+    : null);
   const resultBase = persistRemoteCache({
     lastCheckedAt: now.toISOString(),
     lastRemote: tags,
-    lastReleaseNotes: releaseNotes && !releaseNotes.unavailable ? releaseNotes : null,
+    ...(releaseNotes && !releaseNotes.unavailable ? { lastReleaseNotes: releaseNotes } : {}),
     lastStatus: remoteStatus,
     lastErrorCode: null,
   });

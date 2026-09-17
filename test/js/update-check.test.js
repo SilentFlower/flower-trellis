@@ -102,7 +102,7 @@ function cleanCliEnv(extra = {}) {
 
 function runFlowerCli(args, registryVersion = null) {
   // 该断言验证未知项目分支，不能依赖实时 registry 或意外触发全局升级。
-  const preload = registryVersion === null ? [] : ["--import", `data:text/javascript,${encodeURIComponent(`globalThis.fetch = async () => ({ ok: true, json: async () => (${JSON.stringify({ "dist-tags": { latest: registryVersion }, versions: {} })}) });`)}`];
+  const preload = registryVersion === null ? [] : ["--import", `data:text/javascript,${encodeURIComponent(`globalThis.fetch = async () => ({ ok: true, json: async () => (${JSON.stringify({ latest: registryVersion, "dist-tags": { latest: registryVersion }, versions: {} })}) });`)}`];
   return execFileSync(process.execPath, [...preload, CLI, ...args], {
     cwd: ROOT,
     encoding: "utf8",

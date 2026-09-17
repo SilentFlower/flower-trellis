@@ -1,3 +1,4 @@
+import { beginOperationTiming, timeOperation } from "../lib/operation-timing.js";
 import { observeTelemetryOperation, beginTelemetryOperation, completeTelemetryOperation } from "../lib/telemetry-operation.js";
 import { runTrellis, runTrellisPty } from "../lib/trellis-runner.js";
 import { hasHelpFlag, trellisUpdatePassthroughArgs } from "../lib/cli-args.js";
@@ -172,20 +173,20 @@ export async function replayPlugins(ctx, target, dryRun, compensationSnapshot = 
 }
 
 async function previewCrossVersionUpdate(ctx, currentVersion, targetVersion) {
-  const sandbox = createUpdateSandbox(ctx.target);
+  const sandbox = timeOperation("update", "创建沙箱", () => createUpdateSandbox(ctx.target));
   console.log(
     `· 跨版本 dry-run:在项目外沙箱预演 Trellis + Plugin (${currentVersion} → ${targetVersion})`,
   );
   try {
-    const code = await runTrellis(
+    const code = await timeOperation("update", "沙箱上游更新", () => runTrellis(
       ["update", ...sandboxTrellisUpdateArgs(ctx.passthrough)],
       sandbox.root,
-      { stripBanner: true },
-    );
+      { stripBanner: true, managedUpdate: true },
+    ));
     if (code !== 0) throw new Error(`沙箱 trellis update 失败(退出码 ${code})`);
-    await replayPlugins(ctx, sandbox.root, true);
+    await timeOperation("update", "沙箱插件预演", () => replayPlugins(ctx, sandbox.root, true));
   } finally {
-    disposeUpdateSandbox(sandbox);
+    timeOperation("update", "清理沙箱", () => disposeUpdateSandbox(sandbox));
   }
 }
 
@@ -240,7 +241,18 @@ function printBackupRetentionResult(result, output = console) {
  * @returns {Promise<void>} 升级、强化叠加与备份保留处理完成后返回
  */
 export async function update(ctx) {
-  return observeTelemetryOperation(ctx, "update", executeUpdate);
+  if (ctx.finishUpdateTiming || hasHelpFlag(ctx.passthrough)) {
+    return observeTelemetryOperation(ctx, "update", executeUpdate);
+  }
+  const finish = beginOperationTiming("update", "总计（包含子阶段）");
+  try {
+    return await observeTelemetryOperation({ ...ctx, finishUpdateTiming: finish }, "update", executeUpdate);
+  } catch (error) {
+    finish(false);
+    throw error;
+  } finally {
+    finish();
+  }
 }
 
 /** 执行已建立外部操作上下文的命令。
@@ -262,6 +274,7 @@ async function executeUpdate(ctx) {
       trellisControlExtendSnapshot: extendSnapshot,
     }));
     completeTelemetryOperation(ctx, "update");
+    ctx.finishUpdateTiming?.();
     await showCommandCompletion("update", ctx.target, { passthrough: ctx.passthrough, outcome: "success", output: ctx.trellisControlQuiet ? SILENT_OUTPUT : console });
     return result;
   }
@@ -292,34 +305,34 @@ async function executeUpdate(ctx) {
   await checkForUpdate(ctx, "update");
 
   output.log("\n同步全局 Trellis:");
-  syncGlobalTrellis({ logger: output, stdio: quiet ? "ignore" : "inherit" });
+  timeOperation("update", "同步全局Trellis", () => syncGlobalTrellis({ logger: output, stdio: quiet ? "ignore" : "inherit" }));
 
   try {
     compensationSnapshot = !dryRun && !ctx.enhanceOnly
-      ? createUpdateSnapshot(target)
+      ? timeOperation("update", "创建恢复快照", () => createUpdateSnapshot(target))
       : null;
     if (useUpdateSandbox) {
       await previewCrossVersionUpdate(ctx, currentTrellisVersion, targetTrellisVersion);
       updateSucceeded = true;
     } else if (!ctx.enhanceOnly) {
-      const code = await runTrellisPty(
+      const code = await timeOperation("update", "上游更新（含交互等待）", () => runTrellisPty(
         ["update", ...trellisUpdatePassthroughArgs(ctx.passthrough)],
         target,
-        { stripBanner: true, ...(quiet ? { stdout: SILENT_OUTPUT } : {}) },
-      );
+        { stripBanner: true, managedUpdate: true, ...(quiet ? { stdout: SILENT_OUTPUT } : {}) },
+      ));
       if (code !== 0) {
         throw Object.assign(new Error(`trellis update 失败(退出码 ${code}),已中止,未重新叠加`), { code: code === 130 ? "FLOWER_OPERATION_CANCELLED" : "FLOWER_UPSTREAM_FAILED" });
       }
-      await replayPlugins(ctx, target, dryRun, compensationSnapshot);
+      await timeOperation("update", "插件重放", () => replayPlugins(ctx, target, dryRun, compensationSnapshot));
       updateSucceeded = true;
     } else {
       output.log("· --enhance-only:跳过 trellis update,仅重新叠加强化包");
-      await replayPlugins(ctx, target, dryRun);
+      await timeOperation("update", "插件重放", () => replayPlugins(ctx, target, dryRun));
       updateSucceeded = true;
     }
   } catch (error) {
     if (compensationSnapshot) {
-      const recovery = restoreUpdateSnapshot(compensationSnapshot);
+      const recovery = timeOperation("update", "失败恢复", () => restoreUpdateSnapshot(compensationSnapshot));
       if (!recovery.ok) {
         output.error(`  ✗ Update 补偿恢复不完整;快照保留:${recovery.manifestPath}`);
         for (const failure of recovery.failedPaths) {
@@ -336,22 +349,22 @@ async function executeUpdate(ctx) {
     throw error;
   } finally {
     if (updateSucceeded && !dryRun && !ctx.enhanceOnly) {
-      const restored = restoreConfigPreserveSnapshot(target, configSnapshot);
+      const restored = timeOperation("update", "恢复本地配置", () => restoreConfigPreserveSnapshot(target, configSnapshot));
       if (restored.restored) {
         output.log(`  ✓ config.yaml 已保留本地配置: ${restored.keys.join(", ")}`);
       }
     }
     if (compensationSnapshot && (updateSucceeded || compensationRecovered)) {
-      disposeUpdateSnapshot(compensationSnapshot);
+      timeOperation("update", "清理快照", () => disposeUpdateSnapshot(compensationSnapshot));
     }
   }
 
   if (shouldManageBackups) {
-    const backupResult = pruneUpdateBackups(target, {
+    const backupResult = timeOperation("update", "清理旧备份", () => pruneUpdateBackups(target, {
       retention: backupRetention,
       beforeSnapshot: backupSnapshot,
       dryRun,
-    });
+    }));
     printBackupRetentionResult(backupResult, output);
   } else if (!ctx.enhanceOnly && backupRetention === 0) {
     output.log("  · --backup-retention 0:保留全部升级备份");
@@ -361,6 +374,7 @@ async function executeUpdate(ctx) {
   const telemetryPromise = dryRun
     ? null
     : reportTelemetry(target, "update_completed", { force: true });
+  if (!ctx.telemetryDeferCompletion) ctx.finishUpdateTiming?.();
   if (!ctx.telemetryDeferCompletion) await showCommandCompletion("update", target, {
     passthrough: ctx.passthrough,
     outcome: dryRun ? "preview" : "success",

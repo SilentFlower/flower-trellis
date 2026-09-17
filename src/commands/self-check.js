@@ -1,3 +1,4 @@
+import { timeOperation } from "../lib/operation-timing.js";
 import { buildSelfCheck } from "../lib/self-check.js";
 import { reportTelemetry } from "../lib/telemetry.js";
 import { hasHelpFlag } from "../lib/cli-args.js";
@@ -39,11 +40,11 @@ export async function selfCheck(ctx) {
   if (ctx.updateCheck === false) {
     process.env.FLOWER_NO_UPDATE_CHECK = "1";
   }
-  const result = await buildSelfCheck(ctx.target, {
+  const result = await timeOperation("self-check", "预检", () => buildSelfCheck(ctx.target, {
     forceRemote,
     ignorePromptSuppression: manual,
     recordPrompt: !manual,
     onRemoteCheck: () => reportTelemetry(ctx.target, "version_check"),
-  });
+  }));
   console.log(JSON.stringify(result, null, 2));
 }

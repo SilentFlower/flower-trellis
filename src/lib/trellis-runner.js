@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
@@ -89,14 +90,31 @@ const UPSTREAM_NOTICE_LINE_BUDGET = 40;
  * 让用户仍然知道版本检查发生过、以及为什么不需要照做。
  *
  * @param {string} line 未去色的原始输出行
+ * @param {{managedUpdate?:boolean}} [options] 是否使用 Flower 管理的更新入口
  * @returns {string|null|undefined} 替换文案;null 表示丢弃该行;undefined 表示不匹配
  */
-export function rewriteUpstreamUpgradeNotice(line) {
+export function rewriteUpstreamUpgradeNotice(line, options = {}) {
   const t = stripAnsi(line).trim();
+  if (options.managedUpdate && /^Latest on npm:\s+\(unable to fetch\)$/.test(t)) {
+    return "  · Trellis 版本由 Flower 固定，已跳过独立版本查询";
+  }
   const notice = UPSTREAM_UPGRADE_NOTICE.exec(t);
   if (notice) return `  · Trellis 版本由 Flower 固定(${notice[1]}),已忽略上游 npm 升级提示`;
   if (UPSTREAM_UPGRADE_ACTION.test(t)) return null;
   return undefined;
+}
+
+/**
+ * 构造捆绑 Trellis 启动参数，仅显式管理的 update 经过隔离引导。
+ * @param {string[]} args 原始上游参数
+ * @param {{managedUpdate?:boolean}} [options] 内部启动选项
+ * @returns {string[]} 传给 Node 的文件与参数
+ */
+export function trellisLaunchArgs(args, options = {}) {
+  const bin = resolveTrellisBin();
+  return options.managedUpdate && args[0] === "update"
+    ? [fileURLToPath(new URL("./trellis-update-entry.js", import.meta.url)), bin, ...args]
+    : [bin, ...args];
 }
 
 /**
@@ -106,14 +124,14 @@ export function rewriteUpstreamUpgradeNotice(line) {
  *
  * @param {string[]} args
  * @param {string} cwd
- * @param {object} [opts] { stripBanner }
+ * @param {object} [opts] { stripBanner, managedUpdate }
  * @returns {Promise<number>} 退出码(信号终止返回 128)
  */
 export function runTrellis(args, cwd, opts = {}) {
-  const bin = resolveTrellisBin();
+  const launchArgs = trellisLaunchArgs(args, opts);
   const strip = opts.stripBanner;
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [bin, ...args], {
+    const child = spawn(process.execPath, launchArgs, {
       cwd,
       stdio: strip ? ["inherit", "pipe", "inherit"] : "inherit",
       env: strip ? { ...process.env, FORCE_COLOR: "1" } : process.env,
@@ -122,7 +140,7 @@ export function runTrellis(args, cwd, opts = {}) {
       const banner = trellisBannerLines();
       const rl = createInterface({ input: child.stdout });
       rl.on("line", (line) => {
-        const notice = rewriteUpstreamUpgradeNotice(line);
+        const notice = rewriteUpstreamUpgradeNotice(line, { managedUpdate: opts.managedUpdate && args[0] === "update" });
         if (notice !== undefined) {
           if (notice !== null) process.stdout.write(notice + "\n");
           return;
@@ -156,11 +174,11 @@ export function runTrellis(args, cwd, opts = {}) {
  *
  * @param {string[]} args
  * @param {string} cwd
- * @param {object} [opts] { stripBanner, ptySpawn, stdin, stdout, platform }
+ * @param {object} [opts] { stripBanner, managedUpdate, ptySpawn, stdin, stdout, platform }
  * @returns {Promise<number>} 退出码(信号终止返回 128)
  */
 export function runTrellisPty(args, cwd, opts = {}) {
-  const bin = resolveTrellisBin();
+  const launchArgs = trellisLaunchArgs(args, opts);
   const stdin = opts.stdin || process.stdin;
   const stdout = opts.stdout || process.stdout;
   const platform = opts.platform ?? process.platform;
@@ -168,7 +186,7 @@ export function runTrellisPty(args, cwd, opts = {}) {
   return new Promise((resolve, reject) => {
     let child;
     try {
-      child = ptySpawn(process.execPath, [bin, ...args], {
+      child = ptySpawn(process.execPath, launchArgs, {
         name: "xterm-256color",
         cols: stdout.columns || 80,
         rows: stdout.rows || 30,
@@ -211,7 +229,7 @@ export function runTrellisPty(args, cwd, opts = {}) {
           stdout.write(line + "\r\n");
           continue;
         }
-        const notice = rewriteUpstreamUpgradeNotice(line);
+        const notice = rewriteUpstreamUpgradeNotice(line, { managedUpdate: opts.managedUpdate && args[0] === "update" });
         if (notice !== undefined) {
           if (notice !== null) stdout.write(notice + "\r\n");
           continue;

@@ -241,12 +241,35 @@ flower-trellis plugin add flower/flower-plugin-author --platform codex --json
 
 运行 `init` / `update` 时,flower-trellis 会顺带检测**自身**在 npm 上是否有新版本:
 
-- **联网、尽力而为**:带 5s 超时,离线 / 超时 / 失败一律静默跳过,绝不阻断安装/升级主流程。
+- **缓存与轻量查询**:复用有效的远程检查缓存；需要联网时先读取版本标签，只有新版摘要需要时才补拉完整发布说明。两次读取共用 5s 网络预算（含响应体），失败不阻断安装/升级。
 - **稳定版安装**:只跟随 npm `latest` 通道;发现稳定新版时安装已确认的精确版本,并使用 `--prefer-online` 避免旧 metadata 缓存。
 - **beta 版安装**:版本号形如 `0.3.0-beta.1`,会同时检查 `beta` 与 `latest`;若 `latest` 已高于当前 beta,优先回归稳定版,否则安装已确认的精确 beta 版本。
 - **发现新版**(交互终端):提示并询问是否立即升级;同意则执行推荐的安装命令,成功后请按提示重新运行命令(升级后强化包随新版更新,可再跑一次 `ft update` 重新叠加)。
 - **非交互**(`-y` 或非 TTY):仅打印一行升级提示,不弹确认、不阻塞。
 - **跳过检测**:经 `npx` 运行(本就是最新版)、或显式 `--no-update-check` / `FLOWER_NO_UPDATE_CHECK=1` 时不检测。
+
+### 更新耗时诊断
+
+更新慢时可用 `FLOWER_TIMING=1` 输出本地阶段耗时，定位版本检查、全局安装、全局 Trellis 同步、快照、上游更新、Plugin 重放或清理中的等待：
+
+```bash
+FLOWER_TIMING=1 ftl update
+FLOWER_TIMING=1 ftl self-update --target . --yes
+```
+
+PowerShell：
+
+```powershell
+$env:FLOWER_TIMING = "1"
+ftl update
+Remove-Item Env:FLOWER_TIMING
+```
+
+计时写入 stderr，默认关闭，不增加遥测，也不输出参数、项目路径或配置内容；`self-check --json` 的 stdout 仍是 JSON。父阶段包含子阶段，不能把它们相加：`update` 总计在完成菜单前结束，上游阶段可能包含冲突处理等待；`self-update` 流程总计还包含子进程交互等待。全局安装阶段包含 npm 下载、解包、原生模块准备和 postinstall，具体慢在哪里需结合 npm 输出判断。
+
+Flower 驱动的更新会跳过捆绑 Trellis 的独立 npm 新版提示查询；独立运行 `trellis` 仍按上游行为检查。标准全局安装通过实际包与启动器证据读取版本，无法证明归属时继续执行兼容探测。
+
+开发者可运行 `node scripts/benchmark-update.mjs <优化前提交>`：在临时项目中以 0/200/1000ms 受控延迟对比至少五轮检查，并运行完整 `update --dry-run` 对照。脚本不联网、不执行全局安装；结果用于比较该环境的阶段成本，不代表真实 npm 下载速度。
 
 ### 启动更新检查
 

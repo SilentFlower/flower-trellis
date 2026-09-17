@@ -1,3 +1,6 @@
+import { beginOperationTiming, timeOperation } from "./operation-timing.js";
+import { performance } from "node:perf_hooks";
+import { isRemoteCacheFresh, cachedReleaseNotes } from "./update-check-cache.js";
 import { spawnSync } from "node:child_process";
 import { confirm } from "@inquirer/prompts";
 import chalk from "chalk";
@@ -84,52 +87,91 @@ function parseReleaseNotesByVersion(json) {
 }
 
 /**
- * 取 npm 上 flower-trellis 的更新 metadata。
- *
- * 一次请求 registry 根文档,同时解析 dist-tags 与各版本的 flowerReleaseNotes。任何失败
- * (离线/超时/非 200/解析异常)一律返回 null,调用方继续主流程。
- *
- * @returns {Promise<{tags:{latest:string|null,beta:string|null},releaseNotesByVersion:Record<string,{version:string,body:string,truncated:boolean,source:string}>}|null>} 更新 metadata
+ * 在同一截止时间内读取 registry JSON，预算覆盖响应头及完整响应体。
+ * @param {string} endpoint registry 相对路径
+ * @param {{deadline?:number,timeoutMs?:number,fetchImpl?:Function}} [options] 请求预算与测试替身
+ * @returns {Promise<object|null>} JSON 或降级空值
  */
-export async function fetchPackageUpdateMetadata() {
+async function fetchRegistryJson(endpoint, options = {}) {
+  const remaining = (options.deadline ?? performance.now() + (options.timeoutMs ?? TIMEOUT_MS)) - performance.now();
+  if (remaining <= 0) return null;
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), TIMEOUT_MS);
+  // Node 会截断小数毫秒；向上取整避免提前 abort 后误以为还有预算再发请求。
+  const timer = setTimeout(() => ac.abort(), Math.ceil(remaining));
   try {
-    const res = await fetch(`${REGISTRY}/${PKG}`, {
+    const res = await (options.fetchImpl || fetch)(`${REGISTRY}/${endpoint}`, {
       signal: ac.signal,
       headers: { Accept: "application/json" },
     });
-    if (!res.ok) return null; // 非 200(404/5xx 等)→ 静默跳过
-    const json = await res.json();
-    const tags = parseDistTags(json);
-    if (!tags) return null;
-    return {
-      tags,
-      releaseNotesByVersion: parseReleaseNotesByVersion(json),
-    };
+    if (!res.ok) {
+      await res.body?.cancel();
+      return null;
+    }
+    return await res.json();
   } catch {
-    return null; // AbortError(超时)/ fetch failed(离线)/ JSON 解析失败 → 静默
+    return null;
   } finally {
     clearTimeout(timer);
   }
 }
 
 /**
- * 取 npm 上 flower-trellis 的 dist-tags;任何失败(离线/超时/非 200/解析异常)一律
- * 返回 null —— 调用方据此「拿不到就当没这回事」继续主流程。
- *
- * 用 AbortController 给内置 fetch 加超时,finally 清除定时器防句柄泄漏。
- * @returns {Promise<{latest:string|null,beta:string|null}|null>} 可用 dist-tags,或失败时 null
+ * 读取完整版本 metadata；仅在需要发布说明时调用。
+ * @param {{deadline?:number,timeoutMs?:number,fetchImpl?:Function}} [options] 共享网络预算
+ * @returns {Promise<{tags:object,releaseNotesByVersion:object}|null>} 版本与发布说明
  */
-export async function fetchPackageDistTags() {
-  const metadata = await fetchPackageUpdateMetadata();
-  return metadata?.tags ?? null;
+export async function fetchPackageUpdateMetadata(options = {}) {
+  const json = await fetchRegistryJson(PKG, options);
+  const tags = parseDistTags(json);
+  return tags ? { tags, releaseNotesByVersion: parseReleaseNotesByVersion(json) } : null;
+}
+
+/**
+ * 仅查询 npm dist-tags，避免无更新时下载全部历史版本。
+ * @param {{deadline?:number,timeoutMs?:number,fetchImpl?:Function}} [options] 共享网络预算
+ * @returns {Promise<{latest:string|null,beta:string|null}|null>} 版本标签或降级空值
+ */
+export async function fetchPackageDistTags(options = {}) {
+  const json = await fetchRegistryJson(`-/package/${PKG}/dist-tags`, options);
+  return parseDistTags({ "dist-tags": json });
+}
+
+/**
+ * 为一次检查创建按需读取器；标签与摘要共享预算，完整 metadata 至多读取一次。
+ * @param {{fetchMetadata?:Function,fetchTags?:Function,timeoutMs?:number,fetchImpl?:Function}} [options] 请求替身与预算
+ * @returns {{readTags:Function,readMetadata:Function}} 延迟执行的读取接口
+ */
+export function createUpdateMetadataReader(options = {}) {
+  let deadline;
+  let metadata;
+  const requestOptions = () => {
+    deadline ??= performance.now() + (options.timeoutMs ?? TIMEOUT_MS);
+    return { deadline, fetchImpl: options.fetchImpl };
+  };
+  const readMetadata = () => {
+    metadata ??= timeOperation("版本检查", "读取发布说明", () => Promise.resolve().then(() => (
+      (options.fetchMetadata || fetchPackageUpdateMetadata)(requestOptions())
+    )).catch(() => null));
+    return metadata;
+  };
+  return {
+    readMetadata,
+    async readTags() {
+      // 保留已有完整 metadata 注入点；生产默认始终使用独立的轻量 endpoint。
+      if (options.fetchMetadata && !options.fetchTags) return (await readMetadata())?.tags ?? null;
+      try {
+        return await timeOperation("版本检查", "读取版本标签", () => (options.fetchTags || fetchPackageDistTags)(requestOptions()));
+      } catch {
+        return null;
+      }
+    },
+  };
 }
 
 /**
  * 取 npm 上 flower-trellis 的 latest 版本号。
  *
- * 保留这个导出是为了兼容已有调用方;新逻辑应优先使用 `fetchPackageUpdateMetadata()`。
+ * 保留这个导出是为了兼容已有调用方；新逻辑使用按需读取器共享标签与摘要的网络预算。
  * @returns {Promise<string|null>} latest 版本号,或失败时 null
  */
 export async function fetchLatestVersion() {
@@ -422,7 +464,6 @@ function rememberRemoteTags(target, tags, status, releaseNotes = null) {
       lastRemote: tags,
       lastStatus: status,
       lastErrorCode: null,
-      lastReleaseNotes: null,
     };
     if (releaseNotes && !releaseNotes.unavailable) {
       patch.lastReleaseNotes = releaseNotes;
@@ -450,10 +491,30 @@ function rememberRemoteTags(target, tags, status, releaseNotes = null) {
  *
  * @param {object} ctx cli-args.js parseCliArgs() 产出的上下文(用到 updateCheck / passthrough)
  * @param {string} commandLabel 当前命令名,用于「请重新运行 ft <command>」文案(如 "init"/"update")
- * @param {{fetchMetadata?:typeof fetchPackageUpdateMetadata,report?:typeof reportTelemetry}} [options] 测试替换项
+ * @param {{fetchMetadata?:Function,fetchTags?:Function,fetchImpl?:Function,timeoutMs?:number,report?:Function,confirm?:Function,install?:Function}} [options] 测试替换项
  * @returns {Promise<void>} 注意:用户确认升级且成功时本函数会直接退出进程,不返回
  */
 export async function checkForUpdate(ctx, commandLabel, options = {}) {
+  const finish = beginOperationTiming(commandLabel, "版本检查（含确认等待）");
+  try {
+    return await executeCheckForUpdate(ctx, commandLabel, options, finish);
+  } catch (error) {
+    finish(false);
+    throw error;
+  } finally {
+    finish();
+  }
+}
+
+/**
+ * 执行版本提示与可选升级；直接退出前必须先冻结诊断阶段。
+ * @param {object} ctx 命令上下文
+ * @param {string} commandLabel 命令名
+ * @param {object} options 测试替身
+ * @param {Function} finish 版本检查阶段的幂等结束函数
+ * @returns {Promise<void>} 未升级退出时返回
+ */
+async function executeCheckForUpdate(ctx, commandLabel, options, finish) {
   // 1. 关闭开关:显式 flag 或环境变量
   if (ctx.updateCheck === false || process.env.FLOWER_NO_UPDATE_CHECK) return;
   const updateCheck = readUpdateCheck(ctx.target);
@@ -461,35 +522,37 @@ export async function checkForUpdate(ctx, commandLabel, options = {}) {
   // 2. npx 本就是最新版,跳过(连通知都不打,避免误导)
   if (isRunningViaNpx(import.meta.url)) return;
 
-  // 3. 尽力而为取 dist-tags;拿不到就静默退出
-  const fetchMetadata = options.fetchMetadata || fetchPackageUpdateMetadata;
+  const reader = createUpdateMetadataReader(options);
+  const fromCache = isRemoteCacheFresh(updateCheck);
   const report = options.report || reportTelemetry;
-  const [metadata] = await Promise.all([
-    fetchMetadata(),
-    Promise.resolve()
-      .then(() => report(ctx.target, "version_check"))
-      .catch(() => null),
+  if (!fromCache) console.log("  · 正在检查 Flower 版本");
+  const [tags] = fromCache ? [updateCheck.lastRemote] : await Promise.all([
+    reader.readTags(),
+    Promise.resolve().then(() => report(ctx.target, "version_check")).catch(() => null),
   ]);
-  if (!metadata) return;
-  const tags = metadata.tags;
+  if (!tags) return;
 
-  // 4. 根据本地版本通道生成推荐;无推荐时不打扰
   const current = flowerVersion();
   const recommendation = getUpdateRecommendation(current, tags);
-  const releaseNotes = recommendation
-    ? buildReleaseNotesSummary(metadata.releaseNotesByVersion, {
-        from: current,
-        to: recommendation.version,
-        channel: recommendation.tag,
-        reason: "update_available",
-      })
-    : null;
-  rememberRemoteTags(
-    ctx.target,
-    tags,
-    recommendation ? "update_available" : "up_to_date",
-    releaseNotes,
-  );
+  const range = recommendation ? {
+    from: current,
+    to: recommendation.version,
+    channel: recommendation.tag,
+    reason: "update_available",
+  } : null;
+  const releaseNotes = cachedReleaseNotes(updateCheck, range) || (range
+    ? buildReleaseNotesSummary((await reader.readMetadata())?.releaseNotesByVersion, range)
+    : null);
+  if (!fromCache) {
+    rememberRemoteTags(ctx.target, tags, recommendation ? "update_available" : "up_to_date", releaseNotes);
+  } else if (releaseNotes && !releaseNotes.unavailable) {
+    // 摘要补拉不能把旧标签伪装成刚确认的远端版本。
+    try {
+      if (readManifest(ctx.target) || new ProjectStore(ctx.target).readLock()) {
+        writeUpdateCheck(ctx.target, { lastReleaseNotes: releaseNotes });
+      }
+    } catch { /* 缓存失败不阻断更新。 */ }
+  }
   if (!recommendation) return;
 
   // 5. 打印发现新版本通知(粉色品牌色,与 banner 一致)
@@ -511,7 +574,7 @@ export async function checkForUpdate(ctx, commandLabel, options = {}) {
   }
 
   // 7. 交互:询问是否升级(@inquirer/confirm,返回 boolean)
-  const doUpgrade = await confirm({
+  const doUpgrade = await (options.confirm || confirm)({
     message: `是否现在升级到 ${recommendation.version}(${recommendation.tag})?(升级后需重新运行命令)`,
     default: true,
   });
@@ -521,11 +584,16 @@ export async function checkForUpdate(ctx, commandLabel, options = {}) {
   }
 
   // 8. 执行全局升级。失败(含 EACCES 权限问题、npm 不存在)不自行提权,降级为打印手动命令
-  const res = installFlowerVersion(recommendation.version);
+  const res = timeOperation(commandLabel, "全局安装（含依赖与postinstall）", () => (
+    (options.install || installFlowerVersion)(recommendation.version)
+  ));
   if (res.status === 0) {
     console.log(`\n  ✓ 已升级到 ${recommendation.version}(${recommendation.tag})`);
     console.log(`  · 请重新运行 ft ${commandLabel} 以使用新版本`);
     console.log("  · 强化包随版本更新,升级后可 ft update 重新叠加到现有项目");
+    // process.exit 不会展开调用者的 finally；成功升级的旧进程退出前先结束阶段与父总计。
+    finish();
+    ctx.finishUpdateTiming?.();
     // 当前进程内存里仍是旧代码,必须退出由用户重跑新版本(不做 re-exec,规避权限/平台/进程态坑)
     process.exit(0);
   } else {

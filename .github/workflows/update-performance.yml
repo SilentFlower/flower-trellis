@@ -1,0 +1,73 @@
+name: 更新链路跨平台回归
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/update-performance.yml"
+      - "src/**"
+      - "bin/**"
+      - "scripts/**"
+      - "test/**"
+      - "enhancements/**"
+      - "vendor/skill-garden"
+      - "package*.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-performance.yml"
+      - "src/**"
+      - "bin/**"
+      - "scripts/**"
+      - "test/**"
+      - "enhancements/**"
+      - "vendor/skill-garden"
+      - "package*.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update-contract:
+    name: ${{ matrix.os }} / Node 22
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      FLOWER_NO_TELEMETRY: "1"
+      PYTHONUTF8: "1"
+      TRELLIS_PYTHON_CMD: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: 安装依赖，避免项目全局同步 postinstall
+        run: npm ci --ignore-scripts
+      - name: 准备真实 PTY
+        run: npm rebuild node-pty
+      - name: 验证真实更新、缓存预算、全局快路径与终端恢复
+        run: >-
+          node --test
+          test/js/managed-update-performance.test.js
+          test/js/global-trellis-sync-performance.test.js
+          test/js/update-check-performance.test.js
+          test/js/operation-timing.test.js
+          test/js/update-check.test.js
+          test/js/flower-update-contract.test.js
+          test/js/flower-update-windows.test.js
+          test/js/update-backups.test.js
+          test/js/trellis-runner-output.test.js
+          test/js/terminal-state.test.js
+          test/js/trellis-control.test.js
+          test/js/plugin-skill-garden.test.js
+          test/js/plugin-transaction-writer.test.js
