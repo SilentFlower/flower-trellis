@@ -131,6 +131,24 @@ test("超时覆盖响应体，并在标签用尽预算后不再启动摘要请�
   assert.equal(calls, 1);
 });
 
+test("计时器先于单调时钟截止值唤醒后，共享预算仍永久耗尽", async (t) => {
+  const schedule = globalThis.setTimeout;
+  // 固定重现 CI 中时钟与计时器边界不同步，不依赖 25ms 的偶发调度时机。
+  t.mock.method(globalThis, "setTimeout", (callback) => schedule(callback, 1));
+  let calls = 0;
+  const reader = createUpdateMetadataReader({
+    timeoutMs: 60_000,
+    fetchImpl: async (_url, { signal }) => {
+      calls++;
+      return { ok: true, json: () => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("超时")), { once: true })) };
+    },
+  });
+  assert.equal(await reader.readTags(), null);
+  assert.equal(await reader.readMetadata(), null);
+  assert.equal(await reader.readTags(), null);
+  assert.equal(calls, 1);
+});
+
 test("关闭自动检查不联网且不触发遥测", async (t) => {
   const root = target(t);
   writeUpdateCheck(root, { policy: "off" });

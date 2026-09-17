@@ -89,14 +89,14 @@ function parseReleaseNotesByVersion(json) {
 /**
  * 在同一截止时间内读取 registry JSON，预算覆盖响应头及完整响应体。
  * @param {string} endpoint registry 相对路径
- * @param {{deadline?:number,timeoutMs?:number,fetchImpl?:Function}} [options] 请求预算与测试替身
+ * @param {{deadline?:number,timeoutMs?:number,fetchImpl?:Function,abortController?:AbortController}} [options] 请求预算与测试替身
  * @returns {Promise<object|null>} JSON 或降级空值
  */
 async function fetchRegistryJson(endpoint, options = {}) {
   const remaining = (options.deadline ?? performance.now() + (options.timeoutMs ?? TIMEOUT_MS)) - performance.now();
-  if (remaining <= 0) return null;
-  const ac = new AbortController();
-  // Node 会截断小数毫秒；向上取整避免提前 abort 后误以为还有预算再发请求。
+  const ac = options.abortController ?? new AbortController();
+  if (remaining <= 0 || ac.signal.aborted) return null;
+  // 共享取消状态持久记录超时，避免计时器与单调时钟边界不同步时再次发请求。
   const timer = setTimeout(() => ac.abort(), Math.ceil(remaining));
   try {
     const res = await (options.fetchImpl || fetch)(`${REGISTRY}/${endpoint}`, {
@@ -117,7 +117,7 @@ async function fetchRegistryJson(endpoint, options = {}) {
 
 /**
  * 读取完整版本 metadata；仅在需要发布说明时调用。
- * @param {{deadline?:number,timeoutMs?:number,fetchImpl?:Function}} [options] 共享网络预算
+ * @param {{deadline?:number,timeoutMs?:number,fetchImpl?:Function,abortController?:AbortController}} [options] 共享网络预算
  * @returns {Promise<{tags:object,releaseNotesByVersion:object}|null>} 版本与发布说明
  */
 export async function fetchPackageUpdateMetadata(options = {}) {
@@ -128,7 +128,7 @@ export async function fetchPackageUpdateMetadata(options = {}) {
 
 /**
  * 仅查询 npm dist-tags，避免无更新时下载全部历史版本。
- * @param {{deadline?:number,timeoutMs?:number,fetchImpl?:Function}} [options] 共享网络预算
+ * @param {{deadline?:number,timeoutMs?:number,fetchImpl?:Function,abortController?:AbortController}} [options] 共享网络预算
  * @returns {Promise<{latest:string|null,beta:string|null}|null>} 版本标签或降级空值
  */
 export async function fetchPackageDistTags(options = {}) {
@@ -144,9 +144,10 @@ export async function fetchPackageDistTags(options = {}) {
 export function createUpdateMetadataReader(options = {}) {
   let deadline;
   let metadata;
+  const abortController = new AbortController();
   const requestOptions = () => {
     deadline ??= performance.now() + (options.timeoutMs ?? TIMEOUT_MS);
-    return { deadline, fetchImpl: options.fetchImpl };
+    return { deadline, fetchImpl: options.fetchImpl, abortController };
   };
   const readMetadata = () => {
     metadata ??= timeOperation("版本检查", "读取发布说明", () => Promise.resolve().then(() => (

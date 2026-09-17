@@ -194,3 +194,27 @@ test("退出时补发缓冲区里未换行的最后一行", async () => {
 
   assert.equal(text, "Trellis Update\r\nScanning for changes...");
 });
+
+for (const raw of [false, true]) {
+  test(`受管 PTY 在${raw ? "交互透传" : "按行过滤"}前始终说明跳过独立查询`, async () => {
+    const output = new FakeOutput();
+    const child = createFakePty();
+    const result = runTrellisPty(["update"], "/demo", {
+      stripBanner: true,
+      managedUpdate: true,
+      platform: "win32",
+      stdin: new FakeInput(),
+      stdout: output,
+      ptySpawn: () => child,
+    });
+    const data = `${raw ? "\x1b[?25l" : ""}Trellis Update\r\nLatest on npm: (unable to fetch)\r\n`;
+    child.emitData(data);
+    child.emitExit({ exitCode: 0 });
+    assert.equal(await result, 0);
+    const text = output.chunks.join("");
+    const message = "Trellis 版本由 Flower 固定，已跳过独立版本查询";
+    assert.equal(text.split(message).length - 1, 1);
+    assert.ok(text.indexOf(message) < text.indexOf("Trellis Update"));
+    if (raw) assert.ok(text.includes(data), "交互控制序列和正文必须原样透传");
+  });
+}

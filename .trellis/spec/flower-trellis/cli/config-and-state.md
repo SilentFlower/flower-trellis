@@ -85,8 +85,10 @@ gitignored 的 `.flower/update-check.tmp` 运行缓存)。旧 `.trellis/.flower-
 - release notes 摘要上限固定为最多 5 个版本、单版本 500 字符、总计 1600 字符;截断或还有
   更多版本时必须设置 `truncated` / `moreVersions`。
 - **超时**：一轮标签与必要摘要共用 `performance.now()` 计算的 5000ms deadline，
-  包含响应体读取；第二次请求仅使用剩余预算，耗尽后不再请求。`AbortController` 的
-  timer 对剩余小数毫秒向上取整，防止 Node 截断后提前中止却仍有残余预算；finally 清 timer。
+  包含响应体读取；第二次请求仅使用剩余预算，耗尽后不再请求。读取器通过请求选项
+  `abortController` 共享取消状态；计时器一旦触发请求取消，后续请求直接返回 null，即使单调时钟
+  尚未达到 deadline。timer 对剩余小数毫秒向上取整，finally 清 timer；不能只靠时钟复查
+  判断是否已经超时，也不能在每次请求时重建共享取消状态。
 - **三道防线 → `null`**:① `!res.ok`(非 200);② `catch`(AbortError 超时 / `fetch failed`
   离线 / JSON 解析失败);③ 字段类型不符(`dist-tags.latest` / `dist-tags.beta` 都不是字符串)。
   `flowerReleaseNotes` 缺失或损坏只影响摘要,不得影响版本判断。
@@ -174,7 +176,8 @@ gitignored 的 `.flower/update-check.tmp` 运行缓存)。旧 `.trellis/.flower-
 ### 6. Tests Required
 
 - `update-check-performance.test.js`：无更新仅标签、缓存零请求、force、离线不续期、摘要
-  保留/补拉、响应体挂起及共享 deadline；隔离子进程断言交互升级成功退出前各阶段完成，
+  保留/补拉、响应体挂起及共享 deadline；强制计时器早于 deadline 唤醒，断言后续标签和
+  摘要读取均不再发请求；隔离子进程断言交互升级成功退出前各阶段完成，
   安装失败则标失败并继续，测试不得执行真实全局安装。
 - `managed-update-performance.test.js`：真实 init、PTY update、重复更新、跨版本沙箱、
   特殊字符路径、独立上游对照、降级拒绝、配置保留、help/JSON 与卸载预演。

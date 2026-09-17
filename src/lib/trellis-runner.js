@@ -73,6 +73,9 @@ const UPSTREAM_UPGRADE_NOTICE = /Your CLI \(([^)]+)\) is behind npm\b/;
  */
 const UPSTREAM_UPGRADE_ACTION = /^Run:\s*trellis upgrade$/;
 
+/** 受管更新由宿主说明版本查询策略，避免依赖上游终端输出格式。 */
+const MANAGED_UPDATE_NOTICE = "  · Trellis 版本由 Flower 固定，已跳过独立版本查询";
+
 /**
  * 正文开始后继续按行过滤的行数上限。
  *
@@ -96,7 +99,7 @@ const UPSTREAM_NOTICE_LINE_BUDGET = 40;
 export function rewriteUpstreamUpgradeNotice(line, options = {}) {
   const t = stripAnsi(line).trim();
   if (options.managedUpdate && /^Latest on npm:\s+\(unable to fetch\)$/.test(t)) {
-    return "  · Trellis 版本由 Flower 固定，已跳过独立版本查询";
+    return MANAGED_UPDATE_NOTICE;
   }
   const notice = UPSTREAM_UPGRADE_NOTICE.exec(t);
   if (notice) return `  · Trellis 版本由 Flower 固定(${notice[1]}),已忽略上游 npm 升级提示`;
@@ -179,6 +182,7 @@ export function runTrellis(args, cwd, opts = {}) {
  */
 export function runTrellisPty(args, cwd, opts = {}) {
   const launchArgs = trellisLaunchArgs(args, opts);
+  const managedUpdate = opts.managedUpdate && args[0] === "update";
   const stdin = opts.stdin || process.stdin;
   const stdout = opts.stdout || process.stdout;
   const platform = opts.platform ?? process.platform;
@@ -199,6 +203,8 @@ export function runTrellisPty(args, cwd, opts = {}) {
       return;
     }
 
+    // ConPTY 可能从首帧就进入原样透传；在转发前说明策略，不改写交互控制序列。
+    if (managedUpdate) stdout.write(MANAGED_UPDATE_NOTICE + "\r\n");
     const bannerSet = trellisBannerLines();
     let phase = opts.stripBanner ? "header" : "raw";
     let noticeBudget = UPSTREAM_NOTICE_LINE_BUDGET;
@@ -229,9 +235,9 @@ export function runTrellisPty(args, cwd, opts = {}) {
           stdout.write(line + "\r\n");
           continue;
         }
-        const notice = rewriteUpstreamUpgradeNotice(line, { managedUpdate: opts.managedUpdate && args[0] === "update" });
+        const notice = rewriteUpstreamUpgradeNotice(line, { managedUpdate });
         if (notice !== undefined) {
-          if (notice !== null) stdout.write(notice + "\r\n");
+          if (notice !== null && !(managedUpdate && notice === MANAGED_UPDATE_NOTICE)) stdout.write(notice + "\r\n");
           continue;
         }
         if (phase === "header") {

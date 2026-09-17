@@ -198,7 +198,7 @@ assertTarget(ctx.target);
 - `disableWindowsTerminalWin32InputMode(options?) -> boolean`
 - `installWindowsTerminalInputRecovery(options?) -> () => void`
 - `scheduleWindowsTerminalExit(options?) -> boolean`
-- `runTrellisPty(args, cwd, { stripBanner?, ptySpawn?, stdin?, stdout?, platform? }) -> Promise<number>`
+- `runTrellisPty(args, cwd, { stripBanner?, managedUpdate?, ptySpawn?, stdin?, stdout?, platform? }) -> Promise<number>`
 
 #### 3. Contracts
 
@@ -209,6 +209,9 @@ assertTarget(ctx.target);
 - `runTrellisPty` 退出时必须先停止子进程输出订阅,再移除 input/resize 监听、恢复 stdin
   原有 raw/flowing 状态,最后关闭 Win32 Input Mode;信号退出仍返回 `128`。
 - PTY spawn 同步失败也要执行终端恢复;恢复失败属于退出期 best-effort,不能覆盖原异常。
+- 受管 `update` 在 PTY spawn 成功后、转发输出前由宿主说明跳过独立版本查询；按行模式
+  抑制同一说明的重复输出。ConPTY 可能从首帧就触发 raw 模式，不能依赖按行替换显示
+  必要说明，也不能为了改写提示而破坏 raw 模式下的交互控制序列。
 - `scheduleWindowsTerminalExit` 在 Windows 完成页选择 `退出` 或顶层 `init` / `update`
   已完成收尾后生效；它必须恢复 raw/input、显示光标、关闭 Win32 Input Mode，并延后一轮
   显式退出（默认 0，可传入已有 `exitCode`），避免残留 worker / socket 让命令永久挂起。
@@ -224,6 +227,7 @@ assertTarget(ctx.target);
 | PTY 正常退出 | 清理监听与输入状态,恢复终端,返回子进程退出码 |
 | PTY 信号退出 | 完成同样清理,返回 `128` |
 | PTY spawn 抛错 | 恢复终端后 reject 原异常 |
+| 受管 update 首帧进入 raw | 宿主说明已输出，后续正文与控制序列原样透传 |
 | Windows 完成页选择 `退出` | 恢复终端后显式退出 0，不等待残留 PTY 句柄自然释放 |
 | Windows 顶层 init/update 非交互完成 | 等收尾和输出排空，保留退出码并显式退出；不显示菜单或写控制序列 |
 
@@ -241,6 +245,8 @@ assertTarget(ctx.target);
 - PTY 回归测试模拟 `9001h` 后退出,断言 data/input/resize 监听已移除、raw/flowing 状态恢复、
   最后输出为 `9001l`,并立即调用父级完成菜单验证接管顺序。
 - 分别覆盖正常退出、信号退出、spawn 异常和输出流关闭。
+- 受管 update 分别覆盖按行与首帧 raw，断言宿主说明在正文之前且仅出现一次，raw
+  数据原样保留；未受管命令不增加该说明。
 - 完成页测试注入 Windows 终端和退出函数，断言选择 `退出` 后按 raw mode、光标、Win32
   Input Mode、退出码 0 的顺序完成收尾；发版前在真实 Windows ConPTY 中断言进程按时结束。
 - 非交互测试断言零控制序列、延后退出及非零退出码保留；原生 Windows CI 真实执行
