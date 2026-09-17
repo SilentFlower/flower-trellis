@@ -121,6 +121,9 @@ resolve_task_reference(task_ref: str, repo_root: Path) -> Path
 - `task.py current` 成功读取 runtime 后始终返回 `0`。无活动任务时，文本输出
   `No current task set`，`--source` 输出 `Current task: (none)`，`--json` 输出
   `current_task: null`。严格调用方必须解析结构化结果或调用 `common.active_task`。
+- `resolve_active_task()` 已解析到稳定 context key、但对应 session 文件缺失或没有
+  `current_task` 时，必须返回该 session 的无任务结果，不得继承唯一旧 session。只有完全无法解析
+  context key 时，才允许 `session-fallback` 支持不继承父会话 ID 的 pull-based sub-agent。
 - `untracked_flow.py status` 在 session 已绑定活动任务时返回 `status=not-applicable`、
   `reason=active-task-present` 和 `task`，退出 `0`；`begin`、`advance`、`clear` 等写入或迁移动作
   继续执行活动任务互斥门禁。
@@ -141,6 +144,8 @@ resolve_task_reference(task_ref: str, repo_root: Path) -> Path
 | 条件 | 退出/结果 |
 |------|-----------|
 | `current` 无活动任务 | `0`；文本明确无任务或 JSON `current_task=null` |
+| 已知新 session 无任务指针，运行时只有一个旧 session | 当前 session 无任务；不进入 `session-fallback` |
+| 无法解析 context key，运行时只有一个健康 session | 允许返回 `session-fallback` |
 | `untracked status` 已有活动任务 | `0`；`not-applicable/active-task-present` |
 | `untracked begin/advance` 与活动任务冲突 | 非零；保持原互斥错误 |
 | 精确名、允许路径或唯一短名 | 解析到同一活动任务目录 |
@@ -158,6 +163,8 @@ resolve_task_reference(task_ref: str, repo_root: Path) -> Path
 ### 6. Tests Required
 
 - `task.py current` 覆盖文本、`--source`、`--json` 的空状态退出码和输出字段。
+- active task 解析覆盖“已知新 session 不继承唯一旧 session”和“无 context key 时保留唯一 session
+  fallback”两个相反分支。
 - untracked 覆盖活动任务下的只读 `status` 与写入型命令失败矩阵。
 - 公共解析器覆盖精确名、唯一/歧义短名、相对/绝对路径、不存在、archive、嵌套和软链逃逸。
 - progress 覆盖固定时间生成、显式时间保留、非法时间、其它缺失字段、额外字段和原子失败不改旧值。

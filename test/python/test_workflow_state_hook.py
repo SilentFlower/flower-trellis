@@ -325,6 +325,43 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertTrue(second.exists())
         self.assertIn("No current task set", result.stdout)
 
+    def test_known_session_without_pointer_does_not_inherit_unique_fallback(self) -> None:
+        """验证已知新会话无任务指针时不会继承唯一旧会话。"""
+        task_script = self._install_task_scripts()
+        sessions = self.root / ".trellis/.runtime/sessions"
+        sessions.mkdir(parents=True)
+        (sessions / "codex_old.json").write_text(
+            json.dumps({"current_task": ".trellis/tasks/old-task"}),
+            encoding="utf-8",
+        )
+
+        current_env = _sessionless_env()
+        current_env["TRELLIS_CONTEXT_ID"] = "new-context"
+        current = subprocess.run(
+            [sys.executable, str(task_script), "current", "--source"],
+            cwd=self.root,
+            env=current_env,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        self.assertIn("Current task: (none)", current.stdout)
+        self.assertIn("Source: session:new-context", current.stdout)
+        self.assertNotIn("session-fallback", current.stdout)
+
+        fallback = subprocess.run(
+            [sys.executable, str(task_script), "current", "--source"],
+            cwd=self.root,
+            env=_sessionless_env(),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        self.assertIn("Current task: .trellis/tasks/old-task", fallback.stdout)
+        self.assertIn("Source: session-fallback:codex_old", fallback.stdout)
+
     def test_task_finish_preserves_corrupt_unique_session_and_fails(self) -> None:
         """唯一 fallback session 损坏时不得把它当成无任务或删除证据。"""
         task_script = self._install_task_scripts()

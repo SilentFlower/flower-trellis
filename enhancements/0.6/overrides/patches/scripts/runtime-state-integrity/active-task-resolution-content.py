@@ -6,7 +6,7 @@ def resolve_active_task(
     allow_single_session_fallback: bool = True,
     allow_environment_context: bool = True,
 ) -> ActiveTask:
-    """Resolve the active task without treating corrupt session state as missing."""
+    """Resolve the active task without crossing a known session boundary."""
     context_key = resolve_context_key(
         platform_input,
         platform,
@@ -21,6 +21,7 @@ def resolve_active_task(
         active = _active_from_ref(task_ref, repo_root, "session", context_key)
         if active:
             return active
+        return ActiveTask(None, "session", context_key)
 
     if allow_single_session_fallback:
         fallback = _resolve_single_session_fallback(repo_root)

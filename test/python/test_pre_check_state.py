@@ -158,7 +158,7 @@ class PreCheckStateTest(unittest.TestCase):
         with mock.patch.dict(os.environ, {"TRELLIS_CONTEXT_ID": "codex_second"}, clear=False):
             other_session = self.helper.read_pre_check_preference(self.root)
         self.assertEqual(other_session["status"], "miss")
-        self.assertEqual(other_session["reason"], "session-task-mismatch")
+        self.assertEqual(other_session["reason"], "no-current-work")
 
         runtime = json.loads(path.read_text(encoding="utf-8"))
         runtime["current_task"] = ".trellis/tasks/task-b"
