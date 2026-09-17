@@ -1519,3 +1519,25 @@ Python 兼容四组合和 SessionStart 两系统 CI 已通过，补充 GitHub Ac
 ### Next Steps
 
 - 当前任务已完成并归档；用户机器实际下载、解包和原生构建耗时尚未测量，需具体诊断证据再开展后续优化。
+
+
+## Session 106: 优化 workflow-state 条件注入与低频心跳
+
+**Date**: 2026-09-17
+**Task**: 优化 workflow-state 条件注入与低频心跳
+**Branch**: `main`
+
+### Summary
+
+为 Codex 与 Claude 增加按会话隔离的条件 workflow-state 注入、默认五轮可执行心跳和 SessionStart 强制刷新，并完成严格 tracker 校验、受管产物同步及全量验证。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d08ae57` | (see git log) |
+| `ecd9555` | (see git log) |
+
+### Status
+
+[OK] **Completed**

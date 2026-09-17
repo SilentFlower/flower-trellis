@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-2.md`
-- **Total Sessions**: 105
+- **Total Sessions**: 106
 - **Last Active**: 2026-09-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-2.md` | ~1521 | Active |
+| `journal-2.md` | ~1543 | Active |
 | `journal-1.md` | ~1993 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 106 | 2026-09-17 | 优化 workflow-state 条件注入与低频心跳 | `d08ae57`, `ecd9555` | `main` |
 | 105 | 2026-09-17 | 完成升级性能优化归档并发布正式版与 beta | `94788f4`, `8c71a2b`, `7c2c4dc`, `8575e7e`, `e1d0890` | `main` |
 | 104 | 2026-09-17 | 跨平台兼容修复闭环与四项完成任务归档 | `311c4ea`, `99ff392`, `a06facc`, `87aa9b8` | `main` |
 | 103 | 2026-09-08 | 统一通用技能目录与空目录双平台安装 | `7ebdf05`, `8360b3d` | `main` |
