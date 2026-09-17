@@ -1,5 +1,5 @@
 {
-  "syncedAt": "2026-09-17T03:50:50.096Z",
+  "syncedAt": "2026-09-17T05:55:36.500Z",
   "syncedFrom": "vendor/skill-garden",
   "sourceCommit": "94df742fdf6530a2bf8f72df68a5a9a30b929d7d",
   "common": {
@@ -179,6 +179,8 @@
         "hooks/inject-workflow-state/shared-runtime/breadcrumb-selector.py",
         "hooks/inject-workflow-state/shared-runtime/codex-session-start-content.py",
         "hooks/inject-workflow-state/shared-runtime/codex-session-start-selector.py",
+        "hooks/inject-workflow-state/shared-runtime/conditional-heartbeat-content.py",
+        "hooks/inject-workflow-state/shared-runtime/conditional-heartbeat-selector.py",
         "hooks/inject-workflow-state/shared-runtime/main-content.py",
         "hooks/inject-workflow-state/shared-runtime/main-selector.py",
         "hooks/inject-workflow-state/shared-runtime/patch.json",

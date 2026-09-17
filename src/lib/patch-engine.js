@@ -1027,6 +1027,11 @@ function prepareFilePlan(files, targetRoot, targetSpec, operation) {
     targetSpec.path,
     `patch ${operation.id} target.path`,
   );
+  const plannedFile = files.get(targetSpec.path);
+  if (plannedFile) {
+    // 同一轮中前序操作可能刚创建该文件，后续操作应基于内存结果继续计算。
+    return { filePlan: plannedFile };
+  }
   const exists = fs.existsSync(targetFile);
   if (!exists) {
     if (targetSpec.missing === "skip") return { status: "missing-target" };
@@ -1037,22 +1042,19 @@ function prepareFilePlan(files, targetRoot, targetSpec, operation) {
   } else {
     assertExistingPathInside(targetRoot, targetFile, `patch ${operation.id} target`);
   }
-  let filePlan = files.get(targetSpec.path);
-  if (!filePlan) {
-    const original = exists ? fs.readFileSync(targetFile, "utf8") : null;
-    filePlan = {
-      target: targetSpec.path,
-      targetFile,
-      original,
-      originalExists: exists,
-      next: original ?? "",
-      operations: [],
-      patches: [],
-      bundles: [],
-      operationEntries: [],
-    };
-    files.set(targetSpec.path, filePlan);
-  }
+  const original = exists ? fs.readFileSync(targetFile, "utf8") : null;
+  const filePlan = {
+    target: targetSpec.path,
+    targetFile,
+    original,
+    originalExists: exists,
+    next: original ?? "",
+    operations: [],
+    patches: [],
+    bundles: [],
+    operationEntries: [],
+  };
+  files.set(targetSpec.path, filePlan);
   return { filePlan };
 }
 

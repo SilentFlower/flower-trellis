@@ -6,6 +6,7 @@
   "patches": [
     "codex/session-start-hooks",
     "codex/dispatch-mode",
+    "workflow-state-config",
     "codex/remove-multi-agent-v2",
     "claude/startup-update-hook",
     "claude/session-start-hooks",

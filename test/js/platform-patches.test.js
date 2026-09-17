@@ -124,6 +124,9 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   assert.match(yaml, /codex:\n  dispatch_mode: auto\n  other: true/);
   assert.doesNotMatch(yaml, /dispatch_mode: (?:inline|sub-agent)/);
   assert.match(yaml, /It does not choose inline or subagent execution for a task: trellis-route owns/);
+  assert.match(yaml, /Codex and Claude suppress unchanged workflow-state bodies/);
+  assert.match(yaml, /heartbeat_turns: 5/);
+  assert.match(yaml, /0 disables heartbeats; invalid or negative values fall back to 5/);
   const workflowHook = fs.readFileSync(
     path.join(target, ".codex/hooks/inject-workflow-state.py"),
     "utf8",
@@ -147,6 +150,28 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   const retained = JSON.parse(fs.readFileSync(path.join(target, ".codex/hooks.json"), "utf8"));
   assert.deepEqual(retained.hooks.SessionStart.find((group) => group.matcher === "startup|clear|compact")
     .hooks.map((hook) => hook.additionalContextLimit), [5000, 6000, 0]);
+});
+
+test("Claude-only 项目获得心跳配置说明且保留用户实际值", () => {
+  const target = fixture();
+  fs.mkdirSync(path.join(target, ".claude"));
+  const upstreamConfig = fs.readFileSync(
+    path.join(ROOT, "node_modules/@mindfoldhq/trellis/dist/templates/trellis/config.yaml"),
+    "utf8",
+  );
+  write(
+    target,
+    ".trellis/config.yaml",
+    `${upstreamConfig}\nprompt_injection:\n  skip_keyword: \"custom-skip\"\n  heartbeat_turns: 9\n`,
+  );
+
+  const first = applyPatchPlan(target, prepare(target));
+  assert.ok(first.changed > 0);
+  const yaml = fs.readFileSync(path.join(target, ".trellis/config.yaml"), "utf8");
+  assert.match(yaml, /Codex and Claude suppress unchanged workflow-state bodies/);
+  assert.match(yaml, /#   heartbeat_turns: 5/);
+  assert.match(yaml, /prompt_injection:\n  skip_keyword: "custom-skip"\n  heartbeat_turns: 9/);
+  assert.equal(applyPatchPlan(target, prepare(target)).changed, 0);
 });
 
 test("SessionStart 额度冲突或非法时不覆盖配置", () => {

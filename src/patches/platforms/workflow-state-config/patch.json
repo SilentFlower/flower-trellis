@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-workflow-state-config",
+  "purpose": "platform_config",
+  "operations": [
+    {
+      "id": "flower-workflow-state-config-codex",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "yaml",
+          "path": ".trellis/config.yaml",
+          "missing": "skip",
+          "requires": [".codex"]
+        }
+      ],
+      "selector": { "type": "yaml-comment-section" },
+      "content": { "source": "comment-section.json.txt" }
+    },
+    {
+      "id": "flower-workflow-state-config-claude",
+      "operation": "replace",
+      "after": ["flower-workflow-state-config-codex"],
+      "targets": [
+        {
+          "kind": "yaml",
+          "path": ".trellis/config.yaml",
+          "missing": "skip",
+          "requires": [".claude"]
+        }
+      ],
+      "selector": { "type": "yaml-comment-section" },
+      "content": { "source": "comment-section.json.txt" }
+    }
+  ]
+}

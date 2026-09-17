@@ -138,7 +138,7 @@ function measurePhaseSummary() {
   );
 }
 
-function measureSessionStart() {
+function measureSessionStart(compiledRoot) {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "flower-context-budget-"));
   try {
     copyIfExists(
@@ -182,6 +182,8 @@ function measureSessionStart() {
       const { platform, name, source, model } = scenario;
       const hook = `.${platform}/hooks/session-start.py`;
       copyIfExists(path.join(PKG_ROOT, hook), path.join(fixture, hook));
+      const workflowHook = `.${platform}/hooks/inject-workflow-state.py`;
+      copyIfExists(path.join(compiledRoot, workflowHook), path.join(fixture, workflowHook));
       // 固定测试配置，个人关闭设置不能让预算检查漏掉默认开启的实际成本。
       fs.writeFileSync(path.join(fixture, ".trellis/config.yaml"),
         `codex:\n  dispatch_mode: auto\n  astra_workflow_hint: ${scenario.enabled !== false}\n`);
@@ -206,6 +208,13 @@ function measureSessionStart() {
         const value = parsed?.hookSpecificOutput?.additionalContext;
         if (typeof value !== "string" || !value || value.includes("<trellis-injection-error")) {
           throw new Error(`SessionStart ${platform}/${name}/${part} fixture 未返回有效 additionalContext`);
+        }
+        if (typeof parsed?.systemMessage === "string"
+          && parsed.systemMessage.includes("workflow-state 基线未刷新")) {
+          throw new Error(`SessionStart ${platform}/${name}/${part} workflow-state 刷新失败`);
+        }
+        if (part === "state" && !value.includes("<workflow-state>\n")) {
+          throw new Error(`SessionStart ${platform}/${name}/state 未包含完整 workflow-state`);
         }
         const hints = [...value.matchAll(/<trellis-astra-workflow-hint [^>]*>[\s\S]*?<\/trellis-astra-workflow-hint>/g)];
         const expected = part === "state" ? scenario.expectedHints || 0 : 0;
@@ -265,7 +274,7 @@ export function collectAiContextMetrics() {
     ".claude/skills/trellis-auto-loop/SKILL.md",
   ], "Auto-Loop");
   const phaseSummary = measurePhaseSummary();
-  const sessionStart = measureSessionStart();
+  const sessionStart = measureSessionStart(compiledRoot);
   const largestUpdateSpec = Math.max(
     ...updateSpecTargets.map(({ value }) => Buffer.byteLength(value, "utf8")),
   );

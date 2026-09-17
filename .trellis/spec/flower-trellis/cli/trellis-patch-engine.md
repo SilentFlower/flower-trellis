@@ -226,6 +226,9 @@ Phase 正向断言必须包含 managed marker、heading 和 section 首句形成
 
 1. 加载并校验全部 catalog、Bundle/Patch、qualified operation 关系和 policy 路径。
 2. 解析 Bundle 多归属与稳定拓扑顺序，再在内存计算每个目标的最终文本。
+   同一 plan 中前序 operation 已创建或修改的目标必须直接复用 `files` 中的 `filePlan`；后序
+   operation 的 `missing=skip|error|create` 只约束磁盘初始缺失且尚无内存计划的目标，不能把本轮
+   刚创建的文件误判为 missing target。
 3. 汇总 missing target、optional skip 与 required error；`missing-target` 和 `optional-skip` 必须分开统计。
 4. 任一 required error 时抛出，目标、资产和 manifest 均零写入。
 5. 返回稳定 `catalogHash`、`selectedBundles`、`selectedPatches`、`operationOrder`、qualified `catalogOperations`、文件 before/after hash 和结构化结果。
@@ -320,6 +323,7 @@ provenance 必须在首次应用与重复应用之间稳定；不得把本轮 `c
 | 0.7+/1.x 或损坏版本 | 在旧 baseline preflight 前返回带 `--no-enhance` 指引的 compatibility error，全部目标零写入 |
 | 最终产物复现 direct dispatch/auto-fix/local-only 等已知签名 | conflict error，全部目标零写入 |
 | 配置 target 使用 `missing=create` 且真实父目录位于项目内 | 创建目标文件 |
+| 同轮前序 operation 创建目标，后序 operation 更新同一路径 | 后序操作复用内存 `filePlan` 并基于前序结果继续计算；重复 apply 幂等 |
 | 非配置 target 使用 `missing=create` | schema 失败，零写入 |
 | marker 已存在且唯一 | 原位升级 managed content |
 | `markerStyle=none` 且 selector 与目标内容同时存在 | 执行 selector 替换，不返回 `desired-content` |
@@ -584,6 +588,95 @@ full-only control-plane-integrity -> atomic I/O + resolution + fallback + set
 ```
 
 每种安装模式只获得其声明职责,同时由 full/selected 计划测试和 conflict policy 验证最终产物。
+
+## Scenario: Conditional Workflow-State Injection And Heartbeat
+
+### 1. Scope / Trigger
+
+修改 0.6 `inject-workflow-state.py` 的 Codex / Claude 条件注入、低频心跳、会话 tracker、
+`prompt_injection.heartbeat_turns` 配置投影，或 SessionStart 对 workflow-state 基线的刷新行为时读取本节。
+其它平台继续沿用每轮完整 workflow-state；old / 0.5 不新增本协议。
+
+### 2. Signatures
+
+- `prompt_injection.heartbeat_turns`：非负整数或十进制整数字符串；默认 `5`，`0` 关闭未变化心跳。
+- `_conditional_workflow_state_context(root, input_data, platform, config, full_context, heartbeat,
+  force_refresh) -> str | None`：返回完整状态、心跳或静默。
+- `_read_workflow_state_tracker(path, platform) -> dict | None`：严格读取 tracker；任何结构或语义错误
+  都返回 `None`。
+- tracker 路径：`.trellis/.runtime/workflow-state/<sha256(platform:context-key)>.json`。
+- tracker schema v1：`{version,platform,fingerprint,unchangedTurns,heartbeatTurns,updatedAt}`。
+- 内部刷新参数：`--trellis-session-start-refresh`，只由 Flower SessionStart state 分段调用。
+
+### 3. Contracts
+
+- 条件注入只对检测为 `codex` 或 `claude` 的 UserPromptSubmit 生效。首次可识别会话、tracker 缺失或
+  非法、完整上下文指纹变化时输出完整状态并把计数归零；状态未变化时静默，默认第 5 个未变化
+  用户输入输出一次 `<workflow-state-heartbeat>`，随后重新计数。其它平台与无法解析 context key 的
+  输入每轮输出完整状态且不共享 tracker。
+- 指纹是最终完整上下文的 SHA-256；Codex 的 mode、bootstrap 与实际 workflow-state 都在指纹范围内。
+  tracker 以平台和 `common.active_task.resolve_context_key()` 返回的会话身份隔离，同一项目的不同会话
+  不得共享计数，也不得把 tracker 与 task 目录绑定。
+- tracker 必须只包含六个 schema 字段：`version=1`、匹配当前平台、64 位小写十六进制
+  `fingerprint`、非布尔且非负的整数计数、UTC `updatedAt`（`%Y-%m-%dT%H:%M:%SZ`）。
+  `heartbeatTurns=0` 时 `unchangedTurns` 必须为 `0`；大于 `0` 时必须满足
+  `unchangedTurns < heartbeatTurns`。未知字段、损坏 JSON、版本或平台不符、计数关系或时间戳非法
+  都按 tracker 缺失处理，以完整状态恢复并重建记录。
+- tracker 使用同目录排他临时文件、`flush`、`fsync` 和 `os.replace` 原子替换；写入失败时当前轮
+  降级输出完整状态。心跳间隔改变只重置计数并保持静默；若重置写入失败，同样输出完整状态。
+  布尔值、负数或其它非法 `heartbeat_turns` 回退默认 `5`；`0` 只关闭心跳输出，仍保持基线记录。
+- 心跳必须包含当前主体；untracked 工作还包含摘要。`Action:` 取所选 workflow-state 正文移除 HTML
+  注释后的第一条非空可见行，并明确继续遵循最近一次完整 `<workflow-state>`。普通 prompt 命中
+  `no-trellis` / 配置 skip keyword 时必须在 tracker 读写前退出，该轮不推进计数。
+- Codex / Claude 的 SessionStart `state` 分段在 `startup | clear | compact` 调用对应平台
+  workflow-state Hook 并传内部刷新参数，强制返回完整状态并重置基线；`rules` / `stages` 不刷新。
+  `resume`、全局禁用和 Codex 非交互仍保持零输出。刷新失败保留原生 state 和既有诊断，追加可见
+  `workflow-state 基线未刷新` 诊断，让后续 UserPromptSubmit 按完整降级路径恢复。
+- 配置说明必须由 Flower Patch 投影到 `.trellis/config.yaml`，保留用户已有
+  `prompt_injection` 键和值。条件 helper 的 canonical 源位于 Skill-Garden vendor，先同步
+  `enhancements/0.6/overrides`，再刷新 compiled targets；Flower SessionStart 的 canonical 源仍为
+  `src/assets/flower_session_start.py`。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| Codex / Claude 新会话或状态指纹变化 | 输出完整状态，写入计数为 0 的独立 tracker |
+| 同一状态连续 1 至 4 个用户输入 | stdout 为空；每轮只推进当前会话计数 |
+| 默认第 5 个未变化输入 | 输出含主体与可执行 `Action:` 的心跳，计数归零 |
+| `heartbeat_turns=0` | 首次完整注入后持续静默，tracker 计数固定为 0 |
+| 心跳间隔由 5 改为 2 | 本轮静默重置；之后按新间隔计数，不重复完整状态 |
+| tracker 字段、版本、平台、指纹、计数关系或 UTC 时间戳非法 | 输出完整状态并以严格 schema 重建 |
+| tracker 写入失败 | 输出完整状态，不因缓存优化丢失工作流指令 |
+| 无 context key | 每轮完整输出，不创建跨会话共享 tracker |
+| 普通输入命中 skip keyword | 零输出且 tracker 字节不变 |
+| Gemini 等其它平台 | 每轮完整输出，既有事件 envelope 保持不变 |
+| SessionStart startup / clear / compact | state 含完整 workflow-state，基线归零，下一轮未变化输入静默 |
+| SessionStart 刷新 Hook 缺失、失败或输出非法 | 保留原生 state 并输出可见诊断；rules / stages 不受影响 |
+
+### 5. Scenarios and Examples
+
+- 正常：同一 Codex 会话首次输入收到完整状态，随后四轮无变化时静默，第五轮只收到主体和当前动作；
+  同目录另开 Claude 或 Codex 会话时使用不同 tracker，从完整状态开始。
+- 基础：任务状态、missing-task、dispatch mode、untracked 摘要或 workflow 正文变化会改变完整上下文
+  指纹，当前轮立即完整注入；仅修改心跳间隔不会伪装成状态变化。
+- 错误：跨会话共用一个项目级计数器，或对所有平台启用静默，会让新会话和未覆盖宿主缺少当前动作。
+  正确：以平台加宿主 context key 哈希隔离 tracker，非 Codex / Claude 保留完整逐轮输出。
+- 错误：只检查 JSON 能否解析便信任 `unchangedTurns=5`、额外字段或本地时间戳。
+  正确：严格校验字段集合、类型、计数关系和 UTC 时间戳，任何不一致都完整恢复并重建。
+
+### 6. Tests Required
+
+- `test_workflow_state_hook.py` 覆盖 Codex / Claude 首次完整、四轮静默、第五轮心跳、状态与 mode
+  变化、task / untracked / missing-task 动作、间隔 `0` / 非法值 / 动态修改、跨会话隔离、无 context
+  key、skip keyword、其它平台、损坏及语义非法 tracker、写入失败和内部强制刷新。
+- `test_flower_session_start.py` 覆盖 Codex / Claude 的 `startup | clear | compact` 完整刷新与后续静默，
+  `resume` / 禁用边界，以及刷新失败时原生 state 和诊断保留。
+- `platform-patches.test.js` / `apply-enhancements.test.js` 覆盖配置注释投影、用户值保留、Bundle
+  分发、真实资产和二次应用幂等；`patch-engine.test.js` 覆盖同轮创建配置后继续更新该目标。
+- 修改后运行相关 Python/JS 专项、完整 `npm test`、`npm run sync`、Patch conflict、compiled-target
+  一致性、默认与 strict AI context budget、`git diff --check`，并在当前项目执行两次 update dogfood，
+  第二次必须为零目标变化。
 
 ## Scenario: SessionStart Parts And Context Limit Preservation
 

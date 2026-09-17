@@ -44,6 +44,13 @@ class FlowerSessionStartTest(unittest.TestCase):
             target = self.root / f".{platform}/hooks/session-start.py"
             target.parent.mkdir(parents=True)
             shutil.copy2(ROOT / f".{platform}/hooks/session-start.py", target)
+            workflow_hook = self.root / f".{platform}/hooks/inject-workflow-state.py"
+            shutil.copy2(
+                ROOT
+                / "vendor/skill-garden/compiled-targets/0.6.14/full/targets"
+                / f".{platform}/hooks/inject-workflow-state.py",
+                workflow_hook,
+            )
         shutil.copy2(ROOT / "src/assets/flower_session_start.py", self.root / ".trellis/scripts")
         self.env = {
             **os.environ, "TRELLIS_HOOKS": "1", "TRELLIS_DISABLE_HOOKS": "0",
@@ -69,6 +76,36 @@ class FlowerSessionStartTest(unittest.TestCase):
                               input=json.dumps({"cwd": str(self.root), "session_id": "session-parts-test",
                                                 "source": source, **(hook_input or {})}, ensure_ascii=False),
                               text=True, encoding="utf-8", errors="strict", capture_output=True, timeout=20)
+
+    def run_prompt_hook(self, platform: str, hook_input: dict | None = None):
+        """执行目标平台的 UserPromptSubmit workflow-state Hook。
+
+        @param platform: codex 或 claude。
+        @param hook_input: 覆盖默认会话输入的字段。
+        @return: 捕获 stdout / stderr 的子进程结果。
+        """
+        environment = self.env.copy()
+        if platform == "codex":
+            # 共享夹具为 Claude 原生 SessionStart 设置了该变量；Codex 真实宿主不会携带它。
+            environment.pop("CLAUDE_PROJECT_DIR", None)
+        return subprocess.run(
+            [sys.executable, "-X", "utf8", f".{platform}/hooks/inject-workflow-state.py"],
+            cwd=self.root,
+            env=environment,
+            input=json.dumps(
+                {
+                    "cwd": str(self.root),
+                    "session_id": "session-parts-test",
+                    **(hook_input or {}),
+                },
+                ensure_ascii=False,
+            ),
+            text=True,
+            encoding="utf-8",
+            errors="strict",
+            capture_output=True,
+            timeout=20,
+        )
 
     def test_state_uses_real_stdio_boundary_for_native_reconfiguration(self) -> None:
         """原生入口可重配真实标准流，不再对包装器的内存流执行 detach。"""
@@ -133,12 +170,39 @@ if __name__ == "__main__":
                     text = data["hookSpecificOutput"]["additionalContext"]
                     self.assertLessEqual(len(text), 8000)
                     texts[part] = re.fullmatch(r'<trellis-session-part name="\w+">\n(.*)\n</trellis-session-part>', text, re.DOTALL).group(1)
-                self.assertEqual(texts["state"], SESSION.WORKFLOW_BLOCK.sub("", context))
+                native_state = SESSION.WORKFLOW_BLOCK.sub("", context)
+                self.assertTrue(texts["state"].startswith(native_state))
+                self.assertIn("<workflow-state>\n", texts["state"])
                 self.assertEqual(texts["rules"] + texts["stages"], workflow)
                 self.assertIn("Request Triage", texts["rules"])
                 self.assertIn("Phase 3: Finish", texts["stages"])
                 self.assertNotIn("<current-state>", texts["rules"] + texts["stages"])
         self.assertEqual((self.root / "shell.env").read_text(encoding="utf-8").count("export TRELLIS_CONTEXT_ID="), 1)
+
+    def test_startup_clear_and_compact_refresh_full_state_and_baseline(self) -> None:
+        """三类重建事件完整注入状态，随后首轮未变化输入保持静默。"""
+        for platform in ("codex", "claude"):
+            for source in ("startup", "clear", "compact"):
+                with self.subTest(platform=platform, source=source):
+                    result = self.run_hook(platform, "state", source)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+                    self.assertIn("<workflow-state>\n", context)
+                    prompt = self.run_prompt_hook(platform)
+                    self.assertEqual(prompt.returncode, 0, prompt.stderr)
+                    self.assertEqual(prompt.stdout, "")
+
+    def test_workflow_state_refresh_failure_preserves_native_state(self) -> None:
+        """刷新脚本失败时保留原生 state，并输出可见诊断。"""
+        (self.root / ".codex/hooks/inject-workflow-state.py").unlink()
+        result = self.run_hook("codex", "state")
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("<current-state>", context)
+        self.assertNotIn("<trellis-injection-error", context)
+        self.assertIn("workflow-state 基线未刷新", data["systemMessage"])
+        self.assertIn("workflow-state 基线未刷新", result.stderr)
 
     def test_workflow_parts_never_run_native_state_side_effects(self) -> None:
         """规则分段不执行会话绑定或原生主入口。"""

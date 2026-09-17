@@ -310,6 +310,7 @@
         "workflow-state-stale-task-status",
         "workflow-state-untracked-helper",
         "workflow-state-breadcrumb-subject",
+        "workflow-state-conditional-heartbeat",
         "workflow-state-main-subject-routing"
       ],
       "assertion": {
@@ -320,15 +321,20 @@
           "# BEGIN skill-garden patch workflow-state-stale-task-status v0.6",
           "# BEGIN skill-garden patch workflow-state-untracked-helper v0.6",
           "# BEGIN skill-garden patch workflow-state-breadcrumb-subject v0.6",
+          "# BEGIN skill-garden patch workflow-state-conditional-heartbeat v0.6",
           "# BEGIN skill-garden patch workflow-state-main-subject-routing v0.6",
           "emit_worktree_local_trellis_missing",
           "DEFAULT_PROMPT_INJECTION_SKIP_KEYWORD = \"no-trellis\"",
+          "DEFAULT_WORKFLOW_STATE_HEARTBEAT_TURNS = 5",
+          "WORKFLOW_STATE_REFRESH_ARG = \"--trellis-session-start-refresh\"",
+          "root / \".trellis\" / \".runtime\" / \"workflow-state\"",
+          "<workflow-state-heartbeat>",
           "\"ZCODE_PROJECT_DIR\": \"zcode\"",
           "Normalize `codex.dispatch_mode` from .trellis/config.yaml to \"auto\" or \"inline\"."
         ]
       },
       "owner": "workflow-state",
-      "reason": "局部 Patch 必须同时保留 Flower subject 分支与 0.6.14 的 no-trellis、ZCode 和 Codex auto 能力。"
+      "reason": "局部 Patch 必须同时保留 Flower subject/条件心跳分支与 0.6.14 的 no-trellis、ZCode 和 Codex auto 能力。"
     },
     {
       "id": "paths-required-clear-result",

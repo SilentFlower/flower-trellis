@@ -1077,10 +1077,15 @@ test("0.6.14 shared Hook 通过局部 Patch 保留上游结构", () => {
   assert.match(value, /BEGIN skill-garden patch workflow-state-stale-task-status/);
   assert.match(value, /BEGIN skill-garden patch workflow-state-untracked-helper/);
   assert.match(value, /BEGIN skill-garden patch workflow-state-breadcrumb-subject/);
+  assert.match(value, /BEGIN skill-garden patch workflow-state-conditional-heartbeat/);
   assert.match(value, /BEGIN skill-garden patch workflow-state-main-subject-routing/);
   assert.match(value, /return task_dir\.name, "missing_task", active\.source/);
   assert.match(value, /Gemini CLI 0\.40\.x renamed/);
   assert.match(value, /"ZCODE_PROJECT_DIR": "zcode"/);
+  assert.match(value, /DEFAULT_WORKFLOW_STATE_HEARTBEAT_TURNS = 5/);
+  assert.match(value, /\.runtime" \/ "workflow-state"/);
+  assert.match(value, /<workflow-state-heartbeat>/);
+  assert.match(value, /--trellis-session-start-refresh/);
 
   const first = snapshotTree(target);
   quietApply(target, { variant: "0.6", skills: ["task-intent"] });

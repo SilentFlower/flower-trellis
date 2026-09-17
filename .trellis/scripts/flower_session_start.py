@@ -20,6 +20,7 @@ MAX_PART_CHARS = 8000
 WORKFLOW_BLOCK = re.compile(r"<trellis-workflow>\n(.*?)\n</trellis-workflow>\n*", re.DOTALL)
 ASTRA_MODEL = "gpt-6-astra"
 ASTRA_HINT_MAX_BYTES = 2048
+WORKFLOW_STATE_REFRESH_ARG = "--trellis-session-start-refresh"
 ASTRA_WORKFLOW_HINT = """<trellis-astra-workflow-hint model="gpt-6-astra" version="1">
 Applies only while the active model is gpt-6-astra; it does not apply after switching models. Perform checks internally, without a routine checklist report. Keep ordinary answers brief.
 When executing the current task:
@@ -119,6 +120,50 @@ def _run_native_hook(root: Path, hook: str, hook_input: dict) -> dict | None:
     return output
 
 
+def _run_workflow_state_refresh(root: Path, hook: str, hook_input: dict) -> str:
+    """在独立解释器中刷新当前完整 workflow-state 与会话基线。
+
+    @param root: 当前部署项目根目录。
+    @param hook: 已验证的原生平台 SessionStart hook 相对路径。
+    @param hook_input: 宿主传入并已规范化 cwd 的事件 JSON。
+    @return: workflow-state Hook 返回的完整 additionalContext。
+    """
+    workflow_hook = hook.replace("session-start.py", "inject-workflow-state.py")
+    environment = os.environ.copy()
+    environment["PYTHONIOENCODING"] = "utf-8"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-X",
+            "utf8",
+            str(root / workflow_hook),
+            WORKFLOW_STATE_REFRESH_ARG,
+        ],
+        cwd=root,
+        env=environment,
+        input=json.dumps(hook_input, ensure_ascii=False).encode("utf-8"),
+        capture_output=True,
+        check=False,
+    )
+    stderr = result.stderr.decode("utf-8", errors="replace")
+    if stderr:
+        sys.stderr.write(stderr)
+        sys.stderr.flush()
+    if result.returncode != 0:
+        raise ValueError(f"workflow-state hook 退出码 {result.returncode}")
+    stdout = result.stdout.decode("utf-8-sig")
+    if not stdout.strip():
+        raise ValueError("workflow-state hook 未返回刷新内容")
+    output = json.loads(stdout)
+    if not isinstance(output, dict):
+        raise ValueError("workflow-state hook 输出必须为 JSON 对象")
+    hook_output = output.get("hookSpecificOutput")
+    context = hook_output.get("additionalContext") if isinstance(hook_output, dict) else None
+    if not isinstance(context, str) or not context:
+        raise ValueError("workflow-state hook 缺少 additionalContext")
+    return context
+
+
 def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | None:
     """生成指定分段，只有 state 执行原生主入口的副作用。
 
@@ -143,6 +188,15 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
         if re.fullmatch(r"Trellis context injected \(\d+ chars\)", result.get("systemMessage", "")):
             # 原计数对应拆分前的全文；保留其他原生诊断，避免以后吞掉重要提示。
             result.pop("systemMessage")
+        try:
+            workflow_state = _run_workflow_state_refresh(root, hook, hook_input)
+            separator = "" if not context or context.endswith("\n") else "\n"
+            context = f"{context}{separator}{workflow_state}"
+        except Exception as error:
+            # 条件注入是可恢复优化；失败时保留原生状态，让下一次用户输入完整降级恢复。
+            message = f"workflow-state 基线未刷新：{error}"
+            result["systemMessage"] = "\n".join(filter(None, [result.get("systemMessage"), message]))
+            print(message, file=sys.stderr)
         if (hook == HOOKS[0] and hook_input.get("model") == ASTRA_MODEL
                 and hook_input.get("source") in ("startup", "clear", "compact")):
             try:

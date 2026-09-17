@@ -379,6 +379,63 @@ test("optional、targetPolicy 与 missing=create 遵守声明边界", () => {
   );
 });
 
+test("同轮后续操作复用刚创建的目标文件", () => {
+  const f = fixture();
+  fs.mkdirSync(path.join(f.target, "generated"), { recursive: true });
+  addPatch(f, "targets/create-then-update", {
+    schemaVersion: 2,
+    id: "create-then-update",
+    purpose: "test",
+    operations: [
+      {
+        id: "create-yaml",
+        operation: "replace",
+        targets: [{ kind: "yaml", path: "generated/config.yaml", missing: "create" }],
+        selector: { type: "whole-file" },
+        content: { source: "initial.yaml" },
+      },
+      {
+        id: "update-created-yaml",
+        operation: "replace",
+        after: ["create-yaml"],
+        targets: [{
+          kind: "yaml",
+          path: "generated/config.yaml",
+          missing: "skip",
+          markerStyle: "none",
+        }],
+        selector: { type: "literal", source: "value.selector.txt" },
+        content: { source: "value.content.txt" },
+      },
+    ],
+  }, {
+    "initial.yaml": "value: initial",
+    "value.selector.txt": "initial",
+    "value.content.txt": "updated",
+  });
+  addBundle(f, {
+    schemaVersion: 1,
+    id: "create-then-update",
+    patches: ["targets/create-then-update"],
+  });
+
+  const firstPlan = preparePatchPlan(f.target, [f.catalogSpec]);
+  assert.equal(firstPlan.results.some((item) => item.status === "missing-target"), false);
+  assert.deepEqual(firstPlan.files[0].operations, ["create-yaml", "update-created-yaml"]);
+  applyPatchPlan(f.target, firstPlan);
+  assert.equal(
+    fs.readFileSync(path.join(f.target, "generated/config.yaml"), "utf8"),
+    "value: updated\n",
+  );
+
+  const secondPlan = preparePatchPlan(f.target, [f.catalogSpec]);
+  applyPatchPlan(f.target, secondPlan);
+  assert.equal(
+    fs.readFileSync(path.join(f.target, "generated/config.yaml"), "utf8"),
+    "value: updated\n",
+  );
+});
+
 test("新建目标与首次备份拒绝通过软链逃逸项目", () => {
   const createFixture = fixture();
   const outsideCreate = fs.mkdtempSync(path.join(os.tmpdir(), "flower-patch-outside-"));

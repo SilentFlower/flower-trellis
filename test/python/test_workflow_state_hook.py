@@ -20,6 +20,18 @@ HOOK_SOURCE = (
     / "vendor/skill-garden/compiled-targets/0.6.14/full/targets/"
     ".codex/hooks/inject-workflow-state.py"
 )
+HOOK_SOURCES = {
+    platform: (
+        ROOT
+        / "vendor/skill-garden/compiled-targets/0.6.14/full/targets"
+        / relative
+    )
+    for platform, relative in {
+        "codex": ".codex/hooks/inject-workflow-state.py",
+        "claude": ".claude/hooks/inject-workflow-state.py",
+        "gemini": ".gemini/hooks/inject-workflow-state.py",
+    }.items()
+}
 STALE_STATE_SOURCE = (
     ROOT
     / "vendor/skill-garden/.trellis/0.6/overrides/patches/workflow/"
@@ -105,8 +117,13 @@ class WorkflowStateHookTest(unittest.TestCase):
         """删除隔离目录。"""
         self.temp.cleanup()
 
-    def _run_hook(self, input_data: dict) -> str:
-        """执行完整 Hook 并返回 additionalContext。
+    def _run_hook_output(
+        self,
+        input_data: dict,
+        platform: str = "codex",
+        *extra_args: str,
+    ) -> dict | None:
+        """执行完整 Hook 并返回解析后的标准输出。
 
         会话身份必须完全由 input_data 决定,因此显式传入剔除会话变量的环境:
         Hook 内部的 read_untracked_state 会优先采信 TRELLIS_CONTEXT_ID /
@@ -116,12 +133,14 @@ class WorkflowStateHookTest(unittest.TestCase):
 
         Args:
             input_data: Hook stdin JSON。
+            platform: 要执行的真实平台 Hook 路径。
+            extra_args: 传给 Hook 的内部参数。
 
         Returns:
-            Hook 输出中的 additionalContext。
+            Hook JSON 对象；静默轮次返回 None。
         """
         result = subprocess.run(
-            [sys.executable, str(HOOK_SOURCE)],
+            [sys.executable, str(HOOK_SOURCES[platform]), *extra_args],
             cwd=self.root,
             input=json.dumps(input_data),
             text=True,
@@ -129,7 +148,27 @@ class WorkflowStateHookTest(unittest.TestCase):
             check=True,
             env=_sessionless_env(),
         )
-        output = json.loads(result.stdout)
+        return json.loads(result.stdout) if result.stdout.strip() else None
+
+    def _run_hook(
+        self,
+        input_data: dict,
+        platform: str = "codex",
+        *extra_args: str,
+    ) -> str | None:
+        """执行完整 Hook 并返回 additionalContext。
+
+        Args:
+            input_data: Hook stdin JSON。
+            platform: 要执行的真实平台 Hook 路径。
+            extra_args: 传给 Hook 的内部参数。
+
+        Returns:
+            Hook 输出中的 additionalContext；静默轮次返回 None。
+        """
+        output = self._run_hook_output(input_data, platform, *extra_args)
+        if output is None:
+            return None
         return output["hookSpecificOutput"]["additionalContext"]
 
     def _install_task_scripts(self) -> Path:
@@ -148,6 +187,18 @@ class WorkflowStateHookTest(unittest.TestCase):
             scripts / "untracked_flow.py",
         )
         return scripts / "task.py"
+
+    def _prepare_conditional_state(self, body: str = "Do the current action.") -> None:
+        """安装会话解析依赖并写入最小 no_task 状态。
+
+        Args:
+            body: workflow-state 的当前动作正文。
+        """
+        self._install_task_scripts()
+        (self.root / ".trellis/workflow.md").write_text(
+            f"[workflow-state:no_task]\n{body}\n[/workflow-state:no_task]\n",
+            encoding="utf-8",
+        )
 
     def test_stale_session_sources_share_stable_status(self) -> None:
         """验证 session 与 session-fallback 都归一为 missing_task。"""
@@ -191,6 +242,7 @@ class WorkflowStateHookTest(unittest.TestCase):
             "workflow-state-stale-task-status",
             "workflow-state-untracked-helper",
             "workflow-state-breadcrumb-subject",
+            "workflow-state-conditional-heartbeat",
             "workflow-state-main-subject-routing",
         ):
             self.assertIn(marker, text)
@@ -223,6 +275,10 @@ class WorkflowStateHookTest(unittest.TestCase):
                 self.assertIn("python3 ./.trellis/scripts/task.py finish", breadcrumb)
                 self.assertIn("in the same turn", breadcrumb)
                 self.assertNotIn("Refer to workflow.md for current step.", breadcrumb)
+                shutil.rmtree(
+                    self.root / ".trellis/.runtime/workflow-state",
+                    ignore_errors=True,
+                )
 
     def test_task_finish_clears_only_unique_session_fallback(self) -> None:
         """验证 finish 清理唯一 fallback，但不跨多个 session 猜测。"""
@@ -502,6 +558,359 @@ class WorkflowStateHookTest(unittest.TestCase):
 
         self.assertIn("Status: no_task", breadcrumb)
         self.assertIn("NO TASK BODY", breadcrumb)
+
+    def test_codex_and_claude_emit_heartbeat_on_fifth_unchanged_turn(self) -> None:
+        """Codex 与 Claude 在五次未变化输入后只发送可执行心跳。"""
+        self._prepare_conditional_state("Do the current action.")
+        for platform in ("codex", "claude"):
+            with self.subTest(platform=platform):
+                input_data = {
+                    "cwd": str(self.root),
+                    "session_id": f"heartbeat-{platform}",
+                }
+                first = self._run_hook(input_data, platform)
+                self.assertIsNotNone(first)
+                self.assertIn("<workflow-state>\n", first)
+                for _ in range(4):
+                    self.assertIsNone(self._run_hook(input_data, platform))
+                heartbeat = self._run_hook(input_data, platform)
+                self.assertIsNotNone(heartbeat)
+                self.assertIn("<workflow-state-heartbeat>", heartbeat)
+                self.assertIn("Status: no_task", heartbeat)
+                self.assertIn("Action: Do the current action.", heartbeat)
+                self.assertIn("State unchanged for 5 user turns", heartbeat)
+                self.assertNotIn("<workflow-state>\n", heartbeat)
+                self.assertIsNone(self._run_hook(input_data, platform))
+
+    def test_state_change_emits_full_context_and_restarts_counter(self) -> None:
+        """状态正文变化立即完整注入，并从零重新累计心跳。"""
+        self._prepare_conditional_state("First action.")
+        input_data = {"cwd": str(self.root), "session_id": "state-change"}
+        self.assertIn("First action.", self._run_hook(input_data))
+        self.assertIsNone(self._run_hook(input_data))
+        self.assertIsNone(self._run_hook(input_data))
+
+        (self.root / ".trellis/workflow.md").write_text(
+            "[workflow-state:no_task]\nSecond action.\n[/workflow-state:no_task]\n",
+            encoding="utf-8",
+        )
+        changed = self._run_hook(input_data)
+        self.assertIsNotNone(changed)
+        self.assertIn("<workflow-state>\n", changed)
+        self.assertIn("Second action.", changed)
+        for _ in range(4):
+            self.assertIsNone(self._run_hook(input_data))
+        self.assertIn("Action: Second action.", self._run_hook(input_data))
+
+    def test_task_status_and_dispatch_mode_changes_select_new_full_context(self) -> None:
+        """任务状态或 Codex mode 变化时完整注入实际选中的 inline 正文。"""
+        self._install_task_scripts()
+        (self.root / ".trellis/workflow.md").write_text(
+            "[workflow-state:planning]\nAuto planning action.\n[/workflow-state:planning]\n"
+            "[workflow-state:planning-inline]\nInline planning action.\n[/workflow-state:planning-inline]\n"
+            "[workflow-state:in_progress]\nAuto implement action.\n[/workflow-state:in_progress]\n"
+            "[workflow-state:in_progress-inline]\nInline implement action.\n[/workflow-state:in_progress-inline]\n",
+            encoding="utf-8",
+        )
+        task_dir = self.root / ".trellis/tasks/route-task"
+        task_dir.mkdir(parents=True)
+        task_file = task_dir / "task.json"
+        task_file.write_text(
+            json.dumps({"id": "route-task", "status": "planning"}),
+            encoding="utf-8",
+        )
+        sessions = self.root / ".trellis/.runtime/sessions"
+        sessions.mkdir(parents=True)
+        (sessions / "codex_route-change.json").write_text(
+            json.dumps({"current_task": ".trellis/tasks/route-task"}),
+            encoding="utf-8",
+        )
+        config = self.root / ".trellis/config.yaml"
+        config.write_text("codex:\n  dispatch_mode: auto\n", encoding="utf-8")
+        input_data = {"cwd": str(self.root), "session_id": "route-change"}
+
+        first = self._run_hook(input_data)
+        self.assertIn("Auto planning action.", first)
+        self.assertIsNone(self._run_hook(input_data))
+
+        config.write_text("codex:\n  dispatch_mode: inline\n", encoding="utf-8")
+        inline = self._run_hook(input_data)
+        self.assertIn("<workflow-state>\n", inline)
+        self.assertIn("Inline planning action.", inline)
+        self.assertIsNone(self._run_hook(input_data))
+
+        task_file.write_text(
+            json.dumps({"id": "route-task", "status": "in_progress"}),
+            encoding="utf-8",
+        )
+        changed = self._run_hook(input_data)
+        self.assertIn("Task: route-task (in_progress)", changed)
+        self.assertIn("Inline implement action.", changed)
+        for _ in range(4):
+            self.assertIsNone(self._run_hook(input_data))
+        heartbeat = self._run_hook(input_data)
+        self.assertIn("Action: Inline implement action.", heartbeat)
+
+    def test_task_and_untracked_heartbeats_keep_actionable_subjects(self) -> None:
+        """任务与 untracked 心跳保留主体、阶段动作及事项摘要。"""
+        self._install_task_scripts()
+        (self.root / ".trellis/workflow.md").write_text(
+            "[workflow-state:planning]\nPlan the active task.\n[/workflow-state:planning]\n"
+            "[workflow-state:untracked]\nImplement the scoped change.\n[/workflow-state:untracked]\n",
+            encoding="utf-8",
+        )
+        task_dir = self.root / ".trellis/tasks/heartbeat-task"
+        task_dir.mkdir(parents=True)
+        (task_dir / "task.json").write_text(
+            json.dumps({"id": "heartbeat-task", "status": "planning"}),
+            encoding="utf-8",
+        )
+        sessions = self.root / ".trellis/.runtime/sessions"
+        sessions.mkdir(parents=True)
+        (sessions / "codex_task-heartbeat.json").write_text(
+            json.dumps({"current_task": ".trellis/tasks/heartbeat-task"}),
+            encoding="utf-8",
+        )
+        task_input = {
+            "cwd": str(self.root),
+            "session_id": "task-heartbeat",
+        }
+        self.assertIsNotNone(self._run_hook(task_input))
+        for _ in range(4):
+            self.assertIsNone(self._run_hook(task_input))
+        task_heartbeat = self._run_hook(task_input)
+        self.assertIn("Task: heartbeat-task (planning)", task_heartbeat)
+        self.assertIn("Action: Plan the active task.", task_heartbeat)
+
+        (sessions / "codex_untracked-heartbeat.json").write_text(
+            json.dumps(
+                {
+                    "current_task": None,
+                    "untracked_flow": {
+                        "version": 2,
+                        "id": "work-heartbeat",
+                        "source": "user-explicit",
+                        "summary": "修复状态提示",
+                        "stage": "implement",
+                        "createdAt": "2026-09-17T00:00:00Z",
+                        "updatedAt": "2026-09-17T00:00:00Z",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        untracked_input = {
+            "cwd": str(self.root),
+            "session_id": "untracked-heartbeat",
+        }
+        self.assertIsNotNone(self._run_hook(untracked_input))
+        for _ in range(4):
+            self.assertIsNone(self._run_hook(untracked_input))
+        untracked_heartbeat = self._run_hook(untracked_input)
+        self.assertIn("Untracked work: work-heartbeat (implement)", untracked_heartbeat)
+        self.assertIn("Summary: 修复状态提示", untracked_heartbeat)
+        self.assertIn("Action: Implement the scoped change.", untracked_heartbeat)
+
+    def test_missing_task_heartbeat_keeps_recovery_action(self) -> None:
+        """missing-task 心跳继续提供权威恢复动作而不是泛化引用。"""
+        self._install_task_scripts()
+        (self.root / ".trellis/workflow.md").write_text(
+            STALE_STATE_SOURCE.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        sessions = self.root / ".trellis/.runtime/sessions"
+        sessions.mkdir(parents=True)
+        (sessions / "codex_missing-heartbeat.json").write_text(
+            json.dumps({"current_task": ".trellis/tasks/missing-heartbeat"}),
+            encoding="utf-8",
+        )
+        input_data = {"cwd": str(self.root), "session_id": "missing-heartbeat"}
+
+        self.assertIn("Task: missing-heartbeat (missing_task)", self._run_hook(input_data))
+        for _ in range(4):
+            self.assertIsNone(self._run_hook(input_data))
+        heartbeat = self._run_hook(input_data)
+        self.assertIn("Task: missing-heartbeat (missing_task)", heartbeat)
+        self.assertIn("Action: An active task pointer that points to a missing task directory", heartbeat)
+
+    def test_heartbeat_configuration_supports_zero_and_invalid_fallback(self) -> None:
+        """0 关闭心跳，非法值回退到默认五轮。"""
+        self._prepare_conditional_state()
+        config = self.root / ".trellis/config.yaml"
+        config.write_text("prompt_injection:\n  heartbeat_turns: 0\n", encoding="utf-8")
+        disabled = {"cwd": str(self.root), "session_id": "heartbeat-disabled"}
+        self.assertIsNotNone(self._run_hook(disabled))
+        for _ in range(7):
+            self.assertIsNone(self._run_hook(disabled))
+
+        config.write_text("prompt_injection:\n  heartbeat_turns: -2\n", encoding="utf-8")
+        invalid = {"cwd": str(self.root), "session_id": "heartbeat-invalid"}
+        self.assertIsNotNone(self._run_hook(invalid))
+        for _ in range(4):
+            self.assertIsNone(self._run_hook(invalid))
+        heartbeat = self._run_hook(invalid)
+        self.assertIsNotNone(heartbeat)
+        self.assertIn("State unchanged for 5 user turns", heartbeat)
+
+    def test_interval_change_resets_counter_without_repeating_full_state(self) -> None:
+        """心跳间隔变化只重置计数，不改变完整状态指纹。"""
+        self._prepare_conditional_state()
+        config = self.root / ".trellis/config.yaml"
+        input_data = {"cwd": str(self.root), "session_id": "interval-change"}
+        self.assertIsNotNone(self._run_hook(input_data))
+        self.assertIsNone(self._run_hook(input_data))
+
+        config.write_text("prompt_injection:\n  heartbeat_turns: 2\n", encoding="utf-8")
+        self.assertIsNone(self._run_hook(input_data))
+        self.assertIsNone(self._run_hook(input_data))
+        heartbeat = self._run_hook(input_data)
+        self.assertIsNotNone(heartbeat)
+        self.assertIn("State unchanged for 2 user turns", heartbeat)
+
+    def test_trackers_are_session_isolated_and_corruption_recovers(self) -> None:
+        """不同会话独立计数，损坏记录通过完整注入重建。"""
+        self._prepare_conditional_state()
+        tracker_root = self.root / ".trellis/.runtime/workflow-state"
+        for platform in ("codex", "claude"):
+            with self.subTest(platform=platform):
+                shutil.rmtree(tracker_root, ignore_errors=True)
+                first_session = {
+                    "cwd": str(self.root),
+                    "session_id": f"{platform}-session-a",
+                }
+                second_session = {
+                    "cwd": str(self.root),
+                    "session_id": f"{platform}-session-b",
+                }
+                self.assertIsNotNone(self._run_hook(first_session, platform))
+                self.assertIsNotNone(self._run_hook(second_session, platform))
+                for _ in range(4):
+                    self.assertIsNone(self._run_hook(first_session, platform))
+                self.assertIsNone(self._run_hook(second_session, platform))
+                self.assertIn(
+                    "workflow-state-heartbeat",
+                    self._run_hook(first_session, platform),
+                )
+                self.assertIsNone(self._run_hook(second_session, platform))
+
+                trackers = sorted(tracker_root.glob("*.json"))
+                self.assertEqual(len(trackers), 2)
+                first_tracker = next(
+                    path
+                    for path in trackers
+                    if json.loads(path.read_text(encoding="utf-8"))["unchangedTurns"] == 0
+                )
+                first_tracker.write_text("{broken", encoding="utf-8")
+                recovered = self._run_hook(first_session, platform)
+                self.assertIsNotNone(recovered)
+                self.assertIn("<workflow-state>\n", recovered)
+                self.assertEqual(
+                    json.loads(first_tracker.read_text(encoding="utf-8"))["unchangedTurns"],
+                    0,
+                )
+
+    def test_semantically_invalid_trackers_fall_back_to_full_context(self) -> None:
+        """结构合法但违反版本 schema 的 tracker 必须完整恢复并重建。"""
+        self._prepare_conditional_state()
+        input_data = {"cwd": str(self.root), "session_id": "invalid-tracker"}
+        self.assertIn("<workflow-state>\n", self._run_hook(input_data))
+        tracker = next((self.root / ".trellis/.runtime/workflow-state").glob("*.json"))
+        baseline = json.loads(tracker.read_text(encoding="utf-8"))
+        cases = {
+            "counter-at-threshold": {"unchangedTurns": 5},
+            "disabled-with-counter": {"heartbeatTurns": 0, "unchangedTurns": 1},
+            "invalid-timestamp": {"updatedAt": "not-a-utc-timestamp"},
+            "unknown-field": {"unexpected": True},
+        }
+        for name, changes in cases.items():
+            with self.subTest(name=name):
+                tracker.write_text(
+                    json.dumps({**baseline, **changes}),
+                    encoding="utf-8",
+                )
+                recovered = self._run_hook(input_data)
+                self.assertIn("<workflow-state>\n", recovered)
+                rebuilt = json.loads(tracker.read_text(encoding="utf-8"))
+                self.assertEqual(rebuilt["unchangedTurns"], 0)
+                self.assertEqual(rebuilt["heartbeatTurns"], 5)
+                self.assertEqual(set(rebuilt), set(baseline))
+
+    def test_no_trellis_does_not_advance_heartbeat_counter(self) -> None:
+        """跳过轮次不读写 tracker，也不进入五轮计数。"""
+        self._prepare_conditional_state()
+        input_data = {"cwd": str(self.root), "session_id": "skip-turn"}
+        self.assertIsNotNone(self._run_hook(input_data))
+        tracker = next((self.root / ".trellis/.runtime/workflow-state").glob("*.json"))
+        before = tracker.read_bytes()
+        self.assertIsNone(self._run_hook({**input_data, "prompt": "please no-trellis now"}))
+        self.assertEqual(tracker.read_bytes(), before)
+        (self.root / ".trellis/workflow.md").write_text(
+            "[workflow-state:no_task]\nChanged after skip.\n[/workflow-state:no_task]\n",
+            encoding="utf-8",
+        )
+        changed = self._run_hook(input_data)
+        self.assertIn("<workflow-state>\n", changed)
+        self.assertIn("Changed after skip.", changed)
+        for _ in range(4):
+            self.assertIsNone(self._run_hook(input_data))
+        heartbeat = self._run_hook(input_data)
+        self.assertIn("workflow-state-heartbeat", heartbeat)
+        self.assertIn("Action: Changed after skip.", heartbeat)
+
+    def test_missing_context_and_other_platforms_keep_full_output(self) -> None:
+        """无会话身份降级完整注入，非目标平台维持逐轮完整注入。"""
+        self._prepare_conditional_state()
+        no_context = {"cwd": str(self.root)}
+        self.assertIn("<workflow-state>\n", self._run_hook(no_context))
+        self.assertIn("<workflow-state>\n", self._run_hook(no_context))
+        gemini = {"cwd": str(self.root), "session_id": "gemini-session"}
+        self.assertIn("<workflow-state>\n", self._run_hook(gemini, "gemini"))
+        self.assertIn("<workflow-state>\n", self._run_hook(gemini, "gemini"))
+
+    def test_session_start_refresh_forces_full_state_and_resets_baseline(self) -> None:
+        """内部 SessionStart 刷新总是完整输出并将后续计数归零。"""
+        self._prepare_conditional_state()
+        input_data = {"cwd": str(self.root), "session_id": "refresh-session"}
+        refreshed = self._run_hook(
+            input_data,
+            "codex",
+            "--trellis-session-start-refresh",
+        )
+        self.assertIsNotNone(refreshed)
+        self.assertIn("<workflow-state>\n", refreshed)
+        for _ in range(4):
+            self.assertIsNone(self._run_hook(input_data))
+        self.assertIn("workflow-state-heartbeat", self._run_hook(input_data))
+
+        refreshed = self._run_hook(
+            input_data,
+            "codex",
+            "--trellis-session-start-refresh",
+        )
+        self.assertIn("<workflow-state>\n", refreshed)
+        self.assertIsNone(self._run_hook(input_data))
+
+    def test_tracker_write_failure_falls_back_to_full_context(self) -> None:
+        """tracker 写入失败时仍交付完整上下文。"""
+        with mock.patch.object(
+            self.hook,
+            "_resolve_workflow_state_context_key",
+            return_value="codex_test",
+        ), mock.patch.object(
+            self.hook,
+            "_write_workflow_state_tracker",
+            return_value=False,
+        ):
+            output = self.hook._conditional_workflow_state_context(
+                self.root,
+                {},
+                "codex",
+                {},
+                "FULL STATE",
+                "HEARTBEAT",
+                False,
+            )
+        self.assertEqual(output, "FULL STATE")
 
     def test_ordinary_status_breadcrumbs_remain_unchanged(self) -> None:
         """验证普通 no_task、planning 与 in_progress 状态仍按模板输出。"""

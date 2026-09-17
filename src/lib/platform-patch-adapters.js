@@ -226,6 +226,29 @@ function parseYamlKeyContent(content) {
   return { desiredValue: parsed.value, commentSection };
 }
 
+function parseYamlCommentSectionContent(content) {
+  if (typeof content !== "string" || !content.trimStart().startsWith("{")) {
+    return { error: "yaml-comment-section content 必须是合法 JSON 对象" };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return { error: "yaml-comment-section content 必须是合法 JSON 对象" };
+  }
+  if (
+    !isPlainObject(parsed) ||
+    typeof parsed.heading !== "string" ||
+    !parsed.heading ||
+    !Array.isArray(parsed.lines) ||
+    !parsed.lines.every((line) => typeof line === "string") ||
+    !["skip", "error"].includes(parsed.missing || "error")
+  ) {
+    return { error: "yaml-comment-section content 配置无效" };
+  }
+  return { section: parsed };
+}
+
 function replaceYamlCommentSection(lines, section) {
   if (!section) return { lines };
   const heading = `# ${section.heading}`;
@@ -254,7 +277,14 @@ function replaceYamlCommentSection(lines, section) {
       break;
     }
   }
-  if (end < 0) return { error: `YAML 注释段缺少结束分隔线:${section.heading}` };
+  if (end < 0) {
+    if (dividerCount === 0) {
+      return { error: `YAML 注释段缺少标题分隔线:${section.heading}` };
+    }
+    // 最后一段可能没有下一段分隔线；保留随后的用户顶层配置，否则替换到文件末尾。
+    end = lines.findIndex((line, index) => index > headingIndex && isTopLevelKey(line));
+    if (end < 0) end = lines.length;
+  }
   lines.splice(start, end - start, ...section.lines);
   return { lines };
 }
@@ -325,6 +355,21 @@ function applyYamlKey({ value, operation }) {
     if (child === -1) lines.splice(start + 1, 0, `${indent}  ${childKey}: ${desiredValue}`);
     else lines[child] = `${leadingWhitespace(lines[child])}${childKey}: ${desiredValue}`;
   }
+  const desired = lines.join("\n") + (hadFinalNewline || lines.length > 0 ? "\n" : "");
+  return { value: desired, source: "structured" };
+}
+
+function applyYamlCommentSection({ value, operation }) {
+  if (operation.operation !== "replace") {
+    return { error: "yaml-comment-section 只支持 replace" };
+  }
+  const parsed = parseYamlCommentSectionContent(operation.content);
+  if (parsed.error) return parsed;
+  const normalized = value.replace(/\r\n/g, "\n");
+  const hadFinalNewline = normalized.endsWith("\n");
+  const lines = normalized ? normalized.replace(/\n$/, "").split("\n") : [];
+  const commentResult = replaceYamlCommentSection(lines, parsed.section);
+  if (commentResult.error) return { error: commentResult.error };
   const desired = lines.join("\n") + (hadFinalNewline || lines.length > 0 ? "\n" : "");
   return { value: desired, source: "structured" };
 }
@@ -412,6 +457,7 @@ function applyTomlSection({ value, operation }) {
 export function flowerPatchAdapters(pythonCommand = "python3") {
   return {
     "json-hook-command": (context) => applyJsonHookCommand({ ...context, pythonCommand }),
+    "yaml-comment-section": applyYamlCommentSection,
     "yaml-key": applyYamlKey,
     "toml-section": applyTomlSection,
   };

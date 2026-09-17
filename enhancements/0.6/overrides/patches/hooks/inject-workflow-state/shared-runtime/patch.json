@@ -101,6 +101,26 @@
       "content": { "source": "breadcrumb-content.py" }
     },
     {
+      "id": "workflow-state-conditional-heartbeat",
+      "operation": "insert",
+      "position": "before",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "file", "path": ".codex/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".claude/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".gemini/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".qoder/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".github/copilot/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".codebuddy/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".factory/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".kiro/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".trae/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "file", "path": ".zcode/hooks/inject-workflow-state.py", "missing": "skip", "markerStyle": "hash" }
+      ],
+      "selector": { "type": "literal", "source": "conditional-heartbeat-selector.py" },
+      "content": { "source": "conditional-heartbeat-content.py" }
+    },
+    {
       "id": "workflow-state-main-subject-routing",
       "operation": "replace",
       "targetPolicy": "each-existing",
