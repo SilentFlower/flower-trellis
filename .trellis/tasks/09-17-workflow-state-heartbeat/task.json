@@ -1,0 +1,38 @@
+{
+  "id": "workflow-state-heartbeat",
+  "name": "workflow-state-heartbeat",
+  "title": "优化 workflow-state 条件注入与低频心跳",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-17",
+  "completedAt": "2026-09-17",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-09-17T00:00:00+08:00",
+    "completedSteps": [
+      "实现 Codex/Claude 条件 workflow-state 注入与五轮心跳",
+      "完成 SessionStart startup/clear/compact 强制刷新",
+      "通过完整 Check-All 并更新运行时规范",
+      "提交并推送 Skill-Garden 与 Flower 业务变更"
+    ],
+    "partialStep": null,
+    "nextStep": "等待显式执行 trellis-finish-work",
+    "notes": "完整 npm test、Patch conflict、compiled targets、strict AI context budget 与二次 dogfood 均通过。"
+  }
+}

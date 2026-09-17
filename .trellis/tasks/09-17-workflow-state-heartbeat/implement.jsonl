@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "遵循 SessionStart 分段、Patch authoring source、compiled target 与最终输出契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "遵循 Skill-Garden source、snapshot、Plugin Runtime 和 dogfood 同步边界。"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "按真实最终 Hook 输出控制 SessionStart 与高频上下文预算。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "遵循配置读取、运行状态和 enhance-only dogfood 验证约束。"}

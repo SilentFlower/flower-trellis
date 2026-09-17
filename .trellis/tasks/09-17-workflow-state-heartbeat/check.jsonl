@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/trellis-patch-engine.md", "reason": "检查 Patch selector、SessionStart 分段、compiled target 和最终产物契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "检查 authoring source、snapshot、Plugin ownership 与 dogfood 一致性。"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "检查真实 SessionStart、完整状态和心跳输出预算。"}
+{"file": ".trellis/spec/flower-trellis/cli/config-and-state.md", "reason": "检查配置兼容、运行状态隔离与 dogfood 验证路径。"}
