@@ -266,6 +266,42 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertEqual(payload["reason"], "migration-not-available")
         self.assertTrue((self.linked / ".trellis").is_symlink())
 
+    def test_symlink_target_identity_rejects_drift_missing_and_unreadable_paths(self) -> None:
+        """仅替代 readlink 边界，真实文件身份校验仍拒绝漂移、缺失与读取失败。"""
+        spec = importlib.util.spec_from_file_location("worktree_link_identity_test", SOURCE)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        link = self.linked / ".trellis"
+        expected = self.main / ".trellis"
+        relative = os.path.relpath(expected, link.parent)
+        with mock.patch.object(module.os, "readlink", return_value=relative):
+            self.assertTrue(module._same_symlink_target(link, expected))
+            self.assertFalse(module._same_symlink_target(link, self.main / ".agents"))
+        missing = self.base / "missing"
+        with mock.patch.object(module.os, "readlink", return_value=str(missing)):
+            self.assertFalse(module._same_symlink_target(link, missing))
+        with mock.patch.object(module.os, "readlink", side_effect=PermissionError("denied")):
+            self.assertFalse(module._same_symlink_target(link, expected))
+        with mock.patch.object(module.os, "readlink", return_value=str(expected)), \
+                mock.patch.object(module.Path, "samefile", side_effect=PermissionError("denied")):
+            self.assertFalse(module._same_symlink_target(link, expected))
+
+    @unittest.skipUnless(os.name == "nt", "扩展路径前缀仅适用于 Windows")
+    def test_windows_extended_link_target_is_the_same_directory(self) -> None:
+        """无需软链权限，使用真实 Windows 路径确认扩展前缀不造成链接漂移误判。"""
+        spec = importlib.util.spec_from_file_location("worktree_windows_link_test", SOURCE)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        expected = (self.main / ".trellis").resolve()
+        text = str(expected)
+        if text.startswith("\\\\"):
+            extended = "\\\\?\\UNC\\" + text[2:]
+        else:
+            extended = "\\\\?\\" + text
+        with mock.patch.object(module.os, "readlink", return_value=extended):
+            self.assertTrue(module._same_symlink_target(self.linked / ".trellis", expected))
+            self.assertFalse(module._same_symlink_target(self.linked / ".trellis", self.main / ".agents"))
+
     def test_registry_lock_blocks_prepare(self) -> None:
         """已有 registry 锁时 prepare 失败关闭。"""
         common_value = Path(self._git(self.main, "rev-parse", "--git-common-dir").stdout.strip())

@@ -124,6 +124,12 @@ common._configure_stream(stream: object) -> object
   入口固定 `FLOWER_NO_TELEMETRY=1`；专项仅使用隔离目录和本地替身。
 - CI 用 `npm ci --ignore-scripts` 安装依赖后，真实 Flower CLI 测试前必须执行 `npm rebuild node-pty`；
   否则 Linux 干净环境可能缺少 `pty.node`。只构建该依赖，保持项目全局同步 postinstall 不执行。
+- 兼容矩阵的 `FLOWER_TEST_PYTHON` 固定为 `setup-python` 的 `python-path` 输出；上游 init 不读取它，
+  另在 job env 设置 `TRELLIS_PYTHON_CMD: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}`。
+  后者使用上游支持的显式命令覆盖，实际测试仍运行矩阵版本；不修改上游默认要求 3.9+ 的探测策略。
+- Flower 与 Skill-Garden 两仓 `.gitattributes` 均使用 `* text=auto eol=lf`，保证 Windows
+  `core.autocrlf=true` 检出时 selector、baseline、快照与 compiled 文本仍为 LF，二进制字节不变。
+  不放宽 Patch 精确匹配来补偿检出差异；子仓现有 diff sidecar `-whitespace` 规则继续保留。
 - Python 3.8 不使用 `str.removeprefix`、`Path.is_relative_to` 或括号式多 context manager。
   完整前缀用 `startswith` 后切片；路径包含关系用 `relative_to` 捕获 `ValueError`，仍保留调用处的
   `resolve`、软链拒绝和会话绑定校验。不能用字符串前缀近似路径包含关系。
@@ -153,6 +159,8 @@ common._configure_stream(stream: object) -> object
 | 路径越界、软链绕过、损坏会话 | 保持原拒绝/诊断语义，不能为兼容而放宽 |
 | Windows 创建软链报 WinError 1314 | 仅跳过该能力依赖的子场景；其它错误继续失败 |
 | compiled targets 受平台命令或换行影响 | 零漂移门禁失败，不更新基线掩盖平台差异 |
+| Python 3.8 矩阵只设置 FLOWER_TEST_PYTHON | 上游 init 仍可能按默认 3.9+ 探测拒绝；须补矩阵命令覆盖 |
+| core.autocrlf=true 的真实 Git 检出 | 文本保持 LF，二进制原字节不变，Patch 预检仍按精确原文执行 |
 
 ### 5. Scenarios and Examples
 
@@ -168,12 +176,17 @@ common._configure_stream(stream: object) -> object
 
 - Incorrect use：`name.lstrip("DEC-")` 会删除字符集合，破坏日志编号；改为
   `name[len("DEC-"):] if name.startswith("DEC-") else name`，只删除完整前缀。
+- Incorrect use：只在父仓设置 LF，或把上游初始化版本拒绝视为 Python 套件失败；应分别约束两仓检出，
+  并区分初始化命令覆盖、实际测试解释器和 canonical 产物命令这三个边界。
 - 边界证据：受控 CP936 测试只能证明指定编解码边界；不能冒充本机默认代码页或真实 Codex/Claude 会话加载。
   语法扫描也不能替代实际运行，括号式 `with` 在 3.8 可能解析成功却在运行时报错。
 
 ### 6. Tests Required
 
 - `test/js/python-runtime.test.js`：断言候选顺序、失效别名排除、显式覆盖与 argv 边界。
+- `test/js/checkout-line-endings.test.js`：读取两仓实际 attributes，用临时 Git 仓库在
+  `core.autocrlf=true` 下真实 add/checkout，逐字节比较 selector、baseline、Patch/compiled 样本及二进制。
+  同时运行 `trellis-0614-upstream.test.js`，验证矩阵初始化和增强预检，不以只检查 attributes 字符串代替。
 - `test/python/test_python_compatibility.py`：无 PATH 别名仍能启动 helper，中文 JSON 在受控 CP936 下
   往返，路径包含正反例，真实流/StringIO/关闭流所有权与 subagent 标题生成。
 - `test_flower_telemetry_hook.py`：原生 Windows CMD 特殊路径与完整 argv、禁用零调用和缺失 home 降级；

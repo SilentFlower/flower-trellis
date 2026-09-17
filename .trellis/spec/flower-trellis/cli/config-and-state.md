@@ -530,6 +530,10 @@ flower-trellis worktree remove --target <path> [--json]
 - schema v1 `.trellis-worktree.json` 只读兼容。自动迁移要求 manifest target/path 白名单有效、
   symlink 仍指向 manifest 声明来源，并且目标分支 `HEAD` 能重建全部受管真实目录。
   旧 `sourceRoot` 只用于验证 symlink，禁止作为迁移内容源。
+- `_same_symlink_target(link: Path, expected: Path) -> bool` 读取 `os.readlink(link)`，相对目标以
+  `link.parent` 为基准，再用 `actual.samefile(expected)` 校验文件身份。Windows 3.12 的 `resolve()`
+  可能保留 `\\?\` 前缀，不能用两侧解析后路径的文本相等替代身份校验；readlink/stat 的 `OSError`
+  返回 False，双方均缺失也不能视为相同。manifest 白名单和目标 HEAD 内容来源合同保持不变。
 - 迁移先在目标项目外临时目录执行 `git archive HEAD` 和内容验证，再事务替换 symlink；成功删除
   v1 manifest，失败恢复原链接和 manifest。新流程不再创建 worktree manifest。
 - registry 固定为 `{schemaVersion:1,developer?,worktrees:{<id>:{path,gitDir,branch,head,task,
@@ -576,6 +580,7 @@ flower-trellis worktree remove --target <path> [--json]
 | 目标存在版本化内容但缺 identity/runtime | `status=needs-prepare`；prepare 只写本地状态和 registry |
 | 当前分支缺 `.trellis`，其它 worktree 有 Trellis | `status=needs-init`；不得扫描或选择其它 worktree |
 | schema v1 manifest 和 symlink 完整，目标 HEAD 可重建 | dry-run=`migration-ready`；真实迁移后目录本地化并删除 manifest |
+| 链接目标只有 Windows 扩展前缀或相对写法不同 | 按文件身份判定；同一存在目录通过，错误目录、缺失或不可读目标拒绝 |
 | schema v1 来源无法由目标 HEAD 重建 | `reason=migration-source-unavailable`；symlink/manifest 原样保留 |
 | manifest 损坏、target 不符、symlink 漂移或用户路径冲突 | `status=blocked`；任何写操作零部分写入 |
 | registry lock 已存在 | `reason=registry-lock-held`；不得 last-write-wins |
@@ -610,6 +615,8 @@ flower-trellis worktree remove --target <path> [--json]
 - Good: `.flower/` 被 Git 忽略时，create 仍继承与目标受管内容匹配的独立安装记录。
 - Good: 手动创建的 worktree 已 ready-local，skill 通过 `prepare --inherit-flower --source <source>` 补配。
 - Good: legacy migration 的候选内容只来自目标 `HEAD`，旧 source 分支更新不会进入迁移结果。
+- Bad: 比较 `actual.resolve(strict=False) == expected.resolve(strict=False)`；同一 Windows 目录可能
+  因扩展前缀而不等。应使用 `samefile()` 并捕获 `OSError`，不手动剥离前缀或放宽 manifest 校验。
 - Good: remove 在 registry 故障注入后恢复原 worktree、task 文件和 `.trellis/.runtime` 本地状态。
 - Base: 当前分支未启用 `.claude` 时，缺少 `.claude` 不阻断 ready-local。
 - Base: 纯 Trellis 来源无 Flower 记录时报告 unavailable，不推定需要安装 Flower。
@@ -625,6 +632,9 @@ flower-trellis worktree remove --target <path> [--json]
   成功迁移/不可重建/漂移、registry 全局碰撞与重复 task、create 只读计划/当前分支默认/detached
   fallback/submodule/dirty/fingerprint 变化、route 偏好规范化与同开发者继承、prepare 显式继承边界、
   create/remove、主 worktree 删除保护，以及 registry 写失败后的 worktree/本地状态补偿。
+- 链接身份回归覆盖相对目标、Windows 真实扩展路径、错误目标、双方缺失、readlink/stat 权限失败。
+  扩展路径测试只替代 readlink 返回值，真实执行文件身份比较，无需创建软链；junction 迁移/回滚模拟
+  必须明确替代边界，不能作为原生符号链接迁移已通过的证据。
 - `test_untracked_flow.py` 必须覆盖 linked worktree cwd 无 `.trellis` 时不读取主 runtime，并覆盖
   嵌套 `.git` 边界不能命中父 Trellis。
 - `test_workflow_state_hook.py` 必须覆盖 linked cwd 只输出 local-missing 诊断及嵌套 `.git` 边界。

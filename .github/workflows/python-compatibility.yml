@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/python-compatibility.yml"
+      - ".gitattributes"
       - ".trellis/scripts/**"
       - ".claude/hooks/**"
       - ".codex/hooks/**"
@@ -17,6 +18,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/python-compatibility.yml"
+      - ".gitattributes"
       - ".trellis/scripts/**"
       - ".claude/hooks/**"
       - ".codex/hooks/**"
@@ -44,6 +46,9 @@ jobs:
     env:
       FLOWER_NO_TELEMETRY: "1"
       PYTHONUTF8: "1"
+      # 兼容矩阵显式使用 setup-python 放入 PATH 的版本；上游 init 按该命令生成模板，
+      # 不再另行探测其默认要求的 3.9+。实际脚本仍由矩阵中的 3.8/3.12 执行。
+      TRELLIS_PYTHON_CMD: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}
     steps:
       - name: 检出作者源和分发产物
         uses: actions/checkout@v7
@@ -90,7 +95,7 @@ jobs:
       - name: 验证 Node 到 Python 启动入口
         env:
           FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
-        run: node --test test/js/python-runtime.test.js test/js/trellis-0614-upstream.test.js
+        run: node --test test/js/python-runtime.test.js test/js/trellis-0614-upstream.test.js test/js/checkout-line-endings.test.js
       - name: 验证编译产物
         env:
           FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
