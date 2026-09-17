@@ -28,12 +28,18 @@
 ## 4. 收口
 
 - [x] Update-Spec 记录稳定合同，区分实机、CI、模拟证据和限制。
-- [ ] 提交推送按精确父子仓计划确认，CI 成功后同步任务进度；发布/归档另行授权。
+- [x] 提交推送按精确父子仓计划确认，两仓补丁与 CI 核验完成；发布/归档另行授权。
 
-两仓业务提交及追加补丁已推送，追加补丁对应的 SessionStart 两系统 CI 通过。Python 四组合复验仅 Ubuntu 3.12 全绿：Ubuntu 3.8 初始化受上游最低版本限制，Windows 3.8 初始化后的 Patch 预检失败，Windows 3.12 两项 legacy 迁移仍失败。任务保持 in_progress，不能将已推送或局部模拟成功等同 CI 完成。
+上一轮追加补丁的 Python CI 仅 Ubuntu 3.12 通过，其余三组分别暴露初始化版本、CRLF 检出和 Windows 3.12 链接身份比较问题。第二轮修复已推送，匹配本轮业务提交的 Python 四组合及 SessionStart 两系统 CI 全部通过，具体记录见审计文档。
 
 - [x] 首轮 CI 追加补丁完成本地定向验证和 Light Check-All，依赖构建与短名夹具合同已补入质量规范。
 - [x] 追加补丁提交推送并重新核验四组合 CI，记录实际失败位置；Windows 隔离目录的五项迁移/回滚模拟全部通过且无跳过。
-- [ ] 处理初始化版本边界、Windows Patch 预检及 Windows 3.12 原生软链迁移失败，四组合 CI 全部通过后同步任务完成态。
+- [x] 初始化版本边界、Windows Patch 预检及 Windows 3.12 原生软链迁移问题已修复，四组合 CI 全部通过，进入完成态同步。
+- [x] 第二轮修复：CI 显式矩阵命令、两仓 LF attributes、作者源链接身份比较；同步快照/compiled targets/Plugin 投影。
+- [x] 第二轮本地验证：真实 autocrlf 检出、Windows 3.8/3.12 路径回归与迁移模拟、Linux 全套及 Windows workflow 同步骤验证通过；Node 22 两个 Python 版本的后续验证与真实 CLI 补验通过。
+- [x] 第二轮 Full Check-All 三维通过，CHK/FBK 为 0；复用本轮 Linux/Windows 验证证据，保留 Windows 条件跳过与 junction 模拟边界。
+- [x] 第二轮 Update-Spec 补充矩阵初始化命令、两仓 LF 检出与链接身份比较合同，规范检查通过。
+- [x] 第二轮按确认范围提交推送作者源与父仓补丁，刷新快照 sourceCommit 和 Plugin lock；compiled targets 891 文件零漂移。
+- [x] 第二轮远端 Python 四组合与 SessionStart 两系统 CI 全部通过，headSha 均为本轮业务提交；Windows 54 项跳过全部可归属 Maven 平台条件，legacy 软链迁移没有被权限 skip 掩盖。
 
 主要命令使用现有入口：npm run patch:targets、npm run sync、npm run patch:targets:check、npm test、node scripts/check-ai-context-budget.mjs --strict、git diff --check。生成顺序以脚本实际依赖核对结果为准，不绕过 source/ownership 门禁。

@@ -49,6 +49,9 @@
 | CP-18 | task start 门禁测试的生命周期 Hook 固定使用 POSIX touch，Windows CMD 找不到该命令；改用两边 shell 均支持的 echo 重定向标记，仍验证 Hook 真实执行。 |
 | CP-19 | 首轮 CI 两个 Ubuntu job 均在真实 CLI 用例缺失 pty.node；npm ci --ignore-scripts 跳过原生依赖构建。隔离新目录复现同一失败，npm rebuild node-pty 后同一用例及全部 34 个 worktree 测试通过；CI 增加指定依赖构建步骤，不执行项目全局同步 postinstall。 |
 | CP-20 | 首轮 CI 两个 Windows job 的 legacy 迁移用例失败；夹具 targetRoot 使用 resolve 后长名，links.target 使用 absolute 保留短名，与严格 manifest 合同不一致。原生 Windows 3.8、真实 SILENT~1 路径上复现 manifest invalid；只改夹具为已解析父目录加相对入口后为 ok，不跟随最终软链、不放宽产品校验。 |
+| CP-21 | 第二轮 Ubuntu 3.8 的 Python 套件通过，但上游 init 独立探测要求 >=3.9，不读取 FLOWER_TEST_PYTHON。兼容矩阵显式使用上游支持的 TRELLIS_PYTHON_CMD override，命令固定为 setup-python 放入 PATH 的 python/python3，实际脚本仍按 3.8/3.12 运行；不改变用户全局配置或生产初始化最低版本。 |
+| CP-22 | 第二轮 Windows 3.8 的 Patch 预检多处 selector 零匹配。隔离 Git 副本以 core.autocrlf=true 检出，精确复现相同 selector/fingerprint 错误；LF 检出后通过。两仓 attributes 固定 text=auto eol=lf，保留二进制字节与精确匹配门禁，并增加真实 Git 检出回归。 |
+| CP-23 | 原生 Windows 3.12.10 中 readlink 返回的扩展路径在 resolve 后仍保留 \\?\ 前缀，另一侧普通路径无前缀，路径比较误报漂移；3.8.10 同条件不会保留此前缀。NTFS junction 隔离探针复现 manifest=ok 但 status=blocked；samefile 确认同一目录。作者源改为文件身份比较，readlink/stat 失败仍拒绝，新增无软链权限也可执行的真实扩展路径回归。 |
 
 ## 审计边界
 
@@ -100,3 +103,34 @@ CP-19 的原生依赖缺失已由四组 Python 套件的真实 CLI 用例闭环�
 Ubuntu 3.8 新失败已核对 `@mindfoldhq/trellis/dist/commands/init.js`：MIN_PYTHON_MINOR 为 9；FLOWER_TEST_PYTHON 只约束 Flower 测试 helper，上游独立初始化探测不读取该变量。后续应明确初始化前提与运行期兼容验证的边界，同时保持 3.8 实际运行覆盖。先前 junction 模拟使用 3.8，不能外推为 3.12 原生符号链接验证成功。本轮请求的追加补丁推送与 CI 核验已完成，但整个兼容任务仍未完成。
 
 本轮通过源码、隔离安装与原生进程验证，不宣称重跑了真实 Codex/Claude 对话宿主；旧 SessionStart 宿主验证属于前一任务。Windows 无软链权限的场景保留 Linux 真实软链验证，未更改系统权限。日志在 /tmp/flower-compat-*.log，仅作本地执行证据，不包含真实遥测载荷。
+
+## 第二轮修复与本地复验
+
+本轮在现有任务内修复 CP-21/22/23。作者源经 `npm run sync` 与 Plugin update 同步，worktree helper 的 source/snapshot/dogfood 字节一致；compiled targets 生成结果不变。子仓尚未提交，后续提交链需在子仓提交后再次刷新 MANIFEST sourceCommit 和 Plugin lock，不能把当前快照元数据当成新的远端提交。
+
+- Linux 3.12 `npm test` 退出 0：JS 581 项（579 通过、2 跳过），Python 382 项（2 跳过）；Patch 冲突、891 个 compiled 文件零漂移、默认预算与输出模板检查通过。
+- Linux 定向 worktree 36 项通过（1 Windows-only 跳过），Node 入口/初始化/真实 Git 检出 7 项全过。
+- 原先 CRLF 失败副本 `/tmp/flower-crlf-diagnose-urPiXL/repo` 加入实际 attributes 后，继续以 core.autocrlf=true 检出，初始化/强化两项通过；测试脚本选择临时 Linux Python 3.8.20。
+- Windows 3.12.10 完整临时 Python 运行五项 junction 迁移及回滚模拟，24.528 秒，全部通过、零跳过；只替代目录链接创建/识别/删除，不改变路径、Git、迁移、文件移动及回滚实现。临时 Python 解压在 `C:\Users\SilentFlower\AppData\Local\Temp\flower-ci-diagnose-l28HNF`，没有覆盖现有 Python 或注册到系统。
+- Linux 3.8.20 在临时目录安装、未注册到全局；按 workflow 的四步验证全部退出 0：314 项 Python（2 跳过，238.684 秒）、7 项 Node 全过、compiled targets 零漂移、strict budget 通过。
+- Windows 3.8.10 / 3.12.10 在隔离副本按同四步执行，全部退出 0：各 314 项 Python、67 项平台/软链权限条件跳过，分别 698.842 / 683.493 秒；各 7 项 Node 全过，compiled targets 与 strict budget 通过。新增身份比较及扩展路径用例实际执行，没有被权限 skip 掩盖。
+- 上述 Windows 大套件由本机 Node 20.19.2 发起；为覆盖 CI 的 Node 22，另用临时 Node 22.14.0 对两个 Python 版本分别复验 7 项 Node 测试、compiled targets、strict budget，全部通过；两个版本的真实 CLI create/prepare 用例也单独通过（19.280 / 19.254 秒）。没有切换用户 NVM 或覆盖全局 Node。
+- Windows 3.8 的五项 junction 迁移/回滚模拟再次全部通过，25.727 秒，零跳过；3.12 结果见上。真实 Windows 符号链接迁移仍受本机权限限制，由后续 CI 补充确认，不把 junction 模拟当作原生软链全链路通过。
+- 第二轮本地复验结束时尚未提交或推送，当时远端仍是上一轮失败状态；后续真实 CI 结果单列如下。
+
+## 第二轮补丁推送与 CI 闭环（2026-09-17）
+
+用户确认精确计划后，Skill-Garden 修复提交 `94df742fdf6530a2bf8f72df68a5a9a30b929d7d` 已推送；刷新快照 sourceCommit 与 Plugin lock 后，Flower 业务提交 `a06faccdcd7a6e8bd1829f4b41d35c252e814dd5` 已推送。作者源、快照、部署 helper 字节一致，compiled targets 891 文件零漂移。两仓无计划外提交，telemetry-roadmap 五个未跟踪文件保持原摘要。
+
+[Python run 35169507853](https://github.com/SilentFlower/flower-trellis/actions/runs/35169507853) 与 [SessionStart run 35169508126](https://github.com/SilentFlower/flower-trellis/actions/runs/35169508126) 均为 success，headSha 均匹配上述 Flower 业务提交；不是旧提交的结果或仅配置检查。
+
+| Python CI 组合 | Python 套件 | Node / compiled / budget |
+| --- | --- | --- |
+| Ubuntu 3.8 | 314 项，无失败，4 项条件跳过，118.070 秒 | 7 项 Node 全过；891 文件零漂移；strict budget 通过 |
+| Ubuntu 3.12 | 314 项，无失败，4 项条件跳过，100.423 秒 | 7 项 Node 全过；891 文件零漂移；strict budget 通过 |
+| Windows 3.8 | 314 项，无失败，54 项条件跳过，189.716 秒 | 7 项 Node 全过；891 文件零漂移；strict budget 通过 |
+| Windows 3.12 | 314 项，无失败，54 项条件跳过，366.220 秒 | 7 项 Node 全过；891 文件零漂移；strict budget 通过 |
+
+Windows 跳过总数 54 与代码中的 Maven POSIX 类 53 项、WSL 专属 1 项完全一致，没有额外 WinError 1314 跳过。因此本轮 CI 的 legacy 原生软链迁移及身份比较场景实际执行成功，补齐本机仅能运行 junction 模拟的证据边界。SessionStart Ubuntu/Windows 各运行 14 项，无失败、无跳过，分别 9.052 / 15.106 秒。本轮没有重新运行需要认证的 Codex/Claude 对话宿主，不将脚本 CI 扩张为所有客户端版本的保证。
+
+第二轮 Full Check-All 的 CHK/FBK 均为 0；Update-Spec 已补充矩阵命令覆盖、两仓 LF 检出及链接身份比较合同。至此三处剩余 CI 故障均闭环，按同次批准的任务记录提交同步 completed；本次不发布、不打标签、不归档。

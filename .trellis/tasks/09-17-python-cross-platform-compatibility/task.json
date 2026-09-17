@@ -3,7 +3,7 @@
   "name": "python-cross-platform-compatibility",
   "title": "修复 Python 跨平台兼容并扩展回归门禁",
   "description": "修复已复现的 Windows/Python 3.8、解释器选择、CMD 参数与标准流问题，扩大扫描并补齐跨平台验证。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "silentflower",
   "assignee": "silentflower",
   "createdAt": "2026-09-17",
-  "completedAt": null,
+  "completedAt": "2026-09-17",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -124,15 +124,15 @@
   },
   "progress": {
     "completedSteps": [
-      "两仓跨平台兼容业务提交及追加补丁已推送，快照与子模块一致性验证通过",
-      "追加补丁对应 SessionStart Windows/Linux 两个 CI job 全部通过",
-      "Python 四组合复验全部结束：Ubuntu 3.12 job 成功，其余三组失败已记录",
-      "原生依赖缺失已在四组合真实 CLI 用例中消除；Windows 3.8 Python 套件通过",
-      "原生 Windows 3.8 短名 TEMP 下五项 junction 迁移及回滚模拟通过、零跳过，边界已记录"
+      "跨平台兼容与第二轮三个 CI 根因修复已在父子仓提交推送，快照与 Plugin 锁同步",
+      "本地 Linux 全套、Linux/Windows Python 3.8/3.12 验证及 Windows Node 22 补验通过",
+      "Full Check-All 通过，CHK/FBK 为 0；可执行跨平台合同已写入规范",
+      "本轮补丁对应 Python CI 四组合全部成功，Windows 原生软链迁移执行成功",
+      "本轮补丁对应 SessionStart Windows/Linux 两组各 14 项全部成功"
     ],
-    "partialStep": "Python CI 仍有三组失败：Ubuntu 3.8 上游初始化版本限制、Windows 3.8 Patch 预检、Windows 3.12 两项 legacy 迁移",
-    "nextStep": "定位并修复三个剩余失败，完成定向验证后按精确范围提交，再核验四组合 CI",
-    "notes": "任务保持 in_progress，不发布、不归档。追加 SessionStart run 35165807141 成功；Python run 35165807236 仅 Ubuntu 3.12 成功。Windows 3.8 junction 模拟不代表 3.12 原生符号链接通过；Patch 预检与 3.12 迁移精确根因待定位。",
-    "updatedAt": "2026-09-17T00:24:03Z"
+    "partialStep": null,
+    "nextStep": "任务验收已完成；如需发布或归档，按相应流程另行授权",
+    "notes": "Python run 35169507853 与 SessionStart run 35169508126 均成功。Python 四组合各运行 314 项，Ubuntu 各跳过 4 项、Windows 各跳过 54 项；Node 各 7 项全过，compiled targets 与 strict budget 通过。Windows 54 项均为 Maven 平台条件，无额外软链权限跳过。本轮未重新验证认证对话宿主；未发布或归档。",
+    "updatedAt": "2026-09-17T01:20:25Z"
   }
 }

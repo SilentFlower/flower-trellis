@@ -24,7 +24,7 @@
 ## Key Context
 
 - Flower 资产和测试在父仓；Skill-Garden 脚本在 vendor 子仓，原生模板用 Patch 修改。
-- 规划时扫描 77 个 Python 文件并记录 8 组故障；实施扩为 90 个文件及 20 组兼容/验证问题（含首轮 CI 揭示的依赖与夹具问题），证据见 research/compatibility-audit.md。
+- 规划时扫描 77 个 Python 文件并记录 8 组故障；实施扩为 90 个文件及 23 组兼容/验证问题，包括 CI 揭示的依赖、夹具、初始化版本、CRLF 检出与 Windows 扩展路径前缀问题，证据见 research/compatibility-audit.md。
 - 原 SessionStart 任务已完成；原有 telemetry-roadmap 未跟踪内容保留。
 
 ## Risks / Deferred
@@ -39,4 +39,4 @@
 
 ## Next Step
 
-- 任务已启动，修复与定向回归完成后进入 Full Check-All；提交、发布另行遵循相应流程。
+- 修复、Full Check-All、规范更新与两仓补丁推送已完成，Python 四组合及 SessionStart 两系统 CI 全绿；同步完成记录，发布或归档另行授权。

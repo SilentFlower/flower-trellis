@@ -25,6 +25,10 @@
 
 ## 5. 验证和回退
 
+- 第二轮 CI 修复：两仓以 `text=auto eol=lf` 固定文本检出，保持 Patch 精确匹配与二进制原字节；用真实 `autocrlf=true` 临时 Git 检出验证，不靠放宽 selector 匹配。
+- 兼容矩阵仅在 CI 环境显式设置 `TRELLIS_PYTHON_CMD` 为 setup-python 对应的平台命令，上游 init 采用其支持的 override 生成模板；运行期继续固定矩阵解释器，不改变用户环境的上游最低版本策略。
+- legacy 链接目标按真实文件身份比较，避免 Windows 3.12 保留扩展路径前缀造成误判；`readlink` 或目标 stat 失败时拒绝。补相对链接、扩展前缀、错误目标、缺失及权限失败回归。
+
 - 已复现条件补最小回归，保留 SessionStart 内容/禁用/诊断/Astra/并行/预算。
 - CI Ubuntu/Windows × Python 3.8/3.12 跑受影响套件，准备 Node/submodule；不依赖登录态或真实遥测。
 - Linux 完整 npm test；Windows 原生跑受影响 Python/Node 并扩大覆盖；能力限制精确登记，不宽泛 skip。
