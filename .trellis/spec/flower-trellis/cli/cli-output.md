@@ -157,6 +157,9 @@ assertTarget(ctx.target);
   非 TTY 只打印对应完成行并直接返回，不能阻塞脚本。Windows 下选择 `退出` 后必须先恢复
   stdin、光标和 Win32 Input Mode，再显式以退出码 0 结束 CLI；不能假设 ConPTY worker 的
   MessagePort / Socket 会随子进程自然退出而自动释放。
+  Windows 顶层 `init` / `update` 的 `-y`、非 TTY 完成也必须结束进程；在命令 Promise、
+  计时及遥测收尾后排空 stdout/stderr，再复用终端退出 helper 并保留已有退出码。
+  嵌套调用的完成输出不得自行结束宿主，以免中断父级操作。
 - **内嵌 Plugin 输出默认精简**:`init` / `update` 重放 Skill Garden 时只展示 Plugin、版本与变化总数，
   不逐行打印 `write` / `patch` / `remove` 路径；独立 `plugin` 命令保留逐条清单。
 - **生命周期清单只列真实改动**:生命周期命令会重新投影整图,未受影响的 Plugin 会产生大量前后字节
@@ -206,9 +209,10 @@ assertTarget(ctx.target);
 - `runTrellisPty` 退出时必须先停止子进程输出订阅,再移除 input/resize 监听、恢复 stdin
   原有 raw/flowing 状态,最后关闭 Win32 Input Mode;信号退出仍返回 `128`。
 - PTY spawn 同步失败也要执行终端恢复;恢复失败属于退出期 best-effort,不能覆盖原异常。
-- `scheduleWindowsTerminalExit` 仅在 Windows 完成页已经选择 `退出` 后生效；它必须恢复
-  raw/input、显示光标、关闭 Win32 Input Mode，并延后一轮显式退出 0，避免 node-pty
-  自然退出后残留的 worker / socket 让命令永久挂起。
+- `scheduleWindowsTerminalExit` 在 Windows 完成页选择 `退出` 或顶层 `init` / `update`
+  已完成收尾后生效；它必须恢复 raw/input、显示光标、关闭 Win32 Input Mode，并延后一轮
+  显式退出（默认 0，可传入已有 `exitCode`），避免残留 worker / socket 让命令永久挂起。
+  非 TTY 不写终端控制序列；顶层调用前必须等输出排空，防止显式退出截断管道输出。
 
 #### 4. Validation & Error Matrix
 
@@ -221,6 +225,7 @@ assertTarget(ctx.target);
 | PTY 信号退出 | 完成同样清理,返回 `128` |
 | PTY spawn 抛错 | 恢复终端后 reject 原异常 |
 | Windows 完成页选择 `退出` | 恢复终端后显式退出 0，不等待残留 PTY 句柄自然释放 |
+| Windows 顶层 init/update 非交互完成 | 等收尾和输出排空，保留退出码并显式退出；不显示菜单或写控制序列 |
 
 #### 5. Good / Base / Bad Cases
 
@@ -238,6 +243,8 @@ assertTarget(ctx.target);
 - 分别覆盖正常退出、信号退出、spawn 异常和输出流关闭。
 - 完成页测试注入 Windows 终端和退出函数，断言选择 `退出` 后按 raw mode、光标、Win32
   Input Mode、退出码 0 的顺序完成收尾；发版前在真实 Windows ConPTY 中断言进程按时结束。
+- 非交互测试断言零控制序列、延后退出及非零退出码保留；原生 Windows CI 真实执行
+  `init --yes`、重复 update 和 dry-run，并断言进程退出、最终计时和配置内容。
 
 #### 7. Wrong vs Correct
 

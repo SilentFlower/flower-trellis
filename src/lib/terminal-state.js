@@ -41,13 +41,13 @@ export function installWindowsTerminalInputRecovery(options = {}) {
 }
 
 /**
- * 在 Windows 交互完成页选择“退出”后恢复终端，并显式结束 CLI 进程。
+ * 在 Windows 命令完成或交互完成页选择“退出”后恢复终端，并显式结束 CLI 进程。
  *
  * node-pty 的 Windows ConPTY worker 在子进程自然退出后仍可能持有 MessagePort / Socket，
- * 因此不能只依赖 Node 事件循环自然清空。这里仅在用户已经选择退出时执行，并把实际退出
- * 延后到下一轮事件循环，让 Inquirer 完成当前输出清理。
+ * 因此不能只依赖 Node 事件循环自然清空。调用者必须确认顶层命令已结束或用户已经选择退出，
+ * 并把实际退出延后到下一轮事件循环，让 Inquirer 完成当前输出清理。
  *
- * @param {{platform?:string,input?:{isTTY?:boolean,isRaw?:boolean,setRawMode?:(value:boolean)=>unknown,pause?:()=>unknown},output?:{isTTY?:boolean,write:(value:string)=>unknown},schedule?:(callback:()=>void)=>unknown,exitProcess?:(code:number)=>unknown}} [options] 终端、调度器与退出函数测试注入
+ * @param {{platform?:string,input?:{isTTY?:boolean,isRaw?:boolean,setRawMode?:(value:boolean)=>unknown,pause?:()=>unknown},output?:{isTTY?:boolean,write:(value:string)=>unknown},schedule?:(callback:()=>void)=>unknown,exitProcess?:(code:number)=>unknown,exitCode?:number}} [options] 终端、调度器、退出码与退出函数测试注入
  * @returns {boolean} 是否安排了 Windows CLI 显式退出
  */
 export function scheduleWindowsTerminalExit(options = {}) {
@@ -73,6 +73,6 @@ export function scheduleWindowsTerminalExit(options = {}) {
 
   const schedule = options.schedule ?? ((callback) => setTimeout(callback, 0));
   const exitProcess = options.exitProcess ?? ((code) => process.exit(code));
-  schedule(() => exitProcess(0));
+  schedule(() => exitProcess(options.exitCode ?? 0));
   return true;
 }

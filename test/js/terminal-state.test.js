@@ -5,6 +5,7 @@ import { showCommandCompletion } from "../../src/lib/command-completion.js";
 import {
   disableWindowsTerminalWin32InputMode,
   installWindowsTerminalInputRecovery,
+  scheduleWindowsTerminalExit,
 } from "../../src/lib/terminal-state.js";
 import { runTrellisPty } from "../../src/lib/trellis-runner.js";
 
@@ -118,6 +119,33 @@ test("非 Windows 或非 TTY 不输出终端控制序列", () => {
   }), false);
   assert.deepEqual(linuxOutput.chunks, []);
   assert.deepEqual(pipedOutput.chunks, []);
+});
+
+test("Windows 非交互收尾不写控制序列，延后退出且保留命令退出码", () => {
+  const output = new FakeOutput({ isTTY: false });
+  const exits = [];
+  let scheduled;
+  let paused = false;
+  assert.equal(scheduleWindowsTerminalExit({
+    platform: "win32",
+    input: { isTTY: false, pause: () => { paused = true; } },
+    output,
+    exitCode: 3,
+    schedule: (callback) => { scheduled = callback; },
+    exitProcess: (code) => exits.push(code),
+  }), true);
+  assert.equal(paused, true);
+  assert.deepEqual(output.chunks, []);
+  assert.deepEqual(exits, []);
+  scheduled();
+  assert.deepEqual(exits, [3]);
+});
+
+test("非 Windows 完成时不安排显式退出", () => {
+  assert.equal(scheduleWindowsTerminalExit({
+    platform: "linux",
+    schedule: () => assert.fail("非 Windows 不应安排退出"),
+  }), false);
 });
 
 test("CLI 启动和退出都会恢复 Windows 终端输入模式", () => {

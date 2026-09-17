@@ -7,7 +7,7 @@ import { readManifest } from "./lib/manifest.js";
 import { ProjectStore } from "./plugin/state/project-store.js";
 import { runTrellis } from "./lib/trellis-runner.js";
 import { parseCliArgs } from "./lib/cli-args.js";
-import { installWindowsTerminalInputRecovery } from "./lib/terminal-state.js";
+import { installWindowsTerminalInputRecovery, scheduleWindowsTerminalExit } from "./lib/terminal-state.js";
 
 /**
  * flower-trellis CLI 主入口。
@@ -203,6 +203,12 @@ async function main() {
       // 兜底透传:flower-trellis <其它命令> → trellis <其它命令>
       const code = await runTrellis([cmd, ...ctx.passthrough], ctx.target);
       process.exit(code);
+    }
+    // 非交互完成不会经过退出菜单；必须等编排、计时和遥测收尾后再释放 Windows CLI。
+    if (process.platform === "win32" && (cmd === "init" || cmd === "update")) {
+      // Windows 管道写入是异步的，显式退出前等两个输出流排空，避免截断完成行和计时。
+      await Promise.all([process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write("", resolve))));
+      scheduleWindowsTerminalExit({ exitCode: process.exitCode ?? 0 });
     }
   } catch (err) {
     console.error(`❌ ${err.message}`);

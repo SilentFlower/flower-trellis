@@ -265,6 +265,8 @@ test("Update 补偿恢复旧内容、mode 和 Plugin-owned path，并保留用�
   fs.mkdirSync(path.join(target, ".trellis", "tasks", "task-a"), { recursive: true });
   fs.mkdirSync(path.join(target, ".trellis", "spec"), { recursive: true });
   fs.writeFileSync(path.join(target, ".codex", "config.toml"), "old\n", { mode: 0o640 });
+  // Windows 不支持 POSIX 组权限，恢复契约以文件系统实际保存的 mode 为准。
+  const originalMode = fs.statSync(path.join(target, ".codex", "config.toml")).mode & 0o777;
   fs.writeFileSync(path.join(target, "AGENTS.md"), "old agents\n");
   fs.writeFileSync(path.join(target, "custom", "owned.txt"), "old owned\n");
   fs.writeFileSync(path.join(target, ".trellis", "tasks", "task-a", "task.json"), "old task\n");
@@ -303,7 +305,7 @@ test("Update 补偿恢复旧内容、mode 和 Plugin-owned path，并保留用�
   const result = restoreUpdateSnapshot(snapshot);
   assert.equal(result.ok, true, JSON.stringify(result.failedPaths));
   assert.equal(fs.readFileSync(path.join(target, ".codex", "config.toml"), "utf8"), "old\n");
-  assert.equal(fs.statSync(path.join(target, ".codex", "config.toml")).mode & 0o777, 0o640);
+  assert.equal(fs.statSync(path.join(target, ".codex", "config.toml")).mode & 0o777, originalMode);
   assert.equal(fs.existsSync(path.join(target, ".codex", "new.toml")), false);
   assert.equal(fs.readFileSync(path.join(target, "custom", "owned.txt"), "utf8"), "old owned\n");
   assert.equal(fs.readFileSync(path.join(target, ".trellis", "tasks", "task-a", "task.json"), "utf8"), "new task\n");
@@ -318,6 +320,8 @@ test("Plugin 预检扩展快照后可恢复新增外部路径及其原内容", (
   const target = createTarget(t, "flower-update-plugin-plan-");
   fs.mkdirSync(path.join(target, "custom"));
   fs.writeFileSync(path.join(target, "custom", "owned.txt"), "old owned\n", { mode: 0o640 });
+  // Windows 不支持 POSIX 组权限，恢复契约以文件系统实际保存的 mode 为准。
+  const originalMode = fs.statSync(path.join(target, "custom", "owned.txt")).mode & 0o777;
   const snapshot = createUpdateSnapshot(target);
   t.after(() => disposeUpdateSnapshot(snapshot));
 
@@ -332,7 +336,7 @@ test("Plugin 预检扩展快照后可恢复新增外部路径及其原内容", (
   const result = restoreUpdateSnapshot(snapshot);
   assert.equal(result.ok, true, JSON.stringify(result.failedPaths));
   assert.equal(fs.readFileSync(path.join(target, "custom", "owned.txt"), "utf8"), "old owned\n");
-  assert.equal(fs.statSync(path.join(target, "custom", "owned.txt")).mode & 0o777, 0o640);
+  assert.equal(fs.statSync(path.join(target, "custom", "owned.txt")).mode & 0o777, originalMode);
   assert.equal(fs.existsSync(path.join(target, "generated")), false);
 });
 
@@ -341,6 +345,8 @@ test("Plugin 精确快照可覆盖通常排除的 Trellis spec 目标", (t) => {
   const specPath = path.join(target, ".trellis/spec/guide.md");
   fs.mkdirSync(path.dirname(specPath), { recursive: true });
   fs.writeFileSync(specPath, "old spec\n", { mode: 0o640 });
+  // Windows 不支持 POSIX 组权限，恢复契约以文件系统实际保存的 mode 为准。
+  const originalMode = fs.statSync(specPath).mode & 0o777;
   const snapshot = createUpdateSnapshot(target);
   t.after(() => disposeUpdateSnapshot(snapshot));
 
@@ -355,7 +361,7 @@ test("Plugin 精确快照可覆盖通常排除的 Trellis spec 目标", (t) => {
   const result = restoreUpdateSnapshot(snapshot);
   assert.equal(result.ok, true, JSON.stringify(result.failedPaths));
   assert.equal(fs.readFileSync(specPath, "utf8"), "old spec\n");
-  assert.equal(fs.statSync(specPath).mode & 0o777, 0o640);
+  assert.equal(fs.statSync(specPath).mode & 0o777, originalMode);
   assert.equal(fs.existsSync(path.join(target, ".trellis/spec/generated")), false);
 });
 
@@ -368,6 +374,8 @@ test("真实 CLI 在 Plugin replay 失败后补偿恢复受管状态并保留备
   fs.writeFileSync(path.join(target, ".trellis/.developer"), "tester\n");
   fs.writeFileSync(path.join(target, ".trellis/config.yaml"), "old config\n");
   fs.writeFileSync(path.join(target, ".codex/config.toml"), "old codex\n", { mode: 0o640 });
+  // Windows 不支持 POSIX 组权限，恢复契约以文件系统实际保存的 mode 为准。
+  const originalMode = fs.statSync(path.join(target, ".codex/config.toml")).mode & 0o777;
   fs.writeFileSync(path.join(target, ".flower/plugins.json"), "{broken\n");
   fs.writeFileSync(path.join(target, ".trellis/tasks/task-a/task.json"), "user task\n");
   const prefix = createFakeGlobalTrellis(t, trellisVersion());
@@ -396,7 +404,7 @@ test("真实 CLI 在 Plugin replay 失败后补偿恢复受管状态并保留备
   assert.equal(fs.readFileSync(path.join(target, ".trellis/.version"), "utf8"), "0.6.5\n");
   assert.equal(fs.readFileSync(path.join(target, ".trellis/config.yaml"), "utf8"), "old config\n");
   assert.equal(fs.readFileSync(path.join(target, ".codex/config.toml"), "utf8"), "old codex\n");
-  assert.equal(fs.statSync(path.join(target, ".codex/config.toml")).mode & 0o777, 0o640);
+  assert.equal(fs.statSync(path.join(target, ".codex/config.toml")).mode & 0o777, originalMode);
   assert.equal(fs.existsSync(path.join(target, ".codex/new.toml")), false);
   assert.equal(fs.readFileSync(path.join(target, ".flower/plugins.json"), "utf8"), "{broken\n");
   assert.equal(fs.readFileSync(path.join(target, ".trellis/tasks/task-a/task.json"), "utf8"), "user task\n");
