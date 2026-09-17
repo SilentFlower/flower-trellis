@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"标准流 Patch、Python 命令物化、原生 Hook 合同与分发。"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"遥测、状态与 worktree 编码和路径边界。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"测试、生成一致性与质量门禁。"}
+{"file":".trellis/tasks/09-17-python-cross-platform-compatibility/research/compatibility-audit.md","reason":"已复现问题、Windows 环境及扩大扫描证据。"}

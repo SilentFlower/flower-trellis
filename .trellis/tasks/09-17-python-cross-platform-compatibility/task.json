@@ -1,0 +1,138 @@
+{
+  "id": "python-cross-platform-compatibility",
+  "name": "python-cross-platform-compatibility",
+  "title": "修复 Python 跨平台兼容并扩展回归门禁",
+  "description": "修复已复现的 Windows/Python 3.8、解释器选择、CMD 参数与标准流问题，扩大扫描并补齐跨平台验证。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-17",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-09-16T16:28:34Z",
+      "contextKey": "codex_01a0a9ba-e979-7191-83c9-59056bc8e7b0",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "0ea9f4dac0647cc193eb7cc2da5c28b9a969eeee",
+        "status": [
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "0ea9f4dac0647cc193eb7cc2da5c28b9a969eeee",
+            "status": [
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md",
+                "sha256": "cdd3be0e22f13e2377a3acced9aee5806c4043b9830bcf0c2f503e9b56d571eb"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md",
+                "sha256": "8439f575162fbac22c07c456c78573328b730c315ff837aeea24d52017dddcb7"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json",
+                "sha256": "a555c3b289cb378ab9895c12c1897121f5937e01c900ba68ef1bb5874c0c54da"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "9607bf03e66e223113de87f84c3eaa1e22b56f6ae0f94681a0f061743e81a90b"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "66f538fafba63953cf40b7044bc390055012c4a7",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "7e1be151214671dd50737bf791f6272eede018b285bcd0e495e8e713c8e0d410"
+          }
+        ],
+        "fingerprint": "3584a8ffb0826f36fc59748ca53ba3bc734b766794b0c020a39391252a594589"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "两仓跨平台兼容修复业务提交已推送，快照与子模块一致性门禁通过",
+      "SessionStart Windows/Linux CI 全部通过",
+      "Python 首轮 CI 两类失败已定位并完成追加修复：Linux 原生依赖、Windows legacy manifest 测试夹具",
+      "Linux 干净依赖复现与 34 项回归、Windows rebuild/短名探针及 34 项回归通过（5 项软链权限跳过）",
+      "追加补丁 Light Check-All 三维通过，稳定验证合同已写入规范"
+    ],
+    "partialStep": "Python 首轮四组合 CI 失败；追加补丁尚未提交推送",
+    "nextStep": "确认追加补丁的精确提交计划后推送，复验四组合 CI，成功后同步 completed",
+    "notes": "任务保持 in_progress，不发布、不归档。首轮 Python run 35163638789 失败；SessionStart run 35163638778 成功。Windows 本机真实软链迁移受权限限制，不能用路径探针替代。",
+    "updatedAt": "2026-09-17T00:00:14Z"
+  }
+}
