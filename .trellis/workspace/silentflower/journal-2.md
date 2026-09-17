@@ -1480,3 +1480,42 @@ Python 兼容四组合和 SessionStart 两系统 CI 已通过，补充 GitHub Ac
 ### Next Steps
 
 - 遥测产品洞察路线图仍处于 planning，未归档；包发布按独立流程处理。
+
+
+## Session 105: 完成升级性能优化归档并发布正式版与 beta
+
+**Date**: 2026-09-17
+**Task**: 完成升级性能优化归档并发布正式版与 beta
+**Branch**: `main`
+
+### Summary
+
+完成版本缓存、上游冗余查询与全局版本探测优化，增加本地阶段计时；补修 Windows 退出、共享超时和 PTY 提示。五轮隔离预演中位数从 2144ms 降至 1524ms，最终业务原生 CI 8/8 通过；发布 0.6.9 正式版与 0.6.10-beta.0，核验 npm 通道、GitHub Release 和 provenance，归档 update-performance。
+
+### Main Changes
+
+- 其他 CLI 入口仅完成性能调查，按用户决定未扩大实现；Windows Actions 耗时完成只读分析，未改 CI。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `94788f4` | (see git log) |
+| `8c71a2b` | (see git log) |
+| `7c2c4dc` | (see git log) |
+| `8575e7e` | (see git log) |
+| `e1d0890` | (see git log) |
+
+### Testing
+
+- [OK] 全量 npm test：JS 602 通过、2 跳过；Python 382 项完成、2 跳过；Patch、compiled targets 和输出模板检查通过。
+- [OK] 业务提交 7c2c4dc 的更新、SessionStart 和 Python 原生 CI 共 8/8 job 成功。
+- [OK] Release 工作流 35179145880、35179796847 成功；npm latest=0.6.9、beta=0.6.10-beta.0，发布说明同源且 provenance 存在。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 当前任务已完成并归档；用户机器实际下载、解包和原生构建耗时尚未测量，需具体诊断证据再开展后续优化。
