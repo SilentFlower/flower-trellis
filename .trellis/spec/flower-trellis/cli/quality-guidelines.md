@@ -47,6 +47,18 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 
 - 本项目使用零第三方测试基础设施：JavaScript 用 Node 内置 `node:test`，Python 用
   `unittest`，统一入口为 `npm test`。不要引入 Jest/Vitest/Pytest 等重依赖，除非另有明确决策。
+- **跨平台 CI 验收门禁**：新增或修改 Python/Node/Shell 脚本、CLI 指令、Hook、模板中的可执行命令，
+  或影响其运行的解释器、路径、编码、换行、原生依赖与安装/生成配置时，必须为受影响行为提供
+  GitHub Actions 回归并验证通过。至少覆盖原生 `ubuntu-latest` 与 `windows-latest`；Python 沿用
+  `python-compatibility.yml` 的 3.8/3.12 矩阵，SessionStart 改动同时验证 `session-start.yml`。
+  涉及其它声明支持的平台或运行时版本时补充相应覆盖；不能从未执行的平台推断兼容。
+  新增入口须核对 workflow 的 `paths` 触发条件和实际测试清单，缺少覆盖时随实现补齐。
+  提交前完成本地验证，推送后等待对应变更提交的必需 job 全部 `success`，才可标记任务完成、合并或发布；
+  CI 未触发、排队、运行中、失败或取消均不得报告兼容验收通过。保留 run 链接、`headSha`、矩阵结果
+  和 skip 原因；后续修改代码或运行配置须重新验证新提交，旧提交绿灯与本地模拟不能替代。
+  目标行为的回归用例必须实际执行，不能靠 skip、删除矩阵或 `continue-on-error` 获得表面绿灯；
+  平台专属场景的合理跳过须明确理由，受权限限制的必需场景须补齐可执行 runner 后再验收。
+  例如 Windows 命令修复应在原生 Windows runner 实际启动命令并断言输出；仅 Linux 测试通过不满足门禁。
 - `npm test` 同时运行 Flower 全平台双 catalog Patch 冲突门禁、Skill-Garden canonical compiled targets 零漂移检查和默认 AI context budget checker；冲突 warning/大小超限只告警，结构错误、compiled 漂移与 conflict error 失败。
 - 提交前执行**自动测试 + 语法校验 + dogfood 手测**:
 
@@ -88,6 +100,7 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 - [ ] `-h/--help` 是否在目标校验、联网、写盘、prompt 和子进程之前返回 0?
 - [ ] 查询型空状态是否返回 0 并用结构化字段表达，写入型错误仍保持非零?
 - [ ] `npm test` 通过，context budget warning 已审阅且没有通过调高阈值掩盖重复内容?
+- [ ] 跨平台脚本/指令改动已有对应 GitHub Actions 覆盖，匹配变更提交的必需矩阵全部成功，目标行为未被 skip 掩盖?
 - [ ] `check-patch-conflicts` 覆盖全部声明 target，旧互斥协议未复现，vendor/snapshot overrides 一致?
 
 ---
