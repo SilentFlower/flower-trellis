@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.10-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.6.9...v0.6.10-beta.0) (2026-09-17)
+
+
+### 🧰 维护 Maintenance
+
+* 以 `0.6.9` 正式版为基线，包含升级性能优化、Windows 更新退出与跨平台兼容修复，发布到 `beta` 通道，供持续使用 beta 的用户升级。
+
 ## [0.6.9](https://github.com/SilentFlower/flower-trellis/compare/v0.6.8...v0.6.9) (2026-09-17)
 
 
