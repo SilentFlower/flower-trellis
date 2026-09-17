@@ -72,12 +72,31 @@
 | Windows Node | Python 启动器 3 项、Trellis 全平台/历史适配 2 项、Windows 物化安装幂等 1 项通过；原生遥测队列/断流/CMD/15 秒硬截止专项 1 项通过，发送仅用本地替身。 |
 | 生成与安装 | Linux/Windows compiled targets 同为 891 文件、445 changed targets，逐字节无漂移；作者脚本、两平台 helper、快照与 dogfood 字节一致；Plugin 重复更新内容变更 0。 |
 | 静态与预算 | 原生 Python 3.8 AST 90 文件通过；JS 语法和两个仓库 diff whitespace 检查通过；Linux/Windows strict context budget 通过。 |
-| CI | 已推送并触发：SessionStart run 35163638778 两系统通过；Python run 35163638789 四组合失败，每组运行 312 项，Ubuntu 每组 1 个原生依赖失败（skip 3），Windows 每组 2 个 legacy 夹具失败（skip 54）。详见 CP-19/20；本地追加补丁尚未推送，不能宣称 CI 已修复全绿。 |
+| 首轮 CI | SessionStart run 35163638778 两系统通过；Python run 35163638789 四组合失败，每组运行 312 项，Ubuntu 每组 1 个原生依赖失败（skip 3），Windows 每组 2 个 legacy 夹具失败（skip 54）。详见 CP-19/20；追加补丁已推送，复验结果另列如下。 |
 
 首轮 CI：[SessionStart](https://github.com/SilentFlower/flower-trellis/actions/runs/35163638778)、[Python 跨平台](https://github.com/SilentFlower/flower-trellis/actions/runs/35163638789)。
 
 追加修复证据：Linux 干净源码/依赖目录 `/tmp/flower-ci-native-9WX5Jh`，只有 `npm ci --ignore-scripts` 时真实 CLI 用例失败；执行 `npm rebuild node-pty` 后同一用例通过（3.011 秒），完整 worktree 34 项通过（20.063 秒）。原生 Windows 同一 rebuild 命令退出 0。Windows 短名 manifest 探针仅以普通目录代替软链创建来隔离权限前提，执行真实 Path 规范化和生产 `_legacy_manifest` 校验，前后结果分别为 invalid/ok；它不冒充真实软链迁移全链路。YAML 步骤顺序和 diff whitespace 校验通过。
 
-Windows 3.8 追加 worktree 回归：34 项，148.593 秒，OK（5 项受软链权限前提限制而跳过）；未将跳过的迁移用例计为原生软链迁移通过。追加补丁 Light Check-All 三维通过，复用原实现 Full 证据，并以依赖安装/夹具的定向证据覆盖本次差异；新的 CI 四组合结果仍待推送取得。
+Windows 3.8 追加 worktree 回归：34 项，148.593 秒，OK（5 项受软链权限前提限制而跳过）；未将跳过的迁移用例计为原生软链迁移通过。追加补丁 Light Check-All 本地三维通过，复用原实现 Full 证据，并以依赖安装/夹具的定向证据覆盖本次差异；后续远端 CI 仍失败，不能以本地检查通过代替最终验收。
+
+追加 Update-Spec 已将干净依赖目录的 `npm rebuild node-pty` 前提及 legacy manifest 父目录规范化写入 `quality-guidelines.md`。追加补丁已按确认范围提交推送；本段后续验证记录纳入同次批准的独立任务记录提交，任务保持 in_progress。
+
+用户要求模拟剩余风险后，进一步在原生 Windows Python 3.8.10 与实际 8.3 短名 TEMP 下完成 5 项迁移场景，19.319 秒，全部通过且零跳过：正常迁移/幂等、不读取来源分支配置、目标 HEAD 缺入口拒绝、链接漂移拒绝、第二个入口移动失败后恢复原链接/manifest/来源正文。权限替代层只在隔离目录内将目录软链创建、识别和删除映射为真实 NTFS junction；Git、路径解析、迁移、os.replace、文件搬移和回滚执行原生代码。该结果是明确边界的模拟，不冒充原生符号链接或完整 CI；未修改产品代码、系统权限或全局配置。临时 harness：`C:\Users\SilentFlower\AppData\Local\Temp\flower-junction-simulation-c16GVf`。
+
+## 追加补丁 CI 复验（2026-09-17）
+
+复验对应已推送追加补丁，两个 workflow 的 headSha 均核对一致。[SessionStart run 35165807141](https://github.com/SilentFlower/flower-trellis/actions/runs/35165807141) 两系统通过；[Python run 35165807236](https://github.com/SilentFlower/flower-trellis/actions/runs/35165807236) 四组合全部结束，1 通过、3 失败。
+
+| 组合 | Python 套件 | 后续步骤与结论 |
+| --- | --- | --- |
+| Ubuntu / 3.12 | 312 项通过，3 项条件跳过 | Node 入口、编译产物、上下文预算均通过，job 成功。 |
+| Ubuntu / 3.8 | 312 项通过，3 项条件跳过 | Node 上游初始化用例失败：仅探测到 3.8，Trellis init 要求 >= 3.9；编译产物和预算未执行。 |
+| Windows / 3.8 | 312 项通过，54 项平台条件跳过 | Node 上游初始化完成后，Flower Patch 预检发生多处 selector 零匹配及 fingerprint 漂移，错误码 PLUGIN_PATCH_POLICY_INVALID；编译产物和预算未执行。 |
+| Windows / 3.12 | 312 项，2 失败、54 项平台条件跳过 | 两项 legacy 迁移仍失败：预期 needs-migration，实际 blocked；预期 migration-source-unavailable，实际 migration-not-available。后续 Node/编译/预算未执行。 |
+
+CP-19 的原生依赖缺失已由四组 Python 套件的真实 CLI 用例闭环。CP-20 仅在 Windows 3.8 闭环，不能宣称 Windows 3.12 已修复。现有日志没有输出完整迁移诊断 payload，3.12 的精确拒绝原因仍待复现；Windows 3.8 Patch 预检的实际内容差异也待定位，不将换行、解释器或软链实现差异当作已证实根因。
+
+Ubuntu 3.8 新失败已核对 `@mindfoldhq/trellis/dist/commands/init.js`：MIN_PYTHON_MINOR 为 9；FLOWER_TEST_PYTHON 只约束 Flower 测试 helper，上游独立初始化探测不读取该变量。后续应明确初始化前提与运行期兼容验证的边界，同时保持 3.8 实际运行覆盖。先前 junction 模拟使用 3.8，不能外推为 3.12 原生符号链接验证成功。本轮请求的追加补丁推送与 CI 核验已完成，但整个兼容任务仍未完成。
 
 本轮通过源码、隔离安装与原生进程验证，不宣称重跑了真实 Codex/Claude 对话宿主；旧 SessionStart 宿主验证属于前一任务。Windows 无软链权限的场景保留 Linux 真实软链验证，未更改系统权限。日志在 /tmp/flower-compat-*.log，仅作本地执行证据，不包含真实遥测载荷。
