@@ -581,7 +581,7 @@ class AckCliTest(unittest.TestCase):
                     ack,
                     "parse_kubeconfig",
                     return_value=("https://api:6443", "ca", "cert", "key"),
-                ), mock.patch.object(ack.os, "fchmod", new=None):
+                ), mock.patch.object(ack.os, "fchmod", new=None, create=True):
                 ack.cmd_kubeconfig(args)
 
             self.assertEqual(target.read_text(encoding="utf-8"), "apiVersion: v1\n")

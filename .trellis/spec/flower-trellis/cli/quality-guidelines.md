@@ -137,6 +137,8 @@ common._configure_stream(stream: object) -> object
   入口固定 `FLOWER_NO_TELEMETRY=1`；专项仅使用隔离目录和本地替身。
 - CI 用 `npm ci --ignore-scripts` 安装依赖后，真实 Flower CLI 测试前必须执行 `npm rebuild node-pty`；
   否则 Linux 干净环境可能缺少 `pty.node`。只构建该依赖，保持项目全局同步 postinstall 不执行。
+- GitHub Actions 中只要测试或生成步骤读取 `vendor/skill-garden/**`，`actions/checkout` 就必须设置
+  `submodules: recursive`。开发机已有子模块不能证明干净 Runner 可读取 compiled targets 或作者源。
 - 兼容矩阵的 `FLOWER_TEST_PYTHON` 固定为 `setup-python` 的 `python-path` 输出；上游 init 不读取它，
   另在 job env 设置 `TRELLIS_PYTHON_CMD: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}`。
   后者使用上游支持的显式命令覆盖，实际测试仍运行矩阵版本；不修改上游默认要求 3.9+ 的探测策略。
@@ -146,6 +148,8 @@ common._configure_stream(stream: object) -> object
 - Python 3.8 不使用 `str.removeprefix`、`Path.is_relative_to` 或括号式多 context manager。
   完整前缀用 `startswith` 后切片；路径包含关系用 `relative_to` 捕获 `ValueError`，仍保留调用处的
   `resolve`、软链拒绝和会话绑定校验。不能用字符串前缀近似路径包含关系。
+- 跨平台测试模拟 Windows 缺失的 `os` 属性时，`mock.patch.object` 必须使用 `create=True`；否则测试
+  会在进入被测逻辑前因属性不存在而报错。产品代码仍通过 `getattr(..., None)` 与 `callable` 判断能力。
 - Windows 共享流和 subagent Hook 只对可调用的 `reconfigure` 尝试 UTF-8，容忍 `OSError` /
   `ValueError`；内存流原样保留，不 `detach`、不关闭、不替换调用方持有的流。
 - 遥测 `.cmd` / `.bat` 使用绝对 `COMSPEC` 或 `SystemRoot/System32/cmd.exe`，参数为
@@ -174,6 +178,8 @@ common._configure_stream(stream: object) -> object
 | compiled targets 受平台命令或换行影响 | 零漂移门禁失败，不更新基线掩盖平台差异 |
 | Python 3.8 矩阵只设置 FLOWER_TEST_PYTHON | 上游 init 仍可能按默认 3.9+ 探测拒绝；须补矩阵命令覆盖 |
 | core.autocrlf=true 的真实 Git 检出 | 文本保持 LF，二进制原字节不变，Patch 预检仍按精确原文执行 |
+| workflow 读取子模块文件但 checkout 未启用 submodules | 干净 Runner 缺少目标文件并失败；递归检出后再运行测试 |
+| Windows 测试直接 patch 不存在的 `os` 属性 | mock 初始化失败；使用 `create=True` 后验证产品降级分支 |
 
 ### 5. Scenarios and Examples
 
@@ -191,6 +197,8 @@ common._configure_stream(stream: object) -> object
   `name[len("DEC-"):] if name.startswith("DEC-") else name`，只删除完整前缀。
 - Incorrect use：只在父仓设置 LF，或把上游初始化版本拒绝视为 Python 套件失败；应分别约束两仓检出，
   并区分初始化命令覆盖、实际测试解释器和 canonical 产物命令这三个边界。
+- Incorrect use：本地子模块已初始化便省略 CI checkout 配置，或直接 patch Windows 不存在的
+  `os.fchmod`。应让 workflow 递归检出子模块，并用 `mock.patch.object(..., create=True)` 构造缺失能力。
 - 边界证据：受控 CP936 测试只能证明指定编解码边界；不能冒充本机默认代码页或真实 Codex/Claude 会话加载。
   语法扫描也不能替代实际运行，括号式 `with` 在 3.8 可能解析成功却在运行时报错。
 
@@ -210,3 +218,5 @@ common._configure_stream(stream: object) -> object
 - `.github/workflows/python-compatibility.yml` 运行 Ubuntu/Windows × Python 3.8/3.12，包含受影响 Python、
   Node 启动入口、compiled targets 与 strict budget。明确区分 CI 配置、实际 job、实机、模拟与条件 skip；
   Linux skip 不作 Windows 通过证据，局部复验不声称完整套件重跑全绿。
+- 读取 `vendor/skill-garden` 的专项 workflow 必须在干净 Runner 检出子模块；平台能力缺失测试应断言
+  被测逻辑实际执行完成，不能让 mock 自身的属性错误替代产品行为验证。

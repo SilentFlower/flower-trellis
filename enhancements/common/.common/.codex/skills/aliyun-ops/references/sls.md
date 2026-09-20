@@ -37,6 +37,51 @@ ALIYUN_SLS_REGION=cn-hangzhou
 - `--project`、`--logstore`、`--region` 参数优先于配置文件中的同类值。
 - 不把真实凭证写进 skill 目录、仓库、命令行参数或对话；私有 ENV 文件权限保持 `600`。
 
+## AI 组线上与测试环境入口
+
+查询 AI 组日志时先确认环境，再选择 project / logstore。以下入口已于 2026-09-20 通过只读请求验证；若日志库后续调整，应先重新列举并核对资源，不凭名称猜测。
+
+| 环境 | Project | Logstore 选择 |
+|---|---|---|
+| 测试 | `xhgj-zysys-test` | 共享 `xhgj-ai-platform`，再用服务名、Pod 名、traceid 或请求关键字过滤 |
+| 线上 | `k8s-log-cf29c92c9a81a40f8ba1bc9f3e0bd6a01`（ACK-自研AI集群） | 按服务选择专属 logstore，见下表 |
+
+线上核心服务映射：
+
+| 服务 | Logstore |
+|---|---|
+| Embedding | `ai-xhgj-embedding` |
+| LLM Gateway | `ai-xhgj-llm-gateway` |
+| Workflow | `ai-xhgj-workflow` |
+| AI 平台 | `xhgj-ai` |
+| Dify | `xhgj-ai-dify` |
+| 素材清洗 | `xhgj-ai-material-cleaning` |
+
+执行顺序：
+
+1. 明确线上或测试、目标服务和时间范围；默认先查最近 10 分钟，避免一开始拉大窗口。
+2. 测试环境进入共享 logstore 后，用服务名、Pod 名或业务标识缩小范围；线上环境先按服务映射选专属 logstore。
+3. 再叠加 traceid、request id、URL、错误码或异常关键字；结果可疑地少时检查 `x-log-progress`。
+4. 回答时带上环境、project、logstore、时间窗、查询条件、命中数和 progress，方便复核。
+
+```bash
+# 测试：共享日志库中按服务或 Pod 关键字过滤
+python scripts/sls_get_logs.py \
+    --project xhgj-zysys-test \
+    --logstore xhgj-ai-platform \
+    --minutes 10 --reverse \
+    --query '<服务名、Pod 名或 traceid>'
+
+# 线上：先按服务选择专属日志库，再叠加错误或链路条件
+python scripts/sls_get_logs.py \
+    --project k8s-log-cf29c92c9a81a40f8ba1bc9f3e0bd6a01 \
+    --logstore ai-xhgj-llm-gateway \
+    --minutes 10 --reverse \
+    --query 'ERROR'
+```
+
+不要把测试环境的 `xhgj-ai-platform` 直接套到线上；已验证 `xhgj-zysys/xhgj-ai-platform` 不存在。线上出现新服务或映射失效时，应重新核对 ACK 日志 project 下的 logstore 后再查询。
+
 ## 凭证纪律（不分路线，先立规矩）
 
 1. **AK/SK 只走进程环境变量或权限为 `600` 的私有 ENV 文件**，不写入 skill、仓库、命令行参数或代码。脚本加载配置后统一从 `os.environ` 取，取不到就 fail-fast。
