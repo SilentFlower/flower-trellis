@@ -1,0 +1,266 @@
+{
+  "id": "aliyun-ops-ack-workbench",
+  "name": "aliyun-ops-ack-workbench",
+  "title": "为 aliyun-ops 增加 ACK Workbench 只读运维能力",
+  "description": "在 vendor/skill-garden/.common 的 aliyun-ops 中加入 ACK 临时 KubeConfig + Workbench 节点执行只读 kubectl 的确定性能力，同步 Flower common 快照及全局 Codex/Claude 安装，并补齐文档与测试。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-20",
+  "completedAt": "2026-09-20",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-09-20T02:03:45Z",
+      "contextKey": "codex_01a0bc3d-9d0c-7a32-b63c-53b27c7f0691",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "141e4f4155d1c19f839dea93239b6d5363200e93",
+        "status": [
+          {
+            "status": " M",
+            "path": ".trellis/spec/flower-trellis/cli/enhancements-model.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/brief.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/design.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/implement.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/task.json"
+          },
+          {
+            "status": " M",
+            "path": "enhancements/0.6/scripts/auto_loop.py"
+          },
+          {
+            "status": " M",
+            "path": "enhancements/MANIFEST.json"
+          },
+          {
+            "status": " M",
+            "path": "test/python/test_auto_loop.py"
+          },
+          {
+            "status": " M",
+            "path": "vendor/skill-garden"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "141e4f4155d1c19f839dea93239b6d5363200e93",
+            "status": [
+              {
+                "status": " M",
+                "path": ".trellis/spec/flower-trellis/cli/enhancements-model.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/brief.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/design.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/implement.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/task.json"
+              },
+              {
+                "status": " M",
+                "path": "enhancements/0.6/scripts/auto_loop.py"
+              },
+              {
+                "status": " M",
+                "path": "enhancements/MANIFEST.json"
+              },
+              {
+                "status": " M",
+                "path": "test/python/test_auto_loop.py"
+              },
+              {
+                "status": " M",
+                "path": "vendor/skill-garden"
+              }
+            ],
+            "worktreeDiffSha256": "856edf2c381152e2c42f1ff0205abe4af6329baf633571865dc971326e948b5b",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/prd.md",
+                "sha256": "cdd3be0e22f13e2377a3acced9aee5806c4043b9830bcf0c2f503e9b56d571eb"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/roadmap.md",
+                "sha256": "8439f575162fbac22c07c456c78573328b730c315ff837aeea24d52017dddcb7"
+              },
+              {
+                "path": ".trellis/tasks/09-05-telemetry-roadmap/task.json",
+                "sha256": "a555c3b289cb378ab9895c12c1897121f5937e01c900ba68ef1bb5874c0c54da"
+              },
+              {
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/brief.md",
+                "sha256": "c9c02c65092b3951de4d24c08e81dc7d74173b8e2c8913227ce0912e3d2685f6"
+              },
+              {
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/design.md",
+                "sha256": "3a09398b1ac00aa459eaf75fcd8c8cceba62296e6bec35775272024e87848b9d"
+              },
+              {
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/implement.md",
+                "sha256": "9221f6fdb19124d546878e3d374a0d0d0b300291bfc48067b525d4f0801d4f11"
+              },
+              {
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/prd.md",
+                "sha256": "ef7af8ad7c3f18171fa419d7b5d3dab918382c03dbdd27243b683b0250b714ff"
+              },
+              {
+                "path": ".trellis/tasks/09-20-auto-loop-in-progress-baseline/task.json",
+                "sha256": "d240bfbf4345487f8f9ece934a855b8c017d200bf2ab654a3055ee09552255da"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "6d336f20f92ae34ddfd025778b2e82fd9551e10befc83d1ac46fdc15a2774252"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "29f67e8772838265b659a9a92c43348932e5a722",
+            "status": [
+              {
+                "status": " M",
+                "path": ".trellis/0.6/scripts/auto_loop.py"
+              }
+            ],
+            "worktreeDiffSha256": "006183ffdef7c7914648a603097d8d9663cde11114cc342ca8f8b20b9672769f",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "746c8f8a92f222f91ae260a63ca63a1bea76db74a81698628feb150c51a4458d"
+          }
+        ],
+        "fingerprint": "3cf2e9910d70cb4d5bd8bcee90d8e38f06248f78edba0ce61c857213e39c26e8"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-09-20T03:20:53.466Z",
+    "completedSteps": [
+      "完成 ACK OpenAPI、直连 APIServer 与 Workbench 私网只读查询",
+      "完成 Secret 脱敏和临时 KubeConfig 全路径清理",
+      "同步 Skill-Garden、Flower 快照及全局 Codex/Claude Skill",
+      "通过全量测试和线上 ConfigMap 只读冒烟"
+    ],
+    "partialStep": null,
+    "nextStep": "运行 trellis-finish-work 归档任务",
+    "notes": "GitHub Actions 原生 Windows Python 3.8/3.12 矩阵待推送后验证。"
+  }
+}
