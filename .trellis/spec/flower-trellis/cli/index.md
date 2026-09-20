@@ -72,6 +72,7 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [CLI Output](./cli-output.md) | 横幅、进度行、错误与退出码 |
 | [Config & State](./config-and-state.md) | 常量、版本、升级缓存与耗时诊断、manifest 迁移、Git 共享记录与团队 CLI 安装引导、项目级 Trellis 开关与遥测 |
 | [Enhancements Model](./enhancements-model.md) | 强化包快照与叠加流水线 |
+| [Aliyun Ops Common Skill](./aliyun-ops.md) | 阿里云生产只读查询、ACK/Workbench 凭证边界、临时文件生命周期与分发契约 |
 | [Trellis Patch Engine](./trellis-patch-engine.md) | Skill-Garden/Flower 统一 Patch、Bundle、迁移与 provenance；SessionStart 分段、额度保留及 Astra 模型提示/开关 |
 | [Flower Plugin Contracts](./flower-plugin-contracts.md) | Plugin/Marketplace schema、共享 DTO、canonical hash 与 `.flower/` Project Store 契约 |
 | [Flower Plugin Runtime And Lifecycle](./flower-plugin-runtime.md) | Source Registry、依赖解析、多平台投影、InstallPlan、事务恢复与项目级 Plugin 生命周期 CLI 契约 |

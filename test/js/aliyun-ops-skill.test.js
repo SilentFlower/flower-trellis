@@ -20,9 +20,12 @@ const EXPECTED_FILES = [
   "SKILL.md",
   "agents/openai.yaml",
   "assets/env.example",
+  "references/ack.md",
   "references/dms.md",
   "references/mse.md",
   "references/sls.md",
+  "scripts/ack.py",
+  "scripts/ack_roa_v3.py",
   "scripts/aliyun_common.py",
   "scripts/aliyun_rpc_v1.py",
   "scripts/dms.py",
@@ -338,9 +341,15 @@ test("统一阿里云 Skill 源、快照与双平台保持一致", () => {
 
   const skill = fs.readFileSync(path.join(sourceCodex, "SKILL.md"), "utf8");
   assert.match(skill, /^name: aliyun-ops$/m);
-  assert.match(skill, /DMS、SLS 和 MSE/);
+  assert.match(skill, /DMS、SLS、MSE 和 ACK/);
   assert.match(skill, /不自动创建、复制、合并、改写、改权限或删除/);
   assert.match(skill, /MSE 当前配置与历史配置无 `--grep` 时只输出摘要/);
+  assert.match(skill, /不提供任意远程 shell/);
+
+  const ackReference = fs.readFileSync(path.join(sourceCodex, "references/ack.md"), "utf8");
+  assert.match(ackReference, /--via-workbench/);
+  assert.match(ackReference, /ecs-workbench:LoginECSInstance/);
+  assert.match(ackReference, /Secret 的 `data` 和 `stringData` 值始终输出/);
 
   const dmsReference = fs.readFileSync(path.join(sourceCodex, "references/dms.md"), "utf8");
   assert.match(dmsReference, /CreateDataCorrectOrder/);
@@ -442,7 +451,7 @@ for (const platforms of [["codex"], ["claude"], ["codex", "claude"]]) {
     const catalog = listSkillCatalog(target, "0.6");
     const item = catalog.commonSkills.find(({ name }) => name === SKILL_NAME);
     assert.ok(item);
-    assert.equal(item.description, "统一查询阿里云 DMS、SLS 与 MSE 运维数据");
+    assert.equal(item.description, "统一查询阿里云 DMS、SLS、MSE 与 ACK 运维数据");
     assert.equal(item.installed, false);
     assert.equal(catalog.commonSkills.some(({ name }) => OLD_SKILL_NAMES.includes(name)), false);
 

@@ -75,6 +75,7 @@ jobs:
         run: >-
           node scripts/run-python-tests.mjs
           test/python/test_python_compatibility.py
+          test/python/test_aliyun_ops.py
           test/python/test_auto_loop.py
           test/python/test_decision_log.py
           test/python/test_pre_check_state.py

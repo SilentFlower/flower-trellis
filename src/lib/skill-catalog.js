@@ -30,7 +30,7 @@ const LEGACY_COMMON_SKILL_DIRS = [
 ];
 
 const SKILL_DESCRIPTION_OVERRIDES = {
-  "aliyun-ops": "统一查询阿里云 DMS、SLS 与 MSE 运维数据",
+  "aliyun-ops": "统一查询阿里云 DMS、SLS、MSE 与 ACK 运维数据",
   "analyze-task": "深度分析并细化任务",
   "check-all": "全维度检查任务与实现",
   "check-impl": "检查实现是否符合任务要求",

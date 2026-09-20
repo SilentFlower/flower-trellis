@@ -17,11 +17,13 @@ _PRODUCT_ENV_VARS = {
     "dms": "ALIYUN_DMS_ENV_FILE",
     "sls": "ALIYUN_SLS_ENV_FILE",
     "mse": "ALIYUN_MSE_ENV_FILE",
+    "ack": "ALIYUN_ACK_ENV_FILE",
 }
 _PRODUCT_LEGACY_FILES = {
     "dms": (LEGACY_DMS_ENV_FILE, LEGACY_SLS_ENV_FILE),
     "sls": (LEGACY_SLS_ENV_FILE, LEGACY_DMS_ENV_FILE),
     "mse": (LEGACY_SLS_ENV_FILE, LEGACY_DMS_ENV_FILE),
+    "ack": (LEGACY_SLS_ENV_FILE, LEGACY_DMS_ENV_FILE),
 }
 
 
@@ -79,7 +81,7 @@ def load_product_env(product, explicit_path=None):
     只要被设置，文件缺失就立即失败，不再静默回退。未显式指定时依次读取统一
     配置与产品旧配置，且所有文件只补齐缺失变量。
 
-    @param product: 产品标识，支持 ``dms``、``sls``、``mse``。
+    @param product: 产品标识，支持 ``dms``、``sls``、``mse``、``ack``。
     @param explicit_path: 命令行 ``--env-file`` 显式路径。
     @return: 实际读取过的文件路径列表。
     """
