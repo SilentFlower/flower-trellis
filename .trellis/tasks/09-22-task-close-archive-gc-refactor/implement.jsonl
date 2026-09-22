@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"约束 SessionStart 分段、平台 Hook 注册、Flower asset 投影、Patch 幂等与冲突校验。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"约束任务生命周期、finish-work/auto-loop/Push 的现有 owner 与托管投影同步。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"约束提示词 owner 下沉、compiled output 预算与 strict 检查。"}
+{"file":".trellis/tasks/09-22-task-close-archive-gc-refactor/research/current-architecture.md","reason":"提供当前写入者、读取者、SessionStart、auto-loop、Git 与托管源影响面。"}

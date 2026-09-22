@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/trellis-patch-engine.md","reason":"检查 Codex/Claude SessionStart 契约、Patch 顺序、冲突断言与 compiled targets。"}
+{"file":".trellis/spec/flower-trellis/cli/enhancements-model.md","reason":"检查生命周期、auto-loop、Push、父子任务与旧入口硬删除是否完整。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"检查旧归档提示词删除、owner 一跳与最终输出预算净减少。"}
+{"file":".trellis/tasks/09-22-task-close-archive-gc-refactor/research/current-architecture.md","reason":"按影响面矩阵反向扫描遗漏的读写者、平台投影和测试。"}

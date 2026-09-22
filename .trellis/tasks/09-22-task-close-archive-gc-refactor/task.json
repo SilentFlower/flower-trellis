@@ -1,0 +1,40 @@
+{
+  "id": "task-close-archive-gc-refactor",
+  "name": "task-close-archive-gc-refactor",
+  "title": "重构任务关闭、归档视图与物理 GC",
+  "description": "重构 Trellis 任务完成与关闭生命周期：归档改为 closed 视图，物理 GC 在 Codex/Claude SessionStart 清理关闭满 3 天的任务；保持 auto-loop 契约、覆盖托管 Patch 与所有平台入口，并系统删减重复提示词。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-22",
+  "completedAt": "2026-09-22",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "updatedAt": "2026-09-22T19:54:36Z",
+    "completedSteps": [
+      "完成任务关闭、Closed 视图、legacy reconciliation、SessionStart 物理 GC、auto-loop 与跨平台托管投影重构，并补齐精确提交恢复"
+    ],
+    "partialStep": null,
+    "nextStep": "deterministic Close",
+    "notes": "Check-All strict pass；完整测试、Patch 冲突、compiled targets 与 strict context budget 均通过。"
+  },
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-09-22T19:54:36Z",
+    "blockers": []
+  }
+}
