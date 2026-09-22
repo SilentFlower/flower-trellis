@@ -1,0 +1,3 @@
+  --mine, -m           Show only tasks assigned to current developer
+  --status, -s <s>     Filter by status (planning, in_progress, review, completed)
+  --json               Output machine-readable JSON (also available on `current`)

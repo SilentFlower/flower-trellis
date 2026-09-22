@@ -115,8 +115,8 @@ test("选择性 workflow 和 auto-loop 安装都会携带 pre-check helper", () 
 });
 
 
-test("选择性 auto-loop 和 finish-work 安装都会携带 decision log helper", () => {
-  for (const skill of ["auto-loop", "trellis-auto-loop", "finish-work", "trellis-finish-work"]) {
+test("选择性 auto-loop 安装会携带 decision log helper", () => {
+  for (const skill of ["auto-loop", "trellis-auto-loop"]) {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-decision-log-copy-"));
     const variant = path.join(target, "variant");
     fs.mkdirSync(path.join(variant, "scripts"), { recursive: true });

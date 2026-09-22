@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-claude-statusline-active-tasks",
+  "purpose": "platform_statusline",
+  "operations": [{
+    "id": "flower-claude-statusline-active-tasks",
+    "operation": "replace",
+    "targets": [{
+      "kind": "file",
+      "path": ".claude/hooks/statusline.py",
+      "missing": "skip",
+      "markerStyle": "hash"
+    }],
+    "selector": { "type": "literal", "source": "count-selector.py" },
+    "content": { "source": "count-content.py" }
+  }]
+}

@@ -1,0 +1,5 @@
+  --mine, -m           Show only tasks assigned to current developer
+  --status, -s <s>     Filter by work status
+  --closed             Show the unified closed view
+  --all                Show active and closed task views together
+  --json               Output machine-readable JSON

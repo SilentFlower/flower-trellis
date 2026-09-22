@@ -19,7 +19,7 @@
       },
       "content": {
         "value": {
-          "matcher": "startup|clear|compact",
+          "matcher": "startup|resume|clear|compact",
           "timeout": 30,
           "commandResolver": "codex-session-start",
           "sessionParts": ["state", "rules", "stages"]

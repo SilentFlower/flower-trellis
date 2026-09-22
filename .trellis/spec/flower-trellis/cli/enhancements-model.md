@@ -931,10 +931,11 @@ vendor/skill-garden/.trellis/0.6/overrides/patches/skills/trellis-meta/
   `trellis-task-brief` 和 task-start brief guard，因此记录 `no-op`，详细预授权合同只留在 owner。
 - Good:把 implement/check 执行 owner 从静态平台分支迁移到 `trellis-route`；更新 canonical meta Patch、
   sync、compiled targets、dogfood 和最终断言，记录 `patch-required`。
-- Good:激活 `completed` 为 push 与 archive 之间的可观察状态，并把 `brief.md` 纳入正式 planning
+- Good:把 `completed` 与 Close 分离为可恢复状态，并把 `brief.md` 纳入正式 planning
   handoff；更新 task-system、lifecycle customization 和 recovery owner 路由，记录 `patch-required`。
 - Good:候选恢复文档分别标出决策、证据/reopen 和 session pointer writer，并用 required/absent
-  assertions 锁定新旧 owner 行；completed candidate 仍只建议显式 rebind，不自动修改 session。
+  assertions 锁定新旧 owner 行；completed+pending/blocked candidate 仍只建议显式 rebind，
+  closed 发布恢复则要求显式任务引用，不自动修改 session。
 - Base:owner skill 只调整错误文案或内部 CLI 参数，稳定架构合同不变；复核最终 meta 后记录 `no-op`。
 - Bad:每次 skill 文案变化都往 meta 追加一段摘要；meta 会变成第二份易漂移 SOP 集合。
 - Bad:新增平台 target 或改变 Bundle alias 后仍记录 `no-op`，导致 meta 的分发与定制路径失真。
@@ -2408,7 +2409,7 @@ python3 .trellis/scripts/auto_loop.py next
 - Scope:`auto_loop.py` 负责 schema、manifest、依赖、dirty baseline、预算和 action 状态机；
   `trellis-auto-loop/SKILL.md` 负责语义边界与 action 调度；`decision_log.py` 保存可审计 AI 决策；
   `trellis-push` 独占动态多仓执行链、确定性生成和逐步 Git 安全预检；`trellis-route`、Check-All
-  和 `trellis-finish-work` 继续拥有各自完整流程，runner 不执行 Git 或生成命令。
+  和共享 task lifecycle helper 继续拥有各自完整流程，runner 不执行 Git 或生成命令。
 
 ### 2. Signatures
 
@@ -2450,8 +2451,8 @@ python3 ./.trellis/scripts/decision_log.py review \
 ```
 
 `copy-scripts.js` 必须让 `auto_loop.py` 和 `decision_log.py` 在全装时铺到目标
-`.trellis/scripts/`。选择性 `trellis-auto-loop` 与 `trellis-finish-work` 都必须携带
-`decision_log.py` 和 archive decision guard，不能只安装 Skill 指针。
+`.trellis/scripts/`。选择性 auto-loop、continue、progress 与 push 别名必须携带
+`decision_log.py`、`task_lifecycle.py` 和 closeout Patch，不能只安装 Skill 指针。
 
 ### 3. Contracts
 
@@ -2462,8 +2463,11 @@ python3 ./.trellis/scripts/decision_log.py review \
 - 所有 dirty path 使用 `<repository>::<path>` 唯一键分类为某任务 `owned_dirty` 或 `protected_retained`。分类必须全覆盖、互斥且 hash 未漂移；protected 文件不得被 action 或 commit 使用，每次 record 重新校验内容摘要。
 - `## Open Questions` 是人工边界：`- [ ]` 和历史裸列表统一进入整队列 `resolve_open_questions`，run 保持 `awaiting_input`；`- [x]`、空章节或无章节放行。AI 不得代答、删除、改写或勾选，所有问题收敛后才可 record ok。
 - planning item 依次执行 `review_planning_readiness`、必要的 `run_planning_repair`、`refresh_brief`。repair 仅处理不改变目标且可由仓库证据确定的问题，单任务最多 3 轮；schema 2 不返回逐任务 `confirm_brief`。
+- 新接管 `in_progress` item 同样必须在首个 action 前冻结 `planning_sha256` / `handoff_sha256`；已有摘要不得因 prepare/retry 重新采样。只有两项均空且没有 action、pending、action generation 或决策历史时可取当前文档初始化。
+- 旧在途 item 的两项摘要均空时，只有原 action 逐文件基线及身份与 pending 完全一致、同 run 的原决策日志匹配、pending 摘要合法且文件权限与 protected 基线未漂移，才从 pending 补回登记时摘要并追加 `missing_artifact_baseline_restored` 审计。部分摘要、无证据或冲突拒绝恢复；不能用当前文档替代旧基线。
+- 已终态运行查询不复活；显式 `retry-blocked` 先验证 pending 再重置状态。合法 pending 的原 action 必须保留；未知文档变化仍由 next 拒绝。next 不消费 pending、不推进业务阶段，真实 record 才重绑 manifest。
 - 依赖只来自 `--depends-on` 或 planning artifacts 的明确契约，不从任务顺序、parent/child 或代码引用猜测。prepare 拒绝缺失、自依赖和循环；稳定拓扑排序只移动满足依赖所需的任务，并把原始/执行顺序写入 manifest。
-- AI 只可通过 `decide` 记录任务目标内、低/中风险、可逆且可测试的自主选择。Open Questions、高风险、生产/费用/权限/隐私、破坏性公开契约、push/merge/release/deploy/archive 必须 blocked。
+- AI 只可通过 `decide` 记录任务目标内、低/中风险、可逆且可测试的自主选择。Open Questions、高风险、生产/费用/权限/隐私、破坏性公开契约、push/merge/release/deploy 与 lifecycle owner 之外的物理整理必须 blocked。
 - `decisions.jsonl` 使用 append-only decision/review 事件；decision ID 单调递增，review 绑定当前全部 decision digest。新增 decision 会使旧 review 失效，损坏 JSONL 默认失败关闭。
 - decision 修改 planning/handoff 时，优先用重复的 `--task-file prd.md|design.md|implement.md|brief.md`，或用完整 `--file <repository>::<path>` 列出全部目标。`--task-file` 要求当前任务已有普通文件；`--file` 保持仓库相对语义并允许待创建代码文件，预检拒绝未知仓库、绝对/越界路径、软链和 protected 冲突，裸四文档名不静默解释为任务路径。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则进入匹配 action 的 artifact drift 处理。
 - `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。schema 2 running action 保存原 payload、issued_at、递增 generation 和四文档逐文件 baseline；重复 next 重放原 action，不重取 baseline、depth、route 或预算。正确 pending 覆盖的变化允许继续原 action，但只有真实 record 才消费决策并重绑 manifest；检查结果必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
@@ -2485,9 +2489,15 @@ python3 ./.trellis/scripts/decision_log.py review \
 - `record --repo-commit` 只接受 run 已登记仓库中的 7-64 位十六进制本地 commit object；仓库不可读返回 `repo-commit-repository-unreadable`，同仓同 hash 重复记录幂等，同仓不同 hash 返回 `repo-commit-conflict`。成功、failed 和 blocked 都保留可选 `commits[]`，不提升 schema version。
 - `commit` 继续作为主仓或最后提交的兼容字段。存在 `commits[]` 时，显式 `--commit` 必须唯一匹配其中一个已验证完整 hash 或其前缀，否则返回 `repo-commit-primary-mismatch`；未传时使用最后一个 repo commit。没有 `--repo-commit` 的旧单仓 `--commit` 调用保持原行为。
 - 只有 Push 已确认现场安全、失败来自确定性生成未收敛或可重新规划的本地预检时，才用 `--result failed --failure-type commit-repairable`。前三次失败保留 commits 并重新发出同一个 `commit_only`，第 4 次以 `commit-repair-budget-exhausted` blocked；`retry-blocked` 重置 `attempts.commit_repair`，但保留已完成 commits。该路径不得复用 Check 的 `status=retryable` 协议。
-- item `completed` 只表示本地提交完成，不修改 `task.json.status`。任务继续保持 `in_progress`，直到用户以后显式执行 finish/archive。
-- Auto-Loop 内部调用 Push 时跳过 Push Step 5 的任务进度写入、进度提交和 progress push；runner 仍在 item `completed` 或 `blocked` 后写本地 `task.json.progress` 作为恢复提示，但只能使用 `updatedAt`、`completedSteps`、`partialStep`、`nextStep`、`notes` 五字段 schema。completed progress 有多仓提交时记录 `<repository>:<short-hash>` 列表，blocked progress 保留已完成 commits、失败原因并把 `nextStep` 指向精确 `retry-blocked --run-id <run-id> --task <task>` 命令。该写入不得修改 `task.json.status`、不得触发 push/archive/finish-work、不得保存 push mode、分支或 Git 编排计划。
-- `trellis-finish-work` 在归档前运行 Decision Audit；`task.py archive` 在任何状态写入、session 清理或目录移动前再次调用 deterministic review guard。无 decision 放行，当前 digest 未 accepted、changes-requested 或日志损坏时零副作用失败。
+- item `completed` 表示本地 commit-only 已成功 record。runner 在同一次原子 task bookkeeping 中写
+  `status=completed`、`completedAt`、五字段 progress，并调用共享 Close；成功 closed 时记录
+  `task_json_sha256`，存在 decision/release/parent 等 blocker 时写 `closeout=blocked`，不得伪造 closed。
+- Auto-Loop 内部调用 Push 时仍跳过普通 Push 的远端 progress/task-record 分支；runner-owned 本地
+  bookkeeping 不 push、不移动目录、不执行 GC。completed progress 有多仓提交时记录
+  `<repository>:<short-hash>`，blocked item 的 progress 保留失败原因并把 `nextStep` 指向精确
+  `retry-blocked --run-id <run-id> --task <task>`；progress 不保存 push mode、分支或 Git 编排计划。
+- Close 复用 `decision_log.py` 的 deterministic review status。无 decision 放行；当前 digest 未 accepted、
+  changes-requested 或日志损坏形成结构化 blocker，并由对应 owner 解决后显式重试 Close。
 - `<run-id>.json` 是 runner 热状态文件，只保留调度和恢复必需字段：当前 queue/item 状态、attempts、blocked reason、commit、outstanding action、manifest revision/hash 和 audit 文件引用。完整 manifest revision 历史必须写入旁路 `<run-id>.manifest.jsonl`，每行是 `type=manifest_revision`、`revision`、`sha256`、`created_at`、完整 `payload` 的审计事件；旧 runtime 中的 `manifest_revisions` 数组在下一次 `_write_state()` 时幂等迁移到 JSONL，并从主 JSON 删除。
 - 默认 stdout 只返回 run/action/计数/简短 blocked 与决策摘要；manifest、dirty、依赖链、protected drift、完整 decision data 和 resume capsule 只在 `--verbose` 输出。runtime 继续使用同目录临时文件、flush/fsync 和 `os.replace` 原子写入。
 - 默认 `status` / `resume` 不得加载或展示完整 audit JSONL；`--verbose` 最多展示 `manifest_audit_path` 和有限 `manifest_tail`。完整 audit 只在明确 debug artifact-drift 或审计时按路径读取，避免 AI 恢复上下文无脑加载大型内部历史。
@@ -2511,6 +2521,9 @@ python3 ./.trellis/scripts/decision_log.py review \
 | 非 Check action 的 manifest 后 artifact 无 decision 变化 | 当前项以 `artifact-drift` 阻塞 |
 | decision 列明全部变化 artifact | record 重算 planning/handoff hash，追加绑定 decision ID 的 manifest revision |
 | 正确 pending 后未 record 就 next | 返回原 action，pending 和原 baseline 保留，manifest 不变 |
+| 新接管 in_progress | 首个 action 前冻结两项摘要；未登记修改仍 artifact-drift |
+| 旧遗漏摘要且原 action/pending/日志相互印证 | 补回登记时摘要，原 action/pending 保持，追加恢复审计 |
+| 缺日志、部分摘要、身份/基线冲突或 protected 漂移 | 不恢复；retry 返回 no-retryable-blocked-items，skipped 标注 pending-baseline-unverifiable |
 | 新登记确定裸文档名误填 / 旧 pending 可证实同名误填 | `artifact-recovery-required`；初始计数为 0，agent 同轮按恢复协议纠正 |
 | 映射跨任务、根同名歧义、越界、软链或未恢复额外误改 | 拒绝接受；安全边界不放宽，实际纠正失败消耗对应预算 |
 | reconcile 第 1/2 次失败 / 第 3 次成功 / 第 3 次失败 | retryable / reconciled 且继续原 action / terminal artifact-drift |
@@ -2533,9 +2546,9 @@ python3 ./.trellis/scripts/decision_log.py review \
 | `retry-blocked` 恢复 terminal `artifact-drift` | item 回到 pending，`attempts.artifact_reconcile=0` |
 | schema 2 存在任务级 blocked，独立任务已处理完 | run 进入 `completed_with_blocked` |
 | runtime 损坏或仓库不可读 | 返回结构化全局错误或 `globally_blocked`，不得另建状态掩盖原 run |
-| decision log 无决策 | finish/archive 不增加 review 阻断 |
-| 当前 decision digest 未 accepted 或日志损坏 | archive 在任何副作用前退出非零 |
-| commit_only 成功 | exact 本地 commit 并回写 hash/files/message；任务状态仍为 `in_progress` |
+| decision log 无决策 | Close 不增加 review blocker |
+| 当前 decision digest 未 accepted 或日志损坏 | 写 `closeout=blocked`，不伪造 closed |
+| commit_only 成功 | exact 本地 commit 并回写 hash/files/message；runner 原子写 completed/progress/Close |
 | `--repo-commit` 仓库未登记、hash 非法、对象非 commit 或仓库不可读 | 返回对应结构化错误；不消费 outstanding action，不崩溃 |
 | 同仓重复记录相同 commit / 不同 commit | 相同提交幂等合并；不同提交返回 `repo-commit-conflict` |
 | 多仓显式 `--commit` 不能唯一匹配 `commits[]` | 返回 `repo-commit-primary-mismatch`；唯一前缀规范化为完整 hash |
@@ -2543,7 +2556,7 @@ python3 ./.trellis/scripts/decision_log.py review \
 | 第 4 次 `commit-repairable` 失败 | 当前 item 以 `commit-repair-budget-exhausted` blocked，保留 commits |
 | `retry-blocked` 恢复 commit repair 预算耗尽 | `attempts.commit_repair=0`，已完成 commits 保留，重新进入 `commit_only` |
 | branch/HEAD 漂移、retained 漂移、未知 staged、归属歧义或外部副作用风险 | 不标记 `commit-repairable`，立即 blocked 并停止后续副作用 |
-| commit_only 成功后写 task progress | 只更新五字段 `task.json.progress`，`task.json.status` 保持 `in_progress` |
+| commit_only 成功后写 task progress | 同次写 completed、五字段 progress、Close 结果与 task_json_sha256 |
 | item blocked 后写 task progress | `partialStep` 记录 blocked reason，`nextStep` 指向显式 `retry-blocked` 恢复命令 |
 | 旧 runtime 主 JSON 含 `manifest_revisions` | 下一次写入迁移到 `<run-id>.manifest.jsonl`，主 JSON 删除全量数组并保留 audit 引用 |
 | `status` / `resume` 默认输出 | 不内联完整 manifest audit 历史；只在 verbose 展示有限 tail 和路径 |
@@ -2553,6 +2566,9 @@ python3 ./.trellis/scripts/decision_log.py review \
 - Good:旧 `--file brief.md` 错登记后恢复，原决策与基线可核验且根目录无同名文件；agent 读取 diff，提交 `.::brief.md=.::.trellis/tasks/x/brief.md` 映射，reconcile 追加纠正决策，原 record 才生成新 manifest。
 - Base:旧 schema 2 缺少 action 逐文件 baseline，但有可信 pending 原基线时可纠正；只有 aggregate hash 且发生未知漂移仍阻塞，不迁移真实历史终态。
 - Bad:发现路径错误后直接接受当前所有文档、重写旧 decision 或把纠正当作 Check 通过。正确做法是先核对候选映射和归属，以唯一 attempt-id 提交 reconcile，再完成原 action 的真实回写。
+
+- Good:接管 in_progress 后先 decide 再改 brief，多次 next 仍重放同一 action；真实 record 后只重绑一次。旧空摘要运行凭原始证据恢复也遵守该顺序。
+- Bad:为恢复旧空摘要运行清空 pending 或按当前文件补写 runtime。应使用显式 retry-blocked，由 runner 验证原日志和 action，保留原始审计。
 
 - Good:三个 planning 任务先共同完成 dirty 分类、Open Questions 收敛、readiness/repair 和 brief
   刷新，再生成 manifest；running 后连续执行，不出现逐任务 `confirm_brief`。
@@ -2572,11 +2588,10 @@ python3 ./.trellis/scripts/decision_log.py review \
   `--repo-commit`，runner 重新发出 `commit_only`，Push 验证并跳过前置提交后继续剩余链。
 - Good:后续仓存在不相交的 retained dirty；生成前后摘要一致，Push 只提交 exact planned/generated
   paths，最终 record 全部 repo commits，并以主仓或最后提交填充兼容 `commit`。
-- Base:任务没有 AI decision；后续 finish/archive 直接沿用既有流程，不增加确认。
+- Base:任务没有 AI decision；deterministic Close 不增加 review blocker。
 - Base:schema 1 runtime 恢复到 outstanding `confirm_brief`；继续旧 action，不写 schema 2 字段。
 - Base:旧调用只传 `record --commit <hash>`；runner 不要求 `commits[]`，单仓结果和 progress 文案保持兼容。
-- Base:auto-loop 本地提交完成后只写 `task.json.progress.nextStep` 提示 finish/archive，任务仍保持
-  `in_progress`。
+- Base:auto-loop 本地提交完成后原子写 completed/progress/Close；run 的后续状态不影响该 item。
 - Bad:prepare 只检查第一个任务就进入 running；后续任务的 Open Questions 会重新制造人工卡点。
 - Bad:AI 直接编辑 planning artifacts，再补 decision；新 action 基线已变化时返回 `decision-baseline-drift`，不写新决策，须先处理原漂移。
 - Bad:任何 `record` 漂移都立即清空 `last_action` 并进入 `completed_with_blocked`；这会让本 action
@@ -2586,16 +2601,17 @@ python3 ./.trellis/scripts/decision_log.py review \
   generator 和任意 shell；这些都重复 Push 所有权并扩大持久化攻击面。
 - Bad:接受未登记仓库、不可解析 commit、与 `commits[]` 不一致的主 commit，或因仓库目录消失直接抛异常；
   恢复状态会失真且无法审计部分成功。
-- Bad:把队列项 `completed` 同步写入 `task.json.status=completed`；这会绕过 finish/archive 生命周期。
+- Bad:只写 item completed 而不写任务 completed/Close，继续依赖后续模型归档；这会重新制造堆积。
 - Bad:把全量 `manifest_revisions` 继续塞进 `<run-id>.json` 或默认 `status/resume` 输出，导致 AI 恢复时加载大型审计历史。
 - Bad:progress 保存 push mode、分支、完整提交计划或业务 Git 编排状态，导致 `trellis-continue` 误恢复 Git 行为。
-- Bad:只给 Auto-Loop 或 Finish-Work 安装 `decision_log.py`，却没有 task-store archive guard；直接
-  调用 `task.py archive` 仍可绕过 review。
+- Bad:只给 Auto-Loop/Continue 安装入口脚本，却没有 lifecycle Patch 和共享 helper；选择性安装会在
+  启动或延迟导入时失败。
 - Bad:为缩短 Skill 删除安全边界但没有 runner/helper 或其它 owner 承接；上下文预算不是减少契约的理由。
 
 ### 6. Tests Required
 
 - 隔离 Git CLI 场景覆盖正确 pending 跨 next、旧 basename pending 追加纠正、第三次成功/失败、查询零计数、重复回执/冲突、日志成功而 runtime 失败、停止后拒绝重放、同秒新 action 身份与未授权/软链/protected/损坏日志反例。
+- `test_auto_loop.py` 覆盖新接管摘要、旧空摘要 active/terminal 恢复、终态查询不复活、retry 原 action 保留、record 独占重绑，以及缺失/损坏日志、错误 run、部分摘要、原基线/代次冲突、未授权 PRD 修改和 protected 漂移。
 - 恢复期间依赖仍 pending，真正 terminal 后才传播且独立任务继续；Check 原 baseline/depth 与单通道预算保持。源/快照/受管安装应逐字节一致，第二次应用零修改，不通过提高上下文预算阈值规避超限。
 
 - runner 测试覆盖 schema 1 恢复和 schema 2 全状态链：全队列 prepare、Open Questions、readiness/
@@ -2606,8 +2622,8 @@ python3 ./.trellis/scripts/decision_log.py review \
   action 期间 hash 漂移和 exact commit files。
 - decision 测试覆盖 append、递增 ID、risk/choice 校验、digest、accepted、changes-requested、新 decision
   使旧 review 失效、artifact rebind、未授权变化和原子写失败保留旧文件。
-- archive 测试断言无 decision 放行，未审查/changes-requested/损坏日志在状态写入、session 清理和
-  目录移动前零副作用失败；accepted 后保持既有归档行为。
+- Close 测试断言无 decision 放行，未审查/changes-requested/损坏日志形成持久 blocker，accepted 后
+  由 owner 显式解除并保持 Close 幂等。
 - Check-All 测试覆盖 requested/minimum/effective depth、legacy full fallback、failed -> fix -> full
   recheck、DOC manifest 重绑、非法路径、声明/实际不一致、retryable 后成功、3 次预算后阻塞、
   显式 blocked、任一 `FBK-*` 必须 `record failed` 并进入 fix/recheck，以及成功 record 后立即 `next`。
@@ -2619,8 +2635,8 @@ python3 ./.trellis/scripts/decision_log.py review \
   失败立即 blocked 且不消耗预算。
 - Skill 静态契约测试覆盖 Auto-Loop/Push 的多仓本地生成、受约束证据推断、retained 摘要校验、
   Step 5 跳过边界、runner 本地 progress 所有权、三轮修复和 no-push 边界，并比较 `.agents` / `.claude`。
-- selective install 对 `trellis-auto-loop`、`auto-loop`、`trellis-finish-work`、`finish-work` 分别断言
-  runner/helper、decision log 和 archive guard 自包含。
+- selective install 对 auto-loop、continue、progress 与 push 别名分别实际启动 runner/helper，
+  断言 decision log、task lifecycle 与共享 closeout Patch 自包含。
 - 运行 `npm test`、Patch conflict、compiled targets、strict AI context budget、Python `py_compile`、
   `git diff --check`，并比较 vendor、enhancements、dogfood 副本。连续第二次 enhance-only 修改数必须为 0。
 
@@ -2882,10 +2898,9 @@ explicit trellis-push | push confirmation
 
 ```text
 taskStatus=completed -> conditionally load completed-task-recovery.md
-  -> validated auto-loop handoff -> explicit finish-work
   -> current-task exact dirty -> task-record commit + push recovery plan
   -> attributable ahead task-record commit -> push-only recovery plan
-  -> clean synchronized normal task -> explicit finish-work
+  -> clean synchronized normal task -> deterministic Close or already-closed
   -> contradictory or incomplete evidence -> blocked
 ```
 
@@ -2958,7 +2973,8 @@ risk_items          ->始终逐项展示,不折叠
 - Phase 3.4 Patch 必须直接替换与 `trellis-push` 冲突的上游 `Proposed commits`、本地直接 commit
   和 `Never push` walkthrough；不得保留旧正文后再依赖 Hub 声明其 inactive。
 - 普通 `trellis-push` 默认 commit + push 当前分支;commit-only 只来自用户明确意图或已经由
-  auto-loop 校验的内部调用。分支合并、release、finish-work 和 runner 状态不属于该 skill。
+  auto-loop 校验的内部调用。分支合并、release、物理 GC 和 runner 状态不属于该 skill；
+  最终 progress 写入只调用确定性 Close helper。
 - `trellis-push` 内部始终保存 exact planned files 与 exact retained/unrecognized dirty paths;
   紧凑展示只影响对话,执行仍只能 `git add -- <exact files>` 和
   `git commit --only -- <exact files>`。
@@ -3011,31 +3027,32 @@ risk_items          ->始终逐项展示,不折叠
   不保存 push mode、业务 commit hash、分支或完整计划。`task_progress.py write` 仅在调用方完全省略
   `updatedAt` 时生成 UTC 时间，显式空值仍失败；同时必须拒绝额外字段,
   只接受 `status=in_progress`；普通最终分支携带 `--complete` 时在同一次原子替换中写 progress、
-  `status=completed` 和 UTC 日期 `completedAt`，并移除 legacy `last_push_snapshot`。
+  `status=completed`、UTC 日期 `completedAt` 与 Close 结果，并移除 legacy `last_push_snapshot`。
 - `trellis-start` 遇到已有任务时交给 `trellis-continue` 恢复，不再维护另一份状态到阶段的映射。
   Continue 的 Step 1/2 可复用本轮已加载且仍有效的任务上下文与 Phase Index；进度恢复和各阶段
   评审/确认门槛仍须执行，缺失或失效的上下文照常加载。
 - Task Progress Recovery 的读取 owner 是 `trellis-continue`：它在选择恢复步骤前运行
   `task_progress.py status --json`。`in_progress` 只 relay `partialStep`、`nextStep` 和必要 notes；
-  `completed` 当前任务或 candidate 一跳进入 `trellis-push` completed-task preflight。Continue 不检查
+  `completed+pending/blocked` 当前任务或 candidate 一跳进入 `trellis-push` completed-task preflight。Continue 不检查
   Git/runtime、不复制恢复矩阵，也不得自动 rebind、由 progress 推断 Phase 或恢复 push mode。
-- `completed` 是任务记录 helper 成功后、远端发布或 archive eligibility 尚待确认的可观察活动态；
-  最终 progress 写入不得清理当前 session 指针。`[workflow-state:completed]` 禁止自动恢复
-  implementation/Update-Spec，只把单一下一跳交给 `trellis-push` completed-task preflight；后者按需读取
-  `completed-task-recovery.md`。用户明确重做时才运行 `task_progress.py reopen --task <task> --json`；
-  reopen 只允许 `completed -> in_progress`，清空 `completedAt` 并保留 progress，范围变化仍刷新 Brief 并重新批准。
+- `completed+pending/blocked` 仍是 active；合法 `closeout=closed` 立即退出活动视图。最终 progress、
+  completed 与 Close 在一次原子写入中完成，Close 成功后清理当前 Session pointer。
+  `[workflow-state:completed]` 只处理尚未 closed 的 blocker；Close 后发布恢复必须保留显式任务引用，
+  由 `task_progress.py status --task <task>` 读取 closed 顶层任务并进入 Push preflight，默认候选不得重新暴露它。
+  用户明确重做时才运行 `task_progress.py reopen --task <task> --json`；reopen 只允许
+  `completed -> in_progress`，清空 `completedAt`、置 `closeout=pending` 并保留 progress，范围变化仍刷新 Brief。
 - `task_progress.py write` 必须在完整 schema 校验后，将 JSON 写入目标目录内的临时文件，执行
   flush + `fsync` 后用 `os.replace` 原子替换 `task.json`。校验失败、临时写入失败或 replace 失败时，
   旧 `task.json` 字节保持不变，并清理本次临时文件。
 - 普通业务 commit/push 全部成功时，立即用同一份 final progress 携带 `--complete` 原子写入
-  progress、`status=completed` 与 `completedAt`，再用固定 message 对首次确认的当前任务 exact files
+  progress、`status=completed`、`completedAt` 与 Close 结果，再用固定 message 对首次确认的当前任务 exact files
   生成独立 task-record commit 并立即 push，不增加第二次确认；该集合包含完成态 `task.json` 和首次
-  计划时已存在且可归属的当前任务产物。任务记录 push 成功后当前任务目录必须 clean，finish-work
-  不得依靠 archive commit 补发普通完成态。
+  计划时已存在且可归属的当前任务产物。Close 后的 task-record commit/push 继续使用调用方保留的
+  显式任务引用；物理 GC commit 不得补发普通完成态或承担远端发布。
 - 已有成功仓库而后续失败时不带 `--complete` 写 partial/next/failure notes，任务保持 `in_progress`。
   用户 commit-only、auto-loop 内部 commit-only 和尚无成功 Git 动作的失败都不得触发 completed。
-  finish-work 负责后续 release audit、archive 移动和 journal，不能作为普通 push 延后当前任务规划
-  产物首次入库的理由。
+  release、decision 或父任务整合风险以 Close blocker 回到对应 owner；物理 GC 不属于 Push 完成链，
+  不能作为普通 push 延后当前任务规划产物首次入库的理由。
 - progress 写入/commit/push 失败不回滚业务结果，最终报告必须分开显示 business 与 progress sync；
   helper 失败时权威任务状态保持 `in_progress`；helper 成功但 task-record commit 失败时保留
   `completed` dirty，task-record commit 成功但 push 失败时保留 clean ahead commit。两者均由
@@ -3081,11 +3098,12 @@ risk_items          ->始终逐项展示,不折叠
 | 多仓第二仓执行失败且第一仓已 push | 保留第一仓结果,写 partial progress 与下一恢复动作 |
 | 业务动作成功但 progress push 失败 | 不回滚业务提交;单独报告 progress sync failed，任务保持 in_progress |
 | 普通业务 commit/push 全部成功 | `write --complete` 后提交并推送包含完成态的 task-record exact files |
-| helper 成功但 task-record commit 失败 | 保留 completed dirty；completed preflight 生成 commit + push 恢复计划 |
-| task-record commit 成功但 push 失败 | 保留 clean ahead commit；completed preflight 生成 push-only 恢复计划 |
-| task-record push 成功 | 当前任务目录 clean；completed preflight 指向显式 finish-work |
-| partial、用户 commit-only 或 auto-loop commit-only | 不带 `--complete` 或跳过 Step 5，任务保持 in_progress |
-| completed 当前任务或 candidate 被 continue 发现 | 一跳进入 Push completed preflight，不在 Continue 内检查 Git/runtime |
+| helper 成功但 task-record commit 失败 | 保留 completed/closed dirty；调用方用显式 task ref 生成 commit + push 恢复计划 |
+| task-record commit 成功但 push 失败 | 保留 completed/closed clean ahead commit；显式 task ref 生成 push-only 恢复计划 |
+| task-record push 成功 | 当前任务目录 clean；已 closed 则完成，否则按结构化 blocker 路由 owner |
+| partial 或用户显式 commit-only | 不带 `--complete`，任务保持 in_progress |
+| auto-loop commit-only 成功 record | runner 原子写 completed/progress/Close，不等待整条 run 结束 |
+| completed+pending/blocked 当前任务或 candidate 被 continue 发现 | 一跳进入 Push completed preflight，不在 Continue 内检查 Git/runtime |
 | 用户明确要求重做 completed 任务 | `reopen` 清 completedAt、保留 progress；必要时重新批准 Brief |
 | progress JSON 带额外字段 | helper 拒绝写入,防止旧 Git 编排状态混入 |
 | progress schema 非法 | 写盘前失败，原 `task.json` 字节不变 |
@@ -3131,9 +3149,9 @@ risk_items          ->始终逐项展示,不折叠
   reference I/O 和交互确认。
 - Bad:为减少一次确认增加独立中间步骤流程、验证协议或新状态;现有计划和提交前预检已经足够。
 - Bad:生成后出现预计列表外文件仍沿用旧确认,或仅因预计文件的 hash/统计变化重复询问用户。
-- Bad:progress 记录 business commit hash 或 push mode,再让 finish-work 根据它决定是否 push。
+- Bad:progress 记录 business commit hash 或 push mode,再让 lifecycle maintenance 根据它决定是否 push。
 - Bad:partial push、commit-only 或 auto-loop item completed 直接把 `task.json.status` 写成 completed。
-- Bad:普通 push 只把 in_progress progress 推到远端，再把 completed 留在本地等待 archive commit 承接。
+- Bad:普通 push 只把 in_progress progress 推到远端，再把 completed 留给物理 GC commit 承接。
 - Bad:Continue 或 workflow-state 自己读取 ahead commits/auto-loop runtime 并复制 completed 恢复矩阵。
 
 ### 6. Tests Required
@@ -3170,20 +3188,20 @@ risk_items          ->始终逐项展示,不折叠
 - 在临时 Git 仓库验证 `git commit --only -- <planned files>` 不消费计划外 staged 文件,
   并验证 retained-only 变化不会触发计划重确认。
 - `python3 -m py_compile` 验证 `task_progress.py`；临时任务覆盖新 progress 读写、额外字段拒绝、
-  legacy 读取与下一次 write 迁移、`--complete`、session pointer 保留、completed candidate、reopen，
+  legacy 读取与下一次 write 迁移、`--complete`、Close 后 session pointer 清理、显式 closed status、reopen，
   并模拟 schema 非法与 `os.replace` 失败，断言旧文件不变且无临时文件残留。
 - 临时多仓/裸远端覆盖普通成功、部分失败、progress sync 失败和显式 commit-only;验证 progress
-  commit 只包含首次确认的当前任务产物与 completed `task.json`,其他任务保持原状;覆盖 helper 后
+  commit 只包含首次确认的当前任务产物与 completed/closed `task.json`,其他任务保持原状;覆盖 helper 后
   commit 失败、commit 后 push 失败与完全同步三种现场，确认恢复分别为 commit + push、push-only、
-  finish-work；commit-only 不 push 也不生成远端 progress。
+  already-closed/Close blocker 路由；commit-only 不 push 也不生成远端 progress。
 - 回归 `auto_loop.py start` 仍只接受/default `profile=commit-only`,并保持
   `run_check_all -> run_spec_update -> commit_only`;静态确认 runner `status/record` 只在
   `trellis-auto-loop` skill,不在 `trellis-push`。
 - `trellis-continue` 全装/精细安装同时铺设 recovery Patch 与 `task_progress.py`，并覆盖所有平台
   原生 continue 入口；最终产物断言 progress status 位于 Phase Index 之前，completed 分支只一跳进入
   Push preflight/reopen，不恢复实现，也不包含 Git/runtime 分支矩阵。
-- 静态断言 `completed-task-recovery.md` 只在 `taskStatus=completed` 时加载，大小不超过 4 KiB；
-  主 Push、Continue、workflow-state 和 Finish Work 不复制其 commit + push / push-only 恢复矩阵，
+- 静态断言 `completed-task-recovery.md` 只在显式 completed 任务恢复时加载，大小不超过 4 KiB；
+  主 Push、Continue 和 workflow-state 不复制其 commit + push / push-only 恢复矩阵，
   canonical、发布快照、compiled targets 与 dogfood 保持一致。
 
 ### 7. Wrong vs Correct
@@ -3242,7 +3260,7 @@ Push：执行
 ### 保留未提交的变更（dirty）
 - [untracked] notes/local.md
 
-任务进度：completed=实现与检查 | partial=无 | next=finish-work
+任务进度：completed=实现与检查 | partial=无 | next=deterministic Close
 确认执行请回复 `确认`。
 ```
 
@@ -3254,154 +3272,152 @@ auto-loop internal commit-only -> 不读取、不渲染、不确认
 
 原因:check 报告与 Git 计划职责分离，正常完成链仍在用户继续后进入 Phase 3.3；显式 Push
 进入 Phase 3.4 后只披露上游证据，不反向补门禁。普通任务记录与 completed 恢复都由 Push owner
-闭环，Continue 和 Finish Work 只保留一跳/资格判断；按需 reference 避免把低频恢复矩阵常驻上下文。
+闭环，Continue 只保留一跳/资格判断；按需 reference 避免把低频恢复矩阵常驻上下文。
 
 ---
 
-## Scenario: Finish-work Release Audit And Exact Bookkeeping
+## Scenario: Task Close, Closed View, And SessionStart Physical GC
 
 ### 1. Scope / Trigger
 
-- Trigger:Phase 3.4 已完成后显式运行 finish-work,工作区仍保留其他规划任务、旧 archive、
-  其他窗口的 untracked/unstaged/staged 文件。
-- Scope:`trellis-release audit-current` 负责当前任务单任务上线核对;finish-work 只负责调用该
-  模式、当前任务 archive 与本次 journal bookkeeping;不重复提交业务代码,不把工作区整体
-  clean 或任务进度当作提交/自动 push 条件。
+- Trigger:任务完成记录、auto-loop 单项 record、逻辑 Close、closed 视图、SessionStart maintenance、
+  物理 GC、restore 或 reopen 行为发生变化。
+- Scope:`task_progress.py` 与 auto-loop record 负责完成写入并调用共享 Close；
+  `task_lifecycle.py` 负责资格评估、旧数据收敛、精确 Git 事务、restore 与 GC；
+  SessionStart 只负责在 startup/resume 调用 maintenance。上述路径均为确定性逻辑，不调用模型。
 
 ### 2. Signatures
 
 ```bash
+python3 ./.trellis/scripts/task.py close <task> [--json]
+python3 ./.trellis/scripts/task.py list [--mine] [--json]
+python3 ./.trellis/scripts/task.py list --closed [--mine] [--json]
+python3 ./.trellis/scripts/task.py list --all [--mine] [--json]
+python3 ./.trellis/scripts/task.py gc --closed --before 3d [--dry-run] [--json]
+python3 ./.trellis/scripts/task.py restore <task> [--dry-run] [--json]
 python3 ./.trellis/scripts/task_progress.py status --task <task> --json
-python3 ./.trellis/scripts/task.py archive <task> --no-commit
+python3 ./.trellis/scripts/task_progress.py reopen --task <task> --json
+python3 ./.trellis/scripts/task_lifecycle.py session-start --before 3d --json
 ```
 
 ```text
-in_progress -> trellis-push business commit/push -> atomic write --complete
-  -> task-record commit/push -> completed + current-task clean
-completed -> trellis-push completed-task preflight
-  -> synchronized normal task | validated auto-loop handoff -> explicit trellis-finish-work -> archive
-  -> commit + push recovery | push-only recovery | blocked
-completed -> explicit reopen -> in_progress
+planning -> in_progress -> completed
+  -> deterministic Close -> closed view immediately
+  -> SessionStart and closedAt >= 3d -> exact local GC commit
+physical archive -> restore as closed -> explicit reopen -> in_progress
 ```
 
 ### 3. Contracts
 
-- finish-work 必须先读取权威 `task.json` 生命周期；只有 `status=completed` 才能进入
-  decision/release/archive。缺失 `completedAt` 属于可恢复的归档审计元数据，由 `task.py archive`
-  在 decision guard 通过后补写；progress 文本不能替代状态。`in_progress` 返回 Phase 3.4，
-  损坏/未知状态 fail closed；finish-work 不制造 completed。
-- finish-work 必须独立验证 archive eligibility，但不分类普通 task-record 的 commit 恢复与 push 恢复：
-  普通完成态只在当前任务目录 clean、upstream 存在且 `@{u}..HEAD` 没有提交修改当前任务时可继续；
-  auto-loop 只在健康终态或 recent run 的 `pending_archive.tasks_awaiting_archive` 精确包含当前任务、
-  记录的本地提交仍可验证，且任务 dirty 仅为 runner 提交后写入的 `<task-dir>/task.json` bookkeeping
-  时可继续。其它 completed 或证据矛盾状态在 release audit 前停止，并进入 `trellis-push`
-  completed-task preflight。
-- `trellis-push` 按需加载 `completed-task-recovery.md` 后，只有它可以把普通 completed 现场分类为
-  task-record commit + push、push-only、已同步可 finish-work 或 blocked。finish-work 不复制该分支矩阵，
-  也不 recommit/push 普通 task record。
-- finish-work 在移动前记录 task source/name/children、branch、upstream、`HEAD` 与 upstream HEAD,
-  以及 `@{u}..HEAD`;只有开始时 upstream 存在且两端 HEAD 完全相同才设置 `baseline_synced=true`。
-- 归档前自动调用 `trellis-release audit-current`。该模式只读取当前任务 artifacts、现有
-  `release.md` 和 Git 证据:高置信有上线事项时创建/更新 task `release.md`;高置信无事项时
-  no-op;证据不确定时写 `Needs human review`。它不生成 `.trellis/releases/` 批次文件、不确认、
-  不提交/推送，也不执行 SQL、配置、脚本或外部系统操作。
-- 普通 `trellis-release` 批次模式仍按既有任务集合核对、生成批次草案并在写盘前等待用户确认;
-  `audit-current` 的无确认语义不得泄漏到批次模式。
-- archive 和 journal 写入统一使用原生命令的 `--no-commit`,再由 finish-work 使用 exact paths
-  和一次 `git commit --only` 合并生成 bookkeeping commit，沿用配置的 session commit message。
-- 合并提交只允许归档前源路径、`task.py archive` stdout 返回的
-  `.trellis/tasks/archive/YYYY-MM/<task>` 目标路径、实际被修改的 child `task.json`，以及
-  `add_session.py` 本次实际修改的 journal/index 文件；未变化的 child 或 journal/index 不加入路径集。
-  禁止暂存 `.trellis/tasks/archive`、`.trellis/tasks`、`.trellis/workspace` 或 `.trellis` 根目录。
-- 计划外 staged 文件在提交前后必须保持原状。最终结果分别报告 archive destination 与 journal paths，
-  两者对应的同一个 bookkeeping commit 只报告一次。
-- `session_auto_commit=false` 时只落盘和报告精确 dirty paths,不生成 bookkeeping commit,
-  不自动 push。
-- `baseline_synced=true` 时,完成 exact bookkeeping commit 后确认 branch/upstream 未变化,且
-  新增 ahead set 只有本轮合并的 bookkeeping commit,然后自动 push。无关 dirty/staged 不阻断。
-- finish-work 开始时已有 ahead、分支 behind/diverged、无 upstream,或执行期间出现并发 commit /
-  branch/upstream 变化时,完成本地 bookkeeping commit 但不自动 push。不得读取 progress 或
-  legacy task 字段决定 Git 行为。
-- `task.py archive` 重复 completion-state 与 decision guard，只接受 completed。已有 `completedAt`
-  必须原样保留；字段缺失时在 guard 通过后补为归档当天，补写失败必须在目录移动前停止。归档不改变
-  status，只移动目录、清理指针和维护 parent/child 关系。归档 completed 父任务时只清活动子任务的
-  `parent`，不得改变子任务 status/progress。
+- `task.json.status` 只表达 planning/in_progress/completed；`closeout.status` 只表达
+  pending/blocked/closed；Git 发布证据和顶层/archive 物理位置各自独立，不得复用字段推断。
+- active 的唯一共享定义是“顶层任务且规范化 closeout 不是合法 closed”。默认 list、SessionStart、
+  statusline、进度候选、意图路由和 current resolver 必须复用共享 task view；物理 archive 永不 active。
+  closed 视图同时包含顶层逻辑 closed 和历史物理 archive，并拒绝同名身份碰撞。
+- Close 先重新计算工作状态、decision、children 和 delivery 条件，再处理语义 blocker。
+  可重新计算的 blocker 不从旧结果继承；release、父任务整合等持久化语义 blocker 必须保留，
+  直到所属 owner 通过共享 helper 的 `resolved_blocker_codes`，或用户在 owner 工作完成后显式执行
+  `task.py close <task> --resolve-blocker <code>` 解除；该参数可重复传入多个 blocker code。
+- Close 成功原子写 `closeout=closed` 与秒级 UTC `closedAt`，随后 best-effort 清理指向该任务的
+  Session 并运行 `after_close`。重复 Close 不刷新时间、不重写文件、不重复副作用；blocked 不清指针。
+- 普通最终 progress 与 completed、Close 在同一次 task.json 原子替换中完成；auto-loop 的
+  `commit_only` 成功 record 也在同一次 runner bookkeeping 中写 completed、progress 与 Close 结果。
+  item 后续 run 继续、暂停、停止或放弃均不改变已 record item 的关闭与 GC 资格。
+- Close 后默认 active/candidate 入口立即隐藏任务，但显式
+  `task_progress.py status --task <task>` 必须使用 top-level resolver 继续读取 closed 任务，
+  供 task-record commit/push 在 Close 后失败或会话中断时恢复。默认扫描不得因此重新暴露 closed。
+- legacy reconciliation 在 startup/resume 的新 GC 前执行。若存在未完成 GC journal，必须先恢复或确认
+  该事务，再允许 reconciliation 创建新提交，避免推进 journal 固定的旧 HEAD。旧 planning/in_progress 写 pending；
+  旧 completed 按当前 Close 条件写 closed 或 blocked；旧 `pending_archive` 只有在 runtime、
+  已存在本地 commit、HEAD 中原 task.json 和当前允许的 runner 字段变化相互闭合时才可迁移。
+  新 runtime 使用 task.json SHA-256；缺少摘要的旧 runtime 必须重建并严格限制为 status、
+  completedAt、五字段 progress 和 last_push_snapshot 清理，任何额外编辑均延后。
+- GC 只处理合法 closed 且 `closedAt` 已满 72 小时的顶层任务；非法、缺失或未来时间只诊断，
+  不借用 completedAt 或目录分桶猜测。active Session、未 record 的 auto-loop action、候选 dirty
+  无法归属、目标碰撞或 Git 集成态会延后；已 record completed item 和 dormant/terminal runtime 不阻断。
+- GC 允许候选外 dirty/staged 共存。Git 事务固定完整 `refs/heads/*` 与 HEAD，使用隔离临时 index
+  从固定 HEAD 构造 exact tree，通过 `commit-tree` 创建提交对象，再以固定分支引用和预期旧 HEAD
+  执行 `update-ref` compare-and-swap；真实 index 只在引用成功且当前分支仍匹配时刷新精确 pathspec。
+  staged/commit 文件集使用 NUL 分隔读取，并校验 parent/fileset 及候选外 index/worktree 指纹；
+  中文、空格和制表符路径不得被 quote 解析破坏。同 HEAD 分支切换不得把提交写入新分支，
+  固定分支 HEAD 并发变化必须由 CAS 失败关闭。
+- reconciliation、GC 与 restore 的共享精确提交层在 `commit-tree` 成功后、`update-ref` 前原子写
+  `.trellis/.runtime/task-maintenance-commit.json`，记录固定分支、旧/新 HEAD、精确 pathspec、
+  commit fileset、候选外指纹与可恢复结果。引用更新成功不等于事务完成；只有真实 index 已按
+  精确 pathspec 对齐新提交、候选路径无残留 staged、候选外 staged/dirty 指纹仍一致后才能清 journal。
+  中断或 `index.lock` 等刷新失败必须保留 journal，并由下一次非 dry-run maintenance/同命令重试收尾。
+- GC 在第一次目录 mutation 前原子写 `.trellis/.runtime/task-gc-transaction.json`。
+  下一次非 dry-run maintenance 在任何 reconciliation 或新 GC 提交前，先在同一分支/HEAD 上
+  清理候选 index 并补偿未提交移动；
+  若 journal 对应的 exact commit 已成功，则先通过共享提交 journal 修复并验证真实 index，再确认提交并清理双 journal。未知 HEAD、分支变化、
+  损坏 journal 或源/目标冲突保留证据并失败关闭，不猜测完成。
+- GC 只创建本地 commit，不 push；不要求默认分支、upstream 或全工作区 clean。跨进程 lock 内重检资格；
+  startup/resume 执行 unfinished GC recovery -> reconciliation -> new GC，clear/compact 不运行
+  maintenance，无动作不注入任务清单。
+- restore 只恢复物理位置，不自动 reopen。旧物理 archive 缺少或含非法 closeout 时，以 restore 时刻
+  显式写 closed（不从 completedAt/分桶反推历史时间），因此恢复后仍不进入 active；用户随后显式
+  reopen 才执行 completed -> in_progress、清 completedAt、置 closeout=pending 并重新进入 active。
+- `normalize_closeout` 必须先校验 status 类型再做枚举判断。单个合法 JSON 中的数组、对象、数字或
+  null closeout.status 只形成结构化 invalid 诊断，不得抛 TypeError 或拖垮其它健康任务消费者。
+- `scripts/task-closeout-lifecycle` 及 `task_lifecycle.py`、`decision_log.py` 必须随
+  auto-loop、continue、progress、push 相关选择性安装别名共同投影；测试必须实际运行 `--help`
+  和无任务查询，不能只检查文件存在。
+- 旧 `archive`、`list-archive`、`trellis-finish-work`、`after_archive` 已硬删除；
+  release/decision/父任务整合仅在结构化 blocker 出现时回到各自 owner，物理 GC 不属于完成链路。
 
 ### 4. Validation & Error Matrix
 
 | 条件 | 行为 |
 |------|------|
-| 其他规划任务存在 untracked 文件 | 保留并报告;继续当前任务 archive/journal commit |
-| 旧 archive 下存在未跟踪任务 | 不纳入 exact destination;继续 |
-| index 中已有计划外 staged 文件 | `git commit --only` 隔离并验证 staged 列表保持不变 |
-| 当前任务 status=in_progress | archive 前停止并返回 Phase 3.4 `trellis-push` |
-| completed、普通任务目录 clean、upstream 存在且没有 ahead commit 修改任务 | 保留活动指针进入 decision/release/archive |
-| completed、健康 auto-loop handoff 且仅 runner-owned task.json dirty | 允许进入 decision/release/archive，不推送普通 task record |
-| completed 但任务 dirty、存在可归属 task-record ahead commit或证据不完整 | release audit 前停止，进入 Push completed preflight |
-| completedAt 缺失且 status=completed | 继续资格检查；decision guard 通过后由 archive 补为当天 |
-| completedAt 补写失败 | fail closed，任务目录保持原位，不清理 session |
-| task.json 损坏或未知状态 | fail closed，不运行 release/archive/journal |
-| audit-current 高置信无上线事项 | status=no-op,不创建 release.md,继续 finish-work |
-| audit-current 高置信有上线事项 | 写/更新当前任务 release.md,由 archive 自然纳入 |
-| audit-current 证据不确定 | 写 Needs human review,继续并在最终结果保留风险 |
-| 开始时 `HEAD == upstream HEAD` | push 本轮合并的 bookkeeping commit,不要求工作区 clean |
-| finish-work 前已有 ahead commits | 完成本地 bookkeeping commit,不自动 push |
-| 无 upstream 或分支 behind/diverged | 完成本地 bookkeeping commit,不猜测远端目标 |
-| `session_auto_commit=false` | 只落盘,不 commit/push |
+| completed 且结构条件全部满足 | 原子 closed，立即退出 active，清 Session，运行 after_close |
+| 重复 Close | `already-closed`，保留原 closedAt，零写入 |
+| 持久化语义 blocker 仍未显式解除 | 重试仍 blocked，不清空 blocker |
+| Close 后 task-record commit/push 失败 | 新会话用显式 `status --task` 读取 closed 任务并恢复发布 |
+| 旧 runtime 无 task_json_sha256 但允许字段可完全重建 | reconciliation 精确提交迁移；重复运行零写入 |
+| 旧 runtime 对 task.json 有额外人工修改 | `candidate-dirty`，不迁移 |
+| 中文、空格或制表符任务名 | NUL 文件集校验通过，exact GC/restore commit 成功 |
+| 同 HEAD 切换分支 / HEAD 并发变化 | commit 前失败；journal 保留，绝不在新分支提交 |
+| 最终检查后、引用更新前切到同 HEAD 新分支 | CAS 只更新事务开始分支；新分支 HEAD 不变，journal 保留诊断 |
+| GC 在 move / stage 后中断 | 下次 maintenance 回滚局部状态后重新计算并完成 |
+| move 后中断且同时存在 legacy 候选 | 先恢复 journal，再提交 reconciliation，随后新 GC 可完成 |
+| GC commit 成功后、真实 index 刷新前中断或刷新失败 | 下次 maintenance 先对齐候选 index、确认候选无 staged 且无关 staged/dirty 未变，再清理双 journal |
+| reconciliation / restore 在引用更新后中断 | 同命令或 SessionStart 从共享提交 journal 恢复结果并补齐 index，不重复写入或移动 |
+| restore 旧 archive | 顶层显式 closed；只有随后 reopen 才 active |
+| closeout.status 为数组/对象/数字/null | 单任务 invalid 诊断；健康任务视图继续可读 |
+| clear/compact SessionStart | 不 reconciliation、不 GC |
+| startup/resume 无候选 | 零写入、零额外任务上下文 |
 
 ### 5. Good / Base / Bad Cases
 
-- Good:普通 push 已原子写入最终 progress + completed 并同步 task-record commit；用户显式 finish-work
-  时任务目录 clean、upstream 无修改当前任务的 ahead commit，archive 内保留原 completedAt，session
-  指针才被清理。
-- Good:auto-loop runtime 精确记录当前任务待归档，关联本地提交仍可验证且仅 runner-owned task.json
-  bookkeeping dirty；finish-work 允许归档，但不把该本地完成态误判为普通 task-record push。
-- Good:旧任务已是 completed 但缺少 completedAt；decision guard 通过后 archive 补写当天日期并移动，
-  不要求重复 progress helper 或任务记录 push。
-- Base:completed 父任务有一个 in_progress 子任务；归档父任务只把子任务 parent 置空，子任务继续活动。
-- Bad:finish-work 看到 progress.nextStep=archive 就替 in_progress 任务写 completed 并移动目录。
-- Bad:finish-work 看到 completed dirty 或 task-record ahead commit 后自行决定 commit/push，而不是回到
-  Push-owned completed preflight。
-- Bad:archive 每次重写 completedAt，丢失真实业务完成日期。
+- Good:普通 Push 最终 helper 写 completed + closed 后清 Session；若随后的 task-record push 失败，
+  Continue 使用显式任务引用恢复，不把 closed 任务重新放回默认候选。
+- Good:auto-loop 旧 completed 记录没有新摘要，但旧 pending_archive、commit 和五字段 progress
+  精确互证；首次 SessionStart 迁移并提交，第二次无变化。
+- Good:GC 在 `git add` 后被终止；下一次 startup 读取 journal、精确 reset 候选 pathspec、
+  恢复源目录并重新执行，候选外 staged 状态保持不变。
+- Base:旧物理 archive 没有 closeout；closed view 只读解释为 historical closed，restore 时才显式化。
+- Bad:重复 Close 用空 explicit blockers 覆盖旧 release blocker；这会让未审查任务退出 active。
+- Bad:用换行拆分 `git diff --name-only` 或 `git show --name-only`；Git quote 会破坏非 ASCII 路径。
+- Bad:目录已移动但未提交时只重新扫描顶层候选；源目录消失会导致事务永久遗留。
+- Bad:restore 只搬目录，旧 archive 因缺 closeout 立即重新进入 active。
+- Bad:为选择性安装只复制入口脚本，不安装 lifecycle Patch、共享 tasks 视图或被延迟导入的 helper。
 
 ### 6. Tests Required
 
-- 临时仓库中同时创建当前任务、旧 archive、其他规划任务 untracked 文件和计划外 staged 文件;
-  验证合并提交的 `git show --name-only` 只包含 archive/journal 的 exact allowed paths，且只新增一个 commit。
-- 验证一次 `git commit --only` 完成后,计划外 staged/untracked/unstaged 状态保持不变；覆盖 journal
-  有变化与无变化，并验证未修改的 child/journal 路径可省略。
-- 验证 `audit-current` 的 `no-op` / `written` / `needs-review` 三种结果,并回归普通批次模式仍需确认。
-- 验证工作区 dirty 但开始 `HEAD == upstream HEAD` 时允许 push;验证开始已有 ahead、无 upstream、
-  behind/diverged 时只生成本地 bookkeeping commit。
-- 验证 archive 拒绝 in_progress，接受 completed；已有 completedAt 原样保留，缺失时补写当天，补写失败
-  不移动任务。覆盖 decision 失败零写入、completed parent/child 解除关系和归档后 session pointer 清理。
-- 覆盖普通已同步、validated auto-loop handoff、completed dirty、task-record ahead commit 与矛盾 runtime
-  五类 archive eligibility；确认后两类及歧义状态在 release audit 前进入 Push preflight，且 Finish Work
-  不包含 commit + push / push-only 详细恢复矩阵。
-- 静态扫描 finish-work override,确认不再出现“`git status --porcelain` clean 才 push”或暂存
-  archive/workspace 根目录的指令,也不包含 release 证据推断正文或 progress/legacy Git 联动。
-
-### 7. Wrong vs Correct
-
-#### Wrong
-
-```text
-finish-work -> task.py archive writes completed -> move task -> clear pointer
-```
-
-#### Correct
-
-```text
-trellis-push -> business push -> atomic completed + completedAt -> task-record commit/push
-finish-work -> independently validate archive eligibility -> decision/release audit
-  -> archive without status transition; backfill only missing completion metadata
-```
-
-原因:业务完成与会话收尾是两个可恢复边界；`completed` 必须在归档前可被 workflow-state、continue
-和 session 恢复观察，archive 只负责最终移动与 bookkeeping；`completedAt` 缺失不应伪装成未完成状态。
-
----
-
+- `test_task_lifecycle.py` 覆盖 Close success/already/blocked、语义 blocker 重试与显式解除、
+  legacy 新摘要/旧 runtime、特殊 Git 路径、同 HEAD 分支切换、最终引用更新窗口、HEAD 变化、
+  move/stage/commit 中断恢复、真实 index 刷新失败、reconciliation/restore 共享提交恢复、
+  GC 中断与 legacy reconciliation 组合恢复、候选 staged 清零且无关 staged 保持不变、
+  restore -> closed -> reopen、候选外 dirty/staged、非法/未来 closedAt、目标碰撞和幂等。
+- `test_task_progress.py` 覆盖默认候选隐藏 closed、显式 closed status 可读、原子完成与 Close、
+  写失败无半状态以及显式 reopen。
+- 共享任务视图覆盖 closeout.status 数组、对象、数字、null 和健康记录共存。
+- Node 选择性安装测试分别安装 auto-loop、continue、progress/push 别名，实际运行入口 `--help`
+  与查询；canonical、snapshot、compiled target、dogfood 二次应用保持一致。
+- `.github/workflows/python-compatibility.yml` 在 Ubuntu/Windows × Python 3.8/3.12 显式运行
+  `test_task_lifecycle.py`；推送后以对应 headSha 的全部必需矩阵 success 作为跨平台验收。
+- 运行 `npm test`、`npm run patch:targets:check`、strict AI context budget、Python 3.8 语法、
+  `git diff --check` 和 legacy 入口扫描。
 ## Scenario: Skill Output Template Rendering Contract
 
 ### 1. Scope / Trigger

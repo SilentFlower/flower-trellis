@@ -262,14 +262,11 @@
       "target": ".trellis/scripts/common/task_store.py",
       "whenOperations": [
         "task-store-write-helpers",
-        "task-store-decision-log-import",
         "task-create-duplicate-slug",
         "task-create-initial-write",
         "task-create-parent-link",
-        "task-archive-metadata-guard",
         "task-add-subtask-pair-write",
         "task-remove-subtask-pair-write",
-        "task-archive-status-write",
         "task-set-branch-write",
         "task-set-base-branch-write",
         "task-set-scope-write",
@@ -279,18 +276,10 @@
         "type": "required-literal",
         "values": [
           "# BEGIN skill-garden patch task-store-write-helpers v0.6",
-          "# BEGIN skill-garden patch task-store-decision-log-import v0.6",
-          "decision_review_status(task_dir)",
-          "AI decisions require review before archive.",
           "def _write_task_pair(",
           "Error: Task directory already exists:",
           "Failed to write initial task.json",
           "Relationship rollback incomplete",
-          "task.json not found or invalid:",
-          "only completed tasks can be archived",
-          "complete the normal trellis-push progress sync before finish-work archive",
-          "completedAt was missing and has been set to",
-          "Failed to persist completedAt before archive",
           "Failed to persist branch",
           "Failed to persist base branch",
           "Failed to persist scope",
@@ -391,10 +380,11 @@
           "| Routing Gate | Phase 2 + `trellis-route` | `route_state.py` |",
           "| Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` | `auto_loop.py record/next` |",
           "| Code Commit Confirmation Gate | Phase 3.4 + `trellis-push` | exact Git safety checks |",
-          "| Bookkeeping Auto-commit Scope | `trellis-finish-work` | `safe_commit.py` + archive/journal commands |",
+          "| Deterministic Task Close | `trellis-push` + `trellis-auto-loop` | `task_progress.py` + `task_lifecycle.py` |",
+          "| Deferred Physical GC | SessionStart | `task_lifecycle.py session-start` |",
           "| Task Progress Recovery | `trellis-continue` | `task_progress.py` |",
           "A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.",
-          "Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; `trellis-finish-work` runs only after Phase 3.4"
+          "Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; successful delivery writes completion and deterministic Close"
         ]
       },
       "owner": "workflow-hub",
@@ -421,7 +411,8 @@
           "#### Interactive Post-Check Stop Gate",
           "#### Code Commit Confirmation Gate",
           "#### Auto-loop Commit-only Preauthorization",
-          "#### Bookkeeping Auto-commit Scope",
+          "#### Deterministic Task Close",
+          "#### Deferred Physical GC",
           "#### Task Progress Recovery"
         ]
       },
@@ -910,7 +901,7 @@
           "Do not add a parallel workflow injector",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-continue-recovery v0.6 -->\n## `/trellis:continue` Recovery Ownership",
           "never bind a session automatically",
-          "A `completed` task enters the `trellis-push` completed-task preflight",
+          "A `completed` task remains discoverable only while Close is pending or blocked",
           "Direct edits are valid only for unowned local sections"
         ]
       },
@@ -936,7 +927,7 @@
           "Do not add a parallel workflow injector",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-continue-recovery v0.6 -->\n## `/trellis:continue` Recovery Ownership",
           "never bind a session automatically",
-          "A `completed` task enters the `trellis-push` completed-task preflight",
+          "A `completed` task remains discoverable only while Close is pending or blocked",
           "Direct edits are valid only for unowned local sections"
         ]
       },
@@ -950,7 +941,11 @@
       "whenOperations": [
         "trellis-meta-managed-task-artifacts",
         "trellis-meta-managed-task-readiness",
-        "trellis-meta-managed-active-task-lifecycle"
+        "trellis-meta-managed-active-task-lifecycle",
+        "trellis-meta-managed-task-common-commands",
+        "trellis-meta-managed-child-closeout-language",
+        "trellis-meta-managed-child-history-language",
+        "trellis-meta-managed-gc-customization-language"
       ],
       "assertion": {
         "type": "required-literal",
@@ -960,8 +955,12 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-task-readiness v0.6 -->",
           "Saved progress is advisory recovery evidence only.",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-active-task-lifecycle v0.6 -->\n## Active Task And Lifecycle",
-          "in_progress -> business push -> atomic final progress + completed -> task-record commit/push",
-          "never bind a session automatically"
+          "in_progress -> business push -> atomic final progress + completed + deterministic Close -> task-record commit/push",
+          "never bind a session automatically",
+          "python3 ./.trellis/scripts/task.py gc --closed --before 3d [--dry-run] [--json]",
+          "deterministic Close independently",
+          "`children` on the parent is a historical list.",
+          "| Change Close or physical GC policy |"
         ]
       },
       "owner": "trellis-meta",
@@ -974,7 +973,11 @@
       "whenOperations": [
         "trellis-meta-managed-task-artifacts",
         "trellis-meta-managed-task-readiness",
-        "trellis-meta-managed-active-task-lifecycle"
+        "trellis-meta-managed-active-task-lifecycle",
+        "trellis-meta-managed-task-common-commands",
+        "trellis-meta-managed-child-closeout-language",
+        "trellis-meta-managed-child-history-language",
+        "trellis-meta-managed-gc-customization-language"
       ],
       "assertion": {
         "type": "required-literal",
@@ -984,8 +987,12 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-task-readiness v0.6 -->",
           "Saved progress is advisory recovery evidence only.",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-active-task-lifecycle v0.6 -->\n## Active Task And Lifecycle",
-          "in_progress -> business push -> atomic final progress + completed -> task-record commit/push",
-          "never bind a session automatically"
+          "in_progress -> business push -> atomic final progress + completed + deterministic Close -> task-record commit/push",
+          "never bind a session automatically",
+          "python3 ./.trellis/scripts/task.py gc --closed --before 3d [--dry-run] [--json]",
+          "deterministic Close independently",
+          "`children` on the parent is a historical list.",
+          "| Change Close or physical GC policy |"
         ]
       },
       "owner": "trellis-meta",
@@ -997,7 +1004,9 @@
       "target": ".agents/skills/trellis-meta/references/customize-local/change-task-lifecycle.md",
       "whenOperations": [
         "trellis-meta-managed-lifecycle-entry-points",
-        "trellis-meta-managed-lifecycle-modification-steps"
+        "trellis-meta-managed-lifecycle-modification-steps",
+        "trellis-meta-managed-lifecycle-hooks",
+        "trellis-meta-managed-lifecycle-summary-language"
       ],
       "assertion": {
         "type": "required-literal",
@@ -1006,12 +1015,14 @@
           "Change normal completion activation",
           "| Change interruption recovery or candidate rebinding | `trellis-continue` owns the user decision, `task_progress.py` owns candidate evidence, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the explicit session bind; never bind a candidate automatically. |",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-lifecycle-modification-steps v0.6 -->\n## Modification Steps",
-          "normal final progress and completion written atomically before the task-record commit/push",
-          "change the canonical Patch/skill/helper source"
+          "normal final progress, completion, and Close written atomically before the task-record commit/push",
+          "change the canonical Patch/skill/helper source",
+          "Task lifecycle includes creation, start, context configuration, deterministic Close",
+          "`.trellis/config.yaml` supports `after_create`, `after_start`, `after_finish`, and `after_close`."
         ]
       },
       "owner": "trellis-meta",
-      "reason": "shared lifecycle customization 必须路由到 Brief、progress、push、continue、finish-work 和 archive 的真实 owner。"
+      "reason": "shared lifecycle customization 必须路由到 Brief、progress、push、continue、Close 与物理 GC 的真实 owner。"
     },
     {
       "id": "trellis-meta-required-lifecycle-customization-claude",
@@ -1019,7 +1030,9 @@
       "target": ".claude/skills/trellis-meta/references/customize-local/change-task-lifecycle.md",
       "whenOperations": [
         "trellis-meta-managed-lifecycle-entry-points",
-        "trellis-meta-managed-lifecycle-modification-steps"
+        "trellis-meta-managed-lifecycle-modification-steps",
+        "trellis-meta-managed-lifecycle-hooks",
+        "trellis-meta-managed-lifecycle-summary-language"
       ],
       "assertion": {
         "type": "required-literal",
@@ -1028,8 +1041,10 @@
           "Change normal completion activation",
           "| Change interruption recovery or candidate rebinding | `trellis-continue` owns the user decision, `task_progress.py` owns candidate evidence, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the explicit session bind; never bind a candidate automatically. |",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-lifecycle-modification-steps v0.6 -->\n## Modification Steps",
-          "normal final progress and completion written atomically before the task-record commit/push",
-          "change the canonical Patch/skill/helper source"
+          "normal final progress, completion, and Close written atomically before the task-record commit/push",
+          "change the canonical Patch/skill/helper source",
+          "Task lifecycle includes creation, start, context configuration, deterministic Close",
+          "`.trellis/config.yaml` supports `after_create`, `after_start`, `after_finish`, and `after_close`."
         ]
       },
       "owner": "trellis-meta",
@@ -1198,6 +1213,20 @@
       "reason": "shared platform reference 必须先判定 ownership，并保持 all-existing targets 一致。"
     },
     {
+      "id": "trellis-meta-required-command-example-agents",
+      "severity": "error",
+      "target": ".agents/skills/trellis-meta/references/platform-files/skills-and-commands.md",
+      "whenOperations": ["trellis-meta-managed-command-example-language"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "| command | Explicit user invocation | Clear operation entry points such as continue and push. |"
+        ]
+      },
+      "owner": "trellis-meta",
+      "reason": "命令示例必须使用仍然存在的 continue/push 入口，不能恢复已删除的 finish-work。"
+    },
+    {
       "id": "trellis-meta-required-platform-edit-route-claude",
       "severity": "error",
       "target": ".claude/skills/trellis-meta/references/platform-files/overview.md",
@@ -1221,7 +1250,8 @@
         "trellis-meta-managed-workflow-source",
         "trellis-meta-managed-owner-routing",
         "trellis-meta-managed-state-boundary",
-        "trellis-meta-managed-workflow-change-map"
+        "trellis-meta-managed-workflow-change-map",
+        "trellis-meta-managed-entry-example-language"
       ],
       "assertion": {
         "type": "required-literal",
@@ -1236,7 +1266,8 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-state-boundary v0.6 -->\n## Workflow-State Prompt Blocks",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-change-map v0.6 -->\n## Local Modification Patterns",
           "| Change explicit candidate rebind | `trellis-continue` owns the decision, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the session pointer write |",
-          "| Change completed-task reopen | The explicit `task_progress.py reopen` path |"
+          "| Change completed-task reopen | The explicit `task_progress.py reopen` path |",
+          "commands/prompts/workflows, such as continue and push."
         ]
       },
       "owner": "trellis-meta",
@@ -1250,7 +1281,8 @@
         "trellis-meta-managed-workflow-source",
         "trellis-meta-managed-owner-routing",
         "trellis-meta-managed-state-boundary",
-        "trellis-meta-managed-workflow-change-map"
+        "trellis-meta-managed-workflow-change-map",
+        "trellis-meta-managed-entry-example-language"
       ],
       "assertion": {
         "type": "required-literal",
@@ -1265,7 +1297,8 @@
           "<!-- BEGIN skill-garden patch trellis-meta-managed-state-boundary v0.6 -->\n## Workflow-State Prompt Blocks",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-workflow-change-map v0.6 -->\n## Local Modification Patterns",
           "| Change explicit candidate rebind | `trellis-continue` owns the decision, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the session pointer write |",
-          "| Change completed-task reopen | The explicit `task_progress.py reopen` path |"
+          "| Change completed-task reopen | The explicit `task_progress.py reopen` path |",
+          "commands/prompts/workflows, such as continue and push."
         ]
       },
       "owner": "trellis-meta",
@@ -1619,12 +1652,12 @@
         "values": [
           "<!-- BEGIN skill-garden patch workflow-state-completed v0.6 -->",
           "Business work and final task progress are complete",
-          "Enter the `trellis-push` completed-task preflight for the single next hop",
+          "Enter the `trellis-push` completed-task preflight when delivery or task-record publication needs recovery",
           "task_progress.py reopen --task <task-name> --json"
         ]
       },
       "owner": "task-progress",
-      "reason": "completed 必须是可观察的待归档活动态，不能继续保留 DEAD 或自动恢复实施语义。"
+      "reason": "completed 只表示工作完成；Close pending/blocked 仍可观察，closed 必须立即退出活跃视图。"
     },
     {
       "id": "workflow-required-managed-customization-guidance",
@@ -1635,30 +1668,12 @@
         "type": "required-literal",
         "values": [
           "Skill-Garden-managed project",
-          "After completion write, before Push-owned recovery preflight or archive",
+          "After completion write, while deterministic Close is pending or blocked",
           "Do not run upstream `trellis update` expecting a direct edit to managed output to persist."
         ]
       },
       "owner": "trellis-meta",
       "reason": "workflow 自定义说明必须区分原生 fork 与 Skill-Garden 管理模式，并反映 completed 的真实生命周期。"
-    },
-    {
-      "id": "finish-work-required-completed-gate",
-      "severity": "error",
-      "target": ".agents/skills/trellis-finish-work/SKILL.md",
-      "whenOperations": ["trellis-finish-work-exact-bookkeeping"],
-      "assertion": {
-        "type": "required-literal",
-        "values": [
-          "### 1. Completion State Gate",
-          "taskStatus=completed",
-          "finish-work must not manufacture completion",
-          "backfills a missing value after those guards pass",
-          "performs no lifecycle status transition"
-        ]
-      },
-      "owner": "trellis-finish-work",
-      "reason": "finish-work 只能归档已 completed 任务，不能替代 trellis-push 写完成状态。"
     },
     {
       "id": "task-current-required-query-contract",
@@ -1686,12 +1701,116 @@
         "values": [
           "# BEGIN skill-garden patch task-reference-resolution v0.6",
           "def resolve_task_reference(task_ref: str, repo_root: Path) -> Path:",
+          "def resolve_active_task_reference(task_ref: str, repo_root: Path) -> Path:",
+          "def resolve_top_level_task_reference(task_ref: str, repo_root: Path) -> Path:",
           "任务引用存在歧义",
-          "任务引用必须指向活动任务目录"
+          "return _resolve_task_reference_from_records(task_ref, repo_root, records, \"活动任务目录\")"
         ]
       },
       "owner": "task-reference-resolution",
       "reason": "消费 helper 必须复用确定性解析器，并拒绝歧义或越界路径。"
+    },
+    {
+      "id": "task-lifecycle-required-shared-views",
+      "severity": "error",
+      "target": ".trellis/scripts/common/tasks.py",
+      "whenOperations": ["task-lifecycle-shared-views"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "def iter_top_level_tasks(tasks_dir: Path) -> Iterator[TaskInfo]:",
+          "def iter_active_tasks(tasks_dir: Path) -> Iterator[TaskInfo]:",
+          "def iter_closed_tasks(tasks_dir: Path) -> Iterator[TaskInfo]:",
+          "def is_closed_task(task: TaskInfo, tasks_dir: Path) -> bool:"
+        ]
+      },
+      "owner": "task-closeout-lifecycle",
+      "reason": "活动、关闭与顶层视图必须共享同一 closeout 判定，避免消费方重新扫描任务目录。"
+    },
+    {
+      "id": "task-lifecycle-required-active-start-resolution",
+      "severity": "error",
+      "target": ".trellis/scripts/task.py",
+      "whenOperations": [
+        "task-lifecycle-active-reference-import",
+        "task-lifecycle-start-active-reference"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "from common.task_utils import resolve_active_task_reference, run_task_hooks",
+          "full_path = resolve_active_task_reference(task_input, repo_root)",
+          "closed 任务必须先显式 reopen"
+        ]
+      },
+      "owner": "task-closeout-lifecycle",
+      "reason": "start 只能绑定共享 active 视图，逻辑 closed 任务必须通过 reopen 恢复。"
+    },
+    {
+      "id": "task-lifecycle-no-legacy-archive-cli",
+      "severity": "error",
+      "target": ".trellis/scripts/task.py",
+      "whenOperations": [
+        "task-lifecycle-doc-commands",
+        "task-lifecycle-usage-commands",
+        "task-lifecycle-parser-commands",
+        "task-lifecycle-command-map"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "task.py archive",
+          "task.py list-archive"
+        ]
+      },
+      "owner": "task-closeout-lifecycle",
+      "reason": "硬切换后的 task CLI 不得重新暴露旧 archive 或 list-archive 入口。"
+    },
+    {
+      "id": "workflow-no-legacy-closeout-entry",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-phase-3-closeout-handoff",
+        "workflow-task-system-closeout",
+        "workflow-managed-customization-guidance",
+        "workflow-runtime-contract-reference"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "trellis-finish-work",
+          "task.py archive",
+          "task.py list-archive",
+          "after_archive"
+        ]
+      },
+      "owner": "task-closeout-lifecycle",
+      "reason": "最终工作流必须只保留 Close 与 SessionStart GC owner，不能恢复旧归档提示词。"
+    },
+    {
+      "id": "task-lifecycle-no-after-archive-config",
+      "severity": "error",
+      "target": ".trellis/config.yaml",
+      "whenOperations": ["task-lifecycle-config-after-close"],
+      "assertion": {
+        "type": "absent-literal",
+        "values": ["after_archive"]
+      },
+      "owner": "task-closeout-lifecycle",
+      "reason": "生命周期配置只允许 after_close，不得恢复已删除的 after_archive。"
+    },
+    {
+      "id": "task-lifecycle-no-after-archive-config-doc",
+      "severity": "error",
+      "target": ".trellis/scripts/common/config.py",
+      "whenOperations": ["task-lifecycle-config-doc-after-close"],
+      "assertion": {
+        "type": "absent-literal",
+        "values": ["after_archive"]
+      },
+      "owner": "task-closeout-lifecycle",
+      "reason": "配置 helper 文档必须与 after_close 硬切换保持一致。"
     }
   ]
 }

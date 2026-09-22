@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -32,6 +33,10 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         scripts.mkdir(parents=True)
         shutil.copy2(SOURCE_RUNNER, scripts / "auto_loop.py")
         shutil.copy2(SOURCE_DECISION_LOG, scripts / "decision_log.py")
+        shutil.copy2(
+            PROJECT_ROOT / "vendor/skill-garden/.trellis/0.6/scripts/task_lifecycle.py",
+            scripts / "task_lifecycle.py",
+        )
         shutil.copy2(
             PROJECT_ROOT / "vendor/skill-garden/.trellis/0.6/scripts/git_evidence.py",
             scripts / "git_evidence.py",
@@ -1087,6 +1092,175 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         self.assertEqual(state["queue"][0]["decision_ids"], ["DEC-0001"])
         self.assertIsNone(state["queue"][0]["pending_artifact_decision"])
 
+    def prepare_in_progress_decision(self) -> tuple[str, dict]:
+        """接管已有四文档的在途任务并登记修改前决策。
+
+        Returns:
+            任务引用与原 action 状态。
+        """
+        task = ".trellis/tasks/task-one"
+        for name in ("prd.md", "design.md", "implement.md", "brief.md"):
+            (self.root / task / name).write_text("# 原始文档\n", encoding="utf-8")
+        self.start()
+        self.assertEqual(self.runner("next")["action"], "run_implement")
+        self.runner("decide", "--task", task, "--topic", "补充说明", "--option", "原范围补充",
+                    "--choice", "原范围补充", "--summary", "已有需求的边界说明", "--risk", "low",
+                    "--confidence", "high", "--task-file", "brief.md")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        (self.root / task / "brief.md").write_text("# 更新后的交接说明\n", encoding="utf-8")
+        return task, state
+
+    def test_in_progress_decision_survives_queries_until_real_record(self) -> None:
+        """在途任务冻结摘要，查询保持原 action，真实 record 才消费 pending。"""
+        _, before = self.prepare_in_progress_decision()
+        item = before["queue"][0]
+        self.assertTrue(item["planning_sha256"])
+        self.assertTrue(item["handoff_sha256"])
+        for command in ("next", "status", "resume", "next"):
+            self.runner(command)
+        after = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(after["queue"][0]["last_action"], item["last_action"])
+        self.assertEqual(after["queue"][0]["pending_artifact_decision"], item["pending_artifact_decision"])
+        self.assertEqual(after["manifest_revision"], before["manifest_revision"])
+        self.assertEqual(self.runner("next")["action"], "run_implement")
+        recorded = self.runner("record", "--action", "run_implement", "--result", "ok")
+        self.assertEqual(recorded["item_status"], "running")
+        final = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertIsNone(final["queue"][0]["pending_artifact_decision"])
+        self.assertEqual(final["manifest_revision"], before["manifest_revision"] + 1)
+        self.assertEqual(self.runner("next")["action"], "run_check_all")
+
+    def write_legacy_missing_baseline(self, state: dict, *, terminal: bool = False) -> None:
+        """仅在隔离夹具中模拟旧 runner 遗漏字段后的现场。
+
+        Args:
+            state: 含完整原决策与 action 的运行状态。
+            terminal: 是否模拟旧 next 已把运行误阻断。
+        """
+        state["queue"][0]["planning_sha256"] = ""
+        state["queue"][0]["handoff_sha256"] = ""
+        if terminal:
+            state["status"] = "completed_with_blocked"
+            state["queue"][0]["status"] = "blocked"
+            state["queue"][0]["blocked"] = {
+                "reason": "artifact-drift", "summary": "pending 决策缺少可信原始基线或日志",
+            }
+        self.state_path().write_text(json.dumps(state), encoding="utf-8")
+
+    def test_legacy_running_missing_baseline_recovers_without_consuming_decision(self) -> None:
+        """旧运行可恢复原摘要，反复 next 不重置 action 或提前消费决策。"""
+        _, before = self.prepare_in_progress_decision()
+        original = before["queue"][0]["last_action"]
+        pending = before["queue"][0]["pending_artifact_decision"]
+        self.write_legacy_missing_baseline(before)
+        for _ in range(2):
+            self.assertEqual(self.runner("next")["action"], "run_implement")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        item = state["queue"][0]
+        self.assertEqual(item["last_action"], original)
+        self.assertEqual(item["pending_artifact_decision"], pending)
+        self.assertEqual(item["planning_sha256"], pending["planning_sha256"])
+        self.assertEqual(item["handoff_sha256"], pending["handoff_sha256"])
+        self.assertEqual(state["manifest_revision"], before["manifest_revision"])
+        events = [e for e in item["decision_log"] if e["type"] == "missing_artifact_baseline_restored"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(self.runner("record", "--action", "run_implement", "--result", "ok")["item_status"], "running")
+
+    def test_legacy_terminal_requires_retry_and_preserves_pending_action(self) -> None:
+        """终态不自动复活，显式 retry 恢复后仍须真实 record 才推进。"""
+        task, before = self.prepare_in_progress_decision()
+        original = before["queue"][0]["last_action"]
+        pending = before["queue"][0]["pending_artifact_decision"]
+        self.write_legacy_missing_baseline(before, terminal=True)
+        for command in ("status", "next"):
+            self.runner(command)
+        stopped = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(stopped["status"], "completed_with_blocked")
+        self.assertEqual(stopped["queue"][0]["planning_sha256"], "")
+        retried = self.runner("retry-blocked", "--run-id", "auto-test", "--task", task)
+        self.assertEqual(retried["status"], "retry-ready")
+        self.assertEqual(self.runner("next")["action"], "run_implement")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["queue"][0]["last_action"], original)
+        self.assertEqual(state["queue"][0]["pending_artifact_decision"], pending)
+        revision = state["manifest_revision"]
+        self.runner("record", "--action", "run_implement", "--result", "ok")
+        final = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(final["manifest_revision"], revision + 1)
+        self.assertIsNone(final["queue"][0]["pending_artifact_decision"])
+        self.assertEqual(self.runner("next")["action"], "run_check_all")
+
+    def test_legacy_missing_baseline_rejects_conflicting_or_missing_evidence(self) -> None:
+        """缺日志、部分摘要及 run/action/原基线冲突均不得恢复。"""
+        task, original = self.prepare_in_progress_decision()
+        log = self.root / task / "decisions.jsonl"
+        original_log = log.read_text(encoding="utf-8")
+        for case in ("missing-log", "corrupt-log", "wrong-run", "partial-hash", "wrong-hash",
+                     "missing-action-baseline", "different-action-baseline", "different-action"):
+            with self.subTest(case=case):
+                state = json.loads(json.dumps(original))
+                self.write_legacy_missing_baseline(state, terminal=True)
+                log.write_text(original_log, encoding="utf-8")
+                item = state["queue"][0]
+                if case == "missing-log":
+                    log.unlink()
+                elif case == "corrupt-log":
+                    log.write_text("invalid-json", encoding="utf-8")
+                elif case == "wrong-run":
+                    event = json.loads(original_log)
+                    event["run_id"] = "another-run"
+                    log.write_text(json.dumps(event) + "\n", encoding="utf-8")
+                elif case == "partial-hash":
+                    item["planning_sha256"] = item["pending_artifact_decision"]["planning_sha256"]
+                elif case == "wrong-hash":
+                    item["pending_artifact_decision"]["handoff_sha256"] = "0" * 64
+                elif case == "missing-action-baseline":
+                    item["last_action"].pop("artifact_sha256")
+                elif case == "different-action-baseline":
+                    item["last_action"]["artifact_sha256"][f".::{task}/brief.md"] = "0" * 64
+                else:
+                    item["last_action"]["generation"] += 1
+                self.state_path().write_text(json.dumps(state), encoding="utf-8")
+                result = self.runner("retry-blocked", "--run-id", "auto-test", "--task", task)
+                self.assertEqual(result["reason"], "no-retryable-blocked-items")
+                after = json.loads(self.state_path().read_text(encoding="utf-8"))
+                self.assertEqual(after["queue"][0], item)
+
+    def test_legacy_recovery_does_not_accept_undeclared_changes(self) -> None:
+        """可信旧摘要也不能授权未登记的 PRD 修改。"""
+        task, state = self.prepare_in_progress_decision()
+        self.write_legacy_missing_baseline(state)
+        (self.root / task / "prd.md").write_text("# 未授权变化\n", encoding="utf-8")
+        result = self.runner("next")
+        self.assertEqual(result["status"], "completed_with_blocked")
+        self.assertEqual(result["summary"]["blocked_tasks"][0]["reason"], "artifact-drift")
+
+    def test_legacy_missing_baseline_preserves_protected_drift(self) -> None:
+        """显式 retry 不接受受保护文件变化，也不移动其摘要。"""
+        task, state = self.prepare_in_progress_decision()
+        protected = self.root / "user.txt"
+        protected.write_text("用户原内容", encoding="utf-8")
+        module = self.load_runner_module()
+        entry = {"path": "user.txt", "sha256": module._file_sha256(protected)}
+        state["repositories"] = [{"root": ".", "protected_retained": [entry]}]
+        self.write_legacy_missing_baseline(state, terminal=True)
+        protected.write_text("用户新内容", encoding="utf-8")
+        result = self.runner("retry-blocked", "--run-id", "auto-test", "--task", task)
+        self.assertEqual(result["reason"], "no-retryable-blocked-items")
+        after = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(after["repositories"][0]["protected_retained"][0], entry)
+        self.assertEqual(after["queue"][0]["planning_sha256"], "")
+        self.assertEqual(protected.read_text(encoding="utf-8"), "用户新内容")
+
+    def test_in_progress_undeclared_edit_is_blocked(self) -> None:
+        """新接管在途任务同样拒绝未登记文档变化。"""
+        task = ".trellis/tasks/task-one"
+        (self.root / task / "prd.md").write_text("# 初始需求\n", encoding="utf-8")
+        self.start()
+        self.runner("next")
+        (self.root / task / "prd.md").write_text("# 未授权需求\n", encoding="utf-8")
+        self.assertEqual(self.runner("next")["status"], "completed_with_blocked")
+
     def prepare_artifact_recovery(self, *, legacy: bool = False) -> tuple[str, dict]:
         """构造隔离的原 action 及文档决策，legacy 模式复现旧 basename 错登记。
 
@@ -1799,8 +1973,8 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         self.assertEqual(next_task["action"], "run_implement")
         self.assertEqual(next_task["task"], ".trellis/tasks/task-two")
 
-    def test_commit_only_success_writes_recoverable_task_progress(self) -> None:
-        """commit-only 成功后写入 progress，并把任务置为本地完成态。"""
+    def test_commit_only_success_writes_terminal_progress_and_supports_explicit_recovery(self) -> None:
+        """commit-only 成功后退出活动候选，但保留显式发布恢复查询。"""
         self.advance_to_check()
         self.runner(
             "record",
@@ -1836,14 +2010,41 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         progress = metadata["progress"]
         self.assertIn("auto-loop: 本地提交完成 abc1234", progress["completedSteps"])
         self.assertIsNone(progress["partialStep"])
-        self.assertIn("finish-work/archive", progress["nextStep"])
+        self.assertIn("已完成本地提交与确定性 Close", progress["nextStep"])
         self.assertIn("run_id=auto-test", progress["notes"])
-        status = self.progress_status()
-        self.assertEqual(status["status"], "ok")
-        self.assertIn("finish-work/archive", status["summary"]["nextStep"])
-        handoff = recorded["summary"]["pending_archive"]
-        self.assertEqual(handoff["tasks_awaiting_archive"], [".trellis/tasks/task-one"])
-        self.assertNotIn("parent_tasks_outside_queue", handoff)
+        status_result = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "utf8",
+                ".trellis/scripts/task_progress.py",
+                "status",
+                "--task",
+                ".trellis/tasks/task-one",
+                "--json",
+            ],
+            cwd=self.root,
+            env=self.env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(status_result.returncode, 0, status_result.stderr)
+        status_payload = json.loads(status_result.stdout)
+        self.assertEqual(status_payload["status"], "ok")
+        self.assertEqual(status_payload["taskStatus"], "completed")
+        self.assertIn("已完成本地提交与确定性 Close", status_payload["summary"]["nextStep"])
+        self.assertNotIn("pending_archive", recorded["summary"])
+        self.assertEqual(metadata["closeout"]["status"], "closed")
+        completed = recorded["summary"]["completed_tasks"]
+        self.assertEqual(completed[0]["close_result"], "closed")
+        self.assertEqual(completed[0]["close_blockers"], [])
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        task_json = self.root / ".trellis/tasks/task-one/task.json"
+        self.assertEqual(
+            state["queue"][0]["task_json_sha256"],
+            hashlib.sha256(task_json.read_bytes()).hexdigest(),
+        )
 
     def test_local_completion_is_idempotent_across_state_writes(self) -> None:
         """后续 state 写入不得刷新 completedAt 或重复改写生命周期。"""
@@ -1886,8 +2087,8 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         self.assertEqual(metadata["status"], "completed")
         self.assertEqual(metadata["completedAt"], "2020-01-01")
 
-    def test_parent_task_outside_queue_surfaces_in_pending_archive(self) -> None:
-        """队列外父任务必须在 start 状态与归档待办里显式列出。"""
+    def test_parent_task_outside_queue_remains_runtime_context_only(self) -> None:
+        """队列外父任务保留为 runtime 上下文，不再生成归档交接。"""
         parent = self.root / ".trellis/tasks/parent-task"
         parent.mkdir(parents=True)
         (parent / "task.json").write_text(
@@ -1902,16 +2103,12 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
 
         started = self.start()
 
-        self.assertEqual(
-            started["pending_archive"]["parent_tasks_outside_queue"],
-            [".trellis/tasks/parent-task"],
-        )
-        self.assertIn("单独 finish-work", started["pending_archive"]["parent_note"])
+        self.assertNotIn("pending_archive", started)
         state = json.loads(self.state_path().read_text(encoding="utf-8"))
         self.assertEqual(state["parent_tasks_outside_queue"], [".trellis/tasks/parent-task"])
 
     def test_queued_parent_task_is_not_reported_as_outside_queue(self) -> None:
-        """父任务已纳入队列时不得重复出现在归档待办里。"""
+        """父任务已纳入队列时不得重复出现在队列外父任务摘要里。"""
         parent = self.root / ".trellis/tasks/parent-task"
         parent.mkdir(parents=True)
         (parent / "task.json").write_text(
@@ -1929,8 +2126,8 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         state = json.loads(self.state_path().read_text(encoding="utf-8"))
         self.assertEqual(state["parent_tasks_outside_queue"], [])
 
-    def test_commit_only_completion_unblocks_task_archive(self) -> None:
-        """auto-loop 本地完成态必须能直接通过 task.py archive 的归档守卫。"""
+    def test_commit_only_completion_closes_without_moving_task(self) -> None:
+        """auto-loop 本地完成态立即 Close，但不移动任务目录。"""
         self.advance_to_check()
         self.runner(
             "record",
@@ -1958,23 +2155,10 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
             "本地提交完成",
         )
 
-        archived = subprocess.run(
-            [
-                sys.executable, "-X", "utf8",
-                ".trellis/scripts/task.py",
-                "archive",
-                "task-one",
-                "--no-commit",
-            ],
-            cwd=self.root,
-            env=self.env,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        self.assertEqual(archived.returncode, 0, archived.stderr)
-        self.assertFalse((self.root / ".trellis/tasks/task-one").exists())
+        metadata = self.task_json()
+        self.assertEqual(metadata["status"], "completed")
+        self.assertEqual(metadata["closeout"]["status"], "closed")
+        self.assertTrue((self.root / ".trellis/tasks/task-one").is_dir())
 
     def test_commit_only_records_multiple_repository_commits(self) -> None:
         """多仓 commit-only 保存全部提交并以最后一仓作为兼容主提交。"""

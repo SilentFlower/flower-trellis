@@ -93,8 +93,16 @@ class DecisionLogTest(unittest.TestCase):
         )
         return result, json.loads(result.stdout)
 
+    def write_active_task(self, task_dir: Path) -> None:
+        """创建可被共享 active 解析器识别的任务记录。"""
+        task_dir.mkdir()
+        (task_dir / "task.json").write_text(
+            json.dumps({"status": "in_progress", "children": []}) + "\n",
+            encoding="utf-8",
+        )
+
     def test_append_assigns_ids_and_requires_review(self) -> None:
-        """决策 ID 递增，未审查时归档门禁关闭。"""
+        """决策 ID 递增，未审查时 Close 门禁关闭。"""
         first = self.append()
         second = self.append("错误处理")
 
@@ -104,10 +112,10 @@ class DecisionLogTest(unittest.TestCase):
         self.assertEqual(second["decision_id"], "DEC-0002")
         self.assertEqual(status["decision_count"], 2)
         self.assertTrue(status["needs_review"])
-        self.assertFalse(status["archive_allowed"])
+        self.assertFalse(status["close_allowed"])
 
     def test_accept_all_binds_current_digest(self) -> None:
-        """接受全部后当前 digest 可归档。"""
+        """接受全部后当前 digest 可 Close。"""
         self.append()
         event = self.module.review_decisions(self.task_dir, verdict="accepted")
 
@@ -115,7 +123,7 @@ class DecisionLogTest(unittest.TestCase):
 
         self.assertEqual(event["decision_digest"], status["decision_digest"])
         self.assertEqual(status["review_verdict"], "accepted")
-        self.assertTrue(status["archive_allowed"])
+        self.assertTrue(status["close_allowed"])
 
     def test_new_decision_invalidates_old_review(self) -> None:
         """新增 decision 后旧 review digest 自动失效。"""
@@ -147,7 +155,7 @@ class DecisionLogTest(unittest.TestCase):
         )
         status = self.module.decision_review_status(self.task_dir)
         self.assertEqual(status["review_verdict"], "changes-requested")
-        self.assertFalse(status["archive_allowed"])
+        self.assertFalse(status["close_allowed"])
 
     def test_high_risk_decision_is_rejected(self) -> None:
         """高风险事项不能伪装成已授权决策。"""
@@ -201,7 +209,7 @@ class DecisionLogTest(unittest.TestCase):
         """唯一短名与完整日期目录得到同一任务。"""
         root = Path(self.temp.name)
         task_dir = root / ".trellis/tasks/09-03-unique-one"
-        task_dir.mkdir()
+        self.write_active_task(task_dir)
 
         result, payload = self.run_cli(root, "status", "--task", "unique-one", "--json")
 
@@ -212,8 +220,8 @@ class DecisionLogTest(unittest.TestCase):
     def test_cli_rejects_ambiguous_short_task_name(self) -> None:
         """多个日期目录命中同一短名时必须列出候选并失败。"""
         root = Path(self.temp.name)
-        (root / ".trellis/tasks/09-02-shared").mkdir()
-        (root / ".trellis/tasks/09-03-shared").mkdir()
+        self.write_active_task(root / ".trellis/tasks/09-02-shared")
+        self.write_active_task(root / ".trellis/tasks/09-03-shared")
 
         result, payload = self.run_cli(root, "status", "--task", "shared", "--json")
 

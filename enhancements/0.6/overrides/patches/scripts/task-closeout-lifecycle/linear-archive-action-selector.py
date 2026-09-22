@@ -1,0 +1,1 @@
+        "archive": cmd_archive,

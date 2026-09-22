@@ -1,0 +1,1 @@
+`children` on the parent is a historical list. Closing a child, or later moving it through physical GC, does not remove that identity, so progress such as `[2/3 done]` remains meaningful without keeping the child active.

@@ -1,1 +1,1 @@
-- `status=completed` -> enter the `trellis-push` completed-task preflight. It either prepares publication recovery, points to explicit `trellis-finish-work`, or blocks on ambiguous evidence. Do not resume Phase 2 or Phase 3.3.
+- `status=completed` -> if task-record publication is incomplete, enter the `trellis-push` completed-task preflight; otherwise report `closeout.blockers` and retry deterministic Close only after the blocker is resolved. Do not resume Phase 2 or Phase 3.3.

@@ -1,0 +1,6 @@
+        "close": cmd_close,
+        "gc": cmd_gc,
+        "restore": cmd_restore,
+        "add-subtask": cmd_add_subtask,
+        "remove-subtask": cmd_remove_subtask,
+        "list": cmd_list,

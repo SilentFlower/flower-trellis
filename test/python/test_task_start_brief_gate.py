@@ -52,6 +52,7 @@ class TaskStartBriefGateTest(unittest.TestCase):
         scripts = self.root / ".trellis/scripts"
         scripts.mkdir(parents=True)
         shutil.copy2(SOURCE_SCRIPTS / "task.py", scripts / "task.py")
+        shutil.copy2(SOURCE_SCRIPTS / "task_lifecycle.py", scripts / "task_lifecycle.py")
         shutil.copy2(SOURCE_SCRIPTS / "decision_log.py", scripts / "decision_log.py")
         shutil.copytree(SOURCE_SCRIPTS / "common", scripts / "common")
         (self.root / ".trellis/tasks").mkdir(parents=True)
@@ -301,6 +302,30 @@ class TaskStartBriefGateTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.read_status(), "in_progress")
         self.assertTrue((self.root / "hook-ran.txt").is_file())
+
+    def test_closed_task_requires_explicit_reopen_before_start(self) -> None:
+        """逻辑 closed 任务不能被 start 重新绑定，必须先走显式 reopen。"""
+        (self.task_dir / "task.json").write_text(
+            json.dumps({
+                "title": "Brief gate",
+                "status": "completed",
+                "completedAt": "2026-09-19",
+                "closeout": {
+                    "status": "closed",
+                    "closedAt": "2026-09-19T00:00:00Z",
+                    "blockers": [],
+                },
+            }),
+            encoding="utf-8",
+        )
+
+        result = self.run_start()
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("活动任务目录", result.stdout)
+        self.assertEqual(self.read_status(), "completed")
+        self.assertFalse((self.root / "hook-ran.txt").exists())
+        self.assertFalse((self.root / ".trellis/.runtime/sessions").exists())
 
     def test_degraded_mode_still_checks_brief_first(self) -> None:
         """无 session identity 时也必须先执行 brief 门禁。"""

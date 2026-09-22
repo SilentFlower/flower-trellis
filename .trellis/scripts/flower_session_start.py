@@ -164,6 +164,69 @@ def _run_workflow_state_refresh(root: Path, hook: str, hook_input: dict) -> str:
     return context
 
 
+def _run_task_maintenance(root: Path) -> str:
+    """运行旧任务收敛与三天物理 GC，并返回紧凑诊断。
+
+    @param root: 当前部署项目根目录。
+    @return: 有实际动作、延后或错误时的短消息；无动作时为空串。
+    """
+    script = root / ".trellis/scripts/task_lifecycle.py"
+    if not script.is_file():
+        return ""
+    environment = os.environ.copy()
+    environment["PYTHONIOENCODING"] = "utf-8"
+    try:
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", str(script), "session-start", "--before", "3d", "--json"],
+            cwd=root,
+            env=environment,
+            capture_output=True,
+            check=False,
+        )
+    except OSError as error:
+        return f"task maintenance 无法启动：{error}"
+    stderr = result.stderr.decode("utf-8", errors="replace").strip()
+    if stderr:
+        print(stderr, file=sys.stderr)
+    stdout = result.stdout.decode("utf-8-sig").strip()
+    if result.returncode != 0:
+        return f"task maintenance 失败：{stderr or stdout or f'退出码 {result.returncode}'}"
+    if not stdout:
+        return ""
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as error:
+        return f"task maintenance 输出损坏：{error}"
+    if not isinstance(payload, dict):
+        raise ValueError("task maintenance 输出必须为 JSON 对象")
+    if payload.get("status") == "busy":
+        return ""
+    reconciliation = payload.get("reconciliation") if isinstance(payload.get("reconciliation"), dict) else {}
+    gc_result = payload.get("gc") if isinstance(payload.get("gc"), dict) else {}
+    messages = []
+    migrated = reconciliation.get("migrated") if isinstance(reconciliation.get("migrated"), list) else []
+    moved = gc_result.get("moved") if isinstance(gc_result.get("moved"), list) else []
+    deferred = [
+        *(
+            reconciliation.get("deferred")
+            if isinstance(reconciliation.get("deferred"), list)
+            else []
+        ),
+        *(gc_result.get("deferred") if isinstance(gc_result.get("deferred"), list) else []),
+    ]
+    if migrated:
+        messages.append(f"收敛旧任务 {len(migrated)} 个")
+    if moved:
+        messages.append(f"物理 GC {len(moved)} 个")
+    if deferred:
+        reasons = sorted({str(item.get("reason") or "unknown") for item in deferred if isinstance(item, dict)})
+        messages.append(f"延后 {len(deferred)} 项（{', '.join(reasons[:4])}）")
+    for item in (reconciliation, gc_result):
+        if item.get("error"):
+            messages.append(str(item["error"]))
+    return "task maintenance：" + "；".join(messages) if messages else ""
+
+
 def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | None:
     """生成指定分段，只有 state 执行原生主入口的副作用。
 
@@ -175,19 +238,44 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
     """
     if hook not in HOOKS or part not in PARTS:
         raise ValueError("不支持的 SessionStart hook 或分段")
+    source = hook_input.get("source")
+    if source == "resume" and part != "state":
+        return None
     if part == "state":
+        maintenance_message = ""
+        if source in ("startup", "resume"):
+            maintenance_message = _run_task_maintenance(root)
+        if source == "resume":
+            if not maintenance_message:
+                return None
+            return {
+                "systemMessage": maintenance_message,
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": "",
+                },
+            }
         result = _run_native_hook(root, hook, hook_input)
         if result is None:
             return None
+        if maintenance_message:
+            result["systemMessage"] = "\n".join(
+                filter(None, [result.get("systemMessage"), maintenance_message])
+            )
         context = result["hookSpecificOutput"]["additionalContext"]
         if len(WORKFLOW_BLOCK.findall(context)) != 1:
             raise ValueError("原生启动输出必须包含且仅包含一个 trellis-workflow 块")
         context = WORKFLOW_BLOCK.sub("", context)
         # Claude 原生文件同时兼容其他平台；这里仅输出当前宿主的标准通道。
         result.pop("additional_context", None)
-        if re.fullmatch(r"Trellis context injected \(\d+ chars\)", result.get("systemMessage", "")):
-            # 原计数对应拆分前的全文；保留其他原生诊断，避免以后吞掉重要提示。
-            result.pop("systemMessage")
+        system_lines = str(result.get("systemMessage") or "").splitlines()
+        if system_lines and re.fullmatch(r"Trellis context injected \(\d+ chars\)", system_lines[0]):
+            # 原计数对应拆分前的全文；仅删除该行，保留 maintenance 与其他原生诊断。
+            remaining = "\n".join(system_lines[1:]).strip()
+            if remaining:
+                result["systemMessage"] = remaining
+            else:
+                result.pop("systemMessage", None)
         try:
             workflow_state = _run_workflow_state_refresh(root, hook, hook_input)
             separator = "" if not context or context.endswith("\n") else "\n"
@@ -245,8 +333,6 @@ def main() -> int:
         hook_input = json.load(sys.stdin)
         if not isinstance(hook_input, dict):
             raise ValueError("hook 输入必须为 JSON 对象")
-        if hook_input.get("source") == "resume":
-            return 0
         # 脚本随项目部署；使用自身位置，避免宿主 cwd 进入子目录时加载另一份 hook。
         root = Path(__file__).resolve().parents[2]
         hook_input = {**hook_input, "cwd": str(root)}

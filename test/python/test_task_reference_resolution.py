@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -13,7 +14,11 @@ SCRIPTS_DIR = ROOT / ".trellis/scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from common.task_utils import resolve_task_reference
+from common.task_utils import (
+    resolve_active_task_reference,
+    resolve_task_reference,
+    resolve_top_level_task_reference,
+)
 
 
 class TaskReferenceResolutionTest(unittest.TestCase):
@@ -26,11 +31,30 @@ class TaskReferenceResolutionTest(unittest.TestCase):
         self.tasks = self.root / ".trellis/tasks"
         self.tasks.mkdir(parents=True)
         self.task = self.tasks / "09-03-cli-contract"
-        self.task.mkdir()
+        self.write_task(self.task)
 
     def tearDown(self) -> None:
         """清理隔离目录。"""
         self.temp.cleanup()
+
+    def write_task(self, task_dir: Path, *, closed: bool = False) -> None:
+        """创建带合法 task.json 的活动或已关闭任务夹具。"""
+        task_dir.mkdir(parents=True)
+        data = {"status": "in_progress", "children": []}
+        if closed:
+            data = {
+                "status": "completed",
+                "children": [],
+                "closeout": {
+                    "status": "closed",
+                    "closedAt": "2026-09-03T00:00:00Z",
+                    "blockers": [],
+                },
+            }
+        (task_dir / "task.json").write_text(
+            json.dumps(data, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
 
     def test_exact_short_relative_and_absolute_forms(self) -> None:
         """完整名、唯一短名、相对路径和绝对路径解析到同一目录。"""
@@ -47,8 +71,8 @@ class TaskReferenceResolutionTest(unittest.TestCase):
 
     def test_ambiguous_short_name_lists_sorted_candidates(self) -> None:
         """歧义短名按稳定顺序列出候选。"""
-        (self.tasks / "09-02-shared").mkdir()
-        (self.tasks / "09-03-shared").mkdir()
+        self.write_task(self.tasks / "09-02-shared")
+        self.write_task(self.tasks / "09-03-shared")
 
         with self.assertRaisesRegex(
             ValueError,
@@ -71,6 +95,27 @@ class TaskReferenceResolutionTest(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaisesRegex(ValueError, "必须指向活动任务目录"):
                     resolve_task_reference(value, self.root)
+
+    def test_logically_closed_task_is_not_an_active_reference(self) -> None:
+        """尚未物理 GC 的 closed 任务也不能被活动引用解析器命中。"""
+        closed = self.tasks / "09-03-closed"
+        self.write_task(closed, closed=True)
+
+        for value in (closed.name, "closed", str(closed)):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "任务不存在|必须指向活动任务目录"):
+                    resolve_active_task_reference(value, self.root)
+
+    def test_top_level_resolver_accepts_logically_closed_task(self) -> None:
+        """显式顶层解析器可按完整名、短名和路径命中尚未 GC 的 closed 任务。"""
+        closed = self.tasks / "09-03-closed"
+        self.write_task(closed, closed=True)
+
+        references = [closed.name, "closed", str(closed)]
+
+        resolved = [resolve_top_level_task_reference(value, self.root) for value in references]
+
+        self.assertEqual(resolved, [closed.resolve()] * len(references))
 
     def test_symlink_outside_tasks_fails_closed(self) -> None:
         """活动任务目录中的软链不能把解析结果带到项目外。"""

@@ -38,11 +38,12 @@ const GATES = [
   "Interactive Post-Check Stop Gate",
   "Code Commit Confirmation Gate",
   "Auto-loop Commit-only Preauthorization",
-  "Bookkeeping Auto-commit Scope",
+  "Deterministic Task Close",
+  "Deferred Physical GC",
   "Task Progress Recovery",
 ];
 
-test("Workflow Hub 只保留 16 项 owner 索引和跨阶段顺序", () => {
+test("Workflow Hub 只保留 17 项 owner 索引和跨阶段顺序", () => {
   const hub = readSource("overrides/patches/workflow/hub/content.md");
 
   assert.match(hub, /### Skill-Garden Workflow Owner Index/);
@@ -139,7 +140,7 @@ test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算"
   assert.match(push, /互相冲突时失败关闭/);
   assert.match(push, /retained exact paths 的内容摘要不变/);
   assert.match(push, /验证 repository、commit object、message 和文件集合/);
-  assert.match(push, /Auto-Loop runner 仍按自己的状态契约写入本地 `task\.json\.progress`/);
+  assert.match(push, /Auto-Loop runner 在提交成功后原子写入本地 `task\.json\.progress`、`status=completed`、`completedAt` 与确定性 `closeout`/);
   assert.match(push, /本 skill 跳过 Step 5/);
   assert.match(push, /不得 reset、rebase、revert、amend 或撤销成功提交/);
   assert.match(push, /auto-loop 内部 `commit-only` 不渲染交互式计划或结果/);
@@ -154,7 +155,7 @@ test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算"
   assert.doesNotMatch(runner, /add_parser\("commit-(?:plan|step)"/);
 });
 
-test("15 个 Gate 的完整契约位于原生 owner", () => {
+test("各 Gate 的完整契约位于原生 owner", () => {
   const requestTriage = readSource(
     "overrides/patches/workflow/intent-routing/request-triage/content.md",
   );
@@ -195,9 +196,6 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
     ".agents/skills/trellis-push/references/completed-task-recovery.md",
   );
   const autoLoop = readSource(".agents/skills/trellis-auto-loop/SKILL.md");
-  const finish = readSource(
-    "overrides/patches/skills/trellis-finish-work/exact-bookkeeping/content.md",
-  );
   const completedState = readSource(
     "overrides/patches/workflow/runtime-contract-reference/completed-content.md",
   );
@@ -264,7 +262,7 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(push, /auto-loop 内部 `commit-only`/);
   assert.match(push, /git commit --only/);
   assert.match(push, /--complete/);
-  assert.match(push, /原子写入 `progress`、`status=completed` 与 `completedAt`/);
+  assert.match(push, /原子写入 `progress`、`status=completed`、`completedAt` 与确定性 `closeout`/);
   assertOrdered(
     push,
     "通过 helper 用同一份最终 progress 原子写入",
@@ -277,17 +275,19 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(push, /任务记录 push 成功：本任务产生的当前任务目录变更必须 clean/);
   assert.match(push, /按需读取 `references\/completed-task-recovery\.md`/);
   assert.doesNotMatch(push, /pending_archive\.tasks_awaiting_archive/);
-  assert.match(completedRecovery, /pending_archive\.tasks_awaiting_archive/);
-  assert.match(completedRecovery, /不得把该本地完成态改成普通远端 push/);
+  assert.doesNotMatch(completedRecovery, /pending_archive|finish-work|后续 archive/);
+  assert.match(completedRecovery, /closeout\.status=closed/);
   assert.match(completedRecovery, /任务记录 commit \+ push 恢复计划/);
   assert.match(completedRecovery, /任务记录 push-only 恢复计划/);
-  assert.match(completedRecovery, /显式 finish-work，普通已同步/);
-  assert.match(completedRecovery, /缺失 `completedAt` 只记为待归档补写的审计元数据/);
-  assert.match(completedRecovery, /由后续 archive 补写/);
+  assert.match(completedRecovery, /Close 待解阻/);
+  assert.match(completedRecovery, /物理 GC 由后续 SessionStart/);
   assert.match(completedRecovery, /未知 ahead 修改任务/);
   assert.doesNotMatch(push, /只有进度 commit 和 push 都成功后/);
   assert.doesNotMatch(push, /archive bookkeeping commit 承接/);
   assert.match(autoLoop, /## Commit-Only/);
+  assert.match(autoLoop, /`completed_tasks`：逐项报告 commit 与 `close_result`/);
+  assert.match(autoLoop, /物理 GC 由后续 SessionStart 处理/);
+  assert.doesNotMatch(autoLoop, /pending_archive|tasks_awaiting_archive|finish-work/);
   assert.match(autoLoop, /`review_planning_readiness`/);
   assert.match(autoLoop, /`resolve_open_questions`/);
   assert.match(autoLoop, /不逐任务执行 `confirm_brief`/);
@@ -295,21 +295,6 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(autoLoop, /其它 action 的确定路径错误先进入恢复诊断/);
   assert.match(autoLoop, /未知或越界漂移仍按 `artifact-drift` 阻塞/);
   assert.match(autoLoop, /references\/artifact-recovery\.md/);
-  assert.match(finish, /This skill owns only the current task's release audit, archive bookkeeping/);
-  assert.match(finish, /### 1\. Completion State Gate/);
-  assert.match(finish, /taskStatus=completed/);
-  assert.match(finish, /finish-work must not manufacture completion/);
-  assert.match(finish, /auto_loop\.py status --verbose/);
-  assert.match(finish, /pending_archive\.tasks_awaiting_archive/);
-  assert.match(finish, /does not classify the normal task record into commit recovery versus push recovery/);
-  assert.match(finish, /enter `trellis-push` completed-task preflight/);
-  assert.doesNotMatch(finish, /Normal task-record commit pending/);
-  assert.doesNotMatch(finish, /Normal task-record push pending/);
-  assert.match(finish, /must not recommit or push the normal task record itself/);
-  assert.match(finish, /### 2\. Decision Audit/);
-  assert.match(finish, /decision_log\.py status --task <task-name> --json/);
-  assert.match(finish, /backfills a missing value after those guards pass/);
-  assert.match(finish, /performs no lifecycle status transition/);
   assert.match(continueRecovery, /task_progress\.py status --json/);
   assert.match(continueRecovery, /Never rebind the session or task automatically/);
   assert.match(continueRecovery, /taskStatus=completed/);
@@ -318,12 +303,15 @@ test("15 个 Gate 的完整契约位于原生 owner", () => {
   assert.match(continueRecovery, /task_progress\.py reopen --task <task-name> --json/);
   assert.match(completedState, /Business work and final task progress are complete/);
   assert.match(completedState, /Enter the `trellis-push` completed-task preflight/);
-  assert.match(completedState, /does not inspect Git or auto-loop details itself/);
+  assert.match(completedState, /retry `task\.py close`/);
+  assert.match(completedState, /closed tasks disappear from active views immediately/);
   assert.doesNotMatch(completedState, /pending_archive|@\{u\}\.\.HEAD/);
   assert.match(progress, /def _validate_progress/);
   assert.match(progress, /os\.replace\(temp_path, path\)/);
   assert.match(progress, /def cmd_reopen/);
   assert.match(progress, /--complete/);
+  assert.match(progress, /evaluate_close/);
+  assert.match(progress, /finalize_close_effects/);
 });
 
 test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {

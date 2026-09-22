@@ -2,6 +2,22 @@
   "schemaVersion": 1,
   "rules": [
     {
+      "id": "claude-statusline-required-shared-active-view",
+      "severity": "error",
+      "target": ".claude/hooks/statusline.py",
+      "whenOperations": ["flower-claude-statusline-active-tasks"],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "# BEGIN skill-garden patch flower-claude-statusline-active-tasks",
+          "from common.tasks import iter_active_tasks",
+          "return sum(1 for _ in iter_active_tasks(trellis_dir / \"tasks\"))"
+        ]
+      },
+      "owner": "task-closeout-lifecycle",
+      "reason": "Claude statusline 安装存在时必须复用共享 active 视图，不能按顶层目录计数。"
+    },
+    {
       "id": "codex-config-required-route-capability-semantics",
       "severity": "error",
       "target": ".trellis/config.yaml",

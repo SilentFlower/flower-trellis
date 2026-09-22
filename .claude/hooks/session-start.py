@@ -431,12 +431,15 @@ def _get_task_status(trellis_dir: Path, input_data: dict) -> str:
         present.append("research/")
     present_line = ", ".join(present) if present else "(none)"
 
+# BEGIN skill-garden patch claude-session-start-completed-closeout v0.6
     if task_status == "completed":
         return (
             f"Status: COMPLETED\nTask: {task_title}\n"
             f"Present: {present_line}\n"
-            "Next-Action: Run `/trellis:finish-work`. If the working tree is dirty, return to Phase 3.4 first."
+            "Next-Action: Load trellis-continue. It routes incomplete publication through trellis-push "
+            "and retries deterministic Close only after structured blockers are resolved."
         )
+# END skill-garden patch claude-session-start-completed-closeout v0.6
 
     has_prd = (task_dir / "prd.md").is_file()
     has_design = (task_dir / "design.md").is_file()

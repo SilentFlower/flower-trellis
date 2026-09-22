@@ -15,7 +15,7 @@ Start from the runtime section, then move to its owner:
 | Change recovery decisions or candidate discovery | `trellis-continue` and `task_progress.py` |
 | Change explicit candidate rebind | `trellis-continue` owns the decision, and `task.py start` with `.trellis/scripts/common/active_task.py` owns the session pointer write |
 | Change completed-task reopen | The explicit `task_progress.py reopen` path |
-| Change final archive or session bookkeeping | `trellis-finish-work` and the archive implementation |
+| Change deterministic Close or physical GC | `task_lifecycle.py`, its callers, and the SessionStart bridge |
 | Change one platform adapter | The owning platform file/Patch while preserving the shared workflow contract |
 
 In managed mode, update the source Patch and owner, run the synchronization and compiled-target checks, then reread the final `.trellis/workflow.md`. In native mode, a narrow local edit remains valid when no Plugin ownership claim applies.

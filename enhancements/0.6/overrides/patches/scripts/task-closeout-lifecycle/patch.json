@@ -1,0 +1,334 @@
+{
+  "schemaVersion": 2,
+  "id": "task-closeout-lifecycle",
+  "purpose": "task_lifecycle",
+  "operations": [
+    {
+      "id": "task-lifecycle-shared-views",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/tasks.py",
+        "missing": "error",
+        "markerStyle": "none"
+      }],
+      "selector": { "type": "whole-file" },
+      "baselines": [
+        "tasks-baseline.py",
+        "tasks-closeout-v1-baseline.py",
+        "tasks-closeout-v2-baseline.py",
+        "tasks-closeout-v3-baseline.py"
+      ],
+      "content": { "source": "tasks-content.py" }
+    },
+    {
+      "id": "task-lifecycle-cli-imports",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-imports-selector.py" },
+      "content": { "source": "task-imports-content.py" }
+    },
+    {
+      "id": "task-lifecycle-active-reference-import",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-active-reference-import-selector.py" },
+      "content": { "source": "task-active-reference-import-content.py" }
+    },
+    {
+      "id": "task-lifecycle-start-active-reference",
+      "operation": "replace",
+      "after": ["task-lifecycle-active-reference-import"],
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-start-active-reference-selector.py" },
+      "content": { "source": "task-start-active-reference-content.py" }
+    },
+    {
+      "id": "task-lifecycle-remove-archive-import",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-archive-import-selector.py" },
+      "content": { "source": "task-archive-import-content.py" }
+    },
+    {
+      "id": "task-lifecycle-list-views",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-list-selector.py" },
+      "content": { "source": "task-list-content.py" }
+    },
+    {
+      "id": "task-lifecycle-prune-legacy-closed-view",
+      "operation": "remove",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "python-functions", "names": ["cmd_list_archive"], "allowAbsent": true }
+    },
+    {
+      "id": "task-lifecycle-doc-commands",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-doc-commands-selector.py" },
+      "content": { "source": "task-doc-commands-content.py" }
+    },
+    {
+      "id": "task-lifecycle-usage-commands",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-usage-commands-selector.py" },
+      "content": { "source": "task-usage-commands-content.py" }
+    },
+    {
+      "id": "task-lifecycle-usage-list-options",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-usage-list-selector.py" },
+      "content": { "source": "task-usage-list-content.py" }
+    },
+    {
+      "id": "task-lifecycle-usage-example",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-usage-example-selector.py" },
+      "content": { "source": "task-usage-example-content.py" }
+    },
+    {
+      "id": "task-lifecycle-parser-commands",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-parser-archive-selector.py" },
+      "content": { "source": "task-parser-lifecycle-content.py" }
+    },
+    {
+      "id": "task-lifecycle-parser-list-views",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-parser-list-selector.py" },
+      "content": { "source": "task-parser-list-content.py" }
+    },
+    {
+      "id": "task-lifecycle-prune-legacy-closed-view-parser",
+      "operation": "remove",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "task-parser-legacy-closed-view-selector.py", "allowAbsent": true }
+    },
+    {
+      "id": "task-lifecycle-command-map",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-command-map-selector.py" },
+      "content": { "source": "task-command-map-content.py" }
+    },
+    {
+      "id": "task-lifecycle-create-closeout",
+      "operation": "replace",
+      "after": ["task-create-initial-write"],
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-create-closeout-selector.py" },
+      "content": { "source": "task-create-closeout-content.py" }
+    },
+    {
+      "id": "task-lifecycle-taskdata-closeout",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/types.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-type-closeout-selector.py" },
+      "content": { "source": "task-type-closeout-content.py" }
+    },
+    {
+      "id": "task-lifecycle-active-pointer",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/active_task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": {
+        "type": "python-functions",
+        "names": ["_canonical_task_ref", "_active_from_ref"]
+      },
+      "content": { "source": "active-task-content.py" }
+    },
+    {
+      "id": "task-lifecycle-prune-active-pointer-intermediate",
+      "operation": "remove",
+      "after": ["task-lifecycle-active-pointer"],
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/active_task.py", "missing": "error", "markerStyle": "none" }],
+      "selector": {
+        "type": "literal",
+        "source": "active-task-intermediate-selector.py",
+        "allowAbsent": true
+      }
+    },
+    {
+      "id": "task-lifecycle-prune-legacy-store-handler",
+      "operation": "remove",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "none" }],
+      "selector": {
+        "type": "python-section",
+        "heading": "# Command: archive",
+        "nextHeading": "# Command: add-subtask",
+        "allowAbsent": true
+      }
+    },
+    {
+      "id": "task-lifecycle-store-doc",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-store-doc-selector.py" },
+      "content": { "source": "task-store-doc-content.py" }
+    },
+    {
+      "id": "task-lifecycle-store-config-import",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-store-config-selector.py" },
+      "content": { "source": "task-store-config-content.py" }
+    },
+    {
+      "id": "task-lifecycle-store-git-import",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-store-git-selector.py" },
+      "content": { "source": "task-store-git-content.py" }
+    },
+    {
+      "id": "task-lifecycle-prune-legacy-store-commit-import",
+      "operation": "remove",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "task-store-safe-commit-selector.py", "allowAbsent": true }
+    },
+    {
+      "id": "task-lifecycle-store-task-utils-import",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-store-task-utils-selector.py" },
+      "content": { "source": "task-store-task-utils-content.py" }
+    },
+    {
+      "id": "task-lifecycle-prune-legacy-decision-import",
+      "operation": "remove",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "none" }],
+      "selector": {
+        "type": "literal",
+        "source": "task-store-legacy-decision-import-selector.py",
+        "allowAbsent": true
+      }
+    },
+    {
+      "id": "task-lifecycle-prune-legacy-utils",
+      "operation": "remove",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_utils.py", "missing": "error", "markerStyle": "none" }],
+      "selector": {
+        "type": "python-section",
+        "heading": "# Archive Operations",
+        "nextHeading": "# Task Directory Resolution",
+        "allowAbsent": true
+      }
+    },
+    {
+      "id": "task-lifecycle-utils-doc",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_utils.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-utils-doc-selector.py" },
+      "content": { "source": "task-utils-doc-content.py" }
+    },
+    {
+      "id": "task-lifecycle-prune-unused-path-guard",
+      "operation": "remove",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_utils.py", "missing": "error", "markerStyle": "none" }],
+      "selector": {
+        "type": "python-functions",
+        "names": ["is_within_tasks_dir"],
+        "allowAbsent": true
+      }
+    },
+    {
+      "id": "task-lifecycle-utils-imports",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_utils.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "task-utils-import-selector.py" },
+      "content": { "source": "task-utils-import-content.py" }
+    },
+    {
+      "id": "task-lifecycle-safe-commit-module-doc",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/safe_commit.py", "missing": "skip", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "safe-commit-module-selector.py" },
+      "content": { "source": "safe-commit-module-content.py" }
+    },
+    {
+      "id": "task-lifecycle-safe-commit-paths",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/safe_commit.py", "missing": "skip", "markerStyle": "none" }],
+      "selector": { "type": "python-functions", "names": ["safe_trellis_paths_to_add"] },
+      "content": { "source": "safe-commit-paths-content.py" }
+    },
+    {
+      "id": "task-lifecycle-prune-safe-archive-paths",
+      "operation": "remove",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/safe_commit.py", "missing": "skip", "markerStyle": "none" }],
+      "selector": {
+        "type": "python-functions",
+        "names": ["safe_archive_paths_to_add"],
+        "allowAbsent": true
+      }
+    },
+    {
+      "id": "task-lifecycle-prune-safe-archive-import",
+      "operation": "remove",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/safe_commit.py", "missing": "skip", "markerStyle": "none" }],
+      "selector": {
+        "type": "literal",
+        "source": "safe-commit-archive-import-selector.py",
+        "allowAbsent": true
+      }
+    },
+    {
+      "id": "task-lifecycle-config-after-close",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/config.yaml", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "config-after-archive-selector.yaml" },
+      "content": { "source": "config-after-close-content.yaml" }
+    },
+    {
+      "id": "task-lifecycle-config-doc-after-close",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/config.py", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "config-doc-after-archive-selector.py" },
+      "content": { "source": "config-doc-after-close-content.py" }
+    },
+    {
+      "id": "task-lifecycle-linear-close-function",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/hooks/linear_sync.py",
+        "missing": "skip",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "linear-archive-function-selector.py" },
+      "content": { "source": "linear-close-function-content.py" }
+    },
+    {
+      "id": "task-lifecycle-linear-close-action",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/hooks/linear_sync.py",
+        "missing": "skip",
+        "markerStyle": "none"
+      }],
+      "selector": { "type": "literal", "source": "linear-archive-action-selector.py" },
+      "content": { "source": "linear-close-action-content.py" }
+    },
+    {
+      "id": "task-lifecycle-cli-adapter-path-example",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/cli_adapter.py", "missing": "skip", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "cli-adapter-path-example-selector.py" },
+      "content": { "source": "cli-adapter-path-example-content.py" }
+    },
+    {
+      "id": "task-lifecycle-cli-adapter-command-example",
+      "operation": "replace",
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/cli_adapter.py", "missing": "skip", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "cli-adapter-command-example-selector.py" },
+      "content": { "source": "cli-adapter-command-example-content.py" }
+    }
+  ]
+}

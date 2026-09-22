@@ -84,6 +84,7 @@ jobs:
           test/python/test_worktree_setup.py
           test/python/test_task_current_query.py
           test/python/test_task_intent.py
+          test/python/test_task_lifecycle.py
           test/python/test_task_progress.py
           test/python/test_task_start_brief_gate.py
           test/python/test_untracked_flow.py

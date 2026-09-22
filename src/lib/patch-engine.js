@@ -4,6 +4,7 @@ import path from "node:path";
 import { preserveFirstBackup } from "./backup.js";
 import { shouldInstallName } from "./skill-filter.js";
 import { materializeTrellisPythonText } from "./trellis-python-command.js";
+import { isVolatileTreeArtifact } from "../plugin/integrity/canonical-tree.js";
 
 const PATCH_SCHEMA_VERSION = 2;
 const BUNDLE_SCHEMA_VERSION = 1;
@@ -27,6 +28,8 @@ const CORE_SELECTORS = new Set([
   "workflow-hub",
   "markdown-section",
   "markdown-document",
+  "python-functions",
+  "python-section",
   "whole-file",
 ]);
 const MISSING_POLICIES = new Set(["skip", "create", "error"]);
@@ -118,6 +121,8 @@ function listRecursive(root, predicate) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.isSymbolicLink()) continue;
       const file = path.join(dir, entry.name);
+      const relative = path.relative(root, file).split(path.sep).join("/");
+      if (isVolatileTreeArtifact(relative)) continue;
       if (entry.isDirectory()) walk(file);
       else if (entry.isFile() && predicate(file)) files.push(file);
     }
@@ -314,6 +319,9 @@ function applyLiteral(value, operation) {
     return { value, source: "desired-content" };
   }
   const matches = countOccurrences(value, operation.selectorText);
+  if (operation.operation === "remove" && operation.selector.allowAbsent && matches === 0) {
+    return { value, source: "desired-content" };
+  }
   if (matches !== operation.expectedMatches) {
     return { error: `selector 匹配 ${matches} 次,预期 ${operation.expectedMatches} 次` };
   }
@@ -372,18 +380,35 @@ function applyWorkflowState(value, operation) {
 
 function findHeadingSection(value, heading) {
   const lines = value.split("\n");
-  const startLine = lines.findIndex((line) => line === heading);
-  if (startLine === -1) return null;
   const level = heading.match(/^#+/)?.[0].length;
   if (!level) return null;
+  let fence = null;
+  let startLine = -1;
   let endLine = lines.length;
-  for (let i = startLine + 1; i < lines.length; i++) {
+  for (let i = 0; i < lines.length; i++) {
+    const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(lines[i]);
+    if (fence) {
+      const closing = new RegExp(
+        `^ {0,3}${escapeRe(fence.character)}{${fence.length},}\\s*$`,
+      );
+      if (closing.test(lines[i])) fence = null;
+      continue;
+    }
+    if (fenceMatch) {
+      fence = { character: fenceMatch[1][0], length: fenceMatch[1].length };
+      continue;
+    }
+    if (startLine === -1) {
+      if (lines[i] === heading) startLine = i;
+      continue;
+    }
     const match = /^(#+)\s/.exec(lines[i]);
     if (match && match[1].length <= level) {
       endLine = i;
       break;
     }
   }
+  if (startLine === -1) return null;
   const before = lines.slice(0, startLine).join("\n");
   const section = lines.slice(startLine, endLine).join("\n");
   const after = lines.slice(endLine).join("\n");
@@ -480,12 +505,106 @@ function applyWholeFile(value, operation) {
   return { value: desired, source: "baseline" };
 }
 
+function applyPythonFunctions(value, operation) {
+  if (!new Set(["remove", "replace"]).has(operation.operation)) {
+    return { error: "python-functions 只支持 remove/replace" };
+  }
+  const lines = value.split("\n");
+  const ranges = [];
+  for (const name of operation.selector.names) {
+    const pattern = new RegExp(`^def ${escapeRe(name)}\\(`);
+    const matches = lines.flatMap((line, index) => pattern.test(line) ? [index] : []);
+    if (matches.length > 1) return { error: `Python 函数定义重复:${name}` };
+    if (matches.length === 0) {
+      if (operation.selector.allowAbsent) continue;
+      return { error: `Python 函数不存在:${name}` };
+    }
+    let bracketDepth = 0;
+    let signatureComplete = false;
+    let end = matches[0];
+    for (; end < lines.length && !signatureComplete; end++) {
+      for (const character of lines[end]) {
+        if ("([{".includes(character)) bracketDepth++;
+        else if (")]}".includes(character)) bracketDepth--;
+        else if (character === ":" && bracketDepth === 0) {
+          signatureComplete = true;
+          break;
+        }
+      }
+    }
+    if (!signatureComplete || bracketDepth !== 0) {
+      return { error: `Python 函数签名无法解析:${name}` };
+    }
+    // 顶层函数体只包含缩进行；遇到下一个顶层声明或语句即停止，保留后续 owner。
+    while (
+      end < lines.length
+      && (lines[end] === "" || /^\s/.test(lines[end]) || lines[end].startsWith("#"))
+    ) end++;
+    ranges.push([matches[0], end]);
+  }
+  if (operation.operation === "replace") {
+    const start = Math.min(...ranges.map(([rangeStart]) => rangeStart));
+    const end = Math.max(...ranges.map(([, rangeEnd]) => rangeEnd));
+    const covered = new Set(ranges.flatMap(([rangeStart, rangeEnd]) =>
+      Array.from({ length: rangeEnd - rangeStart }, (_, index) => rangeStart + index)
+    ));
+    // 多函数替换会合并为一个声明块；中间只允许注释或空行，避免误删其它顶层 owner。
+    for (let index = start; index < end; index++) {
+      if (!covered.has(index) && lines[index].trim() && !lines[index].startsWith("#")) {
+        return { error: "Python 函数组不连续" };
+      }
+    }
+    lines.splice(start, end - start, ...operation.content.split("\n"));
+    return { value: lines.join("\n"), source: "selector" };
+  }
+  for (const [start, end] of ranges.sort((left, right) => right[0] - left[0])) {
+    lines.splice(start, end - start);
+  }
+  return {
+    value: lines.join("\n"),
+    source: ranges.length > 0 ? "selector" : "desired-content",
+  };
+}
+
+function applyPythonSection(value, operation) {
+  if (operation.operation !== "remove") return { error: "python-section 只支持 remove" };
+  const lines = value.split("\n");
+  const headingMatches = lines.flatMap((line, index) =>
+    line === operation.selector.heading ? [index] : []
+  );
+  if (headingMatches.length === 0 && operation.selector.allowAbsent) {
+    return { value, source: "desired-content" };
+  }
+  if (headingMatches.length !== operation.expectedMatches) {
+    return {
+      error: `Python section heading 匹配 ${headingMatches.length} 次,预期 ${operation.expectedMatches} 次`,
+    };
+  }
+  const nextMatches = lines.flatMap((line, index) =>
+    line === operation.selector.nextHeading ? [index] : []
+  );
+  if (nextMatches.length !== 1 || nextMatches[0] <= headingMatches[0]) {
+    return { error: `Python section nextHeading 匹配异常:${operation.selector.nextHeading}` };
+  }
+  let start = headingMatches[0];
+  if (start > 0 && /^# ={3,}$/.test(lines[start - 1])) start--;
+  let end = nextMatches[0];
+  if (end > start && /^# ={3,}$/.test(lines[end - 1])) end--;
+  lines.splice(start, end - start);
+  return {
+    value: lines.join("\n"),
+    source: "selector",
+  };
+}
+
 function applyCoreOperation(value, operation) {
   if (operation.selector.type === "literal") return applyLiteral(value, operation);
   if (operation.selector.type === "workflow-state") return applyWorkflowState(value, operation);
   if (operation.selector.type === "workflow-hub") return applyWorkflowHub(value, operation);
   if (operation.selector.type === "markdown-section") return applyMarkdownSection(value, operation);
   if (operation.selector.type === "markdown-document") return applyMarkdownDocument(value, operation);
+  if (operation.selector.type === "python-functions") return applyPythonFunctions(value, operation);
+  if (operation.selector.type === "python-section") return applyPythonSection(value, operation);
   if (operation.selector.type === "whole-file") return applyWholeFile(value, operation);
   return { error: `不支持的 Core selector:${operation.selector.type}` };
 }
@@ -561,6 +680,9 @@ function normalizeSelector(raw, leafDir, patchId, operationId, allowedSelectors)
   }
   const selector = { ...raw, expectedMatches };
   if (raw.type === "literal") {
+    if (raw.allowAbsent !== undefined && typeof raw.allowAbsent !== "boolean") {
+      throw new Error(`patch ${operationId} literal allowAbsent 必须是布尔值`);
+    }
     selector.text = readSourceFile(leafDir, raw.source, `patch ${operationId} selector.source`)
       .replace(/\s+$/, "");
     if (!selector.text) throw new Error(`patch ${operationId} selector 不能为空`);
@@ -578,6 +700,31 @@ function normalizeSelector(raw, leafDir, patchId, operationId, allowedSelectors)
   if (raw.type === "markdown-section") {
     if (typeof raw.heading !== "string" || !/^#+\s/.test(raw.heading)) {
       throw new Error(`patch ${operationId} markdown-section heading 非法`);
+    }
+  }
+  if (raw.type === "python-functions") {
+    if (
+      !Array.isArray(raw.names) ||
+      raw.names.length === 0 ||
+      raw.names.some((name) => typeof name !== "string" || !/^_?[A-Za-z][A-Za-z0-9_]*$/.test(name)) ||
+      new Set(raw.names).size !== raw.names.length
+    ) {
+      throw new Error(`patch ${operationId} python-functions names 非法`);
+    }
+    if (raw.allowAbsent !== undefined && typeof raw.allowAbsent !== "boolean") {
+      throw new Error(`patch ${operationId} python-functions allowAbsent 必须是布尔值`);
+    }
+  }
+  if (raw.type === "python-section") {
+    if (
+      typeof raw.heading !== "string" || !raw.heading.startsWith("# ")
+      || typeof raw.nextHeading !== "string" || !raw.nextHeading.startsWith("# ")
+      || raw.heading === raw.nextHeading
+    ) {
+      throw new Error(`patch ${operationId} python-section heading 非法`);
+    }
+    if (raw.allowAbsent !== undefined && typeof raw.allowAbsent !== "boolean") {
+      throw new Error(`patch ${operationId} python-section allowAbsent 必须是布尔值`);
     }
   }
   return selector;
@@ -619,6 +766,15 @@ function normalizeOperation(raw, leafDir, patch, seenOperationIds, allowedSelect
     throw new Error(`patch ${raw.id} targets 不能为空`);
   }
   const selector = normalizeSelector(raw.selector, leafDir, patch.id, raw.id, allowedSelectors);
+  if (
+    selector.allowAbsent !== undefined &&
+    (
+      raw.operation !== "remove"
+      || !new Set(["literal", "python-functions", "python-section"]).has(selector.type)
+    )
+  ) {
+    throw new Error(`patch ${raw.id} allowAbsent 只允许可选 remove selector`);
+  }
   const required = raw.required ?? patch.required ?? true;
   if (typeof required !== "boolean") throw new Error(`patch ${raw.id} required 必须是布尔值`);
   const targetPolicy = raw.targetPolicy || "each-existing";

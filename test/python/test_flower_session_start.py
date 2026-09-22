@@ -222,6 +222,60 @@ if __name__ == "__main__":
                 self.assertEqual(self.run_hook(platform, part, env={**self.env, "TRELLIS_HOOKS": "0"}).stdout, "")
         self.assertEqual(self.run_hook("codex", "state", env={**self.env, "CODEX_NON_INTERACTIVE": "1"}).stdout, "")
 
+    def test_maintenance_runs_only_for_state_startup_and_resume(self) -> None:
+        """两平台仅在 state 的 startup/resume 执行同一 maintenance 入口。"""
+        script = self.root / ".trellis/scripts/task_lifecycle.py"
+        script.write_text(
+            """#!/usr/bin/env python3
+import json
+from pathlib import Path
+
+log = Path('.trellis/maintenance-calls.log')
+with log.open('a', encoding='utf-8') as handle:
+    handle.write('called\\n')
+print(json.dumps({
+    'status': 'ok',
+    'reconciliation': {'migrated': [], 'blocked': [], 'deferred': [], 'commit': None},
+    'gc': {'moved': [{'task': '.trellis/tasks/closed'}], 'deferred': [], 'commit': 'abc'},
+}))
+""",
+            encoding="utf-8",
+        )
+        log = self.root / ".trellis/maintenance-calls.log"
+
+        for platform in ("codex", "claude"):
+            startup = json.loads(self.run_hook(platform, "state", "startup").stdout)
+            resume = json.loads(self.run_hook(platform, "state", "resume").stdout)
+            self.run_hook(platform, "state", "clear")
+            self.run_hook(platform, "state", "compact")
+            self.run_hook(platform, "rules", "startup")
+            self.run_hook(platform, "stages", "resume")
+
+            self.assertIn("物理 GC 1 个", startup["systemMessage"])
+            self.assertIn("物理 GC 1 个", resume["systemMessage"])
+            self.assertEqual(resume["hookSpecificOutput"]["additionalContext"], "")
+
+        self.assertEqual(log.read_text(encoding="utf-8").splitlines(), ["called"] * 4)
+
+    def test_maintenance_uses_platform_timeout_as_the_only_deadline(self) -> None:
+        """包装器不再用内部硬超时杀死正在执行 Git 事务的 maintenance 子进程。"""
+        script = self.root / ".trellis/scripts/task_lifecycle.py"
+        script.write_text("# fixture\n", encoding="utf-8")
+        completed = SimpleNamespace(
+            returncode=0,
+            stderr=b"",
+            stdout=json.dumps({
+                "status": "ok",
+                "reconciliation": {"migrated": [], "blocked": [], "deferred": [], "commit": None},
+                "gc": {"moved": [], "deferred": [], "commit": None},
+            }).encode("utf-8"),
+        )
+
+        with patch.object(SESSION.subprocess, "run", return_value=completed) as run:
+            self.assertEqual(SESSION._run_task_maintenance(self.root), "")
+
+        self.assertNotIn("timeout", run.call_args.kwargs)
+
     def test_astra_only_in_codex_state_for_supported_starts(self) -> None:
         """三种启动来源都只追加一次，其余平台和分段的原文保持。"""
         for source in ("startup", "clear", "compact"):

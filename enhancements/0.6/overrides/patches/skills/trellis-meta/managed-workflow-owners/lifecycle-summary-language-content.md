@@ -1,0 +1,1 @@
+Task lifecycle includes creation, start, context configuration, deterministic Close, parent/child tasks, lifecycle hooks, and delayed physical GC. The default customization targets are `.trellis/tasks/`, `.trellis/config.yaml`, and `.trellis/scripts/`.

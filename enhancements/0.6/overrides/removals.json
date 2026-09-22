@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "paths": [
+    ".agent/workflows/finish-work.md",
+    ".agents/skills/trellis-finish-work/SKILL.md",
+    ".claude/commands/trellis/finish-work.md",
+    ".codebuddy/commands/trellis/finish-work.md",
+    ".cursor/commands/trellis-finish-work.md",
+    ".devin/workflows/trellis-finish-work.md",
+    ".factory/commands/trellis/finish-work.md",
+    ".gemini/commands/trellis/finish-work.toml",
+    ".github/prompts/finish-work.prompt.md",
+    ".grok/commands/trellis-finish-work.md",
+    ".kilocode/workflows/finish-work.md",
+    ".kimi-code/skills/trellis-finish-work/SKILL.md",
+    ".kiro/skills/trellis-finish-work/SKILL.md",
+    ".omp/commands/trellis-finish-work.md",
+    ".opencode/commands/trellis/finish-work.md",
+    ".pi/prompts/trellis-finish-work.md",
+    ".qoder/commands/trellis-finish-work.md",
+    ".reasonix/skills/trellis-finish-work/SKILL.md",
+    ".snow/skills/trellis-finish-work/SKILL.md",
+    ".trae/commands/trellis-finish-work.md",
+    ".zcode/commands/trellis/finish-work.md"
+  ]
+}

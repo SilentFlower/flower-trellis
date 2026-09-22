@@ -47,8 +47,8 @@ max_journal_lines: 2000
 #     - "echo 'Task started'"
 #   after_finish:
 #     - "echo 'Task finished'"
-#   after_archive:
-#     - "echo 'Task archived'"
+#   after_close:
+#     - "echo 'Task closed'"
 
 #-------------------------------------------------------------------------------
 # Monorepo / Packages

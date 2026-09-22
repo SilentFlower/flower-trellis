@@ -1,0 +1,2 @@
+#   after_close:
+#     - "echo 'Task closed'"

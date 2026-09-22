@@ -1,0 +1,5 @@
+        "archive": cmd_archive,
+        "add-subtask": cmd_add_subtask,
+        "remove-subtask": cmd_remove_subtask,
+        "list": cmd_list,
+        "list-archive": cmd_list_archive,

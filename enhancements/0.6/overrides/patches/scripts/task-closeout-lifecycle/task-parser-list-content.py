@@ -1,0 +1,6 @@
+    p_list.add_argument("--mine", "-m", action="store_true", help="My tasks only")
+    p_list.add_argument("--status", "-s", help="Filter by work status")
+    p_list_view = p_list.add_mutually_exclusive_group()
+    p_list_view.add_argument("--closed", action="store_true", help="Show closed tasks")
+    p_list_view.add_argument("--all", action="store_true", help="Show active and closed tasks")
+    p_list.add_argument("--json", action="store_true", help="Output machine-readable JSON")

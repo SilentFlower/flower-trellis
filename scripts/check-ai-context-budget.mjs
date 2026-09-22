@@ -21,15 +21,14 @@ const SKILL_GARDEN_SOURCE_ROOT = path.join(
   "0.6",
 );
 const BASELINES = {
-  workflow: 46750,
-  workflowControl: 12243,
-  statesTotal: 7261,
-  updateSpec: 13899,
-  finishWork: 4556,
+  workflow: 59558,
+  workflowControl: 17727,
+  statesTotal: 13257,
+  updateSpec: 15783,
   autoLoop: 15600,
-  phaseSummary: 12892,
-  sessionStart: 12300,
-  controlTotal: 90397,
+  phaseSummary: 14093,
+  sessionStart: 19177,
+  controlTotal: 113167,
 };
 const BUDGETS = {
   workflow: { target: 60 * KIB, review: 64 * KIB },
@@ -37,7 +36,6 @@ const BUDGETS = {
   state: { target: 3 * KIB, review: 4 * KIB },
   statesTotal: { target: 12 * KIB, review: 14 * KIB },
   updateSpec: { target: 16 * KIB, review: 18 * KIB },
-  finishWork: { target: 10 * KIB, review: 12 * KIB },
   autoLoop: { target: 16 * KIB, review: 18 * KIB },
   phaseSummary: { target: 18 * KIB, review: 20 * KIB },
   sessionStart: { target: 18 * KIB, review: 20 * KIB },
@@ -264,11 +262,6 @@ export function collectAiContextMetrics() {
     ".claude/skills/trellis-update-spec/SKILL.md",
     ".claude/commands/trellis/update-spec.md",
   ], "Update-Spec");
-  const finishWorkTargets = readExistingTargets(compiledRoot, [
-    ".agents/skills/trellis-finish-work/SKILL.md",
-    ".claude/skills/trellis-finish-work/SKILL.md",
-    ".claude/commands/trellis/finish-work.md",
-  ], "Finish-Work");
   const autoLoopTargets = readExistingTargets(SKILL_GARDEN_SOURCE_ROOT, [
     ".agents/skills/trellis-auto-loop/SKILL.md",
     ".claude/skills/trellis-auto-loop/SKILL.md",
@@ -277,9 +270,6 @@ export function collectAiContextMetrics() {
   const sessionStart = measureSessionStart(compiledRoot);
   const largestUpdateSpec = Math.max(
     ...updateSpecTargets.map(({ value }) => Buffer.byteLength(value, "utf8")),
-  );
-  const largestFinishWork = Math.max(
-    ...finishWorkTargets.map(({ value }) => Buffer.byteLength(value, "utf8")),
   );
   const metrics = [
     measureText("workflow", workflow, BUDGETS.workflow, BASELINES.workflow),
@@ -304,14 +294,6 @@ export function collectAiContextMetrics() {
         value,
         BUDGETS.updateSpec,
         BASELINES.updateSpec,
-      )
-    ),
-    ...finishWorkTargets.map(({ name, value }) =>
-      measureText(
-        `finish-work:${name}`,
-        value,
-        BUDGETS.finishWork,
-        BASELINES.finishWork,
       )
     ),
     ...autoLoopTargets.map(({ name, value }) =>
@@ -347,7 +329,6 @@ export function collectAiContextMetrics() {
       "control-context-total",
       Buffer.byteLength(workflow, "utf8") +
         largestUpdateSpec +
-        largestFinishWork +
         Buffer.byteLength(phaseSummary, "utf8") +
         Buffer.byteLength(sessionStart.total, "utf8"),
       BUDGETS.controlTotal,

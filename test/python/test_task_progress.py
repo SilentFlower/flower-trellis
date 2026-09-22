@@ -18,7 +18,20 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "vendor/skill-garden/.trellis/0.6/scripts/task_progress.py"
+SCRIPT_SOURCE = SOURCE.parent
 COMMON_SOURCE = ROOT / ".trellis/scripts/common"
+TASKS_SOURCE = ROOT / "vendor/skill-garden/.trellis/0.6/overrides/patches/scripts/task-closeout-lifecycle/tasks-content.py"
+
+for import_path in (str(COMMON_SOURCE.parent), str(SCRIPT_SOURCE)):
+    if import_path not in sys.path:
+        sys.path.insert(0, import_path)
+
+tasks_spec = importlib_util.spec_from_file_location("common.tasks", TASKS_SOURCE)
+if tasks_spec is None or tasks_spec.loader is None:
+    raise RuntimeError("无法加载生命周期共享任务视图")
+tasks_module = importlib_util.module_from_spec(tasks_spec)
+sys.modules["common.tasks"] = tasks_module
+tasks_spec.loader.exec_module(tasks_module)
 
 
 class TaskProgressDiagnosticsTest(unittest.TestCase):
@@ -46,8 +59,11 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
         scripts_dir.mkdir(parents=True, exist_ok=True)
         if not (scripts_dir / "common").exists():
             shutil.copytree(COMMON_SOURCE, scripts_dir / "common")
+            shutil.copy2(TASKS_SOURCE, scripts_dir / "common/tasks.py")
+        for name in ("task_progress.py", "task_lifecycle.py", "decision_log.py"):
+            shutil.copy2(SCRIPT_SOURCE / name, scripts_dir / name)
         return subprocess.run(
-            [sys.executable, "-X", "utf8", str(SOURCE), *args],
+            [sys.executable, "-X", "utf8", str(scripts_dir / "task_progress.py"), *args],
             cwd=root,
             capture_output=True,
             text=True,
@@ -80,7 +96,7 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
                     "updatedAt": "2026-08-02T00:00:00Z",
                     "completedSteps": ["push"],
                     "partialStep": None,
-                    "nextStep": "finish-work archive",
+                    "nextStep": "deterministic Close",
                     "notes": "",
                 },
             })
@@ -126,8 +142,9 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
                 json=True,
             )
 
+            output = StringIO()
             with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
-                with redirect_stdout(StringIO()):
+                with redirect_stdout(output):
                     result = self.module.cmd_write(args, root)
 
             self.assertEqual(result, 1)
@@ -234,7 +251,7 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
                 "updatedAt": "2026-08-02T00:00:00Z",
                 "completedSteps": ["business push", "progress sync"],
                 "partialStep": None,
-                "nextStep": "finish-work archive",
+                "nextStep": "deterministic Close",
                 "notes": "",
             }
             args = Namespace(
@@ -244,8 +261,9 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
                 json=True,
             )
 
+            output = StringIO()
             with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
-                with redirect_stdout(StringIO()):
+                with redirect_stdout(output):
                     result = self.module.cmd_write(args, root)
 
             data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
@@ -253,6 +271,10 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
             self.assertEqual(data["status"], "completed")
             self.assertRegex(data["completedAt"], r"^\d{4}-\d{2}-\d{2}$")
             self.assertEqual(data["progress"], progress)
+            self.assertEqual(data["closeout"]["status"], "closed")
+            payload = json.loads(output.getvalue())
+            self.assertEqual(payload["closeResult"], "closed")
+            self.assertEqual(payload["closeBlockers"], [])
 
     def test_complete_write_failure_keeps_status_and_progress_unchanged(self) -> None:
         """最终原子写失败时不得留下 completed 或半份 progress。"""
@@ -269,7 +291,7 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
                 "updatedAt": "2026-08-02T00:00:00Z",
                 "completedSteps": ["business push"],
                 "partialStep": None,
-                "nextStep": "finish-work archive",
+                "nextStep": "deterministic Close",
                 "notes": "",
             }
             args = Namespace(
@@ -288,8 +310,8 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
             self.assertEqual(task_json.read_bytes(), before)
             self.assertEqual(list(task_dir.glob(".task.json.*.tmp")), [])
 
-    def test_complete_preserves_active_session_pointer(self) -> None:
-        """completed 是待归档活动态，最终 progress 写入不能清理 session 指针。"""
+    def test_complete_close_clears_active_session_pointer(self) -> None:
+        """最终 progress 同次 Close 后必须清理指向该任务的 Session。"""
         with tempfile.TemporaryDirectory(prefix="flower-progress-session-") as temp:
             root = Path(temp)
             self.write_task(root, "current", {"status": "in_progress", "completedAt": None})
@@ -297,15 +319,14 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
             session_file = root / ".trellis/.runtime/sessions/session-test.json"
             session_file.parent.mkdir(parents=True)
             session_file.write_text(
-                json.dumps({"task": ".trellis/tasks/current"}),
+                json.dumps({"current_task": ".trellis/tasks/current"}),
                 encoding="utf-8",
             )
-            before = session_file.read_bytes()
             progress = {
                 "updatedAt": "2026-08-02T00:00:00Z",
                 "completedSteps": ["business push"],
                 "partialStep": None,
-                "nextStep": "finish-work archive",
+                "nextStep": "deterministic Close",
                 "notes": "",
             }
             args = Namespace(
@@ -320,7 +341,7 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
                     result = self.module.cmd_write(args, root)
 
             self.assertEqual(result, 0)
-            self.assertEqual(session_file.read_bytes(), before)
+            self.assertFalse(session_file.exists())
 
     def test_partial_write_does_not_complete_task(self) -> None:
         """未带 --complete 的 partial progress 保持 in_progress。"""
@@ -352,33 +373,66 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
             self.assertIsNone(data["completedAt"])
 
     def test_reopen_preserves_progress_and_clears_completed_at(self) -> None:
-        """显式 reopen 只反转状态，不删除可审计进度。"""
+        """真实 CLI 可解析 closed 顶层任务，并只反转状态而保留进度。"""
         with tempfile.TemporaryDirectory(prefix="flower-progress-reopen-") as temp:
             root = Path(temp)
             progress = {
                 "updatedAt": "2026-08-02T00:00:00Z",
                 "completedSteps": ["push"],
                 "partialStep": None,
-                "nextStep": "finish-work archive",
+                "nextStep": "deterministic Close",
                 "notes": "",
             }
             self.write_task(root, "current", {
                 "status": "completed",
                 "completedAt": "2026-08-02",
                 "progress": progress,
+                "closeout": {
+                    "status": "closed",
+                    "closedAt": "2026-08-02T00:00:00Z",
+                    "blockers": [],
+                },
             })
             task_dir = root / ".trellis/tasks/current"
-            args = Namespace(task=".trellis/tasks/current", json=True)
 
-            with mock.patch.object(self.module, "_resolve_task_dir", return_value=task_dir):
-                with redirect_stdout(StringIO()):
-                    result = self.module.cmd_reopen(args, root)
+            result = self.run_cli(root, "reopen", "--task", "current", "--json")
 
             data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
-            self.assertEqual(result, 0)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["status"], "reopened")
             self.assertEqual(data["status"], "in_progress")
             self.assertIsNone(data["completedAt"])
             self.assertEqual(data["progress"], progress)
+            self.assertEqual(data["closeout"]["status"], "pending")
+
+    def test_explicit_status_reads_closed_task_for_delivery_recovery(self) -> None:
+        """默认候选隐藏 closed，但显式 --task 仍可读取发布失败恢复所需进度。"""
+        with tempfile.TemporaryDirectory(prefix="flower-progress-closed-status-") as temp:
+            root = Path(temp)
+            progress = {
+                "updatedAt": "2026-09-22T00:00:00Z",
+                "completedSteps": ["task record commit"],
+                "partialStep": "push failed",
+                "nextStep": "retry push",
+                "notes": "publication recovery",
+            }
+            self.write_task(root, "closed", {
+                "status": "completed",
+                "completedAt": "2026-09-22",
+                "progress": progress,
+                "closeout": {
+                    "status": "closed",
+                    "closedAt": "2026-09-22T00:01:00Z",
+                    "blockers": [],
+                },
+            })
+
+            explicit = self.run_cli(root, "status", "--task", "closed", "--json")
+            implicit = self.run_cli(root, "status", "--json")
+
+            self.assertEqual(explicit.returncode, 0, explicit.stderr)
+            self.assertEqual(json.loads(explicit.stdout)["summary"]["nextStep"], "retry push")
+            self.assertEqual(json.loads(implicit.stdout)["status"], "no-current-task")
 
     def test_cli_uses_shared_short_name_resolution(self) -> None:
         """CLI 的唯一短名解析与 decision_log 共用严格规则。"""

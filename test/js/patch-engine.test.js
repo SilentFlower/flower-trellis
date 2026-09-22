@@ -89,6 +89,217 @@ test("literal insert/replace/remove 支持旧 transform marker 迁移且重复�
   assert.doesNotMatch(migratedText, /skill-garden transform replace-rule/);
 });
 
+test("literal remove 可显式接受已不存在的 legacy selector", () => {
+  const f = fixture();
+  const target = write(f.target, "legacy.py", "KEEP\n");
+  addPatch(f, "scripts/prune-legacy", {
+    schemaVersion: 2,
+    id: "scripts-prune-legacy",
+    purpose: "test",
+    operations: [{
+      id: "prune-legacy",
+      operation: "remove",
+      targets: [{ kind: "file", path: "legacy.py", missing: "error", markerStyle: "hash" }],
+      selector: { type: "literal", source: "selector.py", allowAbsent: true },
+    }],
+  }, { "selector.py": "LEGACY\n" });
+  addBundle(f, { schemaVersion: 1, id: "scripts", patches: ["scripts/prune-legacy"] });
+
+  const absent = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+  assert.equal(absent.changed, 0);
+
+  fs.writeFileSync(target, "KEEP\nLEGACY\n");
+  const removed = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+  assert.equal(removed.changed, 1);
+  const once = fs.readFileSync(target, "utf8");
+  assert.doesNotMatch(once, /^LEGACY$/m);
+  assert.match(once, /skill-garden patch prune-legacy/);
+
+  const repeated = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+  assert.equal(repeated.changed, 0);
+  assert.equal(fs.readFileSync(target, "utf8"), once);
+});
+
+test("python-functions remove 可跨历史注入内容删除顶层函数", () => {
+  const f = fixture();
+  const target = write(
+    f.target,
+    "legacy.py",
+    [
+      "def keep():",
+      "    return 1",
+      "",
+      "def legacy():",
+      "    # BEGIN historical patch",
+      "    return 2",
+      "    # END historical patch",
+      "",
+      "def keep_after():",
+      "    return 3",
+      "",
+    ].join("\n"),
+  );
+  addPatch(f, "scripts/prune-functions", {
+    schemaVersion: 2,
+    id: "scripts-prune-functions",
+    purpose: "test",
+    operations: [{
+      id: "prune-functions",
+      operation: "remove",
+      targets: [{ kind: "file", path: "legacy.py", missing: "error", markerStyle: "none" }],
+      selector: { type: "python-functions", names: ["legacy"], allowAbsent: true },
+    }],
+  });
+  addBundle(f, { schemaVersion: 1, id: "scripts", patches: ["scripts/prune-functions"] });
+
+  const first = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+  assert.equal(first.changed, 1);
+  const once = fs.readFileSync(target, "utf8");
+  assert.match(once, /def keep\(\):/);
+  assert.match(once, /def keep_after\(\):/);
+  assert.doesNotMatch(once, /def legacy\(\):/);
+
+  const second = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+  assert.equal(second.changed, 0);
+  assert.equal(fs.readFileSync(target, "utf8"), once);
+});
+
+test("python-functions replace 可迁移已注入过的旧函数实现", () => {
+  const f = fixture();
+  const target = write(
+    f.target,
+    "active.py",
+    [
+      "def before():",
+      "    return 0",
+      "",
+      "def first():",
+      "    return 'old'",
+      "",
+      "# historical owner note",
+      "def second(",
+      "    value: str,",
+      ") -> str:",
+      "    return 'old'",
+      "",
+      "def after():",
+      "    return 3",
+      "",
+    ].join("\n"),
+  );
+  addPatch(f, "scripts/replace-functions", {
+    schemaVersion: 2,
+    id: "scripts-replace-functions",
+    purpose: "test",
+    operations: [{
+      id: "replace-functions",
+      operation: "replace",
+      targets: [{ kind: "file", path: "active.py", missing: "error", markerStyle: "none" }],
+      selector: { type: "python-functions", names: ["first", "second"] },
+      content: { source: "content.py" },
+    }],
+  }, {
+    "content.py": "def first():\n    return 'new'\n\n\ndef second(\n    value: str,\n) -> str:\n    return 'new'\n",
+  });
+  addBundle(f, { schemaVersion: 1, id: "scripts", patches: ["scripts/replace-functions"] });
+
+  const first = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+  assert.equal(first.changed, 1);
+  const once = fs.readFileSync(target, "utf8");
+  assert.match(once, /return 'new'/);
+  assert.doesNotMatch(once, /historical owner note|return 'old'/);
+  assert.match(once, /def before\(\):/);
+  assert.match(once, /def after\(\):/);
+
+  const second = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+  assert.equal(second.changed, 0);
+  assert.equal(fs.readFileSync(target, "utf8"), once);
+});
+
+test("python-section remove 可删除含历史 Patch 标记的完整命令区段", () => {
+  const f = fixture();
+  const target = write(
+    f.target,
+    "commands.py",
+    [
+      "# =============================================================================",
+      "# Command: legacy",
+      "# =============================================================================",
+      "",
+      "def legacy():",
+      "    return 1",
+      "# BEGIN historical patch",
+      "    return 2",
+      "# END historical patch",
+      "",
+      "# =============================================================================",
+      "# Command: keep",
+      "# =============================================================================",
+      "",
+      "def keep():",
+      "    return 3",
+      "",
+    ].join("\n"),
+  );
+  addPatch(f, "scripts/prune-section", {
+    schemaVersion: 2,
+    id: "scripts-prune-section",
+    purpose: "test",
+    operations: [{
+      id: "prune-section",
+      operation: "remove",
+      targets: [{ kind: "file", path: "commands.py", missing: "error", markerStyle: "none" }],
+      selector: {
+        type: "python-section",
+        heading: "# Command: legacy",
+        nextHeading: "# Command: keep",
+        allowAbsent: true,
+      },
+    }],
+  });
+  addBundle(f, { schemaVersion: 1, id: "scripts", patches: ["scripts/prune-section"] });
+
+  const first = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+  assert.equal(first.changed, 1);
+  const once = fs.readFileSync(target, "utf8");
+  assert.doesNotMatch(once, /legacy|historical patch/);
+  assert.match(once, /# Command: keep/);
+
+  const second = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+  assert.equal(second.changed, 0);
+  assert.equal(fs.readFileSync(target, "utf8"), once);
+});
+
+test("markdown-section 忽略 fenced code block 内的伪标题", () => {
+  const f = fixture();
+  const target = write(
+    f.target,
+    "workflow.md",
+    "### Task System\n\n```bash\n# lifecycle\n```\n\nBody\n\n### Next\n\nKeep\n",
+  );
+  addPatch(f, "workflow/replace-section", {
+    schemaVersion: 2,
+    id: "workflow-replace-section",
+    purpose: "test",
+    operations: [{
+      id: "replace-section",
+      operation: "replace",
+      targets: [{ kind: "workflow", path: "workflow.md", missing: "error" }],
+      selector: { type: "markdown-section", heading: "### Task System" },
+      baselines: ["baseline.md"],
+      content: { source: "content.md" },
+    }],
+  }, {
+    "baseline.md": "### Task System\n\n```bash\n# lifecycle\n```\n\nBody\n",
+    "content.md": "### Task System\n\nClosed view\n",
+  });
+  addBundle(f, { schemaVersion: 1, id: "workflow", patches: ["workflow/replace-section"] });
+
+  const result = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+  assert.equal(result.changed, 1);
+  assert.match(fs.readFileSync(target, "utf8"), /Closed view[\s\S]*### Next/);
+});
+
 test("无 marker 目标同时含 selector 和目标内容时仍执行真实替换", () => {
   const f = fixture();
   write(f.target, "agent.txt", "OLD\nNEW\n");
@@ -154,6 +365,18 @@ test("JS/Python 对共享 Core fixture 返回相同结构化 plan 与 provenance
     plan: normalizedPlan,
     provenance: result.provenance,
   });
+});
+
+test("Patch catalog 忽略运行时 Python 字节码缓存", () => {
+  const f = sharedCoreFixture();
+  const baseline = preparePatchPlan(f.target, [f.catalogSpec]);
+  const cache = path.join(f.catalog, "patches/text/example/__pycache__");
+  fs.mkdirSync(cache, { recursive: true });
+  fs.writeFileSync(path.join(cache, "selector.cpython-312.pyc"), Buffer.from([0xff, 0x00, 0x80]));
+
+  const repeated = preparePatchPlan(f.target, [f.catalogSpec]);
+
+  assert.equal(repeated.catalogHash, baseline.catalogHash);
 });
 
 test("required 漂移在全部目标写入前失败", () => {

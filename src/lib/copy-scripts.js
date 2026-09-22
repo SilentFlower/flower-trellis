@@ -30,9 +30,6 @@ export function copyScriptAssets(target, variantDir, skills = []) {
         "auto-loop",
         "auto-loop-runner",
         "trellis-auto-loop",
-        "finish-work",
-        "finish-work-enhancement",
-        "trellis-finish-work",
       ];
     } else if (name === "task_progress") {
       aliases = [
@@ -45,6 +42,19 @@ export function copyScriptAssets(target, variantDir, skills = []) {
         "progress",
         "push-snapshot",
         "snapshot",
+      ];
+    } else if (name === "task_lifecycle") {
+      aliases = [
+        "task-lifecycle",
+        "auto-loop",
+        "auto-loop-runner",
+        "trellis-auto-loop",
+        "task-progress",
+        "trellis-continue",
+        "continue",
+        "progress-recovery",
+        "trellis-push",
+        "push",
       ];
     } else if (name === "spec_router") {
       aliases = [

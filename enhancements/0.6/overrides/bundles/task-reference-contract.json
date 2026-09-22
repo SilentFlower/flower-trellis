@@ -3,6 +3,7 @@
   "id": "task-reference-contract",
   "aliases": [
     "decision-log",
+    "task-lifecycle",
     "task-progress",
     "progress",
     "push-snapshot",
@@ -10,9 +11,6 @@
     "trellis-auto-loop",
     "auto-loop",
     "auto-loop-runner",
-    "trellis-finish-work",
-    "finish-work",
-    "finish-work-enhancement",
     "trellis-continue",
     "continue",
     "progress-recovery",
@@ -20,5 +18,8 @@
     "push"
   ],
   "installMode": "full-or-selected",
-  "patches": ["scripts/task-reference-resolution"]
+  "patches": [
+    "scripts/task-reference-resolution",
+    "scripts/task-closeout-lifecycle"
+  ]
 }

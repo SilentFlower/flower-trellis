@@ -41,6 +41,7 @@ class TaskIntentTest(unittest.TestCase):
             scripts / "untracked_flow.py",
         )
         shutil.copy2(SOURCE_SCRIPTS / "task.py", scripts / "task.py")
+        shutil.copy2(SOURCE_SCRIPTS / "task_lifecycle.py", scripts / "task_lifecycle.py")
         shutil.copy2(SOURCE_SCRIPTS / "decision_log.py", scripts / "decision_log.py")
         shutil.copytree(SOURCE_SCRIPTS / "common", scripts / "common")
         (self.root / ".trellis/tasks").mkdir(parents=True)

@@ -1,0 +1,1 @@
+Use child tasks for deliverables that can move through planning, implementation, check, and deterministic Close independently. If one child depends on another, write that dependency in the child `prd.md` / `implement.md`; do not rely on tree position to imply ordering.

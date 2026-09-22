@@ -41,6 +41,15 @@ class PreCheckStateTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / ".trellis/tasks/task-a").mkdir(parents=True)
         (self.root / ".trellis/tasks/task-b").mkdir(parents=True)
+        for name in ("task-a", "task-b"):
+            (self.root / ".trellis/tasks" / name / "task.json").write_text(
+                json.dumps({"status": "in_progress", "closeout": {
+                    "status": "pending",
+                    "closedAt": None,
+                    "blockers": [],
+                }}),
+                encoding="utf-8",
+            )
         self.helper = _load_helper()
 
     def tearDown(self) -> None:

@@ -42,6 +42,14 @@
       "selector": { "type": "markdown-section", "heading": "#### 3.4 Commit changes `[required · once]`" },
       "baselines": ["phase-3-commit-baseline.md"],
       "content": { "source": "phase-3-commit-content.md" }
+    },
+    {
+      "id": "workflow-phase-3-closeout-handoff",
+      "operation": "replace",
+      "required": false,
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "literal", "source": "phase-3-closeout-selector.md" },
+      "content": { "source": "phase-3-closeout-content.md" }
     }
   ]
 }

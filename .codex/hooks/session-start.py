@@ -261,12 +261,14 @@ def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
     task_title = task_data.get("title", task_ref)
     task_status = task_data.get("status", "unknown")
 
+# BEGIN skill-garden patch codex-session-start-completed-closeout v0.6
     if task_status == "completed":
         return (
             f"Status: COMPLETED\nTask: {task_title}\n"
-            f"Next: Archive with `python3 ./.trellis/scripts/task.py archive {task_dir.name}` "
-            "or start a new task."
+            "Next: Load trellis-continue. It routes incomplete publication through trellis-push "
+            "and retries deterministic Close only after structured blockers are resolved."
         )
+# END skill-garden patch codex-session-start-completed-closeout v0.6
 
     has_prd = (task_dir / "prd.md").is_file()
     has_design = (task_dir / "design.md").is_file()

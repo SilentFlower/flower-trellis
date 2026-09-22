@@ -92,17 +92,17 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   const codex = JSON.parse(fs.readFileSync(path.join(target, ".codex/hooks.json"), "utf8"));
   assert.equal(codex.custom, true);
   const codexSession = codex.hooks.SessionStart;
-  const sessionGroup = codexSession.find((group) => group.matcher === "startup|clear|compact");
-  assert.equal(sessionGroup.hooks.length, 3);
-  assert.deepEqual(sessionGroup.hooks.map((hook) => hook.additionalContextLimit), [5000, 5000, 5000]);
-  assert.ok(codexSession.filter(group => group.hooks.some(hook => hook.command.includes("flower_session_start.py"))).every(group => !group.matcher?.includes("resume")));
+  const sessionGroup = codexSession.find((group) => group.matcher === "startup|resume|clear|compact");
+  const sessionHooks = sessionGroup.hooks.filter((hook) => hook.command.includes("flower_session_start.py"));
+  assert.equal(sessionHooks.length, 3);
+  assert.deepEqual(sessionHooks.map((hook) => hook.additionalContextLimit), [5000, 5000, 5000]);
   for (const event of ["SessionStart", "UserPromptSubmit"]) {
     const activity = codex.hooks[event].flatMap(group => group.hooks).filter(hook => hook.command.includes("flower_telemetry_hook.py"));
     assert.equal(activity.length, 1);
     assert.match(activity[0].command, /--platform codex/);
   }
   for (const [index, part] of ["state", "rules", "stages"].entries()) {
-    assert.equal(sessionGroup.hooks[index].command,
+    assert.equal(sessionHooks[index].command,
       `python3 -X utf8 .trellis/scripts/flower_session_start.py --hook .codex/hooks/session-start.py --part ${part}`);
   }
   assert.equal(codexSession.filter((group) => group.matcher === "startup").length, 1);
@@ -114,9 +114,10 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   assert.deepEqual(claude.permissions, { allow: ["Read"] });
   assert.equal(claude.hooks.SessionStart[0].matcher, "startup");
   assert.equal(claude.hooks.SessionStart[0].hooks[0].timeout, 30);
-  const claudeParts = claude.hooks.SessionStart.find((group) => group.matcher === "startup|clear|compact");
-  assert.equal(claudeParts.hooks.length, 3);
-  assert.ok(claudeParts.hooks.every((hook) => !Object.hasOwn(hook, "additionalContextLimit")));
+  const claudeParts = claude.hooks.SessionStart.find((group) => group.matcher === "startup|resume|clear|compact");
+  const claudeSessionHooks = claudeParts.hooks.filter((hook) => hook.command.includes("flower_session_start.py"));
+  assert.equal(claudeSessionHooks.length, 3);
+  assert.ok(claudeSessionHooks.every((hook) => !Object.hasOwn(hook, "additionalContextLimit")));
   const toml = fs.readFileSync(path.join(target, ".codex/config.toml"), "utf8");
   assert.doesNotMatch(toml, /multi_agent_v2/);
   assert.match(toml, /\[other\] # keep user section/);
@@ -143,13 +144,14 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   const second = applyPatchPlan(target, prepare(target));
   assert.equal(second.changed, 0);
 
-  sessionGroup.hooks[1].additionalContextLimit = 6000;
-  sessionGroup.hooks[2].additionalContextLimit = 0;
+  sessionHooks[1].additionalContextLimit = 6000;
+  sessionHooks[2].additionalContextLimit = 0;
   write(target, ".codex/hooks.json", JSON.stringify(codex, null, 2) + "\n");
   assert.equal(applyPatchPlan(target, prepare(target)).changed, 0);
   const retained = JSON.parse(fs.readFileSync(path.join(target, ".codex/hooks.json"), "utf8"));
-  assert.deepEqual(retained.hooks.SessionStart.find((group) => group.matcher === "startup|clear|compact")
-    .hooks.map((hook) => hook.additionalContextLimit), [5000, 6000, 0]);
+  assert.deepEqual(retained.hooks.SessionStart.find((group) => group.matcher === "startup|resume|clear|compact")
+    .hooks.filter((hook) => hook.command.includes("flower_session_start.py"))
+    .map((hook) => hook.additionalContextLimit), [5000, 6000, 0]);
 });
 
 test("Claude-only 项目获得心跳配置说明且保留用户实际值", () => {

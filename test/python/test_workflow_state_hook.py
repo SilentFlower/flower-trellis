@@ -181,6 +181,7 @@ class WorkflowStateHookTest(unittest.TestCase):
         scripts.mkdir()
         shutil.copytree(ROOT / ".trellis/scripts/common", scripts / "common")
         shutil.copy2(ROOT / ".trellis/scripts/task.py", scripts / "task.py")
+        shutil.copy2(ROOT / ".trellis/scripts/task_lifecycle.py", scripts / "task_lifecycle.py")
         shutil.copy2(ROOT / ".trellis/scripts/decision_log.py", scripts / "decision_log.py")
         shutil.copy2(
             ROOT / "vendor/skill-garden/.trellis/0.6/scripts/untracked_flow.py",

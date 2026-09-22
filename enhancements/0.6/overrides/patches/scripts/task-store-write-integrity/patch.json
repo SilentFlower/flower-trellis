@@ -12,14 +12,6 @@
       "content": { "source": "helpers-content.py" }
     },
     {
-      "id": "task-store-decision-log-import",
-      "operation": "insert",
-      "position": "after",
-      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
-      "selector": { "type": "literal", "source": "decision-import-selector.py" },
-      "content": { "source": "decision-import-content.py" }
-    },
-    {
       "id": "task-create-duplicate-slug",
       "operation": "replace",
       "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
@@ -39,21 +31,6 @@
       "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
       "selector": { "type": "literal", "source": "create-parent-selector.py" },
       "content": { "source": "create-parent-content.py" }
-    },
-    {
-      "id": "task-archive-metadata-guard",
-      "operation": "insert",
-      "position": "after",
-      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
-      "selector": { "type": "literal", "source": "archive-guard-selector.py" },
-      "content": { "source": "archive-guard-content.py" }
-    },
-    {
-      "id": "task-archive-status-write",
-      "operation": "replace",
-      "targets": [{ "kind": "file", "path": ".trellis/scripts/common/task_store.py", "missing": "error", "markerStyle": "hash" }],
-      "selector": { "type": "literal", "source": "archive-write-selector.py" },
-      "content": { "source": "archive-write-content.py" }
     },
     {
       "id": "task-add-subtask-pair-write",

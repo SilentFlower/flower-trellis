@@ -13,6 +13,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { listDirs, listFiles } from "../src/lib/fs-utils.js";
+import { isVolatileTreeArtifact } from "../src/plugin/integrity/canonical-tree.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url)); // scripts/
 const PKG_ROOT = path.resolve(here, "..");
@@ -96,6 +97,7 @@ function listRelativeFilesRecursive(rootDir) {
     for (const entry of entries) {
       const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
       const abs = path.join(dir, entry.name);
+      if (isVolatileTreeArtifact(rel)) continue;
       if (entry.isDirectory()) {
         walk(abs, rel);
       } else if (entry.isFile()) {
@@ -105,6 +107,24 @@ function listRelativeFilesRecursive(rootDir) {
   }
   walk(rootDir);
   return result.sort();
+}
+
+/**
+ * 复制快照源并排除 Python 解释器随时生成的字节码缓存。
+ *
+ * @param {string} source 源目录
+ * @param {string} destination 快照目标目录
+ * @returns {void}
+ */
+function copySnapshotTree(source, destination) {
+  const sourceRoot = path.resolve(source);
+  fs.cpSync(sourceRoot, destination, {
+    recursive: true,
+    filter(candidate) {
+      const relative = path.relative(sourceRoot, candidate).split(path.sep).join("/");
+      return !relative || !isVolatileTreeArtifact(relative);
+    },
+  });
 }
 
 /**
@@ -164,9 +184,7 @@ function isSafeSkillName(name) {
 }
 
 if (fs.existsSync(COMMON_SRC)) {
-  fs.cpSync(COMMON_SRC, path.join(DST, "common", ".common"), {
-    recursive: true,
-  });
+  copySnapshotTree(COMMON_SRC, path.join(DST, "common", ".common"));
   const codexSkills = listDirs(
     path.join(DST, "common", ".common", ".codex", "skills"),
   );
@@ -221,7 +239,7 @@ for (const v of VARIANTS) {
   for (const sub of [".agents", ".claude", "overrides", "scripts"]) {
     const s = path.join(vSrc, sub);
     if (fs.existsSync(s)) {
-      fs.cpSync(s, path.join(DST, v, sub), { recursive: true });
+      copySnapshotTree(s, path.join(DST, v, sub));
     }
   }
 

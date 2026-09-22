@@ -2,12 +2,21 @@
   "schemaVersion": 2,
   "id": "claude-session-start-missing-task",
   "purpose": "intent_routing",
-  "operations": [{
-    "id": "claude-session-start-missing-task",
-    "operation": "replace",
-    "targets": [{ "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" }],
-    "selector": { "type": "literal", "source": "selector.py" },
-    "content": { "source": "content.py" },
-    "legacyMarkers": [{ "namespace": "patch", "id": "claude-session-start-stale-task" }]
-  }]
+  "operations": [
+    {
+      "id": "claude-session-start-missing-task",
+      "operation": "replace",
+      "targets": [{ "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "selector.py" },
+      "content": { "source": "content.py" },
+      "legacyMarkers": [{ "namespace": "patch", "id": "claude-session-start-stale-task" }]
+    },
+    {
+      "id": "claude-session-start-completed-closeout",
+      "operation": "replace",
+      "targets": [{ "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "completed-selector.py" },
+      "content": { "source": "completed-content.py" }
+    }
+  ]
 }

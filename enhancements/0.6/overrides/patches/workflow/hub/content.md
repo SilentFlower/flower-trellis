@@ -20,7 +20,8 @@ Complete contracts live in the owning phase, workflow state, skill, hook, or hel
 | Interactive Post-Check Stop Gate | Phase 2.2 + `trellis-check-all` | current Check-All evidence |
 | Code Commit Confirmation Gate | Phase 3.4 + `trellis-push` | exact Git safety checks |
 | Auto-loop Commit-only Preauthorization | `trellis-auto-loop` | `auto_loop.py` + `trellis-push` internal commit-only |
-| Bookkeeping Auto-commit Scope | `trellis-finish-work` | `safe_commit.py` + archive/journal commands |
+| Deterministic Task Close | `trellis-push` + `trellis-auto-loop` | `task_progress.py` + `task_lifecycle.py` |
+| Deferred Physical GC | SessionStart | `task_lifecycle.py session-start` |
 | Task Progress Recovery | `trellis-continue` | `task_progress.py` |
 
 Cross-stage ordering:
@@ -28,6 +29,7 @@ Cross-stage ordering:
 1. A blocking `<flower-update>` confirmation is handled before ordinary request routing; a completed update returns through `trellis-push`.
 2. Request intent, active-task scope, and any current untracked work are resolved before task creation, task routing, or file edits.
 3. A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.
-4. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; `trellis-finish-work` runs only after Phase 3.4 and only when explicitly requested.
+4. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; successful delivery writes completion and deterministic Close in one lifecycle update.
+5. SessionStart performs best-effort legacy reconciliation and physical GC for tasks closed at least three days ago; resume/clear/compact do not expand that boundary.
 
 Mechanical rule: follow the owner named above. The Hub must not duplicate owner procedures, helper schemas, interaction templates, error matrices, or Git path rules.

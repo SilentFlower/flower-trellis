@@ -30,9 +30,8 @@
                                     task.py start until successful ordinary
                                     trellis-push progress completion)
     [workflow-state:in_progress-inline] → Codex inline variant of Phase 2/3
-    [workflow-state:completed]    → business push and final progress are
-                                    complete; task stays active until
-                                    explicit trellis-finish-work archive
+    [workflow-state:completed]    → business work is complete but deterministic
+                                    Close remains pending or blocked
 
   Editing checklist:
     - When you change a [workflow-state:STATUS] block, also check the

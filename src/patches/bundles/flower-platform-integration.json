@@ -10,6 +10,7 @@
     "codex/remove-multi-agent-v2",
     "claude/startup-update-hook",
     "claude/session-start-hooks",
+    "claude/statusline-active-tasks",
     "claude/telemetry-hooks",
     "codex/telemetry-hooks"
   ]

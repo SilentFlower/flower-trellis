@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { spawnPythonSync } from "../../scripts/python-runtime.mjs";
 import { applyEnhancements } from "../../src/lib/apply-enhancements.js";
 import { ENHANCEMENTS_ROOT } from "../../src/lib/paths.js";
 
@@ -29,6 +30,12 @@ const UPSTREAM_SHARED_SESSION_START = path.resolve(
 const UPSTREAM_CODEX_SESSION_START = path.resolve(
   "node_modules/@mindfoldhq/trellis/dist/templates/codex/hooks/session-start.py",
 );
+const UPSTREAM_CLAUDE_STATUSLINE = path.resolve(
+  "node_modules/@mindfoldhq/trellis/dist/templates/claude/hooks/statusline.py",
+);
+const REMOVED_FINISH_TARGETS = JSON.parse(
+  fs.readFileSync(path.join(V06_DIR, "overrides", "removals.json"), "utf8"),
+).paths;
 const SHARED_HOOK_TARGETS = [
   ".codex/hooks/inject-workflow-state.py",
   ".claude/hooks/inject-workflow-state.py",
@@ -84,7 +91,7 @@ function assertIntentRoutingSemantics(value) {
   assert.match(value, /untracked_flow\.py begin --summary/);
   assert.match(value, /--mode tracked-direct-edit/);
   assert.match(value, /Never create `untracked_flow` for `workflow_action` itself/);
-  assert.match(value, /release\/publish, commit, push, finish-work, task operations, snapshot sync, auto-loop control/);
+  assert.match(value, /release\/publish, commit, push, task operations, snapshot sync, auto-loop control/);
   assert.match(value, /later turns to remember that fix's check\/spec\/push handoff/);
   assert.match(value, /A same-item hit resumes the existing state/);
   assert.match(value, /`active-work-conflict` blocks unrelated code writes/);
@@ -238,6 +245,8 @@ function minimalWorkflow() {
     "",
     "#### 3.5 Wrap-up reminder",
     "",
+    "After the above, remind the user they can run `/finish-work` to wrap up (archive the task, record the session).",
+    "",
     patchSource("workflow/runtime-contract-reference", "customizing-trellis-baseline.md"),
     "",
   ].join("\n");
@@ -277,23 +286,12 @@ function assertUpdateSpecExamples(value) {
   assert.match(value, /Unit\/Integration\/E2E with assertion points/);
 }
 
-function writeFinishTargets(target) {
-  const agentBody = patchSource(
-    "skills/trellis-finish-work/exact-bookkeeping",
-    "baseline-agent.md",
-  );
-  const commandBody = patchSource(
-    "skills/trellis-finish-work/exact-bookkeeping",
-    "baseline-command.md",
-  );
-  return [
-    write(
-      target,
-      ".agents/skills/trellis-finish-work/SKILL.md",
-      `---\nname: trellis-finish-work\n---\n\n${agentBody}\n`,
-    ),
-    write(target, ".claude/commands/trellis/finish-work.md", `${commandBody}\n`),
-  ];
+function writeRemovedFinishTargets(target) {
+  const files = new Map();
+  for (const relativePath of REMOVED_FINISH_TARGETS) {
+    files.set(relativePath, write(target, relativePath, "legacy finish entry\n"));
+  }
+  return files;
 }
 
 function writeAllUpdateSpecTargets(target) {
@@ -316,42 +314,6 @@ function writeAllUpdateSpecTargets(target) {
       const content = targetConfig.kind === "skill"
         ? `---\nname: trellis-update-spec\n---\n\n${body}`
         : body;
-      files.set(targetConfig.path, write(target, targetConfig.path, content));
-    }
-  }
-  return files;
-}
-
-function writeAllFinishTargets(target) {
-  const declaration = JSON.parse(patchSource(
-    "skills/trellis-finish-work/exact-bookkeeping",
-    "patch.json",
-  ));
-  const agentBody = patchSource(
-    "skills/trellis-finish-work/exact-bookkeeping",
-    "baseline-agent.md",
-  );
-  const commandBody = patchSource(
-    "skills/trellis-finish-work/exact-bookkeeping",
-    "baseline-command.md",
-  );
-  const files = new Map();
-  for (const operation of declaration.operations) {
-    for (const targetConfig of operation.targets) {
-      if (targetConfig.path === ".claude/skills/trellis-finish-work/SKILL.md") continue;
-      let content;
-      if (targetConfig.path.endsWith(".toml")) {
-        content = 'description = "Trellis: finish-work"\n\nprompt = """\n# Finish Work\n\nLegacy body\n"""\n';
-      } else if (operation.id === "trellis-finish-work-exact-bookkeeping") {
-        content = targetConfig.kind === "skill"
-          ? `---\nname: trellis-finish-work\n---\n\n${agentBody}\n`
-          : `${commandBody}\n`;
-      } else {
-        const body = "# Finish Work\n\nLegacy platform body\n";
-        content = targetConfig.kind === "skill"
-          ? `---\nname: trellis-finish-work\n---\n\n${body}`
-          : body;
-      }
       files.set(targetConfig.path, write(target, targetConfig.path, content));
     }
   }
@@ -382,6 +344,20 @@ function writeTaskUtilsTarget(target) {
   );
 }
 
+function writeLifecycleTargets(target) {
+  const destination = path.join(target, ".trellis/scripts");
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.cpSync(UPSTREAM_SCRIPTS, destination, { recursive: true });
+  write(
+    target,
+    ".trellis/config.yaml",
+    fs.readFileSync(
+      path.resolve("node_modules/@mindfoldhq/trellis/dist/templates/trellis/config.yaml"),
+      "utf8",
+    ),
+  );
+}
+
 function writeControlPlaneTargets(target) {
   write(
     target,
@@ -408,6 +384,21 @@ function writeControlPlaneTargets(target) {
 function writeIntentTargets(target) {
   writeActiveTaskTarget(target);
   writeControlPlaneTargets(target);
+  for (const relativePath of ["common/tasks.py", "common/types.py", "common/config.py"]) {
+    write(
+      target,
+      `.trellis/scripts/${relativePath}`,
+      fs.readFileSync(path.join(UPSTREAM_SCRIPTS, relativePath), "utf8"),
+    );
+  }
+  write(
+    target,
+    ".trellis/config.yaml",
+    fs.readFileSync(
+      path.resolve("node_modules/@mindfoldhq/trellis/dist/templates/trellis/config.yaml"),
+      "utf8",
+    ),
+  );
   write(
     target,
     ".agents/skills/trellis-start/SKILL.md",
@@ -541,7 +532,8 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   writeMetaTargets(target);
   const continueTargets = writeContinueTargets(target);
   const updateSpecTargets = writeUpdateSpecTargets(target);
-  const finishTargets = writeFinishTargets(target);
+  const removedFinishTargets = writeRemovedFinishTargets(target);
+  write(target, ".claude/hooks/statusline.py", fs.readFileSync(UPSTREAM_CLAUDE_STATUSLINE, "utf8"));
   write(target, ".codex/hooks.json", JSON.stringify({ hooks: { SessionStart: [{
     matcher: "startup|resume|clear|compact",
     hooks: [{ type: "command", command: "python3 .codex/hooks/session-start.py", additionalContextLimit: 5000 }],
@@ -557,13 +549,18 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   );
   for (const [platform, configPath] of [["codex", ".codex/hooks.json"], ["claude", ".claude/settings.json"]]) {
     const config = JSON.parse(fs.readFileSync(path.join(target, configPath), "utf8"));
-    const group = config.hooks.SessionStart.find((entry) => entry.matcher === "startup|clear|compact");
+    const group = config.hooks.SessionStart.find((entry) => entry.matcher === "startup|resume|clear|compact");
     const handlers = group.hooks.filter((entry) => entry.command.includes(sessionAsset));
     assert.equal(handlers.length, 3);
     assert.deepEqual(handlers.map((entry) => entry.command.match(/--part (\w+)/)[1]), ["state", "rules", "stages"]);
     assert.ok(handlers.every((entry) => entry.command.includes(`--hook .${platform}/hooks/session-start.py`)));
     assert.ok(handlers.every((entry) => entry.additionalContextLimit === (platform === "codex" ? 5000 : undefined)));
-    assert.ok(!config.hooks.SessionStart.filter(entry => entry.hooks.some(hook => hook.command.includes(sessionAsset))).some(entry => entry.matcher.includes("resume")));
+    assert.equal(
+      config.hooks.SessionStart.filter((entry) =>
+        entry.hooks.some((hook) => hook.command.includes(sessionAsset))
+      ).length,
+      1,
+    );
     for (const event of ["SessionStart", "UserPromptSubmit"]) {
       const activity = config.hooks[event].flatMap(entry => entry.hooks).filter(hook => hook.command.includes("flower_telemetry_hook.py"));
       assert.equal(activity.length, 1);
@@ -593,6 +590,8 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assertIntentRoutingSemantics(workflowText);
   assert.doesNotMatch(workflowText, /ask only whether this turn should create/);
   assert.doesNotMatch(workflowText, /Flow: .*finish-work/);
+  assert.match(workflowText, /#### 3\.5 Completion handoff/);
+  assert.doesNotMatch(workflowText, /\/finish-work/);
   assert.doesNotMatch(workflowText, /This guard overrides any lower/);
   assert.doesNotMatch(workflowText, /Spawn the implement sub-agent:/);
   assert.doesNotMatch(workflowText, /Auto-fix issues it finds/);
@@ -602,11 +601,11 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /Load `trellis-push`/);
   assert.match(
     workflowText,
-    /`status=completed` alone does not prove that a normal task-record commit was pushed/,
+    /Business work and final task progress are complete, but deterministic Close is still pending or blocked/,
   );
   assert.match(
     workflowText,
-    /Enter the `trellis-push` completed-task preflight for the single next hop/,
+    /Enter the `trellis-push` completed-task preflight when delivery or task-record publication needs recovery/,
   );
   assert.match(workflowText, /task_progress\.py reopen --task <task-name> --json/);
   assert.match(workflowText, /task_intent\.py create --title/);
@@ -732,16 +731,13 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     assert.match(value, /KEEP BEFORE/);
     assert.match(value, /KEEP AFTER/);
   }
-  for (const file of finishTargets) {
-    const value = fs.readFileSync(file, "utf8");
-    assert.match(value, /BEGIN skill-garden patch trellis-finish-work-exact-bookkeeping/);
-    assert.doesNotMatch(value, /## Step 1: Survey current state/);
-    assert.match(value, /### 1\. Completion State Gate/);
-    assert.match(value, /### 2\. Decision Audit/);
-    assert.match(value, /### 3\. Current Task Release Audit/);
-    assert.equal((value.match(/git commit --only/g) || []).length, 1);
-    assert.match(value, /the only newly ahead commit is this run's bookkeeping commit/);
+  for (const [relativePath, file] of removedFinishTargets) {
+    assert.equal(fs.existsSync(file), false, relativePath);
   }
+  const statusline = fs.readFileSync(path.join(target, ".claude/hooks/statusline.py"), "utf8");
+  assert.match(statusline, /BEGIN skill-garden patch flower-claude-statusline-active-tasks/);
+  assert.match(statusline, /from common\.tasks import iter_active_tasks/);
+  assert.match(statusline, /return sum\(1 for _ in iter_active_tasks\(trellis_dir \/ "tasks"\)\)/);
   const plugins = JSON.parse(
     fs.readFileSync(path.join(target, ".flower/plugins.json"), "utf8"),
   );
@@ -777,6 +773,18 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
 
   quietApply(target);
   assert.deepEqual(snapshotTree(target), first);
+
+  const statuslinePath = path.join(target, ".claude/hooks/statusline.py");
+  fs.writeFileSync(
+    statuslinePath,
+    fs.readFileSync(UPSTREAM_CLAUDE_STATUSLINE, "utf8").replace(
+      "            count += 1",
+      "            count += 2",
+    ),
+  );
+  const drifted = snapshotTree(target);
+  assert.throws(() => quietApply(target), /Patch 预检失败|冲突规则失败/);
+  assert.deepEqual(snapshotTree(target), drifted);
 });
 
 test("Windows Python 命令渲染后的 0.6.14 目标可完整强化且重复运行幂等", () => {
@@ -788,7 +796,7 @@ test("Windows Python 命令渲染后的 0.6.14 目标可完整强化且重复运
     writeMetaTargets(target);
     writeContinueTargets(target);
     writeUpdateSpecTargets(target);
-    writeFinishTargets(target);
+    const removedFinishTargets = writeRemovedFinishTargets(target);
     renderSeededPythonCommand(target, command);
 
     const applied = quietApply(target);
@@ -799,12 +807,13 @@ test("Windows Python 命令渲染后的 0.6.14 目标可完整强化且重复运
     assert.match(workflow, /skill-garden patch workflow-phase-1-activate/);
     for (const relative of [
       ".agents/skills/trellis-brainstorm/SKILL.md",
-      ".agents/skills/trellis-finish-work/SKILL.md",
-      ".claude/commands/trellis/finish-work.md",
     ]) {
       const value = fs.readFileSync(path.join(target, ...relative.split("/")), "utf8");
       assert.doesNotMatch(value, /python3 (?:-X utf8 )?\.\/\.trellis\/scripts\//);
       assert.ok(value.includes(`${command} ./.trellis/scripts/`));
+    }
+    for (const [relativePath, file] of removedFinishTargets) {
+      assert.equal(fs.existsSync(file), false, relativePath);
     }
 
     quietApply(target);
@@ -823,7 +832,7 @@ test("0.6 未登记 patch 版本 warning 放行，跨兼容线 error 且零写�
   );
   writeIntentTargets(compatible);
   writeUpdateSpecTargets(compatible);
-  writeFinishTargets(compatible);
+  writeRemovedFinishTargets(compatible);
 
   let warningBeforeApply = false;
   const { result: warningResult, logs: warningLogs } = captureApply(
@@ -863,7 +872,7 @@ test("0.6 未登记 patch 版本 warning 放行，跨兼容线 error 且零写�
   write(invalid, ".trellis/workflow.md", minimalWorkflow());
   writeIntentTargets(invalid);
   writeUpdateSpecTargets(invalid);
-  writeFinishTargets(invalid);
+  writeRemovedFinishTargets(invalid);
   const invalidBefore = snapshotTree(invalid);
   assert.throws(
     () => quietApply(invalid, { variant: "0.6" }),
@@ -873,7 +882,7 @@ test("0.6 未登记 patch 版本 warning 放行，跨兼容线 error 且零写�
 
   const skillOnly = fs.mkdtempSync(path.join(os.tmpdir(), "flower-version-skill-only-"));
   write(skillOnly, ".trellis/.version", "0.6.13\n");
-  writeTaskUtilsTarget(skillOnly);
+  writeLifecycleTargets(skillOnly);
   fs.mkdirSync(path.join(skillOnly, ".agents"));
   const { logs: skillOnlyLogs } = captureApply(
     skillOnly,
@@ -976,27 +985,99 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
   }
 });
 
-test("Auto-Loop 与 Finish-Work 精细安装同时携带决策归档硬门禁", () => {
-  for (const alias of ["trellis-auto-loop", "auto-loop", "trellis-finish-work", "finish-work"]) {
+test("Auto-Loop 精细安装携带决策审计硬门禁", () => {
+  for (const alias of ["trellis-auto-loop", "auto-loop"]) {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-decision-audit-bundle-"));
     write(target, ".trellis/.version", "0.6.14\n");
-    writeControlPlaneTargets(target);
-    writeTaskUtilsTarget(target);
+    writeLifecycleTargets(target);
     fs.mkdirSync(path.join(target, ".agents/skills"), { recursive: true });
 
     quietApply(target, { variant: "0.6", skills: [alias] });
 
-    const taskStore = fs.readFileSync(
-      path.join(target, ".trellis/scripts/common/task_store.py"),
-      "utf8",
-    );
-    assert.match(taskStore, /BEGIN skill-garden patch task-store-decision-log-import/, alias);
-    assert.match(taskStore, /decision_review_status\(task_dir\)/, alias);
     assert.equal(
       fs.existsSync(path.join(target, ".trellis/scripts/decision_log.py")),
       true,
       alias,
     );
+    assert.equal(
+      fs.existsSync(path.join(target, ".trellis/scripts/task_lifecycle.py")),
+      true,
+      alias,
+    );
+  }
+});
+
+test("生命周期相关精细安装的 Python 入口可实际启动和查询", () => {
+  const cases = [
+    ["trellis-auto-loop", "auto_loop.py"],
+    ["auto-loop", "auto_loop.py"],
+    ["auto-loop-runner", "auto_loop.py"],
+    ["trellis-continue", "task_progress.py"],
+    ["continue", "task_progress.py"],
+    ["task-progress", "task_progress.py"],
+    ["progress-recovery", "task_progress.py"],
+    ["trellis-push", "task_progress.py"],
+    ["push", "task_progress.py"],
+    ["progress", "task_progress.py"],
+    ["push-snapshot", "task_progress.py"],
+    ["snapshot", "task_progress.py"],
+    ["decision-log", "decision_log.py"],
+    ["task-lifecycle", "task_lifecycle.py"],
+  ];
+  const lifecycleAliases = JSON.parse(fs.readFileSync(
+    path.join(V06_DIR, "overrides/bundles/task-reference-contract.json"),
+    "utf8",
+  )).aliases;
+  assert.deepEqual(
+    cases.map(([alias]) => alias).sort(),
+    [...lifecycleAliases].sort(),
+  );
+  for (const [alias, scriptName] of cases) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-lifecycle-${alias}-`));
+    write(target, ".trellis/.version", "0.6.14\n");
+    writeLifecycleTargets(target);
+
+    const result = quietApply(target, { variant: "0.6", skills: [alias] });
+    assert.equal(result.patchReport.summary.errors, 0, alias);
+    const script = path.join(target, ".trellis/scripts", scriptName);
+    const help = spawnPythonSync([script, "--help"], {
+      cwd: target,
+      encoding: "utf8",
+    });
+    assert.equal(help.status, 0, `${alias}: ${help.stderr}`);
+    const closeHelp = spawnPythonSync([
+      path.join(target, ".trellis/scripts/task.py"),
+      "close",
+      "--help",
+    ], {
+      cwd: target,
+      encoding: "utf8",
+    });
+    assert.equal(closeHelp.status, 0, `${alias}: ${closeHelp.stderr}`);
+    assert.match(closeHelp.stdout, /--resolve-blocker/, alias);
+    if (scriptName === "task_progress.py") {
+      const query = spawnPythonSync([script, "status", "--json"], {
+        cwd: target,
+        encoding: "utf8",
+      });
+      assert.equal(query.status, 0, `${alias}: ${query.stderr}`);
+      assert.equal(JSON.parse(query.stdout).status, "no-current-task", alias);
+    }
+  }
+});
+
+test("旧 Finish-Work 选择名不再安装能力并硬删除全部平台入口", () => {
+  for (const alias of ["trellis-finish-work", "finish-work"]) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-finish-removal-"));
+    write(target, ".trellis/.version", "0.6.14\n");
+    const removedTargets = writeRemovedFinishTargets(target);
+
+    quietApply(target, { variant: "0.6", skills: [alias] });
+
+    for (const [relativePath, file] of removedTargets) {
+      assert.equal(fs.existsSync(file), false, `${alias}:${relativePath}`);
+    }
+    assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/decision_log.py")), false);
   }
 });
 
@@ -1010,7 +1091,7 @@ test("trellis-continue 精细安装同时恢复入口与 task_progress helper", 
     const target = fs.mkdtempSync(path.join(os.tmpdir(), `flower-continue-${alias}-`));
     write(target, ".trellis/.version", "0.6.14\n");
     const continueTargets = writeContinueTargets(target);
-    writeTaskUtilsTarget(target);
+    writeLifecycleTargets(target);
 
     const result = quietApply(target, { variant: "0.6", skills: [alias] });
     assert.ok(result.installed.includes("script:task_progress.py"));
@@ -1041,7 +1122,7 @@ test("trellis-continue Patch 覆盖全部平台入口且保持 Phase 前恢复�
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-continue-platforms-"));
   write(target, ".trellis/.version", "0.6.14\n");
   const continueTargets = writeAllContinueTargets(target);
-  writeTaskUtilsTarget(target);
+  writeLifecycleTargets(target);
 
   quietApply(target, { variant: "0.6", skills: ["trellis-continue"] });
   assert.equal(continueTargets.length, 21);
@@ -1147,17 +1228,17 @@ test("Update-Spec 案例模板被用户修改时预检失败且不覆盖目标",
   assert.deepEqual(snapshotTree(target), before);
 });
 
-test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持幂等", () => {
+test("Update-Spec Patch 与 Finish-Work 全平台硬删除保持幂等", () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-native-gate-matrix-"));
   write(target, ".trellis/.version", "0.6.14\n");
   writeControlPlaneTargets(target);
   writeTaskUtilsTarget(target);
   const updateTargets = writeAllUpdateSpecTargets(target);
-  const finishTargets = writeAllFinishTargets(target);
+  const removedFinishTargets = writeRemovedFinishTargets(target);
 
   quietApply(target, {
     variant: "0.6",
-    skills: ["trellis-update-spec", "trellis-finish-work"],
+    skills: ["trellis-update-spec"],
   });
 
   const updateSkillTargets = [...updateTargets.entries()].filter(([relativePath]) =>
@@ -1175,24 +1256,15 @@ test("Update-Spec 与 Finish-Work Patch 覆盖真实平台原生入口并保持�
     assertUpdateSpecExamples(value);
   }
 
-  assert.equal(finishTargets.size, 21);
-  for (const [relativePath, file] of finishTargets) {
-    const value = fs.readFileSync(file, "utf8");
-    if (relativePath.endsWith(".toml")) {
-      assert.match(value, /BEGIN skill-garden patch trellis-finish-work-gemini-owner/, relativePath);
-      assert.match(value, /platform-native `trellis-finish-work` skill as the sole owner/, relativePath);
-    } else {
-      assert.match(value, /BEGIN skill-garden patch trellis-finish-work-(?:exact-bookkeeping|native-exact-bookkeeping)/, relativePath);
-      assert.match(value, /### 1\. Completion State Gate/, relativePath);
-      assert.match(value, /### 2\. Decision Audit/, relativePath);
-      assert.match(value, /### 3\. Current Task Release Audit/, relativePath);
-    }
+  assert.equal(removedFinishTargets.size, 21);
+  for (const [relativePath, file] of removedFinishTargets) {
+    assert.equal(fs.existsSync(file), false, relativePath);
   }
 
   const first = snapshotTree(target);
   quietApply(target, {
     variant: "0.6",
-    skills: ["trellis-update-spec", "trellis-finish-work"],
+    skills: ["trellis-update-spec"],
   });
   assert.deepEqual(snapshotTree(target), first);
 });

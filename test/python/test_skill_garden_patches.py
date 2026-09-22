@@ -84,10 +84,18 @@ META_OPERATIONS = {
     "trellis-meta-managed-task-readiness",
     "trellis-meta-managed-active-task-lifecycle",
     "trellis-meta-managed-lifecycle-entry-points",
+    "trellis-meta-managed-task-common-commands",
+    "trellis-meta-managed-lifecycle-hooks",
     "trellis-meta-managed-lifecycle-modification-steps",
     "trellis-meta-managed-continue-recovery",
     "trellis-meta-managed-workflow-notes",
     "trellis-meta-managed-check-all-agent-route",
+    "trellis-meta-managed-child-closeout-language",
+    "trellis-meta-managed-child-history-language",
+    "trellis-meta-managed-gc-customization-language",
+    "trellis-meta-managed-lifecycle-summary-language",
+    "trellis-meta-managed-entry-example-language",
+    "trellis-meta-managed-command-example-language",
 }
 
 
@@ -247,6 +255,19 @@ class PatchConsumerTest(unittest.TestCase):
         value = (self.target / "sample.md").read_text(encoding="utf-8")
         self.assertIn("skill-garden patch replace-rule", value)
         self.assertNotIn("skill-garden transform replace-rule", value)
+
+    def test_catalog_ignores_runtime_python_bytecode_cache(self) -> None:
+        """Python consumer 不读取或计入 Patch leaf 下的解释器缓存。"""
+        self.load_shared_core_fixture()
+        runner = _load_runner()
+        baseline = runner.prepare_patches(self.overrides, self.target)
+        cache = self.overrides / "patches/text/example/__pycache__"
+        cache.mkdir()
+        (cache / "selector.cpython-312.pyc").write_bytes(b"\xff\x00\x80")
+
+        repeated = runner.prepare_patches(self.overrides, self.target)
+
+        self.assertEqual(repeated["catalogHash"], baseline["catalogHash"])
 
     def test_required_drift_is_zero_write(self) -> None:
         _write(self.target, "valid.md", "VALID\n")
@@ -1169,6 +1190,8 @@ class PatchConsumerTest(unittest.TestCase):
         )
         self.assertIn("skill-garden patch task-reference-resolution", task_utils)
         self.assertIn("def resolve_task_reference", task_utils)
+        self.assertIn("def resolve_active_task_reference", task_utils)
+        self.assertIn("def resolve_top_level_task_reference", task_utils)
 
     def test_real_conflicts_cover_new_control_plane_operations(self) -> None:
         """新增控制面 operation 必须进入最终产物冲突断言。"""
@@ -1180,8 +1203,12 @@ class PatchConsumerTest(unittest.TestCase):
         }
 
         self.assertTrue({
-            "task-store-decision-log-import",
-            "task-archive-metadata-guard",
+            "task-lifecycle-shared-views",
+            "task-lifecycle-active-reference-import",
+            "task-lifecycle-start-active-reference",
+            "task-lifecycle-doc-commands",
+            "task-lifecycle-config-after-close",
+            "task-lifecycle-config-doc-after-close",
             "task-set-branch-write",
             "task-set-base-branch-write",
             "task-set-scope-write",
@@ -1207,6 +1234,19 @@ class PatchConsumerTest(unittest.TestCase):
             "task-reference-resolution",
         }.issubset(covered))
         self.assertTrue(META_OPERATIONS.issubset(covered))
+
+        absent_values = {
+            value
+            for rule in conflicts["rules"]
+            if rule.get("assertion", {}).get("type") == "absent-literal"
+            for value in rule["assertion"].get("values", [])
+        }
+        self.assertTrue({
+            "trellis-finish-work",
+            "task.py archive",
+            "task.py list-archive",
+            "after_archive",
+        }.issubset(absent_values))
 
     def test_real_catalog_preserves_notice_and_removes_upstream_update_relay(self) -> None:
         """最终 SessionStart 保留首答提示，但不再暴露 Trellis 原生更新入口。"""
@@ -1265,6 +1305,10 @@ class PatchConsumerTest(unittest.TestCase):
             {item["id"] for item in plan["results"]},
             {
                 "session-insight-grok-overview",
+                "session-insight-closeout-language-intro",
+                "session-insight-closeout-language-triggers",
+                "session-insight-closeout-language-phase",
+                "session-insight-closeout-language-reference",
                 "session-insight-grok-cli-flags",
                 "session-insight-grok-cli-caveats",
             },
@@ -1374,7 +1418,7 @@ class PatchConsumerTest(unittest.TestCase):
                     lifecycle_change,
                 )
                 self.assertIn(
-                    "normal final progress and completion written atomically before "
+                    "normal final progress, completion, and Close written atomically before "
                     "the task-record commit/push",
                     lifecycle_change,
                 )
@@ -1495,7 +1539,7 @@ class PatchConsumerTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            "release/publish, commit, push, finish-work, task operations, snapshot sync, auto-loop control",
+            "release/publish, commit, push, task operations, snapshot sync, auto-loop control",
             workflow,
         )
         self.assertIn(
@@ -1616,7 +1660,11 @@ class PatchConsumerTest(unittest.TestCase):
         )
         self.assertEqual(
             plan["patches"],
-            ["trellis-continue-task-progress-recovery", "task-reference-resolution"],
+            [
+                "trellis-continue-task-progress-recovery",
+                "task-reference-resolution",
+                "task-closeout-lifecycle",
+            ],
         )
         self.assertIn(
             "trellis-continue-task-progress-recovery",

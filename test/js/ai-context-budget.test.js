@@ -17,10 +17,12 @@ test("最终入口分别计量 Auto-Loop 与两平台实际 SessionStart 分段"
     assert.equal(metric.target, 16 * 1024);
     assert.equal(metric.review, 18 * 1024);
     assert.equal(metric.baseline, 15600);
+    assert.ok(metric.bytes < metric.baseline);
   }
   const control = metrics.find((metric) => metric.name === "control-context-total");
   assert.ok(control);
-  assert.equal(control.baseline, 90397);
+  assert.equal(control.baseline, 113167);
+  assert.ok(control.bytes < control.baseline);
   const parts = metrics.filter((metric) => metric.name.startsWith("session-start:"));
   assert.deepEqual(parts.map((metric) => metric.name), [
     "session-start:codex:state", "session-start:codex:rules", "session-start:codex:stages",

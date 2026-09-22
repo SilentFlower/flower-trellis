@@ -59,8 +59,16 @@ const META_OPERATIONS = [
   "trellis-meta-managed-task-readiness",
   "trellis-meta-managed-active-task-lifecycle",
   "trellis-meta-managed-lifecycle-entry-points",
+  "trellis-meta-managed-task-common-commands",
+  "trellis-meta-managed-lifecycle-hooks",
   "trellis-meta-managed-lifecycle-modification-steps",
   "trellis-meta-managed-continue-recovery",
+  "trellis-meta-managed-child-closeout-language",
+  "trellis-meta-managed-child-history-language",
+  "trellis-meta-managed-gc-customization-language",
+  "trellis-meta-managed-lifecycle-summary-language",
+  "trellis-meta-managed-entry-example-language",
+  "trellis-meta-managed-command-example-language",
   "trellis-meta-managed-workflow-notes",
   "trellis-meta-managed-check-all-agent-route",
 ];
@@ -190,8 +198,11 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(taskSystem, /## Active Task And Lifecycle/);
   assert.match(
     taskSystem,
-    /in_progress -> business push -> atomic final progress \+ completed -> task-record commit\/push/,
+    /in_progress -> business push -> atomic final progress \+ completed \+ deterministic Close -> task-record commit\/push/,
   );
+  assert.match(taskSystem, /task\.py close <task> --json/);
+  assert.match(taskSystem, /task\.py gc --closed --before 3d/);
+  assert.doesNotMatch(taskSystem, /task\.py archive <task>/);
   assert.match(taskSystem, /never bind a session automatically/);
   assert.match(skillRoute, /Do not classify every non-bundled name as project-local/);
   assert.match(skillRoute, /\| Oh My Pi \| `\.omp\/skills\/`, `\.omp\/commands\/` \|/);
@@ -202,18 +213,18 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(workflowChange, /Implement\/check execution goes through `trellis-route`/);
   assert.match(
     workflowChange,
-    /A `completed` task enters the `trellis-push` completed-task preflight/,
+    /A `completed` task remains discoverable only while Close is pending or blocked/,
   );
   assert.match(
     workflowChange,
-    /either prepares publication recovery, points to explicit `trellis-finish-work`, or blocks/,
+    /Enter the `trellis-push` completed-task preflight when publication needs recovery/,
   );
   assert.match(workflowChange, /Direct edits are valid only for unowned local sections/);
   assert.match(lifecycleChange, /Change normal completion activation/);
   assert.match(lifecycleChange, /Change interruption recovery or candidate rebinding \| `trellis-continue` owns the user decision, `task_progress\.py` owns candidate evidence, and `task\.py start` with `\.trellis\/scripts\/common\/active_task\.py` owns the explicit session bind/);
   assert.match(
     lifecycleChange,
-    /normal final progress and completion written atomically before the task-record commit\/push/,
+    /normal final progress, completion, and Close written atomically before the task-record commit\/push/,
   );
   assert.match(lifecycleChange, /change the canonical Patch\/skill\/helper source/);
   assert.match(agentChange, /Unified Check-All commands must run during checking/);

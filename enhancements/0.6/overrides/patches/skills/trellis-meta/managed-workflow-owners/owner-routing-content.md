@@ -16,7 +16,8 @@ Stable owner categories are:
 | Automatic task loop and return gate | `trellis-auto-loop` plus the matching Check-All result |
 | Executable knowledge capture | `trellis-update-spec` |
 | Commit/push safety and completion activation | `trellis-push` and `task_progress.py` |
-| Completed-task archive and session bookkeeping | `trellis-finish-work` and the archive implementation |
+| Deterministic task Close | `task_progress.py`, `task_lifecycle.py`, and the invoking `trellis-push` / `trellis-auto-loop` path |
+| Delayed physical GC | SessionStart bridge and `task_lifecycle.py session-start` |
 | Cross-session task progress discovery and recovery | `trellis-continue` owns the recovery decision, `task_progress.py` owns candidate evidence and completed-task reopen, and `task.py start` with `.trellis/scripts/common/active_task.py` owns explicit session binding |
 
 This reference names owners; it does not copy their command schemas, interaction templates, state formats, or error matrices. Read `.trellis/workflow.md`, the local owner skill/helper, available `overrides/bundles/`, and `.flower/state.json` for the installed version. Do not maintain a fixed Skill-Garden skill count or exhaustive capability list here.

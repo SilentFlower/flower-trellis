@@ -7,7 +7,7 @@ This section is for developers who want to modify the Trellis workflow itself. I
 Edit the corresponding step's walkthrough body in the Phase 1 / 2 / 3 sections above. Critical invariants:
 - No active task must triage first and ask for task-creation consent before creating a Trellis task.
 - Planning must distinguish lightweight PRD-only tasks from complex tasks that require `prd.md`, `design.md`, and `implement.md` before start.
-- Every required execution path must keep the Phase 3.4 commit reminder reachable before `/trellis:finish-work`.
+- Every required execution path must keep the Phase 3.4 commit reminder reachable before deterministic Close.
 
 All tag blocks live in the `## Phase Index` section above, immediately after each phase summary:
 
@@ -18,7 +18,7 @@ All tag blocks live in the `## Phase Index` section above, immediately after eac
 | Codex inline Phase 1 | `[workflow-state:planning-inline]` |
 | Phase 2 + Phase 3.2–3.4 (implementation + check + wrap-up) | `[workflow-state:in_progress]` (after Phase 2 summary) |
 | Codex inline Phase 2 + Phase 3.2–3.4 | `[workflow-state:in_progress-inline]` |
-| After completion write, before Push-owned recovery preflight or archive | `[workflow-state:completed]` (observable active lifecycle state) |
+| After completion write, while deterministic Close is pending or blocked | `[workflow-state:completed]` (observable active lifecycle state) |
 
 ### Changing the per-turn prompt text
 
@@ -37,7 +37,7 @@ your per-turn prompt text
 Constraints:
 - STATUS charset: `[A-Za-z0-9_-]+` (underscores and hyphens allowed, e.g. `in-review`, `blocked-by-team`)
 - A lifecycle hook must write `task.json.status` to your custom value, otherwise the tag is never read
-- Lifecycle hooks live in `task.json.hooks.after_*` and bind to one of `after_create / after_start / after_finish / after_archive`
+- Lifecycle hooks live in `task.json.hooks.after_*` and bind to one of `after_create / after_start / after_finish / after_close`
 
 ### Adding a lifecycle hook
 
@@ -46,14 +46,14 @@ Add a `hooks` field to your `task.json`:
 ```json
 {
   "hooks": {
-    "after_finish": [
+    "after_close": [
       "your-script-or-command-here"
     ]
   }
 }
 ```
 
-Supported events: `after_create / after_start / after_finish / after_archive`. Note that `after_finish` ≠ a status change (it only clears the active-task pointer); use `after_archive` for "task is done" notifications.
+Supported events: `after_create / after_start / after_finish / after_close`. `after_close` runs only after deterministic Close succeeds; physical GC is intentionally not a lifecycle notification boundary.
 
 ### Full contract
 

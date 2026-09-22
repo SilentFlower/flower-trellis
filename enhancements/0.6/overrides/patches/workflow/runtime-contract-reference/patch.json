@@ -19,6 +19,23 @@
       "content": { "source": "customizing-trellis-content.md" }
     },
     {
+      "id": "workflow-task-system-closeout",
+      "operation": "replace",
+      "required": false,
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "markdown-section", "heading": "### Task System" },
+      "baselines": ["task-system-baseline.md"],
+      "content": { "source": "task-system-content.md" }
+    },
+    {
+      "id": "workflow-in-progress-closeout-scope",
+      "operation": "replace",
+      "required": false,
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "literal", "source": "in-progress-scope-selector.md" },
+      "content": { "source": "in-progress-scope-content.md" }
+    },
+    {
       "id": "workflow-runtime-contract-reference",
       "operation": "replace",
       "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],

@@ -9,7 +9,7 @@
 以下改动必须读取本规范并运行预算 checker：
 
 - 修改 `.trellis/workflow.md` 或会 Patch 到 workflow hub/state 的内容。
-- 修改 Update-Spec、Finish-Work、Auto-Loop 等会被完整加载的最终 skill/command body。
+- 修改 Update-Spec、Auto-Loop 等会被完整加载的最终 skill/command body。
 - 修改 `get_context.py --mode phase`、SessionStart hook、workflow-state hook 或 task-status 注入。
 - 把长流程从 skill/helper 移入高频 prompt，或在多个层重复同一规则。
 - 调整任何 target、review ceiling、baseline 或总量公式。
@@ -23,7 +23,7 @@
 - workflow：读取当前 `vendor/skill-garden/compiled-targets/<version>/full/targets/.trellis/workflow.md`。
 - workflow control：从 compiled full workflow 的 `## Phase Index` 到 `## Phase 1: Plan`。
 - state：从 compiled full workflow 动态提取全部 `[workflow-state:*]` body。
-- Update-Spec/Finish-Work：读取 compiled full 中实际存在的最终 `.agents`、`.claude/skills`、`.claude/commands` 入口。
+- Update-Spec：读取 compiled full 中实际存在的最终 `.agents`、`.claude/skills`、`.claude/commands` 入口。
 - Auto-Loop：该 skill 不是 Patch target，读取 `vendor/skill-garden/.trellis/0.6` 下直接铺设的 canonical `.agents/.claude` 入口；源、快照和 dogfood 一致性由同步测试单独保证。
 - Phase summary：真实运行 `python3 ./.trellis/scripts/get_context.py --mode phase`。
 - SessionStart：在隔离临时 fixture 部署 Flower 分段脚本及 Codex / Claude 原生 hook，分别运行 `.trellis/scripts/flower_session_start.py --hook <原生路径> --part state|rules|stages`。覆盖八个场景、每场景三份实际 `additionalContext`：Codex 缺失模型、Astra startup/clear/compact、其他模型、Astra 关闭，以及 Claude 携带 Astra 输入的 startup/compact。每个平台取最大场景保留六份分段汇总，`session-start` 取最大平台/场景合计，不重复累加等价入口。
@@ -77,7 +77,6 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 | 单个最终 workflow-state body | 3 KiB | 4 KiB |
 | 全部最终 workflow-state body 合计 | 12 KiB | 14 KiB |
 | 单个最终 Update-Spec 入口 | 16 KiB | 18 KiB |
-| 单个最终 Finish-Work 入口 | 10 KiB | 12 KiB |
 | 单个最终 Auto-Loop 入口 | 16 KiB | 18 KiB |
 | Phase summary | 18 KiB | 20 KiB |
 | SessionStart 三段 `additionalContext` 合计（最大平台） | 18 KiB | 20 KiB |
@@ -90,7 +89,6 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 ```text
 完整 workflow
 + 最大 Update-Spec 最终入口
-+ 最大 Finish-Work 最终入口
 + Phase summary
 + SessionStart additionalContext（最大平台的三段合计）
 ```
@@ -112,25 +110,29 @@ Astra 提示还受运行时独立 2048 字节硬限制：超限不新增提示�
 
 ## Baseline
 
-Skill-Garden 代表性最终入口基线（`.agents` + `.claude`，2026-07-24；target/review ceiling 未调整）：
+Skill-Garden 代表性最终入口基线（`.agents` + `.claude`，2026-09-22；target/review ceiling 未调整）：
 
 | 对象 | Lines | Bytes | 状态 |
 |---|---:|---:|---|
-| 完整 workflow | 710 | 46,750 | ok |
-| workflow control | 139 | 12,243 | ok |
-| 全部最终 state body 合计 | 48 | 7,261 | ok |
-| 最大 Update-Spec 最终入口 | 386 | 13,899 | ok |
-| 最大 Finish-Work 最终入口 | 93 | 4,556 | ok |
+| 完整 workflow | 738 | 59,558 | ok |
+| workflow control | 164 | 17,727 | ok |
+| 全部最终 state body 合计 | 61 | 13,257 | warn |
+| 最大 Update-Spec 最终入口 | 387 | 15,783 | ok |
 | 最大 Auto-Loop 最终入口 | 220 | 15,600 | ok |
-| Phase summary | 173 | 12,892 | ok |
-| SessionStart | 172 | 12,300 | ok |
-| control-context-total | - | 90,397 | ok |
+| Phase summary | 177 | 14,093 | ok |
+| SessionStart | 210 | 19,177 | warn |
+| 已删除的最大 Finish-Work 最终入口 | 93 | 4,556 | ok |
+| control-context-total（删除前公式） | - | 113,167 | ok |
 
 Patch 生成的静态最终入口读取 Skill-Garden `all-platforms` canonical compiled full target；预算只选取
 `.trellis`、共享 `.agents` 和 `.claude` 的代表性最终入口，不把其它平台的等价投影重复累加。
 直接铺设的 Auto-Loop 读取 canonical variant skill。Flower 双 catalog 全平台 fixture 继续只做临时
 集成验证，不参与预算重复计数。target/review ceiling 未提高，默认和 strict 仍只有超过 review
 ceiling 才由 strict 阻断。
+
+本表保留生命周期重构开始前的 Auto-Loop、Finish-Work 与 control total，用于证明硬删除旧归档流程后的
+净变化；其它行使用同一次任务起点的实际值。当前公式不再计 Finish-Work，因此 control total 应至少减少
+4,556 字节；Auto-Loop 入口也必须相对 15,600 字节基线下降，不能把重构后的实际值回填成零差异。
 
 ## Change Review
 
@@ -209,7 +211,7 @@ node scripts/check-ai-context-budget.mjs --strict
 - 八个 SessionStart 场景必须全部实际运行；Astra 三种来源均等于同配置无提示基线加完整块及一个换行，其他模型和关闭场景与基线相同。每个平台保留最大场景，控制面只计全局最大合计。
 - `astra-workflow-hint` 必须非空且不超过 2048 UTF-8 字节；独立故障测试使用多字节字符确认超限拒绝，不能只比较字符数或提示源文件大小。
 - state 从最终 workflow 动态枚举，不写死文件数量。
-- Update-Spec/Finish-Work 从 compiled final 平台入口测量，不读取 Patch content；Auto-Loop 从直接铺设的 canonical variant skill 测量。
+- Update-Spec 从 compiled final 平台入口测量，不读取 Patch content；Auto-Loop 从直接铺设的 canonical variant skill 测量。
 - control-context-total 使用固定公式和最大平台入口。
 - 专项 skill 测试同时固定默认必读字节基线与受保护能力断言；不能只测文件变小。
 - 条件加载 reference 单独计量，并断言主入口没有复制其低频类型矩阵或证据细则。

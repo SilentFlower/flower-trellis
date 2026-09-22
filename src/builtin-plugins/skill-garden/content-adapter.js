@@ -40,9 +40,15 @@ const SCRIPT_ALIASES = Object.freeze({
   auto_loop: ["auto-loop", "auto-loop-runner", "trellis-auto-loop"],
   decision_log: [
     "decision-log", "auto-loop", "auto-loop-runner", "trellis-auto-loop",
-    "finish-work", "finish-work-enhancement", "trellis-finish-work",
+    "task-lifecycle", "task-progress", "trellis-continue", "continue", "progress-recovery",
+    "trellis-push", "push", "progress", "push-snapshot", "snapshot",
   ],
   task_progress: [
+    "task-progress", "trellis-continue", "continue", "progress-recovery",
+    "trellis-push", "push", "progress", "push-snapshot", "snapshot",
+  ],
+  task_lifecycle: [
+    "decision-log", "task-lifecycle", "auto-loop", "auto-loop-runner", "trellis-auto-loop",
     "task-progress", "trellis-continue", "continue", "progress-recovery",
     "trellis-push", "push", "progress", "push-snapshot", "snapshot",
   ],
@@ -478,6 +484,65 @@ export function projectSkillGardenContent(options) {
     }
   }
 
+  /**
+   * 应用 variant 声明的硬删除入口，确保上游旧命令不会因停止 Patch 而重新出现。
+   *
+   * @returns {void}
+   */
+  function applyDeclaredRemovals() {
+    const manifestPath = path.join(variantDir, "overrides", "removals.json");
+    if (!fs.existsSync(manifestPath)) return;
+    let manifest;
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    } catch (error) {
+      throw new PluginIntegrityError("Skill-Garden removals manifest 无法读取", {
+        path: manifestPath,
+        cause: error,
+      });
+    }
+    if (
+      manifest?.schemaVersion !== 1 ||
+      !Array.isArray(manifest.paths) ||
+      manifest.paths.some((target) => !isNonEmptyString(target)) ||
+      new Set(manifest.paths).size !== manifest.paths.length
+    ) {
+      throw new PluginIntegrityError("Skill-Garden removals manifest schema 无效", {
+        path: manifestPath,
+      });
+    }
+    const staleTargets = new Set();
+    for (const target of manifest.paths) {
+      assertSafePosixRelativePath(target, "Skill-Garden 删除目标");
+      const absolute = path.join(projectRoot, ...target.split("/"));
+      if (!fs.existsSync(absolute)) {
+        paths.delete(target);
+        continue;
+      }
+      const stat = fs.lstatSync(absolute);
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        throw new PluginIntegrityError(`Skill-Garden 删除目标不是普通文件:${target}`, {
+          path: target,
+        });
+      }
+      mutations.push({
+        owner: resolved.id,
+        target,
+        operation: "remove",
+        beforeHash: hashFileIfExists(absolute),
+        afterHash: null,
+        source: `skill-garden:${pluginPackage.skillGarden.variant}:declared-removal`,
+        allowUnownedRemove: true,
+      });
+      paths.delete(target);
+      staleTargets.add(target);
+    }
+    for (const target of staleTargets) {
+      const parent = path.posix.dirname(target);
+      if (parent !== ".") addDirectoryRemovalIfOnlyStaleFiles(parent, staleTargets);
+    }
+  }
+
   function readDispatchCatalog() {
     const catalogPath = path.join(variantDir, DISPATCH_CATALOG_REL);
     let catalog;
@@ -854,6 +919,8 @@ export function projectSkillGardenContent(options) {
       fs.rmSync(temporary, { recursive: true, force: true });
     }
   }
+
+  applyDeclaredRemovals();
 
   const legacyStatus = readLegacyManifestStatus(projectRoot);
   if (!options.previousState && legacyStatus.status === "corrupt") {
