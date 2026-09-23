@@ -249,6 +249,43 @@ class DmsReadonlyGuardTest(unittest.TestCase):
                 self.assertIn(f"({keyword})", error.getvalue())
 
 
+class DmsOrderTest(unittest.TestCase):
+    """验证 DMS 数据变更工单使用服务端要求的大驼峰参数。"""
+
+    def test_order_param_uses_pascal_case_fields(self) -> None:
+        """Param 使用大驼峰字段，RPC 顶层不再重复传影响行数。"""
+        args = SimpleNamespace(
+            sql="UPDATE t_xxx SET c_a = 1 WHERE id = 1",
+            file=None,
+            tid="1",
+            db="2",
+            logic=False,
+            rows=1,
+            classify=None,
+            rollback="UPDATE t_xxx SET c_a = 0 WHERE id = 1",
+            comment="测试",
+            yes=True,
+        )
+        with mock.patch.object(
+            dms,
+            "rpc",
+            return_value=(200, {"Success": True, "CreateOrderResult": [1]}),
+        ) as request, contextlib.redirect_stdout(io.StringIO()):
+            result = dms.cmd_order(args, "ak", "sk")
+
+        self.assertEqual(result, 0)
+        action, params = request.call_args.args[:2]
+        self.assertEqual(action, "CreateDataCorrectOrder")
+        self.assertNotIn("EstimateAffectRows", params)
+        param = json.loads(params["Param"])
+        self.assertEqual(param["DbItemList"], [{"DbId": 2, "Logic": False}])
+        self.assertEqual(param["ExecSQL"], args.sql)
+        self.assertEqual(param["EstimateAffectRows"], 1)
+        self.assertEqual(param["RollbackSQL"], args.rollback)
+        self.assertNotIn("Classify", param)
+        self.assertFalse(any(key[0].islower() for key in param))
+
+
 class MseCliTest(unittest.TestCase):
     """验证 MSE 区域参数、分页与配置内容保护。"""
 
@@ -425,7 +462,15 @@ class AckRoaV3Test(unittest.TestCase):
 
 
 class AckCliTest(unittest.TestCase):
-    """验证 ACK 只读查询和 Workbench 临时凭证生命周期。"""
+    """验证 ACK 只读查询、受控写命令和 Workbench 临时凭证生命周期。"""
+
+    def setUp(self) -> None:
+        """移除开发者环境中的写入白名单，避免外部配置改变用例结果。"""
+        environ = mock.patch.dict(os.environ)
+        environ.start()
+        self.addCleanup(environ.stop)
+        for name in (ack.WRITE_NAMESPACES_ENV, ack.IMAGE_PREFIXES_ENV):
+            os.environ.pop(name, None)
 
     def ack_args(self, **overrides) -> SimpleNamespace:
         """构造 ACK 命令参数。
@@ -750,7 +795,7 @@ class AckCliTest(unittest.TestCase):
         ]
         self.assertTrue(any("kubectl get configmaps" in command for command in remote_commands))
         self.assertTrue(any("chmod 600 --" in command for command in remote_commands))
-        self.assertTrue(any("unlink --" in command for command in remote_commands))
+        self.assertTrue(any("rm -f --" in command for command in remote_commands))
         self.assertTrue(local_paths)
         self.assertTrue(all(not path.exists() for path in local_paths))
 
@@ -795,7 +840,7 @@ class AckCliTest(unittest.TestCase):
             with self.assertRaisesRegex(ack.AckError, "Forbidden"):
                 ack.get_via_workbench(self.ack_args())
 
-        self.assertTrue(any("unlink --" in command for command in commands))
+        self.assertTrue(any("rm -f --" in command for command in commands))
 
     def test_workbench_cleanup_failure_overrides_success(self) -> None:
         """查询成功但远端凭证清理失败时命令整体失败。"""
@@ -910,6 +955,307 @@ class AckCliTest(unittest.TestCase):
 
         select.assert_not_called()
         kubeconfig.assert_not_called()
+
+    def write_args(self, **overrides) -> SimpleNamespace:
+        """构造 ACK 写命令参数。
+
+        Args:
+            overrides: 需要覆盖的参数。
+
+        Returns:
+            可供写命令函数使用的参数对象。
+        """
+        values = {
+            "region": "cn-hangzhou",
+            "cluster": "c-test-cluster",
+            "namespace": "prod",
+            "deployment": "web",
+            "container": None,
+            "image": "registry.example.com/team/web:v2",
+            "set": None,
+            "unset": None,
+            "wait": False,
+            "yes": False,
+            "timeout": 300,
+            "minutes": None,
+            "instance_id": None,
+            "workbench_profile": "aliyun-ops",
+            "workbench_timeout": 60,
+            "_access_key": "test-ak",
+            "_access_secret": "test-sk",
+        }
+        values.update(overrides)
+        return SimpleNamespace(**values)
+
+    def deployment_json(self, containers=None) -> str:
+        """构造 kubectl get deployment 的 JSON 输出。
+
+        Args:
+            containers: 容器列表；默认单个 web 容器。
+
+        Returns:
+            Deployment JSON 字符串。
+        """
+        if containers is None:
+            containers = [
+                {
+                    "name": "web",
+                    "image": "registry.example.com/team/web:v1",
+                    "env": [
+                        {"name": "MODE", "value": "old"},
+                        {"name": "TOKEN", "valueFrom": {"secretKeyRef": {"name": "s", "key": "k"}}},
+                    ],
+                }
+            ]
+        return json.dumps({"spec": {"template": {"spec": {"containers": containers}}}})
+
+    @contextlib.contextmanager
+    def fake_workbench(self, deployment=None, cleanup_ok=True, upload_failures=0):
+        """模拟 Workbench CLI，并记录远端命令与 exec 超时。
+
+        Args:
+            deployment: ``kubectl get deployment`` 返回的 JSON 字符串。
+            cleanup_ok: 远端清理是否成功。
+            upload_failures: 前几次上传返回失败。
+
+        Yields:
+            记录 ``commands``、``timeouts``、``uploads`` 的字典。
+        """
+        record = {"commands": [], "timeouts": [], "uploads": 0}
+
+        def run(argv):
+            if argv[0].endswith("shred"):
+                Path(argv[-1]).unlink()
+                return self.completed(argv)
+            if argv[1] == "upload":
+                record["uploads"] += 1
+                if record["uploads"] <= upload_failures:
+                    return self.completed(
+                        argv,
+                        returncode=1,
+                        stdout="Uploading kubeconfig.yaml\n\u280b Preparing...\n\u2819 Preparing...\n",
+                        stderr="Error: websocket: bad handshake\n",
+                    )
+                return self.completed(argv, stdout="{}")
+            command = argv[argv.index("--command") + 1]
+            record["commands"].append(command)
+            record["timeouts"].append(argv[argv.index("--timeout") + 1])
+            if "rm -f --" in command and not cleanup_ok:
+                return self.completed(argv, stdout='{"exit_code":1,"stdout":"","stderr":"denied"}')
+            stdout = deployment if "get deployment" in command else "ok"
+            return self.completed(
+                argv,
+                stdout=json.dumps({"exit_code": 0, "stdout": stdout or "", "stderr": ""}),
+            )
+
+        with mock.patch.object(
+                ack.shutil,
+                "which",
+                side_effect=lambda name: f"/usr/bin/{name}",
+            ), mock.patch.object(
+                ack,
+                "select_workbench_instance",
+                return_value="i-test",
+            ), mock.patch.object(
+                ack,
+                "fetch_kubeconfig",
+                return_value=("secret", "expiration"),
+            ), mock.patch.object(ack, "run_process", side_effect=run), \
+                contextlib.redirect_stdout(io.StringIO()) as output, \
+                contextlib.redirect_stderr(io.StringIO()):
+            record["output"] = output
+            yield record
+
+    def test_main_prints_ack_error_instead_of_type_error(self) -> None:
+        """AckError 以可读消息输出，不再因脱敏序列化抛出 TypeError。"""
+        argv = [
+            "ack.py",
+            "set-image",
+            "--cluster",
+            "c",
+            "--namespace",
+            "prod",
+            "--deployment",
+            "web",
+            "--image",
+            "registry.example.com/web",
+        ]
+        error = io.StringIO()
+        with mock.patch.object(sys, "argv", argv), \
+                mock.patch.object(ack, "load_product_env"), \
+                mock.patch.object(ack, "get_credentials", return_value=("ak", "sk")), \
+                contextlib.redirect_stderr(error):
+            result = ack.main()
+
+        self.assertEqual(result, 1)
+        self.assertIn("[ack] 镜像必须包含 :tag", error.getvalue())
+        self.assertEqual(ack.scrub(ack.AckError("LTAIabc 失败")), "<AK> 失败")
+
+    def test_summarize_cli_output_drops_progress_frames(self) -> None:
+        """CLI 诊断去掉进度动画与 ANSI 转义，保留末尾真实原因。"""
+        text = "Uploading a.yaml\n" + "\u280b Preparing...\r" * 50 + "\x1b[31mError: denied\x1b[0m\n"
+        summary = ack.summarize_cli_output(text)
+
+        self.assertNotIn("Preparing", summary)
+        self.assertTrue(summary.endswith("Error: denied"))
+
+    def test_upload_retries_once_before_failing(self) -> None:
+        """上传偶发失败会重试一次，重试成功则查询正常完成。"""
+        with self.fake_workbench(deployment=self.deployment_json(), upload_failures=1) as record:
+            ack.cmd_set_image(self.write_args())
+
+        self.assertEqual(record["uploads"], 2)
+
+    def test_upload_failure_reports_reason_and_cleans_idempotently(self) -> None:
+        """上传两次失败时报告真实原因，远端清理使用幂等删除且不误报。"""
+        with self.fake_workbench(upload_failures=2) as record:
+            with self.assertRaises(ack.AckError) as raised:
+                ack.cmd_set_image(self.write_args())
+
+        message = str(raised.exception)
+        self.assertIn("bad handshake", message)
+        self.assertNotIn("Preparing", message)
+        self.assertNotIn("清理失败", message)
+        self.assertTrue(any(command.startswith("rm -f -- /tmp/") for command in record["commands"]))
+
+    def test_set_image_preview_does_not_write(self) -> None:
+        """未带 --yes 时只读取 Deployment 并输出预览。"""
+        with self.fake_workbench(deployment=self.deployment_json()) as record:
+            ack.cmd_set_image(self.write_args())
+
+        self.assertTrue(any("kubectl get deployment web" in command for command in record["commands"]))
+        self.assertFalse(any("kubectl set" in command for command in record["commands"]))
+        preview = record["output"].getvalue()
+        self.assertIn("web:v1' → 'registry.example.com/team/web:v2'", preview)
+        self.assertIn("未配置（不限制）", preview)
+
+    def test_set_image_with_yes_runs_fixed_command_and_waits(self) -> None:
+        """--yes 执行固定 set image 命令，--wait 在同一会话等待发布。"""
+        args = self.write_args(yes=True, wait=True, timeout=120)
+        with self.fake_workbench(deployment=self.deployment_json()) as record:
+            ack.cmd_set_image(args)
+
+        set_commands = [command for command in record["commands"] if "kubectl set" in command]
+        self.assertEqual(len(set_commands), 1)
+        self.assertTrue(set_commands[0].endswith(
+            "kubectl set image deployment/web web=registry.example.com/team/web:v2 "
+            "--namespace prod --request-timeout 20s"
+        ))
+        rollout_index = next(
+            index
+            for index, command in enumerate(record["commands"])
+            if "kubectl rollout status" in command
+        )
+        rollout = record["commands"][rollout_index]
+        self.assertIn("--timeout=120s", rollout)
+        self.assertNotIn("--request-timeout", rollout)
+        self.assertEqual(record["timeouts"][rollout_index], "150")
+
+    def test_unchanged_image_skips_write_even_with_yes(self) -> None:
+        """当前镜像与目标一致时即使带 --yes 也不写入。"""
+        args = self.write_args(yes=True, image="registry.example.com/team/web:v1")
+        with self.fake_workbench(deployment=self.deployment_json()) as record:
+            ack.cmd_set_image(args)
+
+        self.assertFalse(any("kubectl set" in command for command in record["commands"]))
+
+    def test_multi_container_requires_explicit_container(self) -> None:
+        """多容器 Deployment 未指定 --container 时拒绝，且仍清理临时文件。"""
+        containers = [{"name": "web", "image": "a:1"}, {"name": "sidecar", "image": "b:1"}]
+        with self.fake_workbench(deployment=self.deployment_json(containers)) as record:
+            with self.assertRaisesRegex(ack.AckError, "web, sidecar"):
+                ack.cmd_set_image(self.write_args(yes=True))
+
+        self.assertFalse(any("kubectl set" in command for command in record["commands"]))
+        self.assertTrue(any("rm -f --" in command for command in record["commands"]))
+
+    def test_set_env_sets_and_unsets_changed_keys_only(self) -> None:
+        """set-env 只提交有变化的键，并固定指定目标容器。"""
+        args = self.write_args(yes=True, set=["MODE=new", "NEW_KEY=a b"], unset=["MISSING"])
+        with self.fake_workbench(deployment=self.deployment_json()) as record:
+            ack.cmd_set_env(args)
+
+        set_commands = [command for command in record["commands"] if "kubectl set" in command]
+        self.assertEqual(len(set_commands), 1)
+        self.assertIn(
+            "kubectl set env deployment/web --containers web MODE=new 'NEW_KEY=a b' --namespace prod",
+            set_commands[0],
+        )
+        self.assertNotIn("MISSING", set_commands[0])
+
+    def test_set_env_rejects_value_from_keys(self) -> None:
+        """引用 Secret/ConfigMap 的环境变量不允许被覆盖。"""
+        with self.fake_workbench(deployment=self.deployment_json()) as record:
+            with self.assertRaisesRegex(ack.AckError, "valueFrom"):
+                ack.cmd_set_env(self.write_args(yes=True, set=["TOKEN=plain"]))
+
+        self.assertFalse(any("kubectl set" in command for command in record["commands"]))
+
+    def test_invalid_write_input_fails_before_any_cloud_call(self) -> None:
+        """非法输入与白名单不命中都在节点、KubeConfig 和 Workbench 调用前失败。"""
+        cases = (
+            (ack.cmd_set_image, {"image": "registry.example.com/web"}, {}, "tag"),
+            (ack.cmd_set_image, {"image": "web:v1;whoami"}, {}, "镜像格式不合法"),
+            (ack.cmd_set_env, {"set": ["BAD-KEY=1"]}, {}, "环境变量名不合法"),
+            (ack.cmd_set_env, {"set": ["A=1\nB=2"]}, {}, "换行"),
+            (ack.cmd_set_env, {"set": ["A=1"], "unset": ["A"]}, {}, "重复指定"),
+            (ack.cmd_set_env, {}, {}, "至少需要"),
+            (ack.cmd_set_image, {"deployment": "web;id"}, {}, "Deployment 名"),
+            (
+                ack.cmd_set_image,
+                {},
+                {"ALIYUN_ACK_WRITE_NAMESPACES": "staging, test"},
+                "白名单",
+            ),
+            (
+                ack.cmd_set_image,
+                {},
+                {"ALIYUN_ACK_IMAGE_PREFIXES": "registry.example.com/other/"},
+                "白名单前缀",
+            ),
+            (ack.cmd_set_image, {"wait": True, "timeout": 900}, {}, "10~570"),
+        )
+        for command, overrides, env, message in cases:
+            with self.subTest(overrides=overrides, env=env), \
+                    mock.patch.dict(os.environ, env), \
+                    mock.patch.object(ack, "select_workbench_instance") as select, \
+                    mock.patch.object(ack, "fetch_kubeconfig") as kubeconfig, \
+                    mock.patch.object(ack, "run_process") as process:
+                with self.assertRaisesRegex(ack.AckError, message):
+                    command(self.write_args(**overrides))
+                select.assert_not_called()
+                kubeconfig.assert_not_called()
+                process.assert_not_called()
+
+    def test_allowlist_hit_is_shown_in_preview(self) -> None:
+        """白名单命中时预览显示生效中的白名单。"""
+        env = {
+            "ALIYUN_ACK_WRITE_NAMESPACES": "prod",
+            "ALIYUN_ACK_IMAGE_PREFIXES": "registry.example.com/team/",
+        }
+        with mock.patch.dict(os.environ, env), \
+                self.fake_workbench(deployment=self.deployment_json()) as record:
+            ack.cmd_set_image(self.write_args())
+
+        preview = record["output"].getvalue()
+        self.assertIn("命名空间白名单 : prod", preview)
+        self.assertIn("镜像前缀白名单 : registry.example.com/team/", preview)
+
+    def test_cleanup_failure_after_write_reports_write_applied(self) -> None:
+        """写入成功但远端清理失败时，错误明确说明写入已生效。"""
+        with self.fake_workbench(deployment=self.deployment_json(), cleanup_ok=False):
+            with self.assertRaisesRegex(ack.AckError, "写入已生效，但临时 KubeConfig 清理失败"):
+                ack.cmd_set_image(self.write_args(yes=True))
+
+    def test_rollout_status_is_readonly(self) -> None:
+        """rollout-status 只执行 rollout status，不读取或修改 Deployment。"""
+        args = self.write_args(timeout=60)
+        with self.fake_workbench() as record:
+            ack.cmd_rollout_status(args)
+
+        kubectl_commands = [command for command in record["commands"] if "kubectl" in command]
+        self.assertEqual(len(kubectl_commands), 1)
+        self.assertIn("kubectl rollout status deployment/web --namespace prod --timeout=60s", kubectl_commands[0])
 
     def test_cmd_get_redacts_secret_before_json_output(self) -> None:
         """Secret 直连响应在输出前完成脱敏。"""

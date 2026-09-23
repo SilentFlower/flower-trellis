@@ -345,16 +345,19 @@ def cmd_order(args, ak, sk):
     script = script.strip()
     tid = resolve_tid(ak, sk, args.tid)
 
+    # CreateDataCorrectOrder 在 2024-07-11 调整了 Param 对象字段名；
+    # 服务端按大小写解析，继续发送旧的小驼峰字段会被判定为缺少影响行数。
     param = {
-        "dbItemList": [{"dbId": int(args.db), "logic": bool(args.logic)}],
-        "sqlType": "TEXT",
-        "exeSQL": script,
-        "estimateAffectRows": int(args.rows),
-        "classify": args.classify or "",
+        "DbItemList": [{"DbId": int(args.db), "Logic": bool(args.logic)}],
+        "SqlType": "TEXT",
+        "ExecSQL": script,
+        "EstimateAffectRows": int(args.rows),
     }
+    if args.classify:
+        param["Classify"] = args.classify
     if args.rollback:
-        param["rollbackSqlType"] = "TEXT"
-        param["rollbackSQL"] = args.rollback
+        param["RollbackSqlType"] = "TEXT"
+        param["RollbackSQL"] = args.rollback
 
     print("=== 待提交的数据变更工单 ===")
     print(f"  Tid      : {tid}")
@@ -370,7 +373,6 @@ def cmd_order(args, ak, sk):
         "Tid": tid,
         "Comment": args.comment,
         "Param": json.dumps(param, ensure_ascii=False),
-        "EstimateAffectRows": int(args.rows),
     }, ak, sk)
     if st != 200 or not b.get("Success", True):
         return _fail(st, b, "CreateDataCorrectOrder")

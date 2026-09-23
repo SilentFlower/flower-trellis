@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""阿里云 ACK 与集群内 Kubernetes 资源的只读查询工具。"""
+"""阿里云 ACK 与集群内 Kubernetes 资源的只读查询与受控 Deployment 变更工具。"""
 
 import argparse
 import base64
@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -46,6 +47,19 @@ RESOURCE_API_GROUPS = {
 NOISE_METADATA_KEYS = ("managedFields",)
 SAFE_PATH_SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$")
 SAFE_INSTANCE_ID = re.compile(r"^i-[A-Za-z0-9]+$")
+SAFE_IMAGE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,511}$")
+SAFE_ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+# Workbench CLI 的进度动画以盲文点阵字符开头，对诊断没有价值。
+SPINNER_LINE = re.compile(r"^[\u2800-\u28ff]")
+WRITE_NAMESPACES_ENV = "ALIYUN_ACK_WRITE_NAMESPACES"
+IMAGE_PREFIXES_ENV = "ALIYUN_ACK_IMAGE_PREFIXES"
+UPLOAD_ATTEMPTS = 2
+DEFAULT_ROLLOUT_TIMEOUT = 300
+MIN_ROLLOUT_TIMEOUT = 10
+# Workbench 单次 exec 上限 600 秒，需给 rollout status 之外的连接开销预留 30 秒。
+MAX_ROLLOUT_TIMEOUT = 570
+ROLLOUT_EXEC_OVERHEAD = 30
 
 
 class AckError(RuntimeError):
@@ -58,9 +72,29 @@ def scrub(text):
     @param text: 待输出文本或对象。
     @return: 脱敏后的字符串。
     """
-    if not isinstance(text, str):
-        text = json.dumps(text, ensure_ascii=False)
+    if isinstance(text, BaseException):
+        text = str(text)
+    elif not isinstance(text, str):
+        text = json.dumps(text, ensure_ascii=False, default=str)
     return re.sub(r"(?:LTAI|STS)[0-9A-Za-z]+", "<AK>", text)
+
+
+def summarize_cli_output(text, limit=500):
+    """提取 CLI 输出中的有效诊断信息并脱敏。
+
+    Workbench 失败时会先输出大量进度动画帧，真实原因通常在末尾，
+    因此去除动画与 ANSI 转义后保留尾部内容。
+
+    @param text: CLI 原始输出。
+    @param limit: 最多保留的字符数。
+    @return: 脱敏后的诊断文本。
+    """
+    lines = [
+        line.strip()
+        for line in ANSI_ESCAPE.sub("", text or "").splitlines()
+        if line.strip() and not SPINNER_LINE.match(line.strip())
+    ]
+    return scrub("\n".join(lines))[-limit:]
 
 
 def cs_endpoint(region):
@@ -587,13 +621,14 @@ def workbench_common_args(args, instance_id):
     ]
 
 
-def run_workbench_exec(args, instance_id, command, operation):
+def run_workbench_exec(args, instance_id, command, operation, timeout=None):
     """执行 Workbench 非交互命令并校验结构化结果。
 
-    @param args: get 子命令参数。
+    @param args: 含 region/profile/超时的命令行参数。
     @param instance_id: ECS 实例 ID。
     @param command: 固定规则生成的远端命令。
     @param operation: 错误信息中的操作名称。
+    @param timeout: 单次执行超时秒数；``None`` 时使用 ``--workbench-timeout``。
     @return: Workbench JSON 响应对象。
     """
     result = run_process(
@@ -602,13 +637,13 @@ def run_workbench_exec(args, instance_id, command, operation):
             "exec",
             *workbench_common_args(args, instance_id),
             "--timeout",
-            str(args.workbench_timeout),
+            str(timeout or args.workbench_timeout),
             "--command",
             command,
         ]
     )
     if result.returncode != 0:
-        detail = scrub(result.stderr or result.stdout)[:500]
+        detail = summarize_cli_output(f"{result.stderr}\n{result.stdout}")
         raise AckError(f"Workbench {operation} 失败: {detail}")
     try:
         payload = json.loads(result.stdout)
@@ -646,13 +681,84 @@ def remove_local_secret(path):
     path.unlink()
 
 
-def get_via_workbench(args):
-    """通过 ACK Worker 和 Workbench 查询只读 Kubernetes JSON。
+class WorkbenchSession:
+    """一次 Workbench 会话内共享的远端 kubectl 执行器。"""
 
-    @param args: get 子命令参数。
-    @return: Kubernetes 响应对象。
+    def __init__(self, args, instance_id, remote_path):
+        """记录会话参数。
+
+        @param args: 命令行参数。
+        @param instance_id: 目标 ECS 实例 ID。
+        @param remote_path: 远端临时 KubeConfig 路径。
+        """
+        self.args = args
+        self.instance_id = instance_id
+        self.remote_path = remote_path
+        # 清理失败时用于告知用户主流程的真实结果，写入后必须改为“写入已生效”。
+        self.outcome = "查询成功"
+
+    def run(self, kubectl_args, operation, timeout=None):
+        """在 Worker 上执行一条由固定参数构造的 kubectl 命令。
+
+        @param kubectl_args: 已校验的 kubectl 参数数组。
+        @param operation: 错误信息中的操作名称。
+        @param timeout: 单次执行超时秒数；``None`` 时使用默认值。
+        @return: Workbench JSON 响应对象。
+        """
+        command_parts = ["env", f"KUBECONFIG={self.remote_path}", "kubectl", *kubectl_args]
+        remote_command = (
+            f"{shlex.join(['chmod', '600', '--', self.remote_path])} && "
+            f"{shlex.join(command_parts)}"
+        )
+        return run_workbench_exec(
+            self.args,
+            self.instance_id,
+            remote_command,
+            operation,
+            timeout=timeout,
+        )
+
+
+def upload_kubeconfig(args, instance_id, local_path):
+    """上传临时 KubeConfig，偶发失败时重试。
+
+    Workbench 上传偶发失败且重试即可成功；``--force`` 覆盖同名文件，重试天然幂等。
+
+    @param args: 命令行参数。
+    @param instance_id: 目标 ECS 实例 ID。
+    @param local_path: 本地临时 KubeConfig 路径。
+    @return: 无返回值。
     """
-    build_k8s_path(args)
+    detail = ""
+    for _ in range(UPLOAD_ATTEMPTS):
+        upload = run_process(
+            [
+                "workbench",
+                "upload",
+                str(local_path),
+                "/tmp/",
+                *workbench_common_args(args, instance_id),
+                "--force",
+            ]
+        )
+        if upload.returncode == 0:
+            return
+        detail = summarize_cli_output(f"{upload.stderr}\n{upload.stdout}")
+    raise AckError(
+        f"Workbench 上传临时 KubeConfig 失败（共尝试 {UPLOAD_ATTEMPTS} 次）: {detail}"
+    )
+
+
+@contextmanager
+def workbench_kubectl_session(args):
+    """建立 Workbench 会话并保证临时 KubeConfig 在两端被清理。
+
+    会话内的主错误与清理错误合并报告；主流程成功但清理失败时整体失败，
+    并用 ``session.outcome`` 说明主流程结果，避免用户误判变更是否生效。
+
+    @param args: 含集群、实例、profile、有效期与超时的命令行参数。
+    @return: 生成 ``WorkbenchSession`` 的上下文管理器。
+    """
     if not shutil.which("workbench"):
         raise AckError("未找到 workbench CLI，请先安装并配置可用 profile")
     minutes = args.minutes or DEFAULT_TEMPORARY_MINUTES
@@ -666,66 +772,29 @@ def get_via_workbench(args):
     local_path = None
     remote_path = None
     upload_attempted = False
-    query_error = None
+    session = None
+    primary_error = None
     cleanup_errors = []
-    body = None
     try:
         temp_dir = Path(tempfile.mkdtemp(prefix="aliyun-ops-ack-"))
         local_path = temp_dir / f"kubeconfig-{uuid.uuid4().hex}.yaml"
         remote_path = f"/tmp/{local_path.name}"
         write_private_text_file(local_path, config_text)
-
         upload_attempted = True
-        upload = run_process(
-            [
-                "workbench",
-                "upload",
-                str(local_path),
-                "/tmp/",
-                *workbench_common_args(args, instance_id),
-                "--force",
-            ]
-        )
-        if upload.returncode != 0:
-            detail = scrub(upload.stderr or upload.stdout)[:500]
-            raise AckError(f"Workbench 上传临时 KubeConfig 失败: {detail}")
-
-        command_parts = [
-            "env",
-            f"KUBECONFIG={remote_path}",
-            "kubectl",
-            "get",
-            args.resource,
-            "--namespace",
-            args.namespace,
-        ]
-        if args.name:
-            command_parts.append(args.name)
-        command_parts.extend(["--output", "json", "--request-timeout", "20s"])
-        remote_command = (
-            f"{shlex.join(['chmod', '600', '--', remote_path])} && "
-            f"{shlex.join(command_parts)}"
-        )
-        payload = run_workbench_exec(
-            args,
-            instance_id,
-            remote_command,
-            "kubectl get",
-        )
-        try:
-            body = json.loads(payload.get("stdout", ""))
-        except json.JSONDecodeError:
-            raise AckError("kubectl 未返回合法 JSON") from None
+        upload_kubeconfig(args, instance_id, local_path)
+        session = WorkbenchSession(args, instance_id, remote_path)
+        yield session
     except (AckError, OSError) as error:
-        query_error = error
+        primary_error = error
     finally:
         try:
             if upload_attempted and remote_path:
                 try:
+                    # 上传可能未落盘，rm -f 保证清理幂等，避免误报残留。
                     run_workbench_exec(
                         args,
                         instance_id,
-                        shlex.join(["unlink", "--", remote_path]),
+                        shlex.join(["rm", "-f", "--", remote_path]),
                         "清理远端临时 KubeConfig",
                     )
                 except Exception as error:
@@ -743,11 +812,31 @@ def get_via_workbench(args):
                     cleanup_errors.append(f"本地临时目录 {temp_dir}: {error}")
 
     cleanup_detail = "；".join(cleanup_errors)
-    if query_error:
+    if primary_error:
         suffix = f"；同时清理失败: {cleanup_detail}" if cleanup_detail else ""
-        raise AckError(f"{query_error}{suffix}") from None
+        raise AckError(f"{primary_error}{suffix}") from None
     if cleanup_detail:
-        raise AckError(f"查询成功，但临时 KubeConfig 清理失败: {cleanup_detail}")
+        outcome = session.outcome if session else "查询成功"
+        raise AckError(f"{outcome}，但临时 KubeConfig 清理失败: {cleanup_detail}")
+
+
+def get_via_workbench(args):
+    """通过 ACK Worker 和 Workbench 查询只读 Kubernetes JSON。
+
+    @param args: get 子命令参数。
+    @return: Kubernetes 响应对象。
+    """
+    build_k8s_path(args)
+    kubectl_args = ["get", args.resource, "--namespace", args.namespace]
+    if args.name:
+        kubectl_args.append(args.name)
+    kubectl_args.extend(["--output", "json", "--request-timeout", "20s"])
+    with workbench_kubectl_session(args) as session:
+        payload = session.run(kubectl_args, "kubectl get")
+        try:
+            body = json.loads(payload.get("stdout", ""))
+        except json.JSONDecodeError:
+            raise AckError("kubectl 未返回合法 JSON") from None
     return body
 
 
@@ -765,12 +854,369 @@ def cmd_get(args):
     render_k8s_items(items, args)
 
 
+def read_allowlist(env_name):
+    """读取逗号分隔的写入白名单。
+
+    @param env_name: 环境变量名。
+    @return: 去空后的白名单列表；未配置时为空列表。
+    """
+    return [item.strip() for item in os.environ.get(env_name, "").split(",") if item.strip()]
+
+
+def validate_write_namespace(namespace):
+    """校验写命令的命名空间格式与可选白名单。
+
+    @param namespace: 命名空间。
+    @return: 原始命名空间。
+    """
+    validate_path_segment(namespace, "命名空间")
+    allowed = read_allowlist(WRITE_NAMESPACES_ENV)
+    if allowed and namespace not in allowed:
+        raise AckError(
+            f"命名空间 {namespace!r} 不在 {WRITE_NAMESPACES_ENV} 白名单内: {', '.join(allowed)}"
+        )
+    return namespace
+
+
+def validate_image(image):
+    """校验镜像引用格式与可选仓库前缀白名单。
+
+    @param image: 完整镜像引用。
+    @return: 原始镜像引用。
+    """
+    if not SAFE_IMAGE.fullmatch(image or ""):
+        raise AckError(f"镜像格式不合法: {image!r}")
+    # 必须显式指定 tag 或 digest，避免隐式 latest 让回退目标不可追溯。
+    if ":" not in image.rsplit("/", 1)[-1] and "@sha256:" not in image:
+        raise AckError(f"镜像必须包含 :tag 或 @sha256: digest: {image!r}")
+    prefixes = read_allowlist(IMAGE_PREFIXES_ENV)
+    if prefixes and not any(image.startswith(prefix) for prefix in prefixes):
+        raise AckError(
+            f"镜像 {image!r} 不匹配 {IMAGE_PREFIXES_ENV} 白名单前缀: {', '.join(prefixes)}"
+        )
+    return image
+
+
+def validate_rollout_timeout(timeout):
+    """校验 rollout status 等待秒数。
+
+    @param timeout: 等待秒数。
+    @return: 原始秒数。
+    """
+    if not MIN_ROLLOUT_TIMEOUT <= timeout <= MAX_ROLLOUT_TIMEOUT:
+        raise AckError(
+            f"rollout 等待时间必须在 {MIN_ROLLOUT_TIMEOUT}~{MAX_ROLLOUT_TIMEOUT} 秒之间"
+        )
+    return timeout
+
+
+def parse_env_changes(set_items, unset_items):
+    """解析 set-env 的变更集合。
+
+    @param set_items: ``KEY=VALUE`` 列表。
+    @param unset_items: 待删除键列表。
+    @return: 键到目标值的有序字典，目标值 ``None`` 表示删除。
+    """
+    changes = {}
+    for raw in set_items or []:
+        key, separator, value = raw.partition("=")
+        if not separator:
+            raise AckError(f"--set 必须是 KEY=VALUE 形式: {raw!r}")
+        if any(char in value for char in "\r\n\x00"):
+            raise AckError(f"环境变量 {key} 的值不能包含换行或 NUL")
+        changes.setdefault(key, [])
+        changes[key].append(value)
+    for key in unset_items or []:
+        changes.setdefault(key, [])
+        changes[key].append(None)
+    if not changes:
+        raise AckError("set-env 至少需要一个 --set 或 --unset")
+    result = {}
+    for key, values in changes.items():
+        if not SAFE_ENV_KEY.fullmatch(key):
+            raise AckError(f"环境变量名不合法: {key!r}")
+        if len(values) > 1:
+            raise AckError(f"环境变量 {key} 被重复指定")
+        result[key] = values[0]
+    return result
+
+
+def pick_container(deployment, container_name):
+    """从 Deployment 中选出目标容器。
+
+    @param deployment: Deployment JSON 对象。
+    @param container_name: 用户指定的容器名；``None`` 时仅在单容器时自动选择。
+    @return: 容器对象。
+    """
+    containers = [
+        item
+        for item in (
+            deployment.get("spec", {}).get("template", {}).get("spec", {}).get("containers")
+            or []
+        )
+        if isinstance(item, dict)
+    ]
+    names = [str(item.get("name", "")) for item in containers]
+    if container_name:
+        for item in containers:
+            if item.get("name") == container_name:
+                return item
+        raise AckError(f"Deployment 中没有容器 {container_name!r}；现有容器: {', '.join(names)}")
+    if len(containers) != 1:
+        raise AckError(f"Deployment 有 {len(containers)} 个容器，请用 --container 指定: {', '.join(names)}")
+    return containers[0]
+
+
+def plan_image_change(container, image):
+    """计算镜像变更。
+
+    @param container: 目标容器对象。
+    @param image: 目标镜像。
+    @return: ``(显示名, 当前值, 目标值, kubectl 参数)`` 列表。
+    """
+    current = container.get("image", "")
+    if current == image:
+        return []
+    return [("image", current, image, f"{container['name']}={image}")]
+
+
+def plan_env_changes(container, changes):
+    """计算环境变量变更，拒绝修改引用 Secret/ConfigMap 的键。
+
+    @param container: 目标容器对象。
+    @param changes: 键到目标值的字典，``None`` 表示删除。
+    @return: ``(显示名, 当前值, 目标值, kubectl 参数)`` 列表。
+    """
+    current_env = {
+        item.get("name"): item
+        for item in container.get("env") or []
+        if isinstance(item, dict)
+    }
+    planned = []
+    for key, target in changes.items():
+        item = current_env.get(key)
+        # valueFrom 指向 Secret/ConfigMap，被覆盖为明文值会破坏密钥引用。
+        if item is not None and "valueFrom" in item:
+            raise AckError(f"环境变量 {key} 当前通过 valueFrom 引用 Secret/ConfigMap，拒绝修改")
+        current = None if item is None else item.get("value", "")
+        if current == target:
+            continue
+        token = f"{key}-" if target is None else f"{key}={target}"
+        planned.append((f"env {key}", current, target, token))
+    return planned
+
+
+def describe_value(value):
+    """把变更值转换为预览文本。
+
+    @param value: 当前值或目标值，``None`` 表示不存在。
+    @return: 预览文本。
+    """
+    return "<未设置>" if value is None else repr(value)
+
+
+def run_rollout_status(session, args, timeout):
+    """在 Workbench 会话内等待 Deployment 滚动发布完成。
+
+    @param session: Workbench 会话。
+    @param args: 含 namespace/deployment 的命令行参数。
+    @param timeout: 等待秒数。
+    @return: 无返回值。
+    """
+    # rollout status 依赖长连接 watch，不能附加 --request-timeout，否则会被提前中断。
+    payload = session.run(
+        [
+            "rollout",
+            "status",
+            f"deployment/{args.deployment}",
+            "--namespace",
+            args.namespace,
+            f"--timeout={timeout}s",
+        ],
+        "kubectl rollout status",
+        timeout=timeout + ROLLOUT_EXEC_OVERHEAD,
+    )
+    print((payload.get("stdout") or "").strip())
+
+
+def apply_deployment_change(args, plan, verb_args):
+    """读取 Deployment、输出预览，并在 ``--yes`` 时执行受控变更。
+
+    @param args: 写命令参数。
+    @param plan: 以容器对象为入参、返回变更列表的函数。
+    @param verb_args: 以容器名为入参、返回 kubectl 动词参数的函数。
+    @return: 无返回值。
+    """
+    validate_write_namespace(args.namespace)
+    validate_path_segment(args.deployment, "Deployment 名")
+    if args.container:
+        validate_path_segment(args.container, "容器名")
+    rollout_timeout = validate_rollout_timeout(args.timeout) if args.wait else None
+
+    with workbench_kubectl_session(args) as session:
+        payload = session.run(
+            [
+                "get",
+                "deployment",
+                args.deployment,
+                "--namespace",
+                args.namespace,
+                "--output",
+                "json",
+                "--request-timeout",
+                "20s",
+            ],
+            "读取 Deployment",
+        )
+        try:
+            deployment = json.loads(payload.get("stdout", ""))
+        except json.JSONDecodeError:
+            raise AckError("kubectl 未返回合法 Deployment JSON") from None
+        container = pick_container(deployment, args.container)
+        container_name = validate_path_segment(container.get("name", ""), "容器名")
+        changes = plan(container)
+
+        namespaces = read_allowlist(WRITE_NAMESPACES_ENV)
+        prefixes = read_allowlist(IMAGE_PREFIXES_ENV)
+        print("=== 待执行的 Deployment 变更 ===")
+        print(f"  集群       : {args.cluster}")
+        print(f"  命名空间   : {args.namespace}")
+        print(f"  Deployment : {args.deployment}")
+        print(f"  容器       : {container_name}")
+        print(f"  命名空间白名单 : {', '.join(namespaces) if namespaces else '未配置（不限制）'}")
+        print(f"  镜像前缀白名单 : {', '.join(prefixes) if prefixes else '未配置（不限制）'}")
+        if not changes:
+            print("  变更       : 无（当前值与目标值一致）")
+            print("[ack] 无需变更，未执行写入。", file=sys.stderr)
+            return
+        for label, current, target, _ in changes:
+            print(f"  {label}: {describe_value(current)} → {describe_value(target)}")
+        if not args.yes:
+            print("[ack] 仅预览，未执行。确认无误后加 --yes 重跑。", file=sys.stderr)
+            return
+
+        session.run(
+            [
+                *verb_args(container_name),
+                *(token for *_, token in changes),
+                "--namespace",
+                args.namespace,
+                "--request-timeout",
+                "20s",
+            ],
+            "kubectl set",
+        )
+        session.outcome = "写入已生效"
+        print("[ack] 变更已提交。")
+        if rollout_timeout:
+            try:
+                run_rollout_status(session, args, rollout_timeout)
+            except AckError as error:
+                raise AckError(f"写入已生效，但等待发布失败: {error}") from None
+
+
+def cmd_set_image(args):
+    """受控切换 Deployment 容器镜像。
+
+    @param args: set-image 子命令参数。
+    @return: 无返回值。
+    """
+    image = validate_image(args.image)
+    apply_deployment_change(
+        args,
+        lambda container: plan_image_change(container, image),
+        lambda _: ["set", "image", f"deployment/{args.deployment}"],
+    )
+
+
+def cmd_set_env(args):
+    """受控设置或删除 Deployment 容器环境变量。
+
+    @param args: set-env 子命令参数。
+    @return: 无返回值。
+    """
+    changes = parse_env_changes(args.set, args.unset)
+    apply_deployment_change(
+        args,
+        lambda container: plan_env_changes(container, changes),
+        lambda container_name: [
+            "set",
+            "env",
+            f"deployment/{args.deployment}",
+            "--containers",
+            container_name,
+        ],
+    )
+
+
+def cmd_rollout_status(args):
+    """只读等待并输出 Deployment 滚动发布状态。
+
+    @param args: rollout-status 子命令参数。
+    @return: 无返回值。
+    """
+    validate_path_segment(args.namespace, "命名空间")
+    validate_path_segment(args.deployment, "Deployment 名")
+    timeout = validate_rollout_timeout(args.timeout)
+    with workbench_kubectl_session(args) as session:
+        run_rollout_status(session, args, timeout)
+
+
+def add_workbench_arguments(parser):
+    """为经 Workbench 执行的子命令添加共享参数。
+
+    @param parser: 子命令解析器。
+    @return: 无返回值。
+    """
+    parser.add_argument("--minutes", type=int, help="临时凭据有效分钟数，15~4320")
+    parser.add_argument("--instance-id", help="Workbench 目标 ECS；不传则自动选 Worker")
+    parser.add_argument(
+        "--workbench-profile",
+        default=DEFAULT_WORKBENCH_PROFILE,
+        help=f"Workbench profile，默认 {DEFAULT_WORKBENCH_PROFILE}",
+    )
+    parser.add_argument(
+        "--workbench-timeout",
+        type=int,
+        default=60,
+        help="Workbench 单次命令超时秒数，默认 60",
+    )
+
+
+def add_deployment_arguments(parser, wait_flag):
+    """为 Deployment 变更类子命令添加共享参数。
+
+    @param parser: 子命令解析器。
+    @param wait_flag: 是否提供 ``--wait``（写命令）而非必等（rollout-status）。
+    @return: 无返回值。
+    """
+    parser.add_argument("--cluster", required=True, help="集群 ID")
+    parser.add_argument("--namespace", required=True, help="命名空间")
+    parser.add_argument("--deployment", required=True, help="Deployment 名")
+    if wait_flag:
+        parser.add_argument("--container", help="容器名；Deployment 只有一个容器时可省略")
+        parser.add_argument("--wait", action="store_true", help="写入后等待 rollout 完成")
+        parser.add_argument("--yes", action="store_true", help="确认执行；不传只输出预览")
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=DEFAULT_ROLLOUT_TIMEOUT,
+        help=(
+            f"rollout 等待秒数，{MIN_ROLLOUT_TIMEOUT}~{MAX_ROLLOUT_TIMEOUT}，"
+            f"默认 {DEFAULT_ROLLOUT_TIMEOUT}"
+        ),
+    )
+    add_workbench_arguments(parser)
+
+
 def build_parser():
     """构造 ACK CLI 参数解析器。
 
     @return: 配置完成的 ``ArgumentParser``。
     """
-    parser = argparse.ArgumentParser(description="阿里云 ACK 只读查询（stdlib-only）")
+    parser = argparse.ArgumentParser(
+        description="阿里云 ACK 只读查询与受控 Deployment 变更（stdlib-only）"
+    )
     parser.add_argument("--env-file", help="私有 ENV 文件，默认 ~/.config/aliyun-ops/env")
     parser.add_argument("--region", default=DEFAULT_REGION, help=f"地域，默认 {DEFAULT_REGION}")
     parser.add_argument("--ak-env", default="ALIYUN_ACCESS_KEY_ID", help="AK 所在环境变量名")
@@ -822,31 +1268,40 @@ def build_parser():
     get_cmd.add_argument("--format", choices=("json", "summary"), default="json")
     get_cmd.add_argument("--keep-status", action="store_true", help="保留 status 段")
     get_cmd.add_argument("--internal", action="store_true", help="直连时使用内网 APIServer")
-    get_cmd.add_argument("--minutes", type=int, help="临时凭据有效分钟数，15~4320")
     get_cmd.add_argument("--save", help="把 JSON 保存到文件")
     get_cmd.add_argument(
         "--via-workbench",
         action="store_true",
         help="经 ACK Worker 和 Workbench 访问私网 APIServer",
     )
-    get_cmd.add_argument("--instance-id", help="Workbench 目标 ECS；不传则自动选 Worker")
-    get_cmd.add_argument(
-        "--workbench-profile",
-        default=DEFAULT_WORKBENCH_PROFILE,
-        help=f"Workbench profile，默认 {DEFAULT_WORKBENCH_PROFILE}",
-    )
-    get_cmd.add_argument(
-        "--workbench-timeout",
-        type=int,
-        default=60,
-        help="Workbench 单次命令超时秒数，默认 60",
-    )
+    add_workbench_arguments(get_cmd)
     get_cmd.set_defaults(func=cmd_get)
+
+    set_image = subparsers.add_parser(
+        "set-image",
+        help="受控切换 Deployment 容器镜像（经 Workbench；默认预览，--yes 执行）",
+    )
+    add_deployment_arguments(set_image, wait_flag=True)
+    set_image.add_argument("--image", required=True, help="目标镜像，须含 :tag 或 @sha256:")
+    set_image.set_defaults(func=cmd_set_image)
+
+    set_env = subparsers.add_parser(
+        "set-env",
+        help="受控设置或删除 Deployment 容器环境变量（经 Workbench；默认预览，--yes 执行）",
+    )
+    add_deployment_arguments(set_env, wait_flag=True)
+    set_env.add_argument("--set", action="append", metavar="KEY=VALUE", help="设置环境变量，可重复")
+    set_env.add_argument("--unset", action="append", metavar="KEY", help="删除环境变量，可重复")
+    set_env.set_defaults(func=cmd_set_env)
+
+    rollout = subparsers.add_parser("rollout-status", help="只读等待 Deployment 滚动发布结果")
+    add_deployment_arguments(rollout, wait_flag=False)
+    rollout.set_defaults(func=cmd_rollout_status)
     return parser
 
 
 def main():
-    """加载 ACK 凭证并分发只读子命令。
+    """加载 ACK 凭证并分发子命令。
 
     @return: 进程退出码。
     """
