@@ -73,6 +73,7 @@ from common.task_context import (
     cmd_list_context,
 )
 
+
 # =============================================================================
 # Command: start / finish
 # =============================================================================
@@ -258,6 +259,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     return 0
 # END skill-garden patch task-start-session-write-gate v0.6
 
+
 # BEGIN skill-garden patch task-finish-clear-result v0.6
 def cmd_finish(args: argparse.Namespace) -> int:
     """Clear the active task only when session cleanup succeeds."""
@@ -280,6 +282,7 @@ def cmd_finish(args: argparse.Namespace) -> int:
         run_task_hooks("after_finish", task_json_path, repo_root)
     return 0
 # END skill-garden patch task-finish-clear-result v0.6
+
 
 # BEGIN skill-garden patch task-current-query-contract v0.6
 def cmd_current(args: argparse.Namespace) -> int:
@@ -323,6 +326,7 @@ def cmd_current(args: argparse.Namespace) -> int:
     return 0
 # END skill-garden patch task-current-query-contract v0.6
 
+
 # =============================================================================
 # Command: list
 # =============================================================================
@@ -343,6 +347,7 @@ def _display_status(t, all_statuses: dict) -> str:
         if child_in_flight:
             return "active"
     return t.status
+
 
 def cmd_list(args: argparse.Namespace) -> int:
     """List active, closed, or all tasks through shared lifecycle views.
@@ -454,11 +459,9 @@ def cmd_list(args: argparse.Namespace) -> int:
     print(f"Total: {count} task(s)")
     return 0
 
-# BEGIN skill-garden patch task-lifecycle-prune-legacy-closed-view v0.6
-# END skill-garden patch task-lifecycle-prune-legacy-closed-view v0.6
 
 # =============================================================================
-# Help
+# Command: list-archive
 # =============================================================================
 
 def show_usage() -> None:
@@ -514,6 +517,7 @@ Examples:
   python3 task.py list --mine                        # List my tasks only
   python3 task.py list --mine --status in_progress   # List my in-progress tasks
 """)
+
 
 # =============================================================================
 # Main Entry
@@ -708,6 +712,7 @@ def main() -> int:
     else:
         show_usage()
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

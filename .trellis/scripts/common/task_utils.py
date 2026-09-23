@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .paths import get_repo_root, get_tasks_dir
 
+
 # =============================================================================
 # Path Safety
 # =============================================================================
@@ -64,6 +65,7 @@ def is_safe_task_path(task_path: str, repo_root: Path | None = None) -> bool:
 
     return True
 
+
 def find_task_by_name(task_name: str, tasks_dir: Path) -> Path | None:
     """Find task directory by name (exact or suffix match).
 
@@ -89,8 +91,6 @@ def find_task_by_name(task_name: str, tasks_dir: Path) -> Path | None:
 
     return None
 
-# BEGIN skill-garden patch task-lifecycle-prune-legacy-utils v0.6
-# END skill-garden patch task-lifecycle-prune-legacy-utils v0.6
 
 # =============================================================================
 # Task Directory Resolution
@@ -246,6 +246,7 @@ def resolve_task_reference(task_ref: str, repo_root: Path) -> Path:
     return resolve_active_task_reference(task_ref, repo_root)
 # END skill-garden patch task-reference-resolution v0.6
 
+
 # =============================================================================
 # Lifecycle Hooks
 # =============================================================================
@@ -294,6 +295,7 @@ def run_task_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
                 colored(f"[WARN] Hook error ({event}): {cmd} — {e}", Colors.YELLOW),
                 file=sys.stderr,
             )
+
 
 # =============================================================================
 # Main Entry (for testing)

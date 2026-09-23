@@ -45,6 +45,7 @@ from .paths import (
     get_developer,
 )
 
+
 # Paths under .trellis/ that must NEVER be auto-staged. Listed here so the
 # warning to the user can show concrete subpaths to ignore individually
 # instead of ignoring the whole `.trellis/` tree.
@@ -55,6 +56,7 @@ TRELLIS_IGNORED_SUBPATHS = (
     ".trellis/.runtime/",
     ".trellis/.cache/",
 )
+
 
 def safe_trellis_paths_to_add(
     repo_root: Path,
@@ -103,6 +105,7 @@ def _stderr_indicates_ignored(stderr: str) -> bool:
     lowered = stderr.lower()
     return "ignored by" in lowered
 
+
 def safe_git_add(
     paths: list[str], repo_root: Path
 ) -> tuple[bool, bool, str]:
@@ -126,6 +129,7 @@ def safe_git_add(
     if rc == 0:
         return True, False, ""
     return False, False, err
+
 
 def print_gitignore_warning(paths: list[str]) -> None:
     """Explain to the user (and any AI reading the log) what to do.

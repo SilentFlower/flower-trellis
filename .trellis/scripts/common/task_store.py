@@ -49,6 +49,7 @@ from .task_utils import (
     run_task_hooks,
 )
 
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -60,6 +61,7 @@ def _slugify(title: str) -> str:
     result = re.sub(r"-+", "-", result)
     result = result.strip("-")
     return result
+
 
 def ensure_tasks_dir(repo_root: Path) -> Path:
     """Ensure tasks directory exists."""
@@ -75,6 +77,7 @@ def ensure_tasks_dir(repo_root: Path) -> Path:
 
     return tasks_dir
 
+
 def _find_archived_task_by_dir_name(tasks_dir: Path, dir_name: str) -> Path | None:
     """Find an archived task directory with the exact active-task dir name."""
     archive_dir = tasks_dir / DIR_ARCHIVE
@@ -89,6 +92,7 @@ def _find_archived_task_by_dir_name(tasks_dir: Path, dir_name: str) -> Path | No
             return candidate
 
     return None
+
 
 def _repo_relative_path(path: Path, repo_root: Path) -> str:
     """Format a path relative to the repo root when possible."""
@@ -135,6 +139,7 @@ def _write_task_pair(
     return False, first_restored and second_restored
 # END skill-garden patch task-store-write-helpers v0.6
 
+
 # =============================================================================
 # Sub-agent platform detection + JSONL seeding
 # =============================================================================
@@ -171,6 +176,7 @@ _SEED_EXAMPLE = (
     "Delete this line once real entries are added."
 )
 
+
 def _has_subagent_platform(repo_root: Path) -> bool:
     """Return True if any sub-agent-capable platform is configured.
 
@@ -186,6 +192,7 @@ def _has_subagent_platform(repo_root: Path) -> bool:
         return get_codex_dispatch_mode(repo_root) == "auto"
     return False
 
+
 def _write_seed_jsonl(path: Path) -> None:
     """Write a one-line seed JSONL file with a self-describing ``_example``.
 
@@ -195,6 +202,7 @@ def _write_seed_jsonl(path: Path) -> None:
     """
     seed = {"_example": _SEED_EXAMPLE}
     path.write_text(json.dumps(seed, ensure_ascii=False) + "\n", encoding="utf-8")
+
 
 def _parse_meta_pairs(pairs: list[str] | None) -> dict[str, str] | None:
     """Parse repeatable ``--meta key=value`` pairs into a dict.
@@ -214,6 +222,7 @@ def _parse_meta_pairs(pairs: list[str] | None) -> dict[str, str] | None:
             return None
         meta[key] = value
     return meta
+
 
 def _default_prd_content(title: str, description: str | None = None) -> str:
     """Return the default PRD skeleton created with every task."""
@@ -239,6 +248,7 @@ def _default_prd_content(title: str, description: str | None = None) -> str:
 - Lightweight tasks can remain PRD-only.
 - For complex tasks, add `design.md` for technical design and `implement.md` for execution planning before `task.py start`.
 """
+
 
 # =============================================================================
 # Command: create
@@ -559,6 +569,7 @@ def cmd_create(args: argparse.Namespace) -> int:
     run_task_hooks("after_create", task_json_path, repo_root)
     return 0
 
+
 # =============================================================================
 # Command: add-subtask
 # =============================================================================
@@ -631,6 +642,7 @@ def cmd_add_subtask(args: argparse.Namespace) -> int:
 # END skill-garden patch task-add-subtask-pair-write v0.6
     return 0
 
+
 # =============================================================================
 # Command: remove-subtask
 # =============================================================================
@@ -697,6 +709,7 @@ def cmd_remove_subtask(args: argparse.Namespace) -> int:
 # END skill-garden patch task-remove-subtask-pair-write v0.6
     return 0
 
+
 # =============================================================================
 # Command: set-branch
 # =============================================================================
@@ -730,6 +743,7 @@ def cmd_set_branch(args: argparse.Namespace) -> int:
 
     print(colored(f"✓ Branch set to: {branch}", Colors.GREEN))
     return 0
+
 
 # =============================================================================
 # Command: set-base-branch
@@ -769,6 +783,7 @@ def cmd_set_base_branch(args: argparse.Namespace) -> int:
     print(f"  PR will target: {base_branch}")
     return 0
 
+
 # =============================================================================
 # Command: set-scope
 # =============================================================================
@@ -802,6 +817,7 @@ def cmd_set_scope(args: argparse.Namespace) -> int:
 
     print(colored(f"✓ Scope set to: {scope}", Colors.GREEN))
     return 0
+
 
 # =============================================================================
 # Command: set-meta
