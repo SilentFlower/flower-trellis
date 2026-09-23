@@ -301,7 +301,8 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
         if module.should_skip_injection():
             return None
         builder = module._build_workflow_toc if hook == HOOKS[0] else module._build_workflow_overview
-        context = split_workflow(builder(root / ".trellis/workflow.md"))[part]
+        platform = "codex" if hook == HOOKS[0] else "claude"
+        context = split_workflow(builder(root / ".trellis/workflow.md", platform))[part]
         result = {"hookSpecificOutput": {"hookEventName": "SessionStart"}}
 
     context = f'<trellis-session-part name="{part}">\n{context}\n</trellis-session-part>'

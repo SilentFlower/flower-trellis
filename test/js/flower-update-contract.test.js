@@ -24,7 +24,10 @@ test("Flower 更新完成后必须加载 trellis-push", () => {
   assert.match(command, /不得用自行 Git 检查或手写计划替代/);
   assert.match(command, /post_action: "run_trellis_push_confirmation"/);
   assert.match(hook, /priority: blocking_confirmation_required/);
+  assert.match(hook, /普通请求路由前/);
   assert.match(hook, /确认前禁止执行 recommended_command/);
+  assert.match(hook, /执行 snooze_command/);
+  assert.match(hook, /执行 skip_command/);
   assert.match(sourceWorkflow, /Flower Update Confirmation \| SessionStart update context \+ Flower CLI/);
   assert.doesNotMatch(sourceWorkflow, /load and follow\s+`trellis-push` before any Git inspection/);
   assert.equal(snapshotWorkflow, sourceWorkflow);

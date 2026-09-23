@@ -179,6 +179,43 @@ if __name__ == "__main__":
                 self.assertNotIn("<current-state>", texts["rules"] + texts["stages"])
         self.assertEqual((self.root / "shell.env").read_text(encoding="utf-8").count("export TRELLIS_CONTEXT_ID="), 1)
 
+    def test_native_output_trims_ready_and_keeps_platform_dispatch_contracts(self) -> None:
+        """原生输出删除重复 ready，并按平台保留共同规则与自身特例。"""
+        common = "Every sub-agent dispatch prompt, including `trellis-research`"
+        for platform in ("codex", "claude"):
+            with self.subTest(platform=platform):
+                result = self.run_hook(platform)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+                workflow = SESSION.WORKFLOW_BLOCK.search(context).group(1)
+                self.assertNotIn("<ready>", context)
+                self.assertIn(common, workflow)
+                self.assertIn("enter `trellis-route` first", workflow)
+                if platform == "codex":
+                    self.assertIn("Codex uses native `SubagentStart`", workflow)
+                else:
+                    self.assertNotIn("Codex uses native `SubagentStart`", workflow)
+                self.assertNotIn("On Grok Build", workflow)
+                self.assertNotIn("On Kimi Code", workflow)
+
+        shared = SESSION._load_hook(self.root, SESSION.HOOKS[1])
+        workflow_path = self.root / ".trellis/workflow.md"
+        for platform, own_detail, other_detail in (
+            ("grok", "On Grok Build", "On Kimi Code"),
+            ("kimi", "On Kimi Code", "On Grok Build"),
+        ):
+            with self.subTest(platform=platform):
+                summary = shared._build_workflow_overview(workflow_path, platform)
+                self.assertIn(common, summary)
+                self.assertIn(own_detail, summary)
+                self.assertNotIn(other_detail, summary)
+        for platform in (None, "unknown-host"):
+            with self.subTest(platform=platform):
+                summary = shared._build_workflow_overview(workflow_path, platform)
+                self.assertIn("Sub-agent dispatch protocol applies to all platforms", summary)
+                self.assertIn("On Grok Build", summary)
+                self.assertIn("On Kimi Code", summary)
+
     def test_startup_clear_and_compact_refresh_full_state_and_baseline(self) -> None:
         """三类重建事件完整注入状态，随后首轮未变化输入保持静默。"""
         for platform in ("codex", "claude"):
@@ -208,7 +245,7 @@ if __name__ == "__main__":
         """规则分段不执行会话绑定或原生主入口。"""
         summary = "### Request Triage\n规则\n### Planning Artifacts\n阶段"
         native = SimpleNamespace(should_skip_injection=lambda: False, main=Mock(),
-                                 _build_workflow_toc=lambda path: summary)
+                                 _build_workflow_toc=lambda path, platform: summary)
         with patch.object(SESSION, "_load_hook", return_value=native):
             for part in ["rules", "stages"]:
                 SESSION.render_part(self.root, SESSION.HOOKS[0], part, {})
@@ -412,7 +449,8 @@ print(json.dumps({
     def test_oversized_part_keeps_tail_and_reports_growth(self) -> None:
         """超预算不静默截掉尾部规则，并提供诊断。"""
         summary = "### Request Triage\n" + "规则" * 4500 + "重要尾部\n### Planning Artifacts\n阶段"
-        native = SimpleNamespace(should_skip_injection=lambda: False, _build_workflow_toc=lambda path: summary)
+        native = SimpleNamespace(should_skip_injection=lambda: False,
+                                 _build_workflow_toc=lambda path, platform: summary)
         with patch.object(SESSION, "_load_hook", return_value=native):
             result = SESSION.render_part(self.root, SESSION.HOOKS[0], "rules", {})
         self.assertIn("重要尾部", result["hookSpecificOutput"]["additionalContext"])

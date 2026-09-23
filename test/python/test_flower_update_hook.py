@@ -57,9 +57,140 @@ class FlowerUpdateHookTest(unittest.TestCase):
             self.assertEqual(data["status"], "cli_missing")
             self.assertEqual(data["command"], "npm install -g flower-trellis@0.6.6")
             context = module._format_bootstrap(data)
+            self.assertIn("普通请求路由前", context)
             self.assertIn("确认前禁止执行", context)
             self.assertIn("self-check --json", context)
             self.assertIn("不循环安装", context)
+            run.assert_not_called()
+
+    def test_actionable_update_owns_order_confirmation_and_deferral(self) -> None:
+        """真实更新事件动态承载路由顺序、确认、暂缓和跳过契约。"""
+        data = {
+            "status": "update_available",
+            "current": {"flowerVersion": "0.6.6"},
+            "project": {"flowerVersion": "0.6.6"},
+            "remote": {"tags": {"latest": "0.6.7"}},
+            "commands": {"recommended": "flower-trellis self-update"},
+            "ai": {"mode": "ask"},
+            "prompt": {"commands": {
+                "snooze": "flower-trellis self-check --snooze",
+                "skip": "flower-trellis self-check --skip-version 0.6.7",
+            }},
+            "releaseNotes": {"versions": [{"version": "0.6.7", "body": "变更摘要"}]},
+        }
+        context = self.module._format_context(data)
+        system_message = self.module._system_message(data)
+        self.assertIn("普通请求路由前", context)
+        self.assertIn("确认前禁止执行 recommended_command", context)
+        self.assertIn("执行 snooze_command", context)
+        self.assertIn("执行 skip_command", context)
+        self.assertIn("snooze_command: flower-trellis self-check --snooze", context)
+        self.assertIn("skip_command: flower-trellis self-check --skip-version 0.6.7", context)
+        self.assertIn("普通请求路由前", system_message)
+        self.assertIn("snooze_command", system_message)
+        self.assertIn("skip_command", system_message)
+
+    def test_auto_updates_own_order_without_adding_confirmation(self) -> None:
+        """自动更新先展示动态信息，同时保持已有安全授权。
+
+        Returns:
+            无返回值；断言更新和项目不同步路径均不新增确认门禁。
+        """
+        for status, release_notes in [
+            ("update_available", {"versions": [{"version": "0.6.7", "body": "变更摘要"}]}),
+            ("project_out_of_sync", None),
+        ]:
+            data = {
+                "status": status,
+                "current": {"flowerVersion": "0.6.7"},
+                "project": {"flowerVersion": "0.6.6"},
+                "commands": {"recommended": "flower-trellis update -y"},
+                "ai": {"mode": "auto", "instruction": "安全条件满足,可以直接执行受控更新命令。"},
+            }
+            if release_notes:
+                data["releaseNotes"] = release_notes
+            with self.subTest(status=status, release_notes=bool(release_notes)):
+                context = self.module._format_context(data)
+                system_message = self.module._system_message(data)
+                self.assertIn("普通请求路由前", context)
+                self.assertIn("安全条件满足,可以直接执行受控更新命令", context)
+                self.assertIn("普通请求路由前", system_message)
+                self.assertIn("既有授权语义", system_message)
+                self.assertNotIn("询问用户确认", context)
+                self.assertNotIn("确认前禁止", context)
+                self.assertNotIn("询问用户", system_message)
+                self.assertNotIn("确认前禁止", system_message)
+
+    def test_update_priority_follows_final_ai_mode(self) -> None:
+        """阻塞优先级只跟随最终 ask 模式，包含 auto 安全降级。
+
+        Returns:
+            无返回值；断言模式、状态和摘要组合中的优先级与动作指令一致。
+        """
+        mode_cases = [
+            ("ask", {"mode": "ask"}, True),
+            ("auto", {
+                "mode": "auto",
+                "instruction": "安全条件满足,可以直接执行受控更新命令。",
+            }, False),
+            ("notify", {
+                "mode": "notify",
+                "instruction": "只告知用户发现更新和手动命令,不要主动询问或执行。",
+            }, False),
+            ("auto-downgraded", {
+                "mode": "ask",
+                "instruction": "必须先询问用户是否执行推荐命令;用户明确确认前禁止运行推荐命令。",
+                "downgradedFromAuto": True,
+                "downgradeReasons": ["working-tree-dirty"],
+            }, True),
+        ]
+        for status in ["update_available", "project_out_of_sync"]:
+            for release_notes in [None, {"versions": [{"version": "0.6.7", "body": "变更摘要"}]}]:
+                for case_name, ai, expects_blocking in mode_cases:
+                    data = {
+                        "status": status,
+                        "current": {"flowerVersion": "0.6.6"},
+                        "project": {"flowerVersion": "0.6.6"},
+                        "commands": {"recommended": "flower-trellis self-update"},
+                        "ai": ai,
+                    }
+                    if release_notes:
+                        data["releaseNotes"] = release_notes
+                    with self.subTest(
+                        mode=case_name,
+                        status=status,
+                        release_notes=bool(release_notes),
+                    ):
+                        context = self.module._format_context(data)
+                        system_message = self.module._system_message(data)
+                        self.assertIn("instruction_scope: first_assistant_reply", context)
+                        if expects_blocking:
+                            self.assertIn("priority: blocking_confirmation_required", context)
+                            self.assertIn("确认前禁止", context)
+                            self.assertIn("确认前禁止", system_message)
+                        else:
+                            self.assertNotIn("priority: blocking_confirmation_required", context)
+                            self.assertNotIn("确认前禁止", context)
+                            self.assertNotIn("确认前禁止", system_message)
+
+    def test_commandless_bootstrap_diagnostics_own_request_order(self) -> None:
+        """无安装命令的 CLI 诊断仍先于普通请求路由。
+
+        Returns:
+            无返回值；断言诊断不执行子进程、不生成安装命令且保留处理顺序。
+        """
+        cases = [
+            {"status": "cli_unavailable", "reason": "入口不可执行"},
+            {"status": "project_version_unavailable", "reason": "项目锁无效"},
+            {"status": "prerequisites_missing", "version": "0.6.6", "reason": "缺少 npm"},
+        ]
+        with mock.patch.object(self.module.subprocess, "run") as run:
+            for data in cases:
+                with self.subTest(status=data["status"]):
+                    context = self.module._format_bootstrap(data)
+                    self.assertIn("普通请求路由前先说明诊断原因与缺失前提", context)
+                    self.assertNotIn("recommended_command:", context)
+                    self.assertNotIn("npm install", context)
             run.assert_not_called()
 
     def test_bootstrap_only_does_not_read_stdin_or_query_updates(self) -> None:

@@ -161,11 +161,9 @@ Complete contracts live in the owning phase, workflow state, skill, hook, or hel
 
 Cross-stage ordering:
 
-1. A blocking `<flower-update>` confirmation is handled before ordinary request routing; a completed update returns through `trellis-push`.
-2. Request intent, active-task scope, and any current untracked work are resolved before task creation, task routing, or file edits.
-3. A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.
-4. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; successful delivery writes completion and deterministic Close in one lifecycle update.
-5. SessionStart performs best-effort legacy reconciliation and physical GC for tasks closed at least three days ago; resume/clear/compact do not expand that boundary.
+1. Request intent, active-task scope, and any current untracked work are resolved before task creation, task routing, or file edits.
+2. A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.
+3. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; successful delivery writes completion and deterministic Close in one lifecycle update.
 
 Mechanical rule: follow the owner named above. The Hub must not duplicate owner procedures, helper schemas, interaction templates, error matrices, or Git path rules.
 <!-- END skill-garden patch workflow-hub v0.6 -->
@@ -256,7 +254,7 @@ If it succeeds, in the same turn treat the current user request as `no_task` and
 <!-- END skill-garden patch workflow-phase-index-create-task v0.6 -->
 - 1.1 Requirement exploration `[required · repeatable]` (`prd.md`; complex tasks also need `design.md` + `implement.md`)
 - 1.2 Research `[optional · repeatable]`
-- 1.3 Configure context `[required · once]` — Claude Code, Cursor, OpenCode, Codex, Kiro, Gemini, Qoder, CodeBuddy, Copilot, Droid, Pi, Oh My Pi, ZCode, Snow, Reasonix, Grok, Kimi Code (sub-agent-dispatch platforms only; inline platforms skip)
+- 1.3 Configure context `[required · once]` — configure task context before sub-agent dispatch; inline execution skips.
 - 1.4 Activate task `[required · once]` (review gate, then `task.py start`; status → in_progress)
 - 1.5 Completion criteria
 
@@ -341,7 +339,7 @@ Inline workflow-state is not an inline route decision. Do not default inline bec
 - 3.4 Commit changes `[required · once]`
 - 3.5 Wrap-up reminder
 
-> Note: step 3.1 was folded into 2.2 (last-iteration full-scope check) and 3.4 (commit preamble). Numbering kept stable to avoid breaking external references.
+
 
 <!-- BEGIN skill-garden patch workflow-state-completed v0.6 -->
 <!-- Per-turn breadcrumb: shown while status='completed' and Close is not closed. -->
@@ -376,7 +374,7 @@ The route result owns the inline/subagent choice. Do not infer execution mode fr
 ### Guardrails
 
 - Task creation approval is not implementation approval; implementation waits for `task.py start` after artifact review.
-- PRD-only is valid for lightweight tasks; complex tasks need `design.md` + `implement.md`.
+
 - Planning must be persisted to task artifacts; checks must run before reporting completion.
 
 ### Loading Step Detail

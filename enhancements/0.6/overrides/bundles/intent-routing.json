@@ -5,6 +5,7 @@
   "installMode": "full-or-selected",
   "patches": [
     "workflow/hub",
+    "workflow/sessionstart-context-trim",
     "workflow/phase-ownership",
     "workflow/task-brief-review",
     "workflow/state-no-task",
@@ -26,6 +27,7 @@
     "hooks/claude-session-start/no-task-routing",
     "hooks/claude-session-start/missing-task-routing",
     "hooks/session-start/pre-check-hold",
+    "hooks/session-start/context-trim",
     "agents/untracked-context",
     "skills/trellis-start/no-task-routing",
     "skills/trellis-before-dev/project-knowledge-discovery",

@@ -26,10 +26,8 @@ Complete contracts live in the owning phase, workflow state, skill, hook, or hel
 
 Cross-stage ordering:
 
-1. A blocking `<flower-update>` confirmation is handled before ordinary request routing; a completed update returns through `trellis-push`.
-2. Request intent, active-task scope, and any current untracked work are resolved before task creation, task routing, or file edits.
-3. A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.
-4. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; successful delivery writes completion and deterministic Close in one lifecycle update.
-5. SessionStart performs best-effort legacy reconciliation and physical GC for tasks closed at least three days ago; resume/clear/compact do not expand that boundary.
+1. Request intent, active-task scope, and any current untracked work are resolved before task creation, task routing, or file edits.
+2. A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.
+3. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; successful delivery writes completion and deterministic Close in one lifecycle update.
 
 Mechanical rule: follow the owner named above. The Hub must not duplicate owner procedures, helper schemas, interaction templates, error matrices, or Git path rules.

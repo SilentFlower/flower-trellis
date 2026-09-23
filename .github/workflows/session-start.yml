@@ -10,8 +10,12 @@ on:
       - ".trellis/scripts/**"
       - ".trellis/spec/**"
       - ".trellis/workflow.md"
+      - "enhancements/0.6/**"
       - "src/assets/flower_session_start.py"
+      - "src/assets/flower_update_hook.py"
       - "test/python/test_flower_session_start.py"
+      - "test/python/test_flower_update_hook.py"
+      - "vendor/skill-garden"
   push:
     branches:
       - main
@@ -23,8 +27,12 @@ on:
       - ".trellis/scripts/**"
       - ".trellis/spec/**"
       - ".trellis/workflow.md"
+      - "enhancements/0.6/**"
       - "src/assets/flower_session_start.py"
+      - "src/assets/flower_update_hook.py"
       - "test/python/test_flower_session_start.py"
+      - "test/python/test_flower_update_hook.py"
+      - "vendor/skill-garden"
   workflow_dispatch:
 
 permissions:
@@ -53,3 +61,5 @@ jobs:
 
       - name: 运行 SessionStart 专项回归
         run: python -m unittest discover -s test/python -p "test_flower_session_start.py"
+      - name: 运行动态更新上下文回归
+        run: python -m unittest discover -s test/python -p "test_flower_update_hook.py"

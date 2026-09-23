@@ -55,6 +55,11 @@ jobs:
         run: npm ci --ignore-scripts
       - name: 准备真实 PTY
         run: npm rebuild node-pty
+      - name: 验证遥测队列跨平台行为
+        run: >-
+          node --test
+          test/js/telemetry-v2.test.js
+          test/js/telemetry-windows.test.js
       - name: 验证真实更新、缓存预算、全局快路径与终端恢复
         run: >-
           node --test

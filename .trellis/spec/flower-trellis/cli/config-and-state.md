@@ -979,13 +979,16 @@ src/assets/flower_update_hook.py
   - `notify`: 只注入提示和手动命令,AI 不主动询问或执行。
   - `ask`: 默认;AI 必须先询问用户,用户明确确认前不得执行推荐命令。
   - `auto`: 安全条件满足时 AI 可执行推荐命令,否则降级为 `ask`。
-- Codex 对 `additionalContext` 的执行强度弱于真正用户消息;因此 update hook 在
-  `policy=ask` 且存在推荐命令时,`systemMessage` 必须写成明确阻塞确认提示,
+- Codex 对 `additionalContext` 的执行强度弱于真正用户消息;因此 update hook 在最终
+  `ai.mode=ask` 且存在推荐命令时,`systemMessage` 必须写成明确阻塞确认提示,
   `<flower-update>` 开头必须包含 `priority: blocking_confirmation_required` 和
-  `instruction_scope: first_assistant_reply`,便于模型在第一条回复优先处理确认。
+  `instruction_scope: first_assistant_reply`,便于模型在第一条回复优先处理确认。`auto` 因安全条件
+  不足降级后的最终模式也是 `ask`,继续使用同一阻塞契约;`auto` 和 `notify` 的非阻塞最终模式不得
+  输出该 `priority`。
 - `<flower-update>` 存在 `release_notes` 时,AI 必须先用短句展示更新摘要和
-  `recommended_command`,再询问用户确认;用户确认前不得执行推荐命令。
-- `<flower-update>` 应保持精简:保留 `priority`、`instruction_scope`、`status`、
+  `recommended_command`,再按最终 `ai.mode` 处理:`ask` 等待用户明确确认,安全条件满足的
+  `auto` 可执行推荐命令,`notify` 只通知而不询问或执行;`auto` 降级为 `ask` 后同样必须等待确认。
+- `<flower-update>` 应保持精简:按上述模式条件输出 `priority`,并保留 `instruction_scope`、`status`、
   版本差异、`release_notes*`、`recommended_command`、`snooze_command`、
   `skip_command`、`safety_reasons` 和一条
   `ai_instruction`;不要同时输出重复的 `policy` / `ai_mode` / `ai_required_action`。

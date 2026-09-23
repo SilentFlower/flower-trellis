@@ -52,11 +52,13 @@ test("Workflow Hub 只保留 17 项 owner 索引和跨阶段顺序", () => {
     assert.match(hub, new RegExp(`\\| ${gate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\|`));
     assert.doesNotMatch(hub, new RegExp(`#### ${gate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
   }
+  assert.doesNotMatch(hub, /A blocking `<flower-update>`/);
+  assert.doesNotMatch(hub, /physical GC for tasks closed/);
   assertOrdered(
     hub,
-    "A blocking `<flower-update>`",
     "Request intent, active-task scope",
-    "更新确认先于请求路由",
+    "matching `record` + `next`",
+    "请求路由先于 Auto-Loop 返回",
   );
   assertOrdered(
     hub,
@@ -464,6 +466,8 @@ test("trellis-release 只匹配上线操作单而不抢占实际发版", () => {
 
 test("最终 dogfood 产物只有一个 Hub marker 且 owner Patch 已落盘", () => {
   const workflow = readRoot(".trellis/workflow.md");
+  const codexSessionStart = readRoot(".codex/hooks/session-start.py");
+  const claudeSessionStart = readRoot(".claude/hooks/session-start.py");
   const beforeDevAgents = readRoot(".agents/skills/trellis-before-dev/SKILL.md");
   const beforeDevClaude = readRoot(".claude/skills/trellis-before-dev/SKILL.md");
   const continueAgents = readRoot(".agents/skills/trellis-continue/SKILL.md");
@@ -475,6 +479,14 @@ test("最终 dogfood 产物只有一个 Hub marker 且 owner Patch 已落盘", (
   );
   assert.match(workflow, /### Skill-Garden Workflow Owner Index/);
   assert.doesNotMatch(workflow, /#### Request Intent Routing/);
+  assert.match(workflow, /configure task context before sub-agent dispatch; inline execution skips/);
+  assert.doesNotMatch(workflow, /step 3\.1 was folded into 2\.2/);
+  assert.doesNotMatch(workflow, /PRD-only is valid for lightweight tasks/);
+  for (const hook of [codexSessionStart, claudeSessionStart]) {
+    assert.match(hook, /def _platform_dispatch_summary/);
+    assert.doesNotMatch(hook, /output\.write\("""<ready>/);
+    assert.equal((hook.match(/phases = _platform_dispatch_summary/g) || []).length, 1);
+  }
   assert.match(beforeDevAgents, /BEGIN skill-garden patch before-dev-project-knowledge-discovery/);
   assert.match(beforeDevClaude, /BEGIN skill-garden patch before-dev-project-knowledge-discovery/);
   assert.match(continueAgents, /BEGIN skill-garden patch trellis-continue-task-progress-recovery/);

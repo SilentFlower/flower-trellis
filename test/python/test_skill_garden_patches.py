@@ -1467,6 +1467,8 @@ class PatchConsumerTest(unittest.TestCase):
                 "workflow-task-brief-review",
                 "brainstorm-planning-handoff",
                 "task-start-brief-gate",
+                "workflow-sessionstart-context-trim",
+                "session-start-context-trim",
             }.issubset(set(plan["patches"]))
         )
         self.assertIn(

@@ -3,6 +3,9 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { flowerConfigDirectory } from "../plugin/sources/user-source-store.js";
 
+const DEFAULT_TELEMETRY_LOCK_TIMEOUT_MS = 500;
+const MAX_TELEMETRY_LOCK_TIMEOUT_MS = 60_000;
+
 /** 检查目录链，拒绝经由软链接访问遥测状态。
  * @param {string} directory 目录
  * @param {boolean} create 是否创建
@@ -66,16 +69,21 @@ export function writeTelemetryJson(file, value) {
 
 /** 获取新旧遥测共用的进程锁；锁内回调必须同步且不联网。
  * @param {Function} callback 同步临界区
- * @param {object} options 环境
+ * @param {{env?:NodeJS.ProcessEnv,lockTimeoutMs?:number}} options 环境与内部锁等待预算
  * @returns {unknown} 回调结果
  */
 export function withTelemetryLock(callback, options = {}) {
+  const lockTimeoutMs = options.lockTimeoutMs === undefined ? DEFAULT_TELEMETRY_LOCK_TIMEOUT_MS : options.lockTimeoutMs;
+  if (!Number.isSafeInteger(lockTimeoutMs) || lockTimeoutMs < 1 || lockTimeoutMs > MAX_TELEMETRY_LOCK_TIMEOUT_MS) {
+    throw new TypeError("遥测锁等待预算无效");
+  }
   const directory = flowerConfigDirectory(options.env || process.env);
   telemetryDirectory(directory);
   try { fs.chmodSync(directory, 0o700); } catch { /* Windows 由用户目录权限保护。 */ }
   const lock = path.join(directory, "telemetry.lock");
   const token = crypto.randomUUID();
-  const deadline = Date.now() + 500;
+  // 显式预算只供内部测试隔离调度抖动；生产调用不传入时仍保持 500ms 有界等待。
+  const deadline = Date.now() + lockTimeoutMs;
   for (;;) {
     if (Date.now() >= deadline) throw new Error("遥测锁繁忙");
     try {

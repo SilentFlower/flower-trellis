@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "id": "workflow-sessionstart-context-trim",
+  "purpose": "intent_routing",
+  "operations": [
+    {
+      "id": "workflow-sessionstart-platform-neutral-context-step",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "context-step-selector.md", "expectedMatches": 1 },
+      "content": { "source": "context-step-content.md" }
+    },
+    {
+      "id": "workflow-sessionstart-remove-step-history",
+      "operation": "remove",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "step-history-selector.md", "allowAbsent": true }
+    },
+    {
+      "id": "workflow-sessionstart-remove-duplicate-planning-rule",
+      "operation": "remove",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error", "markerStyle": "none" }],
+      "selector": { "type": "literal", "source": "planning-rule-selector.md", "allowAbsent": true }
+    }
+  ]
+}

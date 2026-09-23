@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 2,
+  "id": "session-start-context-trim",
+  "purpose": "hook_override",
+  "operations": [
+    {
+      "id": "codex-session-start-platform-dispatch-helper",
+      "operation": "insert",
+      "position": "before",
+      "targets": [
+        { "kind": "hook", "path": ".codex/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" }
+      ],
+      "selector": { "type": "literal", "source": "dispatch-helper-selector.py", "expectedMatches": 1 },
+      "content": { "source": "dispatch-helper-content.py" }
+    },
+    {
+      "id": "shared-session-start-platform-dispatch-helper",
+      "operation": "insert",
+      "position": "before",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "hook", "path": ".codebuddy/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "hook", "path": ".cursor/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "hook", "path": ".factory/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "hook", "path": ".gemini/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "hook", "path": ".kiro/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "hook", "path": ".qoder/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "hook", "path": ".trae/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" },
+        { "kind": "hook", "path": ".zcode/hooks/session-start.py", "missing": "skip", "markerStyle": "hash" }
+      ],
+      "selector": { "type": "literal", "source": "shared-dispatch-helper-selector.py", "expectedMatches": 1 },
+      "content": { "source": "dispatch-helper-content.py" }
+    },
+    {
+      "id": "codex-session-start-platform-builder",
+      "operation": "replace",
+      "targets": [
+        { "kind": "hook", "path": ".codex/hooks/session-start.py", "missing": "skip", "markerStyle": "none" }
+      ],
+      "selector": { "type": "literal", "source": "codex-builder-selector.py", "expectedMatches": 1 },
+      "content": { "source": "codex-builder-content.py" }
+    },
+    {
+      "id": "shared-session-start-platform-builder",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".codebuddy/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".cursor/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".factory/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".gemini/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".kiro/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".qoder/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".trae/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".zcode/hooks/session-start.py", "missing": "skip", "markerStyle": "none" }
+      ],
+      "selector": { "type": "literal", "source": "shared-builder-selector.py", "expectedMatches": 1 },
+      "content": { "source": "shared-builder-content.py" }
+    },
+    {
+      "id": "session-start-platform-dispatch-filter",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "hook", "path": ".codex/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".codebuddy/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".cursor/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".factory/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".gemini/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".kiro/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".qoder/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".trae/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".zcode/hooks/session-start.py", "missing": "skip", "markerStyle": "none" }
+      ],
+      "selector": { "type": "literal", "source": "dispatch-filter-selector.py", "expectedMatches": 1 },
+      "content": { "source": "dispatch-filter-content.py" }
+    },
+    {
+      "id": "codex-session-start-platform-builder-call",
+      "operation": "replace",
+      "targets": [
+        { "kind": "hook", "path": ".codex/hooks/session-start.py", "missing": "skip", "markerStyle": "none" }
+      ],
+      "selector": { "type": "literal", "source": "codex-builder-call-selector.py", "expectedMatches": 1 },
+      "content": { "source": "codex-builder-call-content.py" }
+    },
+    {
+      "id": "shared-session-start-platform-builder-call",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".codebuddy/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".cursor/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".factory/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".gemini/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".kiro/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".qoder/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".trae/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".zcode/hooks/session-start.py", "missing": "skip", "markerStyle": "none" }
+      ],
+      "selector": { "type": "literal", "source": "shared-builder-call-selector.py", "expectedMatches": 1 },
+      "content": { "source": "shared-builder-call-content.py" }
+    },
+    {
+      "id": "session-start-remove-ready-duplicate",
+      "operation": "remove",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "hook", "path": ".codex/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".codebuddy/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".cursor/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".factory/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".gemini/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".kiro/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".qoder/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".trae/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".zcode/hooks/session-start.py", "missing": "skip", "markerStyle": "none" }
+      ],
+      "selector": { "type": "literal", "source": "ready-selector.py", "allowAbsent": true }
+    }
+  ]
+}

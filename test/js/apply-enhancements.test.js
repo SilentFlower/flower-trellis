@@ -196,6 +196,7 @@ function minimalWorkflow() {
     "",
     "### Phase 1: Plan",
     patchSource("workflow/intent-routing/phase-index-create-task", "selector.md"),
+    patchSource("workflow/sessionstart-context-trim", "context-step-selector.md"),
     "",
     "[workflow-state:planning]",
     patchSource("workflow/states-planning", "planning-baseline.md"),
@@ -216,6 +217,10 @@ function minimalWorkflow() {
     patchSource("workflow/runtime-contract-reference", "completed-selector.md"),
     "",
     patchSource("workflow/phase-ownership", "active-task-routing-baseline.md"),
+    "",
+    patchSource("workflow/sessionstart-context-trim", "step-history-selector.md"),
+    "",
+    patchSource("workflow/sessionstart-context-trim", "planning-rule-selector.md"),
     "",
     "## Phase 1: Plan",
     "",
@@ -710,6 +715,12 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(claudeSessionStart, /skill-garden patch claude-session-start-pre-check-hold/);
   assert.match(codexSessionStart, /from pre_check_state import session_start_hint/);
   assert.match(claudeSessionStart, /from pre_check_state import session_start_hint/);
+  assert.match(codexSessionStart, /_build_workflow_toc\(trellis_dir \/ "workflow\.md", "codex"\)/);
+  assert.match(claudeSessionStart, /_build_workflow_overview\(trellis_dir \/ "workflow\.md", _detect_platform\(hook_input\)\)/);
+  assert.match(codexSessionStart, /def _platform_dispatch_summary/);
+  assert.match(claudeSessionStart, /def _platform_dispatch_summary/);
+  assert.doesNotMatch(codexSessionStart, /output\.write\("""<ready>/);
+  assert.doesNotMatch(claudeSessionStart, /output\.write\("""<ready>/);
   assert.doesNotMatch(claudeSessionStart, /ask the user what to work on next/);
   const activeTask = fs.readFileSync(
     path.join(target, ".trellis/scripts/common/active_task.py"),
@@ -764,6 +775,12 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     "claude-session-start-missing-task",
     "codex-session-start-pre-check-hold",
     "claude-session-start-pre-check-hold",
+    "workflow-sessionstart-platform-neutral-context-step",
+    "workflow-sessionstart-remove-step-history",
+    "workflow-sessionstart-remove-duplicate-planning-rule",
+    "codex-session-start-platform-dispatch-helper",
+    "shared-session-start-platform-dispatch-helper",
+    "session-start-remove-ready-duplicate",
   ]) {
     assert.ok(skillGarden.patches.some((item) => item.operation.endsWith(`/${operation}`)));
   }
@@ -922,6 +939,10 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
     assert.doesNotMatch(start, /\| Done coding \/ quality check \| `trellis-check` \|/);
     assert.match(value, /### Skill-Garden Workflow Owner Index/);
     assert.doesNotMatch(value, /#### Request Intent Routing/);
+    assert.match(value, /Configure context `\[required · once\]` — configure task context before sub-agent dispatch/);
+    assert.doesNotMatch(value, /Claude Code, Cursor, OpenCode, Codex, Kiro/);
+    assert.doesNotMatch(value, /step 3\.1 was folded into 2\.2/);
+    assert.doesNotMatch(value, /PRD-only is valid for lightweight tasks/);
     assertIntentRoutingSemantics(value);
     assert.match(value, /skill-garden patch workflow-request-triage/);
     assert.match(value, /skill-garden patch workflow-state-planning/);
@@ -943,14 +964,15 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
       const hook = fs.readFileSync(path.join(target, ...relativePath.split("/")), "utf8");
       assert.match(hook, /return task_dir\.name, "missing_task", active\.source/);
     }
-    assert.match(
-      fs.readFileSync(path.join(target, ".codex/hooks/session-start.py"), "utf8"),
-      /before any edit, task creation, or task start/,
-    );
-    assert.match(
-      fs.readFileSync(path.join(target, ".claude/hooks/session-start.py"), "utf8"),
-      /before any edit, task creation, or task start/,
-    );
+    for (const relativePath of [
+      ".codex/hooks/session-start.py",
+      ".claude/hooks/session-start.py",
+    ]) {
+      const sessionStart = fs.readFileSync(path.join(target, relativePath), "utf8");
+      assert.match(sessionStart, /before any edit, task creation, or task start/);
+      assert.match(sessionStart, /def _platform_dispatch_summary/);
+      assert.doesNotMatch(sessionStart, /output\.write\("""<ready>/);
+    }
     assert.match(
       fs.readFileSync(path.join(target, ".trellis/scripts/common/active_task.py"), "utf8"),
       /skill-garden patch active-task-clear-session-fallback/,

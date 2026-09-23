@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { queueTelemetryEvent, flushTelemetryQueue, telemetryQueueStatus } from "../../src/lib/telemetry-queue.js";
 import { readTelemetryState, setTelemetryEnabled, reportTelemetry } from "../../src/lib/telemetry.js";
-import { telemetryQueueDirectory } from "../../src/lib/telemetry-files.js";
+import { telemetryQueueDirectory, withTelemetryLock } from "../../src/lib/telemetry-files.js";
 import { observeTelemetryOperation, beginTelemetryOperation, noteTelemetryError, completeTelemetryOperation } from "../../src/lib/telemetry-operation.js";
 import { plugin } from "../../src/commands/plugin.js";
 
@@ -50,7 +50,7 @@ test("缺名可采集，同日每平台一次，UTC 跨日重新记录，白名�
 test("并发进程共享一个身份和一次日活动", async t => {
   const options = fixture(t);
   const modulePath = new URL("../../src/lib/telemetry-queue.js", import.meta.url).href;
-  const script = `import { queueTelemetryEvent } from ${JSON.stringify(modulePath)}; process.stdout.write(JSON.stringify(queueTelemetryEvent(process.cwd(), {event:'activity_daily',ai_platform:'codex'}, {launch:()=>{}})));`;
+  const script = `import { queueTelemetryEvent } from ${JSON.stringify(modulePath)}; process.stdout.write(JSON.stringify(queueTelemetryEvent(process.cwd(), {event:'activity_daily',ai_platform:'codex'}, {launch:()=>{},lockTimeoutMs:5000})));`;
   const results = await Promise.all(Array.from({ length: 8 }, () => new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--input-type=module", "-e", script], { cwd: options.target, env: options.env, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
@@ -62,6 +62,29 @@ test("并发进程共享一个身份和一次日活动", async t => {
   assert.ok(results.every(result => ["queued", "duplicate"].includes(result.status)), JSON.stringify(results));
   assert.equal(pending(options).length, 1);
   assert.equal(readTelemetryState(options).status, "valid");
+});
+
+test("默认锁繁忙静默失败且不留下部分状态，释放后可以恢复", t => {
+  const options = fixture(t);
+  const activity = { event: "activity_daily", ai_platform: "codex" };
+  withTelemetryLock(() => {
+    assert.equal(queueTelemetryEvent(options.target, activity, options).status, "failed");
+    assert.equal(readTelemetryState(options).status, "missing");
+    assert.equal(fs.existsSync(telemetryQueueDirectory(options.env)), false);
+  }, options);
+  assert.equal(queueTelemetryEvent(options.target, activity, options).status, "queued");
+  assert.equal(pending(options).length, 1);
+  assert.equal(readTelemetryState(options).status, "valid");
+});
+
+test("内部锁等待预算非法时失败关闭且不创建状态", t => {
+  const options = fixture(t);
+  const activity = { event: "activity_daily", ai_platform: "codex" };
+  for (const lockTimeoutMs of [null, -1, 0, 1.5, "500", 60_001]) {
+    assert.equal(queueTelemetryEvent(options.target, activity, { ...options, lockTimeoutMs }).status, "failed");
+  }
+  assert.equal(readTelemetryState(options).status, "missing");
+  assert.equal(fs.existsSync(telemetryQueueDirectory(options.env)), false);
 });
 
 test("重试保留 ID、遵守 Retry-After，同日提示仍能唤醒到期队列", async t => {

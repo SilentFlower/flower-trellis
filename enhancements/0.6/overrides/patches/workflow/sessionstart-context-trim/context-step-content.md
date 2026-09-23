@@ -1,0 +1,1 @@
+- 1.3 Configure context `[required · once]` — configure task context before sub-agent dispatch; inline execution skips.

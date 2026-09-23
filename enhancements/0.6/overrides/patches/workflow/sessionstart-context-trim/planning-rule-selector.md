@@ -1,0 +1,1 @@
+- PRD-only is valid for lightweight tasks; complex tasks need `design.md` + `implement.md`.
