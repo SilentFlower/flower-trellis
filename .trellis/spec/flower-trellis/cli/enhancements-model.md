@@ -3375,7 +3375,8 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 | Close 后 task-record commit/push 失败 | 新会话用显式 `status --task` 读取 closed 任务并恢复发布 |
 | 旧 runtime 无 task_json_sha256 但允许字段可完全重建 | reconciliation 精确提交迁移；重复运行零写入 |
 | 旧 runtime 对 task.json 有额外人工修改 | `candidate-dirty`，不迁移 |
-| 中文、空格或制表符任务名 | NUL 文件集校验通过，exact GC/restore commit 成功 |
+| 中文或空格任务名 | 真实文件系统与 NUL 文件集校验通过，exact GC/restore commit 成功 |
+| Git NUL 输出含制表符路径 | 解析保留原始路径，不要求 Windows 创建非法文件名 |
 | 同 HEAD 切换分支 / HEAD 并发变化 | commit 前失败；journal 保留，绝不在新分支提交 |
 | 最终检查后、引用更新前切到同 HEAD 新分支 | CAS 只更新事务开始分支；新分支 HEAD 不变，journal 保留诊断 |
 | GC 在 move / stage 后中断 | 下次 maintenance 回滚局部状态后重新计算并完成 |

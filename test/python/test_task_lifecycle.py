@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from argparse import Namespace
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from importlib import util as importlib_util
 from io import StringIO
 import hashlib
@@ -135,10 +135,11 @@ class TaskLifecycleTest(unittest.TestCase):
     def test_close_is_idempotent_and_runs_post_write_effects(self) -> None:
         """Close 固定首次时间，并在持久化后执行 Session/Hook 副作用。"""
         task_dir = self.write_task("09-22-close", {"status": "completed", "children": []})
-        with (
-            mock.patch.object(MODULE, "run_task_hooks") as hooks,
-            mock.patch("common.active_task.clear_task_from_sessions", return_value=2) as clear,
-        ):
+        with ExitStack() as stack:
+            hooks = stack.enter_context(mock.patch.object(MODULE, "run_task_hooks"))
+            clear = stack.enter_context(
+                mock.patch("common.active_task.clear_task_from_sessions", return_value=2),
+            )
             first = MODULE.apply_close(
                 task_dir,
                 self.root,
@@ -196,11 +197,10 @@ class TaskLifecycleTest(unittest.TestCase):
 
         retried = MODULE.apply_close(task_dir, self.root, delivery_verified=True)
         output = StringIO()
-        with (
-            mock.patch.object(MODULE, "get_repo_root", return_value=self.root),
-            mock.patch.object(MODULE, "run_task_hooks"),
-            redirect_stdout(output),
-        ):
+        with ExitStack() as stack:
+            stack.enter_context(mock.patch.object(MODULE, "get_repo_root", return_value=self.root))
+            stack.enter_context(mock.patch.object(MODULE, "run_task_hooks"))
+            stack.enter_context(redirect_stdout(output))
             exit_code = MODULE.cmd_close(Namespace(
                 task=task_dir.relative_to(self.root).as_posix(),
                 resolve_blocker=["release-review-required"],
@@ -413,9 +413,9 @@ class TaskLifecycleTest(unittest.TestCase):
             },
         )
 
-    def test_gc_uses_nul_delimited_paths_for_unicode_space_and_tab(self) -> None:
-        """中文、空格和制表符任务路径均按原始 Git 路径完成精确提交校验。"""
-        names = ["09-18-中文任务", "09-18-space task", "09-18-tab\ttask"]
+    def test_gc_uses_nul_delimited_paths_for_unicode_and_space(self) -> None:
+        """中文和空格任务路径均按原始 Git 路径完成精确提交校验。"""
+        names = ["09-18-中文任务", "09-18-space task"]
         for name in names:
             self.write_task(name, self.closed_task())
 
@@ -433,6 +433,22 @@ class TaskLifecycleTest(unittest.TestCase):
         for name in names:
             self.assertIn(f".trellis/tasks/{name}/task.json", committed_paths)
             self.assertIn(f".trellis/tasks/archive/2026-09/{name}/task.json", committed_paths)
+
+    def test_commit_files_preserves_tab_in_nul_delimited_output(self) -> None:
+        """Windows 无法创建含制表符的路径，因此直接验证 Git NUL 输出解析。"""
+        paths = [
+            ".trellis/tasks/09-18-中文任务/task.json",
+            ".trellis/tasks/09-18-space task/task.json",
+            ".trellis/tasks/09-18-tab\ttask/task.json",
+        ]
+        with mock.patch.object(MODULE, "run_git", return_value=(0, "\0".join(paths) + "\0", "")) as run_git:
+            committed = MODULE._commit_files(self.root, "abc123")
+
+        self.assertEqual(committed, set(paths))
+        run_git.assert_called_once_with(
+            ["diff-tree", "--no-commit-id", "--name-only", "--no-renames", "-r", "-z", "abc123"],
+            cwd=self.root,
+        )
 
     def test_gc_converges_identical_destination_and_restore_is_auditable(self) -> None:
         """相同目标可幂等收敛，随后 restore 以精确反向提交恢复位置。"""
@@ -546,14 +562,13 @@ class TaskLifecycleTest(unittest.TestCase):
 
     def test_session_maintenance_skips_gc_after_reconciliation_error(self) -> None:
         """旧数据收敛失败后不得在同一锁内继续移动任务目录。"""
-        with (
-            mock.patch.object(
+        with ExitStack() as stack:
+            stack.enter_context(mock.patch.object(
                 MODULE,
                 "reconcile_legacy_tasks",
                 side_effect=MODULE.TaskLifecycleError("reconcile-failed", "模拟收敛失败"),
-            ),
-            mock.patch.object(MODULE, "gc_closed_tasks") as gc,
-        ):
+            ))
+            gc = stack.enter_context(mock.patch.object(MODULE, "gc_closed_tasks"))
             result = MODULE.run_session_maintenance(self.root)
 
         self.assertEqual(result["status"], "ok")
@@ -1020,12 +1035,11 @@ class TaskLifecycleTest(unittest.TestCase):
         task_dir = self.write_task("09-18-dry-output", self.closed_task())
         gc_args = Namespace(closed=True, before="3d", dry_run=True, json=False)
         output = StringIO()
-        with (
-            mock.patch.object(MODULE, "get_repo_root", return_value=self.root),
-            mock.patch.object(MODULE, "datetime", wraps=datetime) as clock,
-            redirect_stdout(output),
-            redirect_stderr(StringIO()),
-        ):
+        with ExitStack() as stack:
+            stack.enter_context(mock.patch.object(MODULE, "get_repo_root", return_value=self.root))
+            clock = stack.enter_context(mock.patch.object(MODULE, "datetime", wraps=datetime))
+            stack.enter_context(redirect_stdout(output))
+            stack.enter_context(redirect_stderr(StringIO()))
             clock.now.return_value = datetime(2026, 9, 22, tzinfo=timezone.utc)
             result = MODULE.cmd_gc(gc_args)
 
@@ -1035,11 +1049,10 @@ class TaskLifecycleTest(unittest.TestCase):
 
         gc_args.json = True
         output = StringIO()
-        with (
-            mock.patch.object(MODULE, "get_repo_root", return_value=self.root),
-            mock.patch.object(MODULE, "datetime", wraps=datetime) as clock,
-            redirect_stdout(output),
-        ):
+        with ExitStack() as stack:
+            stack.enter_context(mock.patch.object(MODULE, "get_repo_root", return_value=self.root))
+            clock = stack.enter_context(mock.patch.object(MODULE, "datetime", wraps=datetime))
+            stack.enter_context(redirect_stdout(output))
             clock.now.return_value = datetime(2026, 9, 22, tzinfo=timezone.utc)
             result = MODULE.cmd_gc(gc_args)
 
