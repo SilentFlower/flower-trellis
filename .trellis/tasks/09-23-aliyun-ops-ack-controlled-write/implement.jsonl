@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/aliyun-ops.md", "reason": "aliyun-ops 凭证边界、Workbench 临时文件生命周期、清理错误语义与分发链契约"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "common skill 作者源 → npm run sync 快照 → 全局副本的分发规则"}

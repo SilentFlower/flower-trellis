@@ -1,0 +1,418 @@
+{
+  "id": "aliyun-ops-ack-controlled-write",
+  "name": "aliyun-ops-ack-controlled-write",
+  "title": "aliyun-ops ACK 受控写命令与 DMS 参数修复回灌",
+  "description": "为 ack.py 增加预览+--yes 的受控 set-image/rollout-status 写入口，修复 Workbench 上传 TypeError，并把全局 Codex 副本中的 DMS CreateDataCorrectOrder 参数修复回灌作者源后同步分发",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-23",
+  "completedAt": "2026-09-23",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-09-23T10:20:39Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-09-23T09:44:42Z",
+      "contextKey": "claude_fe7b9be6-ae66-4129-b2f9-a8c4ad325ce5",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "fe899a72f88adecbe725f3327f096144644c1383",
+        "status": [
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/assets/env.example"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/references/ack.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/references/dms.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/references/mse.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/references/sls.md"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/scripts/ack.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/scripts/ack_roa_v3.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/scripts/aliyun_common.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/scripts/aliyun_rpc_v1.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/scripts/dms.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/scripts/mse.py"
+          },
+          {
+            "status": "??",
+            "path": ".agents/skills/aliyun-ops/scripts/sls_get_logs.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/SKILL.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/agents/openai.yaml"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/assets/env.example"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/references/ack.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/references/dms.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/references/mse.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/references/sls.md"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/scripts/ack.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/scripts/ack_roa_v3.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/scripts/aliyun_common.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/scripts/aliyun_rpc_v1.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/scripts/dms.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/scripts/mse.py"
+          },
+          {
+            "status": "??",
+            "path": ".claude/skills/aliyun-ops/scripts/sls_get_logs.py"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "fe899a72f88adecbe725f3327f096144644c1383",
+            "status": [
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/assets/env.example"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/references/ack.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/references/dms.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/references/mse.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/references/sls.md"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/scripts/ack.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/scripts/ack_roa_v3.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/scripts/aliyun_common.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/scripts/aliyun_rpc_v1.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/scripts/dms.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/scripts/mse.py"
+              },
+              {
+                "status": "??",
+                "path": ".agents/skills/aliyun-ops/scripts/sls_get_logs.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/SKILL.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/agents/openai.yaml"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/assets/env.example"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/references/ack.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/references/dms.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/references/mse.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/references/sls.md"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/scripts/ack.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/scripts/ack_roa_v3.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/scripts/aliyun_common.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/scripts/aliyun_rpc_v1.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/scripts/dms.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/scripts/mse.py"
+              },
+              {
+                "status": "??",
+                "path": ".claude/skills/aliyun-ops/scripts/sls_get_logs.py"
+              }
+            ],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".agents/skills/aliyun-ops/SKILL.md",
+                "sha256": "56b29eeb251d473629a3368daaa0e51b3cad816a126696a150c0cff0d41b9fe4"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/agents/openai.yaml",
+                "sha256": "bd49eaee4dfe417f7143f7a56803c9cd0d16a917e3a054b6f962209d670a0ce7"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/assets/env.example",
+                "sha256": "5978b1576948f34d37ec931a2b3336b7f6b2073c77ada0910ec9a3153c2a31aa"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/references/ack.md",
+                "sha256": "52075fcb65eb6d6323fe48b553f1c85866c5511cd0be515402f0e9d9bb4a426a"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/references/dms.md",
+                "sha256": "eefe742f693020dff64861b8a27c6ce496df1113b5f34af10f50205b1730b100"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/references/mse.md",
+                "sha256": "019b4bbd1f69fbc6d0fe4888360cd0572cf1c8179693cc14b2c3a24e36f6d1ee"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/references/sls.md",
+                "sha256": "4735e362a10a466110af33de004d120a1577bc79bfd729a7e1c881db3e827b9f"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/scripts/ack.py",
+                "sha256": "95915fb35cb87870ba3f566008c38e103e7a4f18421556a0b7c2a9ba4e81d8a8"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/scripts/ack_roa_v3.py",
+                "sha256": "c665f81b29c120b3635874a2b144b6d3ce327a5589112beccf88f94cd4c7e99a"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/scripts/aliyun_common.py",
+                "sha256": "75ce225235f68dcd9dbc6d2d4c34bb7c88822ae06e72ce973049d37df014349b"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/scripts/aliyun_rpc_v1.py",
+                "sha256": "9fdd8ad332d8fe9eff3c144972e3672d9b7fc39f15d0530647e6c5c3a169fc23"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/scripts/dms.py",
+                "sha256": "247920077e96c4144bc1b39491d71fc895fd3b9e4e1b457dfc95b9e8f7f652fe"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/scripts/mse.py",
+                "sha256": "0771e1f71d4d02cab5ccc11a21339ff30a3b1518e40b213e116eeb69d58e3095"
+              },
+              {
+                "path": ".agents/skills/aliyun-ops/scripts/sls_get_logs.py",
+                "sha256": "f77b32c5e54a6eb5390e1a5b217dbf4a2eec7c67882d13156551164e73933cec"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/SKILL.md",
+                "sha256": "56b29eeb251d473629a3368daaa0e51b3cad816a126696a150c0cff0d41b9fe4"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/agents/openai.yaml",
+                "sha256": "bd49eaee4dfe417f7143f7a56803c9cd0d16a917e3a054b6f962209d670a0ce7"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/assets/env.example",
+                "sha256": "5978b1576948f34d37ec931a2b3336b7f6b2073c77ada0910ec9a3153c2a31aa"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/references/ack.md",
+                "sha256": "52075fcb65eb6d6323fe48b553f1c85866c5511cd0be515402f0e9d9bb4a426a"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/references/dms.md",
+                "sha256": "eefe742f693020dff64861b8a27c6ce496df1113b5f34af10f50205b1730b100"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/references/mse.md",
+                "sha256": "019b4bbd1f69fbc6d0fe4888360cd0572cf1c8179693cc14b2c3a24e36f6d1ee"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/references/sls.md",
+                "sha256": "4735e362a10a466110af33de004d120a1577bc79bfd729a7e1c881db3e827b9f"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/scripts/ack.py",
+                "sha256": "95915fb35cb87870ba3f566008c38e103e7a4f18421556a0b7c2a9ba4e81d8a8"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/scripts/ack_roa_v3.py",
+                "sha256": "c665f81b29c120b3635874a2b144b6d3ce327a5589112beccf88f94cd4c7e99a"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/scripts/aliyun_common.py",
+                "sha256": "75ce225235f68dcd9dbc6d2d4c34bb7c88822ae06e72ce973049d37df014349b"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/scripts/aliyun_rpc_v1.py",
+                "sha256": "9fdd8ad332d8fe9eff3c144972e3672d9b7fc39f15d0530647e6c5c3a169fc23"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/scripts/dms.py",
+                "sha256": "247920077e96c4144bc1b39491d71fc895fd3b9e4e1b457dfc95b9e8f7f652fe"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/scripts/mse.py",
+                "sha256": "0771e1f71d4d02cab5ccc11a21339ff30a3b1518e40b213e116eeb69d58e3095"
+              },
+              {
+                "path": ".claude/skills/aliyun-ops/scripts/sls_get_logs.py",
+                "sha256": "f77b32c5e54a6eb5390e1a5b217dbf4a2eec7c67882d13156551164e73933cec"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "278be657bba2207e0b219ef5faea7c641c566a2e2514a662523cf51c5782be4f"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "c2a53653f8b80d2ff96ab6d340aec31f54eae864",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "eb8d373ea9f871616b6753354507b08bb3a65674c6ffe666c261d6dda98965f2"
+          }
+        ],
+        "fingerprint": "11b05162b8f69b8b9862338a70f3b370019b796b34a4792a19afe1e01a423be3"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-09-23T10:20:39Z",
+    "completedSteps": [
+      "ACK set-image/set-env 受控写命令与 rollout-status",
+      "B1 scrub TypeError 与 B2 Workbench 上传/清理修复",
+      "DMS CreateDataCorrectOrder 大驼峰参数回灌作者源",
+      "spec/README/快照更新与全局 Claude/Codex 副本同步"
+    ],
+    "partialStep": null,
+    "nextStep": "授权后在生产做只读冒烟（get --via-workbench、set-image 预览、rollout-status），首次 --yes 写入留到下次发布",
+    "notes": ""
+  }
+}

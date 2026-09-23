@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/aliyun-ops.md", "reason": "核对写命令是否保持固定 argv、清理语义、Secret/KubeConfig 不回显与测试要求"}
+{"file": ".trellis/spec/flower-trellis/cli/enhancements-model.md", "reason": "核对作者源、快照与全局副本一致性"}
