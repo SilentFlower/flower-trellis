@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.10-beta.2",
+  "version": "0.6.10-beta.3",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -70,9 +70,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.10-beta.2",
+    "version": "0.6.10-beta.3",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **workflow:** 阻止新会话继承旧任务 ([156e63f](https://github.com/SilentFlower/flower-trellis/commit/156e63f668d94d0a35f5f15c9b98998f4cddd411))",
+    "body": "### ✨ 新功能 Features\n\n* **aliyun-ops:** 集成 ACK Workbench 只读查询 ([224ef02](https://github.com/SilentFlower/flower-trellis/commit/224ef029beb82e032bb4e336bdc7febe29a96982))\n* **session:** 精简 SessionStart 开场注入 ([2b68c13](https://github.com/SilentFlower/flower-trellis/commit/2b68c1367199cdb3254d0adc639db20cc0b2b648))\n* **task:** 重构 Close 与物理 GC 生命周期 ([20c14f0](https://github.com/SilentFlower/flower-trellis/commit/20c14f032825eac226887c4334ef6e6e69ffc3dd))\n\n\n### 🐛 修复 Bug Fixes\n\n* **aliyun-ops:** 完善 SLS 引导与跨平台回归 ([e146855](https://github.com/SilentFlower/flower-trellis/commit/e146855122f91ef48c1155baf3aaf63681a0557b))",
     "truncated": false
   },
   "optionalDependencies": {

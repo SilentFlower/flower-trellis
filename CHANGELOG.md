@@ -4,6 +4,20 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.10-beta.3](https://github.com/SilentFlower/flower-trellis/compare/v0.6.10-beta.2...v0.6.10-beta.3) (2026-09-23)
+
+
+### ✨ 新功能 Features
+
+* **aliyun-ops:** 集成 ACK Workbench 只读查询 ([224ef02](https://github.com/SilentFlower/flower-trellis/commit/224ef029beb82e032bb4e336bdc7febe29a96982))
+* **session:** 精简 SessionStart 开场注入 ([2b68c13](https://github.com/SilentFlower/flower-trellis/commit/2b68c1367199cdb3254d0adc639db20cc0b2b648))
+* **task:** 重构 Close 与物理 GC 生命周期 ([20c14f0](https://github.com/SilentFlower/flower-trellis/commit/20c14f032825eac226887c4334ef6e6e69ffc3dd))
+
+
+### 🐛 修复 Bug Fixes
+
+* **aliyun-ops:** 完善 SLS 引导与跨平台回归 ([e146855](https://github.com/SilentFlower/flower-trellis/commit/e146855122f91ef48c1155baf3aaf63681a0557b))
+
 ## [0.6.10-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.10-beta.1...v0.6.10-beta.2) (2026-09-17)
 
 
