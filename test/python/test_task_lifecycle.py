@@ -258,6 +258,86 @@ class TaskLifecycleTest(unittest.TestCase):
             },
         )
 
+    def test_reconciliation_commits_entire_untracked_task_with_tracked_batch(self) -> None:
+        """完整未跟踪任务与普通旧任务同批精确提交，且保留候选外状态。"""
+        tracked = self.write_task("09-20-tracked", {"status": "planning", "children": []})
+        untracked = self.write_task(
+            "09-20-untracked",
+            {"status": "planning", "children": []},
+            commit=False,
+        )
+        (untracked / "prd.md").write_text("# 未跟踪任务\n", encoding="utf-8")
+        (self.root / "dirty.txt").write_text("dirty\n", encoding="utf-8")
+        self.git("add", "dirty.txt")
+        self.git("commit", "-qm", "add dirty fixture")
+        staged_before = self.stage_unrelated_change()
+        (self.root / "dirty.txt").write_text("dirty changed\n", encoding="utf-8")
+        (self.root / "outside-untracked.txt").write_text("outside\n", encoding="utf-8")
+        dirty_before = self.git("diff", "--", "dirty.txt")
+
+        first = MODULE.reconcile_legacy_tasks(self.root, "2026-09-22T03:00:00Z")
+        second = MODULE.reconcile_legacy_tasks(self.root, "2026-09-22T04:00:00Z")
+
+        self.assertEqual(
+            first["migrated"],
+            [
+                {"task": tracked.relative_to(self.root).as_posix(), "closeout": "pending"},
+                {"task": untracked.relative_to(self.root).as_posix(), "closeout": "pending"},
+            ],
+        )
+        self.assertEqual(first["deferred"], [])
+        self.assertEqual(second, {"migrated": [], "blocked": [], "deferred": [], "commit": None})
+        committed = set(self.git("show", "--format=", "--name-only", "--no-renames", "HEAD").splitlines())
+        self.assertEqual(
+            committed,
+            {
+                ".trellis/tasks/09-20-tracked/task.json",
+                ".trellis/tasks/09-20-untracked/prd.md",
+                ".trellis/tasks/09-20-untracked/task.json",
+            },
+        )
+        self.assertEqual(self.git("diff", "--cached", "--", "unrelated-staged.txt"), staged_before)
+        self.assertEqual(self.git("diff", "--", "dirty.txt"), dirty_before)
+        self.assertEqual(
+            self.git("status", "--short", "--", "outside-untracked.txt"),
+            "?? outside-untracked.txt",
+        )
+
+    def test_reconciliation_closes_entirely_untracked_completed_task(self) -> None:
+        """完整未跟踪的 completed 任务按既有 Close 规则收敛并提交全部记录。"""
+        task_dir = self.write_task(
+            "09-20-untracked-completed",
+            {"status": "completed", "completedAt": "2026-09-20", "children": []},
+            commit=False,
+        )
+        (task_dir / "notes.md").write_text("完成记录\n", encoding="utf-8")
+
+        result = MODULE.reconcile_legacy_tasks(self.root, "2026-09-22T03:00:00Z")
+
+        task_ref = task_dir.relative_to(self.root).as_posix()
+        data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+        self.assertEqual(result["migrated"], [{"task": task_ref, "closeout": "closed"}])
+        self.assertEqual(data["closeout"]["status"], "closed")
+        self.assertEqual(
+            set(self.git("show", "--format=", "--name-only", "--no-renames", "HEAD").splitlines()),
+            {f"{task_ref}/notes.md", f"{task_ref}/task.json"},
+        )
+
+    def test_reconciliation_rejects_mixed_tracked_and_untracked_task(self) -> None:
+        """已跟踪任务新增未跟踪文件仍属于无法归属的 candidate-dirty。"""
+        task_dir = self.write_task("09-20-mixed", {"status": "planning", "children": []})
+        (task_dir / "notes.md").write_text("人工编辑\n", encoding="utf-8")
+        head = self.git("rev-parse", "HEAD")
+
+        result = MODULE.reconcile_legacy_tasks(self.root, "2026-09-22T03:00:00Z")
+
+        task_ref = task_dir.relative_to(self.root).as_posix()
+        self.assertEqual(result["migrated"], [])
+        self.assertEqual(result["deferred"], [{"task": task_ref, "reason": "candidate-dirty"}])
+        self.assertEqual(result["commit"], None)
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+        self.assertNotIn("closeout", json.loads((task_dir / "task.json").read_text(encoding="utf-8")))
+
     def test_reconciliation_without_legacy_writes_does_not_require_attached_head(self) -> None:
         """无迁移候选时 detached HEAD 不制造 SessionStart 噪音。"""
         self.write_task("09-22-current", self.closed_task())
@@ -370,6 +450,39 @@ class TaskLifecycleTest(unittest.TestCase):
 
         self.assertTrue((self.root / MODULE.EXACT_COMMIT_JOURNAL_RELATIVE).is_file())
         self.assertTrue(self.git("diff", "--cached", "--name-only", "--", task_ref))
+
+        result = MODULE.reconcile_legacy_tasks(self.root, "2026-09-22T07:00:00Z")
+
+        self.assertEqual(result["recovery"], "committed")
+        self.assertEqual(result["migrated"], [{"task": task_ref, "closeout": "pending"}])
+        self.assertEqual(self.git("diff", "--cached", "--name-only", "--", task_ref), "")
+        self.assertEqual(self.git("diff", "--cached", "--", "unrelated-staged.txt"), staged_before)
+        self.assertFalse((self.root / MODULE.EXACT_COMMIT_JOURNAL_RELATIVE).exists())
+
+    def test_untracked_reconciliation_recovers_interrupt_after_ref_update(self) -> None:
+        """完整未跟踪任务的目录级提交在引用更新中断后可精确收尾。"""
+        task_dir = self.write_task(
+            "09-20-untracked-interrupt",
+            {"status": "planning", "children": []},
+            commit=False,
+        )
+        (task_dir / "prd.md").write_text("# 中断恢复\n", encoding="utf-8")
+        task_ref = task_dir.relative_to(self.root).as_posix()
+        staged_before = self.stage_unrelated_change()
+        original_run_git = MODULE.run_git
+        interrupted = False
+
+        def run_git_then_interrupt(args: list[str], cwd: Path) -> tuple[int, str, str]:
+            nonlocal interrupted
+            result = original_run_git(args, cwd=cwd)
+            if args and args[0] == "update-ref" and not interrupted:
+                interrupted = True
+                raise KeyboardInterrupt("模拟未跟踪任务迁移提交后中断")
+            return result
+
+        with mock.patch.object(MODULE, "run_git", side_effect=run_git_then_interrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                MODULE.reconcile_legacy_tasks(self.root, "2026-09-22T06:00:00Z")
 
         result = MODULE.reconcile_legacy_tasks(self.root, "2026-09-22T07:00:00Z")
 

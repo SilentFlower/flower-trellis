@@ -3333,7 +3333,9 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   旧 completed 按当前 Close 条件写 closed 或 blocked；旧 `pending_archive` 只有在 runtime、
   已存在本地 commit、HEAD 中原 task.json 和当前允许的 runner 字段变化相互闭合时才可迁移。
   新 runtime 使用 task.json SHA-256；缺少摘要的旧 runtime 必须重建并严格限制为 status、
-  completedAt、五字段 progress 和 last_push_snapshot 清理，任何额外编辑均延后。
+  completedAt、五字段 progress 和 last_push_snapshot 清理，任何额外编辑均延后。整个顶层旧任务目录
+  完全未跟踪时，可在 `task.json` 属于 Git 可纳管文件且 porcelain 全为 `??` 的前提下补齐 closeout，
+  并把该目录内全部可纳管文件作为单个精确候选提交；tracked/untracked 混合状态仍延后。
 - GC 只处理合法 closed 且 `closedAt` 已满 72 小时的顶层任务；非法、缺失或未来时间只诊断，
   不借用 completedAt 或目录分桶猜测。active Session、未 record 的 auto-loop action、候选 dirty
   无法归属、目标碰撞或 Git 集成态会延后；已 record completed item 和 dormant/terminal runtime 不阻断。
@@ -3377,6 +3379,8 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 | Close 后 task-record commit/push 失败 | 新会话用显式 `status --task` 读取 closed 任务并恢复发布 |
 | 旧 runtime 无 task_json_sha256 但允许字段可完全重建 | reconciliation 精确提交迁移；重复运行零写入 |
 | 旧 runtime 对 task.json 有额外人工修改 | `candidate-dirty`，不迁移 |
+| 顶层旧任务目录完全未跟踪 | 补齐 closeout，并把目录内全部 Git 可纳管文件作为精确候选提交；ignored 文件保留本地 |
+| 顶层旧任务目录混合 tracked/untracked 状态 | `candidate-dirty`，不迁移 |
 | 中文或空格任务名 | 真实文件系统与 NUL 文件集校验通过，exact GC/restore commit 成功 |
 | Git NUL 输出含制表符路径 | 解析保留原始路径，不要求 Windows 创建非法文件名 |
 | 同 HEAD 切换分支 / HEAD 并发变化 | commit 前失败；journal 保留，绝不在新分支提交 |
@@ -3396,6 +3400,8 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   Continue 使用显式任务引用恢复，不把 closed 任务重新放回默认候选。
 - Good:auto-loop 旧 completed 记录没有新摘要，但旧 pending_archive、commit 和五字段 progress
   精确互证；首次 SessionStart 迁移并提交，第二次无变化。
+- Good:完整未跟踪的 planning 旧任务包含 prd/notes；reconciliation 补齐 pending closeout，按整个任务
+  目录精确提交全部可纳管记录，同时保留候选外 staged、dirty 与 untracked 内容。
 - Good:GC 在 `git add` 后被终止；下一次 startup 读取 journal、精确 reset 候选 pathspec、
   恢复源目录并重新执行，候选外 staged 状态保持不变。
 - Base:旧物理 archive 没有 closeout；closed view 只读解释为 historical closed，restore 时才显式化。

@@ -603,6 +603,17 @@ def _tracked_files(repo_root: Path, relative: str) -> list[str]:
     return sorted(path for path in output.split("\0") if path)
 
 
+def _untracked_files(repo_root: Path, relative: str) -> list[str]:
+    """列出路径下可由 Git 纳管的未跟踪文件。"""
+    code, output, error = run_git(
+        ["ls-files", "-z", "--others", "--exclude-standard", "--", relative],
+        cwd=repo_root,
+    )
+    if code != 0:
+        raise TaskLifecycleError("git-ls-files-failed", error.strip() or "无法读取未跟踪文件")
+    return sorted(path for path in output.split("\0") if path)
+
+
 def _run_git_with_index(
     args: list[str],
     repo_root: Path,
@@ -1245,18 +1256,36 @@ def _write_batch_and_commit(
     message: str,
     baseline: dict[str, str],
     transaction: dict[str, Any],
+    *,
+    commit_paths: Optional[list[str]] = None,
+    expected_files: Optional[set[str]] = None,
 ) -> str:
-    """原子写入一批 JSON，并以可恢复的精确 pathspec 创建本地提交。"""
+    """原子写入一批 JSON，并以可恢复的精确 pathspec 创建本地提交。
+
+    Args:
+        repo_root: Git worktree 根目录。
+        writes: 需要原子写入的 JSON 路径与数据。
+        message: maintenance commit 消息。
+        baseline: 事务开始时固定的完整分支引用与 HEAD。
+        transaction: 操作类型与可恢复结果。
+        commit_paths: 可选的精确提交 pathspec；缺省仅提交写入的 JSON。
+        expected_files: 可选的预期提交文件全集；缺省等于写入的 JSON。
+
+    Returns:
+        新创建并绑定到固定分支的提交哈希。
+    """
     originals = [(path, path.read_bytes()) for path, _ in writes]
     relative_paths = [_task_relative(repo_root, path) for path, _ in writes]
+    exact_paths = relative_paths if commit_paths is None else commit_paths
+    exact_files = set(relative_paths) if expected_files is None else expected_files
     try:
         for path, data in writes:
             if not write_json(path, data):
                 raise TaskLifecycleError("write-failed", f"无法写入：{_task_relative(repo_root, path)}")
         return _commit_exact_paths(
             repo_root,
-            relative_paths,
-            set(relative_paths),
+            exact_paths,
+            exact_files,
             message,
             baseline,
             transaction,
@@ -1337,18 +1366,31 @@ def reconcile_legacy_tasks(repo_root: Path, migration_time: Optional[str] = None
         return result
     timestamp = migration_time or utc_now()
     writes: list[tuple[Path, dict[str, Any]]] = []
+    commit_paths: list[str] = []
+    expected_files: set[str] = set()
     for task_dir, data in legacy_dirs:
         task_json = task_dir / FILE_TASK_JSON
         task_ref = _task_relative(repo_root, task_dir)
+        task_json_ref = f"{task_ref}/{FILE_TASK_JSON}"
         path_status = _git_path_status(repo_root, [task_ref])
+        status_records = _status_records(path_status)
         dirty_paths = {
             path
-            for _, paths in _status_records(path_status)
+            for _, paths in status_records
             for path in paths
         }
+        tracked_files = _tracked_files(repo_root, task_ref)
+        untracked_files = set(_untracked_files(repo_root, task_ref)) if not tracked_files else set()
+        entirely_untracked = bool(
+            status_records
+            and not tracked_files
+            and task_json_ref in untracked_files
+            and dirty_paths == untracked_files
+            and all(git_status == "??" for git_status, _ in status_records)
+        )
         runner_owned = (
             task_ref in recorded
-            and dirty_paths == {f"{task_ref}/{FILE_TASK_JSON}"}
+            and dirty_paths == {task_json_ref}
             and (
                 recorded_digests.get(task_ref) == _task_json_sha256(task_json)
                 or _legacy_runner_bookkeeping_matches(
@@ -1359,10 +1401,10 @@ def reconcile_legacy_tasks(repo_root: Path, migration_time: Optional[str] = None
                 )
             )
         )
-        if path_status and not runner_owned:
+        if path_status and not runner_owned and not entirely_untracked:
             result["deferred"].append({"task": task_ref, "reason": "candidate-dirty"})
             continue
-        if not _tracked_files(repo_root, task_ref):
+        if not tracked_files and not entirely_untracked:
             result["deferred"].append({"task": task_ref, "reason": "candidate-untracked"})
             continue
         next_data = dict(data)
@@ -1375,7 +1417,7 @@ def reconcile_legacy_tasks(repo_root: Path, migration_time: Optional[str] = None
                 task_dir,
                 repo_root,
                 next_data,
-                delivery_verified=not path_status or runner_owned,
+                delivery_verified=not path_status or runner_owned or entirely_untracked,
                 closed_at=timestamp,
             )
             if evaluated["status"] == "error":
@@ -1389,6 +1431,13 @@ def reconcile_legacy_tasks(repo_root: Path, migration_time: Optional[str] = None
             result["deferred"].append({"task": task_ref, "reason": "unknown-task-status"})
             continue
         writes.append((task_json, next_data))
+        if entirely_untracked:
+            # 新任务尚无 HEAD 基线，只能把可纳管的完整目录作为一个原子任务记录提交。
+            commit_paths.append(task_ref)
+            expected_files.update(untracked_files)
+        else:
+            commit_paths.append(task_json_ref)
+            expected_files.add(task_json_ref)
         result["migrated"].append({"task": task_ref, "closeout": migration_status})
     if writes:
         result["commit"] = _write_batch_and_commit(
@@ -1397,6 +1446,8 @@ def reconcile_legacy_tasks(repo_root: Path, migration_time: Optional[str] = None
             "chore(task): reconcile closeout metadata",
             baseline,
             {"operation": "reconciliation", "result": result},
+            commit_paths=commit_paths,
+            expected_files=expected_files,
         )
     return result
 
