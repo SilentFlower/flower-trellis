@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.10-beta.5",
+  "version": "0.6.10-beta.6",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -70,9 +70,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.10-beta.5",
+    "version": "0.6.10-beta.6",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **task:** 支持精确收敛未跟踪旧任务 ([4b6871e](https://github.com/SilentFlower/flower-trellis/commit/4b6871e22abc3566aca9373d480ab9bf3d516bd3))",
+    "body": "### ✨ 新功能 Features\n\n* **aliyun-ops:** 新增 ACK 受控切换镜像与环境变量 ([70527ca](https://github.com/SilentFlower/flower-trellis/commit/70527ca2372c22d124a6a38ab3331be5c2119bc0))",
     "truncated": false
   },
   "optionalDependencies": {

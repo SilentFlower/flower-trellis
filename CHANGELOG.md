@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.10-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.6.10-beta.5...v0.6.10-beta.6) (2026-09-23)
+
+
+### ✨ 新功能 Features
+
+* **aliyun-ops:** 新增 ACK 受控切换镜像与环境变量 ([70527ca](https://github.com/SilentFlower/flower-trellis/commit/70527ca2372c22d124a6a38ab3331be5c2119bc0))
+
 ## [0.6.10-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.6.10-beta.4...v0.6.10-beta.5) (2026-09-23)
 
 
