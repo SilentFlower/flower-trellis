@@ -13,7 +13,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { listDirs, listFiles } from "../src/lib/fs-utils.js";
-import { isVolatileTreeArtifact } from "../src/plugin/integrity/canonical-tree.js";
+import { isVolatileTreeArtifact } from "../src/plugin/integrity/volatile-tree-artifact.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url)); // scripts/
 const PKG_ROOT = path.resolve(here, "..");

@@ -70,7 +70,8 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 ### release.yml 硬约束
 - `permissions: contents: write`(建 Release)+ `id-token: write`(OIDC 签发,**必需**)。
 - **Node ≥ 22.14.0 且 npm ≥ 11.5.1**(OIDC 要求):`node-version: 22` + `npm i -g npm@11.18.0`。npm 版本固定在 11 线,不要追 `npm@latest` 的新 major。
-- **不跑 `npm ci`**:publish 无需依赖,`prepublishOnly` 的 sync 仅用 `src/lib` + node 内置;省去 node-pty 编译。
+- **不跑 `npm ci`**:publish 无需依赖,`prepublishOnly` 在无 submodule 时只加载零依赖 helper 与 Node 内置模块;
+  省去 node-pty 编译。回归必须在不存在 `node_modules` 的隔离包目录中实际执行 sync 早退。
 - 不设 `NPM_TOKEN`/`NODE_AUTH_TOKEN`(OIDC 不需要长期令牌)。
 - workflow 由 `v*` 触发,必须先判定通道:tag 包含 `-beta.` 时使用 `npm publish --tag beta` 且创建 GitHub prerelease;不带 `-` 时使用裸 `npm publish` 发布到 `latest`。
 - 其他 prerelease tag(带 `-` 但不是 `-beta.`)必须失败退出,避免被错误发布到 `latest`。
@@ -106,6 +107,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 | `enhancements/` 有未提交改动 | check-snapshot `exit(1)`:提示先提交快照 |
 | vendor/snapshot `overrides/` 文件树不一致或 pinned fixture 出现 conflict error | check-snapshot `exit(1)`:同步快照或升级 baseline/Patch 后重跑 |
 | `npm run sync` 只改 `MANIFEST.syncedAt` / `sourceCommit` | 展示为快照指针更新,独立提交后再跑 `node scripts/check-snapshot.mjs` |
+| Release CI 无 `node_modules` 且无 submodule，但已提交快照 | `prepublishOnly` 零依赖早退并继续 publish，不在模块加载阶段寻找 `semver` |
 | 真实 release 已被快照门禁阻断 | 不继续 tag/push;按 `npm run sync` → 审核 diff → 提交快照 → `check-snapshot` 通过 → 重跑 release |
 | CHANGELOG 缺目标版本段 | extract-changelog `exit(1)`(等价"漏更新 CHANGELOG 就打 tag"的拦截) |
 | `postchangelog` 找不到当前版本 CHANGELOG 段 | `write-release-notes-metadata.mjs` `exit(1)`,阻断本地 release |

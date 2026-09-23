@@ -50,7 +50,9 @@ Plugin Runtime 的统一计划、事务、lock 和 state 管理。整条链路**
   → 都缺则 `exit(1)` 提示 `git submodule update --init --recursive`。
 - **CI 幂等**:源 `.trellis` 缺失但 `enhancements/MANIFEST.json` 已存在(如 CI 未拉 submodule)→
   警告 `exit(0)` 沿用已提交快照;源与快照都无才 `exit(1)`。使 `prepublishOnly` 在"快照已提交、
-  发布不拉 submodule"的 CI 场景不致失败。`syncedFrom` 记相对仓库根路径(避免绝对路径写进随包快照)。
+  发布不拉 submodule"的 CI 场景不致失败。该早退路径只允许加载 Node 内置模块与零依赖
+  helper，不得在判断源缺失前静态引入 `semver` 等外部包。`syncedFrom` 记相对仓库根路径
+  (避免绝对路径写进随包快照)。
 - 发布前快照与 submodule pin 的一致性断言见 [Release & Publishing](./release-and-publishing.md)。
 
 ---

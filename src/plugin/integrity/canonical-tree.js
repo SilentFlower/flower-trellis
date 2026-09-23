@@ -3,25 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { PluginIntegrityError, PluginIoError, PluginPathError } from "../errors.js";
 import { assertSafePosixRelativePath } from "../schemas/shared.js";
+import { isVolatileTreeArtifact } from "./volatile-tree-artifact.js";
 
-/** Python 解释器在导入脚本时自动生成的字节码缓存目录名。 */
-const BYTECODE_CACHE_DIRECTORY = "__pycache__";
-
-/**
- * 判断 tree 相对路径是否为运行时自动生成的易变产物。
- *
- * 受管目录里的 Python 脚本(Hook、Skill scripts)一旦被解释器导入就会就地生成
- * `__pycache__/*.pyc`。这些字节码缓存不属于 Plugin 内容，也不由任何写链登记，
- * 若计入安装态目录摘要就会把「用户从未改过的目录」误判成漂移，
- * 进而硬阻断 Plugin Runtime 重放与 Trellis enable。
- *
- * @param {string} relativePath POSIX 相对路径
- * @returns {boolean} 是否属于易变产物
- */
-export function isVolatileTreeArtifact(relativePath) {
-  return relativePath.split("/").includes(BYTECODE_CACHE_DIRECTORY) ||
-    relativePath.endsWith(".pyc");
-}
+export { isVolatileTreeArtifact };
 
 /**
  * 比较 POSIX 路径的 UTF-8 字节。

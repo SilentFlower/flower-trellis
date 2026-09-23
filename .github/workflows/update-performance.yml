@@ -74,5 +74,6 @@ jobs:
           test/js/trellis-runner-output.test.js
           test/js/terminal-state.test.js
           test/js/trellis-control.test.js
+          test/js/release-sync.test.js
           test/js/plugin-skill-garden.test.js
           test/js/plugin-transaction-writer.test.js
