@@ -1,0 +1,33 @@
+{
+  "id": "telemetry-roadmap",
+  "name": "telemetry-roadmap",
+  "title": "Flower 遥测产品洞察路线图",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-05-telemetry-foundation"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "closeout": {
+    "status": "pending",
+    "closedAt": null,
+    "blockers": []
+  }
+}
