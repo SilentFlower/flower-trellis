@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "验证真实注入总量、能力守恒及估算与实测的区别"}
+{"file": ".trellis/tasks/09-23-sessionstart-conservative-trim/research/context-estimate.md", "reason": "对照受保护能力和历史易回归路径，避免仅验证规则文字存在"}

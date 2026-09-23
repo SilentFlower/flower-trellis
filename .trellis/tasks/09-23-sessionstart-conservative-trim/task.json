@@ -1,0 +1,47 @@
+{
+  "id": "sessionstart-conservative-trim",
+  "name": "sessionstart-conservative-trim",
+  "title": "保守精简 SessionStart 开场注入并保留流程约束",
+  "description": "保守精简开场普通重复、平台说明、编号历史、更新条件注入和 GC 机制介绍；保留关键流程、平台契约与完整归属表。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-23",
+  "completedAt": "2026-09-23",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-09-23T05:57:12Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "deferred_reason": "用户要求等待另一个窗口完成任务生命周期与 auto-loop 基线重构。",
+    "resumed_at": "2026-09-23",
+    "resume_basis": "关联任务已完成并推送，已在最终代码上重新测量 SessionStart 基线。"
+  },
+  "progress": {
+    "updatedAt": "2026-09-23T05:57:11Z",
+    "completedSteps": [
+      "精简 SessionStart 常驻上下文并保持流程约束",
+      "按平台裁剪派发说明并同步生成链",
+      "完善更新模式、遥测并发与跨平台 CI 回归",
+      "完成 Check-All 与规范一致性修复"
+    ],
+    "partialStep": null,
+    "nextStep": "无（任务已完成）",
+    "notes": "本地全量与定向验证通过；Windows CI 与真实模型对话效果待外部核对。"
+  }
+}
