@@ -1191,7 +1191,7 @@ planUpdateBackupRetention(names, retention, protectedNames)
 pruneUpdateBackups(target, options)
 ```
 
-`DEFAULT_UPDATE_BACKUP_RETENTION` 固定为 `3`；`--backup-retention` 必须在 `OWN_FLAGS`
+`DEFAULT_UPDATE_BACKUP_RETENTION` 固定为 `1`；`--backup-retention` 必须在 `OWN_FLAGS`
 登记为带值 flag，由 `parseCliArgs()` 消费并写入 `ctx.backupRetention`，不得进入
 `ctx.passthrough`。`self-update` 只在 `--` 后通过 `ctx.forwarded` 把该参数交给新的 Flower
 项目更新进程。
@@ -1200,7 +1200,9 @@ pruneUpdateBackups(target, options)
 
 - 参数只接受非负安全整数；缺失值、负数、小数、非数字或超出安全整数范围必须在 banner、
   联网探测、上游 Trellis 和任何文件写入前抛出中文错误。`0` 表示本次完全不扫描、不清理。
-- 未显式传参时每次命令使用默认值 `3`，不得写入 manifest、项目配置或运行缓存。
+- 未显式传参时每次命令使用默认值 `1`，不得写入 manifest、项目配置或运行缓存。
+- `src/cli.js` 顶层 `--help` 中的默认数量须读取同一个 `DEFAULT_UPDATE_BACKUP_RETENTION`，
+  避免帮助文本与解析、清理行为出现不同数字。
 - 更新前后各读取一次合法备份集合，以差集识别本轮新备份并加入保护集合；即使系统时间回拨
   导致名称排序较旧，本轮新备份也不得删除。保护项多于 retention 时允许临时超额保留。
 - 清理只能位于 `trellis update`、enhancements 和配置恢复 `finally` 全部完成后的成功路径。
@@ -1217,7 +1219,7 @@ pruneUpdateBackups(target, options)
 
 | 条件 | 行为 |
 |------|------|
-| 未传 `--backup-retention` | 完整更新成功后默认保留最近 3 份合法升级备份 |
+| 未传 `--backup-retention` | 完整更新成功后默认保留最近 1 份合法升级备份；本轮多份受保护备份可临时超额 |
 | `--backup-retention 0` | 不读取备份目录，保留全部升级备份 |
 | 参数缺失、负数、小数、非数字 | 主流程副作用前抛中文参数错误，退出码非 0 |
 | 上游 update、enhancements 或配置恢复抛错 | 不进入 `pruneUpdateBackups()`，零删除 |
@@ -1230,7 +1232,7 @@ pruneUpdateBackups(target, options)
 
 ### 5. Good/Base/Bad Cases
 
-- Good: 原有 4 份备份，本轮新增 1 份，默认成功更新后保留最新 3 份并删除最旧 2 份。
+- Good: 原有 4 份备份，本轮新增 1 份，默认成功更新后只保留本轮最新备份并删除旧的 4 份。
 - Good: 系统时间回拨使本轮备份名称最旧，差集仍保护该目录，再用剩余额度保留最新历史备份。
 - Base: `--backup-retention 0` 或 `--enhance-only` 不触发目录扫描；dry-run 只输出计划。
 - Base: 某个候选因权限删除失败，其它合法旧备份继续处理，最终更新仍成功并输出 warning。
@@ -1247,6 +1249,8 @@ pruneUpdateBackups(target, options)
 - 临时目录测试覆盖排序、本轮保护、`.backup-flower`、非法名称、文件、软链接、`.trellis`
   路径逃逸、dry-run 零写入、单项删除失败继续和 retention=0 零扫描。
 - 编排测试或等价静态契约检查必须证明清理调用位于配置恢复 `finally` 之后。
+- `test/js/cli-help.test.js` 用真实顶层 `--help` 断言默认数量、零写入与正常退出；
+  `.github/workflows/update-performance.yml` 在 Ubuntu/Windows 矩阵运行该测试和备份回归。
 - 运行 `node --test test/js/update-backups.test.js`、完整 `npm test`、全量 `node --check`
   与 `git diff --check`；dogfood 至少用隔离目标验证 dry-run 计划且不触碰真实项目备份。
 

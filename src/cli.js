@@ -8,6 +8,7 @@ import { ProjectStore } from "./plugin/state/project-store.js";
 import { runTrellis } from "./lib/trellis-runner.js";
 import { parseCliArgs } from "./lib/cli-args.js";
 import { installWindowsTerminalInputRecovery, scheduleWindowsTerminalExit } from "./lib/terminal-state.js";
+import { DEFAULT_UPDATE_BACKUP_RETENTION } from "./constants.js";
 
 /**
  * flower-trellis CLI 主入口。
@@ -98,7 +99,7 @@ flower 自有 flag:
   --variant <old|0.5|0.6>  强制强化包变体(默认按 .trellis/.version 自动选)
   --target <dir>           目标目录(默认当前目录)
   --no-update-check        本次跳过 flower-trellis 新版本检测(等价 FLOWER_NO_UPDATE_CHECK=1)
-  --backup-retention <n>   update 成功后保留最近 n 份升级备份(默认 3,0=不清理)
+  --backup-retention <n>   update 成功后保留最近 n 份升级备份(默认 ${DEFAULT_UPDATE_BACKUP_RETENTION},0=不清理)
 
 启动更新检查:
   self-check --json [--manual]      稳定输出检查 JSON；manual 只绕过提示节流

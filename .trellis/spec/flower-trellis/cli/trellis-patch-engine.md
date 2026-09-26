@@ -683,7 +683,7 @@ full-only control-plane-integrity -> atomic I/O + resolution + fallback + set
 ### 1. Scope / Trigger
 
 修改 Codex / Claude 的 SessionStart 注册、`json-hook-command` 重建逻辑或 Flower 启动资产时读取本节。
-修改 Astra 模型专用提示、项目开关、压缩恢复或模型切换边界时，同样以本节为准。
+修改 Astra/Sol 模型专用提示、项目开关、压缩恢复或模型切换边界时，同样以本节为准。
 旧 adapter 删除 handler 后只重建 type / command / timeout，会丢失用户设置的 `additionalContextLimit`；
 单份工作流摘要过长也可能被宿主替换成落盘预览。分段和额度迁移必须同时经过真实安装链验证。
 
@@ -700,7 +700,7 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
 - `render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | None`。
 - `_run_native_hook(root: Path, hook: str, hook_input: dict) -> dict | None`：在当前
   `sys.executable` 的独立解释器中执行白名单原生 Hook；空 stdout 表示原生跳过。
-- `_astra_workflow_hint(root: Path) -> str`：读取项目开关，返回完整英文提示或空串；非法显式配置或正文超限时抛出异常，由 state 的可选增强分支处理。
+- `_model_workflow_hint(root: Path, config_key: str, hint: str, label: str) -> str`：按模型读取项目开关、校验完整提示；`_astra_workflow_hint(root)` 与 `_sol_workflow_hint(root)` 分别返回对应英文提示或空串，非法配置与超限由 state 的可选增强分支处理。
 - `split_workflow(summary: str) -> dict[str, str]` 返回 `rules` / `stages`，拼接后等于原始摘要。
 - `json-hook-command` 的 `content.value.sessionParts` 只允许固定数组 `["state", "rules", "stages"]`，
   且仅用于 `event=SessionStart`、`commandResolver=codex-session-start|claude-session-start`。
@@ -747,15 +747,17 @@ subprocess.run(
 - `TRELLIS_HOOKS=0`、`TRELLIS_DISABLE_HOOKS=1` 时无输出；Codex 还尊重 `CODEX_NON_INTERACTIVE=1`。
   `source=resume` 无输出；state 的其余原生跳过条件在子进程 `main()` 内执行，rules/stages 继续在加载后
   调用 `should_skip_injection()`。
-- Astra 提示正文唯一来源为源脚本的 `ASTRA_WORKFLOW_HINT`，英文与 workflow 主体一致，含闭合的
-  `<trellis-astra-workflow-hint model="gpt-6-astra" version="1">` 块，完整块不超过 2048 UTF-8 字节。
-  仅当 `hook` 为 Codex 原生路径、`part=state`、输入 `model` 精确等于字符串 `gpt-6-astra`，且
-  `source` 为 `startup | clear | compact` 时，在成功提取的原生状态后用一个换行追加；rules/stages 零追加。
+- Astra 与 Sol 共用源脚本的 `MODEL_WORKFLOW_HINT_BODY` 英文正文，分别生成最终
+  `ASTRA_WORKFLOW_HINT`、`SOL_WORKFLOW_HINT`；闭合标签分别为
+  `<trellis-astra-workflow-hint model="gpt-6-astra" version="1">` 和
+  `<trellis-sol-workflow-hint model="gpt-6-sol" version="1">`。Astra 最终原文保持不变，每个完整块分别不超过 2048 UTF-8 字节。
+  仅当 `hook` 为 Codex 原生路径、`part=state`、输入 `model` 精确等于 `gpt-6-astra` 或 `gpt-6-sol`，且
+  `source` 为 `startup | clear | compact` 时，在成功提取的原生状态后用一个换行追加对应模型的一块；rules/stages 零追加。
   不 trim、不猜别名、不读取配置默认模型，不使用 matcher 筛选模型；其他模型（包括 gpt-5.5）、缺失或非法模型零追加。
-- `.trellis/config.yaml` 的 `codex.astra_workflow_hint` 缺省开启，`false` 仅关闭后续新增提示。
+- `.trellis/config.yaml` 的 `codex.astra_workflow_hint` 与 `codex.sol_workflow_hint` 各自缺省开启，`false` 只关闭对应模型后续新增提示。
   沿用 `common.trellis_config.read_trellis_config`：其 YAML 标量返回字符串，因此只接受布尔值或
   不区分大小写的 `"true" / "false"` 字符串；不能用 truthy 判断。`codex` 非映射或非法显式值须诊断。
-  配置合并到已有 codex 映射，正常更新必须保留该用户字段。
+  配置合并到已有 codex 映射，正常更新必须保留两个用户字段。
 - 每次匹配的 SessionStart 重新判断当前模型；普通 UserPromptSubmit 不新增提示，也不新增事件注册、
   跨轮状态或 shared-runtime Patch。会话中切换模型不会立即刷新，关闭或切换不能删除历史提示。
   `no-trellis` 保留仅跳过本轮 UserPromptSubmit 的原语义，不用于关闭 SessionStart 模型提示。
@@ -784,9 +786,9 @@ subprocess.run(
 | Windows 原生入口重配真实标准流或调用 `sys.stdout.detach()` | state 在独立解释器成功，父 wrapper 标准流不受影响 |
 | 原生 stdout 为空 | state 返回 `None`，wrapper 退出 0 且无 stdout |
 | 原生 stderr 非空且退出码非 0 | stderr 原样转发；stdout 输出含退出码的 systemMessage 与 trellis-injection-error，wrapper 退出 0 |
-| Astra + startup/clear/compact + state + 开关开启 | 原状态后追加一个英文块，三段合计一次 |
+| Astra 或 Sol + startup/clear/compact + state + 对应开关开启 | 原状态后追加对应模型的一个英文块，三段合计一次 |
 | 其他模型、缺失/非法 model、别名、非目标 source、Claude 或 rules/stages | 不新增提示，保留原路径输出 |
-| astra_workflow_hint=false | 原工作流保留，后续 SessionStart 不新增；历史提示不撤回 |
+| astra_workflow_hint=false 或 sol_workflow_hint=false | 原工作流和另一模型的开关不受影响；对应模型后续不新增，历史提示不撤回 |
 | codex 非映射、开关为 yes/1/空值、读取器异常或完整提示超过 2048 字节 | 保留原生 state，追加可见诊断，不新增提示 |
 | 原生文件损坏、输出非 JSON、缺少工作流块或章节边界 | stdout 输出 systemMessage 与 trellis-injection-error 上下文，stderr 诊断，退出 0；提示补读 workflow 和 get_context |
 | 分段超过脚本字符预算 | 保留完整正文及尾部规则，输出 systemMessage；不静默截断 |
@@ -796,8 +798,8 @@ subprocess.run(
 
 - Good：配置迁移保留用户 5000；三段并行输出，拼回正文与原始摘要等价；真实 update 再运行零差异。
 - Base：全新安装使用宿主缺省额度，只有 state 绑定会话，规则直接复用当前原生生成器。
-- Good：5.5 新会话零模型提示；切为 Astra 后等下一次 SessionStart 再追加；提示关闭后仍收到工作流状态。
-- Base：Astra 新会话、自动 compact 和手动 compact 均只由 state 追加。Codex 0.153.4 实测手动 compact 的上下文
+- Good：5.5 新会话零模型提示；切为 Astra 或 Sol 后等下一次 SessionStart 再追加；提示关闭后仍收到工作流状态。
+- Base：Astra/Sol 新会话、自动 compact 和手动 compact 均只由 state 追加。Codex 0.153.4 实测手动 compact 的上下文
   在下一条用户消息前交付；`/new` 产生 startup。不要仅根据 UI 命令名猜测 source=clear。
 - Bad：三个 handler 分别运行完整原生 main 后截字数，造成重复绑定、规则遗漏或依赖 handler 顺序。
 - Bad：只改 `.codex/hooks.json` 中的额度，后续安装仍用删除重建的 adapter 抹掉该值。

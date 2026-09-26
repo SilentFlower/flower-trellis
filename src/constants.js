@@ -9,7 +9,7 @@
 export const VARIANTS = ["old", "0.5", "0.6"];
 
 /** `flower-trellis update` 默认保留的 Trellis 时间戳备份数量。 */
-export const DEFAULT_UPDATE_BACKUP_RETENTION = 3;
+export const DEFAULT_UPDATE_BACKUP_RETENTION = 1;
 
 /**
  * Trellis init 支持的全部平台 flag。

@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout
+from hashlib import sha256
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
@@ -313,41 +314,81 @@ print(json.dumps({
 
         self.assertNotIn("timeout", run.call_args.kwargs)
 
-    def test_astra_only_in_codex_state_for_supported_starts(self) -> None:
-        """三种启动来源都只追加一次，其余平台和分段的原文保持。"""
-        for source in ("startup", "clear", "compact"):
-            for platform in ("codex", "claude"):
-                for part in SESSION.PARTS:
-                    with self.subTest(source=source, platform=platform, part=part):
-                        baseline = json.loads(self.run_hook(platform, part, source).stdout)
-                        result = self.run_hook(platform, part, source, hook_input={"model": "gpt-6-astra"})
-                        data = json.loads(result.stdout)
-                        context = data["hookSpecificOutput"]["additionalContext"]
-                        if platform == "codex" and part == "state":
-                            self.assertEqual(context.count("<trellis-astra-workflow-hint "), 1)
-                            self.assertIn(SESSION.ASTRA_WORKFLOW_HINT, context)
-                            original = baseline["hookSpecificOutput"]["additionalContext"]
-                            self.assertEqual(context.replace("\n" + SESSION.ASTRA_WORKFLOW_HINT, ""), original)
-                            self.assertLessEqual(len(SESSION.ASTRA_WORKFLOW_HINT.encode("utf-8")), 2048)
-                        else:
-                            self.assertEqual(data, baseline)
-                        self.assertNotIn("systemMessage", data)
+    def test_model_hints_only_in_codex_state_for_supported_starts(self) -> None:
+        """两个模型在三类启动来源各追加一次，其余平台和分段保持原文。"""
+        for model, hint, name, other in (
+            (SESSION.ASTRA_MODEL, SESSION.ASTRA_WORKFLOW_HINT, "astra", "sol"),
+            (SESSION.SOL_MODEL, SESSION.SOL_WORKFLOW_HINT, "sol", "astra"),
+        ):
+            for source in ("startup", "clear", "compact"):
+                for platform in ("codex", "claude"):
+                    for part in SESSION.PARTS:
+                        with self.subTest(model=model, source=source, platform=platform, part=part):
+                            baseline = json.loads(self.run_hook(platform, part, source).stdout)
+                            result = self.run_hook(platform, part, source, hook_input={"model": model})
+                            data = json.loads(result.stdout)
+                            context = data["hookSpecificOutput"]["additionalContext"]
+                            self.assertNotIn(f"<trellis-{other}-workflow-hint ", context)
+                            if platform == "codex" and part == "state":
+                                self.assertEqual(context.count(f"<trellis-{name}-workflow-hint "), 1)
+                                self.assertIn(hint, context)
+                                original = baseline["hookSpecificOutput"]["additionalContext"]
+                                self.assertEqual(context.replace("\n" + hint, ""), original)
+                                self.assertLessEqual(len(hint.encode("utf-8")), 2048)
+                            else:
+                                self.assertEqual(data, baseline)
+                            self.assertNotIn("systemMessage", data)
+
+    def test_sol_reuses_unchanged_astra_body(self) -> None:
+        """Astra 最终原文不漂移，Sol 仅替换模型标识和标签。"""
+        self.assertEqual(sha256(SESSION.ASTRA_WORKFLOW_HINT.encode("utf-8")).hexdigest(),
+                         "50da76355fe333285e691706479784c06dec3e868fd1f42858671531cc51eb6f")
+        self.assertEqual(SESSION.SOL_WORKFLOW_HINT.replace("trellis-sol-workflow-hint", "trellis-astra-workflow-hint")
+                         .replace(SESSION.SOL_MODEL, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
 
     def test_model_switch_and_unknown_values_use_event_input_only(self) -> None:
         """同一会话的连续启动事件重新判断模型，别名和非法值不推断。"""
         baseline = self.run_hook("codex", "state").stdout
-        models = ["gpt-6-astra", "gpt-5.6-sol", None, 6, [], {}, "GPT-6-ASTRA",
-                  "gpt-6-astra-latest", " gpt-6-astra", "gpt-6-astra ", "gpt-6-astra"]
+        models = ["gpt-6-astra", "gpt-6-sol", "gpt-5.6-sol", None, 6, [], {},
+                  "GPT-6-ASTRA", "GPT-6-SOL", "gpt-6-astra-latest", "gpt-6-sol-latest",
+                  " gpt-6-astra", "gpt-6-astra ", " gpt-6-sol", "gpt-6-sol "]
         for model in models:
             with self.subTest(model=model):
                 result = self.run_hook("codex", "state", hook_input={"model": model})
                 if model == "gpt-6-astra":
                     self.assertIn("<trellis-astra-workflow-hint ", json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
+                elif model == "gpt-6-sol":
+                    self.assertIn("<trellis-sol-workflow-hint ", json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
                 else:
                     self.assertEqual(result.stdout, baseline)
-        for source in ("unknown", "", None):
-            self.assertNotIn("trellis-astra-workflow-hint", self.run_hook(
-                "codex", "state", hook_input={"model": "gpt-6-astra", "source": source}).stdout)
+        for model, name in ((SESSION.ASTRA_MODEL, "astra"), (SESSION.SOL_MODEL, "sol")):
+            for source in ("unknown", "", None):
+                self.assertNotIn(f"trellis-{name}-workflow-hint", self.run_hook(
+                    "codex", "state", hook_input={"model": model, "source": source}).stdout)
+
+    def test_sol_config_is_independent_and_preserves_skip_contract(self) -> None:
+        """Sol 开关只控制 Sol；全局禁用、resume 和普通轮次保持原语义。"""
+        config = self.root / ".trellis/config.yaml"
+        baseline = json.loads(self.run_hook("codex", "state").stdout)
+        for raw in ("false", '"false"', "FALSE"):
+            config.write_text(f"codex:\n  astra_workflow_hint: true\n  sol_workflow_hint: {raw}\n", encoding="utf-8")
+            result = json.loads(self.run_hook("codex", "state", hook_input={"model": SESSION.SOL_MODEL}).stdout)
+            self.assertEqual(result, baseline)
+            self.assertIn("trellis-astra-workflow-hint", self.run_hook(
+                "codex", "state", hook_input={"model": SESSION.ASTRA_MODEL}).stdout)
+        for raw in ("true", '"true"', "TRUE"):
+            config.write_text(f"codex:\n  astra_workflow_hint: false\n  sol_workflow_hint: {raw}\n", encoding="utf-8")
+            self.assertIn("trellis-sol-workflow-hint", self.run_hook(
+                "codex", "state", hook_input={"model": SESSION.SOL_MODEL}).stdout)
+            result = json.loads(self.run_hook("codex", "state", hook_input={"model": SESSION.ASTRA_MODEL}).stdout)
+            self.assertEqual(result, baseline)
+        for env in ({"TRELLIS_HOOKS": "0"}, {"TRELLIS_DISABLE_HOOKS": "1"}, {"CODEX_NON_INTERACTIVE": "1"}):
+            self.assertEqual(self.run_hook("codex", "state", env={**self.env, **env},
+                                           hook_input={"model": SESSION.SOL_MODEL}).stdout, "")
+        self.assertEqual(self.run_hook("codex", "state", "resume",
+                                       hook_input={"model": SESSION.SOL_MODEL}).stdout, "")
+        self.assertNotIn("trellis-sol-workflow-hint", self.run_prompt_hook(
+            "codex", {"model": SESSION.SOL_MODEL, "prompt": "no-trellis"}).stdout)
 
     def test_astra_config_and_global_disables_preserve_original_contract(self) -> None:
         """关闭模型提示仍保留原上下文，全局禁用和 resume 保持零输出。"""
@@ -379,6 +420,18 @@ print(json.dumps({
             self.assertIn("Astra 工作流提示未注入", data["systemMessage"])
             self.assertIn("Astra 工作流提示未注入", result.stderr)
 
+    def test_invalid_sol_config_is_diagnosed_without_losing_state(self) -> None:
+        """非法 Sol 开关只停用可选提示，原生 state 继续输出。"""
+        baseline = json.loads(self.run_hook("codex", "state").stdout)["hookSpecificOutput"]
+        for config in ("codex: invalid\n", "codex:\n  sol_workflow_hint: yes\n",
+                       "codex:\n  sol_workflow_hint: 1\n", "codex:\n  sol_workflow_hint:\n"):
+            (self.root / ".trellis/config.yaml").write_text(config, encoding="utf-8")
+            result = self.run_hook("codex", "state", hook_input={"model": SESSION.SOL_MODEL})
+            data = json.loads(result.stdout)
+            self.assertEqual(data["hookSpecificOutput"], baseline)
+            self.assertIn("Sol 工作流提示未注入", data["systemMessage"])
+            self.assertIn("Sol 工作流提示未注入", result.stderr)
+
     def test_astra_generation_failure_preserves_native_diagnostics(self) -> None:
         """可选提示异常和超预算均不能丢掉原生状态及既有诊断。"""
         def native_result(*_args):
@@ -386,22 +439,26 @@ print(json.dumps({
             return {"systemMessage": "已有诊断", "hookSpecificOutput": {
                 "hookEventName": "SessionStart", "additionalContext": "原生状态\n<trellis-workflow>\n规则\n</trellis-workflow>\n"}}
         with patch.object(SESSION, "_run_native_hook", side_effect=native_result):
-            for error in (ImportError("配置读取器不可用"), ValueError("提示超预算")):
-                with patch.object(SESSION, "_astra_workflow_hint", side_effect=error):
-                    result = SESSION.render_part(self.root, SESSION.HOOKS[0], "state",
-                                                 {"source": "startup", "model": "gpt-6-astra"})
-                    self.assertIn("原生状态", result["hookSpecificOutput"]["additionalContext"])
-                    self.assertIn("已有诊断", result["systemMessage"])
-                    self.assertIn("Astra 工作流提示未注入", result["systemMessage"])
+            for model, builder, label in ((SESSION.ASTRA_MODEL, "_astra_workflow_hint", "Astra"),
+                                          (SESSION.SOL_MODEL, "_sol_workflow_hint", "Sol")):
+                for error in (ImportError("配置读取器不可用"), ValueError("提示超预算")):
+                    with patch.object(SESSION, builder, side_effect=error):
+                        result = SESSION.render_part(self.root, SESSION.HOOKS[0], "state",
+                                                     {"source": "startup", "model": model})
+                        self.assertIn("原生状态", result["hookSpecificOutput"]["additionalContext"])
+                        self.assertIn("已有诊断", result["systemMessage"])
+                        self.assertIn(f"{label} 工作流提示未注入", result["systemMessage"])
 
     def test_oversized_astra_prompt_fails_without_losing_native_state(self) -> None:
         """真实 UTF-8 预算门禁拒绝超限正文，保留工作流状态。"""
         baseline = SESSION.render_part(self.root, SESSION.HOOKS[0], "state", {"source": "startup"})
-        with patch.object(SESSION, "ASTRA_WORKFLOW_HINT", "中" * 683):
-            result = SESSION.render_part(self.root, SESSION.HOOKS[0], "state",
-                                         {"source": "startup", "model": "gpt-6-astra"})
-        self.assertEqual(result["hookSpecificOutput"], baseline["hookSpecificOutput"])
-        self.assertIn("超过 2048 字节预算", result["systemMessage"])
+        for model, constant in ((SESSION.ASTRA_MODEL, "ASTRA_WORKFLOW_HINT"),
+                                (SESSION.SOL_MODEL, "SOL_WORKFLOW_HINT")):
+            with patch.object(SESSION, constant, "中" * 683):
+                result = SESSION.render_part(self.root, SESSION.HOOKS[0], "state",
+                                             {"source": "startup", "model": model})
+            self.assertEqual(result["hookSpecificOutput"], baseline["hookSpecificOutput"])
+            self.assertIn("超过 2048 字节预算", result["systemMessage"])
 
     def test_missing_hook_and_boundary_have_visible_diagnostics(self) -> None:
         """源缺失或结构变化不被当作完整注入。"""

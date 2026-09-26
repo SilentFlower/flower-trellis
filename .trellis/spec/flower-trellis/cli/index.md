@@ -73,13 +73,13 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [Config & State](./config-and-state.md) | 常量、版本、升级缓存与耗时诊断、manifest 迁移、Git 共享记录与团队 CLI 安装引导、项目级 Trellis 开关与遥测 |
 | [Enhancements Model](./enhancements-model.md) | 强化包快照与叠加流水线 |
 | [Aliyun Ops Common Skill](./aliyun-ops.md) | 阿里云生产只读查询、ACK 受控 Deployment 变更、Workbench 凭证边界、临时文件生命周期与分发契约 |
-| [Trellis Patch Engine](./trellis-patch-engine.md) | Skill-Garden/Flower 统一 Patch、Bundle、迁移与 provenance；SessionStart 分段、额度保留及 Astra 模型提示/开关 |
+| [Trellis Patch Engine](./trellis-patch-engine.md) | Skill-Garden/Flower 统一 Patch、Bundle、迁移与 provenance；SessionStart 分段、额度保留及 Astra/Sol 模型提示/开关 |
 | [Flower Plugin Contracts](./flower-plugin-contracts.md) | Plugin/Marketplace schema、共享 DTO、canonical hash 与 `.flower/` Project Store 契约 |
 | [Flower Plugin Runtime And Lifecycle](./flower-plugin-runtime.md) | Source Registry、依赖解析、多平台投影、InstallPlan、事务恢复与项目级 Plugin 生命周期 CLI 契约 |
 | [Flower Plugin Remote Sources](./flower-plugin-gitlab.md) | GitLab/GitHub 来源、OAuth/匿名 REST、外部格式探测、安全 archive、不可变缓存与远程 CLI 契约 |
 | [Flower Plugin Capability Policy](./flower-plugin-capabilities.md) | standard/integration/system 授权交集、批准摘要、内置信任根与受限 Patch Planner 契约 |
 | [Flower Plugin Authoring And Marketplace CI](./flower-plugin-authoring.md) | 作者 Plugin/Skill、确定性 scaffold、ownership、validate、rd-guide CI 与 CODEOWNERS 契约 |
-| [AI Context Budget](./ai-context-budget.md) | 最终 workflow/state/skill、Phase summary、SessionStart 场景及 Astra 提示计量与控制面预算 |
+| [AI Context Budget](./ai-context-budget.md) | 最终 workflow/state/skill、Phase summary、SessionStart 场景及 Astra/Sol 提示计量与控制面预算 |
 | [Release & Publishing](./release-and-publishing.md) | 发版流程、CI 发布(OIDC)、CHANGELOG 约定 |
 | [Quality Guidelines](./quality-guidelines.md) | 必守模式、禁用模式、评审清单；Python 3.8 跨平台解释器、UTF-8、标准流与原生验证合同 |
 

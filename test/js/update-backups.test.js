@@ -120,7 +120,7 @@ async function quietAsync(callback) {
 }
 
 test("升级备份保留数量只接受非负安全整数", () => {
-  assert.equal(normalizeUpdateBackupRetention(undefined), 3);
+  assert.equal(normalizeUpdateBackupRetention(undefined), 1);
   assert.equal(normalizeUpdateBackupRetention(0), 0);
   assert.equal(normalizeUpdateBackupRetention("5"), 5);
   assert.throws(() => normalizeUpdateBackupRetention(null), /需要非负整数/);
@@ -230,6 +230,7 @@ test("0.6.12 最小项目可零写入预览升级到 0.6.14 并重放 Plugin", (
   fs.writeFileSync(path.join(target, ".trellis/.version"), "0.6.12\n");
   fs.writeFileSync(path.join(target, ".trellis/.developer"), "tester\n");
   fs.writeFileSync(path.join(target, ".trellis/config.yaml"), "# Trellis Configuration\n");
+  createBackups(target, BACKUPS.slice(0, 3));
   const before = snapshotTree(target);
   const prefix = createFakeGlobalTrellis(t, trellisVersion());
 
@@ -254,6 +255,7 @@ test("0.6.12 最小项目可零写入预览升级到 0.6.14 并重放 Plugin", (
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /跨版本 dry-run:在项目外沙箱预演 Trellis \+ Plugin \(0\.6\.12 → 0\.6\.14\)/);
   assert.match(result.stdout, /flower\/skill-garden/);
+  assert.match(result.stdout, /保留策略:1 份;预计保留 1 份;预计删除 2 份/);
   assert.deepEqual(snapshotTree(target), before);
 });
 
@@ -465,7 +467,7 @@ test("CLI 消费 backup-retention 并保留其它 Trellis 参数", () => {
   const base = path.join(os.tmpdir(), "flower-cli-base");
   const defaults = parseCliArgs(["update", "--force"], base);
   assert.equal(defaults.command, "update");
-  assert.equal(defaults.ctx.backupRetention, 3);
+  assert.equal(defaults.ctx.backupRetention, 1);
   assert.deepEqual(defaults.ctx.passthrough, ["--force"]);
 
   const explicit = parseCliArgs([
@@ -513,10 +515,10 @@ test("self-update 将 backup-retention 原样转发给项目 Flower update", () 
 });
 
 test("保留计划默认淘汰最旧备份并优先保护本轮新备份", () => {
-  assert.deepEqual(planUpdateBackupRetention(BACKUPS, 3), {
-    retention: 3,
-    retained: BACKUPS.slice(2).reverse(),
-    removable: BACKUPS.slice(0, 2),
+  assert.deepEqual(planUpdateBackupRetention(BACKUPS, normalizeUpdateBackupRetention(undefined)), {
+    retention: 1,
+    retained: [BACKUPS[4]],
+    removable: BACKUPS.slice(0, 4),
     protected: [],
   });
 
@@ -525,6 +527,22 @@ test("保留计划默认淘汰最旧备份并优先保护本轮新备份", () =>
   assert.deepEqual(protectedPlan.retained, [BACKUPS[4], BACKUPS[3], protectedName]);
   assert.deepEqual(protectedPlan.removable, [BACKUPS[1], BACKUPS[2]]);
   assert.deepEqual(protectedPlan.protected, [protectedName]);
+
+  const multipleProtected = planUpdateBackupRetention(BACKUPS, 1, BACKUPS.slice(0, 2));
+  assert.deepEqual(multipleProtected.retained, BACKUPS.slice(0, 2).reverse());
+  assert.deepEqual(multipleProtected.removable, BACKUPS.slice(2));
+});
+
+test("未传保留数量时实际只保留最新一份升级备份", (t) => {
+  const target = createTarget(t);
+  createBackups(target, BACKUPS);
+  const beforeSnapshot = snapshotUpdateBackups(target);
+
+  const result = pruneUpdateBackups(target, { beforeSnapshot });
+
+  assert.equal(result.retention, 1);
+  assert.deepEqual(result.removed, BACKUPS.slice(0, 4));
+  assert.deepEqual(existingBackups(target, BACKUPS), [BACKUPS[4]]);
 });
 
 test("真实清理只删除合法旧目录并保留 Flower 基线与相似路径", (t) => {

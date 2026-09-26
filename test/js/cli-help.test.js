@@ -10,6 +10,7 @@ const ROOT = path.resolve(".");
 const CLI = path.join(ROOT, "bin/flower-trellis.js");
 
 const HELP_CASES = [
+  { args: ["--help"], expected: /--backup-retention <n>.*\(默认 1,0=不清理\)/ },
   { args: ["init", "-h"], expected: /flower-trellis init/ },
   { args: ["update", "--help"], expected: /flower-trellis update/ },
   { args: ["self-check", "--help"], expected: /flower-trellis self-check/ },

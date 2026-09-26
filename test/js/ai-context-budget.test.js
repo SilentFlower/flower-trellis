@@ -37,20 +37,29 @@ test("最终入口分别计量 Auto-Loop 与两平台实际 SessionStart 分段"
     parts.filter((metric) => metric.name.includes(`:${platform}:`)).reduce((sum, metric) => sum + metric.bytes, 0)
   );
   assert.equal(metrics.find((metric) => metric.name === "session-start").bytes, Math.max(...platformTotals));
-  const hint = metrics.find((metric) => metric.name === "astra-workflow-hint");
-  assert.ok(hint.bytes > 0 && hint.bytes <= 2048);
-  assert.equal(hint.target, 2048);
-  assert.equal(hint.review, 2048);
+  const hints = Object.fromEntries(["astra", "sol"].map((model) => [
+    model,
+    metrics.find((metric) => metric.name === `${model}-workflow-hint`),
+  ]));
+  for (const hint of Object.values(hints)) {
+    assert.ok(hint.bytes > 0 && hint.bytes <= 2048);
+    assert.equal(hint.target, 2048);
+    assert.equal(hint.review, 2048);
+  }
   const scenarios = metrics.filter((metric) => metric.name.startsWith("session-start-case:"));
-  assert.equal(scenarios.length, 8);
+  assert.equal(scenarios.length, 13);
   const scenarioBytes = (name) => scenarios.find((metric) => metric.name === `session-start-case:${name}`).bytes;
   const baseline = scenarioBytes("codex:missing-model");
-  for (const source of ["startup", "clear", "compact"]) {
-    assert.equal(scenarioBytes(`codex:astra-${source}`), baseline + hint.bytes + 1);
+  for (const [model, hint] of Object.entries(hints)) {
+    for (const source of ["startup", "clear", "compact"]) {
+      assert.equal(scenarioBytes(`codex:${model}-${source}`), baseline + hint.bytes + 1);
+    }
   }
   assert.equal(scenarioBytes("codex:other-model"), baseline);
   assert.equal(scenarioBytes("codex:disabled"), baseline);
+  assert.equal(scenarioBytes("codex:sol-disabled"), baseline);
   assert.equal(scenarioBytes("claude:astra-startup"), scenarioBytes("claude:astra-compact"));
+  assert.equal(scenarioBytes("claude:astra-startup"), scenarioBytes("claude:sol-startup"));
   assert.equal(metrics.find((metric) => metric.name === "session-start").bytes,
     Math.max(...scenarios.map((metric) => metric.bytes)));
 });

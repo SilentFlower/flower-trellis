@@ -71,6 +71,7 @@ jobs:
           test/js/flower-update-contract.test.js
           test/js/flower-update-windows.test.js
           test/js/update-backups.test.js
+          test/js/cli-help.test.js
           test/js/trellis-runner-output.test.js
           test/js/terminal-state.test.js
           test/js/trellis-control.test.js

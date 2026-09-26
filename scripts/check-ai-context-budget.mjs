@@ -166,16 +166,25 @@ function measureSessionStart(compiledRoot) {
     );
     const scenarios = [
       { platform: "codex", name: "missing-model", source: "startup" },
-      { platform: "codex", name: "astra-startup", source: "startup", model: "gpt-6-astra", expectedHints: 1 },
-      { platform: "codex", name: "astra-clear", source: "clear", model: "gpt-6-astra", expectedHints: 1 },
-      { platform: "codex", name: "astra-compact", source: "compact", model: "gpt-6-astra", expectedHints: 1 },
+      { platform: "codex", name: "astra-startup", source: "startup", model: "gpt-6-astra", expectedHint: "astra" },
+      { platform: "codex", name: "astra-clear", source: "clear", model: "gpt-6-astra", expectedHint: "astra" },
+      { platform: "codex", name: "astra-compact", source: "compact", model: "gpt-6-astra", expectedHint: "astra" },
+      { platform: "codex", name: "sol-startup", source: "startup", model: "gpt-6-sol", expectedHint: "sol" },
+      { platform: "codex", name: "sol-clear", source: "clear", model: "gpt-6-sol", expectedHint: "sol" },
+      { platform: "codex", name: "sol-compact", source: "compact", model: "gpt-6-sol", expectedHint: "sol" },
       { platform: "codex", name: "other-model", source: "startup", model: "gpt-5.6-sol" },
-      { platform: "codex", name: "disabled", source: "startup", model: "gpt-6-astra", enabled: false },
+      { platform: "codex", name: "disabled", source: "startup", model: "gpt-6-astra", disabledHint: "astra" },
+      { platform: "codex", name: "sol-disabled", source: "startup", model: "gpt-6-sol", disabledHint: "sol" },
       { platform: "claude", name: "astra-startup", source: "startup", model: "gpt-6-astra" },
       { platform: "claude", name: "astra-compact", source: "compact", model: "gpt-6-astra" },
+      { platform: "claude", name: "sol-startup", source: "startup", model: "gpt-6-sol" },
     ];
     const cases = [];
-    let astraHint = "";
+    const modelHints = { astra: "", sol: "" };
+    const hintPatterns = {
+      astra: /<trellis-astra-workflow-hint [^>]*>[\s\S]*?<\/trellis-astra-workflow-hint>/g,
+      sol: /<trellis-sol-workflow-hint [^>]*>[\s\S]*?<\/trellis-sol-workflow-hint>/g,
+    };
     for (const scenario of scenarios) {
       const { platform, name, source, model } = scenario;
       const hook = `.${platform}/hooks/session-start.py`;
@@ -184,7 +193,7 @@ function measureSessionStart(compiledRoot) {
       copyIfExists(path.join(compiledRoot, workflowHook), path.join(fixture, workflowHook));
       // 固定测试配置，个人关闭设置不能让预算检查漏掉默认开启的实际成本。
       fs.writeFileSync(path.join(fixture, ".trellis/config.yaml"),
-        `codex:\n  dispatch_mode: auto\n  astra_workflow_hint: ${scenario.enabled !== false}\n`);
+        `codex:\n  dispatch_mode: auto\n  astra_workflow_hint: ${scenario.disabledHint !== "astra"}\n  sol_workflow_hint: ${scenario.disabledHint !== "sol"}\n`);
       const parts = [];
       for (const part of ["state", "rules", "stages"]) {
         const output = execPythonSync([FLOWER_SESSION_HOOK_REL, "--hook", hook, "--part", part], {
@@ -214,14 +223,18 @@ function measureSessionStart(compiledRoot) {
         if (part === "state" && !value.includes("<workflow-state>\n")) {
           throw new Error(`SessionStart ${platform}/${name}/state 未包含完整 workflow-state`);
         }
-        const hints = [...value.matchAll(/<trellis-astra-workflow-hint [^>]*>[\s\S]*?<\/trellis-astra-workflow-hint>/g)];
-        const expected = part === "state" ? scenario.expectedHints || 0 : 0;
-        if (hints.length !== expected) {
-          throw new Error(`SessionStart ${platform}/${name}/${part} 模型提示数量错误:${hints.length} != ${expected}`);
-        }
-        if (hints.length) {
-          if (astraHint && astraHint !== hints[0][0]) throw new Error("SessionStart 各来源的 Astra 提示不一致");
-          astraHint = hints[0][0];
+        for (const [hintModel, pattern] of Object.entries(hintPatterns)) {
+          const hints = [...value.matchAll(pattern)];
+          const expected = part === "state" && scenario.expectedHint === hintModel ? 1 : 0;
+          if (hints.length !== expected) {
+            throw new Error(`SessionStart ${platform}/${name}/${part} ${hintModel} 提示数量错误:${hints.length} != ${expected}`);
+          }
+          if (hints.length) {
+            if (modelHints[hintModel] && modelHints[hintModel] !== hints[0][0]) {
+              throw new Error(`SessionStart 各来源的 ${hintModel} 提示不一致`);
+            }
+            modelHints[hintModel] = hints[0][0];
+          }
         }
         parts.push({ platform, part, value });
       }
@@ -237,7 +250,7 @@ function measureSessionStart(compiledRoot) {
     const total = largestCases.map((item) => item.value).sort((left, right) =>
       Buffer.byteLength(right, "utf8") - Buffer.byteLength(left, "utf8")
     )[0];
-    return { parts, total, cases, astraHint };
+    return { parts, total, cases, modelHints };
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true });
   }
@@ -321,7 +334,8 @@ export function collectAiContextMetrics() {
       unit: "characters",
       characters: [...value].length,
     })),
-    measureText("astra-workflow-hint", sessionStart.astraHint, { target: 2 * KIB, review: 2 * KIB }),
+    measureText("astra-workflow-hint", sessionStart.modelHints.astra, { target: 2 * KIB, review: 2 * KIB }),
+    measureText("sol-workflow-hint", sessionStart.modelHints.sol, { target: 2 * KIB, review: 2 * KIB }),
     ...sessionStart.cases.map(({ platform, name, value }) =>
       measureText(`session-start-case:${platform}:${name}`, value, BUDGETS.sessionStart)
     ),
