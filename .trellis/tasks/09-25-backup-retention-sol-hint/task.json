@@ -1,0 +1,78 @@
+{
+  "id": "backup-retention-sol-hint",
+  "name": "backup-retention-sol-hint",
+  "title": "升级备份精简与 Sol 专属提示",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-25",
+  "completedAt": "2026-09-26",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-09-26T02:59:24Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-09-25T06:09:38Z",
+      "contextKey": "codex_01a0d72b-fe91-7173-ad9f-8a46cd3b5920",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "ace393abeed5f7919f144dce7190f243bc22183a",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "ace393abeed5f7919f144dce7190f243bc22183a",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "117527aa30b043ec20919856e04dfc672ed77b557639ee6fdfa8ccd1b6098618"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "f2feb8b818f72b124466a186987690f69665e8d1",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "451d56e6ef904c151ae53d6a4071ee60e59e4715b170ac9bce24570f993fcd58"
+          }
+        ],
+        "fingerprint": "21aac7b62d3cbbe9311b71b39b076c1e7e4e47125f7c87c05f1153b3b255128d"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-09-26T02:59:16Z",
+    "completedSteps": [
+      "将升级备份默认保留数量改为 1，并完成文档与回归验证",
+      "为 gpt-6-sol 增加独立 SessionStart 提示，并完成隔离安装与预算验证",
+      "通过本地 Check-All 及匹配提交的 Ubuntu 和 Windows 跨平台 CI"
+    ],
+    "partialStep": null,
+    "nextStep": "已完成",
+    "notes": "Sol 注入正确性已验证，行为效果尚无独立对照证据。"
+  }
+}

@@ -1,0 +1,3 @@
+{"file":".trellis/tasks/09-25-backup-retention-sol-hint/research/context-map.md","reason":"按章节补读备份保留与 SessionStart 原规范，审查默认值、双模型选择和降级。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"审查各模型提示与实际输出预算。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"执行项目质量与跨平台覆盖检查。"}

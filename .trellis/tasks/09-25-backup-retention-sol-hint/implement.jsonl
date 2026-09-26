@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"遵循 CLI 层开发前检查与质量入口。"}
+{"file":".trellis/tasks/09-25-backup-retention-sol-hint/research/context-map.md","reason":"按章节定位并补读备份保留与 SessionStart 的完整原规范，避免长文件注入截断。"}
+{"file":".trellis/spec/flower-trellis/cli/ai-context-budget.md","reason":"核对模型提示与实际 SessionStart 输出的预算规则。"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"核对跨平台 Python Hook、安装与测试要求。"}
