@@ -1,0 +1,80 @@
+{
+  "id": "auto-gc-push-allow",
+  "name": "auto-gc-push-allow",
+  "title": "自动 GC 提交默认放行",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-26",
+  "completedAt": "2026-09-26",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-09-26T03:55:04Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-09-26T03:01:11Z",
+      "contextKey": "codex_01a0d72b-fe91-7173-ad9f-8a46cd3b5920",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "f3fae65c1a75cec3c945029555395a87af86fe5f",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "f3fae65c1a75cec3c945029555395a87af86fe5f",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "ab02ae092abf03003075f2c609cc3ee05f316240f8349a0cdab0224ad135d82c"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "f2feb8b818f72b124466a186987690f69665e8d1",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "451d56e6ef904c151ae53d6a4071ee60e59e4715b170ac9bce24570f993fcd58"
+          }
+        ],
+        "fingerprint": "ca8f7a11602fd1ca34cb4e2fe8cc5dbfdb43029d7288f7f84286a35e6376bff3"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "实现自动 GC 提交只读审计及 Push 规则",
+      "同步 Skill-Garden 源、快照与项目运行副本",
+      "完成本地验证与 Check-All 风险处置",
+      "更新长期规范",
+      "提交并推送两个仓库的业务变更"
+    ],
+    "partialStep": null,
+    "nextStep": "任务完成；按 release.md 核对上线后 CI",
+    "notes": "FBK-001（P1）和 FBK-002（P2）已由用户接受；Python 兼容矩阵待推送后核对。",
+    "updatedAt": "2026-09-26T03:55:04Z"
+  }
+}
