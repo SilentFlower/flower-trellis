@@ -1283,9 +1283,13 @@ prd.md | design.md | implement.md
 
 `brief.md` 是从上述文件生成的派生交接视图，不是新的需求或设计权威源。
 
-Brief 固定覆盖 Goal、Scope、Non-Goals、Key Decisions、Key Context、Acceptance 和一跳 Next Step；
-Risks / Deferred 仅在存在时生成。Key Decisions 只提炼会影响实施批准的最终选择及其影响，
-不复制 planning artifacts 中的完整决策台账；Brief 不计算或展示 Artifact Status。
+Brief 按 Goal、Scope、Non-Goals、可选 Technical Overview、Context & Decisions、可选 Risks、
+Acceptance、一跳 Next Step 排列。Goal 用一句话表达目标；Scope 只列本轮纳入的行为或改动对象，
+不复述原理、取舍或验收，也不另设 Deliverables。Technical Overview 仅从 planning artifacts 中
+明确的技术机制提炼入口、主要处理或数据流、关键校验或状态变化及结果；没有依据时省略整节。
+Context & Decisions 保留影响实施判断的既有事实、入口、硬约束及最终取舍与原因，不复制流程或
+完整决策台账。延期事项归入 Non-Goals；Risks 只记录具体风险，没有风险时省略。Acceptance 只写
+可验证条件；负向范围声明仅在确需回归验证时保留。Brief 不计算或展示 Artifact Status。
 规划完整性、Open Questions、context manifest readiness 和 brief freshness 继续由各自既有 owner 负责。
 
 ### 3. Contracts
@@ -1339,6 +1343,7 @@ Risks / Deferred 仅在存在时生成。Key Decisions 只提炼会影响实施�
 | schema 2 planning task 缺少/过期 brief | 返回 `refresh_brief`；成功后进入 manifest prepare，不等待逐任务确认 |
 | schema 2 manifest 后 handoff 文件无授权变化 | 当前项以 `artifact-drift` 阻塞，不能沿用旧授权 |
 | schema 1 brief 未确认或确认后 handoff 变化 | 等待/重新返回 `confirm_brief`，不得执行 `start_task` |
+| planning artifacts 未说明技术机制 | 省略 Technical Overview，不写猜测或“未明确”占位 |
 | 重复同步和 enhance-only apply | 第二次 Patch 修改数为 0，marker/provenance 不重复 |
 
 ### 5. Good/Base/Bad Cases
@@ -1352,12 +1357,15 @@ Risks / Deferred 仅在存在时生成。Key Decisions 只提炼会影响实施�
 - Good:schema 2 auto-loop 对全队列完成内容绑定的 readiness review 和 brief 刷新，manifest 固化
   planning/handoff hash 后直接返回 `start_task`，运行阶段不再逐任务停顿。
 - Base:轻量任务只有 `prd.md` 和更新后的 brief；校验通过，不机械要求不存在的 design/implement。
+- Base:轻量 PRD 只有目标与范围，没有技术机制；brief 保留 Context & Decisions，省略 Technical Overview。
 - Base:旧 `in_progress` 任务没有 brief；重新绑定成功，后续 workflow 建议回补。
 - Bad:只在 `workflow-state:planning` 增加提示。该状态可能要到下一次用户输入才注入，同一回合
   create -> plan -> start 仍可绕过。
 - Bad:schema 2 auto-loop 看到三件套/brief 文件存在就直接 start，或不生成 manifest 就把启动指令
   当成对任意后续内容的授权；这会绕过语义质量线和内容漂移保护。
 - Bad:把“开始做吧”“可以创建任务”等普通意图视为 Brief 预授权，或把一次预授权保存为长期偏好。
+- Bad:把 Scope 写成方案流程，再在 Technical Overview 和 Context & Decisions 逐栏复述；应分别保留
+  纳入范围、技术原理，以及影响实施判断的事实与取舍。
 
 ### 6. Tests Required
 
@@ -1372,6 +1380,8 @@ Risks / Deferred 仅在存在时生成。Key Decisions 只提炼会影响实施�
   的最终 marker 与语义；`.agents`、`.claude` 目标至少各覆盖一次。
 - 文案契约测试必须覆盖默认等待、显式预授权同回合启动、普通意图不构成预授权，以及范围扩大、
   Open Questions 和高风险边界使预授权失效；同时断言没有新增 session helper 或 `task.py` 授权状态。
+- Brief 栏目断言覆盖一句话 Goal、仅列改动范围的 Scope、合并的 Context & Decisions、有依据时的
+  Technical Overview、无依据或无具体风险时省略对应整节，以及旧独立栏目和 Deliverables 缺席。
 - 断言 compiled workflow 两种 in_progress 状态均要求读取而非例行重述，保留规划评审、范围门禁和缺失回补。
 - Patch conflict policy 同时要求 handoff/readiness 两个 operation，并检查最终 workflow、skill、
   script 的唯一签名；selector/baseline 漂移继续保持全量预检零写入。

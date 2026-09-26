@@ -138,7 +138,7 @@
           "## Planning Handoff",
           "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n8. Load `trellis-task-brief`",
           "Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope.",
-          "The final Brief must cover Goal, Scope, Non-Goals, Key Decisions, Key Context, Acceptance, one-hop Next Step",
+          "The final Brief must cover a one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance, and one-hop Next Step",
           "Ordinary implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
           "unresolved items are `- [ ]`",
           "Do not write bare placeholders"
@@ -162,7 +162,7 @@
           "## Planning Handoff",
           "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n8. Load `trellis-task-brief`",
           "Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope.",
-          "The final Brief must cover Goal, Scope, Non-Goals, Key Decisions, Key Context, Acceptance, one-hop Next Step",
+          "The final Brief must cover a one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance, and one-hop Next Step",
           "Ordinary implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
           "unresolved items are `- [ ]`",
           "Do not write bare placeholders"

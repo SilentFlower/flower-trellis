@@ -45,20 +45,25 @@ test("Brief 显式预授权只形成文案级窄例外", () => {
   assert.match(agents, /若最终内容扩大范围、仍有未解决 Open Questions/);
   assert.match(agents, /不建立跨会话永久偏好，也不写 session runtime/);
   assert.match(agents, /先完整展示，再在同一回合返回主 workflow/);
-  assert.match(agents, /## Key Decisions/);
-  assert.match(agents, /## Key Context/);
-  assert.match(agents, /没有相关内容时直接省略 `Risks \/ Deferred` 整节/);
+  assert.match(agents, /`Goal` 保持一句话，`Scope` 只写本轮纳入的行为或改动对象/);
+  assert.match(agents, /没有明确技术机制时省略 `Technical Overview`，没有具体风险时省略 `Risks`/);
+  assert.match(agents, /延期事项归入 `Non-Goals`/);
   assert.doesNotMatch(agents, /Artifact Status/);
   assert.doesNotMatch(agents, /Planning artifacts|Context manifests|Review: awaiting approval/);
   assert.match(agents, /只写进入下一阶段后的一个直接动作/);
   assert.match(brainstormHandoff, /display the full Brief in chat/);
   assert.doesNotMatch(brainstormHandoff, /Artifact Status/);
-  assert.match(briefShape, /Non-Goals, Key Decisions, Key Context, Acceptance/);
+  assert.match(briefShape, /one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance/);
+  assert.match(briefShape, /include Technical Overview only when the planning artifacts define a technical mechanism, and Risks only when relevant/);
   assert.doesNotMatch(briefShape, /Artifact Status/);
   const persistedTemplate = agents.slice(
     agents.indexOf("## 模板"),
     agents.indexOf("## 展示格式"),
   );
+  assert.match(persistedTemplate, /^## Technical Overview$/m);
+  assert.match(persistedTemplate, /^## Context & Decisions$/m);
+  assert.match(persistedTemplate, /^## Risks$/m);
+  assert.doesNotMatch(persistedTemplate, /^## (?:Key Decisions|Key Context|Risks \/ Deferred|Deliverables)$/m);
   assert.doesNotMatch(persistedTemplate, /^## Artifact Status$/m);
   assert.equal(
     fs.existsSync(path.join(sourceRoot, "scripts/brief_review_state.py")),

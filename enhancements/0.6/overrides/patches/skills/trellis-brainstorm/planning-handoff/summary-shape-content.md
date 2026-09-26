@@ -1,1 +1,1 @@
-The final Brief must cover Goal, Scope, Non-Goals, Key Decisions, Key Context, Acceptance, one-hop Next Step, and relevant Risks / Deferred items.
+The final Brief must cover a one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance, and one-hop Next Step; include Technical Overview only when the planning artifacts define a technical mechanism, and Risks only when relevant.
