@@ -19,10 +19,10 @@ HOOKS = (".codex/hooks/session-start.py", ".claude/hooks/session-start.py")
 MAX_PART_CHARS = 8000
 WORKFLOW_BLOCK = re.compile(r"<trellis-workflow>\n(.*?)\n</trellis-workflow>\n*", re.DOTALL)
 ASTRA_MODEL = "gpt-6-astra"
-ASTRA_HINT_MAX_BYTES = 2048
+SOL_MODEL = "gpt-6-sol"
+MODEL_HINT_MAX_BYTES = 2048
 WORKFLOW_STATE_REFRESH_ARG = "--trellis-session-start-refresh"
-ASTRA_WORKFLOW_HINT = """<trellis-astra-workflow-hint model="gpt-6-astra" version="1">
-Applies only while the active model is gpt-6-astra; it does not apply after switching models. Perform checks internally, without a routine checklist report. Keep ordinary answers brief.
+MODEL_WORKFLOW_HINT_BODY = """Applies only while the active model is {model}; it does not apply after switching models. Perform checks internally, without a routine checklist report. Keep ordinary answers brief.
 When executing the current task:
 - Act autonomously within applicable SKILL and WORKFLOW steps. Do not waive required steps, references, review gates or templates because work seems simple, a check seems redundant, or fewer interruptions are preferred.
 - Before a step, review its rules and required references. Reuse material already read in full and unchanged; search matches are not full reads.
@@ -30,14 +30,22 @@ When executing the current task:
 - Resolve conflicts by instruction hierarchy. Follow the owning workflow's phase-transition and review requirements. Permission to begin planning does not approve the final plan.
 - Where the workflow requires review of a displayed plan, a generic request such as "commit and push" starts that workflow; it does not itself confirm a plan produced afterward. Reuse approval of the same plan or an explicit waiver within its scope, including valid auto-loop preauthorization. Otherwise, display the plan and wait for the user's confirmation before acting. Verify the actual user reply; displaying a plan or saying "executing as authorized" is not confirmation.
 - Before claiming "read", "checked", or "complete", verify actual tool records and artifacts. Successful reading and compliant execution are separate facts.
-- When corrected, review the applicable rules, execution records, and actual result before repairing it. If evidence is missing, state uncertainty. Do not invent causes such as "not read", "forgot", or "file missing", or consult unrelated rules in place of the relevant ones.
-</trellis-astra-workflow-hint>"""
+- When corrected, review the applicable rules, execution records, and actual result before repairing it. If evidence is missing, state uncertainty. Do not invent causes such as "not read", "forgot", or "file missing", or consult unrelated rules in place of the relevant ones."""
+ASTRA_WORKFLOW_HINT = (f'<trellis-astra-workflow-hint model="{ASTRA_MODEL}" version="1">\n'
+                       f'{MODEL_WORKFLOW_HINT_BODY.format(model=ASTRA_MODEL)}\n'
+                       '</trellis-astra-workflow-hint>')
+SOL_WORKFLOW_HINT = (f'<trellis-sol-workflow-hint model="{SOL_MODEL}" version="1">\n'
+                     f'{MODEL_WORKFLOW_HINT_BODY.format(model=SOL_MODEL)}\n'
+                     '</trellis-sol-workflow-hint>')
 
 
-def _astra_workflow_hint(root: Path) -> str:
-    """读取项目开关，返回唯一来源的 Astra 提示或空串。
+def _model_workflow_hint(root: Path, config_key: str, hint: str, label: str) -> str:
+    """读取指定模型的项目开关，返回该模型提示或空串。
 
     @param root: 当前部署项目根目录。
+    @param config_key: codex 配置下的模型开关键。
+    @param hint: 对应模型的完整提示块。
+    @param label: 用于诊断的模型名称。
     @return: 完整提示块；显式关闭时为空串，非法配置或超预算时抛出异常。
     """
     scripts_dir = str(root / ".trellis" / "scripts")
@@ -49,17 +57,35 @@ def _astra_workflow_hint(root: Path) -> str:
     codex = config.get("codex", {})
     if not isinstance(codex, dict):
         raise ValueError("codex 配置必须为映射")
-    enabled = codex.get("astra_workflow_hint", True)
+    enabled = codex.get(config_key, True)
     # 上游无依赖 YAML 读取器返回字符串，不能把字符串 false 当作真值。
     if isinstance(enabled, str) and enabled.lower() in ("true", "false"):
         enabled = enabled.lower() == "true"
     if not isinstance(enabled, bool):
-        raise ValueError("codex.astra_workflow_hint 必须为 true 或 false")
+        raise ValueError(f"codex.{config_key} 必须为 true 或 false")
     if not enabled:
         return ""
-    if len(ASTRA_WORKFLOW_HINT.encode("utf-8")) > ASTRA_HINT_MAX_BYTES:
-        raise ValueError("Astra 工作流提示超过 2048 字节预算")
-    return ASTRA_WORKFLOW_HINT
+    if len(hint.encode("utf-8")) > MODEL_HINT_MAX_BYTES:
+        raise ValueError(f"{label} 工作流提示超过 2048 字节预算")
+    return hint
+
+
+def _astra_workflow_hint(root: Path) -> str:
+    """读取 Astra 独立开关并返回提示。
+
+    @param root: 当前部署项目根目录。
+    @return: Astra 提示块；关闭时为空串。
+    """
+    return _model_workflow_hint(root, "astra_workflow_hint", ASTRA_WORKFLOW_HINT, "Astra")
+
+
+def _sol_workflow_hint(root: Path) -> str:
+    """读取 Sol 独立开关并返回提示。
+
+    @param root: 当前部署项目根目录。
+    @return: Sol 提示块；关闭时为空串。
+    """
+    return _model_workflow_hint(root, "sol_workflow_hint", SOL_WORKFLOW_HINT, "Sol")
 
 
 def split_workflow(summary: str) -> dict[str, str]:
@@ -285,17 +311,24 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
             message = f"workflow-state 基线未刷新：{error}"
             result["systemMessage"] = "\n".join(filter(None, [result.get("systemMessage"), message]))
             print(message, file=sys.stderr)
-        if (hook == HOOKS[0] and hook_input.get("model") == ASTRA_MODEL
-                and hook_input.get("source") in ("startup", "clear", "compact")):
-            try:
-                hint = _astra_workflow_hint(root)
-                if hint:
-                    context = f"{context}\n{hint}"
-            except Exception as error:
-                # 提示是可选增强；失败不能吞掉已成功生成的原生启动上下文。
-                message = f"Astra 工作流提示未注入：{error}"
-                result["systemMessage"] = "\n".join(filter(None, [result.get("systemMessage"), message]))
-                print(message, file=sys.stderr)
+        if hook == HOOKS[0] and source in ("startup", "clear", "compact"):
+            model = hook_input.get("model")
+            hint_builder = None
+            label = ""
+            if model == ASTRA_MODEL:
+                hint_builder, label = _astra_workflow_hint, "Astra"
+            elif model == SOL_MODEL:
+                hint_builder, label = _sol_workflow_hint, "Sol"
+            if hint_builder is not None:
+                try:
+                    hint = hint_builder(root)
+                    if hint:
+                        context = f"{context}\n{hint}"
+                except Exception as error:
+                    # 提示是可选增强；失败不能吞掉已成功生成的原生启动上下文。
+                    message = f"{label} 工作流提示未注入：{error}"
+                    result["systemMessage"] = "\n".join(filter(None, [result.get("systemMessage"), message]))
+                    print(message, file=sys.stderr)
     else:
         module = _load_hook(root, hook)
         if module.should_skip_injection():

@@ -2906,6 +2906,12 @@ taskStatus=completed -> conditionally load completed-task-recovery.md
   -> contradictory or incomplete evidence -> blocked
 ```
 
+历史自动 GC 提交的只读审计入口：
+
+```bash
+python3 <skill-dir>/scripts/verify_gc_commit.py --repo <repository-root> --commit <full-sha>
+```
+
 普通多仓计划可以在仓库间展示一个本地生成命令；命令成功且生成后的 dirty paths 未超出预计 exact files 时沿用同一次确认。
 
 交互输出事件:
@@ -2960,6 +2966,14 @@ risk_items          ->始终逐项展示,不折叠
   结果外出现其它变化时标记为 `已失效` 并披露风险，不得因此把请求拉回 Phase 2.2。
 - 只有 Git 层面的确定性安全条件可以阻断计划，包括冲突或未完成集成状态、exact files 无法
   归属、分支/upstream 不满足安全执行条件，以及普通 push 会携带无法归属的历史 ahead commits。
+- 普通推送逐个审计 `@{u}..HEAD` 的历史 GC 候选；只有单父、完整固定消息、顶层 completed/closed
+  任务到 `closedAt` UTC 月份归档的同 blob/模式映射，且脚本退出 0、返回 `status=verified` 和相同完整
+  commit hash 时，才默认许可该 ahead 提交。同批多任务与已存在目标文件的去重适用同一规则；执行前、
+  任务记录发布和 push-only 恢复重验。GC 仅随正常 push 发布，不进入业务 planned/任务记录 exact files，
+  不增加 GC 专项确认，也不扩大用户或 auto-loop 的 `commit-only` 授权；其它 ahead 保持阻断。
+- 当前审计器只验证源文件与目标文件逐项对应，未排除归档目录在父提交中预存额外文件；极端
+  `closedAt` UTC 转换溢出会非零退出但不输出 `rejected` JSON。这两项是当前已接受的审计缺口；
+  前者可能误判为 GC，后者仍按执行失败阻断，不得把当前实现描述为完整目录相等或总有 JSON 结果。
 - Push 计划必须在仓库计划前展示“完成链证据”，包含 Check-All 与 Update-Spec 当前状态；
   exact files、commit message、保留 dirty、风险和最终一次确认继续使用原有计划契约。
 - Phase 3.4 必须加载 `trellis-push`;在该 skill 外草拟提交计划不能作为等价替代。
@@ -2975,7 +2989,7 @@ risk_items          ->始终逐项展示,不折叠
 - Phase 3.4 Patch 必须直接替换与 `trellis-push` 冲突的上游 `Proposed commits`、本地直接 commit
   和 `Never push` walkthrough；不得保留旧正文后再依赖 Hub 声明其 inactive。
 - 普通 `trellis-push` 默认 commit + push 当前分支;commit-only 只来自用户明确意图或已经由
-  auto-loop 校验的内部调用。分支合并、release、物理 GC 和 runner 状态不属于该 skill；
+  auto-loop 校验的内部调用。分支合并、release、物理 GC 的生成和 runner 状态不属于该 skill；
   最终 progress 写入只调用确定性 Close helper。
 - `trellis-push` 内部始终保存 exact planned files 与 exact retained/unrecognized dirty paths;
   紧凑展示只影响对话,执行仍只能 `git add -- <exact files>` 和
@@ -3071,6 +3085,10 @@ risk_items          ->始终逐项展示,不折叠
 | Check-All 报告的剩余 `CHK-*` / `FBK-*` 均有有效风险接受 | 内部保留完整记录;计划只显示通过与接受数量,不重复风险详情 |
 | Update-Spec 缺少/过期或为 needs-review | 记录对应状态并进入风险区，继续 Git 预检与计划 |
 | Check-All / Update-Spec 均有效 | 展示实际状态，继续 Git 预检与计划 |
+| ahead 提交通过 GC 脚本完整审计 | 作为已验证历史 GC 随普通 push 展示并发布，不单独确认 |
+| GC 消息相同但文件映射、关闭态、月份或脚本证据不符 | 未知 ahead，停止普通推送 |
+| 已有归档含额外旧文件，但源文件逐项匹配 | 当前可能误判 `verified`，属于已接受风险 |
+| 极端 `closedAt` 触发 UTC 溢出 | 脚本非零且无 JSON；Push 按执行失败阻断，属于已接受风险 |
 | 计划存在冲突、无法归属 exact files 或其它 Git 安全阻塞 | 停止并报告确定性 Git 问题 |
 | Phase 3.4 未加载 `trellis-push` 却准备 commit | 阻断;进入本 skill 重新生成计划 |
 | 交互计划/结果输出前 reference 缺失、不可读或缺少目标章节 | 阻断;不得凭记忆生成近似模板 |
@@ -3124,6 +3142,10 @@ risk_items          ->始终逐项展示,不折叠
 - Good:当前 Check-All 存在未处置 `FBK-001`；完成链证据显示 `存在未处置 findings`,Push 计划把它纳入风险区而不伪装通过。
 - Good:当前 `CHK-001` 与 `FBK-001` 均有有效用户风险接受；完成链证据显示 `通过（已接受风险）`,
   Push 计划只显示“通过（2 项风险已接受）”,不再列入风险区;成功结果省略未变化的已接受问题。
+- Good:已有 `0c02fb7` 这类多任务纯 GC ahead；脚本验证每份任务的原 blob/模式和 UTC 归档月份，
+  Push 计划列出该历史提交，执行前复核后随业务提交一起推送。
+- Base:已有相同目标文件时，删除顶层 closed 任务仍可通过去重审计；额外旧归档文件属于上述已接受缺口。
+- Bad:只凭 `chore(task): gc closed tasks` 消息放行，或把 GC 当作本轮 planned/任务记录文件提交。
 - Good:单仓 20 个普通 planned files 按目录压成 6 行,2 个未识别 dirty 文件仍逐项展示;
   用户回复“展开文件”后看到原 20 个 exact paths。
 - Good:父仓 210 项非 staged 保留变更按目录和 Git 状态汇总，子仓 2 项逐项展示；
@@ -3159,6 +3181,9 @@ risk_items          ->始终逐项展示,不折叠
 ### 6. Tests Required
 
 - `git diff --check`
+- `test/python/test_trellis_push_gc.py` 用真实 GC 验证多任务、UTC 月份和同内容去重；同消息额外业务文件、
+  内容变化、错误月份、未关闭任务、多父提交和子模块指针变化均须拒绝。脚本失败时 Push 保持未知 ahead。
+- Python 兼容矩阵在 Ubuntu/Windows 的 3.8/3.12 执行该测试，推送后核对对应 head SHA 的 job 结果。
 - `npm run sync` 后确认 vendor、`enhancements/0.6`、当前 `.agents` / `.claude` 对应 skill
   和 workflow override 语义一致。
 - 静态扫描 post-check 文案,确认只允许检查结果/验证/风险/结论/下一步,且禁止

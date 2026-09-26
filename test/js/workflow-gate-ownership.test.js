@@ -283,7 +283,8 @@ test("各 Gate 的完整契约位于原生 owner", () => {
   assert.match(completedRecovery, /任务记录 push-only 恢复计划/);
   assert.match(completedRecovery, /Close 待解阻/);
   assert.match(completedRecovery, /物理 GC 由后续 SessionStart/);
-  assert.match(completedRecovery, /未知 ahead 修改任务/);
+  assert.match(completedRecovery, /scripts\/verify_gc_commit\.py/);
+  assert.match(completedRecovery, /存在未通过 GC 审计且无法归属的 ahead/);
   assert.doesNotMatch(push, /只有进度 commit 和 push 都成功后/);
   assert.doesNotMatch(push, /archive bookkeeping commit 承接/);
   assert.match(autoLoop, /## Commit-Only/);
