@@ -78,6 +78,7 @@ function printHelp() {
   flower-trellis self-check --json [--manual] [--target <dir>]
                                                         输出启动更新检查 JSON
   flower-trellis self-update --target <dir> --yes        自更新 + 项目重叠加
+  flower-trellis update-all --root <dir> --target <dir>   批量发现并更新多个项目
   flower-trellis update-check <get|set|disable|enable|snooze|skip|reset>
                                                         管理启动更新策略
   flower-trellis telemetry <status|enable|disable>       管理匿名安装遥测
@@ -98,6 +99,7 @@ flower 自有 flag:
   --skills <a,b,...>       只装指定技能(支持去 trellis- 前缀匹配)
   --variant <old|0.5|0.6>  强制强化包变体(默认按 .trellis/.version 自动选)
   --target <dir>           目标目录(默认当前目录)
+  --root <dir>             update-all 扫描目录(可重复)
   --no-update-check        本次跳过 flower-trellis 新版本检测(等价 FLOWER_NO_UPDATE_CHECK=1)
   --backup-retention <n>   update 成功后保留最近 n 份升级备份(默认 ${DEFAULT_UPDATE_BACKUP_RETENTION},0=不清理)
 
@@ -172,6 +174,10 @@ async function main() {
     } else if (cmd === "self-update") {
       const { selfUpdate } = await import("./commands/self-update.js");
       await selfUpdate(ctx);
+    } else if (cmd === "update-all") {
+      const { updateAll } = await import("./commands/update-all.js");
+      const code = await updateAll(ctx);
+      if (code !== 0) process.exitCode = code;
     } else if (cmd === "update-check") {
       const { updateCheck } = await import("./commands/update-check.js");
       await updateCheck(ctx);

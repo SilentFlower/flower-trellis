@@ -108,6 +108,7 @@ export const OWN_FLAGS = {
   "--skills": true,
   "--variant": true,
   "--target": true,
+  "--root": true,
   "--no-update-check": false,
   "--backup-retention": true,
 };

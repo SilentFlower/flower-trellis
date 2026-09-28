@@ -25,6 +25,8 @@ export function parseCliArgs(argv, cwd = process.cwd()) {
   let variant = null;
   let target = cwd;
   let targetExplicit = false;
+  const targets = [];
+  const roots = [];
   let updateCheck = true;
   let backupRetention = DEFAULT_UPDATE_BACKUP_RETENTION;
   const skills = [];
@@ -60,10 +62,26 @@ export function parseCliArgs(argv, cwd = process.cwd()) {
       case "--variant":
         variant = argv[++i] || null;
         break;
-      case "--target":
+      case "--target": {
+        const value = argv[i + 1];
+        if (command === "update-all" && (!value || value.startsWith("-"))) {
+          targets.push(null);
+          break;
+        }
         target = path.resolve(cwd, argv[++i] || ".");
         targetExplicit = true;
+        if (command === "update-all") targets.push(target);
         break;
+      }
+      case "--root": {
+        if (command !== "update-all") {
+          passthrough.push(a);
+          break;
+        }
+        const value = argv[i + 1];
+        roots.push(!value || value.startsWith("-") ? null : path.resolve(cwd, argv[++i]));
+        break;
+      }
       case "--no-update-check":
         updateCheck = false;
         break;
@@ -88,6 +106,8 @@ export function parseCliArgs(argv, cwd = process.cwd()) {
     ctx: {
       target: path.resolve(target),
       targetExplicit,
+      targets,
+      roots,
       passthrough,
       enhance,
       enhanceOnly,

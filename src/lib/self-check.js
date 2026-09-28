@@ -124,11 +124,16 @@ async function fetchMissingReleaseNotes(target, projectEvidence, writeCache, ran
   return releaseNotes;
 }
 
-/** 检查目标目录 git 工作区是否 clean。 */
-function gitSafety(target) {
+/**
+ * 检查目标目录 Git 工作区是否干净。
+ * @param {string} target 目标目录
+ * @returns {{clean:boolean,reason:string|null,dirtyCount?:number}} 检查结果
+ */
+export function gitSafety(target) {
   const common = {
     cwd: target,
     encoding: "utf8",
+    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
     shell: process.platform === "win32",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 1500,
@@ -147,8 +152,12 @@ function gitSafety(target) {
     : { clean: true, reason: null, dirtyCount: 0 };
 }
 
-/** 递归查找 active / in_progress Trellis 任务。 */
-function hasActiveTask(target) {
+/**
+ * 查找 active 或 in_progress 的 Trellis 任务。
+ * @param {string} target 项目根目录
+ * @returns {boolean} 是否存在活动任务
+ */
+export function hasActiveTask(target) {
   const tasksDir = path.join(target, ".trellis", "tasks");
   const stack = [tasksDir];
   while (stack.length) {

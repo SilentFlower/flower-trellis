@@ -1166,6 +1166,78 @@ print(get_context_text(repo_root))
 
 ---
 
+## Scenario: Batch Flower Project Update
+
+### 1. Scope / Trigger
+
+- 新增或修改 `update-all` 的项目发现、批量预检、全局 CLI 升级、项目更新或结果汇总时适用。
+- `self-update` 保持单项目语义；批量命令只扫描用户显式指定的目录和项目。
+
+### 2. Signatures
+
+```bash
+flower-trellis update-all --root <dir> [--root <dir>...] [--target <dir>...] --dry-run
+flower-trellis update-all --target <dir> [--target <dir>...] --yes
+flower-trellis update-all --root <dir> [--target <dir>...] --yes [--no-update-check]
+```
+
+```js
+parseCliArgs(argv, cwd) -> { command, ctx: { roots, targets, target, passthrough, updateCheck } }
+discoverFlowerProjects(roots, targets) -> { projects, errors }
+projectTaskSafety(target) -> { safe, reason }
+updateAll(ctx, options?) -> Promise<0|1>
+```
+
+### 3. Contracts
+
+- `--root` / `--target` 可重复且混用；按真实路径去重并稳定排序。旧单项目命令的
+  `ctx.target` 仍取最后一个 `--target`。扫描跳过 `.git`、`.flower`、`.trellis`、
+  `node_modules` 和目录软链接；`.trellis` 是软链接的候选项目报错，仍继续扫描其子目录。
+- `--dry-run` 只读输出目标版本和逐项状态，不安装 CLI、不更新项目或远端缓存；真实更新必须
+  显式传 `--yes`。`--no-update-check` / `FLOWER_NO_UPDATE_CHECK` 关闭远端查询；查询失败时标注
+  远端未确认，仅以本机已安装版本为目标，不把远端失败当作项目失败。
+- 写入前按 Git 根共用一次 clean 结果，使同仓后续项目不因本批次前一项目的写入被误跳过。
+  每个项目独立检查任务记录：缺少 tasks 目录可放行；活动任务、损坏或未知顶层状态、不可读目录
+  和软链接均跳过。可放行的已知非活动状态为 `planning`、`completed`、`done`。
+- 项目版本读取前校验现代 `.flower/plugin-lock.json` / `.flower/state.json`；损坏的现代状态不能
+  被旧 manifest 的版本回退掩盖。更新后也重新校验状态与 Flower/Trellis 版本。
+- 远端有新版时最多调用一次 `installFlowerVersion()`；随后从 npm 全局安装包自身目录运行新版
+  `self-check --json --no-update-check`，核对实际 Flower/Trellis 版本，避免项目损坏状态阻断全批。
+  逐项目调用已安装 CLI 的完整 `update --target <dir> --no-update-check --force -y` 链路。
+- 单项目失败后继续。每项输出 `待更新`、`已更新`、`已是最新版`、`跳过` 或 `失败` 及原因；
+  存在跳过、失败或无有效项目时返回 `1`，全部完成返回 `0`。发生项目写入时输出
+  `<flower-update-result>`，列明已更新和尝试过的目标，提示各仓分别进入 `trellis-push` 确认；
+  命令本身不执行 Git 提交或推送，也不修改应用版本。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+| --- | --- |
+| 没有 `--root` / `--target`，或真实执行缺少 `--yes` | 命令级错误，写入前终止 |
+| 无效显式目标、`.trellis` 软链接 | 逐项失败并继续发现其它项目 |
+| Git dirty、活动任务、损坏或未知任务状态 | 逐项跳过，健康项目继续 |
+| 现代 lock/state 损坏但旧 manifest 有版本 | 跳过该项目，不用旧版本证据放行 |
+| 全局安装失败或安装后 CLI 版本不符 | 待更新项目记失败，不进入项目写链 |
+| 某项目更新失败或更新后状态损坏 | 该项目记失败，后续项目继续；最终返回 `1` |
+| `--dry-run` 或远端不可用 | 前者零写入；后者只追平到本机版本并注明未确认 |
+
+### 5. Scenarios and Examples
+
+- 正常：`update-all --root ~/projects --target /work/other --yes` 去重后逐项更新，全局 CLI
+  至多升级一次；某项目失败不会阻断其它项目。
+- 边界：一个项目的现代 lock 损坏、旧 manifest 有版本时，仅跳过该项目；同批健康项目仍更新。
+- 错误用法：让已安装 CLI 在首个待更新项目内执行 `self-check`，会因该项目状态异常阻断全批。
+  正确做法是以已安装包目录为目标核对 CLI 版本，再逐项目校验和更新。
+
+### 6. Tests Required
+
+- `test/js/update-all.test.js` 覆盖组合发现/去重、软链接及健康子项目、损坏任务和现代状态、
+  dry-run 零写入、离线追平、单次安装、更新失败继续、更新后版本核对、结果块、退出码及
+  旧单项目 `--target` 语义。
+- `test/js/cli-help.test.js` 断言无效目标上的命令帮助先于发现、联网及写盘。
+- `.github/workflows/update-performance.yml` 在原生 Ubuntu/Windows 执行上述回归；只有匹配
+  提交的两平台 job 成功后才能报告跨平台验收完成。
+
 ## Scenario: Update Backup Retention
 
 ### 1. Scope / Trigger

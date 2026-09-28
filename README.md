@@ -100,6 +100,7 @@ flower-trellis -v
 | `trellis` | 项目级关闭、恢复或检查全部平台中的 Trellis 集成 |
 | `self-check` | 输出启动更新检查 JSON,供 Codex / Claude Code hook 和 AI 自动化读取 |
 | `self-update` | 受控升级 flower-trellis 并对目标项目执行完整 `flower-trellis update` 重叠加 |
+| `update-all` | 扫描指定父目录并组合显式项目，批量追平 Flower/Trellis 版本 |
 | `update-check` | 管理 `.flower/settings.json` 内的启动更新策略和提示节流 |
 | `telemetry` | 查询、启用或停用用户级匿名安装遥测 |
 | `plugin` | 管理 Flower Plugin、Marketplace 来源、GitLab 授权和作者校验 |
@@ -116,6 +117,7 @@ flower-trellis -v
 | `--skills <a,b,...>` | 只安装指定技能(可省略 `trellis-` 前缀) |
 | `--variant <old\|0.5\|0.6>` | 强制指定强化包变体(默认按 `.trellis/.version` 自动选) |
 | `--target <dir>` | 目标目录(默认当前目录) |
+| `--root <dir>` | `update-all` 扫描的父目录，可重复传入 |
 | `--no-update-check` | 本次跳过 flower-trellis 新版本检测(等价环境变量 `FLOWER_NO_UPDATE_CHECK=1`) |
 | `--backup-retention <n>` | `update` 成功后保留最近 n 份 `.trellis/.backup-<timestamp>` 快照(默认 1，`0` 表示本次不清理) |
 
@@ -362,6 +364,15 @@ flower-trellis self-update --target . --dry-run
 # 执行:先升级全局 flower-trellis,再对项目执行完整 update
 flower-trellis self-update --target . --yes
 ```
+
+批量更新集中目录和零散项目时，可重复组合 `--root` 与 `--target`，真实路径会去重：
+
+```bash
+flower-trellis update-all --root ~/projects --target /work/other-project --dry-run
+flower-trellis update-all --root ~/projects --target /work/other-project --yes
+```
+
+`--dry-run` 只读列出各项目预检结果，不安装 CLI，也不写项目或更新缓存；真实执行必须加 `--yes`。命令先检查每个项目的 Git clean 状态、活动任务和版本证据；脏工作区、活动任务及无法安全比较版本的项目会跳过并标明原因。远端版本无法确认时只追平到本机已安装版本。全局 Flower CLI 最多安装一次，随后按项目顺序执行完整 `update`；某项目失败仍继续后续项目。末尾汇总逐项结果，有跳过或失败时退出码为 `1`。命令不修改应用版本，也不自动提交或推送；更新后需按各 Git 仓库分别确认变更。
 
 项目重叠加阶段默认等价于 Trellis 交互里的 **Apply Overwrite to all**:
 
