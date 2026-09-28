@@ -22,7 +22,7 @@
       },
       "dependencies": {},
       "id": "flower/skill-garden",
-      "integrity": "sha256:099fa3e565d25cad92572a44eaa5d1ee2c32f096ffce98ac16b41257c988c7bb",
+      "integrity": "sha256:0ac0ed2a6b1d48839fc645b2f5c15522f9a0095c222d26346c6bafcbac97b120",
       "source": {
         "id": "flower",
         "reference": "package:skill-garden:0.6",

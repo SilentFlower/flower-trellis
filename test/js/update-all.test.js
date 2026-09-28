@@ -195,6 +195,7 @@ test("dry-run 只读预览，离线时展示本机目标版本且不写缓存", 
   assert.equal(updates, 0);
   assert.equal(logs.filter((line) => line.includes("待更新:")).length, 2);
   assert.match(logs.join("\n"), /远端版本: 未确认，仅使用本机版本/);
+  assert.doesNotMatch(logs.join("\n"), /post_action:/);
   assert.equal(fs.existsSync(path.join(root, "group", "a", ".flower")), false);
   assert.equal(fs.existsSync(path.join(root, "outside", ".flower")), false);
   assert.equal(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }), "");
@@ -220,7 +221,8 @@ test("全局安装只执行一次，同仓多个项目失败后仍继续并逐�
   assert.equal(code, 1);
   assert.deepEqual(calls, ["install:99.0.0", "a", "b", "c"]);
   assert.match(logs.join("\n"), /已更新 2，已是最新版 0，跳过 0，失败 1/);
-  assert.match(logs.join("\n"), /post_action: run_trellis_push_confirmation/);
+  assert.match(logs.join("\n"), /post_action: run_flower_batch_commit/);
+  assert.doesNotMatch(logs.join("\n"), /trellis-push/);
   assert.match(logs.join("\n"), /status: partial/);
 });
 
@@ -247,13 +249,15 @@ test("远端失败仅追平本机版本，全局安装失败或版本核对失�
     { install: () => ({ status: 5 }), inspectCli: () => assert.fail("安装失败后不能核对") },
     { install: () => ({ status: 0 }), inspectCli: () => ({ flower: "0.0.1", trellis: trellisVersion() }) },
   ]) {
+    const failureLogs = [];
     const result = await updateAll(commandContext(["--root", root, "--yes"]), {
       fetchTags: async () => ({ latest: "99.0.0", beta: null }),
       ...options,
       updateProject: () => { updateCalls += 1; return { status: 0 }; },
-      log: () => {},
+      log: (line) => failureLogs.push(line),
     });
     assert.equal(result, 1);
+    assert.doesNotMatch(failureLogs.join("\n"), /post_action:/);
   }
   assert.equal(updateCalls, 0);
 });

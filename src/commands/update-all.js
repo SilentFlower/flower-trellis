@@ -31,7 +31,7 @@ function printUpdateAllHelp() {
   --no-update-check  不查询远端，仅追平已安装的 Flower/Trellis 版本
 
 脏 Git 工作区、活动任务和版本证据缺失的项目会跳过；有跳过或失败时退出码为 1。
-远端无法确认时仅使用本机版本。项目更新后需分别确认 Git 变更，本命令不提交或推送。`);
+远端无法确认时仅使用本机版本。项目更新后需核对 Git 变更，本命令不提交或推送。`);
 }
 
 /** 定位 npm 全局安装的入口，保证后续子进程确实使用安装后的包。 */
@@ -110,7 +110,7 @@ function readValidatedProjectVersions(target) {
   return readProjectVersions(target);
 }
 
-/** 输出逐项目状态和计数；结果块供 AI 接续独立 Git 确认。 */
+/** 输出逐项目状态和计数；成功结果由 Flower 批量流程接续本地提交。 */
 function printResult(rows, options, log) {
   const labels = {
     planned: "待更新",
@@ -135,8 +135,10 @@ function printResult(rows, options, log) {
     log(`status: ${counts.failed || counts.skipped ? "partial" : "completed"}`);
     log(`updated_targets: ${JSON.stringify(rows.filter((row) => row.status === "updated").map((row) => row.target))}`);
     log(`attempted_targets: ${JSON.stringify(attempted.map((row) => row.target))}`);
-    log("post_action: run_trellis_push_confirmation");
-    log("ai_instruction: 各项目按所属 Git 仓库分别加载并遵循 trellis-push，展示精确文件范围和提交信息，等待确认；不要自动提交或推送。");
+    if (counts.updated > 0) {
+      log("post_action: run_flower_batch_commit");
+      log("ai_instruction: 按所属 Git 仓库核对并精确本地提交已更新项目的 Flower/Trellis 产物，保留其它变更；异常仓库单独待处理，汇总简要结果，不推送。");
+    }
     log("</flower-update-result>");
   }
 }

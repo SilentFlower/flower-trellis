@@ -61,3 +61,29 @@ test("trellis-flower-update 明确排除发版流程", () => {
     assert.match(skill, /不运行 `npm run release`/);
   }
 });
+
+test("批量升级由 Flower 流程精确本地提交，单项目仍使用 Trellis Push", () => {
+  const sourceRoot = "vendor/skill-garden/.trellis/0.6";
+  const snapshotRoot = "enhancements/0.6";
+  const skillFiles = [
+    ".agents/skills/trellis-flower-update/SKILL.md",
+    ".claude/skills/trellis-flower-update/SKILL.md",
+  ];
+
+  for (const relativePath of skillFiles) {
+    assert.equal(read(`${snapshotRoot}/${relativePath}`), read(`${sourceRoot}/${relativePath}`));
+  }
+
+  const updateSkill = read(`${sourceRoot}/.agents/skills/trellis-flower-update/SKILL.md`);
+  const command = read("src/commands/update-all.js");
+
+  assert.match(updateSkill, /dirty_worktree.*active_task.*not_git_repo/);
+  assert.match(updateSkill, /单项目.*post_action: run_trellis_push_confirmation/);
+  assert.match(updateSkill, /批量升级.*本地精确提交/);
+  assert.match(updateSkill, /post_action: run_flower_batch_commit/);
+  assert.match(updateSkill, /不进入 `trellis-push`，不逐仓重复询问/);
+  assert.match(updateSkill, /保留其余 staged、未暂存和未跟踪变更/);
+  assert.match(updateSkill, /除非用户另有明确授权，不推送/);
+  assert.match(command, /post_action: run_flower_batch_commit/);
+  assert.doesNotMatch(command, /run_trellis_push_confirmation/);
+});
