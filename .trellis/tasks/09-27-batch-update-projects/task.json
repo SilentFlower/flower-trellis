@@ -1,0 +1,78 @@
+{
+  "id": "batch-update-projects",
+  "name": "batch-update-projects",
+  "title": "批量更新多个 Flower 项目",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-09-27",
+  "completedAt": "2026-09-28",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-09-28T00:47:59Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-09-26T16:51:34Z",
+      "contextKey": "codex_01a0de7f-e4bb-7d73-a892-c94cd6e57b3a",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "5168be430490aefa7fbb9fcd0d2481c1b2480fd7",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "5168be430490aefa7fbb9fcd0d2481c1b2480fd7",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "a9940ea1ffd414c6a82fb7e6967d3e3795e8b51013e02480713119c5531b6047"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "410f810c389bd60fcaf237b05dd4cfde8ee15b36",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "e243b9ed064527899456d4286168a807fca4dccd42bcc9dbbdf7ea2786d42efd"
+          }
+        ],
+        "fingerprint": "6bc21d79a60b1c20d0eb6bb854d367c82071b482fd2d792dde18f95e3cf6fc28"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "实现 update-all 批量发现、预检、预览、升级与逐项汇总，并更新帮助、README 和测试",
+      "完成本地完整测试、隔离项目实测、Check-All 与规范更新",
+      "推送代码并确认 update-performance、Python 兼容矩阵和 SessionStart 跨平台 CI 全部通过"
+    ],
+    "partialStep": null,
+    "nextStep": "任务已完成",
+    "notes": "新增 update-all 测试在 update-performance 的 Ubuntu/Windows Job 中实际执行并通过；Python 3.8/3.12 跨平台矩阵及 SessionStart 跨平台回归均通过。",
+    "updatedAt": "2026-09-28T00:47:59Z"
+  }
+}

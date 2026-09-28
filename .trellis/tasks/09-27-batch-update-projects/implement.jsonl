@@ -1,0 +1,5 @@
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"CLI 分层与开发前检查"}
+{"file":".trellis/spec/flower-trellis/cli/module-guidelines.md","reason":"ESM、导出、JSDoc 与命令模块规范"}
+{"file":".trellis/spec/flower-trellis/cli/cli-output.md","reason":"帮助、输出、退出码与错误契约"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"版本证据、远端检查、自更新与项目状态契约"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"更新幂等、安全与跨平台验证要求"}

@@ -1,0 +1,4 @@
+{"file":".trellis/spec/flower-trellis/cli/index.md","reason":"CLI 开发及质量检查入口"}
+{"file":".trellis/spec/flower-trellis/cli/cli-output.md","reason":"核对命令帮助、逐项目输出和退出码"}
+{"file":".trellis/spec/flower-trellis/cli/config-and-state.md","reason":"核对版本预检、自更新和缓存零写入契约"}
+{"file":".trellis/spec/flower-trellis/cli/quality-guidelines.md","reason":"核对测试、幂等与 Ubuntu/Windows CI 覆盖"}
