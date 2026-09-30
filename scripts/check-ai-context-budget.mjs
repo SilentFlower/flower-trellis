@@ -172,18 +172,24 @@ function measureSessionStart(compiledRoot) {
       { platform: "codex", name: "sol-startup", source: "startup", model: "gpt-6-sol", expectedHint: "sol" },
       { platform: "codex", name: "sol-clear", source: "clear", model: "gpt-6-sol", expectedHint: "sol" },
       { platform: "codex", name: "sol-compact", source: "compact", model: "gpt-6-sol", expectedHint: "sol" },
+      { platform: "codex", name: "sol-6-1-startup", source: "startup", model: "gpt-6.1-sol", expectedHint: "sol-6-1" },
+      { platform: "codex", name: "sol-6-1-clear", source: "clear", model: "gpt-6.1-sol", expectedHint: "sol-6-1" },
+      { platform: "codex", name: "sol-6-1-compact", source: "compact", model: "gpt-6.1-sol", expectedHint: "sol-6-1" },
       { platform: "codex", name: "other-model", source: "startup", model: "gpt-5.6-sol" },
       { platform: "codex", name: "disabled", source: "startup", model: "gpt-6-astra", disabledHint: "astra" },
       { platform: "codex", name: "sol-disabled", source: "startup", model: "gpt-6-sol", disabledHint: "sol" },
+      { platform: "codex", name: "sol-6-1-disabled", source: "startup", model: "gpt-6.1-sol", disabledHint: "sol-6-1" },
       { platform: "claude", name: "astra-startup", source: "startup", model: "gpt-6-astra" },
       { platform: "claude", name: "astra-compact", source: "compact", model: "gpt-6-astra" },
       { platform: "claude", name: "sol-startup", source: "startup", model: "gpt-6-sol" },
+      { platform: "claude", name: "sol-6-1-startup", source: "startup", model: "gpt-6.1-sol" },
     ];
     const cases = [];
-    const modelHints = { astra: "", sol: "" };
+    const modelHints = { astra: "", sol: "", "sol-6-1": "" };
     const hintPatterns = {
       astra: /<trellis-astra-workflow-hint [^>]*>[\s\S]*?<\/trellis-astra-workflow-hint>/g,
       sol: /<trellis-sol-workflow-hint [^>]*>[\s\S]*?<\/trellis-sol-workflow-hint>/g,
+      "sol-6-1": /<trellis-sol-6-1-workflow-hint [^>]*>[\s\S]*?<\/trellis-sol-6-1-workflow-hint>/g,
     };
     for (const scenario of scenarios) {
       const { platform, name, source, model } = scenario;
@@ -193,7 +199,7 @@ function measureSessionStart(compiledRoot) {
       copyIfExists(path.join(compiledRoot, workflowHook), path.join(fixture, workflowHook));
       // 固定测试配置，个人关闭设置不能让预算检查漏掉默认开启的实际成本。
       fs.writeFileSync(path.join(fixture, ".trellis/config.yaml"),
-        `codex:\n  dispatch_mode: auto\n  astra_workflow_hint: ${scenario.disabledHint !== "astra"}\n  sol_workflow_hint: ${scenario.disabledHint !== "sol"}\n`);
+        `codex:\n  dispatch_mode: auto\n  astra_workflow_hint: ${scenario.disabledHint !== "astra"}\n  sol_workflow_hint: ${scenario.disabledHint !== "sol"}\n  sol_6_1_workflow_hint: ${scenario.disabledHint !== "sol-6-1"}\n`);
       const parts = [];
       for (const part of ["state", "rules", "stages"]) {
         const output = execPythonSync([FLOWER_SESSION_HOOK_REL, "--hook", hook, "--part", part], {
@@ -336,6 +342,7 @@ export function collectAiContextMetrics() {
     })),
     measureText("astra-workflow-hint", sessionStart.modelHints.astra, { target: 2 * KIB, review: 2 * KIB }),
     measureText("sol-workflow-hint", sessionStart.modelHints.sol, { target: 2 * KIB, review: 2 * KIB }),
+    measureText("sol-6-1-workflow-hint", sessionStart.modelHints["sol-6-1"], { target: 2 * KIB, review: 2 * KIB }),
     ...sessionStart.cases.map(({ platform, name, value }) =>
       measureText(`session-start-case:${platform}:${name}`, value, BUDGETS.sessionStart)
     ),

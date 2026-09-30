@@ -147,18 +147,19 @@ flower-trellis enable --target .
 
 项目处于 disabled 时，`flower-trellis update`、`self-update` 的项目更新链，以及 `plugin add/update/remove/replay` 会临时恢复必要入口，完成写操作后再次 detach，并校验最终仍为 disabled；外部 Plugin 内容不会被当作 Trellis 入口删除。直接运行上游 `trellis update` 不经过这一控制面，可能重新生成入口，此时 `flower-trellis status` 会报告 `drifted`。`disable` 也不等同于 `uninstall`：历史数据和恢复能力会继续保留。
 
-## Astra 与 Sol 工作流提示
+## Astra、Sol 与 Sol 6.1 工作流提示
 
-Codex 的 SessionStart 在 `startup`、`clear`、`compact` 时，事件输入的当前模型精确为 `gpt-6-astra` 或 `gpt-6-sol`，才会在 state 分段追加对应模型的一份英文工作流提示。两者使用相同的工作流正文和各自的模型标识；其他模型（包括 5.5）、缺失模型和未知别名不会追加；普通用户轮次不重复注入。
+Codex 的 SessionStart 在 `startup`、`clear`、`compact` 时，事件输入的当前模型精确为 `gpt-6-astra`、`gpt-6-sol` 或 `gpt-6.1-sol`，才会在 state 分段追加对应模型的一份英文工作流提示。三个模型使用相同的工作流正文和各自的模型标识；其他模型（包括 5.5）、缺失模型和未知别名不会追加；普通用户轮次不重复注入。
 
 提示用于辅助遵循技能、工作流、模板和证据陈述，效果仍需行为对照验证。它不能删除宿主或历史指令，也不保证覆盖更高优先级要求。会话中切换模型后，要等下次 SessionStart 才重新判断是否追加。
 
-两个模型默认分别开启。要单独关闭某个模型的提示，在项目 `.trellis/config.yaml` 已有的 `codex` 配置下合并对应字段，保留原有字段：
+三个模型默认分别开启。要单独关闭某个模型的提示，在项目 `.trellis/config.yaml` 已有的 `codex` 配置下合并对应字段，保留原有字段：
 
 ```yaml
 codex:
   astra_workflow_hint: false
   sol_workflow_hint: false
+  sol_6_1_workflow_hint: false
 ```
 
 任一字段设置 `true` 或删除可恢复该模型的默认值。开关只影响后续新增提示；做无历史干扰的对照时应使用新会话。原工作流上下文继续注入，Trellis 全局禁用、resume 和非交互跳过规则保持原有行为。`no-trellis` 仍只跳过本轮 UserPromptSubmit。
