@@ -64,6 +64,103 @@ test("并发进程共享一个身份和一次日活动", async t => {
   assert.equal(readTelemetryState(options).status, "valid");
 });
 
+test("竞争锁释放时的临时权限错误可重试并正常入队", async t => {
+  for (const method of ["lstatSync", "readFileSync"]) {
+    for (const code of ["EPERM", "EACCES"]) {
+      await t.test(`${method} / ${code}`, child => {
+        const options = fixture(child);
+        const lock = path.join(path.dirname(telemetryQueueDirectory(options.env)), "telemetry.lock");
+        const owner = path.join(lock, "owner.json");
+        fs.mkdirSync(lock, { recursive: true });
+        fs.writeFileSync(owner, JSON.stringify({ pid: process.pid, token: "existing-lock" }));
+        const original = fs[method];
+        const affected = method === "lstatSync" ? lock : owner;
+        let injected = false;
+        child.mock.method(fs, method, (file, ...args) => {
+          if (file === affected && !injected) {
+            injected = true;
+            // 模拟另一个进程恰好释放锁；读取中的临时错误不能当作永久失败。
+            fs.rmSync(lock, { recursive: true });
+            throw Object.assign(new Error("模拟 Windows 锁释放竞争"), { code });
+          }
+          return original(file, ...args);
+        });
+        assert.equal(queueTelemetryEvent(options.target, { event: "activity_daily", ai_platform: "codex" }, options).status, "queued");
+        assert.equal(injected, true);
+        assert.equal(pending(options).length, 1);
+        assert.equal(readTelemetryState(options).status, "valid");
+        assert.equal(fs.existsSync(lock), false);
+      });
+    }
+  }
+});
+
+test("竞争锁持续权限错误在默认预算内失败且保留原锁", async t => {
+  for (const method of ["lstatSync", "readFileSync"]) {
+    for (const code of ["EPERM", "EACCES"]) {
+      await t.test(`${method} / ${code}`, child => {
+        const options = fixture(child);
+        const lock = path.join(path.dirname(telemetryQueueDirectory(options.env)), "telemetry.lock");
+        const owner = path.join(lock, "owner.json");
+        const contents = JSON.stringify({ pid: process.pid, token: "existing-lock" });
+        fs.mkdirSync(lock, { recursive: true });
+        fs.writeFileSync(owner, contents);
+        const original = fs[method];
+        const affected = method === "lstatSync" ? lock : owner;
+        let attempts = 0;
+        const mocked = child.mock.method(fs, method, (file, ...args) => {
+          if (file === affected) {
+            attempts++;
+            throw Object.assign(new Error("模拟持续权限错误"), { code });
+          }
+          return original(file, ...args);
+        });
+        const started = Date.now();
+        let now = started;
+        child.mock.method(Date, "now", () => now);
+        child.mock.method(Atomics, "wait", (_array, _index, _value, timeout) => {
+          assert.ok(timeout > 0 && timeout <= 10);
+          now += timeout;
+          return "timed-out";
+        });
+        assert.equal(queueTelemetryEvent(options.target, { event: "activity_daily", ai_platform: "codex" }, options).status, "failed");
+        assert.ok(attempts > 1);
+        assert.equal(now - started, 500);
+        mocked.mock.restore();
+        assert.equal(fs.readFileSync(owner, "utf8"), contents);
+        assert.equal(readTelemetryState(options).status, "missing");
+        assert.equal(fs.existsSync(telemetryQueueDirectory(options.env)), false);
+      });
+    }
+  }
+});
+
+test("损坏或非普通竞争锁立即失败且不清理现场", async t => {
+  for (const kind of ["lock-file", "owner-directory", "invalid-json"]) {
+    await t.test(kind, child => {
+      const options = fixture(child);
+      const lock = path.join(path.dirname(telemetryQueueDirectory(options.env)), "telemetry.lock");
+      const owner = path.join(lock, "owner.json");
+      fs.mkdirSync(path.dirname(lock), { recursive: true });
+      if (kind === "lock-file") fs.writeFileSync(lock, "保留原锁文件");
+      else {
+        fs.mkdirSync(lock);
+        if (kind === "owner-directory") fs.mkdirSync(owner);
+        else fs.writeFileSync(owner, "{broken");
+      }
+      let waits = 0;
+      child.mock.method(Atomics, "wait", () => { waits++; });
+      assert.equal(queueTelemetryEvent(options.target, { event: "activity_daily", ai_platform: "codex" }, options).status, "failed");
+      assert.equal(waits, 0);
+      if (kind === "lock-file") assert.equal(fs.readFileSync(lock, "utf8"), "保留原锁文件");
+      else if (kind === "owner-directory") assert.equal(fs.statSync(owner).isDirectory(), true);
+      else assert.equal(fs.readFileSync(owner, "utf8"), "{broken");
+      assert.equal(readTelemetryState(options).status, "missing");
+      assert.equal(fs.existsSync(telemetryQueueDirectory(options.env)), false);
+    });
+  }
+});
+
 test("默认锁繁忙静默失败且不留下部分状态，释放后可以恢复", t => {
   const options = fixture(t);
   const activity = { event: "activity_daily", ai_platform: "codex" };

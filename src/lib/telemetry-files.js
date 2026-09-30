@@ -93,10 +93,19 @@ export function withTelemetryLock(callback, options = {}) {
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
       let stat;
-      try { stat = fs.lstatSync(lock); }
-      catch (failure) { if (failure.code === "ENOENT" && Date.now() < deadline) continue; throw failure; }
-      if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("遥测锁无效");
-      const owner = readTelemetryJson(path.join(lock, "owner.json"));
+      let owner;
+      try {
+        stat = fs.lstatSync(lock);
+        if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("遥测锁无效");
+        owner = readTelemetryJson(path.join(lock, "owner.json"));
+      } catch (failure) {
+        if (!["ENOENT", "EPERM", "EACCES"].includes(failure.code)) throw failure;
+        // Windows 删除中的竞争锁可能暂时拒绝读取；仅在原预算内重试，重新取得锁前不写状态。
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw new Error("遥测锁繁忙");
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(10, remaining));
+        continue;
+      }
       let dead = false;
       if (Number.isSafeInteger(owner?.pid) && owner.pid > 0) {
         try { process.kill(owner.pid, 0); } catch (failure) { dead = failure.code === "ESRCH"; }
