@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.10-beta.10](https://github.com/SilentFlower/flower-trellis/compare/v0.6.10-beta.9...v0.6.10-beta.10) (2026-09-30)
+
+
+### ✨ 新功能 Features
+
+* **codex:** 为 gpt-6.1-sol 添加专属工作流提示 ([5420292](https://github.com/SilentFlower/flower-trellis/commit/54202928116136d7bdc7e62e8c3e0abc109c2215))
+* **flower:** 批量更新后由 Flower 统一处理项目本地提交 ([110766d](https://github.com/SilentFlower/flower-trellis/commit/110766d15513de1bea41e54e9fcdfbabb25395a5))
+
 ## [0.6.10-beta.9](https://github.com/SilentFlower/flower-trellis/compare/v0.6.10-beta.8...v0.6.10-beta.9) (2026-09-28)
 
 
