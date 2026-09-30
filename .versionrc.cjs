@@ -51,6 +51,7 @@ const localizedSubjects = new Map([
   ["eda90ec", "将 Check-All 可选问题收敛为统一兜底分类"],
   ["update development journal", "更新开发日志"],
   ["01f79eb", "减少重复确认与输出，修复技能之间的流程衔接"],
+  ["110766d", "批量更新后由 Flower 统一处理项目本地提交"],
 ]);
 
 const detailedReleaseSubjects = new Map([
