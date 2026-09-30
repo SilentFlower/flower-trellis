@@ -4,6 +4,31 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.10](https://github.com/SilentFlower/flower-trellis/compare/v0.6.9...v0.6.10) (2026-09-30)
+
+
+### ✨ 新功能 Features
+
+* **aliyun-ops:** 新增 ACK 受控切换镜像与环境变量 ([70527ca](https://github.com/SilentFlower/flower-trellis/commit/70527ca2372c22d124a6a38ab3331be5c2119bc0))
+* **aliyun-ops:** 集成 ACK Workbench 只读查询 ([224ef02](https://github.com/SilentFlower/flower-trellis/commit/224ef029beb82e032bb4e336bdc7febe29a96982))
+* **codex:** 为 gpt-6.1-sol 添加专属工作流提示 ([5420292](https://github.com/SilentFlower/flower-trellis/commit/54202928116136d7bdc7e62e8c3e0abc109c2215))
+* **flower:** 同步新版任务 Brief 模板 ([d6702ec](https://github.com/SilentFlower/flower-trellis/commit/d6702ece1f58cb22290bce8fe02de0ea28d852e3))
+* **flower:** 批量更新后由 Flower 统一处理项目本地提交 ([110766d](https://github.com/SilentFlower/flower-trellis/commit/110766d15513de1bea41e54e9fcdfbabb25395a5))
+* **flower:** 支持批量更新多个项目 ([ef32c2e](https://github.com/SilentFlower/flower-trellis/commit/ef32c2e47dcf326c83aceb67549e3374fc68fa01))
+* **flower:** 支持自动 GC 提交默认放行 ([79ef652](https://github.com/SilentFlower/flower-trellis/commit/79ef652abf793c4b84e8b5150b4808be02ad3eec))
+* **flower:** 默认只保留一份升级备份并支持 Sol 提示 ([7704dc9](https://github.com/SilentFlower/flower-trellis/commit/7704dc9e190abc5d6e57de517e2dfc0ec31cbbae))
+* **hooks:** 优化 workflow-state 条件注入 ([ecd9555](https://github.com/SilentFlower/flower-trellis/commit/ecd9555f9c8959a3f3c862f9cda8bf8e7153fbd5))
+* **session:** 精简 SessionStart 开场注入 ([2b68c13](https://github.com/SilentFlower/flower-trellis/commit/2b68c1367199cdb3254d0adc639db20cc0b2b648))
+* **task:** 支持精确收敛未跟踪旧任务 ([4b6871e](https://github.com/SilentFlower/flower-trellis/commit/4b6871e22abc3566aca9373d480ab9bf3d516bd3))
+* **task:** 重构 Close 与物理 GC 生命周期 ([20c14f0](https://github.com/SilentFlower/flower-trellis/commit/20c14f032825eac226887c4334ef6e6e69ffc3dd))
+
+
+### 🐛 修复 Bug Fixes
+
+* **aliyun-ops:** 完善 SLS 引导与跨平台回归 ([e146855](https://github.com/SilentFlower/flower-trellis/commit/e146855122f91ef48c1155baf3aaf63681a0557b))
+* **release-ci:** 修复无依赖发布快照同步 ([a5c954a](https://github.com/SilentFlower/flower-trellis/commit/a5c954aee20d85d455f74583a0597e6b859223c3))
+* **workflow:** 阻止新会话继承旧任务 ([156e63f](https://github.com/SilentFlower/flower-trellis/commit/156e63f668d94d0a35f5f15c9b98998f4cddd411))
+
 ## [0.6.10-beta.10](https://github.com/SilentFlower/flower-trellis/compare/v0.6.10-beta.9...v0.6.10-beta.10) (2026-09-30)
 
 
