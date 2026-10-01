@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.11](https://github.com/SilentFlower/flower-trellis/compare/v0.6.10...v0.6.11) (2026-10-01)
+
+
+### 🐛 修复 Bug Fixes
+
+* **telemetry:** 修复 Windows 遥测锁释放时的读取竞争 ([ce05278](https://github.com/SilentFlower/flower-trellis/commit/ce05278ae1f6e9e3bc73cb57819f8c254da1f436))
+
 ## [0.6.10](https://github.com/SilentFlower/flower-trellis/compare/v0.6.9...v0.6.10) (2026-09-30)
 
 
