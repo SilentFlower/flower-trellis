@@ -23,6 +23,8 @@
 
 `<skill-dir>` 按入口确定。task 的本次选择：
 
+来自 auto-loop 启动前选模时，先按 [recovery-and-errors.md](recovery-and-errors.md) 的例外应用选择并返回 runner，不执行下方 task `write` 或末尾同轮实施；本次选择由 runner 的 start 参数保存，明确要求个人默认才使用 `write-pref`。
+
 ```bash
 python3 <skill-dir>/scripts/route_state.py write --target <implement|check> --mode <mode> --source <trellis-route|numbered-fallback>
 ```

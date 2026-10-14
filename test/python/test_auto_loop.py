@@ -395,6 +395,42 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_startup_route_selection_defers_task_binding_and_implementation(self) -> None:
+        """未开工任务可先只读选模，启动后仍由 runner 先返回规划准备动作。"""
+        self.write_planning_task("")
+        task_ref = ".trellis/tasks/task-planning"
+        before = {str(p): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        for target, mode in (("implement", "inline"), ("check", "check-all-inline")):
+            for candidate in (None, mode):
+                with self.subTest(target=target, candidate=candidate):
+                    command = [
+                        sys.executable, "-X", "utf8", ".agents/skills/trellis-route/scripts/route_state.py",
+                        "resolve", "--target", target, "--read-only", "--task", task_ref,
+                    ]
+                    if candidate:
+                        command.extend(["--auto-mode", candidate])
+                    result = subprocess.run(
+                        command, cwd=self.root, env=self.env, capture_output=True,
+                        text=True, encoding="utf-8", check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    resolved = json.loads(result.stdout)
+                    self.assertEqual(resolved["status"], "hit" if candidate else "miss")
+                    if candidate:
+                        self.assertEqual(resolved["task"], task_ref)
+                        self.assertEqual(resolved["mode"], mode)
+                    self.assertEqual(before, {str(p): p.read_bytes() for p in self.root.rglob("*") if p.is_file()})
+
+        self.start_planning()
+        self.assertEqual(self.runner("next")["action"], "review_planning_readiness")
+        task = json.loads((self.root / task_ref / "task.json").read_text(encoding="utf-8"))
+        self.assertEqual(task["status"], "planning")
+        state = json.loads(self.state_path().read_text(encoding="utf-8"))
+        self.assertEqual(state["route_authorization"], {"implement": "inline", "check": "check-all-inline"})
+        session = json.loads((self.root / ".trellis/.runtime/sessions/auto-loop-test.json").read_text(encoding="utf-8"))
+        self.assertNotIn("current_task", session)
+        self.assertNotIn("route_decisions", session)
+
     def test_planning_route_preflight_matches_session_before_preferences(self) -> None:
         """预检和执行都优先复用当前任务会话模式，覆盖两个方向和两个 target。"""
         for target, inline, subagent in (

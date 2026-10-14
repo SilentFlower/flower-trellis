@@ -11,6 +11,8 @@ description: |
 
 本 skill 由主 agent 执行，决定已获准工作的位置。模式确定后同轮实际进入对应能力；只在选择未决、用户要求暂停或执行能力不可用时停下。
 
+**auto-loop 启动前选模例外**：用户已明确启动自动循环，且 `trellis-auto-loop` 已解析显式任务列表时，先按 [recovery-and-errors.md](references/recovery-and-errors.md) 选择模式并返回 runner。此路径允许任务仍在 planning 或尚未绑定 session，不套用下方执行门槛或同轮实施规则；普通调用和 running action 继续遵守下文。
+
 ## 进入条件与证据
 
 - task implement 需要任务已获首次 Brief 批准且处于 `in_progress`；task check 需要 Phase 2.2。untracked 需要当前 session 的 `untracked_flow.py status` 命中对应 `stage=implement/check`。仍在 planning、等待确认或用户说“等一下”时停止，不读 runtime/prefs。

@@ -72,3 +72,34 @@ test("路由明确选择先于恢复，展示后同轮执行并保留待决选�
   assert.match(entry, /不等用户回复“继续”/);
   assert.doesNotMatch(entry, /下一轮执行|下一轮由主 agent/);
 });
+
+test("auto-loop 启动前选模先返回 runner，普通执行门槛与同轮实施继续保留", () => {
+  for (const root of [sourceRoot, snapshotRoot]) {
+    const routeRoot = path.join(root, routePath);
+    const entry = fs.readFileSync(path.join(routeRoot, "SKILL.md"), "utf8");
+    const recovery = fs.readFileSync(path.join(routeRoot, "references/recovery-and-errors.md"), "utf8");
+    const interaction = fs.readFileSync(path.join(routeRoot, "references/interaction.md"), "utf8");
+    const startup = recovery.split("## auto-loop 启动前选模\n")[1]?.split("## auto-loop prepare 预检")[0];
+    assert.ok(startup, "启动准备必须有独立的条件分支");
+    assert.ok(entry.indexOf("**auto-loop 启动前选模例外**") < entry.indexOf("## 进入条件与证据"));
+    assert.match(entry, /不套用下方执行门槛或同轮实施规则/);
+    assert.match(entry, /task implement 需要任务已获首次 Brief 批准且处于 `in_progress`/);
+    assert.match(entry, /随后主 agent 在同一回合实际调用/);
+    assert.match(startup, /用户明确要求启动自动循环/);
+    assert.match(startup, /普通规划、恢复 running action 或历史启动表述不进入此例外/);
+    assert.match(startup, /对显式队列任务的 implement\/check 使用下方只读预检/);
+    assert.match(startup, /不得把某一任务的 session 决定复制成整队列模式/);
+    assert.match(startup, /不得调用 task 的 `write`、手写 runtime 或绑定\/切换任务/);
+    assert.match(startup, /明确要求保存个人默认时调用 `write-pref/);
+    assert.match(startup, /不得直接 `task.py start`、实施、运行 Check-All 或分发 subagent/);
+    assert.match(startup, /选择确定后同轮返回 `trellis-auto-loop` 启动 runner/);
+    assert.match(interaction, /不执行下方 task `write` 或末尾同轮实施/);
+    for (const platform of [".agents", ".claude"]) {
+      const autoLoop = fs.readFileSync(path.join(root, platform, "skills/trellis-auto-loop/SKILL.md"), "utf8");
+      assert.match(autoLoop, /启动前进入 `trellis-route` 的“auto-loop 启动前选模例外”/);
+      assert.match(autoLoop, /只有 runner 返回 `run_implement` \/ `run_check_all` 等运行 action 后/);
+      assert.match(autoLoop, /每个 action 完成后，必须用同名 `record --action/);
+      assert.match(autoLoop, /不得 push、merge、release 或 deploy/);
+    }
+  }
+});

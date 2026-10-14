@@ -2400,6 +2400,8 @@ python3 .trellis/scripts/auto_loop.py next
 - `--task` 与 `--auto-mode` 仅用于 `--read-only`。任务必须以 `.trellis/tasks/` 开头、存在 `task.json`，不得使用绝对路径、`..` 或软链；不接受模糊任务名。
 - 只读预检允许目标任务尚未绑定 session。缺少当前任务时仍可解析个人偏好或显式候选；不能复用其它任务决策，也不能扫描其它 run 借用授权。
 - 只读预检不写 session、个人偏好或任务 pointer；命中返回 `status=hit`、`task/mode/source/origin`，verbose 中 `wrote_runtime=false`（prefs/auto 命中）。结果不是持久化执行决策。
+- 用户明确启动 auto-loop 且显式任务列表已解析时，route 先进入启动前选模例外，允许 planning/尚未绑定 session；逐任务只读复用模式，只有未决 target 才询问，不把某任务的 session 决定扩成整队列模式。
+- 启动前临时选择只交给 runner 的 `start --route-implement/--route-check`；明确保存默认时用 `write-pref`。不写 task route decision、不绑定任务、不提前实施或分发；同轮返回 runner 完成 prepare，实际运行 action 才进入普通 route。普通任务开工门槛与选完同轮执行不变。
 - runner 优先查找 `.agents` / `.claude`，再发现其它原生 skill root 下已安装的同名 helper；helper 缺失、失败或无合法模式时不猜测 inline，readiness 保守要求相应 JSONL context。
 - Continue 先查询 runner。存在有效 active run 且用户未切到无关工作时，交给 `trellis-auto-loop` 恢复并返回，不再进入普通 planning gate；普通交互恢复仍遵循 Brief 的确认或明确预授权规则。
 - Brief 仅在 runner 验证 schema 2、`profile=commit-only`、`run_status=preparing`，且 `next` 返回本任务 `refresh_brief` 时免逐任务确认。刷新并完整展示后交回 runner `record + next`，不直接启动任务。
@@ -2420,6 +2422,7 @@ python3 .trellis/scripts/auto_loop.py next
 
 - Normal：当前任务 session 选 subagent、个人默认 inline；预检与实际执行均取 subagent，缺失 JSONL 时预检阻塞。反向组合均取 inline。
 - Base：队列任务 B 尚未绑定，session 仍为 A；预检 B 忽略 A 的决策，取个人默认或 runner 候选，并保持 A 的 session 字节不变。
+- Startup：无个人默认且任务仍在 planning 时，人工选择本次模式后先启动 runner；首个动作仍为规划准备，任务继续保持 planning，session 不出现 task route decision。
 - Incorrect use：Brief 刷新后自行 `task.py start`，或 Continue 根据旧聊天授权跳过评审。
 - Correct handling：验证真实 runner action，展示后回写并获取下一动作；无有效 run 时回到普通交互规则。
 
@@ -2427,6 +2430,7 @@ python3 .trellis/scripts/auto_loop.py next
 
 - 两种优先级冲突方向 × implement/check，断言 readiness 的上下文要求与真实 `resolve` 结果相同。
 - 未绑定任务、其它任务 session、历史 mode、无偏好、非法模式/路径和软链，断言只读路径零写入且不扫描其它 run。
+- 启动前模式未决/已选 × implement/check：只读查询零写入，start 后先 prepare；两平台入口先识别选模例外，临时选择交回 runner，不触发普通 task 写入或提前实施。
 - Brief/Continue 契约覆盖 schema 2 action 例外、schema 1 确认、终态不授权、先识别 runner 再恢复 progress；双平台与 compiled targets 同步。
 
 ## Scenario: Auto Loop Unattended Runner

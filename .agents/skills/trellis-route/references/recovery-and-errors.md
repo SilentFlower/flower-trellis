@@ -1,6 +1,6 @@
 # 路由恢复、异常与只读预检
 
-仅在 helper 异常、无法持久化、需要诊断或 auto-loop prepare 时读取。正常恢复 hit 由入口直接消费，无须加载本文件。
+仅在 helper 异常、无法持久化、需要诊断、auto-loop 启动前选模或 prepare 时读取。正常恢复 hit 由入口直接消费，无须加载本文件。
 
 ## helper 结果
 
@@ -23,9 +23,20 @@
 
 当前明确选择但未持久化时，只说明“本次按你的选择执行，路由未保存，恢复时可能再次询问”；不要求重复选择，也不把自然语言摘要当下一次的合法恢复证据。损坏文件的修复不由 route 擅自执行。
 
+## auto-loop 启动前选模
+
+仅在用户明确要求启动自动循环，且 `trellis-auto-loop` 已解析显式任务列表后使用；普通规划、恢复 running action 或历史启动表述不进入此例外。此时 run 尚未创建，不要求任务已开工，也不创建 task/untracked subject。
+
+1. 对显式队列任务的 implement/check 使用下方只读预检。匹配任务的 runtime、个人默认和本次候选仍由 helper 按既有顺序解析；不得把某一任务的 session 决定复制成整队列模式。已有合法模式的 target 不重复询问。
+2. 普通 miss 才按 [interaction.md](interaction.md) 询问未决 target；当前明确选择直接采用，implement/check 保持独立，只有用户明确选择整个循环统一模式时才映射两者。菜单、紧邻编号和不代选规则不变；状态损坏或 helper 异常按上方失败关闭规则处理。
+3. 本次临时选择只保留到调用 `auto_loop.py start --route-implement <mode> --route-check <mode>`，只传实际已选择的 target；不得调用 task 的 `write`、手写 runtime 或绑定/切换任务。只有明确要求保存个人默认时调用 `write-pref --target <target> --mode <mode>`，不使用 `write --save-pref`。
+4. 选择确定后同轮返回 `trellis-auto-loop` 启动 runner，继续它返回的 prepare action。不得直接 `task.py start`、实施、运行 Check-All 或分发 subagent，也不等待用户回复“继续”。runner 完成 prepare 后，实际执行仍由相应 action 进入普通 route。
+
+启动前询问遵守平台有效的用户输入工具规则；Codex 使用允许的同步 `request_user_input`，不可用时在主对话提问并等待，不调用异步询问工具。选择模式不替代 Open Questions、readiness、Brief 或 Git 安全校验。
+
 ## auto-loop prepare 预检
 
-runner 可调用同一 helper 的只读预检：
+启动前选模和 runner prepare 共用同一 helper 的只读预检：
 
 ```bash
 python3 <skill-dir>/scripts/route_state.py resolve --target <implement|check> --read-only --task <repository-relative-task-path> [--auto-mode <runner-candidate>]
