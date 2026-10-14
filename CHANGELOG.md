@@ -4,6 +4,22 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.12-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.6.11...v0.6.12-beta.0) (2026-10-14)
+
+
+### ✨ 新功能 Features
+
+* **codex:** 默认启用同步用户交互 ([8f56915](https://github.com/SilentFlower/flower-trellis/commit/8f56915b297c8b797cd03d1255f5a6847f7af7b0))
+* **route:** 同步按需加载与简短路由展示 ([b38853d](https://github.com/SilentFlower/flower-trellis/commit/b38853d59844c63245102081c2a4d446b2437d7a))
+* **workflow:** 同步连续收尾与增量方案确认 ([c13ebc2](https://github.com/SilentFlower/flower-trellis/commit/c13ebc2da1572e1fadd5eea7515440d1da3dc996))
+
+
+### 🐛 修复 Bug Fixes
+
+* **auto-loop:** 同步启动选模交接与回归 ([50d11e5](https://github.com/SilentFlower/flower-trellis/commit/50d11e55012a761a6c0eaffe49404d8052df289e))
+* **test:** 对齐跨平台 Python 命令夹具 ([e07287a](https://github.com/SilentFlower/flower-trellis/commit/e07287a523f777e7f389adac8064a4b82b3272b2))
+* **test:** 隔离同步交互回归的全局 Trellis ([4ad9c0c](https://github.com/SilentFlower/flower-trellis/commit/4ad9c0c62acaef101f5fcce2356cd79d6b73ac77))
+
 ## [0.6.11](https://github.com/SilentFlower/flower-trellis/compare/v0.6.10...v0.6.11) (2026-10-01)
 
 
