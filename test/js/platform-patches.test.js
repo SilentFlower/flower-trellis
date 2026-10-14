@@ -234,7 +234,7 @@ test("缺失平台目录安全跳过，损坏 JSON/YAML/TOML 失败且不覆盖"
   fs.mkdirSync(path.join(invalidToml, ".codex"));
   write(invalidToml, ".codex/config.toml", "[features.multi_agent_v2\nenabled = true\n");
   const tomlBefore = fs.readFileSync(path.join(invalidToml, ".codex/config.toml"), "utf8");
-  assert.throws(() => prepare(invalidToml), /TOML section header 无法解析/);
+  assert.throws(() => prepare(invalidToml), /TOML 字符串或容器未闭合/);
   assert.equal(
     fs.readFileSync(path.join(invalidToml, ".codex/config.toml"), "utf8"),
     tomlBefore,

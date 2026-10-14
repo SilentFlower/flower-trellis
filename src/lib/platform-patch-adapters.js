@@ -1,4 +1,5 @@
 import { FLOWER_UPDATE_HOOK_REL, FLOWER_SESSION_HOOK_REL, FLOWER_TELEMETRY_HOOK_REL } from "./flower-assets.js";
+import { applyTomlDefaultBoolean, scanTomlStatements } from "./toml-default-adapter.js";
 
 const CODEX_WORKFLOW_HOOK = ".codex/hooks/inject-workflow-state.py";
 const CODEX_SESSION_START = ".codex/hooks/session-start.py";
@@ -423,29 +424,25 @@ function applyTomlSection({ value, operation }) {
   if (operation.operation !== "remove") return { error: "toml-section 只支持 remove" };
   const name = operation.selector.name;
   if (typeof name !== "string" || !name) return { error: "toml-section name 必须是非空字符串" };
-  const lines = value.split("\n");
+  let statements;
+  try {
+    // 同一份语句扫描同时保护删除与补默认值，避免多行字符串被误认成旧配置表。
+    statements = scanTomlStatements(value);
+  } catch (error) {
+    return { error: error.message };
+  }
   const headers = [];
-  for (const line of lines) {
-    const parsed = parseTomlSectionHeader(line);
+  for (const statement of statements) {
+    const parsed = parseTomlSectionHeader(statement.code);
     if (parsed.error) return parsed;
-    headers.push(parsed.header);
+    if (parsed.header) headers.push({ ...statement, header: parsed.header });
   }
-  const matches = headers
-    .map((header, index) => ({ header, index }))
-    .filter(({ header }) => header && !header.array && header.name === name);
+  const matches = headers.filter(({ header }) => !header.array && header.name === name);
   if (matches.length > 1) return { error: `TOML section 重复:[${name}]` };
-  const start = matches[0]?.index ?? -1;
+  const start = matches[0]?.start ?? -1;
   if (start === -1) return { value, source: "structured-absence" };
-  let end = lines.length;
-  for (let index = start + 1; index < lines.length; index += 1) {
-    if (headers[index]) {
-      end = index;
-      break;
-    }
-  }
-  lines.splice(start, end - start);
-  while (start > 0 && lines[start - 1] === "" && lines[start] === "") lines.splice(start, 1);
-  return { value: lines.join("\n"), source: "structured" };
+  const end = headers.find((statement) => statement.start > start)?.start ?? value.length;
+  return { value: value.slice(0, start) + value.slice(end), source: "structured" };
 }
 
 /**
@@ -460,5 +457,6 @@ export function flowerPatchAdapters(pythonCommand = "python3") {
     "yaml-comment-section": applyYamlCommentSection,
     "yaml-key": applyYamlKey,
     "toml-section": applyTomlSection,
+    "toml-default-boolean": (context) => applyTomlDefaultBoolean({ ...context, parseSectionHeader: parseTomlSectionHeader }),
   };
 }

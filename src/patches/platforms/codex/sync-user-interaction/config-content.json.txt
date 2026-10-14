@@ -1,0 +1,7 @@
+{
+  "value": true,
+  "commentReplacements": [{
+    "from": "# Codex hooks (`hooks.json` in this directory) only fire when the user\n# has enabled them in their USER-level config: `[features].hooks = true`\n# in ~/.codex/config.toml (Codex 0.129+; legacy name: `codex_hooks = true`,\n# still works but emits a deprecation warning on 0.129+). Project-level\n# config.toml cannot set feature flags; they must be user-level.\n# Codex 0.129+ additionally gates each installed hook behind a one-time\n# `/hooks` TUI review; until the user approves it, the hook stays inactive.",
+    "to": "# Codex hooks require features.hooks and any review required by the installed\n# Codex version. Current Codex also reads supported feature flags from trusted\n# project config; older clients may require user-level settings."
+  }]
+}

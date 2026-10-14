@@ -343,6 +343,31 @@ print(json.dumps({
                                 self.assertEqual(data, baseline)
                             self.assertNotIn("systemMessage", data)
 
+    def test_sync_interaction_is_codex_only_and_independent_of_model(self) -> None:
+        """通用交互规则只在 Codex state 追加一次，不受模型或模型开关影响。"""
+        self.assertLessEqual(len(SESSION.CODEX_USER_INTERACTION_HINT.encode("utf-8")), 512)
+        for model in (None, SESSION.ASTRA_MODEL, SESSION.SOL_MODEL, SESSION.SOL_6_1_MODEL, "other-model"):
+            for source in ("startup", "clear", "compact"):
+                for platform, part in (("codex", "state"), ("codex", "rules"),
+                                       ("codex", "stages"), ("claude", "state")):
+                    with self.subTest(model=model, source=source, platform=platform, part=part):
+                        result = self.run_hook(platform, part, source, hook_input={"model": model})
+                        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+                        expected = 1 if platform == "codex" and part == "state" else 0
+                        self.assertEqual(context.count("<trellis-codex-user-interaction>"), expected)
+                        if expected:
+                            self.assertIn(SESSION.CODEX_USER_INTERACTION_HINT, context)
+        (self.root / ".trellis/config.yaml").write_text(
+            "codex:\n  astra_workflow_hint: false\n  sol_workflow_hint: false\n  sol_6_1_workflow_hint: false\n",
+            encoding="utf-8",
+        )
+        context = json.loads(self.run_hook("codex", "state", hook_input={"model": SESSION.SOL_6_1_MODEL}).stdout)
+        self.assertIn(SESSION.CODEX_USER_INTERACTION_HINT, context["hookSpecificOutput"]["additionalContext"])
+        for source in ("unknown", "", None):
+            self.assertNotIn("<trellis-codex-user-interaction>", self.run_hook(
+                "codex", "state", hook_input={"source": source}).stdout)
+        self.assertNotIn("<trellis-codex-user-interaction>", self.run_prompt_hook("codex").stdout)
+
     def test_sol_reuses_unchanged_astra_body(self) -> None:
         """Astra 最终原文不漂移，两个 Sol 仅替换模型标识和标签。"""
         self.assertEqual(sha256(SESSION.ASTRA_WORKFLOW_HINT.encode("utf-8")).hexdigest(),

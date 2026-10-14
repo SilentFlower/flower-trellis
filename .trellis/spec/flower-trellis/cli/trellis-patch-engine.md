@@ -159,6 +159,8 @@ Flower 扩展 adapter 仅用于结构化平台配置，目前允许：
   必须保留下一个 section 的起始分隔线。缺失、重复或结构损坏按 `missing`/error 处理，不能在文件
   顶部盲加注释。两级 key 更新仍须保留同 block 其它 key、其它顶层内容和原行尾语义。
 - `toml-section`
+- `toml-default-boolean`：只用于两级布尔默认键，缺省补入、保留显式值；完整校验、原文更新与注释边界见
+  [Codex Synchronous User Interaction Defaults](#scenario-codex-synchronous-user-interaction-defaults)。
 
 adapter 必须通过 `flowerPatchAdapters()` 显式注册，并遵守相同的 preflight、required、目标路径、零写入和 changed-only 契约。不得把通用 Patch 逻辑复制进 adapter。
 
@@ -721,6 +723,8 @@ subprocess.run(
 - 源脚本属于 `src/assets/flower_session_start.py`；builtin Skill-Garden 0.6 全装通过内容投影安装到
   `.trellis/scripts/flower_session_start.py`，由 Plugin state 记录普通资产 ownership。对应平台 Patch
   属于 Flower `flower-platform-integration` full-only Bundle；不得只直改已部署脚本或 JSON 配置。
+- Codex 的通用同步交互规则同样由该 wrapper 所有；只在 state 的 `startup|clear|compact` 追加一份，
+  与模型 hint 及其开关独立；具体配置和行为边界见下方同步交互场景。
 - 两个平台均只注册 `startup|clear|compact`；迁移删除旧单 handler / 旧分段及因此移空的分组，
   保留无关 handler。Flower 更新检查独立匹配 `startup`。old/0.5 沿用原注册路径。
 - `selector.commandNeedle` 为该平台原生 SessionStart 相对路径。新命令保留该路径为 `--hook` 参数，
@@ -842,3 +846,73 @@ Correct：`limit !== undefined` 时写回；按分段保留已有值，再继承
 Wrong：用 `bool(config_value)` 解析字符串 false，或每个分段/用户轮次都重复注入模型提示。
 
 Correct：明确解析 true/false，只在匹配的 Codex SessionStart state 追加唯一正文；关闭增强仍保留原工作流。
+
+## Scenario: Codex Synchronous User Interaction Defaults
+
+### 1. Scope / Trigger
+
+修改 Flower 0.6 的 Codex 项目 feature 默认值、同步询问规则或相关 TOML 变换时适用。
+这是项目级默认和模型交互约定，不能改写宿主工具 schema、用户全局配置或项目信任。
+
+### 2. Signatures
+
+- 配置键：`.codex/config.toml` 的 `features.default_mode_request_user_input: boolean`。
+- Patch：`flower-codex-sync-user-interaction`，selector 为
+  `{ "type": "toml-default-boolean", "path": "features.default_mode_request_user_input" }`；
+  content 为 `{ "value": true, "commentReplacements": [{ "from": "...", "to": "..." }] }`。
+- `applyTomlDefaultBoolean({ value, operation, parseSectionHeader }) -> { value, source } | { error }`；
+  `scanTomlStatements(text, separator="\n") -> statement[]`，两者来自 `toml-default-adapter.js`。
+- `CODEX_USER_INTERACTION_HINT` 为独立闭合的 `<trellis-codex-user-interaction>` 块；
+  `render_part` 复用既有 SessionStart 入口，不新增 handler 或持久交互状态。
+
+### 3. Contracts
+
+- 配置 Patch 属于 full-only 平台 Bundle，目标 `kind=toml`、`missing=create`、`requires=[.codex]`；
+  缺少平台或 skill-only 安装不写配置。缺省补 `true`，用户明确 `true/false` 原样保留。
+- `smol-toml` 校验变换前后完整文档并解码 quoted key，开启大整数支持；禁止整体 stringify。
+  位置扫描避开注释、引号、多行字符串和容器。支持 section、dotted key、inline table，保留其它
+  内容及内部 LF/CRLF；末尾沿用核心单 LF 规范化。非法语法、重复定义和非布尔目标失败关闭，
+  parser 错误只显示行列，不回显可能含凭证的配置原文。
+- 注释修正只匹配唯一的完整已知注释段；缺失跳过，同文字符串不匹配，重复真实注释失败。
+- 默认 Patch 先于 `flower-codex-remove-multi-agent-v2`：配置缺失时先在同轮内存计划创建文件，
+  后续清理仍进入 provenance，确保首次与重复更新的完整记录一致；不得放宽幂等断言。
+- 启动注入只在 Codex/state/`startup|clear|compact` 且原生成功时追加一次，覆盖所有模型；
+  Claude、rules/stages、resume、Hook 禁用和非交互零追加。三个模型 hint 原文与开关独立保留。
+- 询问使用当前工具指令/schema 允许的同步 `request_user_input`；不允许或无法表达时在 final
+  展示并等待。禁止 `request_user_input_async`、`send_user_message_async` 及同义异步入口；
+  进度走 commentary，结果走 final。不得为调用工具切换模式、增加审批或从沉默推定同意。
+- 项目必须被用户信任且实际客户端支持该 feature，CLI override 优先。Codex 0.162.1 的真实
+  `config/read` 已验证加载；重启后实际询问行为另验，不把脚本输出/配置读取冒充弹窗验证。
+- 通用完整块不超过 512 UTF-8 bytes，预算脚本从十八场景真实输出验证块数、原文及体量；
+  拼接换行计入 state/总量。该规则不能覆盖宿主更高优先级工具限制。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| 缺少配置或 feature key | 创建/补入默认 true，重复更新零变化 |
+| 显式 true/false 或其它 feature/agents 内容 | 保留原值和用户内容 |
+| 多行字符串包含伪 section、feature key 或模板注释 | 保留示例，不作为配置或待替换注释 |
+| 重复表/键、损坏语法、目标非布尔 | preflight 失败，全部目标与记录零写入 |
+| 同步工具不可用或当前问题不允许使用 | 主对话提问并等待，不改用异步、不切模式 |
+| Codex model 缺失/不同或模型 hint 关闭 | 通用交互规则仍追加一次 |
+| 客户端未重载配置/未实际执行询问 | 只能报告配置/注入证据，行为验证仍待执行 |
+
+### 5. Scenarios and Examples
+
+- Normal：可信项目缺少 feature，Flower 更新补入 `[features]` 默认 true；新会话询问按宿主许可
+  使用同步工具，普通通知直接显示在对话。
+- Base：用户明确配置 false，更新保留；同步工具不可用时主对话等待。
+- Incorrect：正则扫描整份 TOML，删掉字符串示例中的旧 section，或用 parser stringify 丢注释。
+- Correct：完整解析校验 + 语句位置更新 + Plugin preflight/事务；前后原文和第二次更新全树断言。
+
+### 6. Tests Required
+
+- `codex-sync-user-interaction.test.js`：配置各写法、显式值保留、quoted/multiline 示例、损坏与
+  重复零写入、错误不回显值、平台/skill-only边界、真实 init/update/dry-run/uninstall-dry-run。
+- `apply-enhancements.test.js`：缺配置首次创建与后续清理 provenance 同步、重复全树不变。
+- `test_flower_session_start.py`：平台/来源/分段/模型块数、独立开关、禁用路径和模型原文 hash。
+- 预算 checker 与 `ai-context-budget.test.js`：完整通用块≤512 B，原模型差分保持，总量不重复计数；
+  strict 不调阈值。本地 token 差分独立说明 tokenizer 和范围。
+- 推送后执行 Ubuntu/Windows Node、Python 3.8/3.12 及 SessionStart CI；用户重新加载 Codex 后
+  单独验证同步等待和无异步窗口，保留真实版本/会话证据。

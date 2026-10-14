@@ -46,6 +46,10 @@ test("最终入口分别计量 Auto-Loop 与两平台实际 SessionStart 分段"
     assert.equal(hint.target, 2048);
     assert.equal(hint.review, 2048);
   }
+  const interaction = metrics.find((metric) => metric.name === "codex-user-interaction-hint");
+  assert.ok(interaction.bytes > 0 && interaction.bytes <= 512);
+  assert.equal(interaction.target, 512);
+  assert.equal(interaction.review, 512);
   const scenarios = metrics.filter((metric) => metric.name.startsWith("session-start-case:"));
   assert.equal(scenarios.length, 18);
   const scenarioBytes = (name) => scenarios.find((metric) => metric.name === `session-start-case:${name}`).bytes;

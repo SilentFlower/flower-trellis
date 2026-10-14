@@ -56,6 +56,9 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 不能因本地配置关闭而漏测开启成本；匹配场景只有 state 的对应模型一块，其他输出零块，三种 source 的
 提示正文相同。数量或正文不一致是结构错误。
 
+`codex-user-interaction-hint` 同样从实际输出提取：每个 Codex state 场景恰好一份，Claude 和
+rules/stages 零份；跨模型、模型开关和来源的正文必须一致。完整块单独计量，拼接换行计入总量。
+
 ## Layer Ownership
 
 | 层 | 应保留 | 禁止 |
@@ -83,6 +86,7 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 | SessionStart 三段 `additionalContext` 合计（最大平台） | 18 KiB | 20 KiB |
 | 单个 SessionStart 分段 | 8000 字符 | 10000 字符 |
 | 单个完整 Astra、Sol 或 Sol 6.1 模型提示块 | 2 KiB | 2 KiB |
+| 单个完整 Codex 同步交互规则块 | 512 B | 512 B |
 | control-context-total | 116 KiB | 128 KiB |
 
 `control-context-total` 是控制面总体积审计，不声称这些内容会在单次 prompt 中同时出现。公式固定为：

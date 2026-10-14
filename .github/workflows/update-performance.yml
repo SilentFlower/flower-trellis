@@ -81,6 +81,9 @@ jobs:
           test/js/plugin-transaction-writer.test.js
           test/js/route-context-budget.test.js
           test/js/platform-skill-distribution.test.js
+          test/js/platform-patches.test.js
+          test/js/codex-sync-user-interaction.test.js
+          test/js/ai-context-budget.test.js
           test/js/check-all-smart-depth.test.js
           test/js/check-all-fallback-findings.test.js
           test/js/untracked-flow-gate.test.js

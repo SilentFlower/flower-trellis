@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-codex-sync-user-interaction",
+  "purpose": "platform_config",
+  "operations": [{
+    "id": "flower-codex-sync-user-interaction",
+    "operation": "replace",
+    "targets": [{
+      "kind": "toml",
+      "path": ".codex/config.toml",
+      "missing": "create",
+      "requires": [".codex"]
+    }],
+    "selector": { "type": "toml-default-boolean", "path": "features.default_mode_request_user_input" },
+    "content": { "source": "config-content.json.txt" }
+  }]
+}
