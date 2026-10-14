@@ -147,6 +147,7 @@ test("Light 与 Full 统一按充分验证证据判断，不把自动化文件�
 test("route 只决定 Check-All 执行位置", () => {
   const agents = read(sourceRoot, ".agents/skills/trellis-route/SKILL.md");
   const claude = read(sourceRoot, ".claude/skills/trellis-route/SKILL.md");
+  const dispatch = read(sourceRoot, ".agents/skills/trellis-route/references/subagent-dispatch.md");
   const routeState = read(
     sourceRoot,
     ".agents/skills/trellis-route/scripts/route_state.py",
@@ -182,7 +183,8 @@ test("route 只决定 Check-All 执行位置", () => {
     17,
   );
   assert.doesNotMatch(agents, /\| Codex \|/);
-  assert.match(agents, /workspace-write `trellis-check`/);
+  assert.match(agents, /\[subagent-dispatch\.md\]\(references\/subagent-dispatch\.md\)/);
+  assert.match(dispatch, /workspace-write `trellis-check`/);
 });
 
 test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {

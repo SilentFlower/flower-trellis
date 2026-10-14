@@ -79,3 +79,10 @@ jobs:
           test/js/release-sync.test.js
           test/js/plugin-skill-garden.test.js
           test/js/plugin-transaction-writer.test.js
+          test/js/route-context-budget.test.js
+          test/js/platform-skill-distribution.test.js
+          test/js/check-all-smart-depth.test.js
+          test/js/check-all-fallback-findings.test.js
+          test/js/untracked-flow-gate.test.js
+          test/js/workflow-gate-ownership.test.js
+          test/js/pre-check-feedback-gate.test.js

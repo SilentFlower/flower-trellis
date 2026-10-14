@@ -40,8 +40,9 @@ test("Kiro-only 项目只向原生 skill root 分发，不错误创建 Claude", 
   assert.equal(isEnhancementSkillInstalled(target, "trellis-route"), true);
 });
 
-test("全部平台原生 skill root 获得同一 Flower Gate Skill", () => {
+test("全部平台原生 skill root 获得同一 Flower Gate Skill", (t) => {
   const target = makeTarget("flower-platform-skill-matrix-");
+  t.after(() => fs.rmSync(target, { recursive: true, force: true }));
   for (const { root } of ENHANCEMENT_SKILL_TARGETS) {
     fs.mkdirSync(path.join(target, ...root.split("/")), { recursive: true });
   }
@@ -65,7 +66,28 @@ test("全部平台原生 skill root 获得同一 Flower Gate Skill", () => {
   for (const { platform, root } of ENHANCEMENT_SKILL_TARGETS) {
     const file = path.join(target, ...root.split("/"), "trellis-route", "SKILL.md");
     assert.equal(fs.existsSync(file), true, `${platform}:${root}`);
-    assert.match(fs.readFileSync(file, "utf8"), /Phase 2\.1 completion contract/, platform);
+    assert.match(fs.readFileSync(file, "utf8"), /Phase 2\.1 的 completion contract/, platform);
+    const sourceRoot = path.resolve("enhancements/0.6/.agents/skills/trellis-route");
+    const routeRoot = path.dirname(file);
+    // Claude 的参考材料来自共享 agents 源；真实投影必须保留所有条件入口。
+    for (const name of ["interaction.md", "subagent-dispatch.md", "recovery-and-errors.md"]) {
+      const relativePath = path.join("references", name);
+      assert.equal(
+        fs.readFileSync(path.join(routeRoot, relativePath), "utf8"),
+        fs.readFileSync(path.join(sourceRoot, relativePath), "utf8"),
+        `${platform}:${name}`,
+      );
+    }
+    const materialFiles = [
+      "SKILL.md",
+      ...fs.readdirSync(path.join(routeRoot, "references")).map((name) => path.join("references", name)),
+    ];
+    const totalBytes = materialFiles.reduce(
+      (total, name) => total + fs.statSync(path.join(routeRoot, name)).size,
+      0,
+    );
+    assert.ok(fs.statSync(file).size <= 8192, platform);
+    assert.ok(totalBytes <= 39950, `${platform}: ${totalBytes} B`);
   }
 });
 

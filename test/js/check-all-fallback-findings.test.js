@@ -134,6 +134,7 @@ test("统一报告分别展示 CHK 与 FBK，并支持显式风险接受", () =>
 test("route、专用 agent、workflow 与 push 使用相同的风险接受语义", () => {
   const routeAgents = read(sourceRoot, ".agents/skills/trellis-route/SKILL.md");
   const routeClaude = read(sourceRoot, ".claude/skills/trellis-route/SKILL.md");
+  const routeDispatch = read(sourceRoot, ".agents/skills/trellis-route/references/subagent-dispatch.md");
   const agentBody = read(
     sourceRoot,
     ".agents/skills/trellis-route/references/check-all-agent-body.md",
@@ -157,8 +158,9 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
   assert.equal(pushAgents, pushClaude);
   assert.equal(pushTemplatesAgents, pushTemplatesClaude);
   assert.match(routeAgents, /`CHK-\*` \/ `FBK-\*` \/ `DOC-\*`/);
-  assert.match(routeAgents, /已声明的兜底契约只影响证据和严重度，不改变 `FBK-\*` 归属/);
-  assert.match(routeAgents, /泛化建议不报告/);
+  assert.match(routeAgents, /\[subagent-dispatch\.md\]\(references\/subagent-dispatch\.md\)/);
+  assert.match(routeDispatch, /已声明的兜底契约只影响证据和严重度，不改变 `FBK-\*` 归属/);
+  assert.match(routeDispatch, /泛化建议不报告/);
   assert.match(agentBody, /Classify findings by root-cause nature before severity/);
   assert.match(agentBody, /Assign P0\/P1\/P2 to both `CHK-\*` and `FBK-\*`/);
   assert.match(agentBody, /keep the `FBK-\*` ID when verification is partial/);

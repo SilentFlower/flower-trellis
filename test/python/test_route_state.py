@@ -306,6 +306,75 @@ class RouteStateCompatibilityTest(unittest.TestCase):
             self.assertEqual(json.loads(output.getvalue())["reason"], "invalid-mode")
             self.assertFalse((root / ".trellis/.route-prefs.tmp").exists())
 
+    def test_explicit_task_choice_recovers_without_changing_default(self) -> None:
+        """明确临时指令写入 session 后可恢复，且不改变任何个人默认。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-explicit-once-") as temp:
+            root = Path(temp)
+            (root / ".trellis").mkdir()
+            prefs = root / ".trellis/.route-prefs.tmp"
+            initial_prefs = "implement=inline\ncheck=check-all-subagent\n"
+            prefs.write_text(initial_prefs, encoding="utf-8")
+            task = ".trellis/tasks/current"
+            context = (task, "session:codex_test", "codex_test")
+            args = self.module.build_parser().parse_args([
+                "write", "--target", "implement", "--mode", "subagent",
+                "--source", "trellis-route",
+            ])
+            resolve_args = self.module.build_parser().parse_args([
+                "resolve", "--target", "implement",
+            ])
+
+            with mock.patch.object(self.module, "_repo_root", return_value=root):
+                with mock.patch.object(self.module, "_current_task", return_value=context):
+                    written_output = io.StringIO()
+                    with redirect_stdout(written_output):
+                        self.module.write_route(args)
+                    restored_output = io.StringIO()
+                    with redirect_stdout(restored_output):
+                        self.module.resolve_route(resolve_args)
+
+            written = json.loads(written_output.getvalue())
+            restored = json.loads(restored_output.getvalue())
+            self.assertEqual(written["status"], "written")
+            self.assertEqual(restored["origin"], "runtime")
+            self.assertEqual(restored["mode"], "subagent")
+            self.assertEqual(restored["source"], "trellis-route")
+            self.assertEqual(restored["task"], task)
+            self.assertEqual(prefs.read_text(encoding="utf-8"), initial_prefs)
+
+    def test_explicit_saved_default_preserves_other_target(self) -> None:
+        """明确保存指令只更新指定默认，切换任务后仍可用且保留另一目标。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-explicit-default-") as temp:
+            root = Path(temp)
+            (root / ".trellis").mkdir()
+            prefs = root / ".trellis/.route-prefs.tmp"
+            prefs.write_text("implement=subagent\ncheck=check-all-subagent\n", encoding="utf-8")
+            args = self.module.build_parser().parse_args([
+                "write", "--target", "check", "--mode", "check-all-inline",
+                "--source", "trellis-route", "--save-pref",
+            ])
+            resolve_args = self.module.build_parser().parse_args([
+                "resolve", "--target", "check",
+            ])
+            first = (".trellis/tasks/first", "session:codex_test", "codex_test")
+            second = (".trellis/tasks/second", "session:codex_test", "codex_test")
+
+            with mock.patch.object(self.module, "_repo_root", return_value=root):
+                with mock.patch.object(self.module, "_current_task", return_value=first):
+                    with redirect_stdout(io.StringIO()):
+                        self.module.write_route(args)
+                with mock.patch.object(self.module, "_current_task", return_value=second):
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        self.module.resolve_route(resolve_args)
+                saved = self.module._read_prefs(root)
+
+            restored = json.loads(output.getvalue())
+            self.assertEqual(saved, {"implement": "subagent", "check": "check-all-inline"})
+            self.assertEqual(restored["origin"], "route-prefs")
+            self.assertEqual(restored["task"], second[0])
+            self.assertEqual(restored["mode"], "check-all-inline")
+
     def test_atomic_preference_write_preserves_old_file_on_replace_failure(self) -> None:
         """偏好原子替换失败时必须保留旧文件。"""
         with tempfile.TemporaryDirectory(prefix="flower-route-pref-atomic-") as temp:

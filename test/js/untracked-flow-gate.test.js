@@ -37,6 +37,7 @@ test("untracked workflow 只保存阶段游标并路由到单一 owner", () => {
   const noTask = read("overrides/patches/workflow/state-no-task/content.md");
   const triage = read("overrides/patches/workflow/intent-routing/request-triage/content.md");
   const route = read(".agents/skills/trellis-route/SKILL.md");
+  const dispatch = read(".agents/skills/trellis-route/references/subagent-dispatch.md");
   const check = read(".agents/skills/trellis-check-all/references/reporting-and-disposition.md");
   const updateSpec = read("overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md");
   const push = read(".agents/skills/trellis-push/SKILL.md");
@@ -72,8 +73,9 @@ test("untracked workflow 只保存阶段游标并路由到单一 owner", () => {
   }
   assert.match(route, /read-pref --target/);
   assert.match(route, /untracked 的“仅本次”只用于当前调用，不写任何 runtime 或偏好/);
-  assert.match(route, /不得写 `Active task:`/);
-  assert.match(route, /helper 只提供流程游标/);
+  assert.match(route, /最终模式为 subagent/);
+  assert.match(dispatch, /不得写 `Active task:`/);
+  assert.match(dispatch, /helper 只提供流程游标/);
   assert.match(check, /advance --stage implement/);
   assert.match(check, /advance --stage spec/);
   assert.doesNotMatch(check, /untracked_flow\.py record-check/);

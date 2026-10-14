@@ -1553,6 +1553,8 @@ AI 清理 pointer 后也能继续按 `no_task` 处理当前请求。
 python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target <implement|check>
 python3 .agents/skills/trellis-route/scripts/route_state.py resolve --target <implement|check> --verbose
 python3 .agents/skills/trellis-route/scripts/route_state.py write --target <implement|check> --mode <mode> --source <trellis-route|numbered-fallback> [--save-pref]
+python3 .agents/skills/trellis-route/scripts/route_state.py read-pref --target <implement|check>
+python3 .agents/skills/trellis-route/scripts/route_state.py write-pref --target <implement|check> --mode <mode>
 python3 .agents/skills/trellis-route/scripts/route_state.py clear-pref --target <implement|check>
 ```
 
@@ -1569,10 +1571,11 @@ Claude 平台只安装 `.claude` 副本时,路径改为
     负责 numbered fallback 有效性；workflow-state 只保留面包屑级门禁，不重复裸数字细节。
   - 不内嵌 prefs 解析、runtime schema、fallback 选项、Python / awk 代码片段。
 - `trellis-route/SKILL.md`:
-  - 保留用户选项、mode 映射、轻量 check 逃生口、dispatch 指令和 helper 调用方式。
-  - 明确 `1` / `2` / `3` / `4` 这类裸数字只可解释为当前可见上一条 assistant
-    route 选项消息的紧邻回复；压缩摘要、历史消息、旧 target 的裸数字不得触发
-    `write --source numbered-fallback`。
+  - 保留授权前提、subject、合法来源、mode 映射、最小 helper 调用和同轮执行；不默认读取 helper 源码。
+  - 当前请求唯一明确 target/mode 时直接应用，只有明确保存默认才使用 `--save-pref`；假设、问题、引用和历史叙述不算指令。模式仍未决或仅要求重选时由用户选择。
+  - 无覆盖时复用当前任务合法决定或 helper hit；正常对话只说明一句执行方式，同轮进入实现/Check-All，不例行打印 YAML、路径或下一轮调用清单。
+  - 交互和紧邻裸数字规则位于 `references/interaction.md`；subagent 启动、audit-only 和 untracked prompt 位于 `references/subagent-dispatch.md`；异常及 auto-loop prepare 位于 `references/recovery-and-errors.md`。只有条件命中才读取，inline 不加载 catalog。
+  - 用户选项、合法 source、任务隔离和只读专用角色保留；重检/恢复不重复选择。入口不超过 8,192 B，每平台投影的 Markdown/JSON 路由材料总量不超过 39,950 B；不能仅检查 canonical Claude 目录，公共 reference 来自 agents 源。
   - 不把机械 JSON 读写逻辑改写成 prompt 里的长代码块。
 - `route_state.py`:
   - `resolve` 顺序固定为 session runtime `route_decisions.<target>` -> `.trellis/.route-prefs.tmp` -> `.trellis/.runtime/auto-loop/<run-id>.json` 临时授权。
@@ -1592,7 +1595,8 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 | 条件 | 行为 |
 |------|------|
 | 无 `.trellis/` | 返回 `status=miss/skipped`,不阻断外层流程 |
-| 无 current task 或无 session context key | 返回 `no-current-task` / `no-session-context`,继续展示 route 选项 |
+| 无 current task | 返回 `no-current-task`，重新核对 subject，不伪造 task |
+| 无 session context key 且已允许 task 执行 | 不写 runtime；读取个人偏好或等待当前选择，说明恢复记录不能保存 |
 | session runtime 文件缺失 | 继续读 prefs/auto-loop 或展示选项 |
 | session runtime JSON 损坏或 I/O 失败 | 返回 `session-runtime-corrupt/io_error`,不读 prefs/auto-loop,不覆盖原文件 |
 | runtime 的 task / target / source / mode / scope 不匹配 | 返回 miss,不得复用 |
@@ -1602,13 +1606,17 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 | auto-loop running run 存在合法 route_authorization,且当前 task 属于未完成队列 | 返回 hit,写回 runtime,`origin=auto-loop`,`source=auto-loop` |
 | session 显式绑定的 auto run JSON 损坏/I/O 失败 | 返回 `session-auto-run-corrupt/io_error`,不得 fallback 到其它 run |
 | auto-loop 无绑定 run / 非唯一 running run / mode 不合法 | 返回 miss,展示选项 |
-| 用户明确重选 / 临时改 / 清除默认 | 忽略 runtime 和 prefs,重新进入 route 选项 |
+| 当前请求明确 target/mode | 当前选择优先，按临时/保存意图调用 helper，同轮执行 |
+| 用户仅要求重选、清除默认或变更指令含糊 | 不套用旧决定；读取交互规则，由用户决定未决模式 |
 | compact 后只剩历史裸数字 `1` 和新的 check 选项摘要 | 不得写入 check route；必须重新展示当前 target 选项并等待紧邻回复 |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: 压缩后当前上下文没有 `route_decision`;`resolve --target implement` 命中 runtime,
   输出合法 `task` / `mode` / `source`,agent 直接复用,不重复问用户;需要诊断再加 `--verbose`。
+- Good: 当前用户说“这次实现用子 agent”，调用 `write --target implement --mode subagent --source trellis-route`，不保存个人默认，不要求菜单复选，随后同轮执行。
+- Base: 当前用户说“以后检查默认用当前会话”，task 使用 `write --target check --mode check-all-inline --source trellis-route --save-pref`；untracked 使用 `write-pref`，不创建 task runtime。
+- Bad: 把“这次实现用子 agent 会更好吗？”当执行指令；应回答问题并保持现有决定，不能自行写入模式。
 - Base: runtime miss 但 `.route-prefs.tmp` 有 `implement=inline`;`resolve` 返回
   `origin=route-prefs`,`source=route-prefs` 并写回 runtime,后续同 session 直接 runtime hit。
 - Base: runtime 和 prefs 都 miss,但当前 session 的 `current_auto_run` 指向 running auto-loop state,且 `route_authorization.implement=subagent`;`resolve` 返回 `origin=auto-loop`,`source=auto-loop` 并写回 runtime。
@@ -1627,12 +1635,14 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - `git diff --check`
   - helper 脚本 `python3 -m py_compile <script>`
   - 多份 skill/script 副本用 `cmp -s` 或等价方式确认一致。
+  - `test/js/route-context-budget.test.js` 验证入口、全材料体量及条件加载；全平台真实投影确认所有 reference 可读并与源一致，不提高预算阈值。
 - 行为检查:
   - 清空 `route_decisions` 但保留 session 文件其他字段,验证 prefs hit 会写回 runtime。
   - 第二次 `resolve` 验证 runtime 优先。
   - `write` 不带 `--save-pref` 时验证 `.route-prefs.tmp` 不变。
   - 同一 session 从任务 A 切到任务 B 后,写入任务 B 的 implement 决策会清理任务 A 的 check 决策;随后 `resolve --target check` 对任务 B 返回 miss,除非存在个人 check 默认。
   - `write --save-pref` 验证只更新当前 target 并保留另一个 target。
+  - 明确临时选择写入后 `resolve` 恢复同一 mode/source/task，个人默认不变；保存默认后新任务能命中 prefs 且不影响另一个 target。
   - `clear-pref --target check` 验证只清 check 默认。
   - prefs miss 时,当前 session 绑定 `current_auto_run` 且 auto-loop state 有合法授权,验证 `resolve` 命中 auto-loop 并写回 runtime。
   - session 绑定 run 损坏且存在其它健康 run 时,验证 `resolve` 返回 `session-auto-run-corrupt` 且不写 runtime。
@@ -1641,6 +1651,7 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - auto-loop running run 不唯一或 mode 不合法时,验证返回 miss 且不写 runtime。
   - prompt/workflow 回归:compact summary、ordinary summary、replacement history 或历史裸数字
     不能作为当前 target 的 numbered fallback；只有紧邻当前 route 选项消息的用户回复才有效。
+  - 明确模式指令先于恢复，含糊指令和不可用能力保留人工决定；正常展示后同轮进入 owner，不把输出路由作为结束回合的动作。
 - 同步检查:
   - 先改 `vendor/skill-garden/.trellis/0.6`,再 `npm run sync`。
   - 确认 `enhancements/0.6` 和当前 dogfood `.agents` / `.claude` 副本未漂移。
