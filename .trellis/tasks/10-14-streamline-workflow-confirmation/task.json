@@ -1,0 +1,79 @@
+{
+  "id": "streamline-workflow-confirmation",
+  "name": "streamline-workflow-confirmation",
+  "title": "减少检查后停顿并明确中途方案变更确认",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-10-14",
+  "completedAt": "2026-10-14",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-10-14T08:04:01Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-10-14T06:51:41Z",
+      "contextKey": "codex_01a1391d-1baa-7c90-92dc-745254cf1f0a",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "92bff154d1ee10c5e253c985f388b0495076f9e7",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "92bff154d1ee10c5e253c985f388b0495076f9e7",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "ae30ce167028bc96a0deb131a14c4362781d0a10efc0e766ae0247e13def2473"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "7d02e3d812cd817db285fc51a4656c55b497452b",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "4f8eb986e5590d719367946241f5b584a8fbd32e72925d271c76b0badfdfeb23"
+          }
+        ],
+        "fingerprint": "1323e51f1940539a191b3b91ee8e81dfae14aff77ff5df26387db6ca2fbd9697"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "实现检查通过后默认收尾与 Brief 增量确认",
+      "完成全面检查、规范同步与本地回归",
+      "完成两仓业务提交推送及源快照投影同步",
+      "完成三个跨平台 CI 工作流的 8 个 job 核验"
+    ],
+    "partialStep": null,
+    "nextStep": "交付完成，无后续实施步骤",
+    "notes": "跨平台 CI 全部通过；证据与平台矩阵见 implement.md 的 Delivery Evidence。状态上下文存在低于审阅阈值的非阻断预算告警。",
+    "updatedAt": "2026-10-14T08:04:01Z"
+  }
+}
