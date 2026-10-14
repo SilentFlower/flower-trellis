@@ -7,7 +7,10 @@ import { fileURLToPath } from "node:url";
 import { parse as parseToml } from "smol-toml";
 import { applyPatchPlan, preparePatchPlan } from "../../src/lib/patch-engine.js";
 import { flowerPatchAdapters } from "../../src/lib/platform-patch-adapters.js";
+import { installedGlobalTrellisVersion } from "../../src/lib/global-trellis-sync.js";
+import { trellisVersion } from "../../src/lib/versions.js";
 import { runFlower, snapshotProjectFiles } from "./plugin-e2e-helpers.js";
+import { isolatedGlobalTrellis } from "../helpers/update-performance.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CATALOG = {
@@ -171,21 +174,30 @@ test("真实 init/update 通过 Plugin 生命周期分发同步默认值与交�
   const root = fixture(t);
   fs.rmSync(path.join(root, ".trellis"), { recursive: true });
   fs.rmSync(path.join(root, ".codex"), { recursive: true });
-  const init = runFlower(root, ["init", "--codex", "--no-update-check", "-y"], { timeout: 60000 });
+  // CI 不一定安装了全局 Trellis；使用真实捆绑依赖的隔离布局，避免无关全局安装。
+  const prefix = path.join(root, "global-prefix");
+  const launcher = isolatedGlobalTrellis(prefix);
+  assert.equal(installedGlobalTrellisVersion(prefix, launcher), trellisVersion());
+  const cliOptions = {
+    timeout: 60000,
+    envRoot: path.join(root, "cli-environment"),
+    env: { npm_config_prefix: prefix },
+  };
+  const init = runFlower(root, ["init", "--codex", "--no-update-check", "-y"], cliOptions);
   assert.equal(init.status, 0, init.stderr + init.stdout);
   const file = path.join(root, ".codex/config.toml");
   assert.match(fs.readFileSync(file, "utf8"), /default_mode_request_user_input = true/);
   const wrapper = fs.readFileSync(path.join(root, ".trellis/scripts/flower_session_start.py"), "utf8");
   assert.ok(wrapper.includes("<trellis-codex-user-interaction>"));
   assert.ok(wrapper.includes("Do not call request_user_input_async, send_user_message_async"));
-  const update = runFlower(root, ["update", "--enhance-only", "--no-update-check", "-y"], { timeout: 60000 });
+  const update = runFlower(root, ["update", "--enhance-only", "--no-update-check", "-y"], cliOptions);
   assert.equal(update.status, 0, update.stderr + update.stdout);
   assert.match(fs.readFileSync(file, "utf8"), /default_mode_request_user_input = true/);
   const before = snapshotProjectFiles(root);
-  const dry = runFlower(root, ["update", "--enhance-only", "--dry-run", "--no-update-check", "-y"], { timeout: 60000 });
+  const dry = runFlower(root, ["update", "--enhance-only", "--dry-run", "--no-update-check", "-y"], cliOptions);
   assert.equal(dry.status, 0, dry.stderr + dry.stdout);
   assert.deepEqual(snapshotProjectFiles(root), before);
-  const uninstall = runFlower(root, ["uninstall", "--dry-run"], { timeout: 60000 });
+  const uninstall = runFlower(root, ["uninstall", "--dry-run"], cliOptions);
   assert.equal(uninstall.status, 0, uninstall.stderr + uninstall.stdout);
   assert.deepEqual(snapshotProjectFiles(root), before);
 });
