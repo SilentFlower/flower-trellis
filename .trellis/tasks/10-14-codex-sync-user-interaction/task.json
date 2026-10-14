@@ -1,0 +1,78 @@
+{
+  "id": "codex-sync-user-interaction",
+  "name": "codex-sync-user-interaction",
+  "title": "Codex 默认使用同步用户交互",
+  "description": "默认开启项目级 default_mode_request_user_input，并让 Codex 询问使用同步工具、避免 request_user_input_async 与 send_user_message_async。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-10-14",
+  "completedAt": "2026-10-14",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-10-14T11:41:41Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-10-14T10:31:47Z",
+      "contextKey": "codex_01a1391d-1baa-7c90-92dc-745254cf1f0a",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "70f0a6a4c177c35dfb71ac90b05300558bc83278",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "70f0a6a4c177c35dfb71ac90b05300558bc83278",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "b679a60ce7dccee79c89e9a0f4edc02a26033c9438d9fcb02f869a5b3a3ea099"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "148a3648070ec6a423c2db6ac709746f044982dc",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "774a1c381d44623ac33d1f3fdb0598c123c33ece7d457e47304b3852efd1ff9b"
+          }
+        ],
+        "fingerprint": "4bfbbb8955706633fc1ab7f1a07e737d827a1259f562160e2528fcb0db5dd7aa"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "完成同步询问默认配置、通用交互规则与当前项目投影",
+      "完成本地回归、正式检查和规范更新",
+      "完成业务及测试隔离补充提交推送，跨平台必需 CI 8/8 通过"
+    ],
+    "partialStep": null,
+    "nextStep": "交付完成，无后续实施步骤",
+    "notes": "重启 Codex 后验证真实同步等待与无异步窗口；当前配置读取与注入已验证，实际交互受宿主工具规则约束。SessionStart 推荐预算告警低于审阅上限。",
+    "updatedAt": "2026-10-14T11:41:41Z"
+  }
+}
