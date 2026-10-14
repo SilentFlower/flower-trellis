@@ -1294,7 +1294,7 @@ Context & Decisions 保留影响实施判断的既有事实、入口、硬约束
 
 ### 3. Contracts
 
-- 普通交互 Phase 1.4 必须加载 `trellis-task-brief`，从最终 planning artifacts 刷新 `brief.md` 并在对话中
+- 普通交互首次实施批准前必须加载 `trellis-task-brief`，从最终 planning artifacts 刷新 `brief.md` 并在对话中
   完整展示。默认结束当前回合等待确认；只有用户明确把当前任务或最终 Brief 与“展示后直接开始、
   不用再次确认、视为已确认”绑定，且最终范围未变化时，才可同回合运行 `task.py start`。
 - `trellis-brainstorm` 的 Quality Bar 只表示 planning artifacts 可进入最终 brief handoff；
@@ -1303,8 +1303,10 @@ Context & Decisions 保留影响实施判断的既有事实、入口、硬约束
   handoff 统一引用 `trellis-task-brief` 的默认确认与明确预授权例外，不另写强制下一回合规则。
 - 普通交互预授权只取当前对话中仍明确适用于本任务的表达，不写 session runtime，也不扩展为跨会话、
   跨任务或永久偏好。范围扩大、存在未解决 Open Questions、新增高风险边界或用户撤回时失效。
-- Phase 1.4 负责完整展示与实施批准；实现阶段（含新会话/压缩恢复）只读取 brief 和任务材料，
-  不例行重新生成、展示或确认。范围变化沿用既有评审门禁，缺失沿用回补规则，用户要求查看时完整展示。
+- Phase 1.4 负责首次完整展示与实施批准；其后方案变更由 `trellis-task-brief` 集中判断增量。
+  已确认范围内的细节调整和用户明确覆盖变化及影响的指令，先同步必要材料并简述后继续；文档刷新不触发重复审批。
+  新目标、范围、验收或风险尚未决定时只展示差异并确认增量，未决部分不实施；跨任务及独立高风险边界仍受原授权限制。
+  实现阶段及新会话/压缩恢复不例行重复完整 Brief；缺失沿用回补规则，批准证据不足时只补核受影响决定，用户要求全貌时完整展示。
 - schema 2 auto-loop 在 `start_task` 前必须返回 `review_planning_readiness`，复核验收标准可测试、
   范围/非目标明确、关键决策收敛和仓库证据充分。结果绑定当前实际存在的 `prd.md` / `design.md` /
   `implement.md` 路径与内容 SHA-256；`repairable` 进入最多 3 轮 planning repair，`blocking` 只阻塞当前项。
@@ -1333,6 +1335,9 @@ Context & Decisions 保留影响实施判断的既有事实、入口、硬约束
 | 普通实现意图或任务创建授权 | 完整展示 brief 后等待后续确认 |
 | 当前最终 Brief 有明确预授权且范围未变化 | 完整展示后允许同回合启动 |
 | in_progress 首次实现或上下文恢复 | 读取 brief 和任务材料，不例行展示或重新确认 |
+| 首次批准后的文档刷新或实现细节调整 | 同步必要材料，简述后继续，不重复审批 |
+| 用户明确要求 A→B，影响已覆盖且无新增待决事项 | 沿用该增量指令，同步文档后继续 |
+| 首次批准后新增未决目标、范围、验收或风险 | 只展示变化与影响并确认增量，未决部分不实施 |
 | 范围扩大、Open Questions、高风险边界或用户撤回 | 预授权失效，回到默认确认路径 |
 | brief 存在且不早于所有实际存在的权威 artifact | 允许现有 start 流程进入 `in_progress` |
 | 历史任务已经是 `in_progress` 且没有 brief | 允许重新绑定，不批量强制迁移 |
@@ -1350,8 +1355,8 @@ Context & Decisions 保留影响实施判断的既有事实、入口、硬约束
 
 - Good:复杂任务同一回合完成 create 和三件套后直接调用 start；因为 brief 缺失，脚本在任何
   状态或 hook 副作用前阻断，AI 返回最终 brief handoff。
-- Good:用户 review brief 后又修改 `design.md`；start 列出 `design.md` 为更新来源，要求刷新并
-  重新 review。
+- Good:用户 review brief 后明确要求调整 `design.md`；start 仍校验 Brief 新鲜度，刷新材料后按增量规则
+  沿用已明确的决定，不重复确认无关内容；存在新增未决影响时只确认该变化。
 - Good:用户明确说“最终 Brief 展示后直接开始，不用再问”；最终范围未变化且无未解决问题，
   Skill 完整展示 brief 后由主 workflow 同回合启动。
 - Good:schema 2 auto-loop 对全队列完成内容绑定的 readiness review 和 brief 刷新，manifest 固化
@@ -1369,6 +1374,7 @@ Context & Decisions 保留影响实施判断的既有事实、入口、硬约束
 
 ### 6. Tests Required
 
+- Brief 回归覆盖首次完整评审、已授权调整、实现细节、未决增量、会话恢复和材料新鲜度与批准分别判断。
 - Python runtime 测试覆盖 create 后立即 start、brief 缺失、三种权威 artifact 任一过期、
   artifact `stat` 异常、fresh brief、历史 `in_progress` 重绑和无 session identity。
 - auto-loop 测试覆盖 schema 2 readiness ready/repairable/blocking、planning repair 预算、brief 缺失/
@@ -2020,11 +2026,10 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   收到 Check-All/full/unified/pre-commit unified 意图时停止、不写文件，并指向专用角色。
 - Check-All 开始时默认 interactive;只有 runner `status` / `next` 验证 running、task 和
   outstanding check action 后才使用 auto-loop context,不得相信摘要或 raw runtime。
-- interactive 默认在标准报告后停止。当前完成链已有普通 push / 用户主动 `commit-only` 意图时，
-  strict pass 或全部剩余 `CHK-*` / `FBK-*` 已被用户有效接受，且无阻塞、无阻断型部分验证、无未接受且
-  未登记 `[上线后验证]` 的实质风险，
-  都可在报告后同轮进入 Update-Spec。Check-All 因 findings 停止后，用户对当前报告明确接受风险并要求继续，
-  可以恢复该 pending direct Git 完成链；不得从无关历史、摘要或 dirty 状态推断。
+- interactive 的 strict pass 或全部剩余 `CHK-*` / `FBK-*` 已被用户有效接受后的通过默认同轮进入 Update-Spec，
+  无须 direct Git 意图或额外“继续”；阻塞、阻断型部分验证、未接受实质风险仍停止，完整登记的 `[上线后验证]` 不阻断。
+  当前事项明确只检查、只读检查、检查后停止、暂不收尾或仅接受不继续时，报告后停止；后续明确继续才恢复。
+  普通代码问题仍由用户选择修复范围，风险接受不由助手推断，Git 写入仍须精确计划确认。
   validated auto-loop 不展示普通修复选择:有剩余 `CHK-*` 或 `FBK-*` 时 `record failed`,真正产品/权限/提交前
   生产副作用/破坏性边界 `record blocked`,两类问题均为 0 且无阻断型部分验证时 `record ok`,摘要保留
   `[上线后验证]` 且不执行。auto-loop 不创建或复用 interactive 风险接受。
@@ -2073,7 +2078,8 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
 | subagent 已选中但 catalog target 或 host launcher 不可用 | dispatch fail closed,展示原因并让用户重选 inline,不得声称 subagent 已执行 |
 | subagent 已选中但当前平台 `checkAll.eligible=false` | dispatch 停止,展示 `inlineOnlyReason` 并让用户重选 inline |
 | workspace-write `trellis-check` 收到统一检查意图 | Intent Guard 停止且零写入,指向专用 `trellis-check-all` |
-| 普通 interactive Check-All 无问题 | 报告画像、通过和剩余风险,指向 Phase 3.3/3.4,停止等待 |
+| 普通 interactive Check-All 无问题且无明确停止要求 | 标准报告后同轮进入 Update-Spec，不要求额外继续 |
+| 明确只检查或检查后停止 | 报告后停止，不运行 Update-Spec 或生成 Git 计划 |
 | direct Git + Check-All 严格通过 | 展示同一标准报告,同轮进入 Update-Spec;不生成专用摘要或 Git 计划 |
 | direct Git + 全部剩余 `CHK-*`/`FBK-*` 已接受风险 | 按增量展示规则报告或简短确认,同轮进入 Update-Spec |
 | direct Git + 未处置 `CHK-*`/`FBK-*`/blocked/阻断型部分验证/未接受实质风险 | 展示标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
@@ -2153,7 +2159,7 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   以及缺少充分证据或项目明确要求自动化时仍生成 `CHK-*`。
 - 专项预算测试固定 Check-All 主入口和默认必读 reference 的任务基线;低频源码注释细则条件加载,
   不计入默认集合但单独计量,且不得通过提高全局 target/review ceiling 放行增长。
-- disposition 静态/行为测试覆盖 interactive stop 和 validated auto-loop `record + next`。
+- disposition 回归覆盖 interactive 默认通过推进、明确停止和 validated auto-loop `record + next`。
 - subagent 场景至少做静态契约检查;平台有兼容 audit-only subagent 时再执行真实 dispatch 冒烟。
 
 ### 7. Wrong vs Correct
@@ -2711,10 +2717,10 @@ spec_update_result:
   validation: [string]
 ```
 
-普通继续流程:
+普通默认收尾流程（明确只检查/停止时不推进）:
 
 ```text
-Check-All passed -> report + stop -> user next/continue
+Check-All strict pass | valid accepted-risk pass -> report or acknowledgment
   -> trellis-update-spec
      no-op/written -> trellis-push plan in the same turn
      needs-review  -> one focused question, no Push plan
@@ -2740,17 +2746,16 @@ run_check_all -> run_spec_update -> commit_only
 
 ### 3. Contracts
 
-- Check-All 的 interactive stop 保持默认行为。已经进入当前 Check-All 完成链，且当前链有普通 push 或用户主动
-  `commit-only` 意图时，Check-All strict pass 或全部剩余 `CHK-*` / `FBK-*` 已被用户有效接受，且无阻塞、
-  无部分验证、无未接受的实质风险，按 reporting reference 展示报告或接受状态的简短确认，再同轮运行 Update-Spec。Check-All 因 findings
-  停止后，用户在当前报告上明确接受风险并要求继续，可恢复该 pending direct Git 链;无 direct Git 时明确继续也
-  同轮进入 Update-Spec,不再等待第二句继续,不替代 Push 精确计划确认。不得从无关历史、摘要、
-  dirty 状态或 auto-loop 内部 action 推断该意图或风险接受，也不得新增 direct Git 专用摘要。
-- 该窄例外只控制已经启动的 Check-All completion chain，不授权 Check-All 或 Update-Spec 拦截
+- Check-All strict pass 或全部剩余 `CHK-*` / `FBK-*` 已由用户有效接受后的通过，且无阻塞、阻断型部分验证或
+  未接受实质风险时，按 reporting reference 展示报告或简短确认，再同轮运行 Update-Spec；完整登记的 `[上线后验证]` 不阻断。
+  当前事项明确只检查、只读检查、检查后停止、暂不收尾或仅接受不继续时停止，后续明确继续可解除限制。
+  普通“检查一下”不等于明确只检查后停止；默认推进不要求 direct Git 或额外“继续”，也不授权代码修复、风险接受或 Git 写入。
+  Git 模式与风险接受只使用当前证据，不从无关历史、摘要、dirty 状态或 auto-loop 内部 action 推断。
+- 默认推进只控制已经启动的 Check-All completion chain，不授权 Check-All 或 Update-Spec 拦截
   已经进入 `trellis-push` 的请求；Push owner 只读取完成链证据并决定 Git 计划。
-- Update-Spec 的 direct Git 入口承接 Check-All `Interactive Post-Check Stop Gate` 的当前继续判断，
+- Update-Spec 的交互入口承接 Check-All `Interactive Post-Check Stop Gate` 的当前继续判断，
   不另设仅限 strict pass 的门槛；自身 `needs-review` 仍停止后续 Push 计划。
-- 通过后用户表达 next/continue,或当前 Check-All 完成链内的 direct Git strict pass / 已接受风险通过时,若没有当前有效结果,同一轮必须先调用
+- 当前 Check-All 完成链通过且无明确停止要求，或用户明确恢复已停止收尾时，若没有当前有效结果，同一轮必须先调用
   `trellis-update-spec`;不得询问“是否更新 spec”或先生成提交计划。
 - `no-op` 用于无可复用契约、现有 spec 已覆盖、一次性实现、纯文案/格式变化或用户当前明确
   skip;不得为了避免 no-op 写原则性总结。
@@ -2783,7 +2788,8 @@ run_check_all -> run_spec_update -> commit_only
 
 | 条件 | 行为 |
 |------|------|
-| 普通 Check-All passed,用户尚未继续 | 报告并停止,不运行 Update-Spec |
+| 普通 Check-All passed,无明确停止要求 | 标准报告后同轮运行 Update-Spec |
+| 当前事项明确只检查/检查后停止/仅接受不继续 | 报告或简短确认后停止，不运行 Update-Spec或生成 Git 计划 |
 | 当前 Check-All 完成链内 direct Git + strict pass | 展示现有标准报告,同轮运行 Update-Spec |
 | 当前 Check-All 完成链内 direct Git + accepted-risk pass | 报告或简短接受确认,同轮运行 Update-Spec,不重贴未变化项 |
 | 当前 Check-All 完成链内 direct Git + 未处置 `CHK-*`/`FBK-*`/blocked/partial/material risk | 标准报告并停止,不运行 Update-Spec或生成 Git 计划 |
@@ -2801,8 +2807,8 @@ run_check_all -> run_spec_update -> commit_only
 
 ### 5. Good/Base/Bad Cases
 
-- Good:普通 Check-All 通过后先停止;用户说“下一步”,Update-Spec 判断现有规范已覆盖并返回 no-op,
-  同一轮展示 Trellis Push 计划。
+- Good:普通 Check-All 通过后展示报告；Update-Spec 判断现有规范已覆盖并返回 no-op，同轮展示 Trellis Push 计划，
+  不再要求额外回复“继续”，实际 Git 写入仍等待确认。
 - Good:当前请求已经进入 Check-All 完成链，且用户先要求 push；strict pass 后展示原标准报告，
   同轮运行 Update-Spec 并展示唯一 Trellis Push 计划，最终 Git 动作仍等待确认。
 - Good:Check-All 报告 `CHK-001` 与 `FBK-001` 后停止；用户明确接受两个当前风险并继续，报告保留两项
@@ -2811,8 +2817,7 @@ run_check_all -> run_spec_update -> commit_only
   返回 written 并进入 Push。
 - Base:用户明确“不更新 spec,直接走”;结果为 no-op/user-explicit-skip,随后仍由 Trellis Push
   展示最终确认。
-- Bad:普通 Check-All 报告刚输出就自动写 spec,或当前 Check-All 完成链内的 direct Git 有部分
-  验证/实质风险仍自动续行 Update-Spec。
+- Bad:用户明确只检查后仍自动写 spec，或存在未处置问题、阻断型部分验证或未接受实质风险仍自动续行 Update-Spec。
 - Bad:`trellis-push` 已经开始后，本场景又把请求拉回 Phase 2.2 或 Phase 3.3。
 - Bad:为了让每次任务都有 spec diff,重写整份规范或顺带格式化无关章节。
 - Bad:Update-Spec 返回 needs-review 后仍生成提交计划,或 auto-loop 把它记录成 ok。
@@ -2823,9 +2828,8 @@ run_check_all -> run_spec_update -> commit_only
   interactive/auto-loop disposition。
 - 验证最终 Update-Spec 入口的六栏规则、合并案例模板和自检清单一致，签名、契约、错误矩阵及测试断言要求完整；
   新旧案例标题的正文均不参与规范检索，明确查询标题仍能找到该规范。
-- 静态断言 Check-All 仍只有一个 Interactive Post-Check Stop Gate;普通检查报告后停止,当前
-  Check-All 完成链内的 direct Git strict pass / accepted-risk pass 使用原标准报告并同轮进入 Update-Spec,其它结果
-  停止；同时断言已经进入 `trellis-push` 后不会反向加载 Check-All/Update-Spec。
+- 断言 Check-All 仍只有一个 Interactive Post-Check Stop Gate；普通及 direct Git strict pass / accepted-risk pass
+  使用原标准报告并默认同轮进入 Update-Spec，明确停止、未处置问题或阻塞时停止；已经进入 `trellis-push` 后不反向补跑上游。
 - JS consumer 覆盖全装、三个精细别名、全部平台原生 skill/command/workflow/prompt/TOML 目标、
   缺目标和二次运行幂等。
 - Python 独立安装器覆盖相同别名、目标和 skip 行为。
@@ -2838,15 +2842,16 @@ run_check_all -> run_spec_update -> commit_only
 #### Wrong
 
 ```text
-ordinary Check-All passed -> auto Update-Spec -> ask whether to write -> stop -> ask whether to push
+ordinary Check-All passed -> report + stop -> require user next
+  -> ask whether to update spec -> stop -> ask whether to prepare Push
 ```
 
-问题:普通检查提前越过既有 post-check 停止点,用户继续后仍保留两个机械卡点。
+问题:检查已经通过，却仍要求额外继续和规范更新选择，重复打断已允许的收尾。
 
 #### Correct
 
 ```text
-Check-All passed -> report + stop -> user next
+Check-All passed, no explicit stop -> same standard report
   -> autonomous Update-Spec(no-op/written/needs-review)
   -> no-op/written loads Trellis Push in the same turn
 
@@ -2856,10 +2861,12 @@ direct Git already in Check-All completion chain -> strict pass -> same standard
 
 explicit Trellis Push entry -> Push owner records available completion evidence
   -> Git preflight and one confirmation plan
+
+explicit check-only request -> report + stop
 ```
 
-原因:普通检查保留用户继续边界；已经启动的 Check-All 完成链可消费 direct Git 条件续行；
-一旦进入 Push owner，上游结果只作为审计证据，不再反向增加阶段或确认卡点。
+原因:通过后的收尾默认连续完成，明确停止与人工问题处置优先；进入 Push owner 后，
+上游结果只作为审计证据，最终精确 Git 计划仍只确认一次。
 
 ---
 
@@ -2954,11 +2961,11 @@ risk_items          ->始终逐项展示,不折叠
 
 ### 3. Contracts
 
-- post-check 标准报告只含检查维度/问题数、实际验证、剩余风险、结论和下一步。普通检查输出后
-  等待用户继续;direct Git 在 strict pass 或全部当前 findings 已被用户有效接受时可同轮续行。不得包含 commit message、planned/staged
+- post-check 标准报告只含检查维度/问题数、实际验证、剩余风险、结论和下一步。普通及 direct Git 检查通过后
+  默认同轮收尾；明确只检查/停止时才保留通过后的等待。报告不得包含 commit message、planned/staged
   files、`Proposed commits`、commit-only 决策或提交确认提示,也不维护专用精简摘要。
-- 普通 Check-All 通过后仍停止;用户继续后 Phase 3.3 自主返回三态。用户在检查前已明确请求
-  普通 push/用户 `commit-only` 时,strict pass 或已接受风险通过按增量展示规则报告或简短确认后同轮进入 Phase 3.3。两条路径均由
+- 普通及 direct Git Check-All 的 strict pass 或已接受风险通过，按增量展示规则报告或简短确认后默认同轮进入 Phase 3.3；
+  明确停止、未处置问题及阻塞不进入该路径。由
   no-op/written 同轮加载 `trellis-push`,needs-review 停止。
 - 除 auto-loop 内部 commit-only 外，普通 push 或用户 `commit-only` 已经构成明确 Git 意图。
   `trellis-push` 在读取 Git 计划前只记录当前可验证的 Check-All / Update-Spec 证据，不补跑、
@@ -3198,8 +3205,8 @@ risk_items          ->始终逐项展示,不折叠
   和 workflow override 语义一致。
 - 静态扫描 post-check 文案,确认只允许检查结果/验证/风险/结论/下一步,且禁止
   `Proposed commits`、commit message、planned files 和提交确认。
-- 静态扫描普通用户继续和当前 Check-All completion chain 内的 direct Git strict-pass / accepted-risk-pass 两条
-  resume-chain，确认正常 workflow 仍沿用标准报告并经 Update-Spec 进入 `trellis-push`。
+- 扫描普通默认推进、明确停止后的继续和 direct Git strict-pass / accepted-risk-pass 路径，
+  确认正常 workflow 沿用标准报告并经 Update-Spec 进入 `trellis-push`，不绕过人工 Git 确认。
 - 静态与行为测试覆盖显式 Push 在 Check-All/Update-Spec 未运行、已失效、任一未处置 `CHK-*` / `FBK-*`、
   已接受风险、blocked、部分验证或 `needs-review` 时仍生成计划。有效接受只在完成链证据汇总,其它异常进入风险区。
 - 静态断言 `trellis-push` 不返回 Phase 2.2、不加载 `trellis-check-all` / `trellis-update-spec`、

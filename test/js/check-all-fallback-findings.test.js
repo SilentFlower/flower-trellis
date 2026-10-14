@@ -168,8 +168,8 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
   assert.match(agentBody, /low-risk factual drift as `DOC-\*` candidates/);
   assert.match(agentBody, /Any remaining `CHK-\*` or `FBK-\*`, blocker, or blocking partial verification blocks strict pass/);
   assert.match(agentBody, /do not infer, grant, or erase that acceptance yourself/);
-  assert.match(workflow, /every remaining finding has current explicit user risk acceptance/);
-  assert.match(workflow, /any unaccepted finding.*reports and stops/);
+  assert.match(workflow, /every remaining finding explicitly and validly accepted by the user/);
+  assert.match(workflow, /Any unaccepted finding.*reports and stops/);
   assert.match(workflow, /`\[上线后验证\]` items remain visible but do not block/);
   assert.match(workflow, /does not itself force another Full/);
   assert.match(pushAgents, /所有剩余问题都有当前有效的用户风险接受时标记为 `通过（已接受风险）`/);
@@ -210,16 +210,17 @@ test("风险有效性按问题关联证据判断，无关改动不撤销接受",
   assert.doesNotMatch(fallback, /证据、diff、内容或严重度变化后失效/);
 });
 
-test("接受并继续承接 Update-Spec，未处置项与 Git 确认仍保留", () => {
+test("全部有效风险接受后默认承接 Update-Spec，人工停止与 Git 确认仍保留", () => {
   const reporting = read(sourceRoot, ".agents/skills/trellis-check-all/references/reporting-and-disposition.md");
   const workflow = read(sourceRoot, "overrides/patches/workflow/phase-ownership/phase-2-check-content.md");
   const updateSpec = read(sourceRoot, "overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md");
 
-  assert.match(reporting, /“接受并继续”等明确表达在通过门禁后同轮进入 Update-Spec，无需再回复“继续”/);
+  assert.match(reporting, /全部 findings 已有效接受时，默认同轮继续/);
+  assert.match(reporting, /明确“仅接受、不继续”时只更新处置/);
   assert.match(reporting, /仍有未处置问题或阻塞时说明剩余项并停止/);
-  assert.match(reporting, /继续不替代 Push 的精确计划确认/);
-  assert.match(workflow, /or the user explicitly asks to continue/);
-  assert.match(workflow, /Ordinary interactive checks without continuation intent still report and stop/);
+  assert.match(reporting, /接受风险不替代 Push 的精确计划确认/);
+  assert.match(workflow, /without another next\/continue reply or a direct Git prerequisite/);
+  assert.match(workflow, /Unless the user explicitly requests check-only, read-only checking, stopping after the check/);
   assert.doesNotMatch(workflow, /Keep accepted findings visible in the standard report and Push risk evidence/);
   assert.match(updateSpec, /Check-All report or brief acceptance acknowledgment/);
   assert.match(updateSpec, /Reuse valid acceptance evidence internally without repeating unchanged risks/);
@@ -328,7 +329,7 @@ test("当前 dogfood 已投影 FBK 问题模型和风险接受门禁", () => {
   }
 
   const workflow = read(projectRoot, ".trellis/workflow.md");
-  assert.match(workflow, /every remaining finding has current explicit user risk acceptance/);
+  assert.match(workflow, /every remaining finding explicitly and validly accepted by the user/);
   assert.match(workflow, /`\[上线后验证\]` items remain visible but do not block/);
   assert.doesNotMatch(workflow, /The final pre-commit pass must cover the whole task and cannot be downgraded to light/);
   assert.doesNotMatch(workflow, /Eligible `OPT-\*` items do not block this path/);

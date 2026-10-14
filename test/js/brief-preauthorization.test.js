@@ -88,7 +88,7 @@ test("Brief 规划阶段展示确认，实现及恢复阶段读取执行", () =>
   assert.match(state, /read `<task>\/brief\.md` and task artifacts without routine redisplay, including after context recovery/);
   assert.match(state, /if the Brief is missing, follow `trellis-task-brief` backfill guidance/);
   assert.match(skill, /`in_progress` 阶段只读取 brief 和任务材料，不例行重新生成、展示或确认；新会话或压缩恢复同样如此/);
-  assert.match(skill, /范围变化沿用 workflow 的既有评审门禁，用户明确要求查看时再完整展示/);
+  assert.match(skill, /首次批准后的方案变化按下方增量规则处理，用户明确要求查看时再完整展示/);
   assert.match(skill, /只有用户明确要求当场回补并 review 时，才继续写回/);
   assert.doesNotMatch(skill, /## 实现阶段承接|交接已完成且内容未变|恢复交接上下文|展示计数|三个展示场景都完整展示/);
 
@@ -100,6 +100,35 @@ test("Brief 规划阶段展示确认，实现及恢复阶段读取执行", () =>
     assert.match(body, /Active Task Scope Guard/, name);
     assert.doesNotMatch(body, /restate `<task>\/brief\.md`|implementation handoff|reuse the unchanged reviewed Brief/, name);
   }
+});
+
+test("首次批准后的方案变化按已决和未决增量处理，不重复审批无关内容", () => {
+  const brief = read(sourceRoot, ".agents/skills/trellis-task-brief/SKILL.md");
+  const phase = read(sourceRoot, "overrides/patches/workflow/task-brief-review/phase-1-activate-content.md");
+  const readiness = read(sourceRoot, "overrides/patches/skills/trellis-brainstorm/planning-handoff/readiness-content.md");
+  const planning = read(sourceRoot, "overrides/patches/workflow/states-planning/common-content.md");
+  const recovery = read(sourceRoot, "overrides/patches/workflow/runtime-contract-reference/completed-content.md");
+
+  assert.match(brief, /## 首次确认后的方案变更/);
+  assert.match(brief, /不把规划讨论中的单项决定当成首次开工批准/);
+  assert.match(brief, /已确认目标、范围和验收不变的实现细节调整/);
+  assert.match(brief, /文档刷新本身不触发重新审批/);
+  assert.match(brief, /用户明确要求 A→B.*当前指令清楚覆盖变化及其影响、没有新增待决事项/);
+  assert.match(brief, /不再询问是否确认同一调整/);
+  assert.match(brief, /只展示相对已批准方案的变化、影响和待决事项/);
+  assert.match(brief, /未决部分不实施，已确认部分不重复审批/);
+  assert.match(brief, /planning 状态的 Brief 仍须满足存在性和新鲜度校验/);
+  assert.match(brief, /跨任务事项先服从 Active Task Scope Guard/);
+  assert.match(brief, /不借泛化调整扩大范围/);
+  assert.match(brief, /批准证据缺失时只定位并补核受影响决定/);
+  assert.match(phase, /For the first implementation approval/);
+  assert.match(phase, /Existing approval with no unresolved change decisions permits activation without another confirmation/);
+  assert.match(phase, /freshness alone does not require repeating already granted approval/);
+  assert.match(readiness, /follow `trellis-task-brief` for incremental plan changes/);
+  assert.doesNotMatch(readiness, /refresh and repeat the Brief review/);
+  assert.match(planning, /After initial approval, use that owner's incremental change rules/);
+  assert.match(recovery, /run `task_progress.py reopen/);
+  assert.match(recovery, /scope changes follow `trellis-task-brief`'s incremental change rules/);
 });
 
 test("自动循环的 Brief 与 Continue 交接保留 runner 授权和旧 schema 确认边界", () => {
@@ -130,6 +159,9 @@ test("0.6 发布快照与 Brief 交接作者源一致", () => {
     "overrides/patches/skills/trellis-brainstorm/planning-handoff/summary-shape-content.md",
     "overrides/patches/workflow/task-brief-review/phase-1-activate-content.md",
     "overrides/patches/workflow/states-in-progress/common-content.md",
+    "overrides/patches/workflow/states-planning/common-content.md",
+    "overrides/patches/workflow/runtime-contract-reference/completed-content.md",
+    "overrides/patches/skills/trellis-meta/managed-workflow-owners/continue-recovery-content.md",
     "overrides/conflicts.json",
   ]) {
     assert.equal(read(snapshotRoot, relativePath), read(sourceRoot, relativePath), relativePath);

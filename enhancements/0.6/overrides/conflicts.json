@@ -105,6 +105,25 @@
       "reason": "Phase 3.3/3.4 的受管 section 必须保留到权威 Skill 的一跳入口。"
     },
     {
+      "id": "workflow-required-default-post-check-continuation",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-phase-2-check"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "The existing `Interactive Post-Check Stop Gate` owns default continuation and explicit stopping.",
+          "without another next/continue reply or a direct Git prerequisite",
+          "checks never authorize ordinary code repair",
+          "or replace Push confirmation"
+        ]
+      },
+      "owner": "trellis-check-all",
+      "reason": "检查通过后默认推进，明确只检查仍停止；普通修复和 Git 写入仍需人工决定。"
+    },
+    {
       "id": "workflow-required-task-brief-review",
       "severity": "error",
       "target": ".trellis/workflow.md",
@@ -117,6 +136,7 @@
           "<!-- BEGIN skill-garden patch workflow-phase-1-activate v0.6 -->\n#### 1.4 Activate task `[required · once]`\n\nBefore changing task status, load `trellis-task-brief`",
           "Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief",
           "Ordinary implementation or task-creation intent is not confirmation.",
+          "After initial approval, follow that owner's incremental change rules",
           "After a later confirmation, or in the same turn when that explicit preauthorization remains valid"
         ]
       },
@@ -140,6 +160,7 @@
           "Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope.",
           "The final Brief must cover a one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance, and one-hop Next Step",
           "Ordinary implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
+          "Once initial Brief approval exists, plan updates use `trellis-task-brief`'s incremental change rules.",
           "unresolved items are `- [ ]`",
           "Do not write bare placeholders"
         ]
@@ -164,6 +185,7 @@
           "Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope.",
           "The final Brief must cover a one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance, and one-hop Next Step",
           "Ordinary implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
+          "Once initial Brief approval exists, plan updates use `trellis-task-brief`'s incremental change rules.",
           "unresolved items are `- [ ]`",
           "Do not write bare placeholders"
         ]

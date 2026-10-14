@@ -383,7 +383,7 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.doesNotMatch(requestTriage, /task_intent\.py discard/);
 
   for (const [name, value, downstream] of [
-    ["planning", planning, "Before `task.py start`"],
+    ["planning", planning, "Before the first implementation approval"],
     ["in_progress", inProgress, "Enter Phase 2.1/2.2"],
   ]) {
     assertOrdered(

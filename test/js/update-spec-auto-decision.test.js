@@ -25,13 +25,15 @@ test("Update-Spec Patch 使用英文协议、自主返回三态且限制最小�
   assert.match(override, /smallest required section in the fewest files/);
   assert.match(override, /Do not opportunistically rewrite, expand, reorganize, or format unrelated content/);
   assert.match(override, /git diff --check -- \.trellis\/spec/);
-  assert.match(override, /A `no-op` or `written` result must load `trellis-push` in the same turn/);
+  assert.match(override, /a `no-op` or `written` result must load `trellis-push` in the same turn/i);
   assert.match(override, /spec-needs-review/);
   assert.match(override, /“下一步”, “继续”, `next`, `continue`/);
   assert.match(override, /follow the continuation decision made by Check-All's `Interactive Post-Check Stop Gate`/);
   assert.match(override, /including strict pass and accepted-risk pass/);
   assert.match(override, /Check-All report or brief acceptance acknowledgment/);
-  assert.match(override, /Do not infer intent or risk acceptance from unrelated history, summaries, dirty state/);
+  assert.match(override, /do not infer risk acceptance or Git write authorization from unrelated history, summaries, dirty state/);
+  assert.match(override, /an explicit check-only or stop-after-check request keeps the chain stopped/);
+  assert.match(override, /no deliverable changes.*no commit is needed/);
   assert.doesNotMatch(
     override.replace("“下一步”, “继续”", ""),
     /\p{Script=Han}/u,
@@ -52,7 +54,7 @@ test("Update-Spec Patch 使用英文协议、自主返回三态且限制最小�
   }
 });
 
-test("交互 Check-All 默认停止，direct Git 通过或风险接受后同轮进入 Update-Spec 和 Push", () => {
+test("交互 Check-All 通过默认同轮收尾，明确停止、人工修复和 Git 确认边界保留", () => {
   const workflow = read(sourceRoot, "overrides/patches/workflow/hub/content.md");
   const state = read(
     sourceRoot,
@@ -94,29 +96,39 @@ test("交互 Check-All 默认停止，direct Git 通过或风险接受后同轮�
   assert.doesNotMatch(autoLoopReturn, /提示用户回复 `继续`/);
   assert.match(postCheck, /只从当前完成链证据识别 direct Git intent/);
   assert.match(postCheck, /全部 findings 已有效接受/);
-  assert.match(postCheck, /用户在当前报告上明确接受风险并要求继续/);
+  assert.match(postCheck, /风险接受沿用上方证据规则/);
   assert.match(postCheck, /报告或简短确认后同轮进入 Update-Spec/);
-  assert.match(postCheck, /用户未要求继续的普通 interactive 检查保持原行为：报告或简短确认后停止并等待用户选择/);
+  assert.match(postCheck, /先识别当前事项最新有效的明确停止要求/);
+  for (const stop of ["只检查", "只读检查", "检查后停止", "暂不收尾", "仅接受、不继续"]) {
+    assert.ok(postCheck.includes(`\`${stop}\``), stop);
+  }
+  assert.match(postCheck, /同一事项后续明确继续可解除该限制/);
+  assert.match(postCheck, /普通“检查一下”不等于只检查后停止/);
+  assert.match(postCheck, /普通代码问题始终由用户选择修复范围/);
+  assert.match(postCheck, /没有有效停止要求且 strict pass，或全部 findings 已有效接受时，默认同轮继续/);
+  assert.match(postCheck, /无需 direct Git intent 或额外回复“继续”，通过不授权 Git 写入/);
+  assert.ok(postCheck.indexOf("先识别当前事项") < postCheck.indexOf("未处置 `CHK-*`"));
+  assert.ok(postCheck.indexOf("未处置 `CHK-*`") < postCheck.indexOf("没有有效停止要求且 strict pass"));
+  assert.doesNotMatch(postCheck, /普通 interactive 检查保持原行为|提示用户回复 `继续`/);
   assert.match(postCheck, /### 交互式下一步引导/);
-  assert.match(postCheck, /direct Git 或用户已要求继续，且 strict pass \/ 已接受风险通过：说明本轮正在进入 `trellis-update-spec`/);
-  assert.match(postCheck, /无 direct Git intent、用户未要求继续且 strict pass \/ 已接受风险通过：提示用户回复 `继续`/);
+  assert.match(postCheck, /无有效停止要求且 strict pass \/ 已接受风险通过：说明本轮正在进入 `trellis-update-spec`/);
+  assert.match(postCheck, /有有效的明确停止要求且检查通过：说明已按要求停止/);
   assert.match(postCheck, /完成后重跑 Check-All/);
   assert.match(postCheck, /不新增 direct Git 摘要或 Git 计划/);
   assert.match(workflow, /Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`/);
   assert.doesNotMatch(postCheck, /spec_update_result|changed_files|\.trellis\/spec/);
-  assert.match(state, /next\/continue.*runs `trellis-update-spec`/);
-  assert.match(inlineState, /next\/continue.*runs `trellis-update-spec`/);
+  assert.match(state, /interactive strict pass or valid accepted-risk pass defaults to same-turn `trellis-update-spec`/);
+  assert.match(inlineState, /explicit check-only\/stop requests and unresolved findings stop/);
   assert.doesNotMatch(state, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.doesNotMatch(inlineState, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.match(checkAllReporting, /## Interactive Post-Check Stop Gate/);
-  assert.match(checkAllReporting, /普通 interactive 检查保持原行为/);
-  assert.match(state, /A later interactive next\/continue/);
-  assert.match(state, /explicit acceptance of the current report's findings followed by continue/);
-  assert.match(state, /runs `trellis-update-spec`/);
+  assert.match(checkAllReporting, /通过且按下方 Gate 默认推进时执行 `advance --stage spec`/);
+  assert.match(checkAllReporting, /用户明确只检查或检查后停止时保持 `stage=check`/);
+  assert.match(state, /Later next\/continue resumes a deliberately stopped completion chain/);
   assert.match(state, /follow the `Interactive Post-Check Stop Gate`/);
-  assert.match(state, /matching direct Git strict pass or accepted-risk pass may continue to `trellis-update-spec`/);
   assert.doesNotMatch(state, /no-op.*written|partial verification|material residual risk/);
-  assert.match(updateSpec, /Interactive direct Git/);
+  assert.match(updateSpec, /Interactive completion, including direct Git/);
+  assert.match(updateSpec, /Default continuation does not authorize Git writes/);
   assert.match(push, /普通 push 或用户 `commit-only` 已经构成明确 Git 意图/);
   assert.match(push, /根据当前 `spec_update_result` 与实际 diff 标记/);
   assert.match(push, /本步骤不得返回 Phase 2\.2/);
