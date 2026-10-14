@@ -7,6 +7,7 @@ import { ENHANCEMENT_SKILL_TARGETS } from "../../src/constants.js";
 import { validateDispatchCatalog } from "../../src/builtin-plugins/skill-garden/content-adapter.js";
 import { applyEnhancements } from "../../src/lib/apply-enhancements.js";
 import { isEnhancementSkillInstalled } from "../../src/lib/enhancement-catalog.js";
+import { materializeTrellisPythonText, resolveTrellisPythonCommand } from "../../src/lib/trellis-python-command.js";
 
 function makeTarget(prefix) {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -49,6 +50,8 @@ test("全部平台原生 skill root 获得同一 Flower Gate Skill", (t) => {
 
   quietApply(target);
 
+  const pythonCommand = resolveTrellisPythonCommand(target).command;
+
   const catalog = JSON.parse(fs.readFileSync(
     path.join(
       "enhancements/0.6/.agents/skills/trellis-route/references/platform-dispatch.json",
@@ -74,7 +77,10 @@ test("全部平台原生 skill root 获得同一 Flower Gate Skill", (t) => {
       const relativePath = path.join("references", name);
       assert.equal(
         fs.readFileSync(path.join(routeRoot, relativePath), "utf8"),
-        fs.readFileSync(path.join(sourceRoot, relativePath), "utf8"),
+        materializeTrellisPythonText(
+          fs.readFileSync(path.join(sourceRoot, relativePath), "utf8"),
+          pythonCommand,
+        ),
         `${platform}:${name}`,
       );
     }
@@ -153,13 +159,18 @@ test("dispatch catalog 为已启用平台投影专用 audit-only Check-All agent
   for (const { root } of ENHANCEMENT_SKILL_TARGETS) {
     fs.mkdirSync(path.join(target, ...root.split("/")), { recursive: true });
   }
+  const pythonCommand = resolveTrellisPythonCommand(target).command;
   for (const entry of catalog.platforms) {
     fs.mkdirSync(path.join(target, ...entry.detectPath.split("/")), { recursive: true });
     if (entry.implement.target) {
       const source = path.join(compiledRoot, ...entry.implement.target.split("/"));
       const destination = path.join(target, ...entry.implement.target.split("/"));
       fs.mkdirSync(path.dirname(destination), { recursive: true });
-      fs.copyFileSync(source, destination);
+      // compiled 产物固定为 python3；夹具需模拟目标系统的实际命令物化。
+      fs.writeFileSync(destination, materializeTrellisPythonText(
+        fs.readFileSync(source, "utf8"),
+        pythonCommand,
+      ));
     }
     if (entry.checkAll.target) {
       fs.mkdirSync(
