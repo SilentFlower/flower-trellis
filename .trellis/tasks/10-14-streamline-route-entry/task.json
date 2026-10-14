@@ -1,0 +1,80 @@
+{
+  "id": "streamline-route-entry",
+  "name": "streamline-route-entry",
+  "title": "精简路由入口并同轮衔接执行",
+  "description": "精简 route 入口和常规展示，明确模式指令直接生效，同轮衔接执行；默认读取量下降且全部路由材料总字节不增加。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-10-14",
+  "completedAt": "2026-10-14",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-10-14T09:58:40Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-10-14T08:29:18Z",
+      "contextKey": "codex_01a1391d-1baa-7c90-92dc-745254cf1f0a",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "ad1a1df956c1de506f5ac58d054268dc04116dad",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "ad1a1df956c1de506f5ac58d054268dc04116dad",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "fd5fa32e4759413fbae058553b60b545b9b28ac792a227cd90bc3e940ec883e0"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "8689c04e7d3adf058c55a79ce6eca944424268b1",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "6d61f34ad5b245efeedeb79ac18b1dc0c29cf1a335a7e6ccd4757a525423ab29"
+          }
+        ],
+        "fingerprint": "409d79c60947bdf68321779c3fb0c6a41066458f7c0130a4bd3258e0a8ff1c54"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "完成路由入口精简、按需加载和同轮衔接",
+      "完成全面检查、规范同步与本地回归",
+      "完成两仓业务提交及快照投影同步",
+      "完成 Windows 测试夹具修复和补充提交推送",
+      "核验最新业务提交的全部适用跨平台 CI"
+    ],
+    "partialStep": null,
+    "nextStep": "交付完成，无后续实施步骤",
+    "notes": "最新业务提交的适用 CI 6/6 job 全部通过；SessionStart 复用未受影响的成功结果。证据见 implement.md 的 Delivery Evidence。既有状态预算存在非阻断告警。",
+    "updatedAt": "2026-10-14T09:58:40Z"
+  }
+}
