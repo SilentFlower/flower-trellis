@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.12-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.6.12-beta.0...v0.6.12-beta.1) (2026-10-16)
+
+
+### 🐛 修复 Bug Fixes
+
+* **check-all:** 同步修复续行规则与回归检查 ([ca7c64b](https://github.com/SilentFlower/flower-trellis/commit/ca7c64ba4736d03643ce4b0cbe5fabb8aaf30cfc))
+
 ## [0.6.12-beta.0](https://github.com/SilentFlower/flower-trellis/compare/v0.6.11...v0.6.12-beta.0) (2026-10-14)
 
 

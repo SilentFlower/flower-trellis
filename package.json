@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.12-beta.0",
+  "version": "0.6.12-beta.1",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -71,9 +71,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.12-beta.0",
+    "version": "0.6.12-beta.1",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **codex:** 默认启用同步用户交互 ([8f56915](https://github.com/SilentFlower/flower-trellis/commit/8f56915b297c8b797cd03d1255f5a6847f7af7b0))\n* **route:** 同步按需加载与简短路由展示 ([b38853d](https://github.com/SilentFlower/flower-trellis/commit/b38853d59844c63245102081c2a4d446b2437d7a))\n* **workflow:** 同步连续收尾与增量方案确认 ([c13ebc2](https://github.com/SilentFlower/flower-trellis/commit/c13ebc2da1572e1fadd5eea7515440d1da3dc996))\n\n\n### 🐛 修复 Bug Fixes\n\n* **auto-loop:** 同步启动选模交接与回归 ([50d11e5](https://github.com/SilentFlower/flower-trellis/commit/50d11e55012a761a6c0eaffe49404d8052df289e))\n* **test:** 对齐跨平台 Python 命令夹具 ([e07287a](https://github.com/SilentFlower/flower-trellis/commit/e07287a523f777e7f389adac8064a4b82b3272b2))\n* **test:** 隔离同步交互回归的全局 Trellis ([4ad9c0c](https://github.com/SilentFlower/flower-trellis/commit/4ad9c0c62acaef101f5fcce2356cd79d6b73ac77))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **check-all:** 同步修复续行规则与回归检查 ([ca7c64b](https://github.com/SilentFlower/flower-trellis/commit/ca7c64ba4736d03643ce4b0cbe5fabb8aaf30cfc))",
     "truncated": false
   },
   "optionalDependencies": {
