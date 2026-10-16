@@ -69,6 +69,15 @@ function patchSource(ref, name) {
 }
 
 function assertIntentRoutingSemantics(value) {
+  const triage = value.split("### Request Triage\n")[1]?.split("[workflow-state:")[0];
+  assert.ok(triage, "最终 workflow 必须包含请求分类规则");
+  assert.ok(
+    triage.indexOf("Check-All repair continuation") >= 0
+      && triage.indexOf("Check-All repair continuation") < triage.indexOf("- Infer `discuss`"),
+    "已授权检查修复必须先于新需求分类，避免重新创建任务",
+  );
+  assert.match(triage, /follow its reporting reference before new-work triage or the Active Task Scope Guard/);
+  assert.match(value, /First resolve any Check-All repair continuation through `Request Triage`/);
   assert.match(value, /Treat requests for an opinion, expressions of discomfort, rejected proposals/);
   assert.match(value, /treat requests to inspect, explain, verify, or locate a cause as `inspect`/);
   assert.match(value, /Both are read-only unless the current request explicitly authorizes a concrete edit/);

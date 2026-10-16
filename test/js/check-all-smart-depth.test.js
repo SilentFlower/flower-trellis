@@ -12,6 +12,33 @@ function read(root, relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
 }
 
+test("已授权检查修复保留原事项，新增未决变化仍只确认增量", () => {
+  const references = "skills/trellis-check-all/references";
+  for (const name of ["reporting-and-disposition.md", "repair-and-recheck.md"]) {
+    const expected = read(sourceRoot, `.agents/${references}/${name}`);
+    for (const root of [sourceRoot, snapshotRoot, projectRoot]) {
+      for (const platform of [".agents", ".claude"]) {
+        assert.equal(expected, read(root, `${platform}/${references}/${name}`), `${root}/${platform}/${name}`);
+      }
+    }
+  }
+  const reporting = read(sourceRoot, `.agents/${references}/reporting-and-disposition.md`);
+  const repairs = read(sourceRoot, `.agents/${references}/repair-and-recheck.md`);
+  assert.match(reporting, /用户选择.*后，必须先读取 `references\/repair-and-recheck\.md`/);
+  assert.match(reporting, /未选择时不加载/);
+  assert.doesNotMatch(read(sourceRoot, ".agents/skills/trellis-check-all/SKILL.md"), /repair-and-recheck/);
+  assert.match(repairs, /优先于新需求分类和 Active Task Scope Guard/);
+  assert.match(repairs, /受检事项、报告证据和用户选定范围/);
+  assert.match(repairs, /跨模块、属于既有缺陷或未写入任务标题\/Brief/);
+  assert.match(repairs, /不得因此新建或纳管任务，也不得重走首次 Brief 确认/);
+  assert.match(repairs, /指针缺失时先按既有恢复规则找回受检事项/);
+  assert.match(repairs, /超出所选修复范围/);
+  assert.match(repairs, /候选、费用或生产操作边界/);
+  assert.match(repairs, /只确认尚未决定的增量/);
+  assert.match(repairs, /修复过程中不对每个问题重复确认/);
+  assert.match(repairs, /复用当前 check route 重新执行 Check-All/);
+});
+
 test("Check-All 双平台副本统一智能深度契约", () => {
   const relativePath = ".agents/skills/trellis-check-all/SKILL.md";
   const agents = read(sourceRoot, relativePath);

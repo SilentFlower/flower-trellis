@@ -467,6 +467,8 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch workflow-request-triage v0.6 -->",
+          "Recognize a Check-All repair continuation from the current report and the user's selected findings first",
+          "follow its reporting reference before new-work triage or the Active Task Scope Guard",
           "Treat requests for an opinion, expressions of discomfort, rejected proposals, or questions about how something should change as `discuss`",
           "Both are read-only unless the current request explicitly authorizes a concrete edit.",
           "Selecting a repair does not authorize editing while scope is unknown or permission to skip task planning",

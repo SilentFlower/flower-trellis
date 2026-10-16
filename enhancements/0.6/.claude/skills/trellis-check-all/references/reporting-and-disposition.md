@@ -167,13 +167,7 @@ interactive 完成检查与允许的 DOC 修复后，先自然说明实际改动
 
 ## 修复与重检
 
-用户选择 `修复全部`、混合精确问题 ID 或其它明确修复范围后：
-
-1. 主会话复用当前 task 已有的合法 implement route；untracked 则重新直接读取个人 pref。不存在合法 route 时进入 `trellis-route(target=implement)`，不得自行默认 inline/subagent。
-2. 修复过程中不对每个问题重复确认。
-3. 新增业务歧义、破坏性风险或范围扩张时才暂停，并一次性说明受影响问题。
-4. 完成定向验证后复用当前 check route 重新执行 Check-All。
-5. 原 ID 沿用，新根因递增。后续按当前 diff 选深度：原 finding、修复路径、引用/回归和定向证据均闭合时可 light；范围扩大、契约/基线变化、未知 dirty 或证据失效时 full。
+用户选择 `修复全部`、混合精确问题 ID 或其它明确修复范围后，必须先读取 `references/repair-and-recheck.md` 执行修复续行；未选择时不加载。
 
 修复完成后输出：
 
