@@ -2019,6 +2019,9 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   `仅保留报告` 不构成风险接受,也不授权写文件。
 - 用户确认 `修复全部`、混合精确问题 ID 或其它明确修复范围后,批量修复所选项并复用当前任务合法 implement route;不存在时重新进入
   `trellis-route(target=implement)`。定向验证后复用当前 check route 执行 Check-All 重检。
+- 已选检查修复沿用原受检事项,优先于新需求分类和 Active Task Scope Guard;跨模块、既有缺陷或未写入 Brief
+  不触发新建/纳管任务或首次 Brief 重审。任务指针缺失先恢复;Start 和 workflow-state 只保留指向该续行的短入口,
+  范围守卫只约束新增工作,不得在状态提示里重复无条件“超出 Brief 就另建任务”。
 - `references/platform-dispatch.json` 是平台启动契约唯一事实源，必须覆盖上游 `0.6.14` 的 21 个
   稳定平台 ID。route skill 不维护第二张 Markdown 平台表；内容投影和闭包测试必须读取同一目录。
 - route 只选择 inline/subagent 逻辑模式，不在展示选项、解析偏好或执行 inline 前读取 catalog，

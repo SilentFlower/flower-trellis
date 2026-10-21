@@ -468,8 +468,10 @@
         "values": [
           "<!-- BEGIN skill-garden patch workflow-request-triage v0.6 -->",
           "Recognize a Check-All repair continuation from the current report and the user's selected findings first",
-          "follow its reporting reference before new-work triage or the Active Task Scope Guard",
-          "Treat requests for an opinion, expressions of discomfort, rejected proposals, or questions about how something should change as `discuss`",
+          "follow `trellis-check-all`'s `references/repair-and-recheck.md` before new-work triage or the Active Task Scope Guard",
+          "Resume the inspected work item without creating/adopting a task or repeating initial Brief approval",
+          "recover missing pointers instead of restarting planning",
+          "For new work, treat requests for an opinion, expressions of discomfort, rejected proposals, or questions about how something should change as `discuss`",
           "Both are read-only unless the current request explicitly authorizes a concrete edit.",
           "Selecting a repair does not authorize editing while scope is unknown or permission to skip task planning",
           "`direct_edit` requires known, bounded, low-risk, reversible scope, no unresolved design choice, and simple validation.",
@@ -478,7 +480,7 @@
           "build a short query from the request, intended commands, affected files or systems, package/layer, and domain terms",
           "python3 ./.trellis/scripts/spec_router.py \"<short query describing the intended action>\"",
           "once per user intent, workflow phase, or decision boundary and follow its returned `load_strategy` and `action`",
-          "When an active task exists, apply the Active Task Scope Guard before artifact ownership, task routing, or file edits.",
+          "For new work when an active task exists, apply the Active Task Scope Guard before artifact ownership, task routing, or file edits.",
           "New implementation outside the active task title/brief requires a new task",
           "does not reuse current progress",
           "`task_intent.py` executes the already-decided safety boundary",
@@ -533,6 +535,8 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch start-no-task-routing v0.6 -->",
+          "first resolve any selected Check-All repair through workflow `Request Triage`",
+          "recover the inspected work item instead of creating a task",
           "follow the workflow `Request Triage` contract before acting",
           "Use `task_intent.py create` for inferred complex planning"
         ]
@@ -588,13 +592,12 @@
       "assertion": {
         "type": "required-literal",
         "values": [
-          "apply the `Request Triage` Active Task Scope Guard",
-          "New implementation work outside the active task title/brief stops here",
-          "explicitly proceeds untracked without reusing its progress"
+          "follow `Request Triage`: resolve selected Check-All repairs",
+          "apply the Active Task Scope Guard only to new work"
         ]
       },
       "owner": "workflow-request-triage",
-      "reason": "planning 与 in-progress 的全部 active state 必须在 artifacts、route 或编辑前进入全局 Active Task Scope Guard。"
+      "reason": "active state 先回到 Request Triage 处理检查修复续行；Active Task Scope Guard 只约束新增工作，不能把已选修复重新建成任务。"
     },
     {
       "id": "workflow-hub-old-gate-owners-absent",

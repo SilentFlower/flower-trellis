@@ -1,1 +1,1 @@
-- **Active task exists** -> load `trellis-continue` and follow its recovery rules to decide the next step.
+- **Active task exists** -> first resolve any selected Check-All repair through workflow `Request Triage`; otherwise load `trellis-continue` and follow its recovery rules to decide the next step.

@@ -95,6 +95,25 @@ test("内置 Plan Mode 禁令必须存在于所有会产生 planning 冲动的�
   );
 });
 
+test("全部编译后 Start 入口在恢复或建任务前优先处理检查修复", () => {
+  const version = JSON.parse(readRoot("package.json")).dependencies["@mindfoldhq/trellis"];
+  const patch = JSON.parse(readSource(
+    "overrides/patches/skills/trellis-start/no-task-routing/patch.json",
+  ));
+  const operation = patch.operations.find(item => item.id === "start-no-task-routing");
+  assert.ok(operation.targets.length > 1);
+  for (const target of operation.targets) {
+    const entry = readRoot(
+      `vendor/skill-garden/compiled-targets/${version}/full/targets/${target.path}`,
+    );
+    for (const branch of ["Active task exists", "No active task"]) {
+      const instruction = entry.split(`**${branch}**`)[1]?.split("\n")[0];
+      assert.match(instruction, /first resolve any selected Check-All repair through workflow `Request Triage`;.*otherwise/i, `${target.path}: ${branch}`);
+    }
+    assert.match(entry, /recover the inspected work item instead of creating a task/, target.path);
+  }
+});
+
 test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算", () => {
   const autoLoop = readSource(".agents/skills/trellis-auto-loop/SKILL.md");
   const autoLoopClaude = readSource(".claude/skills/trellis-auto-loop/SKILL.md");
@@ -203,7 +222,7 @@ test("各 Gate 的完整契约位于原生 owner", () => {
   );
   const progress = readSource("scripts/task_progress.py");
 
-  assert.match(requestTriage, /Treat requests for an opinion, expressions of discomfort, rejected proposals/);
+  assert.match(requestTriage, /For new work, treat requests for an opinion, expressions of discomfort, rejected proposals/);
   assert.match(requestTriage, /treat requests to inspect, explain, verify, or locate a cause as `inspect`/);
   assert.match(requestTriage, /Both are read-only unless the current request explicitly authorizes a concrete edit/);
   assert.match(requestTriage, /Selecting a repair does not authorize editing while scope is unknown/);
@@ -242,8 +261,8 @@ test("各 Gate 的完整契约位于原生 owner", () => {
   assert.doesNotMatch(beforeDev, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(updateHook, /priority: blocking_confirmation_required/);
   assert.match(selfUpdate, /post_action: "run_trellis_push_confirmation"/);
-  assert.match(planningState, /apply the `Request Triage` Active Task Scope Guard/);
-  assert.match(activeState, /apply the `Request Triage` Active Task Scope Guard/);
+  assert.match(planningState, /follow `Request Triage`: resolve selected Check-All repairs first/);
+  assert.match(activeState, /follow `Request Triage`: resolve selected Check-All repairs through/);
   assert.match(route, /合法 route 决策必须能追溯到/);
   assert.match(route, /implement 路由只决定执行位置，不拥有实现后的停止策略/);
   assert.match(route, /返回 workflow Phase 2\.1 的 completion contract/);
@@ -388,13 +407,17 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   ]) {
     assertOrdered(
       value,
-      "apply the `Request Triage` Active Task Scope Guard",
+      "follow `Request Triage`: resolve selected Check-All repairs",
       downstream,
       `${name} 无关实现隔离`,
     );
-    assert.match(value, /outside the active task title\/brief stops here/);
-    assert.match(value, /without reusing its progress/);
+    assert.match(value, /apply the Active Task Scope Guard only to new work/);
+    assert.doesNotMatch(value, /until the user chooses a new task/);
   }
+  assert.match(requestTriage, /For new work when an active task exists, apply the Active Task Scope Guard/);
+  assert.match(requestTriage, /New implementation outside the active task title\/brief requires a new task, an artifact update/);
+  assert.match(requestTriage, /without creating\/adopting a task or repeating initial Brief approval/);
+  assert.match(requestTriage, /recover missing pointers instead of restarting planning/);
 
   assertOrdered(
     continueRecovery,

@@ -76,9 +76,24 @@ function assertIntentRoutingSemantics(value) {
       && triage.indexOf("Check-All repair continuation") < triage.indexOf("- Infer `discuss`"),
     "已授权检查修复必须先于新需求分类，避免重新创建任务",
   );
-  assert.match(triage, /follow its reporting reference before new-work triage or the Active Task Scope Guard/);
+  assert.match(triage, /follow `trellis-check-all`'s `references\/repair-and-recheck\.md` before new-work triage or the Active Task Scope Guard/);
+  assert.match(triage, /Resume the inspected work item without creating\/adopting a task or repeating initial Brief approval/);
+  assert.match(triage, /recover missing pointers instead of restarting planning/);
+  assert.match(triage, /For new work when an active task exists, apply the Active Task Scope Guard/);
   assert.match(value, /First resolve any Check-All repair continuation through `Request Triage`/);
-  assert.match(value, /Treat requests for an opinion, expressions of discomfort, rejected proposals/);
+  assert.match(value, /For new work, treat requests for an opinion, expressions of discomfort, rejected proposals/);
+  assert.match(value, /For new work, repair intent alone is not a no-task switch/);
+  for (const state of ["planning", "planning-inline", "in_progress", "in_progress-inline"]) {
+    const body = value.split(`\n[workflow-state:${state}]\n`)[1]
+      ?.split(`\n[/workflow-state:${state}]`)[0];
+    assert.ok(body, state);
+    assert.match(body, /resolve selected Check-All repairs.*; apply the Active Task Scope Guard only to new work/, state);
+    assert.doesNotMatch(body, /outside the active task title\/brief stops here until the user chooses a new task/, state);
+    if (state.startsWith("in_progress")) {
+      assert.ok(body.indexOf("resolve selected Check-All repairs") < body.indexOf("Before the first implement route"), state);
+      assert.match(body, /`trellis-check-all`'s `references\/repair-and-recheck\.md`/, state);
+    }
+  }
   assert.match(value, /treat requests to inspect, explain, verify, or locate a cause as `inspect`/);
   assert.match(value, /Both are read-only unless the current request explicitly authorizes a concrete edit/);
   assert.match(value, /Selecting a repair does not authorize editing while scope is unknown or permission to skip task planning/);
@@ -944,6 +959,11 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
     assert.match(start, /Active task exists.*load `trellis-continue` and follow its recovery rules/);
     assert.doesNotMatch(start, /Active task status|--step 2\.1/);
     assert.match(start, /No active task.*untracked_flow\.py status/);
+    for (const branch of ["Active task exists", "No active task"]) {
+      const instruction = start.split(`**${branch}**`)[1]?.split("\n")[0];
+      assert.match(instruction, /first resolve any selected Check-All repair through workflow `Request Triage`;.*otherwise/i, branch);
+    }
+    assert.match(start, /recover the inspected work item instead of creating a task/);
     assert.match(start, /\| Done coding \/ quality check \| `trellis-route\(target=check\)` → `trellis-check-all` \|/);
     assert.doesNotMatch(start, /\| Done coding \/ quality check \| `trellis-check` \|/);
     assert.match(value, /### Skill-Garden Workflow Owner Index/);

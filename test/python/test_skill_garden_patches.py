@@ -1499,7 +1499,7 @@ class PatchConsumerTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            "Treat requests for an opinion, expressions of discomfort, rejected proposals",
+            "For new work, treat requests for an opinion, expressions of discomfort, rejected proposals",
             workflow,
         )
         self.assertIn(
