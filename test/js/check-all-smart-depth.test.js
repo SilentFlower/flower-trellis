@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readCheckAllContract } from "./prompt-contract-helpers.js";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -22,7 +23,7 @@ test("已授权检查修复保留原事项，新增未决变化仍只确认增�
       }
     }
   }
-  const reporting = read(sourceRoot, `.agents/${references}/reporting-and-disposition.md`);
+  const reporting = read(sourceRoot, `.agents/${references}/findings-and-reporting.md`);
   const repairs = read(sourceRoot, `.agents/${references}/repair-and-recheck.md`);
   assert.match(reporting, /用户选择.*后，必须先读取 `references\/repair-and-recheck\.md`/);
   assert.match(reporting, /未选择时不加载/);
@@ -47,10 +48,7 @@ test("Check-All 双平台副本统一智能深度契约", () => {
     sourceRoot,
     ".agents/skills/trellis-check-all/references/depth-routing.md",
   );
-  const reporting = read(
-    sourceRoot,
-    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
-  );
+  const reporting = readCheckAllContract(sourceRoot);
   const spec = read(
     projectRoot,
     ".trellis/spec/flower-trellis/cli/enhancements-model.md",
@@ -80,14 +78,8 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   assert.match(spec, /跨轮局部修复可重新选择 light/);
   assert.doesNotMatch(spec, /已有 full `CHK-\*` \/ `FBK-\*` 重检和未知影响面继续 full/);
   assert.match(reporting, /light 通过正式满足 Phase 2\.2 检查门禁/);
-  assert.ok(
-    reporting.indexOf("## Auto-Loop Return Gate")
-      < reporting.indexOf("## Interactive Post-Check Stop Gate"),
-  );
-  const autoLoopGate = reporting.slice(
-    reporting.indexOf("## Auto-Loop Return Gate"),
-    reporting.indexOf("## Interactive Post-Check Stop Gate"),
-  );
+  assert.match(reporting, /validated auto-loop.*auto-loop-return\.md/);
+  const autoLoopGate = read(sourceRoot, ".agents/skills/trellis-check-all/references/auto-loop-return.md");
   const interactiveGate = reporting.slice(
     reporting.indexOf("## Interactive Post-Check Stop Gate"),
     reporting.length,
@@ -148,10 +140,7 @@ test("Light 与 Full 统一按充分验证证据判断，不把自动化文件�
     sourceRoot,
     ".agents/skills/trellis-check-all/references/full-profile.md",
   );
-  const reporting = read(
-    sourceRoot,
-    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
-  );
+  const reporting = readCheckAllContract(sourceRoot);
 
   for (const profile of [light, full]) {
     assert.match(profile, /references\/verification\.md/);
@@ -227,10 +216,7 @@ test("auto-loop 与 workflow 先续跑再应用交互停止门禁", () => {
     ".agents/skills/trellis-check-all/references/document-drift-auto-remediation.md",
     ".agents/skills/trellis-check-all/references/code-comment-auto-remediation.md",
   );
-  const reporting = read(
-    sourceRoot,
-    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
-  );
+  const reporting = readCheckAllContract(sourceRoot);
   const runner = read(sourceRoot, "scripts/auto_loop.py");
 
   assert.match(

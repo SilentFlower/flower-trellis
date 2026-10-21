@@ -1573,20 +1573,21 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 - `trellis-route/SKILL.md`:
   - 保留授权前提、subject、合法来源、mode 映射、最小 helper 调用和同轮执行；不默认读取 helper 源码。
   - 当前请求唯一明确 target/mode 时直接应用，只有明确保存默认才使用 `--save-pref`；假设、问题、引用和历史叙述不算指令。模式仍未决或仅要求重选时由用户选择。
-  - 无覆盖时复用当前任务合法决定或 helper hit；正常对话只说明一句执行方式，同轮进入实现/Check-All，不例行打印 YAML、路径或下一轮调用清单。
+  - 无覆盖时复用当前任务合法决定或 helper hit；无合法选择时使用 helper 的内置 inline。正常对话只说明一句执行方式，同轮进入实现/Check-All，不例行打印 YAML、路径或下一轮调用清单。
   - 交互和紧邻裸数字规则位于 `references/interaction.md`；subagent 启动、audit-only 和 untracked prompt 位于 `references/subagent-dispatch.md`；异常及 auto-loop prepare 位于 `references/recovery-and-errors.md`。只有条件命中才读取，inline 不加载 catalog。
   - 用户选项、合法 source、任务隔离和只读专用角色保留；重检/恢复不重复选择。入口不超过 8,192 B，每平台投影的 Markdown/JSON 路由材料总量不超过 39,950 B；不能仅检查 canonical Claude 目录，公共 reference 来自 agents 源。
   - 不把机械 JSON 读写逻辑改写成 prompt 里的长代码块。
 - `route_state.py`:
-  - `resolve` 顺序固定为 session runtime `route_decisions.<target>` -> `.trellis/.route-prefs.tmp` -> `.trellis/.runtime/auto-loop/<run-id>.json` 临时授权。
+  - `resolve` 顺序固定为 session runtime `route_decisions.<target>` -> `.trellis/.route-prefs.tmp` -> `.trellis/.runtime/auto-loop/<run-id>.json` 临时授权 -> 正常空状态的内置 inline。
   - prefs 或 auto-loop 授权命中时写回 `.trellis/.runtime/sessions/<context-key>.json`。
+  - 内置缺省返回 `origin=source=builtin-default`，implement 为 `inline`、check 为 `check-all-inline`；不写 runtime/prefs，不伪造人工选择。`read-pref` 正常空状态采用同一缺省。
   - runtime 只保存原始合法来源:`trellis-route`、`numbered-fallback`、`route-prefs`、`auto-loop`。
   - `.runtime` 自身不是 `route_decision.source`;raw runtime JSON 必须经 helper / skill 校验后才可复用。
   - `--save-pref` 才写个人默认;不带该 flag 只写当前 session runtime。
   - 写入当前任务任一 target 的 runtime 决策前,必须清理同一 session 中属于其他任务的 `route_decisions`,避免任务切换后 check 阶段误复用上个任务的选择。
   - auto-loop 授权只在当前 session runtime 绑定 `current_auto_run`，或全局 auto-loop current 指针能指向唯一 running run 时生效；授权前还必须确认当前 task 位于该 run 的 pending/running 队列中。
   - 当前 session runtime 本身损坏，或 session 显式绑定的 run JSON 损坏/I/O 失败时必须返回结构化 miss 并失败关闭；不得继续读取 prefs、全局 pointer 或其它健康 run，也不得覆盖损坏文件。仅 missing/stale pointer 保留唯一 running run fallback。
-  - 默认 stdout 必须保持精简:命中时返回 `status`、当前 `task`、`mode`、决策 `source`,以及可选 `origin`(`runtime` / `route-prefs` / `auto-loop`);未命中返回 `status` + `reason`。完整 `decision`、`path`、`context_key`、`pref_path`、`auto_path`、写回标记等诊断字段只在 `--verbose` 输出。
+  - 默认 stdout 必须保持精简:命中时返回 `status`、当前 `task`、`mode`、决策 `source`,以及可选 `origin`(`runtime` / `route-prefs` / `auto-loop` / `builtin-default`);未命中返回 `status` + `reason`。完整 `decision`、`path`、`context_key`、`pref_path`、`auto_path`、写回标记等诊断字段只在 `--verbose` 输出。
 
 任务隔离属于 helper 的确定性逻辑,不要把 `task == current_task` 判断扩散到高频 workflow/state 文案里。workflow 维持轻量的 target-matched route 证据规则;`trellis-route` / `route_state.py` 负责 runtime 命中校验、写入清理和默认输出里的 `task` 诊断字段。
 
@@ -1596,18 +1597,20 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 |------|------|
 | 无 `.trellis/` | 返回 `status=miss/skipped`,不阻断外层流程 |
 | 无 current task | 返回 `no-current-task`，重新核对 subject，不伪造 task |
-| 无 session context key 且已允许 task 执行 | 不写 runtime；读取个人偏好或等待当前选择，说明恢复记录不能保存 |
-| session runtime 文件缺失 | 继续读 prefs/auto-loop 或展示选项 |
+| 无 session context key 且已允许 task 执行 | 不写 runtime；读取个人偏好或内置 inline，说明恢复记录不能保存 |
+| session runtime 文件缺失 | 继续读 prefs/auto-loop，正常空状态命中内置 inline |
 | session runtime JSON 损坏或 I/O 失败 | 返回 `session-runtime-corrupt/io_error`,不读 prefs/auto-loop,不覆盖原文件 |
-| runtime 的 task / target / source / mode / scope 不匹配 | 返回 miss,不得复用 |
+| runtime 的 task / target / source / mode / scope 不匹配 | 不复用该决定，resolve 继续解析下层来源 |
 | 同一 session 切换到新任务并写入 implement/check 决策 | 写入前清理其他任务的 runtime route 决策;个人 prefs 不受影响 |
-| prefs 缺失或值不合法 | 返回 miss,展示选项 |
+| prefs 缺失或值不合法 | resolve 继续解析 auto/default；read-pref 返回内置 inline，不改原文件 |
 | prefs 命中 | 返回 hit,写回 runtime,`origin=route-prefs`,`source=route-prefs` |
 | auto-loop running run 存在合法 route_authorization,且当前 task 属于未完成队列 | 返回 hit,写回 runtime,`origin=auto-loop`,`source=auto-loop` |
 | session 显式绑定的 auto run JSON 损坏/I/O 失败 | 返回 `session-auto-run-corrupt/io_error`,不得 fallback 到其它 run |
-| auto-loop 无绑定 run / 非唯一 running run / mode 不合法 | 返回 miss,展示选项 |
+| 无可用 running run 或目标授权缺失 | 返回内置 inline，不借其它任务授权 |
+| running run 歧义或 mode 非法 | 返回具体 miss 原因，不使用内置缺省隐藏异常 |
 | 当前请求明确 target/mode | 当前选择优先，按临时/保存意图调用 helper，同轮执行 |
-| 用户仅要求重选、清除默认或变更指令含糊 | 不套用旧决定；读取交互规则，由用户决定未决模式 |
+| 用户主动重选或变更指令含糊 | 读取交互规则，由用户决定未决模式 |
+| 用户清除指定个人默认 | 只清该 target；没有当前临时选择时回内置 inline，不再弹菜单 |
 | compact 后只剩历史裸数字 `1` 和新的 check 选项摘要 | 不得写入 check route；必须重新展示当前 target 选项并等待紧邻回复 |
 
 ### 5. Good/Base/Bad Cases
@@ -1640,7 +1643,7 @@ Claude 平台只安装 `.claude` 副本时,路径改为
   - 清空 `route_decisions` 但保留 session 文件其他字段,验证 prefs hit 会写回 runtime。
   - 第二次 `resolve` 验证 runtime 优先。
   - `write` 不带 `--save-pref` 时验证 `.route-prefs.tmp` 不变。
-  - 同一 session 从任务 A 切到任务 B 后,写入任务 B 的 implement 决策会清理任务 A 的 check 决策;随后 `resolve --target check` 对任务 B 返回 miss,除非存在个人 check 默认。
+  - 同一 session 从任务 A 切到任务 B 后,写入任务 B 的 implement 决策会清理任务 A 的 check 决策;随后任务 B 只解析自己的合法来源，正常空状态回内置 inline，不借任务 A 的选择。
   - `write --save-pref` 验证只更新当前 target 并保留另一个 target。
   - 明确临时选择写入后 `resolve` 恢复同一 mode/source/task，个人默认不变；保存默认后新任务能命中 prefs 且不影响另一个 target。
   - `clear-pref --target check` 验证只清 check 默认。
@@ -1857,7 +1860,7 @@ route_decision.mode = check-all-inline | check-all-subagent
 }
 ```
 
-每次 Check-All 必须产生可审计画像:
+每次 Check-All 必须产生可审计画像，普通 light 通过可只保留内部画像而不展开对话字段:
 
 ```yaml
 check_profile:
@@ -1996,7 +1999,7 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   新根因使用对应通道的下一个 ID。两类问题按严重度排序,但不重排 ID。
 - 检查和重检报告先用自然段解释实际改动、行为影响与结论,复用最终 diff 和已有检查证据;
   不另启 Diff Brief 或重复扫描,不把规划、未验证效果或无关 dirty 当作已交付。重检只讲本轮修复,
-  阻塞或重大问题须在开头说明。随后顺序固定为总体摘要、维度结果、`DOC-*` 自动修复、`CHK-*` 主路径问题、`FBK-*` 兜底问题、
+  阻塞或重大问题须在开头说明。普通 light strict pass 只展示范围、结论、实际验证、必要风险和下一步；full 或问题报告随后顺序为总体摘要、维度结果、`DOC-*` 自动修复、`CHK-*` 主路径问题、`FBK-*` 兜底问题、
   未覆盖与风险、统一处置批次。本轮无须展开的通道省略该区；任一通道有问题时总体不得 strict pass，
   只在末尾询问一次修复或风险接受范围，不得附带 commit/push 计划。
 - 首次报告在对话中完整展示;仅接受处置时简短确认 ID、结论和必要的下一步,不重贴报告或重跑检查。
@@ -2005,8 +2008,8 @@ DOC type: task-status | brief-stale | implementation-note | check-record | mecha
   次数记录或附件。原报告或接受依据无法恢复时针对受影响项补核,不得凭摘要伪报有效或要求全部重接受。
   不得为缩短回复、提供链接或同步任务状态新建 `check-report.md`
   等附件。仅用户明确导出或已确认交付约定要求时由主会话保存;Maven/auto-loop 沿用机器证据契约。
-  DOC 只修正已有文档事实,不得借状态或链接修复新增报告。strict pass 可按原模板顺序紧凑展示,
-  但保留验证、风险和下一步;具体规则由 `trellis-check-all/references/reporting-and-disposition.md` 所有。
+  DOC 只修正已有文档事实,不得借状态或链接修复新增报告。普通 light 通过不要求完整画像、空维度和问题模板；完整模型与处置由 `references/findings-and-reporting.md` 所有，runner 由 `references/auto-loop-return.md` 所有，继续/停止统一由 `references/reporting-and-disposition.md` 所有。
+- Check-All 在发现问题候选后才加载完整分类规则，DOC 候选在任何自修前加载白名单；无候选不默认读取 DOC 细则。默认 light 入口、depth、profile、verification、reporting 共五份材料，不包含 full、findings、DOC 或 runner 细则。
 - 用户可以明确接受当前报告中的 `CHK-*` 或 `FBK-*` 而不修复。语义明确的“接受当前报告全部风险”覆盖
   全部当前 findings,包括 P0,不要求固定句式或逐项输入 ID;部分接受仍必须唯一定位子集。只有报告版本或
   指向范围不清时才追问。接受不改变分类、严重度、证据和建议,原报告与接受记录保留完整问题。
@@ -2399,11 +2402,11 @@ python3 .trellis/scripts/auto_loop.py next
 
 ### 3. Contracts
 
-- `resolve` 执行与只读预检共用 runtime → prefs → auto 授权优先级；runtime 必须匹配 task/target/scope/source，旧 check mode 归一为 `check-all-*`。
+- `resolve` 执行与只读预检共用 runtime → prefs → auto 授权 → 内置 inline 优先级；runtime 必须匹配 task/target/scope/source，旧 check mode 归一为 `check-all-*`。
 - `--task` 与 `--auto-mode` 仅用于 `--read-only`。任务必须以 `.trellis/tasks/` 开头、存在 `task.json`，不得使用绝对路径、`..` 或软链；不接受模糊任务名。
 - 只读预检允许目标任务尚未绑定 session。缺少当前任务时仍可解析个人偏好或显式候选；不能复用其它任务决策，也不能扫描其它 run 借用授权。
-- 只读预检不写 session、个人偏好或任务 pointer；命中返回 `status=hit`、`task/mode/source/origin`，verbose 中 `wrote_runtime=false`（prefs/auto 命中）。结果不是持久化执行决策。
-- 用户明确启动 auto-loop 且显式任务列表已解析时，route 先进入启动前选模例外，允许 planning/尚未绑定 session；逐任务只读复用模式，只有未决 target 才询问，不把某任务的 session 决定扩成整队列模式。
+- 只读预检不写 session、个人偏好或任务 pointer；命中返回 `status=hit`、`task/mode/source/origin`，verbose 中 `wrote_runtime=false`（prefs/auto/default 命中）。结果不是持久化执行决策。
+- 用户明确启动 auto-loop 且显式任务列表已解析时，route 先进入启动前选模例外，允许 planning/尚未绑定 session；逐任务只读复用模式，正常空状态取内置 inline，只有主动重选或指令含糊才询问，不把某任务的 session 决定扩成整队列模式。
 - 启动前临时选择只交给 runner 的 `start --route-implement/--route-check`；明确保存默认时用 `write-pref`。不写 task route decision、不绑定任务、不提前实施或分发；同轮返回 runner 完成 prepare，实际运行 action 才进入普通 route。普通任务开工门槛与选完同轮执行不变。
 - runner 优先查找 `.agents` / `.claude`，再发现其它原生 skill root 下已安装的同名 helper；helper 缺失、失败或无合法模式时不猜测 inline，readiness 保守要求相应 JSONL context。
 - Continue 先查询 runner。存在有效 active run 且用户未切到无关工作时，交给 `trellis-auto-loop` 恢复并返回，不再进入普通 planning gate；普通交互恢复仍遵循 Brief 的确认或明确预授权规则。
@@ -2418,14 +2421,14 @@ python3 .trellis/scripts/auto_loop.py next
 | 任务路径越界、软链、模糊或不存在 | `status=error reason=invalid-task-path` |
 | auto 候选不是 target 合法模式 | `status=error reason=invalid-auto-route-mode` |
 | 当前 session 损坏或不可读 | `status=miss`，reason 为 `session-runtime-corrupt` 或 `session-runtime-io_error`，不覆盖原文件 |
-| runtime/prefs/显式候选都不命中 | `status=miss reason=no-valid-decision-pref-or-auto` |
+| runtime/prefs/显式候选都不命中且无异常 | `status=hit origin=source=builtin-default`，返回当前 target 的 inline，不写任何记录 |
 | 历史启动表述，但没有有效 active run | 不能跳过普通确认或恢复终态 run |
 
 ### 5. Scenarios and Examples
 
 - Normal：当前任务 session 选 subagent、个人默认 inline；预检与实际执行均取 subagent，缺失 JSONL 时预检阻塞。反向组合均取 inline。
 - Base：队列任务 B 尚未绑定，session 仍为 A；预检 B 忽略 A 的决策，取个人默认或 runner 候选，并保持 A 的 session 字节不变。
-- Startup：无个人默认且任务仍在 planning 时，人工选择本次模式后先启动 runner；首个动作仍为规划准备，任务继续保持 planning，session 不出现 task route decision。
+- Startup：无个人默认且任务仍在 planning 时，预检使用内置 inline 后先启动 runner；首个动作仍为规划准备，任务继续保持 planning，session 不出现 task route decision。
 - Incorrect use：Brief 刷新后自行 `task.py start`，或 Continue 根据旧聊天授权跳过评审。
 - Correct handling：验证真实 runner action，展示后回写并获取下一动作；无有效 run 时回到普通交互规则。
 
@@ -2911,8 +2914,8 @@ explicit check-only request -> report + stop
 
 ```text
 trellis-check-all
-  -> ordinary post-check report + stop -> user continue
-     or direct Git strict pass -> same standard report + same-turn continuation
+  -> passed post-check report + same-turn continuation
+     or explicit stop / unresolved findings -> wait for disposition
   -> autonomous Phase 3.3 trellis-update-spec
   -> Phase 3.4 trellis-push plan
   -> user confirmation
@@ -3014,10 +3017,8 @@ risk_items          ->始终逐项展示,不折叠
 - Phase 3.4 必须加载 `trellis-push`;在该 skill 外草拟提交计划不能作为等价替代。
 - workflow hub 只声明 Phase 3.4 门禁和格式所有权:详细计划/结果格式完全由 `trellis-push`
   管理。hub 不复制模板、字段顺序、仓库显示名、retained 用户标签或 8/12 文件阈值。
-- 用户可见计划只能在计划数据收敛后即时读取 `references/output-templates.md` 的计划模板与共用
-  展示规则再渲染；用户可见结果必须再次读取共用展示规则、结果模板与结果补充规则，不得依赖
-  计划阶段的上下文仍然存在。reference 缺失、不可读或缺少目标章节时失败关闭，不得凭记忆重建、
-  缩写或自制替代模板。
+- 用户可见计划在数据收敛后读取 `references/output-templates.md` 的计划模板与共用展示规则；结果读取共用规则、结果模板与补充规则。已读、未变化且内容仍可用时复用，变化或上下文缺失时重读。reference 缺失、不可读或缺少章节时失败关闭，不凭记忆重建或自制模板。
+- Push 主入口保留普通预检、精确计划确认和执行；多仓/生成、merge、GC 按需读取 `references/git-special-cases.md`，普通任务记录在计划前读取 `references/task-progress.md`，validated runner 内部提交先读 `references/auto-loop-commit.md`。未命中分支不加载其细则，原安全条件与完整能力不变。
 - auto-loop 内部 `commit-only` 不产生交互式计划或结果，因此不得为了内部执行读取该 reference，
   也不新增确认；它仍由主 Skill 形成 exact files、message、retained、已完成 commits 和失败位置，
   再由 `trellis-auto-loop` 执行 `record + next`。
@@ -3234,7 +3235,7 @@ risk_items          ->始终逐项展示,不折叠
   明确用户意图或合法 auto-loop 预授权。
 - 静态扫描最终 Phase 3.4，确认旧 `Proposed commits`、local-only、no-push walkthrough 已被
   `replace/remove` 消除，而不是依赖 Hub 优先级声明。
-- 静态断言主 `trellis-push/SKILL.md` 在计划和结果输出点分别即时读取
+- 静态断言主 `trellis-push/SKILL.md` 在计划和结果输出点按需读取或复用未变化的
   `references/output-templates.md`，reference 缺失时失败关闭；模板字段从 reference 校验，执行、
   确认和恢复语义继续从主 Skill 校验。
 - 静态断言 auto-loop 内部 commit-only 不读取或渲染交互模板、不重新确认，并继续返回逐仓执行数据；

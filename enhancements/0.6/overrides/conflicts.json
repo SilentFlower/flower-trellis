@@ -1838,6 +1838,39 @@
       },
       "owner": "task-closeout-lifecycle",
       "reason": "配置 helper 文档必须与 after_close 硬切换保持一致。"
+    },
+    {
+      "id": "untracked-post-check-owner",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-state-untracked"
+      ],
+      "assertion": {
+        "type": "required-literal",
+        "values": [
+          "a passed check defaults to same-turn `spec`",
+          "Interactive Post-Check Stop Gate"
+        ]
+      },
+      "owner": "workflow-state-untracked",
+      "reason": "无任务检查通过的状态提示必须跟随同一 Post-Check owner，不能额外要求直接 Git 或后续继续。"
+    },
+    {
+      "id": "untracked-post-check-no-extra-wait",
+      "severity": "error",
+      "target": ".trellis/workflow.md",
+      "whenOperations": [
+        "workflow-state-untracked"
+      ],
+      "assertion": {
+        "type": "absent-literal",
+        "values": [
+          "only a same-turn direct Git continuation or a later explicit continuation advances to `spec`"
+        ]
+      },
+      "owner": "workflow-state-untracked",
+      "reason": "无任务检查通过的状态提示必须跟随同一 Post-Check owner，不能额外要求直接 Git 或后续继续。"
     }
   ]
 }

@@ -51,6 +51,9 @@ test("untracked workflow 只保存阶段游标并路由到单一 owner", () => {
   assert.match(noTask, /helper is a workflow cursor/);
   assert.match(state, /single-active-work guard/);
   assert.match(state, /\[workflow-state:untracked_check\]/);
+  assert.match(state, /Unaccepted findings or new edits return the cursor/);
+  assert.match(state, /a passed check defaults to same-turn `spec`/);
+  assert.doesNotMatch(state, /only a same-turn direct Git continuation/);
   assert.match(state, /\[workflow-state:untracked_spec\]/);
   assert.match(state, /\[workflow-state:untracked_push\]/);
   assert.match(state, /`owner` \/ `remainingOwners` fields are route reminders/);

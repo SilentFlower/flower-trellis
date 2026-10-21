@@ -49,13 +49,13 @@ test("Pre-Check workflow 默认检查、软暂缓与 auto-loop 优先级完整",
   assert.match(check, /damaged runtime.*safely defaults to checking/);
   assert.doesNotMatch(state, /pre_check_state\.py|Pre-Check hold/);
   assert.match(state, /return to the Phase 2\.1 completion contract/);
-  assert.match(route, /implement 路由只决定执行位置，不拥有实现后的停止策略/);
+  assert.match(route, /路由不另设停止策略/);
   assert.match(route, /返回 workflow Phase 2\.1 的 completion contract/);
-  assert.match(route, /并在当前回合实际执行该 owner 解析出的 Pre-Check action/);
-  assert.match(route, /已有 hold 按 owner 结果处理/);
-  assert.match(route, /默认分支必须立即进入 `trellis-route\(target=check\)`/);
-  assert.match(route, /不得先询问是否运行 Check-All/);
-  assert.match(route, /不得把 Check-All 作为可选下一步后结束回合/);
+  assert.match(route, /并同轮执行该 owner 的 Pre-Check action/);
+  assert.match(implement, /matching hold/);
+  assert.match(route, /默认立即进入 `trellis-route\(target=check\)`/);
+  assert.match(route, /不询问是否检查/);
+  assert.match(route, /不以路由报告结束回合/);
 });
 
 

@@ -2,7 +2,7 @@
 
 Run `trellis-route(target=check)`, then execute the unified `trellis-check-all` entry using the validated inline/subagent route.
 
-For untracked work, route reads only the personal pref helper and the dispatch prompt starts with `Untracked work: <work-id>` plus the work summary, current stage, actual diff, relevant specs, and validation context. Findings or new edits return the cursor to `implement`; a passed check advances to `spec` when the Post-Check owner permits default continuation. An explicit check-only or stop-after-check request keeps the cursor at `check`.
+For untracked work, route reads only the personal pref helper and the dispatch prompt starts with `Untracked work: <work-id>` plus the work summary, current stage, actual diff, relevant specs, and validation context. Unaccepted findings or new edits return the cursor to `implement`; a passed check advances to `spec` when the Post-Check owner permits default continuation. An explicit check-only or stop-after-check request keeps the cursor at `check`.
 
 Before interactive Check-All begins, run `python3 ./.trellis/scripts/pre_check_state.py clear`. A missing, subject-mismatched, or already-cleared preference is a no-op; a damaged runtime is reported diagnostically but safely defaults to checking.
 

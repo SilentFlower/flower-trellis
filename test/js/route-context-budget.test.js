@@ -103,3 +103,39 @@ test("auto-loop 启动前选模先返回 runner，普通执行门槛与同轮实
     }
   }
 });
+
+test("Check-All 和 Push 条件引用完整投影，全部说明不因拆分增长", () => {
+  for (const [name, baseline] of [["trellis-check-all", 57123], ["trellis-push", 35656]]) {
+    const directory = path.join(sourceRoot, ".agents/skills", name);
+    const files = explanationFiles(directory);
+    const bytes = files.reduce((total, file) => total + fs.statSync(file).size, 0);
+    assert.ok(bytes <= baseline, `${name}: ${bytes} > ${baseline}`);
+    for (const file of files) {
+      const relative = path.relative(directory, file);
+      const expected = fs.readFileSync(file, "utf8");
+      for (const root of [sourceRoot, snapshotRoot, projectRoot]) {
+        for (const platform of [".agents", ".claude"]) {
+          const target = path.join(root, platform, "skills", name, relative);
+          assert.equal(fs.readFileSync(target, "utf8"), expected, target);
+        }
+      }
+      for (const match of expected.matchAll(/\]\((references\/[^)#]+\.md)(?:#[^)]*)?\)/g)) {
+        assert.ok(fs.existsSync(path.join(directory, match[1])), `${file}: ${match[1]}`);
+      }
+    }
+  }
+});
+
+test("路由缺省只读且不冒充用户选择，特殊提交仍先载入适用细则", () => {
+  const route = fs.readFileSync(path.join(sourceRoot, routePath, "SKILL.md"), "utf8");
+  assert.match(route, /没有选择时使用内置 inline，不询问模式/);
+  assert.match(route, /`builtin-default`.*不写 session 或个人偏好/);
+  const interaction = fs.readFileSync(path.join(sourceRoot, routePath, "references/interaction.md"), "utf8");
+  assert.match(interaction, /清除指定默认.*内置 inline 继续，不再弹菜单/);
+  const push = fs.readFileSync(path.join(sourceRoot, ".agents/skills/trellis-push/SKILL.md"), "utf8");
+  assert.match(push, /未命中场景不加载其 reference；命中却缺失细则时阻塞/);
+  assert.match(push, /多仓\/生成依赖、已有 merge 或历史 GC ahead/);
+  assert.match(push, /git-special-cases\.md.*相关规划或副作用前读取/);
+  assert.match(push, /`MERGE_HEAD` 存在时仅普通模式可继续/);
+  assert.match(push, /确认前禁止 `git add`、`git commit` 或 `git push`/);
+});

@@ -6,7 +6,7 @@ A different implementation request remains blocked by the single-active-work gua
 
 [workflow-state:untracked_check]
 The current-session untracked work item is at `check`. Run `python3 ./.trellis/scripts/untracked_flow.py status`, then enter Phase 2.2 through `trellis-route(target=check)` and execute `trellis-check-all`.
-If Check-All reports unaccepted findings or a new edit is needed, run `python3 ./.trellis/scripts/untracked_flow.py advance --stage implement` before returning to implementation. On a strict pass or accepted-risk pass, keep `check` while the interactive stop gate waits; only a same-turn direct Git continuation or a later explicit continuation advances to `spec`. The helper does not persist finding details or risk acceptance.
+Unaccepted findings or new edits return the cursor to `implement`. Follow Check-All's `Interactive Post-Check Stop Gate`: a passed check defaults to same-turn `spec`; an explicit check-only or stop-after-check request keeps `check`. The helper does not persist finding details or risk acceptance.
 [/workflow-state:untracked_check]
 
 [workflow-state:untracked_spec]

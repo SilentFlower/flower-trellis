@@ -1,6 +1,6 @@
 ## Autonomous Spec Evaluation
 
-This section replaces the interactive “whether to update” decision. The Code-Spec First Rule remains authoritative when an update is necessary.
+This section replaces the interactive “whether to update” decision. The Code-Spec First Rule remains authoritative when an update is necessary. Package/layer code-specs hold executable contracts; shared guides hold short thinking checklists and pointers, not duplicate contract details.
 
 ### Result Contract
 
@@ -23,7 +23,7 @@ Do not enter the upstream Interactive Mode and do not ask whether a spec should 
 
 ### Evidence Order
 
-Read real evidence in this order. Do not decide from the chat summary, task title, or intuition alone:
+Reuse already-read, unchanged evidence in this order; read missing or changed material. Do not decide from the chat summary, task title, or intuition alone:
 
 1. For task context, the current task's `implement.jsonl` / `check.jsonl` and every file they reference.
 2. For task context, the current task's `prd.md`, `design.md`, and `implement.md`.

@@ -395,6 +395,18 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_default_route_prepares_without_jsonl_or_explicit_modes(self) -> None:
+        """未设置模式时 runner 用内置 inline 准备，不要求子 agent 上下文或提前开工。"""
+        self.write_planning_task("")
+        task_ref = ".trellis/tasks/task-planning"
+        self.runner("start", "--run-id", "auto-test", "--tasks", task_ref)
+        self.assertEqual(self.runner("next")["action"], "review_planning_readiness")
+        task = json.loads((self.root / task_ref / "task.json").read_text(encoding="utf-8"))
+        self.assertEqual(task["status"], "planning")
+        session = json.loads((self.root / ".trellis/.runtime/sessions/auto-loop-test.json").read_text(encoding="utf-8"))
+        self.assertNotIn("current_task", session)
+        self.assertNotIn("route_decisions", session)
+
     def test_startup_route_selection_defers_task_binding_and_implementation(self) -> None:
         """未开工任务可先只读选模，启动后仍由 runner 先返回规划准备动作。"""
         self.write_planning_task("")
@@ -415,10 +427,10 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
                     )
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     resolved = json.loads(result.stdout)
-                    self.assertEqual(resolved["status"], "hit" if candidate else "miss")
-                    if candidate:
-                        self.assertEqual(resolved["task"], task_ref)
-                        self.assertEqual(resolved["mode"], mode)
+                    self.assertEqual(resolved["status"], "hit")
+                    self.assertEqual(resolved["origin"], "auto-loop" if candidate else "builtin-default")
+                    self.assertEqual(resolved["task"], task_ref)
+                    self.assertEqual(resolved["mode"], mode)
                     self.assertEqual(before, {str(p): p.read_bytes() for p in self.root.rglob("*") if p.is_file()})
 
         self.start_planning()

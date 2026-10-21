@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readCheckAllContract, readPushContract } from "./prompt-contract-helpers.js";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -117,8 +118,8 @@ test("全部编译后 Start 入口在恢复或建任务前优先处理检查修�
 test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算", () => {
   const autoLoop = readSource(".agents/skills/trellis-auto-loop/SKILL.md");
   const autoLoopClaude = readSource(".claude/skills/trellis-auto-loop/SKILL.md");
-  const push = readSource(".agents/skills/trellis-push/SKILL.md");
-  const pushClaude = readSource(".claude/skills/trellis-push/SKILL.md");
+  const push = readPushContract(SOURCE);
+  const pushClaude = readPushContract(SOURCE, ".claude");
   const pushTemplates = readSource(
     ".agents/skills/trellis-push/references/output-templates.md",
   );
@@ -162,7 +163,7 @@ test("Auto-Loop commit-only 复用 Push 的动态多仓链和三次恢复预算"
   assert.match(push, /retained exact paths 的内容摘要不变/);
   assert.match(push, /验证 repository、commit object、message 和文件集合/);
   assert.match(push, /Auto-Loop runner 在提交成功后原子写入本地 `task\.json\.progress`、`status=completed`、`completedAt` 与确定性 `closeout`/);
-  assert.match(push, /本 skill 跳过 Step 5/);
+  assert.match(push, /不执行 Step 5/);
   assert.match(push, /不得 reset、rebase、revert、amend 或撤销成功提交/);
   assert.match(push, /auto-loop 内部 `commit-only` 不渲染交互式计划或结果/);
   assert.match(push, /不得为了内部执行读取 `references\/output-templates\.md`/);
@@ -209,10 +210,8 @@ test("各 Gate 的完整契约位于原生 owner", () => {
   );
   const route = readSource(".agents/skills/trellis-route/SKILL.md");
   const checkAll = readSource(".agents/skills/trellis-check-all/SKILL.md");
-  const checkAllReporting = readSource(
-    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
-  );
-  const push = readSource(".agents/skills/trellis-push/SKILL.md");
+  const checkAllReporting = readCheckAllContract(SOURCE);
+  const push = readPushContract(SOURCE);
   const completedRecovery = readSource(
     ".agents/skills/trellis-push/references/completed-task-recovery.md",
   );
@@ -263,13 +262,10 @@ test("各 Gate 的完整契约位于原生 owner", () => {
   assert.match(selfUpdate, /post_action: "run_trellis_push_confirmation"/);
   assert.match(planningState, /follow `Request Triage`: resolve selected Check-All repairs first/);
   assert.match(activeState, /follow `Request Triage`: resolve selected Check-All repairs through/);
-  assert.match(route, /合法 route 决策必须能追溯到/);
-  assert.match(route, /implement 路由只决定执行位置，不拥有实现后的停止策略/);
+  assert.match(route, /helper 校验 task、target、scope、mode\/source/);
+  assert.match(route, /路由不另设停止策略/);
   assert.match(route, /返回 workflow Phase 2\.1 的 completion contract/);
-  assert.ok(
-    checkAllReporting.indexOf("## Auto-Loop Return Gate")
-      < checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),
-  );
+  assert.match(checkAllReporting, /validated auto-loop.*auto-loop-return\.md/);
   assert.equal((checkAllReporting.match(/## Interactive Post-Check Stop Gate/g) || []).length, 1);
   assert.match(checkAll, /本 skill 是 \*\*薄入口\*\*/);
   assert.match(checkAllReporting, /不新增 direct Git 摘要或 Git 计划/);
@@ -354,7 +350,7 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
     "overrides/patches/skills/trellis-continue/task-progress-recovery/content.md",
   );
   const route = readSource(".agents/skills/trellis-route/SKILL.md");
-  const push = readSource(".agents/skills/trellis-push/SKILL.md");
+  const push = readPushContract(SOURCE);
   const pushTemplates = readSource(
     ".agents/skills/trellis-push/references/output-templates.md",
   );

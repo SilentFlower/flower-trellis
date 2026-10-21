@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readCheckAllContract, readPushContract } from "./prompt-contract-helpers.js";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -54,7 +55,7 @@ test("Check-All 按根因区分 CHK 与 FBK，并为两类问题分配严重度"
   assert.match(agents, /接受当前报告全部风险.*包括 P0/s);
   assert.match(agents, /部分接受须唯一定位/);
   assert.match(agents, /报告或范围不清才追问/);
-  assert.match(agents, /接受有效性与增量展示统一按 `reporting-and-disposition\.md`/);
+  assert.match(agents, /接受有效性与增量展示统一按 `findings-and-reporting\.md`/);
   assert.doesNotMatch(agents, /P0 必须逐项写出精确 ID/);
   assert.match(agents, /`strict pass` 仍要求剩余 `CHK-\*` 与 `FBK-\*` 均为 0/);
   assert.match(agents, /未处置 `CHK-\*` \/ `FBK-\*`、阻断型部分验证或阻塞会阻断/);
@@ -66,14 +67,8 @@ test("统一报告分别展示 CHK 与 FBK，并支持显式风险接受", () =>
     sourceRoot,
     ".agents/skills/trellis-check-all/SKILL.md",
   );
-  const agents = read(
-    sourceRoot,
-    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
-  );
-  const claude = read(
-    sourceRoot,
-    ".claude/skills/trellis-check-all/references/reporting-and-disposition.md",
-  );
+  const agents = readCheckAllContract(sourceRoot);
+  const claude = readCheckAllContract(sourceRoot, ".claude");
   const light = read(
     sourceRoot,
     ".agents/skills/trellis-check-all/references/light-profile.md",
@@ -88,7 +83,7 @@ test("统一报告分别展示 CHK 与 FBK，并支持显式风险接受", () =>
   );
 
   assert.equal(agents, claude);
-  assert.match(entry, /不满足自动修复条件的文档问题根据根因转为 `CHK-\*`、`FBK-\*` 或剩余风险/);
+  assert.match(docRemediation, /不满足自动修复|不得自动改，必须根据根因进入 `CHK-\*`、`FBK-\*`、剩余风险或阻塞/);
   assert.match(docRemediation, /不得自动改，必须根据根因进入 `CHK-\*`、`FBK-\*`、剩余风险或阻塞/);
   assert.match(agents, /CHK <N>（接受 <N>）· FBK <N>（接受 <N>）/);
   assert.match(agents, /\| 维度 \| 状态 \| CHK \| FBK \| 验证 \|/);
@@ -143,8 +138,8 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
     sourceRoot,
     "overrides/patches/workflow/phase-ownership/phase-2-check-content.md",
   );
-  const pushAgents = read(sourceRoot, ".agents/skills/trellis-push/SKILL.md");
-  const pushClaude = read(sourceRoot, ".claude/skills/trellis-push/SKILL.md");
+  const pushAgents = readPushContract(sourceRoot);
+  const pushClaude = readPushContract(sourceRoot, ".claude");
   const pushTemplatesAgents = read(
     sourceRoot,
     ".agents/skills/trellis-push/references/output-templates.md",
@@ -157,7 +152,7 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
   assert.equal(routeAgents, routeClaude);
   assert.equal(pushAgents, pushClaude);
   assert.equal(pushTemplatesAgents, pushTemplatesClaude);
-  assert.match(routeAgents, /`CHK-\*` \/ `FBK-\*` \/ `DOC-\*`/);
+  assert.match(routeAgents, /只返回候选和证据，不写文件/);
   assert.match(routeAgents, /\[subagent-dispatch\.md\]\(references\/subagent-dispatch\.md\)/);
   assert.match(routeDispatch, /已声明的兜底契约只影响证据和严重度，不改变 `FBK-\*` 归属/);
   assert.match(routeDispatch, /泛化建议不报告/);
@@ -174,17 +169,18 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
   assert.match(workflow, /Any unaccepted finding.*reports and stops/);
   assert.match(workflow, /`\[上线后验证\]` items remain visible but do not block/);
   assert.match(workflow, /does not itself force another Full/);
-  assert.match(pushAgents, /所有剩余问题都有当前有效的用户风险接受时标记为 `通过（已接受风险）`/);
-  assert.match(pushAgents, /`\[上线后验证\]` 不改变 Check-All 的通过状态/);
+  assert.match(pushAgents, /有效已接受风险/);
+  assert.match(pushTemplatesAgents, /通过（N 项风险已接受）/);
+  assert.match(pushAgents, /`\[上线后验证\]` 作为非阻断风险/);
   assert.match(pushTemplatesAgents, /任一未处置 `CHK-\*` \/ `FBK-\*`.*计入风险区/);
   assert.match(pushTemplatesAgents, /未变化且接受仍有效的问题只在完成链证据中汇总数量，不再进入风险区/);
   assert.match(pushTemplatesAgents, /`\[上线后验证\]`.*非阻断风险.*`trellis-release`/s);
 });
 
 test("接受全部或部分风险只更新处置，重检和主动展开仍保留问题证据", () => {
-  const reporting = read(sourceRoot, ".agents/skills/trellis-check-all/references/reporting-and-disposition.md");
+  const reporting = readCheckAllContract(sourceRoot);
   const entry = read(sourceRoot, ".agents/skills/trellis-check-all/SKILL.md");
-  const disposition = reporting.slice(reporting.indexOf("### 接受后的增量展示"), reporting.indexOf("## 验证阶段"));
+  const disposition = reporting.slice(reporting.indexOf("### 接受后的增量展示"), reporting.indexOf("## 输出：统一检查报告"));
 
   assert.match(disposition, /首次报告完整展示全部问题/);
   assert.match(disposition, /若只改变处置状态，简短确认本次接受的 ID、更新后的结论和必要的下一步/);
@@ -196,24 +192,24 @@ test("接受全部或部分风险只更新处置，重检和主动展开仍保�
   assert.match(disposition, /用户要求详情时再展开指定问题的原报告与当前处置/);
   assert.match(disposition, /原报告或接受依据无法恢复时.*针对受影响项目补核/);
   assert.match(disposition, /不新增展示次数、状态文件或报告附件/);
-  assert.match(entry, /首次报告、接受后增量展示与分流规则/);
+  assert.match(reporting, /未变化的有效已接受问题不重复展开/);
   assert.doesNotMatch(reporting, /已接受问题继续完整展示|有问题或已接受风险时完整展示|先输出完整标准报告/);
   assert.match(reporting, /原报告与接受记录保留完整问题、原通道、严重度和证据/);
 });
 
 test("风险有效性按问题关联证据判断，无关改动不撤销接受", () => {
-  const reporting = read(sourceRoot, ".agents/skills/trellis-check-all/references/reporting-and-disposition.md");
+  const reporting = readCheckAllContract(sourceRoot);
   const fallback = read(sourceRoot, ".agents/skills/trellis-check-all/references/fallback-findings.md");
 
   assert.match(reporting, /实质改变该问题的证据、触发条件、影响或严重度；改变时仅该问题的原接受失效/);
   assert.match(reporting, /无关文件改动、行号移动或不改变问题语义的报告整理不使接受失效/);
   assert.match(reporting, /无法确认关联证据仍有效时明确缺口，不推断继续有效/);
-  assert.match(fallback, /接受有效性与增量展示统一按 `reporting-and-disposition\.md`/);
+  assert.match(fallback, /接受有效性与增量展示统一按 `findings-and-reporting\.md`/);
   assert.doesNotMatch(fallback, /证据、diff、内容或严重度变化后失效/);
 });
 
 test("全部有效风险接受后默认承接 Update-Spec，人工停止与 Git 确认仍保留", () => {
-  const reporting = read(sourceRoot, ".agents/skills/trellis-check-all/references/reporting-and-disposition.md");
+  const reporting = readCheckAllContract(sourceRoot);
   const workflow = read(sourceRoot, "overrides/patches/workflow/phase-ownership/phase-2-check-content.md");
   const updateSpec = read(sourceRoot, "overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md");
 

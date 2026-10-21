@@ -42,105 +42,8 @@ For triggered tasks, include all sections below:
 
 ---
 
-## When to Update Code-Specs
-
-| Trigger | Example | Target Spec |
-|---------|---------|-------------|
-| **Implemented a feature** | Added a new integration or module | Relevant spec file |
-| **Made a design decision** | Chose extensibility pattern over simplicity | Relevant spec + "Design Decisions" section |
-| **Fixed a bug** | Found a subtle issue with error handling | Relevant spec (e.g., error-handling docs) |
-| **Discovered a pattern** | Found a better way to structure code | Relevant spec file |
-| **Hit a gotcha** | Learned that X must be done before Y | Relevant spec + "Common Mistakes" section |
-| **Established a convention** | Team agreed on naming pattern | Quality guidelines |
-| **New thinking trigger** | "Don't forget to check X before doing Y" | `guides/*.md` (as a checklist item) |
-
-**Key Insight**: Code-spec updates are NOT just for problems. Every feature implementation contains design decisions and contracts that future AI/developers need to execute safely.
-
----
-
-## Spec Structure Overview
-
-```
-.trellis/spec/
-├── <layer>/           # Per-layer coding standards (e.g., backend/, frontend/, api/)
-│   ├── index.md       # Overview and links
-│   └── *.md           # Topic-specific guidelines
-└── guides/            # Thinking checklists (NOT coding specs!)
-    ├── index.md       # Guide index
-    └── *.md           # Topic-specific guides
-```
-
-### CRITICAL: Code-Spec vs Guide - Know the Difference
-
-| Type | Location | Purpose | Content Style |
-|------|----------|---------|---------------|
-| **Code-Spec** | `<layer>/*.md` | Tell AI "how to implement safely" | Signatures, contracts, matrices, cases, test points |
-| **Guide** | `guides/*.md` | Help AI "what to think about" | Checklists, questions, pointers to specs |
-
-**Decision Rule**: Ask yourself:
-
-- "This is **how to write** the code" → Put in a spec layer directory
-- "This is **what to consider** before writing" → Put in `guides/`
-
-**Example**:
-
-| Learning | Wrong Location | Correct Location |
-|----------|----------------|------------------|
-| "Use API X not API Y for this task" | ❌ `guides/` (too specific for a thinking guide) | ✅ Relevant spec file (concrete convention) |
-| "Remember to check X when doing Y" | ❌ Spec file (too abstract for a spec) | ✅ `guides/` (thinking checklist) |
-
-**Guides should be short checklists that point to specs**, not duplicate the detailed rules.
-
----
-
-## Update Process
-
-### Step 1: Identify What You Learned
-
-Answer these questions:
-
-1. **What did you learn?** (Be specific)
-2. **Why is it important?** (What problem does it prevent?)
-3. **Where does it belong?** (Which spec file?)
-
-### Step 2: Classify the Update Type
-
-| Type | Description | Action |
-|------|-------------|--------|
-| **Design Decision** | Why we chose approach X over Y | Add to "Design Decisions" section |
-| **Project Convention** | How we do X in this project | Add to relevant section with examples |
-| **New Pattern** | A reusable approach discovered | Add to "Patterns" section |
-| **Forbidden Pattern** | Something that causes problems | Add to "Anti-patterns" or "Don't" section |
-| **Common Mistake** | Easy-to-make error | Add to "Common Mistakes" section |
-| **Convention** | Agreed-upon standard | Add to relevant section |
-| **Gotcha** | Non-obvious behavior | Add warning callout |
-
-### Step 3: Read the Target Code-Spec
-
-Before editing, read the current code-spec to:
-- Understand existing structure
-- Avoid duplicating content
-- Find the right section for your update
-
-```bash
-cat .trellis/spec/<category>/<file>.md
-```
-
-### Step 4: Make the Update
-
-Follow these principles:
-
-1. **Be Specific**: Include concrete examples, not just abstract rules
-2. **Explain Why**: State the problem this prevents
-3. **Show Contracts**: Add signatures, payload fields, and error behavior
-4. **Show Code**: Add code snippets for key patterns
-5. **Keep it Short**: One concept per section
-
-### Step 5: Update the Index (if needed)
-
-If you added a new section or the code-spec status changed, update the category's `index.md`.
-
----
+<!-- BEGIN skill-garden patch trellis-update-spec-prune-learning-guidance v0.6 -->
+<!-- END skill-garden patch trellis-update-spec-prune-learning-guidance v0.6 -->
 
 ## Update Templates
 
@@ -175,115 +78,13 @@ If you added a new section or the code-spec status changed, update the category'
 ```
 <!-- END skill-garden patch trellis-update-spec-examples-template v0.6 -->
 
-### Adding a Design Decision
-
-```markdown
-### Design Decision: [Decision Name]
-
-**Context**: What problem were we solving?
-
-**Options Considered**:
-1. Option A - brief description
-2. Option B - brief description
-
-**Decision**: We chose Option X because...
-
-**Example**:
-\`\`\`typescript
-// How it's implemented
-code example
-\`\`\`
-
-**Extensibility**: How to extend this in the future...
-```
-
-### Adding a Project Convention
-
-```markdown
-### Convention: [Convention Name]
-
-**What**: Brief description of the convention.
-
-**Why**: Why we do it this way in this project.
-
-**Example**:
-\`\`\`typescript
-// How to follow this convention
-code example
-\`\`\`
-
-**Related**: Links to related conventions or specs.
-```
-
-### Adding a New Pattern
-
-```markdown
-### Pattern Name
-
-**Problem**: What problem does this solve?
-
-**Solution**: Brief description of the approach.
-
-**Example**:
-\`\`\`
-// Good
-code example
-
-// Bad
-code example
-\`\`\`
-
-**Why**: Explanation of why this works better.
-```
-
-### Adding a Forbidden Pattern
-
-```markdown
-### Don't: Pattern Name
-
-**Problem**:
-\`\`\`
-// Don't do this
-bad code example
-\`\`\`
-
-**Why it's bad**: Explanation of the issue.
-
-**Instead**:
-\`\`\`
-// Do this instead
-good code example
-\`\`\`
-```
-
-### Adding a Common Mistake
-
-```markdown
-### Common Mistake: Description
-
-**Symptom**: What goes wrong
-
-**Cause**: Why this happens
-
-**Fix**: How to correct it
-
-**Prevention**: How to avoid it in the future
-```
-
-### Adding a Gotcha
-
-```markdown
-> **Warning**: Brief description of the non-obvious behavior.
->
-> Details about when this happens and how to handle it.
-```
-
----
+<!-- BEGIN skill-garden patch trellis-update-spec-prune-writing-examples v0.6 -->
+<!-- END skill-garden patch trellis-update-spec-prune-writing-examples v0.6 -->
 
 <!-- BEGIN skill-garden patch trellis-update-spec-autonomous-evaluation v0.6 -->
 ## Autonomous Spec Evaluation
 
-This section replaces the interactive “whether to update” decision. The Code-Spec First Rule remains authoritative when an update is necessary.
+This section replaces the interactive “whether to update” decision. The Code-Spec First Rule remains authoritative when an update is necessary. Package/layer code-specs hold executable contracts; shared guides hold short thinking checklists and pointers, not duplicate contract details.
 
 ### Result Contract
 
@@ -306,7 +107,7 @@ Do not enter the upstream Interactive Mode and do not ask whether a spec should 
 
 ### Evidence Order
 
-Read real evidence in this order. Do not decide from the chat summary, task title, or intuition alone:
+Reuse already-read, unchanged evidence in this order; read missing or changed material. Do not decide from the chat summary, task title, or intuition alone:
 
 1. For task context, the current task's `implement.jsonl` / `check.jsonl` and every file they reference.
 2. For task context, the current task's `prd.md`, `design.md`, and `implement.md`.
@@ -377,11 +178,5 @@ Development Flow:
 - `update-spec` evaluates and writes durable project guidance.
 - Check-All decides whether the current result may continue to Update-Spec and Push.
 <!-- END skill-garden patch trellis-update-spec-command-relationship v0.6 -->
-## Core Philosophy
-
-> **Code-specs are living documents. Every debugging session, every "aha moment" is an opportunity to make the implementation contract clearer.**
-
-The goal is **institutional memory**:
-- What one person learns, everyone benefits from
-- What AI learns in one session, persists to future sessions
-- Mistakes become documented guardrails
+<!-- BEGIN skill-garden patch trellis-update-spec-prune-philosophy v0.6 -->
+<!-- END skill-garden patch trellis-update-spec-prune-philosophy v0.6 -->

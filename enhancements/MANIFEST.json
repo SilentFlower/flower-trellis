@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-10-21T11:46:25.321Z",
+  "syncedAt": "2026-10-21T15:32:28.279Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "ad8a42706eb6b61527f4bdc9068032b20f29d85c",
+  "sourceCommit": "78cc696883cf73ca04dd406b77448bac344f92ef",
   "common": {
     "codexSkills": [
       "aliyun-ops",
@@ -501,6 +501,9 @@
         "skills/trellis-update-spec/autonomous-evaluation/examples-template-content.md",
         "skills/trellis-update-spec/autonomous-evaluation/examples-template-selector.md",
         "skills/trellis-update-spec/autonomous-evaluation/patch.json",
+        "skills/trellis-update-spec/autonomous-evaluation/prune-learning-guidance-selector.md",
+        "skills/trellis-update-spec/autonomous-evaluation/prune-philosophy-selector.md",
+        "skills/trellis-update-spec/autonomous-evaluation/prune-writing-examples-selector.md",
         "workflow/hub/content.md",
         "workflow/hub/patch.json",
         "workflow/intent-routing/create-task-command/content.md",

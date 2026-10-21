@@ -7,13 +7,13 @@ import { fileURLToPath } from "node:url";
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const sourceRoot = path.join(projectRoot, "vendor/skill-garden/.trellis/0.6");
 const snapshotRoot = path.join(projectRoot, "enhancements/0.6");
-const mainEntryMaxBytes = 7916;
-const defaultRequiredMaxBytes = 39696;
+const mainEntryMaxBytes = 4096;
+const defaultRequiredMaxBytes = 24 * 1024;
 const defaultRequiredPaths = [
   ".agents/skills/trellis-check-all/SKILL.md",
   ".agents/skills/trellis-check-all/references/depth-routing.md",
-  ".agents/skills/trellis-check-all/references/fallback-findings.md",
-  ".agents/skills/trellis-check-all/references/document-drift-auto-remediation.md",
+  ".agents/skills/trellis-check-all/references/light-profile.md",
+  ".agents/skills/trellis-check-all/references/verification.md",
   ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
 ];
 
@@ -37,6 +37,12 @@ test("Check-All 默认必读上下文不超过任务基线", () => {
 
   assert.ok(Buffer.byteLength(mainEntry) <= mainEntryMaxBytes);
   assert.ok(totalBytes <= defaultRequiredMaxBytes);
+  assert.match(mainEntry, /未命中 DOC 候选不读取自修细则/);
+  assert.match(mainEntry, /任何自修之前必须读取并满足白名单/);
+  const reporting = read(sourceRoot, defaultRequiredPaths.at(-1));
+  assert.match(reporting, /普通 light strict pass.*不读取上述细则/);
+  assert.doesNotMatch(reporting, /## 统一问题模型|## Auto-Loop Return Gate/);
+  assert.match(reporting, /full 报告、存在 CHK\/FBK\/DOC、风险接受或修复重检/);
 
   for (const relativePath of defaultRequiredPaths) {
     const claudePath = relativePath.replace(".agents/", ".claude/");

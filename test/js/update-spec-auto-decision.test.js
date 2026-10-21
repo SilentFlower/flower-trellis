@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readCheckAllContract, readPushContract } from "./prompt-contract-helpers.js";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -65,11 +66,8 @@ test("交互 Check-All 通过默认同轮收尾，明确停止、人工修复和
     sourceRoot,
     ".agents/skills/trellis-check-all/SKILL.md",
   );
-  const checkAllReporting = read(
-    sourceRoot,
-    ".agents/skills/trellis-check-all/references/reporting-and-disposition.md",
-  );
-  const push = read(sourceRoot, ".agents/skills/trellis-push/SKILL.md");
+  const checkAllReporting = readCheckAllContract(sourceRoot);
+  const push = readPushContract(sourceRoot);
   const pushTemplates = read(
     sourceRoot,
     ".agents/skills/trellis-push/references/output-templates.md",
@@ -83,10 +81,7 @@ test("交互 Check-All 通过默认同轮收尾，明确停止、人工修复和
     checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),
     checkAllReporting.length,
   );
-  const autoLoopReturn = checkAllReporting.slice(
-    checkAllReporting.indexOf("## Auto-Loop Return Gate"),
-    checkAllReporting.indexOf("## Interactive Post-Check Stop Gate"),
-  );
+  const autoLoopReturn = read(sourceRoot, ".agents/skills/trellis-check-all/references/auto-loop-return.md");
   assert.match(autoLoopReturn, /不提示用户回复“继续”/);
   assert.match(autoLoopReturn, /record 成功后立即 `next`/);
   assert.match(autoLoopReturn, /status=retryable reason=artifact-drift/);
@@ -96,7 +91,7 @@ test("交互 Check-All 通过默认同轮收尾，明确停止、人工修复和
   assert.doesNotMatch(autoLoopReturn, /提示用户回复 `继续`/);
   assert.match(postCheck, /只从当前完成链证据识别 direct Git intent/);
   assert.match(postCheck, /全部 findings 已有效接受/);
-  assert.match(postCheck, /风险接受沿用上方证据规则/);
+  assert.match(postCheck, /风险接受沿用 findings reference 的证据规则/);
   assert.match(postCheck, /报告或简短确认后同轮进入 Update-Spec/);
   assert.match(postCheck, /先识别当前事项最新有效的明确停止要求/);
   for (const stop of ["只检查", "只读检查", "检查后停止", "暂不收尾", "仅接受、不继续"]) {
@@ -134,15 +129,18 @@ test("交互 Check-All 通过默认同轮收尾，明确停止、人工修复和
   assert.match(push, /本步骤不得返回 Phase 2\.2/);
   assert.match(push, /不得加载 `trellis-check-all` 或 `trellis-update-spec`/);
   assert.match(push, /不会阻止读取 Git 状态或生成提交计划/);
-  assert.match(push, /即将展示用户可见计划时，必须即时读取 `references\/output-templates\.md`/);
-  assert.match(push, /即将展示用户可见结果时，必须再次即时读取 `references\/output-templates\.md`/);
+  assert.match(push, /即将展示用户可见计划时，读取 `references\/output-templates\.md`/);
+  assert.match(push, /即将展示用户可见结果时，读取 `references\/output-templates\.md`/);
+  assert.match(push, /已读、未变化且内容仍可用时直接复用/);
+  assert.match(push, /模板变化或上下文缺失才重读/);
   assert.match(push, /“共用展示规则”、“结果模板”和“结果补充规则”/);
   assert.match(push, /不得凭记忆重建、缩写或自制替代模板/);
   assert.match(pushTemplates, /### 完成链证据/);
   assert.match(pushTemplates, /`未运行`、`已失效`、任一未处置 `CHK-\*` \/ `FBK-\*`、blocked、部分验证或 `needs-review` 同时计入风险区/);
   assert.match(pushTemplates, /`\[上线后验证\]` 作为非阻断风险逐项保留/);
   assert.match(pushTemplates, /既有 `trellis-release` \/ `release\.md` 流程承接/);
-  assert.match(push, /所有剩余问题都有当前有效的用户风险接受时标记为 `通过（已接受风险）`/);
+  assert.match(push, /有效已接受风险/);
+  assert.match(pushTemplates, /通过（N 项风险已接受）/);
   assert.match(push, /auto-loop 内部 `commit-only` 已由 runner/);
   assert.doesNotMatch(push, /## Step 0：交互式完成链门禁/);
 });

@@ -375,6 +375,96 @@ class RouteStateCompatibilityTest(unittest.TestCase):
             self.assertEqual(restored["task"], second[0])
             self.assertEqual(restored["mode"], "check-all-inline")
 
+    def test_default_inline_is_read_only_for_execution_and_preview(self) -> None:
+        """无选择时普通执行与 runner 预检均命中 inline，且不创建偏好或 runtime。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-default-") as temp:
+            root = Path(temp)
+            task_ref = ".trellis/tasks/current"
+            task = root / task_ref
+            task.mkdir(parents=True)
+            (task / "task.json").write_text('{}\n', encoding="utf-8")
+            before = {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+            for target, mode in (("implement", "inline"), ("check", "check-all-inline")):
+                for preview in (False, True):
+                    extra = ["--read-only", "--task", task_ref] if preview else []
+                    args = self.module.build_parser().parse_args([
+                        "resolve", "--target", target, "--verbose", *extra,
+                    ])
+                    with self.subTest(target=target, preview=preview), mock.patch.object(
+                        self.module, "_repo_root", return_value=root,
+                    ), mock.patch.object(self.module, "_current_task", return_value=(
+                        task_ref, "session:codex_test", "codex_test",
+                    )):
+                        output = io.StringIO()
+                        with redirect_stdout(output):
+                            self.module.resolve_route(args)
+                        result = json.loads(output.getvalue())
+                        self.assertEqual(result["status"], "hit")
+                        self.assertEqual(result["origin"], "builtin-default")
+                        self.assertEqual(result["source"], "builtin-default")
+                        self.assertEqual(result["mode"], mode)
+                        self.assertEqual(result["task"], task_ref)
+                        self.assertFalse(result["wrote_runtime"])
+                        self.assertEqual(before, {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()})
+
+    def test_cleared_preference_returns_inline_without_changing_other_target(self) -> None:
+        """清除指定偏好后直接使用内置模式，另一目标及无任务边界保持原样。"""
+        with tempfile.TemporaryDirectory(prefix="flower-route-clear-default-") as temp:
+            root = Path(temp)
+            self.module._write_prefs(root, {"implement": "subagent", "check": "check-all-subagent"})
+            args = argparse.Namespace(target="implement", verbose=False)
+            with mock.patch.object(self.module, "_repo_root", return_value=root):
+                with redirect_stdout(io.StringIO()):
+                    self.module.clear_pref(args)
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.module.read_pref(args)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["mode"], "inline")
+            self.assertEqual(result["source"], "builtin-default")
+            self.assertEqual(self.module._read_prefs(root), {"check": "check-all-subagent"})
+            self.assertFalse((root / ".trellis/.runtime").exists())
+
+    def test_default_does_not_hide_corrupt_ambiguous_or_invalid_run(self) -> None:
+        """默认 inline 不得把损坏 session、绑定 run、歧义队列或非法模式当作正常空状态。"""
+        for scenario, reason in (
+            ("session", "session-runtime-corrupt"),
+            ("bound-run", "session-auto-run-corrupt"),
+            ("ambiguous", "no-unique-auto-run"),
+            ("invalid-mode", "invalid-auto-route-mode"),
+            ("invalid-auth", "invalid-auto-route-mode"),
+        ):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory(prefix="flower-route-default-error-") as temp:
+                root = Path(temp)
+                task_ref = ".trellis/tasks/current"
+                session = root / ".trellis/.runtime/sessions/codex_test.json"
+                session.parent.mkdir(parents=True)
+                runs = root / ".trellis/.runtime/auto-loop"
+                runs.mkdir()
+                session.write_text('{broken' if scenario == "session" else '{}', encoding="utf-8")
+                if scenario == "bound-run":
+                    session.write_text('{"current_auto_run":"auto-bad"}', encoding="utf-8")
+                    (runs / "auto-bad.json").write_text('{broken', encoding="utf-8")
+                elif scenario in {"ambiguous", "invalid-mode", "invalid-auth"}:
+                    state = {"status": "running", "queue": [{"task": task_ref, "status": "running"}],
+                             "route_authorization": "invalid" if scenario == "invalid-auth" else {"implement": "invalid"}}
+                    (runs / "auto-one.json").write_text(json.dumps(state), encoding="utf-8")
+                    if scenario == "ambiguous":
+                        (runs / "auto-two.json").write_text(json.dumps(state), encoding="utf-8")
+                before = {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+                args = self.module.build_parser().parse_args(["resolve", "--target", "implement"])
+                with mock.patch.object(self.module, "_repo_root", return_value=root), mock.patch.object(
+                    self.module, "_current_task", return_value=(task_ref, "session:codex_test", "codex_test"),
+                ):
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        self.module.resolve_route(args)
+                result = json.loads(output.getvalue())
+                self.assertEqual(result["status"], "miss")
+                self.assertEqual(result["reason"], reason)
+                self.assertNotIn("mode", result)
+                self.assertEqual(before, {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()})
+
     def test_atomic_preference_write_preserves_old_file_on_replace_failure(self) -> None:
         """偏好原子替换失败时必须保留旧文件。"""
         with tempfile.TemporaryDirectory(prefix="flower-route-pref-atomic-") as temp:

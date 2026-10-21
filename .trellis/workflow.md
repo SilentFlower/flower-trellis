@@ -229,7 +229,7 @@ A different implementation request remains blocked by the single-active-work gua
 
 [workflow-state:untracked_check]
 The current-session untracked work item is at `check`. Run `python3 ./.trellis/scripts/untracked_flow.py status`, then enter Phase 2.2 through `trellis-route(target=check)` and execute `trellis-check-all`.
-If Check-All reports unaccepted findings or a new edit is needed, run `python3 ./.trellis/scripts/untracked_flow.py advance --stage implement` before returning to implementation. On a strict pass or accepted-risk pass, keep `check` while the interactive stop gate waits; only a same-turn direct Git continuation or a later explicit continuation advances to `spec`. The helper does not persist finding details or risk acceptance.
+Unaccepted findings or new edits return the cursor to `implement`. Follow Check-All's `Interactive Post-Check Stop Gate`: a passed check defaults to same-turn `spec`; an explicit check-only or stop-after-check request keeps `check`. The helper does not persist finding details or risk acceptance.
 [/workflow-state:untracked_check]
 
 [workflow-state:untracked_spec]
@@ -606,7 +606,7 @@ Planning documents may remain temporarily behind during repeated feedback. The e
 
 Run `trellis-route(target=check)`, then execute the unified `trellis-check-all` entry using the validated inline/subagent route.
 
-For untracked work, route reads only the personal pref helper and the dispatch prompt starts with `Untracked work: <work-id>` plus the work summary, current stage, actual diff, relevant specs, and validation context. Findings or new edits return the cursor to `implement`; a passed check advances to `spec` when the Post-Check owner permits default continuation. An explicit check-only or stop-after-check request keeps the cursor at `check`.
+For untracked work, route reads only the personal pref helper and the dispatch prompt starts with `Untracked work: <work-id>` plus the work summary, current stage, actual diff, relevant specs, and validation context. Unaccepted findings or new edits return the cursor to `implement`; a passed check advances to `spec` when the Post-Check owner permits default continuation. An explicit check-only or stop-after-check request keeps the cursor at `check`.
 
 Before interactive Check-All begins, run `python3 ./.trellis/scripts/pre_check_state.py clear`. A missing, subject-mismatched, or already-cleared preference is a no-op; a damaged runtime is reported diagnostically but safely defaults to checking.
 

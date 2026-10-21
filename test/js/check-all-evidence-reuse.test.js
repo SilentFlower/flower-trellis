@@ -70,7 +70,7 @@ test("两个 profile 的实际必读清单小于原 profile 加通用检查入�
 });
 
 test("检查及重检报告先解释实际改动，且不隐藏未验证内容或问题", () => {
-  const content = read("references/reporting-and-disposition.md");
+  const content = read("references/findings-and-reporting.md");
   assert.match(content, /staged、unstaged、未跟踪文件及必要的子仓/);
   assert.match(content, /不额外启动 Diff Brief 流程或重复扫描/);
   assert.match(content, /只有证据支持时才描述旧行为/);
@@ -92,6 +92,8 @@ test("去重清单与自然改动说明同步到双平台、快照和当前项�
     "references/verification.md",
     "references/maven-evidence.md",
     "references/reporting-and-disposition.md",
+    "references/findings-and-reporting.md",
+    "references/auto-loop-return.md",
   ]) {
     const expected = read(relativePath);
     for (const root of [sourceRoot, path.join(projectRoot, "enhancements/0.6"), projectRoot]) {
