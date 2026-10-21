@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "CLI 工程约定及指南入口"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "Python 跨平台、真实 CI、只读帮助及验证要求"}
+{"file": ".trellis/tasks/10-21-worktree-simple-ready/research/project-contracts.md", "reason": "相关 worktree/事务/分发规范原文摘录，避免上下文截断"}
+{"file": ".trellis/tasks/10-21-worktree-simple-ready/research/findings.md", "reason": "现场证据、旧任务自动绑定与固定包版本限制"}

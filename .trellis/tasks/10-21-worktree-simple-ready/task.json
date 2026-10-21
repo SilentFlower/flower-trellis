@@ -1,0 +1,79 @@
+{
+  "id": "worktree-simple-ready",
+  "name": "worktree-simple-ready",
+  "title": "简化 Worktree 创建与分支本地准备流程",
+  "description": "基于 xhgj-ai-harness 实际会话，解耦 Git 工作区创建与 Flower 状态继承，减少摘要、版本、忽略配置及旧任务脚本造成的阻断，形成可恢复的一次准备流程。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-10-21",
+  "completedAt": "2026-10-21",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-10-21T10:21:10Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-10-21T07:33:23Z",
+      "contextKey": "codex_01a15d48-1adc-7ef3-a76b-fed7c5212b29",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "f555b39b9e4b32206537d25dd4852b1ae53f1c4c",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "f555b39b9e4b32206537d25dd4852b1ae53f1c4c",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "712e980c420836fad73f47fc703c31d4db4d8c4555b099316cd79c12058c5edb"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "037dd0ef841f81856ab2a382f7eec4f9cdbc9389",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "82d33d63669f9d525ab7ec807ab568e889e795151075dc09441803a11b509853"
+          }
+        ],
+        "fingerprint": "5d597d6de0e12c34c005c038f64cd17fdc9b7867a96912b8bef1d80ae381060c"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "完成 Worktree 实现及 KISS 收缩",
+      "完成两项 Check-All 问题修复、复检与规范同步",
+      "推送作者源、Flower 实现及跨平台测试夹具修正",
+      "通过原生 Ubuntu/Windows 的 Python 3.8/3.12 矩阵及更新链路回归"
+    ],
+    "partialStep": null,
+    "nextStep": "任务已完成，无后续开发步骤",
+    "notes": "原生兼容矩阵 4/4 与更新链路 2/2 成功，SessionStart 2/2 复用有效证据。验收回执及平台跳过说明见 implement.md。",
+    "updatedAt": "2026-10-21T10:21:10Z"
+  }
+}
