@@ -91,9 +91,10 @@ test("Patch 配置、依赖、共享运行时、未知测试与空范围保留�
   ]) assert.deepEqual(classifyCiChanges(files), FULL, JSON.stringify(files));
 });
 
-test("真实 Git 差异保留中文、空格、换行及重命名前后的路径", (t) => {
+test("真实 Git 差异保留平台允许的特殊字符及重命名前后的路径", (t) => {
   const repo = temporaryRepository(t);
-  const oldFile = "docs/中文 空格\n说明.md";
+  // Windows 不允许换行文件名；两平台都验证中文空格，POSIX 额外覆盖换行。
+  const oldFile = process.platform === "win32" ? "docs/中文 空格说明.md" : "docs/中文 空格\n说明.md";
   repo.write(oldFile, "原文\n");
   repo.git("add", "--", oldFile);
   const base = repo.commit();
