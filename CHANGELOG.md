@@ -4,6 +4,19 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.12-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.12-beta.1...v0.6.12-beta.2) (2026-10-21)
+
+
+### ✨ 新功能 Features
+
+* **worktree:** 支持独立创建和目标本地准备 ([83c51b5](https://github.com/SilentFlower/flower-trellis/commit/83c51b53e334dae4e847a05628cf8602c1f70411))
+
+
+### 🐛 修复 Bug Fixes
+
+* **check-all:** 同步修复续行入口与回归检查 ([36cd997](https://github.com/SilentFlower/flower-trellis/commit/36cd997f664781eebe4b4a97df266b37e5a1747a))
+* **workflow:** 同步流程精简与能力回归 ([cb46908](https://github.com/SilentFlower/flower-trellis/commit/cb4690880eaac5f0d27f38f852c0d4d8475573bd))
+
 ## [0.6.12-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.6.12-beta.0...v0.6.12-beta.1) (2026-10-16)
 
 
