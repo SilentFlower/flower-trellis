@@ -71,7 +71,7 @@ test("worktree 参数由 Flower 自有 facade 消费", () => {
     "--json",
   ], "/tmp/project");
   assert.equal(parsedCli.command, "worktree");
-  assert.equal(parsedCli.ctx.target, "/tmp/parallel");
+  assert.equal(parsedCli.ctx.target, path.resolve("/tmp/parallel"));
   assert.equal(parsedCli.ctx.targetExplicit, true);
 
   const parsed = parseWorktreeArgs(parsedCli.ctx.passthrough);
@@ -85,7 +85,7 @@ test("worktree 参数由 Flower 自有 facade 消费", () => {
       "--source",
       "/tmp/project",
       "--target",
-      "/tmp/parallel",
+      path.resolve("/tmp/parallel"),
       "--branch",
       "feature/parallel",
       "--base",
@@ -288,6 +288,6 @@ test("真实 CLI status 返回 branch-local 状态", (t) => {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.status, "ready-local");
-  assert.equal(payload.targetRoot, root);
+  assert.equal(fs.realpathSync.native(payload.targetRoot), fs.realpathSync.native(root));
   assert.equal(payload.sourceRoot, undefined);
 });

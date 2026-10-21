@@ -26,6 +26,8 @@ function fixture(t) {
   git("config", "user.email", "test@example.invalid");
   git("config", "user.name", "Test");
   fs.mkdirSync(path.join(source, ".trellis"));
+  // 固定夹具字节，避免 Git 自动换行让相同内容的来源与目标摘要不同。
+  fs.writeFileSync(path.join(source, ".gitattributes"), "* text=auto eol=lf\n");
   fs.writeFileSync(path.join(source, ".gitignore"), ".flower/\n");
   fs.writeFileSync(path.join(source, ".trellis/.version"), "0.6.14\n");
   fs.writeFileSync(path.join(source, "managed.md"), "已安装内容\n");

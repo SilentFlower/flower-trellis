@@ -21,7 +21,8 @@ export function writeLegacyManifest(target, value) {
  */
 export function createPluginTestRoot(t, prefix = "flower-plugin-") {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  // Git 临时文件可能延迟释放；仅对本夹具目录进行有界重试。
+  t.after(() => fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   return root;
 }
 

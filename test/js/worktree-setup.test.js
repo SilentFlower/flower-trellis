@@ -25,6 +25,8 @@ function fixture(t, projectConfig = false) {
   git("init");
   git("config", "user.name", "Tester");
   git("config", "user.email", "tester@example.invalid");
+  // 本项目的 Patch 和摘要使用 LF；目标检出也须继承相同的夹具属性。
+  fs.writeFileSync(path.join(source, ".gitattributes"), "* text=auto eol=lf\n");
   const initialized = runFlower(source, ["init", "-y", "--codex", "--no-update-check"], { timeout: 60000 });
   assert.equal(initialized.status, 0, `${initialized.stdout}\n${initialized.stderr}`);
   if (projectConfig) fs.appendFileSync(path.join(source, ".trellis/config.yaml"), "\n# 项目自有配置\nbusiness: keep\n");
