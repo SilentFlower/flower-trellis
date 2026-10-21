@@ -4,7 +4,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import semver from "semver";
-import { REQUIRED_IGNORE_RULES } from "../plugin/state/project-store.js";
+import { ProjectStore, REQUIRED_IGNORE_RULES } from "../plugin/state/project-store.js";
 import { validatePluginsFile, validatePluginLock, validatePluginState } from "../plugin/schemas/project-files.js";
 import { assertSafePosixRelativePath } from "../plugin/schemas/shared.js";
 import { stringifyCanonicalJson } from "../plugin/integrity/canonical-json.js";
@@ -13,6 +13,12 @@ import { contentSelectionsEqual } from "../plugin/content-selection.js";
 import { hashContent, hashDirectoryIfExists } from "../plugin/install/content-hash.js";
 import { assertPluginStateMatches } from "../plugin/install/state-validation.js";
 import { normalizeUpdateCheckPolicy } from "./manifest.js";
+import { PluginApplicationService } from "../plugin/application-service.js";
+import { TransactionWriter } from "../plugin/install/transaction-writer.js";
+import { SourceRegistry } from "../plugin/sources/source-registry.js";
+import { LocalSourceProvider } from "../plugin/sources/local-provider.js";
+import { SkillGardenBuiltinProvider } from "../builtin-plugins/skill-garden/provider.js";
+import { resolveSkillGardenPlatforms } from "../builtin-plugins/skill-garden/runtime.js";
 
 const RECORDS = ["plugins.json", "plugin-lock.json", "state.json"];
 const FILES = [...RECORDS, "settings.json"];
@@ -294,8 +300,92 @@ export function applyFlowerTransfer(input) {
     return { ...plan, validationPending: false, receipt };
   } catch (error) {
     try { rollbackFlowerTransfer(input.target, receipt); }
-    catch (rollbackError) { error.message += `; 回滚失败:${rollbackError.message}`; }
+    catch (rollbackError) {
+      throw failure("flower-rollback-conflict", `${error.message}; 回滚失败:${rollbackError.message}`);
+    }
     throw error;
+  }
+}
+
+/** 判断配置是否既未入库又被目标自己的忽略规则覆盖。 */
+function ignoredLocalFile(target, relative) {
+  const ignored = spawnSync("git", ["-C", target, "check-ignore", "--no-index", "-q", "--", relative], { timeout: 10000 });
+  return !git(target, ["ls-files", "-z", "--", relative]) && !ignored.error && ignored.status === 0;
+}
+
+/**
+ * 按目标自身固定包补齐本地安装，不读取来源或恢复任务。
+ * @param {string} target 已存在的目标工作区
+ * @returns {object} 已保留、已初始化或带具体原因的待准备结果
+ */
+export function prepareWorktreeFlower(target) {
+  try {
+    const inspected = inspectWorktreeFlower(target);
+    if (inspected.reason === "flower-repair-required") throw failure(inspected.reason, inspected.message, inspected.path);
+    if (inspected.installation === "complete") return { action: "preserved", paths: [] };
+    const { values } = snapshot(target);
+    const plugins = values["plugins.json"];
+    const lock = values["plugin-lock.json"];
+    if (!plugins || !lock) {
+      if (!Object.values(values).some(Boolean) && readText(target, ".trellis/.flower-manifest.json") === null) {
+        return { action: "notRequested", paths: [] };
+      }
+      throw failure("flower-records-missing", "目标缺少声明或固定版本锁文件，请在目标会话核对安装信息", ".flower");
+    }
+    if (!plugins.plugins.length) throw failure("flower-records-missing", "目标的空安装记录尚不完整", ".flower");
+    if (!ignoredLocalFile(target, ".flower/state.json")) throw failure("flower-ignore-conflict", "本地安装状态必须未入库且被忽略", ".flower/state.json");
+    const registry = new SourceRegistry();
+    for (const entry of lock.plugins) {
+      if (!registry.has(entry.source.id)) {
+        if (entry.source.type === "builtin" && entry.source.id === "flower") {
+          registry.register(new SkillGardenBuiltinProvider({ projectRoot: target, previousState: values["state.json"] }));
+        } else if (entry.source.type === "local") {
+          const references = lock.plugins.filter((other) => other.source.id === entry.source.id).map((other) => other.source.reference);
+          registry.register(new LocalSourceProvider({ id: entry.source.id, projectRoot: target, references }));
+        } else throw failure("flower-package-unavailable", `目标固定包暂不可离线重放:${entry.id}@${entry.version}`, entry.id);
+      }
+      if (!registry.listCandidates(entry.id).some((candidate) => candidate.version === entry.version && candidate.integrity === entry.integrity)) {
+        throw failure("flower-package-unavailable", `缺少目标锁定的固定包:${entry.id}@${entry.version}`, entry.id);
+      }
+    }
+    const store = new ProjectStore(target);
+    // 本次只准备本地状态，声明和 lock 相等时保留原字节，不让重放规范化格式。
+    store.writePlugins = () => ({ status: "unchanged", path: ".flower/plugins.json" });
+    store.writeLock = () => ({ status: "unchanged", path: ".flower/plugin-lock.json" });
+    const writer = new TransactionWriter(target, { store });
+    let applied;
+    const service = new PluginApplicationService(target, { registry, store, writer: { apply: (transaction) => {
+      for (const [name, value] of [["plugins.json", transaction.plugins], ["plugin-lock.json", transaction.lock]]) {
+        if (stringifyCanonicalJson(JSON.parse(readText(target, `.flower/${name}`))) !== stringifyCanonicalJson(value)) {
+          throw failure("flower-record-conflict", `目标已有声明或锁定身份需要变更:.flower/${name}`, `.flower/${name}`);
+        }
+      }
+      // 忽略规则只核对实际效果，不在准备阶段移动根 .gitignore 的管理块。
+      transaction.plan.contentMutations = transaction.plan.contentMutations.filter((change) => !(change.target === ".gitignore" && change.source === "flower:project-metadata"));
+      for (const change of [...transaction.plan.contentMutations, ...transaction.plan.patchMutations]) {
+        ordinaryPath(target, change.target);
+        if (change.beforeHash === change.afterHash) continue;
+        const missingLocal = change.beforeHash === null && change.afterHash !== null && !git(target, ["ls-files", "-z", "--", change.target]) && (
+          (change.target === ".flower/.gitignore" && change.source === "flower:project-metadata") ||
+          (/^\.(?:codex|claude)\/[^/]+\.(?:json|toml|ya?ml)$/.test(change.target) && ignoredLocalFile(target, change.target))
+        );
+        if (!missingLocal) throw failure("flower-content-change-required", `目标准备需要修改现有或版本化内容:${change.target}`, change.target);
+      }
+      if (transaction.directoryRemovals.length || transaction.directoryClaims.some((entry) => entry.beforeHash === null && !entry.path.startsWith(".flower/"))) {
+        throw failure("flower-content-change-required", "目标准备需要变更受管内容目录");
+      }
+      applied = writer.apply(transaction);
+      return applied;
+    } } });
+    service.replay({ platforms: resolveSkillGardenPlatforms(target), onPreflight: (result) => {
+      if (result.approvalRequests.length) throw failure("flower-approval-required", "目标准备需要新增 Plugin 授权");
+    } });
+    if (applied.cleanup.status === "retained") throw failure("flower-repair-required", "安装准备完成但事务清理未完成，请核对恢复证据", applied.cleanup.path);
+    return { action: "initialized", paths: [...applied.changed, ".flower/state.json"] };
+  } catch (error) {
+    const reason = error.reason || error.code || "flower-setup-pending";
+    if (/repair|rollback/i.test(reason)) throw error;
+    return { action: "pending", paths: [], reason, path: error.path || null, message: error.message };
   }
 }
 
@@ -308,6 +398,10 @@ export function inspectWorktreeFlower(target) {
   let version = null;
   let source = null;
   try {
+    const transactions = ordinaryPath(target, ".flower/transactions");
+    if (fs.existsSync(transactions) && fs.readdirSync(transactions).length) {
+      throw failure("flower-repair-required", "存在未清理的 Plugin 事务，请先核对恢复证据", ".flower/transactions");
+    }
     const { values } = snapshot(target);
     version = values["plugin-lock.json"]?.plugins.find(({ id }) => id === "flower/skill-garden")?.version || null;
     if (version) source = "plugin-lock";
@@ -333,6 +427,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const input = JSON.parse(fs.readFileSync(0, "utf8"));
     let result;
     if (input.operation === "status") result = inspectWorktreeFlower(input.target);
+    else if (input.operation === "setup") result = prepareWorktreeFlower(input.target);
     else if (input.operation === "plan") result = planFlowerTransfer(input);
     else if (input.operation === "apply") result = applyFlowerTransfer(input);
     else if (input.operation === "rollback") {
@@ -341,7 +436,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     } else throw failure("flower-operation-invalid", "未知 Flower worktree 内部操作");
     console.log(JSON.stringify({ ok: true, result }));
   } catch (error) {
-    console.log(JSON.stringify({ ok: false, reason: error.reason || "flower-installation-invalid", message: error.message, path: error.path || null }));
+    console.log(JSON.stringify({ ok: false, reason: error.reason || error.code || "flower-installation-invalid", message: error.message, path: error.path || null }));
     process.exitCode = 1;
   }
 }

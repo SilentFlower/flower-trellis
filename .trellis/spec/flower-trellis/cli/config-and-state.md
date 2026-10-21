@@ -552,9 +552,9 @@ flower-trellis worktree prepare [--target <path>] [--developer <name>] \
   [--inherit-route-prefs] [--inherit-flower --source <path>] [--json]
 flower-trellis worktree migrate [--target <path>] [--dry-run] [--json]
 flower-trellis worktree create --target <path> --branch <branch> [--base <ref>] \
-  --task-title <title> --task-slug <slug> [--developer <name>] [--json]
+  [--task-title <title> --task-slug <slug>] [--task-description <text>] [--developer <name>] [--json]
 flower-trellis worktree create --target <path> --branch <branch> [--base <ref>] \
-  --task-title <title> --task-slug <slug> [--developer <name>] \
+  [--task-title <title> --task-slug <slug>] [--task-description <text>] [--developer <name>] \
   --yes --plan-fingerprint <sha256> [--json]
 flower-trellis worktree remove --target <path> [--json]
 ```
@@ -569,6 +569,9 @@ flower-trellis worktree remove --target <path> [--json]
 - `status` 只读；稳定状态为 `ready-local`、`needs-init`、`needs-prepare`、
   `needs-migration`、`blocked`、`error`。输出稳定包含 target/Git 身份、branch、HEAD、entry、
   local state、legacy、registry、actions、conflicts 和 reason，不再输出新流程 `sourceRoot`。
+  `setup` 返回 `status=ready|pending`、`issues` 和 `nextActions`；诊断包含 step/reason/path/message，
+  下一步命令使用 argv 数组。status 每次只根据当前文件重算本地和 Flower 状态，不跟踪任务进度；
+  create 的任务问题只保留在该次结果和 handoff 中。`ready-local` 不证明 Flower 安装完整。
 - `--target` 可指向 worktree 根、子目录或文件；缺省为当前目录。target 必须解析到 Git worktree
   toplevel，非 Git 目录返回 `reason=not-git-worktree`。
 - `.trellis` 必须是当前 worktree 的真实目录；平台入口按目标 `.template-hashes.json` 和当前真实
@@ -577,8 +580,9 @@ flower-trellis worktree remove --target <path> [--json]
   第一个 `.git` 文件、目录或 symlink 时停止；不得越过嵌套仓库 / linked worktree 边界命中父项目。
 - Flower `worktree` facade 作为外部 bootstrap 入口时，不得从目标目录的生成文件推断 Python
   命令；目标可能仍是 legacy symlink。只允许使用显式 `TRELLIS_PYTHON_CMD` 或当前平台默认值。
-- `prepare` 默认只创建目标自己的 `.trellis/.developer`、`.trellis/.runtime/sessions` 和 registry
-  元数据；身份来自 `--developer`、目标本地文件或 common registry，不读取其它 worktree 文件。
+- `prepare` 默认只补齐目标自己的 `.trellis/.developer`、`.trellis/.runtime/sessions`、Flower 安装信息
+  和既有 registry 机器映射，不创建或恢复任务。身份来自目标本地文件、`--developer` 或 common registry；显式身份先去除首尾空白，空值、NUL、换行写入前拒绝。
+  缺少身份只形成待准备项，不阻止 Git 创建；预检必须提前展示该事项。
   显式 `--inherit-route-prefs` 时，Flower facade 把当前控制 worktree 作为 engine `--source`；同时显式
   `--inherit-flower --source <path>` 时使用该同仓来源。engine
   必须先验证 source/target canonical git-common-dir 和开发者身份相同，再读取 source 的普通文件
@@ -586,27 +590,41 @@ flower-trellis worktree remove --target <path> [--json]
   获取 registry 锁后必须重新读取并校验 registry，再进行任何目标本地写入。
 - `.flower` 缺失单独作为 Flower 安装记录不完整处理，即使模板声明过该目录也不据此要求重装 Trellis。
   `ready-local` 不证明 Flower 完整；skill 对 `flower.installation=incomplete` 也必须处理补配。
-- create 默认把 Flower 继承纳入计划；prepare 仅在 `--inherit-flower --source <path>` 下继承。
+- create 在 Git 建立后调用 prepare；默认仅读取目标自己的声明、lock、state，优先保留有效安装，
+  否则按目标 lock 的精确 version/integrity 使用本地 builtin/local Provider 和既有
+  `PluginApplicationService.replay`；通过 writer 扩展点核对允许写入，再用统一事务一次应用。
+  创建前不执行安装重放或制作整仓临时镜像。
+  不调用可能联网的 `prepareLocked`，不升级目标基线；旧固定包不可用、坏记录、内容冲突或新增授权列为
+  Flower pending，独立的 Trellis/任务步骤仍可继续。没有安装证据的纯 Trellis 项目为 not-requested；
+  只有旧 manifest 或部分空记录不能报为安装完整，旧标记缺 lock 时不能套用来源新版。
+- 自动准备只接受本地安装记录及缺失、未入库且被忽略的受管 `.codex/.claude` 配置；既有内容必须
+  经完整固定包计划证明无需变更，不得直接重算摘要写回 state。不得改 tracked 文件、现有用户配置、
+  声明/lock 身份或新增受管内容目录；已入库后删除的文件即使匹配 ignore 也不能自动补写。
+  目标声明/lock 原字节保留，state 必须被忽略且不在 Git index 中；不整理根 `.gitignore`。
+- 目标版本依据不足时保留具体待办，不回退到来源。只有显式 `--inherit-flower --source` 才执行
+  原严格继承，它与默认目标准备互斥，不把来源异常变成 Git 创建的前置条件。
   源/目标 canonical Git common dir 必须相同。白名单为缺失的 plugins、plugin-lock、state；settings
   仅在同开发者且目标缺失时继承规范化 updateCheck 策略。目标已有记录保留原字节与权限，部分记录
-  必须与整个来源安装集合一致，不拼接不同版本。源记录缺失返回 unavailable，损坏或冲突失败。
+  必须与整个来源安装集合一致，不拼接不同版本。显式继承时源记录缺失返回 unavailable，损坏或冲突失败。
 - 继承前使用 Flower 既有 schema、lock 可达性及状态摘要规则校验声明、lock、state、平台和内容选择。
   源与目标的受管文件/目录/Patch 必须匹配；校验所有祖先路径，不跟随跨 worktree 软链接。
-  本地 Plugin 来源必须在目标存在且内容与来源一致。不能仅复制版本记录冒充已安装，也不调用 replay、
-  下载包或复制插件内容补平分支差异。源或目标存在 trellis-control 时停止继承，保留恢复语义。
+  本地 Plugin 来源必须在目标存在且内容与来源一致。严格继承不调用 replay、下载包或复制内容补平
+  分支差异；目标独立准备走上一条固定包路径。源或目标存在 trellis-control 时停止相关继承/准备，保留恢复语义。
 - Flower JS 随包服务拥有完整校验和写入；facade 提供自身 Node 与服务路径，由 Python engine 在生命周期
   内通过 JSON 调用。不得从目标分支加载适配器；直接 engine 缺少适配器时，Flower 继承明确要求外部 CLI，
   纯 Trellis 仍可准备。status 单独返回版本来源和 complete/incomplete/invalid；无适配器为 unchecked。
 - facade 固定 `FLOWER_WORKTREE_NODE=process.execPath` 和 `FLOWER_WORKTREE_HELPER` 为自身随包服务，
-  覆盖继承环境中的同名值。内部 stdin JSON 的 `operation=status|plan|apply|rollback`；成功必须返回
+  覆盖继承环境中的同名值。内部 stdin JSON 的 `operation=status|plan|apply|setup|rollback`；成功必须返回
   `{ok:true,result:{...}}` 且退出 0，非法结果或 60 秒超时返回 `flower-adapter-failed`。
-  `localStateTransfer.flower.action` 为 `inherited|preserved|unavailable|notRequested`；有计划时包含
-  `source`、`paths`、`digest`、`validationPending` 和 `reason`，回执不进入公开结果。
-  冲突沿用顶层 `status=error` 与 `reason/path`，不伪装成成功结果中的 blocked action。
-- 安装载荷原始字节摘要进入 create 指纹；忽略或未提交的白名单记录变化也使旧计划失效。
-  checkout 后、task 创建前重新验证目标。prepare 用项目外回执记录写入 inode 与摘要，失败仅清理本轮
+  `localStateTransfer.flower.action` 为 `inherited|preserved|initialized|pending|unavailable|notRequested`；有计划时包含
+  `paths` 和具体 reason；只有显式继承计划需要 digest，可附 source/validationPending。回执不进入公开结果。
+  普通安装准备问题以 setup 局部待办表达；路径冲突阻止相关写入，registry/恢复错误仍用非零 `status=error`。
+- create 指纹只绑定 Git 创建依赖、可选任务和规范化本地偏好，不读取源安装或预演包计划。
+  checkout 后的安装写入严格限制为本地 state、缺失忽略配置，真实内容需要变更时返回 pending。
+  独立准备复用 Plugin 事务；继承用项目外回执记录写入 inode 与摘要，失败仅清理本轮
   创建且未被修改的文件；适配器输出丢失也能从回执恢复。已有忽略规则不覆盖 state 时拒绝写入，
   缺少局部 `.flower/.gitignore` 时生成标准规则，不改根忽略策略，不复制缓存或事务。
+  事务遗留或回滚不完整必须返回 repair/rollback 错误，不能伪装为普通 pending 或安装完整。
 - schema v1 `.trellis-worktree.json` 只读兼容。自动迁移要求 manifest target/path 白名单有效、
   symlink 仍指向 manifest 声明来源，并且目标分支 `HEAD` 能重建全部受管真实目录。
   旧 `sourceRoot` 只用于验证 symlink，禁止作为迁移内容源。
@@ -617,7 +635,8 @@ flower-trellis worktree remove --target <path> [--json]
 - 迁移先在目标项目外临时目录执行 `git archive HEAD` 和内容验证，再事务替换 symlink；成功删除
   v1 manifest，失败恢复原链接和 manifest。新流程不再创建 worktree manifest。
 - registry 固定为 `{schemaVersion:1,developer?,worktrees:{<id>:{path,gitDir,branch,head,task,
-  trellisVersion,updatedAt}}}`；ID 从 canonical git-dir 哈希派生，写入使用同目录临时文件、
+  trellisVersion,updatedAt}}}`；不增加 setupRequest 或任务恢复游标。
+  ID 从 canonical git-dir 哈希派生，写入使用同目录临时文件、
   `fsync` 和原子替换。
 - registry 写入前必须全表校验：同一 worktree ID 的 path/gitDir 不得漂移，不同 ID 不得复用
   path 或 gitDir，同一 task 路径不得绑定多个 worktree，非对象条目必须失败关闭。
@@ -625,8 +644,10 @@ flower-trellis worktree remove --target <path> [--json]
   不得无锁覆盖。
 - `create` 必须在 task 规划文件产生前运行，并固定为两阶段：不带 `--yes` 时只读返回
   `status=confirmation-required`、`changed=false`、`requiresConfirmation=true` 和 plan fingerprint；真实
-  创建必须同时传 `--yes --plan-fingerprint <sha256>`。engine 重新计算完整计划，任一事实变化都返回
-  `reason=create-plan-changed` 和最新计划，且零写入。
+  创建必须同时传 `--yes --plan-fingerprint <sha256>`。指纹仅绑定 common-dir、目标路径/分支、解析后的
+  base commit、任务请求、有效 developer/偏好；请求任务时还绑定实际写入 `base_branch` 的基线名称，
+  即使两个名称指向同一提交也不能沿用旧任务计划。真实依赖变化返回 `create-plan-changed`
+  和最新计划，且零写入。来源 dirty 清单、未操作子仓现场及其它展示字段变化不使确认失效。
 - `create --base` 缺省时使用来源当前分支；来源 detached 时回退 `HEAD`。计划必须展示 source 仓名、
   canonical path、branch、HEAD，requested/effective base 与 resolved commit，以及 target branch/path/task。
   来源根仓 tracked/staged/untracked/conflict 状态只作为 warning，明确 `includedInBase=false`；不得 stash、
@@ -642,9 +663,18 @@ flower-trellis worktree remove --target <path> [--json]
 - 不继承 current task/session、untracked/pre-check/auto-loop/Ralph、agent 临时状态、Flower control/detached 状态、
   `.claude/settings.local.json`、cache、transaction 或 backup。handoff 必须返回 cwd、workspaceRoot、
   `requiresNewSession=true` 和原因；目标后续规划必须在新会话开始。
-- 确认后执行顺序为：校验 path/branch/base/fingerprint -> `git worktree add -b` -> local readiness ->
-  目标 developer/runtime/规范化 route 偏好 -> 校验并继承 Flower -> `task.py create --no-start` -> `set-branch` -> registry ->
-  handoff。失败只逆序清理本轮创建的 task/worktree/branch/registry。
+- task title/slug 成对可选，缺目标 Trellis/task.py 不阻止建 Git 目录。确认后依次建立 Git worktree、
+  登记原有机器映射，再独立准备本地状态、Flower 和可选任务。全部完成为 `created`；普通准备
+  未完成为 `created-needs-prepare`，两者退出 0，消费者必须检查 setup.status。准备失败保留目录、分支和
+  已创建任务；真实错误发生在 Git 建立后时附带 `worktreeCreated=true`、targetRoot、branch。
+- 任务只调用目标脚本，确认前不执行分支脚本；优先使用 `--no-start/--base-branch`，旧接口按帮助
+  探测并通过 set-branch/set-base-branch 补齐。子进程使用当前解释器、UTF-8 和禁字节码参数，清除
+  来源 session/conversation/transcript/thread 环境及 TRELLIS_CONTEXT_ID/OPENCODE_RUN_ID；旧接口有
+  Cursor ticket 或缺必要命令时保留 task pending，不修改脚本、不调用 start。
+- 任务只在本次 create 中尝试一次；部分创建成功时返回真实路径和未成功的目标命令，由目标新会话
+  补齐。非零退出、超时和启动异常统一为 `task-command-failed`；即使 create 超时，唯一已落盘任务
+  仍写入 `task`、`handoff.task` 和 registry，`nextActions` 只交接未完成的设置命令，不重复 create。
+  prepare 不读取任务请求、不触碰任务文件，也不重跑 create 或修改 PRD。
 - `remove` 要求 registry 精确匹配、Git clean、无活动 session/锁，且绑定 task 不处于 planning 或
   in_progress；主 worktree 和唯一 worktree 永远不得通过该命令移除。成功只移除 worktree 和
   registry 条目，保留 branch。Git remove 后若 registry 提交失败，必须用原 branch/HEAD 重建
@@ -657,29 +687,38 @@ flower-trellis worktree remove --target <path> [--json]
 | 条件 | 行为 |
 |------|------|
 | 目标存在真实 `.trellis`、本地 identity/runtime | `status=ready-local`；零 symlink/manifest 写入 |
-| 目标存在版本化内容但缺 identity/runtime | `status=needs-prepare`；prepare 只写本地状态和 registry |
+| 目标存在版本化内容但缺 identity/runtime | `status=needs-prepare`；prepare 只补本地状态和安装信息 |
 | 当前分支缺 `.trellis`，其它 worktree 有 Trellis | `status=needs-init`；不得扫描或选择其它 worktree |
 | schema v1 manifest 和 symlink 完整，目标 HEAD 可重建 | dry-run=`migration-ready`；真实迁移后目录本地化并删除 manifest |
 | 链接目标只有 Windows 扩展前缀或相对写法不同 | 按文件身份判定；同一存在目录通过，错误目录、缺失或不可读目标拒绝 |
 | schema v1 来源无法由目标 HEAD 重建 | `reason=migration-source-unavailable`；symlink/manifest 原样保留 |
 | manifest 损坏、target 不符、symlink 漂移或用户路径冲突 | `status=blocked`；任何写操作零部分写入 |
 | registry lock 已存在 | `reason=registry-lock-held`；不得 last-write-wins |
-| registry 中 ID/path/gitDir 漂移、路径碰撞或 task 重复绑定 | `status=blocked` 或稳定冲突 reason；prepare/create 在本地写入前停止或完整回滚 |
+| registry 中 ID/path/gitDir 漂移、路径碰撞或 task 重复绑定 | `status=blocked` 或稳定冲突 reason；相关写入前停止，保留原字节 |
 | create 首次调用 | 返回只读完整计划与 fingerprint；target/branch/registry 均不变化 |
-| 来源 current branch 或显式 base ref 变化、HEAD/dirty/submodule/route 偏好变化 | 旧 fingerprint 返回 `reason=create-plan-changed` 与最新计划；零写入 |
+| 真实 base commit、目标、任务或有效本地写入变化 | 旧 fingerprint 返回 `create-plan-changed` 与最新计划；零写入 |
+| 同提交基线别名变化 | 请求任务时旧 fingerprint 失效；未请求任务时仍有效 |
+| 只有无关 dirty 或未选子仓分支变化 | fingerprint 保持有效，不复制这些内容 |
 | 来源 route 偏好是 symlink/目录/无合法值，或 create 目标开发者不同 | 不读取或不继承；其它 create 计划事实仍可确认 |
-| prepare 未传 `--inherit-route-prefs` 和 `--inherit-flower` | 不读取任何其它 worktree；只准备目标本地身份/runtime/registry |
+| 默认 prepare 未显式继承 | 按目标记录准备；不读取其它 worktree，不新增任务 |
 | prepare 显式继承但 source/target 不同仓，或显式继承 route 偏好且开发者不同 | 稳定错误且目标本地状态零部分写入 |
 | prepare 仅继承 Flower 且开发者不同 | 可继承经验证的安装记录，不继承 settings 用户策略 |
-| Trellis 已 ready-local 但 Flower 三份安装记录不全 | `flower.installation=incomplete`；skill 仍进入显式 Flower prepare |
+| Trellis 已 ready-local 但 Flower 三份安装记录不全 | `flower.installation=incomplete`、setup 中列出安装问题；默认 prepare 可继续 |
 | 目标安装记录完整有效 | `action=preserved`，保留已有字节和权限，不读取来源安装记录 |
 | 来源安装记录缺失 | `action=unavailable`、`reason=source-installation-missing`；不补出半套记录，纯 Trellis 可继续 |
 | 记录集合不一致、目标已有冲突记录或 JSON 损坏 | `flower-installation-conflict` 或 `flower-record-invalid`；写入前拒绝 |
 | 目标 Trellis 不兼容、本地 Plugin 来源缺失或不同、state 未被既有规则忽略 | `flower-trellis-incompatible`、`flower-local-source-missing`、`flower-local-source-conflict` 或 `flower-ignore-conflict`；不写安装记录 |
 | 受管内容摘要漂移、祖先软链或存在 control 状态 | 拒绝继承并报告路径/原因；不复制插件内容来补平差异 |
-| 预检后白名单记录原始字节变化 | create 返回 `create-plan-changed`；内部 apply 返回 `flower-plan-changed`，均不使用旧载荷 |
-| prepare 写入后适配器输出丢失或后续步骤失败 | 从项目外回执清理本轮新增且未改动的文件；遇到外部修改保留文件并报告回滚不完整 |
-| create 中 task 或 readiness 失败 | 回滚本轮新 worktree/branch/registry，不删除预先存在对象 |
+| 源摘要过期、源升级未提交或源/目标版本不同 | 不阻止 Git 创建；目标按自身固定包独立准备，不能准备则只保留相关待办 |
+| 缺失的忽略配置且固定包与现有内容完全匹配 | 同一 Plugin 事务生成配置及本地记录；源文件和目标 tracked 内容不变 |
+| 固定包缺失、需改现有内容或新增授权 | Flower pending；不升级、不联网、不覆盖，保留工作区 |
+| 显式 developer 为空白或包含换行 | `developer-invalid`，在 Git/registry 写入前拒绝 |
+| 未提供且无法推定 developer | 预检提示 developer-required；允许创建，随后 prepare --developer 补齐 |
+| 遗留事务或回滚不完整 | 明确 repair/rollback 错误，保留证据，不报安装完整 |
+| 显式继承预检后有效载荷变化 | 内部 apply 返回 `flower-plan-changed`，不使用旧载荷；源安装变化不影响 create 指纹 |
+| 继承适配器输出丢失或显式严格 prepare 后续失败 | 从项目外回执清理本轮新增且未改动的文件；遇到外部修改保留文件并报告回滚不完整 |
+| create 中 task 或 readiness 失败 | `created-needs-prepare`；保留 Git 和已创建任务，安装用 prepare 重试，任务使用返回的目标命令 |
+| task create 落盘后超时，或设置命令超时/无法启动 | `task-command-failed`；真实任务路径保留在结果和 registry，剩余设置命令可在目标补齐 |
 | remove 遇到 dirty、active task/session/lock 或 registry drift | 失败关闭，worktree 和 branch 保留 |
 | remove 目标是主 worktree 或唯一 worktree | `reason=remove-main-worktree-forbidden`；目标目录保持不变 |
 | Git remove 成功但 registry 写入失败 | 重建 worktree 并恢复 gitignored 本地状态；成功补偿返回 `registry-write-failed`，补偿不完整返回 `worktree-remove-rollback-failed` |
@@ -688,21 +727,23 @@ flower-trellis worktree remove --target <path> [--json]
 | linked cwd 中 hook 已能运行但无本地 `.trellis` | 输出 bootstrap 诊断，不包含其它 worktree task/untracked 内容 |
 | linked cwd 直接调用 untracked helper 且无本地 `.trellis` | `reason=not-trellis-project` |
 
-### 5. Good/Base/Bad Cases
+### 5. Scenarios and Examples
 
 - Good: 两个分支分别提交不同 workflow/spec/skill，两个 worktree 都只读取自己的文件。
 - Good: 新并行任务先运行 `flower-trellis worktree create`，再在 handoff cwd 启动新会话规划。
-- Good: `.flower/` 被 Git 忽略时，create 仍继承与目标受管内容匹配的独立安装记录。
-- Good: 手动创建的 worktree 已 ready-local，skill 通过 `prepare --inherit-flower --source <source>` 补配。
+- Good: 目标声明和 lock 已提交、state 被忽略时，create 在真实目标按固定包生成独立本地记录；整个 `.flower/` 被忽略时只在显式请求后严格继承。
+- Good: 手动创建的 worktree 已 ready-local，skill 先运行默认 prepare 按目标固定包补配；确需严格继承时显式指定来源。
+- Good: 任务脚本 set-branch 中断后，返回未完成的 set-branch/set-base-branch 命令；prepare 不动任务，PRD 保留。
 - Good: legacy migration 的候选内容只来自目标 `HEAD`，旧 source 分支更新不会进入迁移结果。
 - Bad: 比较 `actual.resolve(strict=False) == expected.resolve(strict=False)`；同一 Windows 目录可能
   因扩展前缀而不等。应使用 `samefile()` 并捕获 `OSError`，不手动剥离前缀或放宽 manifest 校验。
 - Good: remove 在 registry 故障注入后恢复原 worktree、task 文件和 `.trellis/.runtime` 本地状态。
 - Base: 当前分支未启用 `.claude` 时，缺少 `.claude` 不阻断 ready-local。
-- Base: 纯 Trellis 来源无 Flower 记录时报告 unavailable，不推定需要安装 Flower。
+- Base: 纯 Trellis 无安装证据时，默认准备报告 notRequested；严格继承无来源记录为 unavailable。
+- Bad: 遇到来源过期摘要先要求提交升级，或工具准备失败后删掉整个新目录；应保留 Git 并处理局部待办。
 - Bad: 只复制 lock 或直接复制来源 state 后宣称目标已安装，未校验目标内容及完整插件集合。
 - Bad: 把 `.trellis` 或平台目录 symlink 到另一个 worktree；分支切换会跨目录污染运行语义。
-- Bad: 把 tasks/spec/workspace/session 放进 common-dir registry；registry 只能保存机器映射和锁。
+- Bad: 把 tasks/spec/workspace/session 的内容或恢复请求放进 common-dir registry；这里只保存机器映射和锁。
 - Bad: 为了 remove 方便使用 `--force` 绕过 dirty/task/session 检查或顺带删除 branch。
 - Bad: bootstrap 为选择 Python 解释器而读取 legacy `.trellis/workflow.md`；这会再次执行其它分支配置。
 
@@ -722,8 +763,13 @@ flower-trellis worktree remove --target <path> [--json]
   命令调用、禁用 legacy 生成证据和真实 CLI status。
 - `worktree-flower-state.test.js` 必须覆盖离线继承、独立文件、幂等、目标记录保留、schema/集合冲突、
   文件/目录/Patch 摘要、兼容范围、本地来源、软链和跨仓边界，以及回执清理与外部修改保留。
+- `worktree-setup.test.js` 使用真实安装和 linked Git 目录，覆盖来源过期/损坏记录、目标精确固定包
+  生成忽略配置、用户项目配置保留、真实内容冲突、旧包不可用、旧安装标记/部分空记录、tracked
+  忽略文件删除、遗留事务，以及真实 CLI 一次确认完成且来源/目标 tracked 内容不变。
 - `test_worktree_setup.py` 的 Flower 场景必须经真实 facade 覆盖 create 和 ready-local 补配，
-  断言来源忽略文件变化使指纹失效、目标漂移时创建回滚、适配器非法结果/超时拒绝及输出丢失补偿。
+  断言来源记录变化不影响 Git 指纹且不默认继承、目标安装不可重放时保留 Git、适配器非法结果/超时拒绝及显式继承输出丢失补偿。
+- `test_worktree_setup.py` 还须覆盖可选任务、无 Trellis 基线、旧任务参数及会话隔离、prepare 不重跑任务且不覆盖 PRD、无关 dirty/子仓变化不使指纹失效、真实 base 变化拒绝旧计划、registry 仅保存原有机器映射，以及缺身份续行/空白或换行身份零写入拒绝。
+  同提交别名须区分有无任务；create 落盘后超时、设置超时/启动失败须断言结果和 registry 的真实任务路径、剩余命令顺序，并实际执行补齐且保留用户 PRD。
 - 改动 helper 或 fallback 后至少运行相关 Python 单测、`python3 -m py_compile`、`npm run sync`、
   `npm run patch:targets:check`、`git diff --check`；Patch target 改动还要先刷新 compiled targets。
 
@@ -748,9 +794,8 @@ flower-trellis worktree create --target <linked-worktree> --branch feature/examp
 flower-trellis worktree create --target <linked-worktree> --branch feature/example \
   --task-title "Example" --task-slug example \
   --yes --plan-fingerprint <returned-sha256>
-# 已有 worktree 缺安装记录时：
-flower-trellis worktree prepare --target <linked-worktree> \
-  --inherit-flower --source <main-worktree> --json
+# 已有 worktree 或局部准备失败时：
+flower-trellis worktree prepare --target <linked-worktree> --json
 ```
 
 原因:先确认来源分支、基线提交、多仓清单和本地状态边界，再由目标分支自己的 Trellis 创建 planning

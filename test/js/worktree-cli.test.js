@@ -101,9 +101,10 @@ test("worktree 参数由 Flower 自有 facade 消费", () => {
 
 test("worktree 参数拒绝缺失字段和无关 dry-run", () => {
   assert.throws(
-    () => parseWorktreeArgs(["create", "--branch", "feature/test"]),
-    /--task-title/,
+    () => parseWorktreeArgs(["create", "--branch", "feature/test", "--task-title", "测试"]),
+    /成对提供/,
   );
+  assert.equal(parseWorktreeArgs(["create", "--branch", "feature/test"]).command, "create");
   assert.throws(
     () => parseWorktreeArgs(["status", "--dry-run"]),
     /只用于 worktree migrate/,

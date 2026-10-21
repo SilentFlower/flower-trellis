@@ -6,6 +6,7 @@ import json
 import hashlib
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -468,8 +469,8 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertEqual(transfer["reason"], "developer-mismatch")
         self.assertFalse((target / ".trellis/.route-prefs.tmp").exists())
 
-    def test_create_rejects_stale_plan_fingerprint_without_writes(self) -> None:
-        """来源状态变化后旧指纹失效，且不创建 branch/worktree。"""
+    def test_create_ignores_unrelated_dirty_changes_in_fingerprint(self) -> None:
+        """来源无关文件变化不影响已确认的 Git 基线与写入计划。"""
         target = self.base / "stale-plan"
         create_args = (
             "--source",
@@ -494,14 +495,189 @@ class WorktreeSetupTest(unittest.TestCase):
             check=False,
         )
 
+        self.assertEqual(result.returncode, 0, payload)
+        self.assertEqual(payload["status"], "created")
+        self.assertTrue(target.is_dir())
+        self.assertNotEqual((target / "README.md").read_text(), "changed after plan\n")
+        self.assertEqual((self.main / "README.md").read_text(), "changed after plan\n")
+
+    def test_create_rejects_changed_base_commit_without_writes(self) -> None:
+        """真实基线提交变化仍要求重新确认。"""
+        target = self.base / "changed-base"
+        arguments = ("--source", str(self.main), "--branch", "feature/changed-base")
+        _, plan = self._helper("create", *arguments, target=target)
+        (self.main / "README.md").write_text("new committed base\n", encoding="utf-8")
+        self._git(self.main, "add", "README.md")
+        self._git(self.main, "commit", "-m", "new base")
+        result, payload = self._helper("create", *arguments, "--yes", "--plan-fingerprint", plan["confirmation"]["fingerprint"], target=target, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(payload["reason"], "create-plan-changed")
-        self.assertEqual(payload["plan"]["status"], "confirmation-required")
         self.assertFalse(target.exists())
-        self.assertNotEqual(
-            self._git(self.main, "show-ref", "--verify", "refs/heads/feature/stale-plan", check=False).returncode,
-            0,
-        )
+
+    def test_create_without_task_is_ready_and_prepare_is_idempotent(self) -> None:
+        """只创建工作区不要求任务参数，重复准备不新增任务或会话。"""
+        target = self.base / "workspace-only"
+        _, created = self._create_helper("--source", str(self.main), "--branch", "feature/workspace-only", target=target)
+        self.assertEqual(created["status"], "created")
+        self.assertIsNone(created["task"])
+        _, prepared = self._helper("prepare", target=target)
+        self.assertFalse(prepared["changed"])
+        self.assertEqual(prepared["setup"]["status"], "ready")
+        self.assertFalse((target / ".trellis/tasks").exists())
+        self.assertEqual(list((target / ".trellis/.runtime/sessions").iterdir()), [])
+
+    def test_create_fingerprint_tracks_base_name_only_when_writing_a_task(self) -> None:
+        """同提交别名仅在改变任务 base_branch 写入时使确认失效。"""
+        for with_task in (False, True):
+            with self.subTest(with_task=with_task):
+                target = self.base / f"base-name-{with_task}"
+                arguments = ["--source", str(self.main), "--branch", f"feature/base-name-{with_task}"]
+                if with_task:
+                    arguments.extend(["--task-title", "基线名称", "--task-slug", "base-name"])
+                _, before = self._helper("create", *arguments, target=target)
+                self._git(self.main, "checkout", "-b", f"same-commit-{with_task}")
+                _, after = self._helper("create", *arguments, target=target)
+                self.assertEqual(before["base"]["resolvedCommit"], after["base"]["resolvedCommit"])
+                self.assertNotEqual(before["baseRef"], after["baseRef"])
+                self.assertEqual(before["confirmation"]["fingerprint"] == after["confirmation"]["fingerprint"], not with_task)
+                result, payload = self._helper("create", *arguments, "--yes", "--plan-fingerprint", before["confirmation"]["fingerprint"], target=target, check=False)
+                if with_task:
+                    self.assertNotEqual(result.returncode, 0, payload)
+                    self.assertEqual(payload["reason"], "create-plan-changed")
+                    self.assertFalse(target.exists())
+                    self.assertNotEqual(self._git(self.main, "show-ref", "--verify", f"refs/heads/feature/base-name-{with_task}", check=False).returncode, 0)
+                else:
+                    self.assertEqual(result.returncode, 0, payload)
+                    self.assertEqual(payload["status"], "created")
+
+    def test_old_task_interface_uses_supported_arguments_without_source_session(self) -> None:
+        """旧 create 接口仍可创建 planning 任务，且不会继承来源会话身份。"""
+        script = self.main / ".trellis/scripts/task.py"
+        source = script.read_text(encoding="utf-8")
+        source, count = re.subn(r'    p_create.add_argument\(\n        "--(?:base-branch|no-start)",.*?\n    \)\n', '', source, flags=re.S)
+        self.assertEqual(count, 2)
+        script.write_text(source, encoding="utf-8")
+        self._git(self.main, "add", ".trellis/scripts/task.py")
+        self._git(self.main, "commit", "-m", "old task interface")
+        target = self.base / "old-interface"
+        environment = {"TRELLIS_CONTEXT_ID": "source-window", "CODEX_THREAD_ID": "source-thread", "OPENCODE_RUN_ID": "source-run"}
+        with mock.patch.dict(os.environ, environment):
+            _, created = self._create_helper("--source", str(self.main), "--branch", "feature/old-interface", "--task-title", "旧接口任务", "--task-slug", "old-interface", target=target)
+        self.assertEqual(created["status"], "created", created)
+        task = json.loads((target / created["task"] / "task.json").read_text())
+        self.assertEqual(task["status"], "planning")
+        self.assertEqual(task["branch"], "feature/old-interface")
+        self.assertEqual(task["base_branch"], created["baseRef"])
+        self.assertEqual(list((target / ".trellis/.runtime/sessions").iterdir()), [])
+        self.assertFalse((target / ".trellis/.current-task").exists())
+
+    def test_developer_validation_does_not_create_an_unrecoverable_workspace(self) -> None:
+        """非法身份零写入拒绝，缺身份可以建目录并在原目录补齐。"""
+        (self.main / ".trellis/.developer").unlink()
+        target = self.base / "developer-pending"
+        arguments = ("--source", str(self.main), "--branch", "feature/developer-pending")
+        for invalid in ("   ", "tester\nother"):
+            result, payload = self._helper("create", *arguments, "--developer", invalid, target=target, check=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(payload["reason"], "developer-invalid")
+            self.assertFalse(target.exists())
+        _, plan = self._helper("create", *arguments, target=target)
+        self.assertTrue(any(issue["reason"] == "developer-required" for issue in plan["setup"]["issues"]))
+        _, created = self._create_helper(*arguments, target=target)
+        self.assertEqual(created["status"], "created-needs-prepare")
+        self.assertTrue(any(issue["step"] == "local" for issue in created["setup"]["issues"]))
+        _, prepared = self._helper("prepare", "--developer", " tester ", target=target)
+        self.assertEqual(prepared["setup"]["status"], "ready")
+        self.assertEqual((target / ".trellis/.developer").read_text().splitlines()[0], "name=tester")
+
+    def test_prepare_does_not_resume_tasks_and_returns_explicit_remaining_commands(self) -> None:
+        """任务失败保留文件和剩余命令，prepare 不重跑任务或改写需求。"""
+        script = self.main / ".trellis/scripts/task.py"
+        source = script.read_text(encoding="utf-8")
+        marker = 'if __name__ == "__main__":'
+        self.assertEqual(source.count(marker), 1)
+        source = source.replace(marker, marker + '\n    if len(sys.argv) > 1 and sys.argv[1] == "set-branch" and (get_repo_root() / ".trellis/fail-task").exists():\n        sys.exit(9)')
+        script.write_text(source, encoding="utf-8")
+        (self.main / ".trellis/fail-task").write_text("fail\n", encoding="utf-8")
+        self._git(self.main, "add", ".trellis/scripts/task.py", ".trellis/fail-task")
+        self._git(self.main, "commit", "-m", "task failure fixture")
+        target = self.base / "resume-task"
+        _, created = self._create_helper("--source", str(self.main), "--branch", "feature/resume-task", "--task-title", "恢复任务", "--task-slug", "resume-task", target=target)
+        self.assertEqual(created["status"], "created-needs-prepare")
+        self.assertTrue(any(issue["step"] == "task" for issue in created["setup"]["issues"]))
+        self.assertTrue(created["task"])
+        task_file = target / created["task"] / "task.json"
+        task_before = task_file.read_bytes()
+        prd = target / created["task"] / "prd.md"
+        prd.write_text("# 用户补充需求\n", encoding="utf-8")
+        _, prepared = self._helper("prepare", target=target)
+        self.assertEqual(prepared["setup"]["status"], "ready", prepared)
+        self.assertFalse(prepared["changed"])
+        self.assertEqual(task_file.read_bytes(), task_before)
+        self.assertEqual(prd.read_text(encoding="utf-8"), "# 用户补充需求\n")
+        self.assertEqual(len(list((target / ".trellis/tasks").glob("*-resume-task"))), 1)
+        (target / ".trellis/fail-task").unlink()
+        for action in created["setup"]["nextActions"]:
+            subprocess.run(action["command"], cwd=action.get("cwd", target), capture_output=True, check=True)
+        task = json.loads(task_file.read_text(encoding="utf-8"))
+        self.assertEqual(task["branch"], "feature/resume-task")
+        self.assertEqual(task["base_branch"], created["baseRef"])
+        _, repeated = self._helper("prepare", target=target)
+        self.assertFalse(repeated["changed"])
+
+    def test_task_process_failures_keep_created_task_and_remaining_commands(self) -> None:
+        """创建后超时或设置命令异常仍能按真实任务路径补齐剩余操作。"""
+        spec = importlib.util.spec_from_file_location("worktree_task_process_test", SOURCE)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        original_run = subprocess.run
+        cases = (("create", "timeout"), ("set-branch", "timeout"), ("set-base-branch", "timeout"), ("set-branch", "oserror"))
+        for index, (failed_command, failure) in enumerate(cases):
+            with self.subTest(command=failed_command, failure=failure):
+                target = (self.base / f"task-process-{index}").resolve()
+                branch = f"feature/task-process-{index}"
+                args = module.build_parser().parse_args(["create", "--source", str(self.main), "--target", str(target), "--branch", branch, "--task-title", "异常任务", "--task-slug", f"task-process-{index}"])
+                args.plan_fingerprint = module._create(args)["confirmation"]["fingerprint"]
+                args.yes = True
+                script = target / ".trellis/scripts/task.py"
+
+                def fail_task(command: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
+                    """在子进程边界注入异常，create 保留实际已完成的落盘。"""
+                    if len(command) > 5 and command[4] == str(script) and command[5] == failed_command and "--help" not in command:
+                        if failed_command == "create":
+                            result = original_run(command, **kwargs)
+                            self.assertEqual(result.returncode, 0, result.stderr)
+                        if failure == "oserror":
+                            raise OSError("injected task spawn failure")
+                        raise subprocess.TimeoutExpired(command, 30)
+                    return original_run(command, **kwargs)
+
+                with mock.patch.object(module.subprocess, "run", side_effect=fail_task):
+                    created = module._create(args)
+                self.assertEqual(created["status"], "created-needs-prepare")
+                self.assertEqual(created["setup"]["issues"][-1]["reason"], "task-command-failed")
+                task = created["task"]
+                self.assertTrue(task)
+                self.assertEqual(created["handoff"]["task"], task)
+                self.assertEqual(list((target / ".trellis/tasks").glob(f"*-task-process-{index}")), [target / task])
+                registry = json.loads(Path(created["registry"]).read_text(encoding="utf-8"))
+                entry = next(value for value in registry["worktrees"].values() if value["path"] == str(target.resolve()))
+                self.assertEqual(entry["task"], task)
+                actions = created["setup"]["nextActions"]
+                expected = ["set-base-branch"] if failed_command == "set-base-branch" else ["set-branch", "set-base-branch"]
+                self.assertEqual([action["command"][5] for action in actions], expected)
+                prd = target / task / "prd.md"
+                prd.write_text("# 用户需求\n", encoding="utf-8")
+                for action in actions:
+                    self.assertEqual(Path(action["cwd"]), target)
+                    self.assertEqual(action["command"][6], task)
+                    original_run(action["command"], cwd=action["cwd"], capture_output=True, check=True)
+                task_data = json.loads((target / task / "task.json").read_text(encoding="utf-8"))
+                self.assertEqual(task_data["branch"], branch)
+                self.assertEqual(task_data["base_branch"], created["baseRef"])
+                self.assertEqual(task_data["status"], "planning")
+                self.assertEqual(prd.read_text(encoding="utf-8"), "# 用户需求\n")
 
     def test_create_yes_requires_plan_fingerprint(self) -> None:
         """create --yes 缺少计划指纹时保持零写入并返回稳定错误。"""
@@ -526,6 +702,19 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertEqual(payload["reason"], "create-plan-fingerprint-required")
         self.assertEqual(payload["plan"]["status"], "confirmation-required")
         self.assertFalse(target.exists())
+
+    def test_registry_keeps_workspace_mapping_without_task_recovery_requests(self) -> None:
+        """registry 仅保存原有机器映射，重复准备不增加恢复字段。"""
+        target = self.base / "mapping-only"
+        _, created = self._create_helper("--source", str(self.main), "--branch", "feature/mapping-only", target=target)
+        registry_path = Path(created["registry"])
+        before = registry_path.read_bytes()
+        registry = json.loads(before)
+        entry = next(value for value in registry["worktrees"].values() if value["path"] == str(target.resolve()))
+        self.assertEqual(set(entry), {"path", "gitDir", "branch", "head", "task", "trellisVersion", "updatedAt"})
+        _, prepared = self._helper("prepare", target=target)
+        self.assertFalse(prepared["changed"])
+        self.assertEqual(registry_path.read_bytes(), before)
 
     def test_create_detached_source_defaults_base_to_head(self) -> None:
         """来源 detached HEAD 时默认基线明确回退为 HEAD。"""
@@ -598,6 +787,9 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertEqual(submodule["baseCommit"], module_head)
         self.assertTrue(submodule["initialized"])
         self.assertEqual(submodule["sourceHead"], module_head)
+        self._git(self.main / "modules/sample", "checkout", "-b", "unrelated-child-branch")
+        _, repeated = self._helper("create", "--source", str(self.main), "--branch", "feature/submodule-plan", "--task-title", "Submodule 计划", "--task-slug", "submodule-plan", target=target)
+        self.assertEqual(repeated["confirmation"]["fingerprint"], plan["confirmation"]["fingerprint"])
 
     def test_create_does_not_follow_route_preference_symlink(self) -> None:
         """来源 route 偏好为 symlink 时不读取目标内容。"""
@@ -687,8 +879,8 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertFalse((self.linked / ".trellis/.developer").exists())
         self.assertFalse((self.linked / ".trellis/.runtime").exists())
 
-    def test_duplicate_task_registry_rolls_back_create(self) -> None:
-        """同一 task 路径已被其它 worktree 注册时，create 回滚新 branch/worktree。"""
+    def test_duplicate_task_registry_blocks_before_create(self) -> None:
+        """同一任务路径已被注册时，在创建前直接拒绝。"""
         _, status = self._helper("status")
         registry_path = Path(status["registry"]["path"])
         registry_path.parent.mkdir(parents=True, exist_ok=True)
@@ -715,7 +907,8 @@ class WorktreeSetupTest(unittest.TestCase):
         )
         target = self.base / "duplicate"
 
-        result, payload = self._create_helper(
+        result, payload = self._helper(
+            "create",
             "--source",
             str(self.main),
             "--branch",
@@ -782,8 +975,8 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertEqual(payload["reason"], "remove-main-worktree-forbidden")
         self.assertTrue(self.main.is_dir())
 
-    def test_create_failure_rolls_back_new_branch_and_worktree(self) -> None:
-        """base 分支没有 Trellis 时 create 不残留新 path 或 branch。"""
+    def test_create_without_trellis_keeps_workspace_and_reports_pending(self) -> None:
+        """无 Trellis 的基线也能建立工作区，并准确交接待初始化事项。"""
         plain_branch = "plain-base"
         self._git(self.main, "checkout", "--orphan", plain_branch)
         for relative in (".trellis", ".agents", ".codex", ".claude", "README.md"):
@@ -797,8 +990,7 @@ class WorktreeSetupTest(unittest.TestCase):
         self._git(self.main, "commit", "-m", "plain base")
         target = self.base / "failed"
 
-        result, payload = self._helper(
-            "create",
+        result, payload = self._create_helper(
             "--source",
             str(self.main),
             "--branch",
@@ -815,13 +1007,14 @@ class WorktreeSetupTest(unittest.TestCase):
             check=False,
         )
 
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(payload["reason"], "local-trellis-missing")
-        self.assertFalse(target.exists())
-        self.assertNotEqual(
-            self._git(self.main, "show-ref", "--verify", "refs/heads/feature/failed", check=False).returncode,
-            0,
-        )
+        self.assertEqual(result.returncode, 0, payload)
+        self.assertEqual(payload["status"], "created-needs-prepare")
+        self.assertTrue(target.is_dir())
+        self.assertIsNone(payload["task"])
+        self.assertFalse((target / ".trellis").exists())
+        self.assertEqual(payload["setup"]["status"], "pending")
+        self.assertTrue(payload["handoff"]["requiresNewSession"])
+        self.assertEqual(self._git(target, "rev-parse", "HEAD").stdout, self._git(self.main, "rev-parse", plain_branch).stdout)
 
     def test_remove_registry_failure_restores_worktree_and_local_state(self) -> None:
         """Git remove 后 registry 写入失败时恢复 worktree、task 和忽略运行态。"""
@@ -929,29 +1122,24 @@ class WorktreeSetupTest(unittest.TestCase):
             self.assertEqual(repeated["localStateTransfer"]["flower"]["action"], "preserved")
         self.assertEqual(self._git(self.linked, "status", "--porcelain").stdout, "")
 
-    def test_flower_create_inherits_records_and_fingerprints_source(self) -> None:
-        """创建计划只读并包含安装信息；忽略文件变化也使原指纹失效。"""
+    def test_create_ignores_source_installation_and_has_no_installation_preflight(self) -> None:
+        """创建计划不预演安装，也不因来源记录变化失效或继承来源内容。"""
         environment = self._flower_fixture()
         target = self.base / "flower-created"
         args = ("--source", str(self.main), "--branch", "feature/flower", "--task-title", "Flower 任务", "--task-slug", "flower")
         with mock.patch.dict(os.environ, environment):
             _, plan = self._helper("create", *args, target=target)
             self.assertFalse(target.exists())
-            self.assertIn(".flower/state.json", plan["localStateTransfer"]["flower"]["paths"])
-            lock = self.main / ".flower/plugin-lock.json"
-            lock.write_text(lock.read_text(encoding="utf-8") + "\n", encoding="utf-8")
-            result, stale = self._helper("create", *args, "--yes", "--plan-fingerprint", plan["confirmation"]["fingerprint"], target=target, check=False)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(stale["reason"], "create-plan-changed")
-            self.assertFalse(target.exists())
-            _, created = self._create_helper(*args, target=target)
-            self.assertEqual(created["localStateTransfer"]["flower"]["action"], "inherited")
-            self.assertFalse(created["localStateTransfer"]["flower"]["validationPending"])
-            _, status = self._helper("status", target=target)
-            self.assertEqual(status["flower"]["installation"], "complete")
+            self.assertEqual(plan["localStateTransfer"]["flower"]["paths"], [])
+            (self.main / ".flower/state.json").write_text("{坏来源", encoding="utf-8")
+            _, created = self._helper("create", *args, "--yes", "--plan-fingerprint", plan["confirmation"]["fingerprint"], target=target)
+            self.assertEqual(created["status"], "created")
+            self.assertEqual(created["localStateTransfer"]["flower"]["action"], "notRequested")
+            self.assertFalse((target / ".flower/state.json").exists())
+            self.assertTrue(created["task"])
 
-    def test_flower_create_rolls_back_if_source_content_is_not_in_base(self) -> None:
-        """来源未提交插件内容不能靠复制记录成为目标已安装内容。"""
+    def test_flower_drift_keeps_git_workspace_without_inheriting_false_state(self) -> None:
+        """源安装不匹配时保留 Git 工作区，且不写虚假的目标安装记录。"""
         environment = self._flower_fixture()
         relative = ".agents/skills/example/SKILL.md"
         (self.main / relative).write_text("未提交安装内容\n", encoding="utf-8")
@@ -962,10 +1150,13 @@ class WorktreeSetupTest(unittest.TestCase):
         target = self.base / "flower-drift"
         with mock.patch.dict(os.environ, environment):
             result, payload = self._create_helper("--source", str(self.main), "--branch", "feature/flower-drift", "--task-title", "漂移", "--task-slug", "drift", target=target, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(target.exists())
-        self.assertEqual(payload["rollbackErrors"], [])
-        self.assertNotEqual(self._git(self.main, "show-ref", "--verify", "refs/heads/feature/flower-drift", check=False).returncode, 0)
+        self.assertEqual(result.returncode, 0, payload)
+        self.assertEqual(payload["status"], "created")
+        self.assertTrue(target.is_dir())
+        self.assertFalse((target / ".flower/state.json").exists())
+        self.assertTrue(payload["task"])
+        self.assertEqual(payload["localStateTransfer"]["flower"]["action"], "notRequested")
+        self.assertNotEqual((target / relative).read_bytes(), (self.main / relative).read_bytes())
 
     def test_flower_prepare_rolls_back_after_adapter_loses_response(self) -> None:
         """适配器写入后未能返回时，可通过项目外回执清理记录。"""
@@ -1020,7 +1211,9 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertFalse(target.exists())
         result = cli(*args, "--yes", "--plan-fingerprint", plan["confirmation"]["fingerprint"])
         self.assertEqual(result["status"], "created")
-        self.assertEqual(cli("status", "--target", str(target))["flower"]["installation"], "complete")
+        self.assertEqual(cli("status", "--target", str(target))["flower"]["installation"], "incomplete")
+        inherited = cli("prepare", "--target", str(target), "--inherit-flower", "--source", str(self.main))
+        self.assertEqual(inherited["flower"]["installation"], "complete")
 
     def test_flower_adapter_rejects_empty_payload_and_timeout(self) -> None:
         """适配器空结果、非法 JSON 或超时不能退化为继承成功。"""

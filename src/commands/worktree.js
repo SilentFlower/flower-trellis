@@ -68,10 +68,10 @@ needs-migration 状态选择下一步。`);
                                    [--inherit-route-prefs] [--json]
                                    [--inherit-flower --source <dir>]
 
-prepare 不创建 Git worktree，只补齐目标分支本地的 developer、runtime 和 registry 状态。
+prepare 不创建 Git worktree，补齐目标分支本地状态，并按目标自己的固定版本补齐安装信息；prepare 不创建或恢复任务。
 仅在确实需要继承当前控制 worktree 的个人路由偏好时使用 --inherit-route-prefs。
-Flower 记录缺失时，用 --inherit-flower --source <同仓 worktree> 补齐可验证的独立安装信息。
-即使 Trellis 已 ready-local，也可以运行此补配；已有目标记录不会被覆盖。`);
+默认按目标锁定版本准备安装信息；需要指定来源并严格继承时使用 --inherit-flower --source。
+缺包、配置冲突或旧任务接口会作为待准备项展示，已有内容保持原状。`);
     return;
   }
   if (command === "migrate") {
@@ -85,11 +85,11 @@ Flower 记录缺失时，用 --inherit-flower --source <同仓 worktree> 补齐�
     return;
   }
   if (command === "create") {
-    console.log(`flower-trellis worktree create — 创建新分支、worktree 和 planning task
+    console.log(`flower-trellis worktree create — 创建独立工作区并准备目标工具
 
 只读预检:
   flower-trellis worktree create --target <dir> --branch <new-branch> [--base <ref>]
-    --task-title <title> --task-slug <slug> [--task-description <text>]
+    [--task-title <title> --task-slug <slug>] [--task-description <text>]
     [--developer <name>] [--json]
 
 确认执行:
@@ -102,8 +102,11 @@ Flower 记录缺失时，用 --inherit-flower --source <同仓 worktree> 补齐�
     flower-trellis worktree status --target <target>
   若 status 返回 needs-prepare，再运行:
     flower-trellis worktree prepare --target <target> [--developer <name>]
-  create 自动将缺失的 Flower 安装信息纳入计划；目标内容不匹配时停止并回滚。
-  已有 worktree 缺少 Flower 记录时，使用 prepare --inherit-flower --source <source>。`);
+  任务标题和标识成对可选；只建工作区时可以省略。
+  Git 创建成功后，工具准备失败会保留目录，返回 created-needs-prepare 和继续方式。
+  来源安装异常不会阻止建目录；已有 worktree 使用 prepare 继续本地准备。
+  可选任务失败会保留已创建文件，并给出目标新会话的补齐命令。
+  自动化请检查 setup.status，退出码 0 不代表所有可选工具已经就绪。`);
     return;
   }
   if (command === "remove") {
@@ -125,7 +128,7 @@ Flower 记录缺失时，用 --inherit-flower --source <同仓 worktree> 补齐�
   status    只读诊断目标 worktree 状态
   prepare   准备分支本地 developer、runtime 和 registry 状态
   migrate   迁移旧版 worktree 投影
-  create    创建新分支、worktree 和 planning task
+  create    创建新分支和 worktree，可选创建 planning task
   remove    安全移除 worktree，保留 Git 分支
 
 推荐先运行:
@@ -165,8 +168,14 @@ export function parseWorktreeArgs(args) {
   }
 
   if (command === "create") {
-    for (const required of ["--branch", "--task-title", "--task-slug"]) {
+    for (const required of ["--branch"]) {
       if (!options.has(required)) throw new Error(`worktree create 缺少 ${required}`);
+    }
+    if (options.has("--task-title") !== options.has("--task-slug")) {
+      throw new Error("--task-title 和 --task-slug 需要成对提供");
+    }
+    if (options.has("--task-description") && !options.has("--task-title")) {
+      throw new Error("--task-description 需要 --task-title 和 --task-slug");
     }
     if (options.has("--yes") && !options.has("--plan-fingerprint")) {
       throw new Error("worktree create --yes 需要 --plan-fingerprint");
@@ -265,7 +274,7 @@ export function printWorktreeResult(payload) {
     console.log(`flower transfer: ${flower.action}${flower.reason ? ` (${flower.reason})` : ""}`);
     if (flower.source) console.log(`flower source: ${flower.source}`);
     if (flower.paths?.length) console.log(`flower paths: ${flower.paths.join(", ")}`);
-    if (flower.validationPending) console.log("flower validation: checkout 后核验目标内容，失败回滚创建");
+    if (flower.validationPending) console.log("flower validation: 创建后核验目标内容，未完成项可继续准备");
   }
   if (payload.flower) {
     console.log(`flower: ${payload.flower.installation}; version: ${payload.flower.version || "unknown"}`);
@@ -275,6 +284,19 @@ export function printWorktreeResult(payload) {
     console.log(`confirmation: 使用 --yes --plan-fingerprint ${payload.confirmation.fingerprint}`);
   }
   if (payload.task) console.log(`task: ${payload.task}`);
+  if (payload.setup) {
+    const ready = payload.setup.status === "ready";
+    const setupMessage = payload.requiresConfirmation
+      ? (ready ? "预检可准备" : "创建后仍有待准备项")
+      : (ready ? "本地工具准备完成" : "仍有待准备项，工作区已保留");
+    console.log(`setup: ${setupMessage}`);
+    for (const issue of payload.setup.issues || []) {
+      console.log(`  · ${issue.message || issue.reason}${issue.path ? ` (${issue.path})` : ""}`);
+    }
+    for (const next of payload.setup.nextActions || []) {
+      console.log(`next argv: ${JSON.stringify(next.command)}`);
+    }
+  }
   if (payload.reason) console.log(`reason: ${payload.reason}`);
   if (payload.message) console.log(`message: ${payload.message}`);
   if (payload.handoff?.cwd) {

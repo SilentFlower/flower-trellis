@@ -301,6 +301,31 @@ test("verify 报告声明、lock、state 与跨 Plugin ownership 的反向不一
   }
 });
 
+test("verify 同时报告普通内容和 Patch 漂移，同目标诊断合并且不修改记录", (t) => {
+  const project = createPluginTestRoot(t, "flower-verify-patch-");
+  writePluginPackage(project, "plugins/demo", pluginManifest());
+  const registry = new SourceRegistry([new LocalSourceProvider({ id: "local", projectRoot: project, references: ["plugins/demo"] })]);
+  const service = new PluginApplicationService(project, { registry });
+  service.add({ id: "local/demo", platforms: ["codex"] });
+  fs.writeFileSync(path.join(project, "config.yaml"), "project: keep\n");
+  const state = service.store.readState();
+  state.plugins[0].patches = [
+    { operation: "test/first", target: "config.yaml", resultHash: `sha256:${"0".repeat(64)}` },
+    { operation: "test/second", target: "config.yaml", resultHash: `sha256:${"1".repeat(64)}` },
+  ];
+  service.store.writeState(state);
+  fs.writeFileSync(path.join(project, ".agents/skills/demo/SKILL.md"), "用户修改\n");
+  const before = fs.readFileSync(path.join(project, ".flower/state.json"));
+  const result = service.verify();
+  assert.equal(result.ok, false);
+  assert.ok(result.diagnostics.some(({ code }) => code === "verify.target-drift"));
+  const patches = result.diagnostics.filter(({ code }) => code === "verify.patch-target-drift");
+  assert.equal(patches.length, 1);
+  assert.equal(patches[0].path, "config.yaml");
+  assert.equal(patches[0].details.expected.length, 2);
+  assert.deepEqual(fs.readFileSync(path.join(project, ".flower/state.json")), before);
+});
+
 test("plugin --help 与人类可读 dry-run 输出包含可执行细节", (t) => {
   const project = createPluginTestRoot(t, "flower-cli-human-output-");
   writePluginPackage(project, "plugins/demo", pluginManifest());

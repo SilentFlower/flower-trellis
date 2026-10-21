@@ -13,7 +13,7 @@ import { projectPluginContent } from "./install/content-projector.js";
 import { createInstallPlan } from "./install/install-planner.js";
 import { TransactionWriter } from "./install/transaction-writer.js";
 import { hashDirectoryIfExists, hashFileIfExists } from "./install/content-hash.js";
-import { assertPluginStateMatches as assertPreservedState } from "./install/state-validation.js";
+import { assertPluginStateMatches as assertPreservedState, inspectPluginContent } from "./install/state-validation.js";
 import { getPluginPatchPlanner } from "./runtime-extensions.js";
 import { isRuntimeBuiltinProviderTrusted } from "./runtime-extensions.js";
 import { compareUtf8 } from "./stable-order.js";
@@ -494,6 +494,7 @@ export class PluginApplicationService {
         });
       }
     }
+    const contentCache = new Map();
     for (const id of requestedIds) {
       const locked = lockById.get(id);
       const applied = stateById.get(id);
@@ -546,31 +547,7 @@ export class PluginApplicationService {
           severity: "error",
         });
       }
-      for (const entry of applied.paths) {
-        const target = path.join(this.projectRoot, ...entry.path.split("/"));
-        let actual = null;
-        try {
-          actual = entry.kind === "directory"
-            ? hashDirectoryIfExists(target)
-            : hashFileIfExists(target);
-        } catch (error) {
-          diagnostics.push({
-            code: "verify.target-invalid",
-            path: entry.path,
-            message: error.message,
-            severity: "error",
-          });
-          continue;
-        }
-        if (actual !== entry.hash) {
-          diagnostics.push({
-            code: "verify.target-drift",
-            path: entry.path,
-            message: `Plugin 目标摘要漂移:${entry.path}`,
-            severity: "error",
-          });
-        }
-      }
+      diagnostics.push(...inspectPluginContent(this.projectRoot, applied, contentCache));
     }
     diagnostics.sort((left, right) => compareUtf8(left.path, right.path) || compareUtf8(left.code, right.code));
     return { ok: diagnostics.every(({ severity }) => severity !== "error"), diagnostics };

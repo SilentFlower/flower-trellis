@@ -9,6 +9,10 @@ on:
       - ".claude/hooks/**"
       - ".codex/hooks/**"
       - "src/assets/**"
+      - "src/commands/worktree.js"
+      - "src/lib/worktree-flower-state.js"
+      - "src/plugin/**"
+      - "src/builtin-plugins/skill-garden/**"
       - "scripts/**"
       - "test/**"
       - "enhancements/**"
@@ -23,6 +27,10 @@ on:
       - ".claude/hooks/**"
       - ".codex/hooks/**"
       - "src/assets/**"
+      - "src/commands/worktree.js"
+      - "src/lib/worktree-flower-state.js"
+      - "src/plugin/**"
+      - "src/builtin-plugins/skill-garden/**"
       - "scripts/**"
       - "test/**"
       - "enhancements/**"
@@ -98,7 +106,15 @@ jobs:
       - name: 验证 Node 到 Python 启动入口
         env:
           FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
-        run: node --test test/js/python-runtime.test.js test/js/trellis-0614-upstream.test.js test/js/checkout-line-endings.test.js
+        run: >-
+          node --test
+          test/js/python-runtime.test.js
+          test/js/trellis-0614-upstream.test.js
+          test/js/checkout-line-endings.test.js
+          test/js/worktree-cli.test.js
+          test/js/worktree-flower-state.test.js
+          test/js/worktree-setup.test.js
+          test/js/plugin-lifecycle-cli.test.js
       - name: 验证编译产物
         env:
           FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}

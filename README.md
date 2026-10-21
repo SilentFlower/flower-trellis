@@ -104,6 +104,7 @@ flower-trellis -v
 | `update-check` | 管理 `.flower/settings.json` 内的启动更新策略和提示节流 |
 | `telemetry` | 查询、启用或停用用户级匿名安装遥测 |
 | `plugin` | 管理 Flower Plugin、Marketplace 来源、GitLab 授权和作者校验 |
+| `worktree` | 创建独立 Git 工作区，准备目标本地工具 |
 | `uninstall` | 移除 Trellis 本体并清理强化包残留(支持 `-y` / `--dry-run`) |
 | `<其它命令>` | 原样透传给 Trellis,覆盖其现有及未来子命令 |
 | `-v` / `-h` | 打印版本 / 帮助 |
@@ -122,6 +123,25 @@ flower-trellis -v
 | `--backup-retention <n>` | `update` 成功后保留最近 n 份 `.trellis/.backup-<timestamp>` 快照(默认 1，`0` 表示本次不清理) |
 
 未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` / `--devin` / `--zcode` / `--trae` / `--omp` / `--grok` / `--kimi` / `--snow` 等指定,或用 `-y` 跳过菜单。`--windsurf` 仍作为 Devin 的旧别名透传给 Trellis。其余未识别的 flag(如 `-u`、`-f`、`--template`、`--with-statusline`)一律透传给 Trellis。
+
+## 并行工作区
+
+先查看创建计划，再使用返回的指纹确认。任务参数可选，省略时只创建和准备工作区：
+
+```bash
+flower-trellis worktree create --target ../my-feature --branch feature/my-feature --base main --json
+flower-trellis worktree create --target ../my-feature --branch feature/my-feature --base main --yes --plan-fingerprint <返回的指纹>
+
+# 查看准备情况，或在同一目录补齐本地工具
+flower-trellis worktree status --target ../my-feature --json
+flower-trellis worktree prepare --target ../my-feature
+```
+
+prepare 只处理本地工具，不创建或恢复任务。需要种子任务时，在创建参数中成对加入 `--task-title <标题> --task-slug <标识>`。工具按目标分支支持的接口创建 planning 任务，业务规划和实现继续在新目录的新 AI 会话中进行。
+
+源窗口的未提交修改、过期安装摘要或不同的 Flower 版本不会要求先清理或升级主分支。目标可以按精确固定包补齐本地安装记录、生成缺失且被忽略的受管配置；旧包不可用、配置冲突或任务准备失败时，Git 目录和分支会保留，并返回 `created-needs-prepare` 和具体待办。本地工具可用 prepare 重试，任务异常按返回的目标命令补齐；默认不读取来源安装记录。
+
+脚本应检查 `setup.status`，不能只凭退出码 `0` 判断工具全部就绪。根仓和子仓各自使用明确的基线；创建根工作区不会自动为所有子仓创建业务分支。
 
 ## 项目级关闭与恢复
 

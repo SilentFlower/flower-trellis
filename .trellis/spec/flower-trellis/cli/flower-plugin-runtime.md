@@ -56,6 +56,8 @@ PluginApplicationService.update({
 PluginApplicationService.replay({ preserveIds?, ... }?) -> LifecycleResult
 PluginApplicationService.remove(options) -> LifecycleResult
 PluginApplicationService.verify(options?) -> { ok, diagnostics }
+inspectPluginContent(projectRoot, applied, cache?, { throwReadErrors? }?) -> PluginDiagnostic[]
+assertPluginStateMatches(projectRoot, locked, applied) -> void
 
 registerRemotePluginSources({ parsed, projectRoot, options, registry, lock, pluginsFile?, preserveIds? })
   -> Promise<void>
@@ -159,6 +161,12 @@ TUI inspection 可额外使用远程 Provider 的 `inspectContentManifest(canoni
 - changed-only：before/after hash 相同的目标不重写；空项目 `plugin update` 返回 `unchanged`，且不初始化 Runtime。
 - `remove` 只删除 state 中归属当前 Plugin 且当前 hash 仍匹配的路径，并只清理不再从当前声明可达的传递依赖。孤儿 exclusive 目标已经缺失时视为幂等清理，只移除 lock/state 元数据；仍存在且 hash 匹配时删除；仍存在但漂移时整次事务前失败。单个路径冲突不得阻止其它 hash-clean exclusive 路径清理；冲突、shared 和仍被其它 owner 使用的证据继续保留在 state。
 - `verify` 只读检查声明、lock roots、当前声明可达性、固定包、state ownership、版本和目标 hash，不更新 Provider、不修复文件。陈旧 `lock.roots` 仍报告 root-extra/root-missing，任意不可达 lock 节点统一报告 `verify.lock-orphan`。
+- `verify` 与冻结 state 校验共用 `inspectPluginContent()`，覆盖 paths 的文件/目录 hash 及 patches
+  的 target/resultHash。同次读取按实际路径和文件/目录口径缓存；同 target 的多条 Patch 合并诊断，
+  不同预期摘要仍保留在 details.expected 数组中，不能只信最后一条记录。
+  普通目标沿用 `verify.target-drift|invalid`，Patch 使用 `verify.patch-target-drift|invalid`；
+  details.actual 缺失时为 null。冻结 assert 保留 lock/state 版本与内容选择校验及原读取异常类型，
+  摘要漂移仍以 `PLUGIN_TARGET_DRIFT` 停止；检查不能自动改写 resultHash。
 - 项目存在合法 `.flower/trellis-control.json` 且状态为 `disabled` 时，真实
   `plugin add/update/remove/replay` 必须通过 `runWithTrellisIntegrationEnabled()` 临时恢复 Trellis
   入口，执行原 Plugin 事务后再按最新 ownership 重新 detach。最终状态必须仍为 `disabled`；
@@ -313,6 +321,8 @@ TUI inspection 可额外使用远程 Provider 的 `inspectContentManifest(canoni
   断言发现页内置入口不读取 Provider 候选且只调用 `openSkillManager()`；`plugin-e2e-interactive.test.js`
   断言真实 TTY 裸 `plugin` 首页显示内置入口并零写入退出。
 - `plugin-lifecycle-cli.test.js`：parser、真实 add/update/remove/verify、空项目 update、无平台零写入、JSON/人类输出、短 ID 和退出码。断言点还须覆盖：`--content-skill` 重复/逗号归一化、add/update 持久化并过滤 Skill、非法或越界命令拒绝；`--widen` 的重复取值与含 `=` range 的切分；多个精确锁同时越界时逐个 `--version` 失败于 `已锁定 Plugin 包不可重放` 而批量 `--widen` 成功；批量 dry-run 后 `plugins.json` 零写入；未越界声明保持原样；空项目 `update --version` 返回退出码 `2`。
+- verify 回归还须同时制造普通内容和同 target 多条 Patch 漂移，断言两类诊断均出现、冲突预期
+  摘要不丢失、相同 Patch target 仅报告一次，且 state 原字节不变。
 - `trellis-control.test.js`：disabled 项目真实 `plugin add` 后外部 Skill、声明和 state 保留，Trellis
   平台入口重新 detach，最终 `inspectTrellisControl().status === "disabled"`；同时覆盖 excluded spec
   精确快照恢复和外层补偿不完整时的 `repair-required` 持久化。
