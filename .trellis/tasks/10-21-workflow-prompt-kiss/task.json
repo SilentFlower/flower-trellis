@@ -1,0 +1,43 @@
+{
+  "id": "workflow-prompt-kiss",
+  "name": "workflow-prompt-kiss",
+  "title": "精简默认工作流与提示词，保留关键交互能力",
+  "description": "精简默认路由、轻量检查和完成链提示词，统一自动收尾；保留现有 Brief、CHK/FBK/DOC 分类、升级与 Git 确认门禁。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "workflow",
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-10-21",
+  "completedAt": "2026-10-21",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-10-21T15:52:10Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "progress": {
+    "completedSteps": [
+      "完成工作流、默认路由与提示词精简",
+      "同步作者源、编译产物、发布快照及本地 Plugin",
+      "通过本地完整回归与本次提交的原生平台 CI",
+      "完成两个业务仓库的精确提交与推送"
+    ],
+    "partialStep": null,
+    "nextStep": "本任务已完成",
+    "notes": "保留 Brief、CHK/FBK/DOC 分类、full 升级条件与升级和 Git 确认门禁。",
+    "updatedAt": "2026-10-21T15:52:10Z"
+  }
+}
