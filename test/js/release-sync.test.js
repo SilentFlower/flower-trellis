@@ -8,6 +8,17 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
+test("发布 job 必须等待同一 tag 的完整 CI，发布环境仍保持零依赖", () => {
+  const release = fs.readFileSync(path.join(ROOT, ".github/workflows/release.yml"), "utf8");
+  const ci = fs.readFileSync(path.join(ROOT, ".github/workflows/ci.yml"), "utf8");
+  assert.match(release, /\n  verify:\n[\s\S]*?uses: \.\/\.github\/workflows\/ci\.yml/);
+  const publishJob = release.split("\n  release:\n")[1];
+  assert.match(publishJob, /\n    needs: verify\n/);
+  assert.doesNotMatch(publishJob, /run: npm ci|submodules: recursive/);
+  assert.match(ci, /workflow_call:/);
+  assert.match(ci, /CI_FULL: \$\{\{ github\.event_name == 'workflow_dispatch' \|\| startsWith\(github\.ref, 'refs\/tags\/'\) \}\}/);
+});
+
 test("Release CI 无依赖且无 submodule 时沿用已提交快照", (t) => {
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "flower-release-sync-"));
   t.after(() => fs.rmSync(packageRoot, { recursive: true, force: true }));

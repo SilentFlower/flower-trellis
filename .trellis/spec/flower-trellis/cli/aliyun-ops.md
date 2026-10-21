@@ -99,7 +99,7 @@ vendor/skill-garden/.common/.codex|.claude/skills/aliyun-ops
   语法解析必须通过。
 - JS 分发测试断言 Skill/reference/脚本清单、README 与 catalog 元数据、Codex/Claude 作者源及 common
   快照一致；发布前再校验已安装全局副本且确认无 `__pycache__` / `.pyc`。
-- `.github/workflows/python-compatibility.yml` 在 Ubuntu/Windows × Python 3.8/3.12 运行
+- `.github/workflows/ci.yml` 的 `python-compatibility` 在 Ubuntu/Windows × Python 3.8/3.12 运行
   `test/python/test_aliyun_ops.py`；本地模拟不替代合入后的原生 Windows job。
 
 ---

@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  FLOWER_NO_TELEMETRY: "1"
+  PYTHONUTF8: "1"
+
+jobs:
+  impact:
+    name: 判断验证范围
+    runs-on: ubuntu-latest
+    outputs:
+      full: ${{ steps.impact.outputs.full }}
+      contracts: ${{ steps.impact.outputs.contracts }}
+      python: ${{ steps.impact.outputs.python }}
+      update: ${{ steps.impact.outputs.update }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: 按实际差异选择验证范围，未知变化保留完整回归
+        id: impact
+        env:
+          CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD: ${{ github.sha }}
+          CI_FULL: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+        run: node scripts/ci-impact.mjs
+
+  contracts:
+    name: 规则与产物
+    needs: impact
+    if: needs.impact.outputs.contracts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TRELLIS_PYTHON_CMD: python3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v7
+        id: python
+        with:
+          python-version: "3.12"
+      - name: 安装依赖，避免项目全局同步 postinstall
+        run: npm ci --ignore-scripts
+      - name: 准备真实 CLI 依赖
+        run: npm rebuild node-pty
+      - name: 运行规则专项或完整 JavaScript 套件
+        env:
+          CI_FULL: ${{ needs.impact.outputs.full }}
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          if [ "$CI_FULL" = "true" ]; then
+            node scripts/run-js-tests.mjs
+          else
+            node scripts/ci-impact.mjs --rules
+          fi
+      - name: 验证快照来源与真实 Patch 冲突
+        run: node scripts/check-snapshot.mjs
+      - name: 验证编译产物
+        env:
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: npm run patch:targets:check
+      - name: 验证上下文预算
+        env:
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: node scripts/check-ai-context-budget.mjs --strict
+      - name: 验证输出模板
+        run: node scripts/check-output-templates.mjs
+
+  python-compatibility:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    needs: impact
+    if: needs.impact.outputs.python == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.8", "3.12"]
+    env:
+      # 显式命令供上游 init 使用；实际套件使用 setup-python 的绝对路径。
+      TRELLIS_PYTHON_CMD: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v7
+        id: python
+        with:
+          python-version: ${{ matrix.python }}
+      - name: 安装测试依赖
+        run: npm ci --ignore-scripts
+      - name: 准备原生终端依赖
+        run: npm rebuild node-pty
+      # SessionStart 已包含在全套 Python 测试中，无需另开相同环境重复运行。
+      - name: 运行 Python 套件，包含 SessionStart 与动态更新上下文
+        env:
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: node scripts/run-python-tests.mjs
+      - name: 验证 Node 到 Python 启动入口
+        env:
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: >-
+          node --test
+          test/js/python-runtime.test.js
+          test/js/trellis-0614-upstream.test.js
+          test/js/checkout-line-endings.test.js
+          test/js/worktree-cli.test.js
+          test/js/worktree-flower-state.test.js
+          test/js/worktree-setup.test.js
+          test/js/plugin-lifecycle-cli.test.js
+      # 只有生成链路变化、未知变化或手动完整回归才验证各平台生成的一致性。
+      - name: 验证原生平台编译产物
+        if: needs.impact.outputs.full == 'true'
+        env:
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: npm run patch:targets:check
+
+  update-contract:
+    name: ${{ matrix.os }} / Node 22
+    needs: impact
+    if: needs.impact.outputs.update == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      TRELLIS_PYTHON_CMD: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: 安装依赖，避免项目全局同步 postinstall
+        run: npm ci --ignore-scripts
+      - name: 准备真实 PTY
+        run: npm rebuild node-pty
+      - name: 验证遥测队列跨平台行为
+        run: >-
+          node --test
+          test/js/telemetry-v2.test.js
+          test/js/telemetry-windows.test.js
+      - name: 验证真实更新、缓存预算、全局快路径与终端恢复
+        run: >-
+          node --test
+          test/js/managed-update-performance.test.js
+          test/js/global-trellis-sync-performance.test.js
+          test/js/update-check-performance.test.js
+          test/js/operation-timing.test.js
+          test/js/ci-impact.test.js
+          test/js/update-check.test.js
+          test/js/update-all.test.js
+          test/js/flower-update-contract.test.js
+          test/js/flower-update-windows.test.js
+          test/js/update-backups.test.js
+          test/js/cli-help.test.js
+          test/js/trellis-runner-output.test.js
+          test/js/terminal-state.test.js
+          test/js/trellis-control.test.js
+          test/js/release-sync.test.js
+          test/js/plugin-skill-garden.test.js
+          test/js/plugin-transaction-writer.test.js
+          test/js/platform-patches.test.js

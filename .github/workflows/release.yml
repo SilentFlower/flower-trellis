@@ -19,9 +19,14 @@ permissions:
   id-token: write # npm OIDC Trusted Publishing 签发短时令牌(provenance 必需)
 
 jobs:
+  verify:
+    if: github.repository == 'SilentFlower/flower-trellis'
+    uses: ./.github/workflows/ci.yml
+
   release:
     # 仅在主仓库触发,避免 fork 推 tag 误跑发布
     if: github.repository == 'SilentFlower/flower-trellis'
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       # 不拉 submodule:发布只依赖已提交的 enhancements/ 快照(prepublishOnly 的 sync 会幂等跳过)

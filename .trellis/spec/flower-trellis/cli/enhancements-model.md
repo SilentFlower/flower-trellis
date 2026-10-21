@@ -3483,7 +3483,7 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 - 共享任务视图覆盖 closeout.status 数组、对象、数字、null 和健康记录共存。
 - Node 选择性安装测试分别安装 auto-loop、continue、progress/push 别名，实际运行入口 `--help`
   与查询；canonical、snapshot、compiled target、dogfood 二次应用保持一致。
-- `.github/workflows/python-compatibility.yml` 在 Ubuntu/Windows × Python 3.8/3.12 显式运行
+- `.github/workflows/ci.yml` 的 `python-compatibility` 在 Ubuntu/Windows × Python 3.8/3.12 运行
   `test_task_lifecycle.py`；推送后以对应 headSha 的全部必需矩阵 success 作为跨平台验收。
 - 运行 `npm test`、`npm run patch:targets:check`、strict AI context budget、Python 3.8 语法、
   `git diff --check` 和 legacy 入口扫描。

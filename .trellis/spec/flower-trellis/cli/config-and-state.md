@@ -184,7 +184,7 @@ gitignored 的 `.flower/update-check.tmp` 运行缓存)。旧 `.trellis/.flower-
 - `global-trellis-sync-performance.test.js`：安装证据/标准 Windows shim、异常回退、同版
   零探测零安装、异版精确安装与错误传播。
 - `operation-timing.test.js`：默认关闭、先开始再执行、成功/失败、幂等结束、输出失效。
-- `.github/workflows/update-performance.yml`：原生 Ubuntu/Windows 真实 CLI/PTY 回归。
+- `.github/workflows/ci.yml` 的 `update-contract`：原生 Ubuntu/Windows 真实 CLI/PTY 回归。
   保留完整 npm test 的事务、冻结外部 Plugin、disabled 与 ETARGET 回归；最终 SHA 必需 CI
   成功前不能声称跨平台验收完成。
 
@@ -1280,7 +1280,7 @@ updateAll(ctx, options?) -> Promise<0|1>
   dry-run 零写入、离线追平、单次安装、更新失败继续、更新后版本核对、结果块、退出码及
   旧单项目 `--target` 语义。
 - `test/js/cli-help.test.js` 断言无效目标上的命令帮助先于发现、联网及写盘。
-- `.github/workflows/update-performance.yml` 在原生 Ubuntu/Windows 执行上述回归；只有匹配
+- `.github/workflows/ci.yml` 的 `update-contract` 在原生 Ubuntu/Windows 执行上述回归；只有匹配
   提交的两平台 job 成功后才能报告跨平台验收完成。
 
 ## Scenario: Update Backup Retention
@@ -1367,7 +1367,7 @@ pruneUpdateBackups(target, options)
   路径逃逸、dry-run 零写入、单项删除失败继续和 retention=0 零扫描。
 - 编排测试或等价静态契约检查必须证明清理调用位于配置恢复 `finally` 之后。
 - `test/js/cli-help.test.js` 用真实顶层 `--help` 断言默认数量、零写入与正常退出；
-  `.github/workflows/update-performance.yml` 在 Ubuntu/Windows 矩阵运行该测试和备份回归。
+  `.github/workflows/ci.yml` 的 `update-contract` 在 Ubuntu/Windows 矩阵运行该测试和备份回归。
 - 运行 `node --test test/js/update-backups.test.js`、完整 `npm test`、全量 `node --check`
   与 `git diff --check`；dogfood 至少用隔离目标验证 dry-run 计划且不触碰真实项目备份。
 

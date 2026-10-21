@@ -44,16 +44,20 @@
 
 ## Quality Check
 
-提交前先跑零依赖自动测试，再做语法校验与 dogfood：
+按 [Quality Guidelines](./quality-guidelines.md#testing) 选择受影响验证。已知工作流/Skill 文案先跑规则专项与产物检查；运行时或未知范围运行完整回归。复用当前内容和环境下已通过的结果，提交动作本身不要求重跑。
 
 ```bash
-# 1. Node/Python 内置测试 + 默认上下文预算告警
+# 已知规则文案：规则/权限门禁专项 + 快照/Patch + 编译产物 + 预算/输出模板
+node scripts/ci-impact.mjs --rules
+node scripts/check-snapshot.mjs
+npm run patch:targets:check
+node scripts/check-ai-context-budget.mjs --strict
+node scripts/check-output-templates.mjs
+
+# 运行时或未知范围：完整 Node/Python 与产物回归
 npm test
 
-# 2. ESM 语法校验(逐个或整体)
-node --check src/cli.js && for f in src/lib/*.js src/commands/*.js; do node --check "$f"; done
-
-# 3. dogfood 手测:对临时目标跑全流程,观察输出与产物
+# 涉及安装/更新/卸载行为时，在隔离目标做对应 dogfood
 flower-trellis init   --target ./test-target -y
 flower-trellis update --target ./test-target -y --dry-run
 flower-trellis uninstall --target ./test-target --dry-run
@@ -81,7 +85,7 @@ flower-trellis uninstall --target ./test-target --dry-run
 | [Flower Plugin Authoring And Marketplace CI](./flower-plugin-authoring.md) | 作者 Plugin/Skill、确定性 scaffold、ownership、validate、rd-guide CI 与 CODEOWNERS 契约 |
 | [AI Context Budget](./ai-context-budget.md) | 最终 workflow/state/skill、Phase summary、SessionStart 场景及 Astra/Sol/Sol 6.1 提示计量与控制面预算 |
 | [Release & Publishing](./release-and-publishing.md) | 发版流程、CI 发布(OIDC)、CHANGELOG 约定 |
-| [Quality Guidelines](./quality-guidelines.md) | 必守模式、禁用模式、评审清单；Python 3.8 跨平台解释器、UTF-8、标准流与原生验证合同 |
+| [Quality Guidelines](./quality-guidelines.md) | 按影响验证与 CI 分流、评审清单；Python 3.8 跨平台解释器、UTF-8、标准流与原生验证合同 |
 
 ---
 

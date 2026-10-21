@@ -27,7 +27,8 @@ dist-tag;beta 预发布版发布到 npm `beta` dist-tag。
 | `scripts/extract-changelog.mjs <version\|tag> <outFile>` | 抽 CHANGELOG 指定版本段供 Release notes(标题正则兼容 h2/h3) |
 | `scripts/lib/changelog-section.mjs` | CHANGELOG 指定版本段抽取的共享逻辑,供 GitHub Release notes 与 npm metadata 共用 |
 | `scripts/write-release-notes-metadata.mjs [--dry-run]` | `postchangelog` 后把当前版本 CHANGELOG 段写入 `package.json.flowerReleaseNotes` |
-| `.github/workflows/release.yml` | 稳定版 tag `vX.Y.Z` 与 beta tag `vX.Y.Z-beta.N`;按 tag 选择 `npm publish` 到 `latest` 或 `npm publish --tag beta`(OIDC)+ 创建 GitHub Release/Prerelease |
+| `.github/workflows/ci.yml` | 日常按影响执行回归；手动运行或发布调用时强制完整验证 |
+| `.github/workflows/release.yml` | 稳定版 tag `vX.Y.Z` 与 beta tag `vX.Y.Z-beta.N`;完整 CI 成功后按 tag 发布到 `latest` 或 `beta`(OIDC)+ 创建 GitHub Release/Prerelease |
 
 稳定版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` 快照 →
 `npm run release:stable` → 检查 diff → `git push --follow-tags origin main`。
@@ -62,15 +63,16 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 - `flowerReleaseNotes` 是 flower 内部 npm metadata,字段结构为
   `{version,source:"CHANGELOG.md",body,truncated}`。`version` 必须等于当前
   `package.json.version`;每个 npm 版本只保存自己的 CHANGELOG 段落,不保存 recent map。
-- push `vX.Y.Z` tag 触发稳定版 CI;CI checkout **不拉 submodule**(发布只依赖已提交的 `enhancements/` 快照)。
+- push `vX.Y.Z` tag 触发稳定版 CI；`verify` 复用 `ci.yml` 对该 tag 强制完整回归，成功后才运行 `release`。
+  验证 job 递归检出子模块；发布 job checkout **不拉 submodule**，只使用已提交的 `enhancements/` 快照。
 - push `vX.Y.Z-beta.N` tag 触发同一 CI;必须发布到 npm `beta` dist-tag。
-- 稳定版 CI 步骤:`判定通道 latest` → `npm i -g npm@11.18.0` → `npm publish`(OIDC,不设 NODE_AUTH_TOKEN)→ `extract-changelog` → `gh release create --notes-file`。
-- beta CI 步骤:`判定通道 beta` → `npm i -g npm@11.18.0` → `npm publish --tag beta`(OIDC,不设 NODE_AUTH_TOKEN)→ `extract-changelog` → `gh release create --prerelease --notes-file`。
+- 稳定版 CI 步骤:`完整回归` → `判定通道 latest` → `npm i -g npm@11.18.0` → `npm publish`(OIDC,不设 NODE_AUTH_TOKEN)→ `extract-changelog` → `gh release create --notes-file`。
+- beta CI 步骤:`完整回归` → `判定通道 beta` → `npm i -g npm@11.18.0` → `npm publish --tag beta`(OIDC,不设 NODE_AUTH_TOKEN)→ `extract-changelog` → `gh release create --prerelease --notes-file`。
 
 ### release.yml 硬约束
 - `permissions: contents: write`(建 Release)+ `id-token: write`(OIDC 签发,**必需**)。
 - **Node ≥ 22.14.0 且 npm ≥ 11.5.1**(OIDC 要求):`node-version: 22` + `npm i -g npm@11.18.0`。npm 版本固定在 11 线,不要追 `npm@latest` 的新 major。
-- **不跑 `npm ci`**:publish 无需依赖,`prepublishOnly` 在无 submodule 时只加载零依赖 helper 与 Node 内置模块;
+- **发布 job 不跑 `npm ci`**:publish 无需依赖,`prepublishOnly` 在无 submodule 时只加载零依赖 helper 与 Node 内置模块;
   省去 node-pty 编译。回归必须在不存在 `node_modules` 的隔离包目录中实际执行 sync 早退。
 - 不设 `NPM_TOKEN`/`NODE_AUTH_TOKEN`(OIDC 不需要长期令牌)。
 - workflow 由 `v*` 触发,必须先判定通道:tag 包含 `-beta.` 时使用 `npm publish --tag beta` 且创建 GitHub prerelease;不带 `-` 时使用裸 `npm publish` 发布到 `latest`。
@@ -108,6 +110,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 | vendor/snapshot `overrides/` 文件树不一致或 pinned fixture 出现 conflict error | check-snapshot `exit(1)`:同步快照或升级 baseline/Patch 后重跑 |
 | `npm run sync` 只改 `MANIFEST.syncedAt` / `sourceCommit` | 展示为快照指针更新,独立提交后再跑 `node scripts/check-snapshot.mjs` |
 | Release CI 无 `node_modules` 且无 submodule，但已提交快照 | `prepublishOnly` 零依赖早退并继续 publish，不在模块加载阶段寻找 `semver` |
+| 发布 tag 的完整验证失败、取消或仍在运行 | `release` 等待或跳过，不执行 npm publish |
 | 真实 release 已被快照门禁阻断 | 不继续 tag/push;按 `npm run sync` → 审核 diff → 提交快照 → `check-snapshot` 通过 → 重跑 release |
 | CHANGELOG 缺目标版本段 | extract-changelog `exit(1)`(等价"漏更新 CHANGELOG 就打 tag"的拦截) |
 | `postchangelog` 找不到当前版本 CHANGELOG 段 | `write-release-notes-metadata.mjs` `exit(1)`,阻断本地 release |
@@ -124,7 +127,7 @@ beta 版完整发布动作:`npm run sync` → 必要时提交 `enhancements/` �
 
 ### Wrong
 - 本地直接 `npm publish` → 拿不到 provenance(只在受信云 CI 产出),且绑本机登录态。
-- CI 里加 `npm ci` → 触发 node-pty 编译,徒增耗时与失败面。
+- 在发布 job 加 `npm ci` → 触发 node-pty 编译,徒增耗时与失败面；依赖安装留在验证 job。
 - release.yml 用 `node-version: 20` → OIDC 要求 Node ≥ 22.14.0,publish 失败。
 - beta 分支另建 `release-beta.yml` → npm 单包只能信任一个 workflow,容易造成 beta OIDC 404。
 - beta tag 里写裸 `npm publish` → prerelease 可能污染默认 `latest` 通道。

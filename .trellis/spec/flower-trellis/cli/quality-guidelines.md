@@ -47,12 +47,31 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 
 - 本项目使用零第三方测试基础设施：JavaScript 用 Node 内置 `node:test`，Python 用
   `unittest`，统一入口为 `npm test`。不要引入 Jest/Vitest/Pytest 等重依赖，除非另有明确决策。
+- **按影响选择日常验证**：本节是验证范围的统一入口；各场景的 Tests Required 用于确定关联用例，
+  示例中的 `npm test` 不自动扩大每一次文案调整的范围。共享运行时契约、未知影响和发布仍执行完整回归。
+
+  | 变化 | 本地与 CI 验证 |
+  | --- | --- |
+  | 普通说明文档、规范或任务记录，且不混有产品变化 | CI 仅判断范围，不运行测试 job |
+  | 已知工作流/Skill 文案、纯文本 Patch 与断言 | `node scripts/ci-impact.mjs --rules`；快照/Patch、compiled targets、strict budget、输出模板各检查一次 |
+  | Python 脚本、Hook 及其测试 | 关联本地专项；CI Ubuntu/Windows × Python 3.8/3.12，包含 SessionStart |
+  | 已登记的更新模块 | 关联本地专项；CI Ubuntu/Windows 更新与真实 CLI/PTY 回归 |
+  | Patch 操作配置、解释器/生成器、依赖、共享运行时或未知路径 | 本地 `npm test`；CI 完整 JS、Python 与更新矩阵，额外验证原生平台生成物一致性 |
+  | 手动运行 CI 或发布 tag | 强制完整回归；发布等待验证成功 |
+
+  `scripts/ci-impact.mjs` 集中维护已知范围，先展开子模块实际变化，再判断源、快照、compiled target
+  与 dogfood。不能仅凭 `.md` 后缀或 `vendor/skill-garden` pin 推断影响；文本 Patch 必须核对目标类型，
+  文件模式变化、缺失历史、无效比较或未知文件按完整回归处理。提示词中的可执行命令、权限或 Git 门禁
+  变化仍须补齐对应行为测试；改变平台调用方式时使用手动完整 CI，不能用文本路径分流豁免原生验证。
+  规则专项覆盖任务、权限、Git、检查与完成链契约，快速验证不代表省略这些行为检查。
+- **复用有效结果**：实现、Check-All 和提交共用当前内容与环境下的验证结果；只有新增变化影响已有
+  结论、环境变化或出现失败时补跑对应检查。无需为交接新增缓存协议或把提交动作当作全量重跑触发器。
 - **跨平台 CI 验收门禁**：新增或修改 Python/Node/Shell 脚本、CLI 指令、Hook、模板中的可执行命令，
   或影响其运行的解释器、路径、编码、换行、原生依赖与安装/生成配置时，必须为受影响行为提供
   GitHub Actions 回归并验证通过。至少覆盖原生 `ubuntu-latest` 与 `windows-latest`；Python 沿用
-  `python-compatibility.yml` 的 3.8/3.12 矩阵，SessionStart 改动同时验证 `session-start.yml`。
+  `ci.yml` 中 `python-compatibility` 的 3.8/3.12 矩阵，SessionStart 已包含在该套件中。
   涉及其它声明支持的平台或运行时版本时补充相应覆盖；不能从未执行的平台推断兼容。
-  新增入口须核对 workflow 的 `paths` 触发条件和实际测试清单，缺少覆盖时随实现补齐。
+  新增入口须核对 `ci-impact.mjs` 分流和实际测试清单，缺少覆盖时随实现补齐。
   提交前完成本地验证，推送后等待对应变更提交的必需 job 全部 `success`，才可标记任务完成、合并或发布；
   CI 未触发、排队、运行中、失败或取消均不得报告兼容验收通过。保留 run 链接、`headSha`、矩阵结果
   和 skip 原因；后续修改代码或运行配置须重新验证新提交，旧提交绿灯与本地模拟不能替代。
@@ -60,15 +79,13 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
   平台专属场景的合理跳过须明确理由，受权限限制的必需场景须补齐可执行 runner 后再验收。
   例如 Windows 命令修复应在原生 Windows runner 实际启动命令并断言输出；仅 Linux 测试通过不满足门禁。
 - `npm test` 同时运行 Flower 全平台双 catalog Patch 冲突门禁、Skill-Garden canonical compiled targets 零漂移检查和默认 AI context budget checker；冲突 warning/大小超限只告警，结构错误、compiled 漂移与 conflict error 失败。
-- 提交前执行**自动测试 + 语法校验 + dogfood 手测**:
+- 先按上表选择自动测试，再对受影响源码做语法校验；涉及安装/更新/卸载时执行对应 dogfood：
 
   ```bash
-  npm test
-  node --check src/cli.js            # ESM 语法
-  node --check scripts/extract-changelog.mjs
-  node --check scripts/write-release-notes-metadata.mjs
-  python3 -m py_compile src/assets/flower_update_hook.py
-  python3 -m py_compile .trellis/scripts/flower_update_hook.py
+  node scripts/ci-impact.mjs --rules # 已知规则文案
+  npm test                         # 运行时、未知影响或完整回归
+  node --check <changed-file.js>
+  python3 -m py_compile <changed-file.py>
   flower-trellis init   --target ./test-target -y
   flower-trellis update --target ./test-target -y --dry-run
   flower-trellis uninstall --target ./test-target --dry-run
@@ -99,7 +116,7 @@ flower-trellis 是装在别人项目上、会动其文件的工具,因此质量�
 - [ ] 输出前缀符号沿用既有语义(`✓` / `·` / `❌` / `🌸`)?
 - [ ] `-h/--help` 是否在目标校验、联网、写盘、prompt 和子进程之前返回 0?
 - [ ] 查询型空状态是否返回 0 并用结构化字段表达，写入型错误仍保持非零?
-- [ ] `npm test` 通过，context budget warning 已审阅且没有通过调高阈值掩盖重复内容?
+- [ ] 受影响验证通过，未知范围已完整回归，context budget warning 没有通过调高阈值掩盖?
 - [ ] 跨平台脚本/指令改动已有对应 GitHub Actions 覆盖，匹配变更提交的必需矩阵全部成功，目标行为未被 skip 掩盖?
 - [ ] `check-patch-conflicts` 覆盖全部声明 target，旧互斥协议未复现，vendor/snapshot overrides 一致?
 
@@ -215,8 +232,52 @@ common._configure_stream(stream: object) -> object
 - 顺序回归同时运行 auto-loop 与 task-intent，确保临时模块缓存和 `sys.path` 恢复，不指向已删除夹具目录。
 - 原生依赖安装问题须用干净依赖目录复现并复验真实 CLI；不能只使用维护者已经构建的 node_modules。
   短名路径问题须以原生 Windows 路径校验为证据；权限隔离探针不能冒充真实软链迁移回归。
-- `.github/workflows/python-compatibility.yml` 运行 Ubuntu/Windows × Python 3.8/3.12，包含受影响 Python、
-  Node 启动入口、compiled targets 与 strict budget。明确区分 CI 配置、实际 job、实机、模拟与条件 skip；
+- `.github/workflows/ci.yml` 的 `python-compatibility` 运行 Ubuntu/Windows × Python 3.8/3.12，包含全套 Python
+  和 Node 启动入口；完整模式额外验证原生平台 compiled targets，strict budget 由 `contracts` 检查一次。
+  SessionStart 包含在 Python 套件内；明确区分 CI 配置、实际 job、实机、模拟与条件 skip；
   Linux skip 不作 Windows 通过证据，局部复验不声称完整套件重跑全绿。
 - 读取 `vendor/skill-garden` 的专项 workflow 必须在干净 Runner 检出子模块；平台能力缺失测试应断言
   被测逻辑实际执行完成，不能让 mock 自身的属性错误替代产品行为验证。
+
+## Scenario: Impact-Based CI
+
+### 1. Scope / Trigger
+
+修改 CI 触发、测试分组、分流脚本或发布验证前置时适用。日常范围选择遵守上方 Testing；分流只影响验证调度。
+
+### 2. Signatures
+
+- `classifyCiChanges(files, { root }) -> { full, contracts, python, update }`
+- `collectCiChanges(base, head, { root, mergeBase }) -> string[]`
+- `node scripts/ci-impact.mjs` 输出计划；`--rules` 实际运行脚本内登记的 JS/Python 规则专项。
+
+### 3. Contracts
+
+- `CI_BASE`、`CI_HEAD` 为完整 commit SHA；PR 按 `GITHUB_EVENT_NAME=pull_request` 取合并基点，push 比较真实 before/head。
+- `CI_FULL=true` 用于手动运行及发布 tag，直接选择全部矩阵。Actions 在 `GITHUB_OUTPUT` 逐行写入
+  `full=true|false`、`contracts=true|false`、`python=true|false`、`update=true|false`；stdout 为同一对象的 JSON。
+- `impact` 递归检出并获取完整历史；`contracts` 统一检查规则、快照/Patch、compiled、预算与模板；
+  其它 job 按布尔输出执行。发布 `verify` 复用同一 `ci.yml`，`release` 必须依赖其成功。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| 缺少 SHA、历史或子模块，文件模式变化，比较命令失败 | CLI 输出完整计划，不把比较失败解释为无改动 |
+| 文本 Patch 目标非 Markdown 提示词，定义缺失/损坏，或未知路径 | `full=true`，Python/更新矩阵均运行 |
+| 规则专项任一子进程失败 | 以非零状态结束，后续失败不能被成功输出掩盖 |
+| 发布验证未成功 | 不进入发布 job |
+
+### 5. Scenarios and Examples
+
+- Normal：工作流文案、对应源/快照、编译 Markdown 和规则断言一起变化，只运行规则与产物 job。
+- Base：纯普通文档或任务记录只判断范围，不运行测试；混合提交继续验证产品变化。
+- Base：Python/更新范围可以同时命中；SessionStart 已在 Python 套件中覆盖，不另开重复 job。
+- Incorrect use：仅看到子模块 pin 或 `.md` 后缀就跳过兼容验证。应展开子模块差异，并核对 Patch 实际目标；无法确认时完整回归。
+
+### 6. Tests Required
+
+- `test/js/ci-impact.test.js` 使用真实 Git 仓库覆盖 pin、合并基点、重命名、特殊路径、模式变化及无效比较；
+  断言规则/Python/更新/完整计划和 Actions 输出，原生 Windows 由更新矩阵运行。
+- `test/js/release-sync.test.js` 断言发布依赖完整 CI，并在无依赖、无子模块的发布目录实际验证 sync 早退。
+- 修改 YAML 后运行 actionlint；分流与发布前置变化使用完整回归，原生结果以推送后的对应 SHA 为准。
