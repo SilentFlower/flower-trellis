@@ -43,4 +43,4 @@ python3 <skill-dir>/scripts/route_state.py clear-pref --target <implement|check>
 
 helper 保留另一个 target 的个人偏好；task 写入还保留当前 session 的其它字段，并清理属于旧任务的 route 决策。不要手写 JSON 或直接删文件。失败先按入口的异常 reference 核对实际持久化结果；决定已明确但未持久化时简短提示可能在恢复时再次询问。
 
-选择确定后回到入口，在同一回合实际执行。对话只说明一句模式；无需发布结构化 YAML、文件路径或下一轮工具清单。
+选择确定后回到入口，按入口的展示规则在同一回合实际执行。

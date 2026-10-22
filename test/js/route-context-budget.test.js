@@ -61,7 +61,7 @@ test("路由低频规则可由入口发现但默认 inline 不加载", () => {
   assert.doesNotMatch(entry, /## 核心原则|## 反模式|### 输出模板|```yaml/);
 });
 
-test("路由明确选择先于恢复，展示后同轮执行并保留待决选择", () => {
+test("路由明确选择先于恢复，同轮执行并保留待决选择", () => {
   const entry = fs.readFileSync(path.join(sourceRoot, routePath, "SKILL.md"), "utf8");
   assert.ok(entry.indexOf("**明确指令先应用**") < entry.indexOf("**已有选择直接恢复**"));
   assert.match(entry, /只有明确“保存\/更新默认、以后默认”才持久化个人偏好，否则临时应用/);

@@ -1573,7 +1573,7 @@ Claude 平台只安装 `.claude` 副本时,路径改为
 - `trellis-route/SKILL.md`:
   - 保留授权前提、subject、合法来源、mode 映射、最小 helper 调用和同轮执行；不默认读取 helper 源码。
   - 当前请求唯一明确 target/mode 时直接应用，只有明确保存默认才使用 `--save-pref`；假设、问题、引用和历史叙述不算指令。模式仍未决或仅要求重选时由用户选择。
-  - 无覆盖时复用当前任务合法决定或 helper hit；无合法选择时使用 helper 的内置 inline。正常对话只说明一句执行方式，同轮进入实现/Check-All，不例行打印 YAML、路径或下一轮调用清单。
+  - 无覆盖时复用当前任务合法决定或 helper hit；无合法选择时使用 helper 的内置 inline。正常路由静默执行；用户主动选择或管理默认时简短确认，异常按 reference 报告。同轮进入实现/Check-All，不例行打印模式、YAML、路径或下一轮调用清单。
   - 交互和紧邻裸数字规则位于 `references/interaction.md`；subagent 启动、audit-only 和 untracked prompt 位于 `references/subagent-dispatch.md`；异常及 auto-loop prepare 位于 `references/recovery-and-errors.md`。只有条件命中才读取，inline 不加载 catalog。
   - 用户选项、合法 source、任务隔离和只读专用角色保留；重检/恢复不重复选择。入口不超过 8,192 B，每平台投影的 Markdown/JSON 路由材料总量不超过 39,950 B；不能仅检查 canonical Claude 目录，公共 reference 来自 agents 源。
   - 不把机械 JSON 读写逻辑改写成 prompt 里的长代码块。
