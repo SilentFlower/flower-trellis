@@ -46,6 +46,10 @@ test("最终入口分别计量 Auto-Loop 与两平台实际 SessionStart 分段"
     assert.equal(hint.target, 2048);
     assert.equal(hint.review, 2048);
   }
+  const codeDesign = metrics.find((metric) => metric.name === "code-design-hint");
+  assert.ok(codeDesign.bytes > 0 && codeDesign.bytes <= 512);
+  assert.equal(codeDesign.target, 512);
+  assert.equal(codeDesign.review, 512);
   const interaction = metrics.find((metric) => metric.name === "codex-user-interaction-hint");
   assert.ok(interaction.bytes > 0 && interaction.bytes <= 512);
   assert.equal(interaction.target, 512);

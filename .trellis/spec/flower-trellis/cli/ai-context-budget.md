@@ -59,6 +59,9 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 `codex-user-interaction-hint` 同样从实际输出提取：每个 Codex state 场景恰好一份，Claude 和
 rules/stages 零份；跨模型、模型开关和来源的正文必须一致。完整块单独计量，拼接换行计入总量。
 
+`code-design-hint` 从实际输出提取完整 `<trellis-code-design>` 块：两个平台的每个 state 场景恰好
+一份，rules/stages 零份；跨平台、模型、模型开关和来源的正文必须一致。完整块单独计量，拼接换行计入总量。
+
 ## Layer Ownership
 
 | 层 | 应保留 | 禁止 |
@@ -71,6 +74,14 @@ rules/stages 零份；跨模型、模型开关和来源的正文必须一致。�
 | SessionStart | 当前状态、精简 workflow summary、spec index、限定模型的短约束 | 全 workflow、全 task artifacts、重复 breadcrumb |
 
 同一规则确需跨层出现时，高频层只保留一句边界和权威入口。默认禁止“旧规则保留 + 新高优先级段继续追加”。
+
+启动摘要的 Owner Index 只保留全部 17 项门禁的政策归属及三条跨阶段顺序；运行实现映射放在
+`trellis-meta` 的 `references/local-architecture/workflow.md` 中按需读取。父子任务摘要只保留
+触发条件和 Phase 1.1 入口；完整职责与依赖边界留在 Phase 1.1，操作命令指向该 skill 的
+`references/local-architecture/task-system.md`，brainstorm 在创建或调整任务树前必须加载该阶段。
+Phase 2 摘要与 Guardrails 中的任务实施前置条件不能被写成所有编辑的前置条件；无任务直接编辑
+遵循自身 workflow-state。首轮加载回执压缩后仍须保留一次性提示、请求语言优先、项目语言回退、
+中性兜底文本，以及不改变正文语言的约束。
 
 ## Budget Table
 
@@ -86,6 +97,7 @@ rules/stages 零份；跨模型、模型开关和来源的正文必须一致。�
 | SessionStart 三段 `additionalContext` 合计（最大平台） | 18 KiB | 20 KiB |
 | 单个 SessionStart 分段 | 8000 字符 | 10000 字符 |
 | 单个完整 Astra、Sol 或 Sol 6.1 模型提示块 | 2 KiB | 2 KiB |
+| 单个完整共享代码设计原则块 | 512 B | 512 B |
 | 单个完整 Codex 同步交互规则块 | 512 B | 512 B |
 | control-context-total | 116 KiB | 128 KiB |
 

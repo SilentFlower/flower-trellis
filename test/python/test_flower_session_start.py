@@ -159,6 +159,17 @@ if __name__ == "__main__":
                 original = self.run_hook(platform)
                 self.assertEqual(original.returncode, 0, original.stderr)
                 context = json.loads(original.stdout)["hookSpecificOutput"]["additionalContext"]
+                notices = re.findall(r"<first-reply-notice>.*?</first-reply-notice>", context, re.DOTALL)
+                self.assertEqual(len(notices), 1)
+                self.assertLessEqual(len(notices[0].encode("utf-8")), 400)
+                for instruction in [
+                    "On your first visible reply in this session",
+                    "then answer the user",
+                    "Use the request's language, else the established project language",
+                    "if neither is clear, say `Trellis SessionStart ✓`",
+                    "Do not repeat the acknowledgment or change the answer's language",
+                ]:
+                    self.assertIn(instruction, notices[0])
                 workflow = SESSION.WORKFLOW_BLOCK.search(context).group(1)
                 with ThreadPoolExecutor(max_workers=3) as executor:
                     results = list(executor.map(lambda part: self.run_hook(platform, part), SESSION.PARTS))
@@ -343,16 +354,21 @@ print(json.dumps({
                                 self.assertEqual(data, baseline)
                             self.assertNotIn("systemMessage", data)
 
-    def test_sync_interaction_is_codex_only_and_independent_of_model(self) -> None:
-        """通用交互规则只在 Codex state 追加一次，不受模型或模型开关影响。"""
+    def test_shared_rules_follow_platform_boundaries_independent_of_model(self) -> None:
+        """代码设计原则跨平台共享，交互规则仅属 Codex，均不受模型开关影响。"""
+        self.assertLessEqual(len(SESSION.CODE_DESIGN_HINT.encode("utf-8")), 512)
         self.assertLessEqual(len(SESSION.CODEX_USER_INTERACTION_HINT.encode("utf-8")), 512)
         for model in (None, SESSION.ASTRA_MODEL, SESSION.SOL_MODEL, SESSION.SOL_6_1_MODEL, "other-model"):
             for source in ("startup", "clear", "compact"):
                 for platform, part in (("codex", "state"), ("codex", "rules"),
-                                       ("codex", "stages"), ("claude", "state")):
+                                       ("codex", "stages"), ("claude", "state"),
+                                       ("claude", "rules"), ("claude", "stages")):
                     with self.subTest(model=model, source=source, platform=platform, part=part):
                         result = self.run_hook(platform, part, source, hook_input={"model": model})
                         context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+                        self.assertEqual(context.count("<trellis-code-design>"), 1 if part == "state" else 0)
+                        if part == "state":
+                            self.assertIn(SESSION.CODE_DESIGN_HINT, context)
                         expected = 1 if platform == "codex" and part == "state" else 0
                         self.assertEqual(context.count("<trellis-codex-user-interaction>"), expected)
                         if expected:
@@ -362,11 +378,17 @@ print(json.dumps({
             encoding="utf-8",
         )
         context = json.loads(self.run_hook("codex", "state", hook_input={"model": SESSION.SOL_6_1_MODEL}).stdout)
+        self.assertIn(SESSION.CODE_DESIGN_HINT, context["hookSpecificOutput"]["additionalContext"])
         self.assertIn(SESSION.CODEX_USER_INTERACTION_HINT, context["hookSpecificOutput"]["additionalContext"])
         for source in ("unknown", "", None):
-            self.assertNotIn("<trellis-codex-user-interaction>", self.run_hook(
-                "codex", "state", hook_input={"source": source}).stdout)
-        self.assertNotIn("<trellis-codex-user-interaction>", self.run_prompt_hook("codex").stdout)
+            for platform in ("codex", "claude"):
+                output = self.run_hook(platform, "state", hook_input={"source": source}).stdout
+                self.assertNotIn("<trellis-code-design>", output)
+                self.assertNotIn("<trellis-codex-user-interaction>", output)
+        for platform in ("codex", "claude"):
+            output = self.run_prompt_hook(platform).stdout
+            self.assertNotIn("<trellis-code-design>", output)
+            self.assertNotIn("<trellis-codex-user-interaction>", output)
 
     def test_sol_reuses_unchanged_astra_body(self) -> None:
         """Astra 最终原文不漂移，两个 Sol 仅替换模型标识和标签。"""

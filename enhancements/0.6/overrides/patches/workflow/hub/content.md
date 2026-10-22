@@ -1,33 +1,29 @@
 ### Skill-Garden Workflow Owner Index
 
-> Lightweight owner map for cross-stage workflow behavior. Source: github.com/SilentFlower/skill-garden.
+Follow each gate's policy owner; load its procedures and runtime details on demand.
 
-Complete contracts live in the owning phase, workflow state, skill, hook, or helper. This index only records ownership and ordering that must remain visible across stages.
-
-| Gate / Guard | Primary policy owner | Runtime owner |
-| --- | --- | --- |
-| Request Intent Routing | `Request Triage` + `trellis-start` | `task_intent.py` |
-| Harness Plan Mode Ban | `workflow-state:no_task` + `workflow-state:planning*` + `workflow-state:in_progress*` | injected state text (no runtime hook) |
-| Brainstorm Gate | Phase 1.1 + `trellis-brainstorm` | `task.py start` readiness |
-| Task Brief Handoff | Phase 1.4 + `trellis-task-brief` | `task.py start` brief guard |
-| Project Knowledge Discovery | `Request Triage` | `spec_router.py` |
-| Flower Update Confirmation | SessionStart update context + Flower CLI | update hook / `self-update` arguments |
-| Active Task Scope Guard | `Request Triage` | `task_intent.py` scope safety |
-| Untracked Work Completion Chain | `workflow-state:untracked*` + Phase 2/3 owners | `untracked_flow.py` |
-| Untracked Task Adoption | `workflow-state:untracked*` + `trellis-brainstorm` | `task_intent.py adopt` |
-| Routing Gate | Phase 2 + `trellis-route` | `route_state.py` |
-| Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` | `auto_loop.py record/next` |
-| Interactive Post-Check Stop Gate | Phase 2.2 + `trellis-check-all` | current Check-All evidence |
-| Code Commit Confirmation Gate | Phase 3.4 + `trellis-push` | exact Git safety checks |
-| Auto-loop Commit-only Preauthorization | `trellis-auto-loop` | `auto_loop.py` + `trellis-push` internal commit-only |
-| Deterministic Task Close | `trellis-push` + `trellis-auto-loop` | `task_progress.py` + `task_lifecycle.py` |
-| Deferred Physical GC | SessionStart | `task_lifecycle.py session-start` |
-| Task Progress Recovery | `trellis-continue` | `task_progress.py` |
+| Gate / Guard | Primary policy owner |
+| --- | --- |
+| Request Intent Routing | `Request Triage` + `trellis-start` |
+| Harness Plan Mode Ban | `workflow-state:no_task` + `workflow-state:planning*` + `workflow-state:in_progress*` |
+| Brainstorm Gate | Phase 1.1 + `trellis-brainstorm` |
+| Task Brief Handoff | Phase 1.4 + `trellis-task-brief` |
+| Project Knowledge Discovery | `Request Triage` |
+| Flower Update Confirmation | SessionStart update context + Flower CLI |
+| Active Task Scope Guard | `Request Triage` |
+| Untracked Work Completion Chain | `workflow-state:untracked*` + Phase 2/3 owners |
+| Untracked Task Adoption | `workflow-state:untracked*` + `trellis-brainstorm` |
+| Routing Gate | Phase 2 + `trellis-route` |
+| Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` |
+| Interactive Post-Check Stop Gate | Phase 2.2 + `trellis-check-all` |
+| Code Commit Confirmation Gate | Phase 3.4 + `trellis-push` |
+| Auto-loop Commit-only Preauthorization | `trellis-auto-loop` |
+| Deterministic Task Close | `trellis-push` + `trellis-auto-loop` |
+| Deferred Physical GC | SessionStart |
+| Task Progress Recovery | `trellis-continue` |
 
 Cross-stage ordering:
 
 1. Request intent, active-task scope, and any current untracked work are resolved before task creation, task routing, or file edits.
 2. A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.
 3. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; successful delivery writes completion and deterministic Close in one lifecycle update.
-
-Mechanical rule: follow the owner named above. The Hub must not duplicate owner procedures, helper schemas, interaction templates, error matrices, or Git path rules.

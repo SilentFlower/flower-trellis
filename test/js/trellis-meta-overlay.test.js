@@ -236,7 +236,10 @@ function assertManagedMeta(target, skillRoot) {
   assert.doesNotMatch(skillRoute, /Created by the user \(or another skill\) and never moved/);
   assert.doesNotMatch(workflow, /dispatch `trellis-implement` by default/);
   assert.doesNotMatch(workflow, /edit these state blocks and the routing table above them/);
-  assert.doesNotMatch(workflow, /preauthori[sz]ation/i);
+  // 允许记录门禁名称与实现归属，仍禁止在架构文档中复制预授权细则。
+  const preauthorizationOwner = "| Auto-loop Commit-only Preauthorization | `auto_loop.py` + `trellis-push` internal commit-only |";
+  assert.ok(workflow.includes(preauthorizationOwner));
+  assert.doesNotMatch(workflow.replace(preauthorizationOwner, ""), /preauthori[sz]ation/i);
   assert.doesNotMatch(workflow, /Untracked task adoption \| Request Triage, `trellis-brainstorm`/);
   assert.doesNotMatch(workflow, /Cross-session task progress discovery and recovery \| `trellis-continue` and `task_progress\.py`/);
   assert.doesNotMatch(workflow, /Change recovery, explicit rebind, or completed-task reopen/);

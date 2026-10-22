@@ -1262,6 +1262,10 @@ class PatchConsumerTest(unittest.TestCase):
             with self.subTest(relative=relative):
                 value = self.target.joinpath(*relative.split("/")).read_text(encoding="utf-8")
                 self.assertIn("<first-reply-notice>", value)
+                self.assertIn("On your first visible reply in this session", value)
+                self.assertIn("Use the request's language, else the established project language", value)
+                self.assertIn("Do not repeat the acknowledgment or change the answer's language", value)
+                self.assertNotIn("Choose the acknowledgment language in this order", value)
                 self.assertIn("session-start-update-notice-builder", value)
                 self.assertIn("session-start-update-notice-output", value)
                 self.assertNotIn("_resolve_update_hint", value)

@@ -25,34 +25,41 @@ function assertOrdered(value, first, second, scenario) {
 }
 
 const GATES = [
-  "Request Intent Routing",
-  "Harness Plan Mode Ban",
-  "Brainstorm Gate",
-  "Task Brief Handoff",
-  "Project Knowledge Discovery",
-  "Flower Update Confirmation",
-  "Active Task Scope Guard",
-  "Untracked Work Completion Chain",
-  "Untracked Task Adoption",
-  "Routing Gate",
-  "Auto-Loop Return Gate",
-  "Interactive Post-Check Stop Gate",
-  "Code Commit Confirmation Gate",
-  "Auto-loop Commit-only Preauthorization",
-  "Deterministic Task Close",
-  "Deferred Physical GC",
-  "Task Progress Recovery",
+  ["Request Intent Routing", "`Request Triage` + `trellis-start`", "`task_intent.py`"],
+  ["Harness Plan Mode Ban", "`workflow-state:no_task` + `workflow-state:planning*` + `workflow-state:in_progress*`", "injected state text (no runtime hook)"],
+  ["Brainstorm Gate", "Phase 1.1 + `trellis-brainstorm`", "`task.py start` readiness"],
+  ["Task Brief Handoff", "Phase 1.4 + `trellis-task-brief`", "`task.py start` brief guard"],
+  ["Project Knowledge Discovery", "`Request Triage`", "`spec_router.py`"],
+  ["Flower Update Confirmation", "SessionStart update context + Flower CLI", "update hook / `self-update` arguments"],
+  ["Active Task Scope Guard", "`Request Triage`", "`task_intent.py` scope safety"],
+  ["Untracked Work Completion Chain", "`workflow-state:untracked*` + Phase 2/3 owners", "`untracked_flow.py`"],
+  ["Untracked Task Adoption", "`workflow-state:untracked*` + `trellis-brainstorm`", "`task_intent.py adopt`"],
+  ["Routing Gate", "Phase 2 + `trellis-route`", "`route_state.py`"],
+  ["Auto-Loop Return Gate", "`trellis-check-all` + `trellis-auto-loop`", "`auto_loop.py record/next`"],
+  ["Interactive Post-Check Stop Gate", "Phase 2.2 + `trellis-check-all`", "current Check-All evidence"],
+  ["Code Commit Confirmation Gate", "Phase 3.4 + `trellis-push`", "exact Git safety checks"],
+  ["Auto-loop Commit-only Preauthorization", "`trellis-auto-loop`", "`auto_loop.py` + `trellis-push` internal commit-only"],
+  ["Deterministic Task Close", "`trellis-push` + `trellis-auto-loop`", "`task_progress.py` + `task_lifecycle.py`"],
+  ["Deferred Physical GC", "SessionStart", "`task_lifecycle.py session-start`"],
+  ["Task Progress Recovery", "`trellis-continue`", "`task_progress.py`"],
 ];
 
 test("Workflow Hub 只保留 17 项 owner 索引和跨阶段顺序", () => {
   const hub = readSource("overrides/patches/workflow/hub/content.md");
+  const runtime = readSource(
+    "overrides/patches/skills/trellis-meta/managed-workflow-owners/owner-routing-content.md",
+  ).split("### Runtime Owner Details")[1];
 
   assert.match(hub, /### Skill-Garden Workflow Owner Index/);
-  assert.ok(Buffer.byteLength(hub, "utf8") < 5000);
-  for (const gate of GATES) {
-    assert.match(hub, new RegExp(`\\| ${gate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\|`));
+  assert.ok(Buffer.byteLength(hub, "utf8") < 2000);
+  const rows = hub.split("\n").filter(line => line.startsWith("| ")).slice(2);
+  assert.deepEqual(rows.map(line => line.split("|").slice(1, -1).map(cell => cell.trim())),
+    GATES.map(([gate, policyOwner]) => [gate, policyOwner]));
+  for (const [gate, , runtimeOwner] of GATES) {
+    assert.ok(runtime.includes(`| ${gate} | ${runtimeOwner} |`), gate);
     assert.doesNotMatch(hub, new RegExp(`#### ${gate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
   }
+  assert.doesNotMatch(hub, /Runtime owner|helper schemas/);
   assert.doesNotMatch(hub, /A blocking `<flower-update>`/);
   assert.doesNotMatch(hub, /physical GC for tasks closed/);
   assertOrdered(
@@ -359,10 +366,23 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   const noTaskPath = `${requestTriage}\n${noTask}`;
   assertOrdered(
     noTask,
-    "follow the `Request Triage` Project Knowledge Discovery contract",
+    "through `Request Triage`",
     "Load a Trellis capability directly only when",
     "无任务 beta release",
   );
+  for (const [omitted, retained] of [
+    ["inspect unknown scope and reclassify before edits", /inspect first and reclassify from evidence/],
+    ["For non-trivial project work, follow the `Request Triage` Project Knowledge Discovery contract", /once per user intent, workflow phase, or decision boundary/],
+    ["Handle `discuss` and `inspect` silently", /`discuss` and `inspect` route silently/],
+    ["Ask only for material ambiguity or independent safety gates", /Ask one focused question only when ambiguity changes material side effects/],
+  ]) {
+    assert.ok(!noTask.includes(omitted), `no_task 不重复注入：${omitted}`);
+    assert.match(requestTriage, retained);
+  }
+  assert.match(noTask, /small wording\/config tweaks, release dry-runs, version checks, local SOP steps/);
+  assert.match(noTask, /release\/publish, commit, push, task operations, snapshot sync, auto-loop control/);
+  assert.match(noTask, /--source <inferred\|user-explicit>/);
+  assert.match(noTask, /Do NOT call the harness built-in plan mode \(`EnterPlanMode` \/ `ExitPlanMode`\) as a substitute; Trellis planning owns this routing\./);
   assert.match(noTask, /project-specific workflow actions through the matched SOP/);
   assert.match(noTask, /instead of keyword-mapping a general release\/publish request to `trellis-release`/);
   assertOrdered(
@@ -498,6 +518,28 @@ test("最终 dogfood 产物只有一个 Hub marker 且 owner Patch 已落盘", (
     1,
   );
   assert.match(workflow, /### Skill-Garden Workflow Owner Index/);
+  assert.match(workflow, /Phase 2: Execute → task implementation requires in_progress; no-task direct edits follow their workflow-state/);
+  assert.match(workflow, /task implementation waits for `task\.py start` after artifact review/);
+  assert.doesNotMatch(workflow, /implement only after task status is in_progress/);
+  const taskTreeSummary = readSource(
+    "overrides/patches/workflow/sessionstart-context-trim/task-tree-content.md",
+  ).trimEnd();
+  assert.ok(workflow.includes(taskTreeSummary));
+  assert.ok(Buffer.byteLength(taskTreeSummary, "utf8") < 250);
+  const planning = workflow.split("#### 1.1 Requirement exploration")[1].split("#### 1.2 Research")[0];
+  assert.match(planning, /Parent tasks own source requirements, child-task mapping, cross-child acceptance criteria, and final integration review/);
+  assert.match(planning, /Child tasks own actual deliverables/);
+  assert.match(planning, /Parent\/child structure is not a dependency system/);
+  assert.match(planning, /Do not start the parent unless the parent itself has direct implementation work/);
+  assert.match(planning, /`trellis-meta`'s `references\/local-architecture\/task-system\.md`/);
+  for (const root of [".agents/skills", ".claude/skills"]) {
+    assert.match(readRoot(`${root}/trellis-brainstorm/SKILL.md`),
+      /Before creating or changing a parent\/child task tree, load Phase 1\.1 via `python3 \.\/\.trellis\/scripts\/get_context\.py --mode phase --step 1\.1`/);
+    const taskSystem = readRoot(`${root}/trellis-meta/references/local-architecture/task-system.md`);
+    for (const command of ["--parent <parent-dir>", "task.py add-subtask", "task.py remove-subtask"]) {
+      assert.ok(taskSystem.includes(command), `${root}: ${command}`);
+    }
+  }
   assert.doesNotMatch(workflow, /#### Request Intent Routing/);
   assert.match(workflow, /configure task context before sub-agent dispatch; inline execution skips/);
   assert.doesNotMatch(workflow, /step 3\.1 was folded into 2\.2/);

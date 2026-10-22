@@ -9,5 +9,17 @@
     "selector": { "type": "literal", "source": "selector.md" },
     "content": { "source": "content.md" },
     "legacyMarkers": [{ "namespace": "transform", "id": "workflow-phase-summary" }]
+  }, {
+    "id": "workflow-phase-two-summary",
+    "operation": "replace",
+    "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+    "selector": { "type": "literal", "source": "phase-two-selector.md" },
+    "content": { "source": "phase-two-content.md" }
+  }, {
+    "id": "workflow-task-implementation-guardrail",
+    "operation": "replace",
+    "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+    "selector": { "type": "literal", "source": "guardrail-selector.md" },
+    "content": { "source": "guardrail-content.md" }
   }]
 }

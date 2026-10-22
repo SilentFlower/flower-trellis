@@ -135,44 +135,42 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
 <!-- BEGIN skill-garden patch workflow-hub v0.6 -->
 ### Skill-Garden Workflow Owner Index
 
-> Lightweight owner map for cross-stage workflow behavior. Source: github.com/SilentFlower/skill-garden.
+Follow each gate's policy owner; load its procedures and runtime details on demand.
 
-Complete contracts live in the owning phase, workflow state, skill, hook, or helper. This index only records ownership and ordering that must remain visible across stages.
-
-| Gate / Guard | Primary policy owner | Runtime owner |
-| --- | --- | --- |
-| Request Intent Routing | `Request Triage` + `trellis-start` | `task_intent.py` |
-| Harness Plan Mode Ban | `workflow-state:no_task` + `workflow-state:planning*` + `workflow-state:in_progress*` | injected state text (no runtime hook) |
-| Brainstorm Gate | Phase 1.1 + `trellis-brainstorm` | `task.py start` readiness |
-| Task Brief Handoff | Phase 1.4 + `trellis-task-brief` | `task.py start` brief guard |
-| Project Knowledge Discovery | `Request Triage` | `spec_router.py` |
-| Flower Update Confirmation | SessionStart update context + Flower CLI | update hook / `self-update` arguments |
-| Active Task Scope Guard | `Request Triage` | `task_intent.py` scope safety |
-| Untracked Work Completion Chain | `workflow-state:untracked*` + Phase 2/3 owners | `untracked_flow.py` |
-| Untracked Task Adoption | `workflow-state:untracked*` + `trellis-brainstorm` | `task_intent.py adopt` |
-| Routing Gate | Phase 2 + `trellis-route` | `route_state.py` |
-| Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` | `auto_loop.py record/next` |
-| Interactive Post-Check Stop Gate | Phase 2.2 + `trellis-check-all` | current Check-All evidence |
-| Code Commit Confirmation Gate | Phase 3.4 + `trellis-push` | exact Git safety checks |
-| Auto-loop Commit-only Preauthorization | `trellis-auto-loop` | `auto_loop.py` + `trellis-push` internal commit-only |
-| Deterministic Task Close | `trellis-push` + `trellis-auto-loop` | `task_progress.py` + `task_lifecycle.py` |
-| Deferred Physical GC | SessionStart | `task_lifecycle.py session-start` |
-| Task Progress Recovery | `trellis-continue` | `task_progress.py` |
+| Gate / Guard | Primary policy owner |
+| --- | --- |
+| Request Intent Routing | `Request Triage` + `trellis-start` |
+| Harness Plan Mode Ban | `workflow-state:no_task` + `workflow-state:planning*` + `workflow-state:in_progress*` |
+| Brainstorm Gate | Phase 1.1 + `trellis-brainstorm` |
+| Task Brief Handoff | Phase 1.4 + `trellis-task-brief` |
+| Project Knowledge Discovery | `Request Triage` |
+| Flower Update Confirmation | SessionStart update context + Flower CLI |
+| Active Task Scope Guard | `Request Triage` |
+| Untracked Work Completion Chain | `workflow-state:untracked*` + Phase 2/3 owners |
+| Untracked Task Adoption | `workflow-state:untracked*` + `trellis-brainstorm` |
+| Routing Gate | Phase 2 + `trellis-route` |
+| Auto-Loop Return Gate | `trellis-check-all` + `trellis-auto-loop` |
+| Interactive Post-Check Stop Gate | Phase 2.2 + `trellis-check-all` |
+| Code Commit Confirmation Gate | Phase 3.4 + `trellis-push` |
+| Auto-loop Commit-only Preauthorization | `trellis-auto-loop` |
+| Deterministic Task Close | `trellis-push` + `trellis-auto-loop` |
+| Deferred Physical GC | SessionStart |
+| Task Progress Recovery | `trellis-continue` |
 
 Cross-stage ordering:
 
 1. Request intent, active-task scope, and any current untracked work are resolved before task creation, task routing, or file edits.
 2. A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.
 3. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; successful delivery writes completion and deterministic Close in one lifecycle update.
-
-Mechanical rule: follow the owner named above. The Hub must not duplicate owner procedures, helper schemas, interaction templates, error matrices, or Git path rules.
 <!-- END skill-garden patch workflow-hub v0.6 -->
 
 ```
 <!-- BEGIN skill-garden patch workflow-phase-summary v0.6 -->
 Phase 1: Plan    → infer intent, take the authorized reversible next step, and write planning artifacts when needed
 <!-- END skill-garden patch workflow-phase-summary v0.6 -->
-Phase 2: Execute → implement only after task status is in_progress
+<!-- BEGIN skill-garden patch workflow-phase-two-summary v0.6 -->
+Phase 2: Execute → task implementation requires in_progress; no-task direct edits follow their workflow-state
+<!-- END skill-garden patch workflow-phase-two-summary v0.6 -->
 Phase 3: Finish  → verify, update spec, commit, and wrap up
 ```
 
@@ -199,25 +197,23 @@ Phase 3: Finish  → verify, update spec, commit, and wrap up
 - `implement.jsonl` / `check.jsonl` — spec and research manifests for sub-agent context. They do not replace `implement.md`.
 - Lightweight tasks may be PRD-only. Complex tasks must have `prd.md`, `design.md`, and `implement.md` before `task.py start`.
 
+<!-- BEGIN skill-garden patch workflow-sessionstart-task-tree-summary v0.6 -->
 ### Parent / Child Task Trees
 
-Use a parent task when one user request contains several independently verifiable deliverables. The parent task owns the source requirement set, the task map, cross-child acceptance criteria, and final integration review; it normally should not be the implementation target unless it also has direct work.
-
-Use child tasks for deliverables that can be planned, implemented, checked, and archived independently. Parent/child structure is not a dependency system: if one child must wait for another, write that ordering in the child `prd.md` / `implement.md` and keep each child's acceptance criteria testable.
-
-Create new children with `task.py create "<title>" --slug <name> --parent <parent-dir>`. Link existing tasks with `task.py add-subtask <parent> <child>`, and unlink mistakes with `task.py remove-subtask <parent> <child>`.
+When one request contains multiple independently verifiable deliverables, load Phase 1.1 task-tree guidance before creating or changing parent/child tasks.
+<!-- END skill-garden patch workflow-sessionstart-task-tree-summary v0.6 -->
 
 <!-- Per-turn breadcrumb: shown when there is no active task (before Phase 1) -->
 
 [workflow-state:no_task]
 <!-- BEGIN skill-garden patch workflow-state-no-task v0.6 -->
 No active task. First resolve any Check-All repair continuation through `Request Triage`; otherwise infer the current request intent before acting.
-For new work, repair intent alone is not a no-task switch; inspect unknown scope and reclassify before edits. Only an explicit current-request workflow instruction such as `直接做` / `不要任务` may override automatic `task_plan`.
-For non-trivial project work, follow the `Request Triage` Project Knowledge Discovery contract before routing the action. Load a Trellis capability directly only when the user explicitly names it or the request exactly matches that capability; route project-specific workflow actions through the matched SOP instead of keyword-mapping a general release/publish request to `trellis-release`.
-Handle `discuss` and `inspect` silently. For quick direct edit, make the bounded edit, run focused validation, and report without creating `untracked_flow`; small wording/config tweaks, release dry-runs, version checks, local SOP steps, and other one-turn fixes stay in this path unless the current request explicitly asks future `下一步` / `继续` / check / push handoff to remember this no-task work. For tracked direct edit, state once that work will use the session-scoped untracked flow, then run `python3 ./.trellis/scripts/untracked_flow.py begin --summary "<bounded work summary>" --source <inferred|user-explicit> --mode tracked-direct-edit`.
+For new work, repair intent alone is not a no-task switch. Only an explicit current-request workflow instruction such as `直接做` / `不要任务` may override automatic `task_plan`.
+Load a Trellis capability directly only when the user explicitly names it or the request exactly matches that capability; route project-specific workflow actions through the matched SOP instead of keyword-mapping a general release/publish request to `trellis-release`.
+For quick direct edit, make the bounded edit, run focused validation, and report without creating `untracked_flow`; small wording/config tweaks, release dry-runs, version checks, local SOP steps, and other one-turn fixes stay in this path unless the current request explicitly asks future `下一步` / `继续` / check / push handoff to remember this no-task work. For tracked direct edit, state once that work will use the session-scoped untracked flow, then run `python3 ./.trellis/scripts/untracked_flow.py begin --summary "<bounded work summary>" --source <inferred|user-explicit> --mode tracked-direct-edit`.
 Never create `untracked_flow` for `workflow_action` itself, including release/publish, commit, push, task operations, snapshot sync, auto-loop control, or read-only inspection. If a workflow action reveals a separate code/config fix, pause that workflow action, explain the separate fix, and only create tracked direct edit when the user wants later turns to remember that fix's check/spec/push handoff; otherwise keep it as quick direct edit.
 A same-item hit resumes the existing state; `active-work-conflict` blocks unrelated code writes until the current item is completed, explicitly abandoned, or adopted into a task. Unrelated read-only requests may continue without mutating the state. A successful `begin` starts at `stage=implement`; the helper is a workflow cursor and does not gate edits on file scope, Git state, or owner evidence.
-For high-confidence complex implementation, create an auto-routed planning task through `task_intent.py create`, show one non-blocking switch hint, and enter `trellis-brainstorm`. Ask only for material ambiguity or independent safety gates. Do NOT call the harness built-in plan mode (`EnterPlanMode` / `ExitPlanMode`) as a substitute; Trellis planning owns this routing.
+For high-confidence complex implementation, create an auto-routed planning task through `task_intent.py create`, show one non-blocking switch hint, and enter `trellis-brainstorm`. Do NOT call the harness built-in plan mode (`EnterPlanMode` / `ExitPlanMode`) as a substitute; Trellis planning owns this routing.
 <!-- END skill-garden patch workflow-state-no-task v0.6 -->
 [/workflow-state:no_task]
 <!-- BEGIN skill-garden patch workflow-state-untracked v0.6 -->
@@ -375,7 +371,9 @@ The route result owns the inline/subagent choice. Do not infer execution mode fr
 <!-- END skill-garden patch workflow-active-task-routing v0.6 -->
 ### Guardrails
 
-- Task creation approval is not implementation approval; implementation waits for `task.py start` after artifact review.
+<!-- BEGIN skill-garden patch workflow-task-implementation-guardrail v0.6 -->
+- Task creation approval is not implementation approval; task implementation waits for `task.py start` after artifact review.
+<!-- END skill-garden patch workflow-task-implementation-guardrail v0.6 -->
 
 - Planning must be persisted to task artifacts; checks must run before reporting completion.
 
@@ -439,7 +437,11 @@ The brainstorm skill will guide you to:
 - Keep `prd.md` focused on requirements and acceptance criteria
 - For complex tasks, produce `design.md` and `implement.md` before implementation starts
 
+<!-- BEGIN skill-garden patch workflow-task-tree-detail-entry v0.6 -->
 When considering a parent/child split:
+
+Before creating, linking, or unlinking tasks, read the Parent / Child Task Trees section in `trellis-meta`'s `references/local-architecture/task-system.md` for command syntax.
+<!-- END skill-garden patch workflow-task-tree-detail-entry v0.6 -->
 - Use a parent task when one request contains several independently verifiable deliverables.
 - Parent tasks own source requirements, child-task mapping, cross-child acceptance criteria, and final integration review.
 - Child tasks own actual deliverables that can be planned, implemented, checked, and archived independently.

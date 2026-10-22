@@ -1,0 +1,1 @@
+On the first visible assistant reply in this session, briefly acknowledge that Trellis SessionStart context loaded.

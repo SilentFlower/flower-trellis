@@ -21,6 +21,20 @@
       "operation": "remove",
       "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error", "markerStyle": "none" }],
       "selector": { "type": "literal", "source": "planning-rule-selector.md", "allowAbsent": true }
+    },
+    {
+      "id": "workflow-sessionstart-task-tree-summary",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "literal", "source": "task-tree-selector.md", "expectedMatches": 1 },
+      "content": { "source": "task-tree-content.md" }
+    },
+    {
+      "id": "workflow-task-tree-detail-entry",
+      "operation": "replace",
+      "targets": [{ "kind": "workflow", "path": ".trellis/workflow.md", "missing": "error" }],
+      "selector": { "type": "literal", "source": "task-tree-detail-selector.md", "expectedMatches": 1 },
+      "content": { "source": "task-tree-detail-content.md" }
     }
   ]
 }

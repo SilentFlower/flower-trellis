@@ -723,6 +723,11 @@ subprocess.run(
 - 源脚本属于 `src/assets/flower_session_start.py`；builtin Skill-Garden 0.6 全装通过内容投影安装到
   `.trellis/scripts/flower_session_start.py`，由 Plugin state 记录普通资产 ownership。对应平台 Patch
   属于 Flower `flower-platform-integration` full-only Bundle；不得只直改已部署脚本或 JSON 配置。
+- 共享代码设计原则由 wrapper 的 `CODE_DESIGN_HINT` 所有；两个平台只在 state 的
+  `startup|clear|compact` 追加一份 `<trellis-code-design>`，不受模型及模型开关影响，其他来源和
+  rules/stages 不追加。正文以 KISS/YAGNI 为默认取向，按实际收益应用 SOLID/DRY，优先清晰并复用
+  项目模式；避免过早抽象、额外分层、过度拆分及假设未来需求的配置或依赖，同时保留行为、兼容性、
+  必需验证、工作流、评审门禁和模板。它仅指导代码设计，不替代已有工作流或模型提示。
 - Codex 的通用同步交互规则同样由该 wrapper 所有；只在 state 的 `startup|clear|compact` 追加一份，
   与模型 hint 及其开关独立；具体配置和行为边界见下方同步交互场景。
 - 两个平台均只注册 `startup|clear|compact`；迁移删除旧单 handler / 旧分段及因此移空的分组，

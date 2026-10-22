@@ -23,6 +23,9 @@ SOL_MODEL = "gpt-6-sol"
 SOL_6_1_MODEL = "gpt-6.1-sol"
 MODEL_HINT_MAX_BYTES = 2048
 WORKFLOW_STATE_REFRESH_ARG = "--trellis-session-start-refresh"
+CODE_DESIGN_HINT = """<trellis-code-design>
+Prefer simple, clear code for confirmed needs (KISS, YAGNI). Apply SOLID and DRY when they reduce complexity or duplicated business knowledge; favor clarity if these principles conflict. Reuse project patterns. Avoid premature abstractions, extra layers, excessive splitting, and speculative config or dependencies. Preserve behavior, compatibility, required verification, workflows, review gates, and templates.
+</trellis-code-design>"""
 CODEX_USER_INTERACTION_HINT = """<trellis-codex-user-interaction>
 For questions, use synchronous request_user_input when allowed by the active tool instructions and schema; otherwise ask in the final reply and wait. Do not call request_user_input_async, send_user_message_async, or async equivalents. Show progress in commentary and results in final. Keep existing review/approval gates; never switch modes to unlock a tool or infer consent from silence.
 </trellis-codex-user-interaction>"""
@@ -327,6 +330,8 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
             message = f"workflow-state 基线未刷新：{error}"
             result["systemMessage"] = "\n".join(filter(None, [result.get("systemMessage"), message]))
             print(message, file=sys.stderr)
+        if source in ("startup", "clear", "compact"):
+            context = f"{context}\n{CODE_DESIGN_HINT}"
         if hook == HOOKS[0] and source in ("startup", "clear", "compact"):
             # 交互方式属于 Codex 平台规则，不能因模型切换或关闭模型提示而消失。
             context = f"{context}\n{CODEX_USER_INTERACTION_HINT}"

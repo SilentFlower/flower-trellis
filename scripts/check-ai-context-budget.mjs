@@ -186,6 +186,7 @@ function measureSessionStart(compiledRoot) {
     ];
     const cases = [];
     const modelHints = { astra: "", sol: "", "sol-6-1": "" };
+    let codeDesignHint = "";
     let interactionHint = "";
     const hintPatterns = {
       astra: /<trellis-astra-workflow-hint [^>]*>[\s\S]*?<\/trellis-astra-workflow-hint>/g,
@@ -243,6 +244,16 @@ function measureSessionStart(compiledRoot) {
             modelHints[hintModel] = hints[0][0];
           }
         }
+        const codeDesignHints = [...value.matchAll(/<trellis-code-design>\n[\s\S]*?\n<\/trellis-code-design>/g)];
+        if (codeDesignHints.length !== (part === "state" ? 1 : 0)) {
+          throw new Error(`SessionStart ${platform}/${name}/${part} 代码设计原则数量错误`);
+        }
+        if (codeDesignHints.length) {
+          if (codeDesignHint && codeDesignHint !== codeDesignHints[0][0]) {
+            throw new Error("各平台、模型或来源的代码设计原则不一致");
+          }
+          codeDesignHint = codeDesignHints[0][0];
+        }
         const interactions = [...value.matchAll(/<trellis-codex-user-interaction>\n[\s\S]*?\n<\/trellis-codex-user-interaction>/g)];
         const expectedInteractions = platform === "codex" && part === "state" ? 1 : 0;
         if (interactions.length !== expectedInteractions) {
@@ -268,7 +279,7 @@ function measureSessionStart(compiledRoot) {
     const total = largestCases.map((item) => item.value).sort((left, right) =>
       Buffer.byteLength(right, "utf8") - Buffer.byteLength(left, "utf8")
     )[0];
-    return { parts, total, cases, modelHints, interactionHint };
+    return { parts, total, cases, modelHints, codeDesignHint, interactionHint };
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true });
   }
@@ -355,6 +366,7 @@ export function collectAiContextMetrics() {
     measureText("astra-workflow-hint", sessionStart.modelHints.astra, { target: 2 * KIB, review: 2 * KIB }),
     measureText("sol-workflow-hint", sessionStart.modelHints.sol, { target: 2 * KIB, review: 2 * KIB }),
     measureText("sol-6-1-workflow-hint", sessionStart.modelHints["sol-6-1"], { target: 2 * KIB, review: 2 * KIB }),
+    measureText("code-design-hint", sessionStart.codeDesignHint, { target: 512, review: 512 }),
     measureText("codex-user-interaction-hint", sessionStart.interactionHint, { target: 512, review: 512 }),
     ...sessionStart.cases.map(({ platform, name, value }) =>
       measureText(`session-start-case:${platform}:${name}`, value, BUDGETS.sessionStart)
