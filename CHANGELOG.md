@@ -4,6 +4,18 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.12-beta.3](https://github.com/SilentFlower/flower-trellis/compare/v0.6.12-beta.2...v0.6.12-beta.3) (2026-10-22)
+
+
+### ✨ 新功能 Features
+
+* **hooks:** 注入简洁设计原则并精简启动上下文 ([92fb5f0](https://github.com/SilentFlower/flower-trellis/commit/92fb5f06671e17cf41af753f5faa99ba68db183e))
+
+
+### ♻️ 重构 Refactor
+
+* **route:** 同步静默展示规则与快照 ([ff8659d](https://github.com/SilentFlower/flower-trellis/commit/ff8659dcc66789a3f77656167131c7a76b3dd0d0))
+
 ## [0.6.12-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.12-beta.1...v0.6.12-beta.2) (2026-10-21)
 
 

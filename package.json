@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.12-beta.2",
+  "version": "0.6.12-beta.3",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -71,9 +71,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.12-beta.2",
+    "version": "0.6.12-beta.3",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **worktree:** 支持独立创建和目标本地准备 ([83c51b5](https://github.com/SilentFlower/flower-trellis/commit/83c51b53e334dae4e847a05628cf8602c1f70411))\n\n\n### 🐛 修复 Bug Fixes\n\n* **check-all:** 同步修复续行入口与回归检查 ([36cd997](https://github.com/SilentFlower/flower-trellis/commit/36cd997f664781eebe4b4a97df266b37e5a1747a))\n* **workflow:** 同步流程精简与能力回归 ([cb46908](https://github.com/SilentFlower/flower-trellis/commit/cb4690880eaac5f0d27f38f852c0d4d8475573bd))",
+    "body": "### ✨ 新功能 Features\n\n* **hooks:** 注入简洁设计原则并精简启动上下文 ([92fb5f0](https://github.com/SilentFlower/flower-trellis/commit/92fb5f06671e17cf41af753f5faa99ba68db183e))\n\n\n### ♻️ 重构 Refactor\n\n* **route:** 同步静默展示规则与快照 ([ff8659d](https://github.com/SilentFlower/flower-trellis/commit/ff8659dcc66789a3f77656167131c7a76b3dd0d0))",
     "truncated": false
   },
   "optionalDependencies": {
