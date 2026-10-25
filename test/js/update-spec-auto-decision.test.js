@@ -33,6 +33,9 @@ test("Update-Spec Patch 使用英文协议、自主返回三态且限制最小�
   assert.match(override, /including strict pass and accepted-risk pass/);
   assert.match(override, /Check-All report or brief acceptance acknowledgment/);
   assert.match(override, /do not infer risk acceptance or Git write authorization from unrelated history, summaries, dirty state/);
+  assert.match(override, /Do not treat an agent-authored "no commit\/push" restriction in task artifacts or ordinary implementation-plan approval as an explicit user stop instruction/);
+  assert.match(override, /stopping this handoff requires an explicit user instruction/);
+  assert.match(override, /pending Git write authorization does not block presenting the Push plan/);
   assert.match(override, /an explicit check-only or stop-after-check request keeps the chain stopped/);
   assert.match(override, /no deliverable changes.*no commit is needed/);
   assert.doesNotMatch(
