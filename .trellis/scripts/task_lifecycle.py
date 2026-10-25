@@ -33,6 +33,7 @@ GC_JOURNAL_SCHEMA_VERSION = 1
 GC_JOURNAL_RELATIVE = ".trellis/.runtime/task-gc-transaction.json"
 EXACT_COMMIT_JOURNAL_SCHEMA_VERSION = 1
 EXACT_COMMIT_JOURNAL_RELATIVE = ".trellis/.runtime/task-maintenance-commit.json"
+FILESET_DIAGNOSTIC_RELATIVE = ".trellis/.runtime/task-maintenance-fileset.json"
 RECOMPUTABLE_BLOCKER_CODES = {
     "ambiguous-child",
     "decision-log-invalid",
@@ -647,6 +648,51 @@ def _run_git_with_index(
         return 1, "", str(error)
 
 
+def _stage_exact_paths(
+    repo_root: Path,
+    index_file: Path,
+    paths: list[str],
+    expected_files: set[str],
+) -> tuple[int, str, str]:
+    """在隔离 index 中暂存候选，并保留移动后被忽略的预期文件。
+
+    Args:
+        repo_root: Git worktree 根目录。
+        index_file: 本次事务的临时 index。
+        paths: 允许操作的候选路径。
+        expected_files: 已确认应出现在提交中的精确文件集。
+
+    Returns:
+        Git 的退出码、标准输出和错误输出。
+    """
+    result = _run_git_with_index(["add", "-u", "--", *paths], repo_root, index_file)
+    if result[0] != 0:
+        return result
+    code, untracked, error = _run_git_with_index(
+        ["ls-files", "--others", "--exclude-standard", "-z", "--", *paths], repo_root, index_file,
+    )
+    if code != 0:
+        return code, untracked, error
+    existing = sorted({
+        path for path in expected_files
+        if (repo_root / path).is_file() or (repo_root / path).is_symlink()
+    } | {path for path in untracked.split("\0") if path})
+    # 原目录的白名单可能在归档后失效；仅对已确认的文件强制暂存，保留额外文件校验。
+    # NUL 清单避免大任务超过 argv 限制，literal 模式保留路径中的通配符等字符。
+    if existing:
+        pathspec = index_file.with_name("expected-paths")
+        pathspec.write_bytes(("\0".join(existing) + "\0").encode("utf-8"))
+        result = _run_git_with_index(
+            ["--literal-pathspecs", "add", "--force", f"--pathspec-from-file={pathspec}", "--pathspec-file-nul"],
+            repo_root,
+            index_file,
+        )
+        if result[0] != 0:
+            return result
+    # 可见的新文件仍纳入暂存，交给原有文件集校验发现并发新增，不能静默忽略。
+    return result
+
+
 def _exact_commit_journal_path(repo_root: Path) -> Path:
     """返回共享精确提交收尾记录路径。"""
     return repo_root / EXACT_COMMIT_JOURNAL_RELATIVE
@@ -777,10 +823,11 @@ def _worktree_matches_exact_commit(repo_root: Path, journal: dict[str, Any]) -> 
             return False
         # read-tree 生成的临时 index 没有工作树 stat 缓存，直接 diff-files 会把
         # 内容相同的文件误判为修改；在隔离 index 重加候选后比较整棵 tree。
-        code, _, _ = _run_git_with_index(
-            ["add", "-A", "--", *journal["paths"]],
+        code, _, _ = _stage_exact_paths(
             repo_root,
             index_file,
+            journal["paths"],
+            set(journal["expectedFiles"]),
         )
         if code != 0:
             return False
@@ -947,10 +994,11 @@ def _commit_exact_paths(
         code, _, error = _run_git_with_index(["read-tree", old_head], repo_root, index_file)
         if code != 0:
             raise TaskLifecycleError("git-index-init-failed", error.strip() or "无法初始化 maintenance 临时 index")
-        code, _, error = _run_git_with_index(
-            ["add", "-A", "--", *unique_paths],
+        code, _, error = _stage_exact_paths(
             repo_root,
             index_file,
+            unique_paths,
+            expected_files,
         )
         if code != 0:
             raise TaskLifecycleError("git-add-failed", error.strip() or "无法暂存 maintenance 路径")
@@ -961,9 +1009,26 @@ def _commit_exact_paths(
         )
         staged_files = {path for path in staged.split("\0") if path}
         if code != 0 or staged_files != expected_files:
+            missing = sorted(expected_files - staged_files)
+            extra = sorted(staged_files - expected_files)
+            diagnostic = repo_root / FILESET_DIAGNOSTIC_RELATIVE
+            try:
+                diagnostic.parent.mkdir(parents=True, exist_ok=True)
+                _atomic_write_bytes(diagnostic, json.dumps({
+                    "expected": sorted(expected_files), "actual": sorted(staged_files),
+                    "missing": missing, "extra": extra, "stderr": error,
+                }, ensure_ascii=False, indent=2).encode("utf-8"))
+                detail = f"；完整诊断：{FILESET_DIAGNOSTIC_RELATIVE}"
+            except OSError:
+                detail = "；完整诊断保存失败"
+            summary = (
+                f"maintenance staged 文件集不匹配：预期 {len(expected_files)} 项，实际 {len(staged_files)} 项"
+                f"；缺失 {len(missing)} 项 {json.dumps([path[:160] for path in missing[:3]], ensure_ascii=False)}"
+                f"；多出 {len(extra)} 项 {json.dumps([path[:160] for path in extra[:3]], ensure_ascii=False)}"
+            )
             raise TaskLifecycleError(
                 "git-fileset-mismatch",
-                error.strip() or f"maintenance staged 文件集不匹配：{sorted(staged_files)}",
+                summary + detail,
             )
         code, tree, error = _run_git_with_index(["write-tree"], repo_root, index_file)
         if code != 0 or not tree.strip():

@@ -3364,6 +3364,12 @@ python3 ./.trellis/scripts/task_lifecycle.py session-start --before 3d --json
 ```
 
 ```text
+_stage_exact_paths(repo_root, index_file, paths, expected_files) -> (returncode, stdout, stderr)
+task-maintenance-fileset.json: {expected, actual, missing, extra, stderr}
+task-maintenance-hook.json: {message, stdout, stderr}
+```
+
+```text
 planning -> in_progress -> completed
   -> deterministic Close -> closed view immediately
   -> SessionStart and closedAt >= 3d -> exact local GC commit
@@ -3406,6 +3412,14 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   staged/commit 文件集使用 NUL 分隔读取，并校验 parent/fileset 及候选外 index/worktree 指纹；
   中文、空格和制表符路径不得被 quote 解析破坏。同 HEAD 分支切换不得把提交写入新分支，
   固定分支 HEAD 并发变化必须由 CAS 失败关闭。
+- 精确提交与恢复重建共用 `_stage_exact_paths`：先 `git add -u` 处理跟踪项，再读取候选内
+  `ls-files --others --exclude-standard -z`；将仍存在的预期文件与这些可纳管新文件合并，
+  通过 NUL pathspec 文件和 `--literal-pathspecs add --force` 精确暂存。原路径白名单在新位置失效，
+  或整个目标目录被忽略，都不能丢失原跟踪文件；并发新增的可见文件仍须被文件集校验拒绝。
+  忽略的本地产物不进入预期清单，也不能因整目录强制暂存被带入提交。
+- `git-fileset-mismatch` 仅显示预期/实际数量、缺失/多出各前三项样例，每条路径最多 160 字符；
+  全部集合与 Git stderr 原子覆盖写入 `.trellis/.runtime/task-maintenance-fileset.json`。
+  写诊断失败保留原始失败与回滚语义，并提示保存失败。
 - reconciliation、GC 与 restore 的共享精确提交层在 `commit-tree` 成功后、`update-ref` 前原子写
   `.trellis/.runtime/task-maintenance-commit.json`，记录固定分支、旧/新 HEAD、精确 pathspec、
   commit fileset、候选外指纹与可恢复结果。引用更新成功不等于事务完成；只有真实 index 已按
@@ -3419,6 +3433,10 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 - GC 只创建本地 commit，不 push；不要求默认分支、upstream 或全工作区 clean。跨进程 lock 内重检资格；
   startup/resume 执行 unfinished GC recovery -> reconciliation -> new GC，clear/compact 不运行
   maintenance，无动作不注入任务清单。
+- SessionStart maintenance 提示为单行，含诊断位置的总长度最多 600 字符；结构化错误、非零退出、
+  损坏 JSON 和 stderr 诊断的完整 message/stdout/stderr 原子覆盖写入
+  `.trellis/.runtime/task-maintenance-hook.json`，不得再把原始 stderr 或文件清单直接回显。
+  保存失败仍返回短提示，保留旧诊断并清理临时文件；成功且无诊断时不新增诊断文件。
 - restore 只恢复物理位置，不自动 reopen。旧物理 archive 缺少或含非法 closeout 时，以 restore 时刻
   显式写 closed（不从 completedAt/分桶反推历史时间），因此恢复后仍不进入 active；用户随后显式
   reopen 才执行 completed -> in_progress、清 completedAt、置 closeout=pending 并重新进入 active。
@@ -3444,6 +3462,10 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 | 顶层旧任务目录混合 tracked/untracked 状态 | `candidate-dirty`，不迁移 |
 | 中文或空格任务名 | 真实文件系统与 NUL 文件集校验通过，exact GC/restore commit 成功 |
 | Git NUL 输出含制表符路径 | 解析保留原始路径，不要求 Windows 创建非法文件名 |
+| 移动后白名单失效或整个归档目录被忽略 | 原跟踪文件完整进入精确提交，本地 ignored 产物仍留在本地 |
+| 文件集缺失或多出数千项 | 短差集摘要和本地完整诊断；HEAD 与目录移动回滚，并发新增文件保留 |
+| maintenance 子进程输出海量错误或 stderr | 原文落盘，UI 提示不超过 600 字符 |
+| maintenance 诊断文件不可写 | 启动继续，显示保存失败，旧诊断保持完整 |
 | 同 HEAD 切换分支 / HEAD 并发变化 | commit 前失败；journal 保留，绝不在新分支提交 |
 | 最终检查后、引用更新前切到同 HEAD 新分支 | CAS 只更新事务开始分支；新分支 HEAD 不变，journal 保留诊断 |
 | GC 在 move / stage 后中断 | 下次 maintenance 回滚局部状态后重新计算并完成 |
@@ -3465,10 +3487,12 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   目录精确提交全部可纳管记录，同时保留候选外 staged、dirty 与 untracked 内容。
 - Good:GC 在 `git add` 后被终止；下一次 startup 读取 journal、精确 reset 候选 pathspec、
   恢复源目录并重新执行，候选外 staged 状态保持不变。
+- Good:任务内 `AGENTS.md` 只在原路径获白名单；GC 仍按原跟踪清单归档，随后 restore 保留内容。
 - Base:旧物理 archive 没有 closeout；closed view 只读解释为 historical closed，restore 时才显式化。
 - Bad:重复 Close 用空 explicit blockers 覆盖旧 release blocker；这会让未审查任务退出 active。
 - Bad:用换行拆分 `git diff --name-only` 或 `git show --name-only`；Git quote 会破坏非 ASCII 路径。
 - Bad:目录已移动但未提交时只重新扫描顶层候选；源目录消失会导致事务永久遗留。
+- Bad:对整目录 `git add -f` 或把整个 staged 集合拼进异常；应精确暂存并仅展示有界差集摘要。
 - Bad:restore 只搬目录，旧 archive 因缺 closeout 立即重新进入 active。
 - Bad:为选择性安装只复制入口脚本，不安装 lifecycle Patch、共享 tasks 视图或被延迟导入的 helper。
 
@@ -3479,6 +3503,10 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   move/stage/commit 中断恢复、真实 index 刷新失败、reconciliation/restore 共享提交恢复、
   GC 中断与 legacy reconciliation 组合恢复、候选 staged 清零且无关 staged 保持不变、
   restore -> closed -> reopen、候选外 dirty/staged、非法/未来 closedAt、目标碰撞和幂等。
+- `test_task_lifecycle.py` 同时覆盖原路径白名单失效、整个 archive 被忽略、中文/空格/通配符字面路径、
+  ignored 本地产物不提交、无关 staged 保留，以及大量缺失加并发新增时诊断完整、提示有界和事务回滚。
+- `test_flower_session_start.py` 覆盖结构化错误、异常退出、损坏 JSON、stderr-only 的长输出，
+  断言提示最多 600 字符、原文无损落盘、无 stderr 回显；写入失败保留旧文件且无临时文件残留。
 - `test_task_progress.py` 覆盖默认候选隐藏 closed、显式 closed status 可读、原子完成与 Close、
   写失败无半状态以及显式 reopen。
 - 共享任务视图覆盖 closeout.status 数组、对象、数字、null 和健康记录共存。

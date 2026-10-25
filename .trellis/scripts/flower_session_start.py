@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
@@ -17,6 +18,8 @@ from pathlib import Path
 PARTS = ("state", "rules", "stages")
 HOOKS = (".codex/hooks/session-start.py", ".claude/hooks/session-start.py")
 MAX_PART_CHARS = 8000
+MAINTENANCE_MESSAGE_MAX_CHARS = 600
+MAINTENANCE_DIAGNOSTIC_RELATIVE = ".trellis/.runtime/task-maintenance-hook.json"
 WORKFLOW_BLOCK = re.compile(r"<trellis-workflow>\n(.*?)\n</trellis-workflow>\n*", re.DOTALL)
 ASTRA_MODEL = "gpt-6-astra"
 SOL_MODEL = "gpt-6-sol"
@@ -209,6 +212,40 @@ def _run_workflow_state_refresh(root: Path, hook: str, hook_input: dict) -> str:
     return context
 
 
+def _maintenance_diagnostic(root: Path, message: str, stdout: str = "", stderr: str = "") -> str:
+    """保存最后一次完整诊断，并返回有长度上限的单行提示。
+
+    @param root: 当前部署项目根目录。
+    @param message: 面向用户的错误或警告。
+    @param stdout: maintenance 子进程的完整标准输出。
+    @param stderr: maintenance 子进程的完整错误输出。
+    @return: 不超过提示预算的摘要，包含诊断位置或保存失败说明。
+    """
+    diagnostic = root / MAINTENANCE_DIAGNOSTIC_RELATIVE
+    temporary = None
+    try:
+        diagnostic.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary = tempfile.mkstemp(prefix=".maintenance-", dir=str(diagnostic.parent))
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump({"message": message, "stdout": stdout, "stderr": stderr}, handle, ensure_ascii=False)
+        os.replace(temporary, str(diagnostic))
+        suffix = f"；完整诊断：{MAINTENANCE_DIAGNOSTIC_RELATIVE}"
+    except OSError:
+        suffix = "；完整诊断保存失败"
+    finally:
+        if temporary is not None:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+    # 原始输出只落盘；systemMessage 和 stderr 都不能再次回显整份文件列表。
+    summary = " ".join(message.splitlines())
+    budget = MAINTENANCE_MESSAGE_MAX_CHARS - len(suffix)
+    if len(summary) > budget:
+        summary = summary[:budget - 1] + "…"
+    return summary + suffix
+
+
 def _run_task_maintenance(root: Path) -> str:
     """运行旧任务收敛与三天物理 GC，并返回紧凑诊断。
 
@@ -229,22 +266,26 @@ def _run_task_maintenance(root: Path) -> str:
             check=False,
         )
     except OSError as error:
-        return f"task maintenance 无法启动：{error}"
-    stderr = result.stderr.decode("utf-8", errors="replace").strip()
-    if stderr:
-        print(stderr, file=sys.stderr)
-    stdout = result.stdout.decode("utf-8-sig").strip()
+        return _maintenance_diagnostic(root, f"task maintenance 无法启动：{error}", stderr=str(error))
+    stderr = result.stderr.decode("utf-8", errors="replace")
+    stdout = result.stdout.decode("utf-8-sig")
     if result.returncode != 0:
-        return f"task maintenance 失败：{stderr or stdout or f'退出码 {result.returncode}'}"
-    if not stdout:
+        return _maintenance_diagnostic(
+            root, f"task maintenance 失败（退出码 {result.returncode}）：{stderr or stdout}", stdout, stderr,
+        )
+    if not stdout.strip():
+        if stderr:
+            return _maintenance_diagnostic(root, "task maintenance：子进程有诊断输出", stdout, stderr)
         return ""
     try:
         payload = json.loads(stdout)
     except json.JSONDecodeError as error:
-        return f"task maintenance 输出损坏：{error}"
+        return _maintenance_diagnostic(root, f"task maintenance 输出损坏：{error}", stdout, stderr)
     if not isinstance(payload, dict):
-        raise ValueError("task maintenance 输出必须为 JSON 对象")
+        return _maintenance_diagnostic(root, "task maintenance 输出必须为 JSON 对象", stdout, stderr)
     if payload.get("status") == "busy":
+        if stderr:
+            return _maintenance_diagnostic(root, "task maintenance：子进程有诊断输出", stdout, stderr)
         return ""
     reconciliation = payload.get("reconciliation") if isinstance(payload.get("reconciliation"), dict) else {}
     gc_result = payload.get("gc") if isinstance(payload.get("gc"), dict) else {}
@@ -269,7 +310,12 @@ def _run_task_maintenance(root: Path) -> str:
     for item in (reconciliation, gc_result):
         if item.get("error"):
             messages.append(str(item["error"]))
-    return "task maintenance：" + "；".join(messages) if messages else ""
+    message = "task maintenance：" + "；".join(messages) if messages else ""
+    if stderr or any(item.get("error") for item in (reconciliation, gc_result)) or len(message) > MAINTENANCE_MESSAGE_MAX_CHARS:
+        return _maintenance_diagnostic(root, message or "task maintenance：子进程有诊断输出", stdout, stderr)
+    if payload.get("status") == "error":
+        return _maintenance_diagnostic(root, f"task maintenance 失败：{payload.get('message') or payload.get('reason')}", stdout, stderr)
+    return message
 
 
 def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | None:

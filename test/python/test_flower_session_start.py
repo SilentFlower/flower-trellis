@@ -12,7 +12,7 @@ import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from hashlib import sha256
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -324,6 +324,51 @@ print(json.dumps({
             self.assertEqual(SESSION._run_task_maintenance(self.root), "")
 
         self.assertNotIn("timeout", run.call_args.kwargs)
+
+    def test_maintenance_bounds_errors_and_preserves_complete_subprocess_diagnostics(self) -> None:
+        """结构化错误、stderr、异常退出与损坏输出都不会回显海量路径。"""
+        output = "完整文件路径\n" * 30000
+        cases = [
+            (0, json.dumps({"status": "ok", "gc": {"error": output}}), ""),
+            (1, output, output),
+            (0, output, ""),
+            (0, "", output),
+            (0, "[]", ""),
+        ]
+        diagnostic = self.root / SESSION.MAINTENANCE_DIAGNOSTIC_RELATIVE
+        for returncode, stdout, stderr in cases:
+            with self.subTest(returncode=returncode, stderr=bool(stderr)):
+                completed = SimpleNamespace(
+                    returncode=returncode, stdout=stdout.encode("utf-8"), stderr=stderr.encode("utf-8"),
+                )
+                visible_stderr = io.StringIO()
+                with patch.object(SESSION.subprocess, "run", return_value=completed):
+                    with redirect_stderr(visible_stderr):
+                        message = SESSION._run_task_maintenance(self.root)
+
+                self.assertLessEqual(len(message), SESSION.MAINTENANCE_MESSAGE_MAX_CHARS)
+                self.assertIn(SESSION.MAINTENANCE_DIAGNOSTIC_RELATIVE, message)
+                self.assertNotIn("\n", message)
+                self.assertEqual(visible_stderr.getvalue(), "")
+                evidence = json.loads(diagnostic.read_text(encoding="utf-8"))
+                self.assertEqual(evidence["stdout"], stdout)
+                self.assertEqual(evidence["stderr"], stderr)
+                self.assertEqual(list(diagnostic.parent.glob(".maintenance-*")), [])
+
+    def test_maintenance_diagnostic_write_failure_keeps_startup_usable(self) -> None:
+        """诊断文件不可写时仍给出短错误，保留之前的诊断与启动流程。"""
+        diagnostic = self.root / SESSION.MAINTENANCE_DIAGNOSTIC_RELATIVE
+        diagnostic.parent.mkdir(parents=True, exist_ok=True)
+        diagnostic.write_text("old evidence", encoding="utf-8")
+        completed = SimpleNamespace(returncode=1, stdout=b"", stderr=("错误" * 10000).encode("utf-8"))
+        with patch.object(SESSION.subprocess, "run", return_value=completed):
+            with patch.object(SESSION.os, "replace", side_effect=PermissionError("不可写")):
+                message = SESSION._run_task_maintenance(self.root)
+
+        self.assertLessEqual(len(message), SESSION.MAINTENANCE_MESSAGE_MAX_CHARS)
+        self.assertIn("完整诊断保存失败", message)
+        self.assertEqual(diagnostic.read_text(encoding="utf-8"), "old evidence")
+        self.assertEqual(list(diagnostic.parent.glob(".maintenance-*")), [])
 
     def test_model_hints_only_in_codex_state_for_supported_starts(self) -> None:
         """三个模型在三类启动来源各追加一次，其余平台和分段保持原文。"""

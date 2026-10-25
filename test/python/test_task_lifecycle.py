@@ -547,6 +547,70 @@ class TaskLifecycleTest(unittest.TestCase):
             self.assertIn(f".trellis/tasks/{name}/task.json", committed_paths)
             self.assertIn(f".trellis/tasks/archive/2026-09/{name}/task.json", committed_paths)
 
+    def test_gc_preserves_tracked_files_when_destination_ignore_rules_change(self) -> None:
+        """原路径白名单失效仍保留跟踪文件，并排除忽略的本地产物。"""
+        task_dir = self.write_task("09-18-ignore-move", self.closed_task())
+        task_ref = task_dir.relative_to(self.root).as_posix()
+        tracked = task_dir / "AGENTS.md"
+        tracked.write_text("需要保留的源码说明\n", encoding="utf-8")
+        literal = task_dir / "笔记 [1].md"
+        literal.write_text("需要按字面处理的路径\n", encoding="utf-8")
+        (self.root / ".gitignore").write_text(
+            f"AGENTS.md\n*.cache\n.trellis/.runtime/\n.trellis/tasks/archive/\n!/{task_ref}/AGENTS.md\n", encoding="utf-8",
+        )
+        self.git("add", "--", ".gitignore", task_ref)
+        self.git("commit", "-qm", "add source-only ignore exception")
+        (task_dir / "local.cache").write_text("不进入提交\n", encoding="utf-8")
+        staged_before = self.stage_unrelated_change()
+
+        result = MODULE.gc_closed_tasks(self.root, "3d", now=datetime(2026, 9, 22, tzinfo=timezone.utc))
+
+        archived = self.root / ".trellis/tasks/archive/2026-09" / task_dir.name
+        archive_ref = archived.relative_to(self.root).as_posix()
+        self.assertTrue(result["commit"])
+        self.assertEqual(self.git("show", f"HEAD:{archive_ref}/AGENTS.md"), "需要保留的源码说明")
+        self.assertEqual(self.git("show", f"HEAD:{archive_ref}/笔记 [1].md"), "需要按字面处理的路径")
+        self.assertNotIn("local.cache", self.git("ls-tree", "-r", "--name-only", "HEAD", "--", archive_ref))
+        self.assertTrue((archived / "local.cache").is_file())
+        self.assertEqual(self.git("diff", "--cached", "--", "unrelated-staged.txt"), staged_before)
+        self.assertFalse((self.root / MODULE.EXACT_COMMIT_JOURNAL_RELATIVE).exists())
+
+        restored = MODULE.restore_task(self.root, task_dir.name)
+
+        self.assertEqual(restored["status"], "restored")
+        self.assertEqual(tracked.read_text(encoding="utf-8"), "需要保留的源码说明\n")
+        self.assertEqual(self.git("diff", "--cached", "--", "unrelated-staged.txt"), staged_before)
+
+    def test_fileset_error_reports_bounded_differences_and_full_local_evidence(self) -> None:
+        """大量缺失项只显示少量样例，完整差集落盘且目录与 HEAD 回滚。"""
+        task_dir = self.write_task("09-18-fileset-error", self.closed_task())
+        head = self.git("rev-parse", "HEAD")
+        original = MODULE._gc_candidates
+        missing = {f".trellis/tasks/archive/2026-09/{task_dir.name}/missing-{index}.md" for index in range(3000)}
+
+        def candidates_with_missing(*args):
+            """模拟文件集与暂存结果不一致的真实防护入口。"""
+            candidates, deferred = original(*args)
+            candidates[0]["expected"].update(missing)
+            (task_dir / "unexpected.md").write_text("候选扫描后并发新增\n", encoding="utf-8")
+            return candidates, deferred
+
+        with mock.patch.object(MODULE, "_gc_candidates", side_effect=candidates_with_missing):
+            with self.assertRaises(MODULE.TaskLifecycleError) as failure:
+                MODULE.gc_closed_tasks(self.root, "3d", now=datetime(2026, 9, 22, tzinfo=timezone.utc))
+
+        self.assertEqual(failure.exception.reason, "git-fileset-mismatch")
+        self.assertLess(len(str(failure.exception)), 1400)
+        self.assertIn("缺失 3000 项", str(failure.exception))
+        evidence = json.loads((self.root / MODULE.FILESET_DIAGNOSTIC_RELATIVE).read_text(encoding="utf-8"))
+        self.assertEqual(set(evidence["missing"]), missing)
+        self.assertEqual(evidence["extra"], [f".trellis/tasks/archive/2026-09/{task_dir.name}/unexpected.md"])
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+        self.assertTrue(task_dir.is_dir())
+        self.assertTrue((task_dir / "unexpected.md").is_file())
+        self.assertFalse((self.root / ".trellis/tasks/archive/2026-09" / task_dir.name).exists())
+        self.assertFalse((self.root / MODULE.GC_JOURNAL_RELATIVE).exists())
+
     def test_commit_files_preserves_tab_in_nul_delimited_output(self) -> None:
         """Windows 无法创建含制表符的路径，因此直接验证 Git NUL 输出解析。"""
         paths = [
@@ -951,7 +1015,7 @@ class TaskLifecycleTest(unittest.TestCase):
         ) -> tuple[int, str, str]:
             nonlocal interrupted
             result = original_run_git(args, repo_root, index_file)
-            if args[:2] == ["add", "-A"] and not interrupted:
+            if args[:2] == ["add", "-u"] and not interrupted:
                 interrupted = True
                 raise KeyboardInterrupt("模拟暂存后中断")
             return result
@@ -1056,7 +1120,7 @@ class TaskLifecycleTest(unittest.TestCase):
         ) -> tuple[int, str, str]:
             nonlocal switched
             result = original_run_git(args, repo_root, index_file)
-            if args[:2] == ["add", "-A"] and not switched:
+            if args[:2] == ["add", "-u"] and not switched:
                 switched = True
                 self.git("switch", "-q", "-c", "gc-other")
             return result
@@ -1128,7 +1192,7 @@ class TaskLifecycleTest(unittest.TestCase):
         ) -> tuple[int, str, str]:
             nonlocal changed
             result = original_run_git(args, repo_root, index_file)
-            if args[:2] == ["add", "-A"] and not changed:
+            if args[:2] == ["add", "-u"] and not changed:
                 changed = True
                 (self.root / "README.md").write_text("concurrent\n", encoding="utf-8")
                 self.git("add", "README.md")
