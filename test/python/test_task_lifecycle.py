@@ -611,6 +611,31 @@ class TaskLifecycleTest(unittest.TestCase):
         self.assertFalse((self.root / ".trellis/tasks/archive/2026-09" / task_dir.name).exists())
         self.assertFalse((self.root / MODULE.GC_JOURNAL_RELATIVE).exists())
 
+    def test_maintenance_updates_only_paths_already_known_to_the_index(self) -> None:
+        """严格 Git 路径校验下，归档、恢复和全新旧任务迁移都能完成。"""
+        task_dir = self.write_task("09-18-strict-index", self.closed_task())
+        original = MODULE._run_git_with_index
+
+        def strict_git(args, repo_root, index_file):
+            """在旧版 Git 上复现新版 Git 对 add -u 路径的拒绝行为。"""
+            if args[:2] == ["add", "-u"]:
+                for path in args[3:]:
+                    code, tracked, error = original(["ls-files", "-z", "--", path], repo_root, index_file)
+                    if code != 0 or not tracked:
+                        return 1, "", error or f"pathspec {path} did not match any file(s) known to git"
+            return original(args, repo_root, index_file)
+
+        with mock.patch.object(MODULE, "_run_git_with_index", side_effect=strict_git):
+            archived = MODULE.gc_closed_tasks(self.root, "3d", now=datetime(2026, 9, 22, tzinfo=timezone.utc))
+            restored = MODULE.restore_task(self.root, task_dir.name)
+            legacy = self.write_task("09-20-untracked-strict", {"status": "planning", "children": []}, commit=False)
+            migrated = MODULE.reconcile_legacy_tasks(self.root)
+
+        self.assertTrue(archived["commit"])
+        self.assertEqual(restored["status"], "restored")
+        self.assertTrue(migrated["commit"])
+        self.assertEqual(json.loads((legacy / "task.json").read_text())["closeout"]["status"], "pending")
+
     def test_commit_files_preserves_tab_in_nul_delimited_output(self) -> None:
         """Windows 无法创建含制表符的路径，因此直接验证 Git NUL 输出解析。"""
         paths = [

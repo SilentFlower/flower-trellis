@@ -665,9 +665,20 @@ def _stage_exact_paths(
     Returns:
         Git 的退出码、标准输出和错误输出。
     """
-    result = _run_git_with_index(["add", "-u", "--", *paths], repo_root, index_file)
-    if result[0] != 0:
-        return result
+    code, tracked, error = _run_git_with_index(["ls-files", "-z", "--", *paths], repo_root, index_file)
+    if code != 0:
+        return code, tracked, error
+    tracked_files = [name for name in tracked.split("\0") if name]
+    tracked_paths = [
+        path for path in paths
+        if any(name == path or name.startswith(path + "/") for name in tracked_files)
+    ]
+    result = (0, "", "")
+    # 新版 Git 拒绝 add -u 中未跟踪的目标路径；全新候选则直接进入下方精确新增。
+    if tracked_paths:
+        result = _run_git_with_index(["add", "-u", "--", *tracked_paths], repo_root, index_file)
+        if result[0] != 0:
+            return result
     code, untracked, error = _run_git_with_index(
         ["ls-files", "--others", "--exclude-standard", "-z", "--", *paths], repo_root, index_file,
     )

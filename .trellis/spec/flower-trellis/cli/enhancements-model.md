@@ -3412,7 +3412,9 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   staged/commit 文件集使用 NUL 分隔读取，并校验 parent/fileset 及候选外 index/worktree 指纹；
   中文、空格和制表符路径不得被 quote 解析破坏。同 HEAD 分支切换不得把提交写入新分支，
   固定分支 HEAD 并发变化必须由 CAS 失败关闭。
-- 精确提交与恢复重建共用 `_stage_exact_paths`：先 `git add -u` 处理跟踪项，再读取候选内
+- 精确提交与恢复重建共用 `_stage_exact_paths`：先用临时 index 的 `ls-files -z` 筛选含跟踪项的
+  pathspec，仅对这些路径执行 `git add -u`；空集合跳过更新，未跟踪的归档目标与全新迁移候选不得传入
+  `add -u`，以兼容 Git 2.55 的严格路径校验。随后读取候选内
   `ls-files --others --exclude-standard -z`；将仍存在的预期文件与这些可纳管新文件合并，
   通过 NUL pathspec 文件和 `--literal-pathspecs add --force` 精确暂存。原路径白名单在新位置失效，
   或整个目标目录被忽略，都不能丢失原跟踪文件；并发新增的可见文件仍须被文件集校验拒绝。
@@ -3505,6 +3507,8 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   restore -> closed -> reopen、候选外 dirty/staged、非法/未来 closedAt、目标碰撞和幂等。
 - `test_task_lifecycle.py` 同时覆盖原路径白名单失效、整个 archive 被忽略、中文/空格/通配符字面路径、
   ignored 本地产物不提交、无关 staged 保留，以及大量缺失加并发新增时诊断完整、提示有界和事务回滚。
+  严格 Git 替身拒绝未跟踪的 `add -u` 参数，串联验证归档、恢复及完全未跟踪旧任务迁移；
+  Git 2.43 本地通过不能代替 Git 2.55 实际执行证据与 CI 平台矩阵。
 - `test_flower_session_start.py` 覆盖结构化错误、异常退出、损坏 JSON、stderr-only 的长输出，
   断言提示最多 600 字符、原文无损落盘、无 stderr 回显；写入失败保留旧文件且无临时文件残留。
 - `test_task_progress.py` 覆盖默认候选隐藏 closed、显式 closed status 可读、原子完成与 Close、
