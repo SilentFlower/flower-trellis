@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.12-beta.3",
+  "version": "0.6.12-beta.4",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -71,9 +71,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.12-beta.3",
+    "version": "0.6.12-beta.4",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **hooks:** 注入简洁设计原则并精简启动上下文 ([92fb5f0](https://github.com/SilentFlower/flower-trellis/commit/92fb5f06671e17cf41af753f5faa99ba68db183e))\n\n\n### ♻️ 重构 Refactor\n\n* **route:** 同步静默展示规则与快照 ([ff8659d](https://github.com/SilentFlower/flower-trellis/commit/ff8659dcc66789a3f77656167131c7a76b3dd0d0))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **hooks:** 修复任务归档失败与启动诊断刷屏 ([9dc372f](https://github.com/SilentFlower/flower-trellis/commit/9dc372f5a0cbe878504f836593121c505c3e289d))\n* **task:** 同步 Git 路径校验兼容修正 ([e9a7e0e](https://github.com/SilentFlower/flower-trellis/commit/e9a7e0eb04363a34bfba19fbaecf52e82367bb51))\n* **workflow:** 校验停止指令来源并同步规则快照 ([dcadf66](https://github.com/SilentFlower/flower-trellis/commit/dcadf66b16904e1e4c9c36abedc47685da07e6a3))",
     "truncated": false
   },
   "optionalDependencies": {
