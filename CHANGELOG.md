@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.12-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.6.12-beta.4...v0.6.12-beta.5) (2026-10-26)
+
+
+### 🐛 修复 Bug Fixes
+
+* **push:** 保留规定的计划与结果模板结构 ([f7346b0](https://github.com/SilentFlower/flower-trellis/commit/f7346b01765c2415555ad7ceae7a8891e7aead04))
+
 ## [0.6.12-beta.4](https://github.com/SilentFlower/flower-trellis/compare/v0.6.12-beta.3...v0.6.12-beta.4) (2026-10-25)
 
 
