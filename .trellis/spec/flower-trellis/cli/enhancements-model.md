@@ -2517,7 +2517,9 @@ python3 ./.trellis/scripts/decision_log.py review \
 - 已终态运行查询不复活；显式 `retry-blocked` 先验证 pending 再重置状态。合法 pending 的原 action 必须保留；未知文档变化仍由 next 拒绝。next 不消费 pending、不推进业务阶段，真实 record 才重绑 manifest。
 - 依赖只来自 `--depends-on` 或 planning artifacts 的明确契约，不从任务顺序、parent/child 或代码引用猜测。prepare 拒绝缺失、自依赖和循环；稳定拓扑排序只移动满足依赖所需的任务，并把原始/执行顺序写入 manifest。
 - AI 只可通过 `decide` 记录任务目标内、低/中风险、可逆且可测试的自主选择。Open Questions、高风险、生产/费用/权限/隐私、破坏性公开契约、push/merge/release/deploy 与 lifecycle owner 之外的物理整理必须 blocked。
-- `decisions.jsonl` 使用 append-only decision/review 事件；decision ID 单调递增，review 绑定当前全部 decision digest。新增 decision 会使旧 review 失效，损坏 JSONL 默认失败关闭。
+- `decisions.jsonl` 使用 append-only decision/review 事件；decision ID 单调递增，review 绑定当前全部 decision digest。
+  新增 decision 会使当前审查结果失效并重新待审查，但历史明确返工要求持续保留，直到后续有效 accepted
+  覆盖对应决策；损坏 JSONL 或历史 review 的摘要、决策集合、返工引用不合法时失败关闭。
 - decision 修改 planning/handoff 时，优先用重复的 `--task-file prd.md|design.md|implement.md|brief.md`，或用完整 `--file <repository>::<path>` 列出全部目标。`--task-file` 要求当前任务已有普通文件；`--file` 保持仓库相对语义并允许待创建代码文件，预检拒绝未知仓库、绝对/越界路径、软链和 protected 冲突，裸四文档名不静默解释为任务路径。下一次同任务 record 比较逐文件 hash；全部变化获授权时追加绑定 decision ID 的 manifest revision，否则进入匹配 action 的 artifact drift 处理。
 - `next` 发出的 action 必须写入 outstanding 状态；`record` 必须传匹配 action。schema 2 running action 保存原 payload、issued_at、递增 generation 和四文档逐文件 baseline；重复 next 重放原 action，不重取 baseline、depth、route 或预算。正确 pending 覆盖的变化允许继续原 action，但只有真实 record 才消费决策并重绑 manifest；检查结果必须保存 requested/minimum/effective depth 和原因，minimum/full 不得回写 light。
 - Check-All record 以剩余 `CHK-*` 与 `FBK-*` 共同决定 `failed|ok`：任一通道存在问题时必须 `record failed` 并进入 fix/recheck；只有两类问题均为 0 时才能 `record ok`。
@@ -2545,8 +2547,9 @@ python3 ./.trellis/scripts/decision_log.py review \
   bookkeeping 不 push、不移动目录、不执行 GC。completed progress 有多仓提交时记录
   `<repository>:<short-hash>`，blocked item 的 progress 保留失败原因并把 `nextStep` 指向精确
   `retry-blocked --run-id <run-id> --task <task>`；progress 不保存 push mode、分支或 Git 编排计划。
-- Close 复用 `decision_log.py` 的 deterministic review status。无 decision 放行；当前 digest 未 accepted、
-  changes-requested 或日志损坏形成结构化 blocker，并由对应 owner 解决后显式重试 Close。
+- Close 复用 `decision_log.py` 的 deterministic review status。无 decision 或仅待审查不增加决策 blocker；
+  `pending_change_ids` 非空形成 `decision-changes-requested`，损坏日志形成 `decision-log-invalid`。
+  明确返工由对应 owner 完成并经有效 accepted 解除后重试 Close；不得为关闭任务伪造 accepted。
 - `<run-id>.json` 是 runner 热状态文件，只保留调度和恢复必需字段：当前 queue/item 状态、attempts、blocked reason、commit、outstanding action、manifest revision/hash 和 audit 文件引用。完整 manifest revision 历史必须写入旁路 `<run-id>.manifest.jsonl`，每行是 `type=manifest_revision`、`revision`、`sha256`、`created_at`、完整 `payload` 的审计事件；旧 runtime 中的 `manifest_revisions` 数组在下一次 `_write_state()` 时幂等迁移到 JSONL，并从主 JSON 删除。
 - 默认 stdout 只返回 run/action/计数/简短 blocked 与决策摘要；manifest、dirty、依赖链、protected drift、完整 decision data 和 resume capsule 只在 `--verbose` 输出。runtime 继续使用同目录临时文件、flush/fsync 和 `os.replace` 原子写入。
 - 默认 `status` / `resume` 不得加载或展示完整 audit JSONL；`--verbose` 最多展示 `manifest_audit_path` 和有限 `manifest_tail`。完整 audit 只在明确 debug artifact-drift 或审计时按路径读取，避免 AI 恢复上下文无脑加载大型内部历史。
@@ -2595,8 +2598,9 @@ python3 ./.trellis/scripts/decision_log.py review \
 | `retry-blocked` 恢复 terminal `artifact-drift` | item 回到 pending，`attempts.artifact_reconcile=0` |
 | schema 2 存在任务级 blocked，独立任务已处理完 | run 进入 `completed_with_blocked` |
 | runtime 损坏或仓库不可读 | 返回结构化全局错误或 `globally_blocked`，不得另建状态掩盖原 run |
-| decision log 无决策 | Close 不增加 review blocker |
-| 当前 decision digest 未 accepted 或日志损坏 | 写 `closeout=blocked`，不伪造 closed |
+| decision log 无决策或仅待审查 | Close 不增加决策 blocker，保留审计状态与原日志 |
+| 存在未解决的明确返工，包括其后又追加 decision | 写 `decision-changes-requested`，不伪造 closed |
+| decision log 或历史 review 绑定损坏 | 写 `decision-log-invalid`，保留原始日志 |
 | commit_only 成功 | exact 本地 commit 并回写 hash/files/message；runner 原子写 completed/progress/Close |
 | `--repo-commit` 仓库未登记、hash 非法、对象非 commit 或仓库不可读 | 返回对应结构化错误；不消费 outstanding action，不崩溃 |
 | 同仓重复记录相同 commit / 不同 commit | 相同提交幂等合并；不同提交返回 `repo-commit-conflict` |
@@ -2637,7 +2641,7 @@ python3 ./.trellis/scripts/decision_log.py review \
   `--repo-commit`，runner 重新发出 `commit_only`，Push 验证并跳过前置提交后继续剩余链。
 - Good:后续仓存在不相交的 retained dirty；生成前后摘要一致，Push 只提交 exact planned/generated
   paths，最终 record 全部 repo commits，并以主仓或最后提交填充兼容 `commit`。
-- Base:任务没有 AI decision；deterministic Close 不增加 review blocker。
+- Base:任务没有 AI decision，或存在未审查但无明确返工的 decision；deterministic Close 不增加决策 blocker。
 - Base:schema 1 runtime 恢复到 outstanding `confirm_brief`；继续旧 action，不写 schema 2 字段。
 - Base:旧调用只传 `record --commit <hash>`；runner 不要求 `commits[]`，单仓结果和 progress 文案保持兼容。
 - Base:auto-loop 本地提交完成后原子写 completed/progress/Close；run 的后续状态不影响该 item。
@@ -2671,8 +2675,9 @@ python3 ./.trellis/scripts/decision_log.py review \
   action 期间 hash 漂移和 exact commit files。
 - decision 测试覆盖 append、递增 ID、risk/choice 校验、digest、accepted、changes-requested、新 decision
   使旧 review 失效、artifact rebind、未授权变化和原子写失败保留旧文件。
-- Close 测试断言无 decision 放行，未审查/changes-requested/损坏日志形成持久 blocker，accepted 后
-  由 owner 显式解除并保持 Close 幂等。
+- Close 测试断言无 decision/仅待审查放行，明确返工与损坏日志继续阻塞；追加 decision 不冲掉返工，
+  有效 accepted 后正常重试解除。`commit_only` 完成含未审查 decision 的任务仍写 completed + closed，
+  日志中不自动生成 review。
 - Check-All 测试覆盖 requested/minimum/effective depth、legacy full fallback、failed -> fix -> full
   recheck、DOC manifest 重绑、非法路径、声明/实际不一致、retryable 后成功、3 次预算后阻塞、
   显式 blocked、任一 `FBK-*` 必须 `record failed` 并进入 fix/recheck，以及成功 record 后立即 `next`。
@@ -3358,8 +3363,8 @@ auto-loop internal commit-only -> 不读取、不渲染、不确认
 
 ### 1. Scope / Trigger
 
-- Trigger:任务完成记录、auto-loop 单项 record、逻辑 Close、closed 视图、SessionStart maintenance、
-  物理 GC、restore 或 reopen 行为发生变化。
+- Trigger:任务完成记录、auto-loop 单项 record、决策审查、逻辑 Close、closed 视图、SessionStart
+  maintenance、物理 GC、归档后审查、restore 或 reopen 行为发生变化。
 - Scope:`task_progress.py` 与 auto-loop record 负责完成写入并调用共享 Close；
   `task_lifecycle.py` 负责资格评估、旧数据收敛、精确 Git 事务、restore 与 GC；
   SessionStart 只负责在 startup/resume 调用 maintenance。上述路径均为确定性逻辑，不调用模型。
@@ -3375,11 +3380,14 @@ python3 ./.trellis/scripts/task.py gc --closed --before 3d [--dry-run] [--json]
 python3 ./.trellis/scripts/task.py restore <task> [--dry-run] [--json]
 python3 ./.trellis/scripts/task_progress.py status --task <task> --json
 python3 ./.trellis/scripts/task_progress.py reopen --task <task> --json
+python3 ./.trellis/scripts/decision_log.py status --task <task> [--json]
+python3 ./.trellis/scripts/decision_log.py review --task <task> --verdict accepted|changes-requested [--decision-id <DEC-id>] [--notes <text>]
 python3 ./.trellis/scripts/task_lifecycle.py session-start --before 3d --json
 ```
 
 ```text
 _stage_exact_paths(repo_root, index_file, paths, expected_files) -> (returncode, stdout, stderr)
+decision_review_status(task_dir) -> {needs_review: bool, close_allowed: bool, pending_change_ids: list[str], ...}
 task-maintenance-fileset.json: {expected, actual, missing, extra, stderr}
 task-maintenance-hook.json: {message, stdout, stderr}
 ```
@@ -3402,6 +3410,22 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   可重新计算的 blocker 不从旧结果继承；release、父任务整合等持久化语义 blocker 必须保留，
   直到所属 owner 通过共享 helper 的 `resolved_blocker_codes`，或用户在 owner 工作完成后显式执行
   `task.py close <task> --resolve-blocker <code>` 解除；该参数可重复传入多个 blocker code。
+- 决策审查与关闭资格独立：`needs_review` 表示有 decision 且当前完整 digest 未获得 accepted；
+  决策维度的 `close_allowed` 只取决于是否存在未解决的明确返工，不能替代其它 Close 条件。
+  `pending_change_ids` 按 decision 顺序列出尚待返工的 ID。三者均从 schema 1 事件日志派生，
+  不新增持久化字段或配置开关，不因仅待审查而要求 accepted。
+- 历史 changes-requested 累积返工 ID，追加 decision 不得清除；后续有效 accepted 一次覆盖当时全部
+  decision 并解除对应返工。每条历史 review 必须匹配其发生时的 decision digest 与完整 ID 集合，
+  changes-requested 还必须指定非空且已存在的 requested IDs；无效绑定与损坏日志都形成
+  `decision-log-invalid`。当前返工形成 `decision-changes-requested`，不能用解除旧 blocker 的参数绕过。
+- 旧 `decision-review-required` 仍登记为可重算原因码，仅供下次正常 Close 重试淘汰过时门槛；
+  不批量改写旧 task.json、不删审计日志、不自动生成 accepted，且保留真实交付和语义 blocker。
+- `decision_log.py status/review --task` 支持活跃、顶层 closed 和物理 archive 任务，可使用项目内路径、
+  绝对路径、完整目录名或唯一短名。复用共享全任务枚举，拒绝目录外引用、软链别名、短名歧义和
+  active/archive 同名身份冲突；显式路径不能绕过重复身份。只扩大审查解析，不扩大默认 active 视图。
+- CLI review 在共享 `maintenance_lock` 内重新解析任务并追加日志，与 GC/restore 串行；锁忙或存在
+  未恢复的 GC/exact commit journal 时非零返回，不追加审查、不自动恢复事务。closed/archived 后审查
+  不修改 task.json、不重建旧目录，也不自动 reopen；之后明确要求返工时由用户显式 reopen。
 - Close 成功原子写 `closeout=closed` 与秒级 UTC `closedAt`，随后 best-effort 清理指向该任务的
   Session 并运行 `after_close`。重复 Close 不刷新时间、不重写文件、不重复副作用；blocked 不清指针。
 - 普通最终 progress 与 completed、Close 在同一次 task.json 原子替换中完成；auto-loop 的
@@ -3470,6 +3494,12 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 | 条件 | 行为 |
 |------|------|
 | completed 且结构条件全部满足 | 原子 closed，立即退出 active，清 Session，运行 after_close |
+| 仅有未审查 decision，其它 Close 条件满足 | 正常 closed，保留 `needs_review=true`，不追加 accepted |
+| 明确返工未解除，或其后又追加 decision | `decision-changes-requested`，detail.decisionIds 保留待返工 ID |
+| 旧 `decision-review-required` 后正常重试 | 按当前日志重新计算，真实语义 blocker 不被一并清除 |
+| closed/archived 后补审查 | 仅追加审查，task.json 与 closed 视图保持不变 |
+| 审查引用存在歧义、重复身份、软链别名或目录越界 | 非零 `decision-log-error`，不写日志 |
+| 审查时维护锁忙或事务 journal 尚未恢复 | 非零 `decision-log-error`，保留日志与恢复证据 |
 | 重复 Close | `already-closed`，保留原 closedAt，零写入 |
 | 持久化语义 blocker 仍未显式解除 | 重试仍 blocked，不清空 blocker |
 | Close 后 task-record commit/push 失败 | 新会话用显式 `status --task` 读取 closed 任务并恢复发布 |
@@ -3498,6 +3528,8 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 
 - Good:普通 Push 最终 helper 写 completed + closed 后清 Session；若随后的 task-record push 失败，
   Continue 使用显式任务引用恢复，不把 closed 任务重新放回默认候选。
+- Good:未审查 decision 不阻 Close，72 小时后 GC 归档；随后用唯一短名或完整归档路径补写 review，
+  task.json 字节不变，任务不重新进入 active。
 - Good:auto-loop 旧 completed 记录没有新摘要，但旧 pending_archive、commit 和五字段 progress
   精确互证；首次 SessionStart 迁移并提交，第二次无变化。
 - Good:完整未跟踪的 planning 旧任务包含 prd/notes；reconciliation 补齐 pending closeout，按整个任务
@@ -3506,7 +3538,8 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   恢复源目录并重新执行，候选外 staged 状态保持不变。
 - Good:任务内 `AGENTS.md` 只在原路径获白名单；GC 仍按原跟踪清单归档，随后 restore 保留内容。
 - Base:旧物理 archive 没有 closeout；closed view 只读解释为 historical closed，restore 时才显式化。
-- Bad:重复 Close 用空 explicit blockers 覆盖旧 release blocker；这会让未审查任务退出 active。
+- Bad:重复 Close 用空 explicit blockers 覆盖旧 release blocker；这会让交付语义尚未核验的任务退出 active。
+- Bad:通过追加 decision 冲掉旧返工，或为关闭任务自动写 accepted；应完成返工，经真实有效审查后重试 Close。
 - Bad:用换行拆分 `git diff --name-only` 或 `git show --name-only`；Git quote 会破坏非 ASCII 路径。
 - Bad:目录已移动但未提交时只重新扫描顶层候选；源目录消失会导致事务永久遗留。
 - Bad:对整目录 `git add -f` 或把整个 staged 集合拼进异常；应精确暂存并仅展示有界差集摘要。
@@ -3515,6 +3548,12 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 
 ### 6. Tests Required
 
+- `test_decision_log.py` 覆盖仅待审查放行、返工累积和跨新 decision 保留、accepted 覆盖、历史绑定损坏，
+  以及 closed/archive 的相对路径、绝对路径、目录名/短名审查、歧义、重复身份、软链和目录外引用；
+  未恢复 GC/exact commit journal 时拒绝写入。
+- `test_task_lifecycle.py` 串联未审查 Close -> 真实延迟 GC commit -> 归档后 review；跨进程锁忙时不写日志，
+  同锁内 GC 完成后重试定位归档目录，不重建旧目录；旧审查 blocker 重算但保留语义 blocker，
+  子任务/交付/坏日志保护不变。
 - `test_task_lifecycle.py` 覆盖 Close success/already/blocked、语义 blocker 重试与显式解除、
   legacy 新摘要/旧 runtime、特殊 Git 路径、同 HEAD 分支切换、最终引用更新窗口、HEAD 变化、
   move/stage/commit 中断恢复、真实 index 刷新失败、reconciliation/restore 共享提交恢复、
@@ -3527,7 +3566,8 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 - `test_flower_session_start.py` 覆盖结构化错误、异常退出、损坏 JSON、stderr-only 的长输出，
   断言提示最多 600 字符、原文无损落盘、无 stderr 回显；写入失败保留旧文件且无临时文件残留。
 - `test_task_progress.py` 覆盖默认候选隐藏 closed、显式 closed status 可读、原子完成与 Close、
-  写失败无半状态以及显式 reopen。
+  写失败无半状态以及显式 reopen；`test_task_progress.py` 和 `test_auto_loop.py` 均断言未审查 decision
+  不阻原子 completed + closed，且不自动追加 review。
 - 共享任务视图覆盖 closeout.status 数组、对象、数字、null 和健康记录共存。
 - Node 选择性安装测试分别安装 auto-loop、continue、progress/push 别名，实际运行入口 `--help`
   与查询；canonical、snapshot、compiled target、dogfood 二次应用保持一致。

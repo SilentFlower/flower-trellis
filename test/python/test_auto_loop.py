@@ -2175,8 +2175,10 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         self.assertEqual(state["parent_tasks_outside_queue"], [])
 
     def test_commit_only_completion_closes_without_moving_task(self) -> None:
-        """auto-loop 本地完成态立即 Close，但不移动任务目录。"""
-        self.advance_to_check()
+        """auto-loop 带未审查自主决策仍可 Close，并保留任务位置及审计日志。"""
+        task, _ = self.prepare_in_progress_decision()
+        self.runner("record", "--action", "run_implement", "--result", "ok")
+        self.assertEqual(self.runner("next")["action"], "run_check_all")
         self.runner(
             "record",
             "--action",
@@ -2207,6 +2209,8 @@ class AutoLoopCheckDepthTest(unittest.TestCase):
         self.assertEqual(metadata["status"], "completed")
         self.assertEqual(metadata["closeout"]["status"], "closed")
         self.assertTrue((self.root / ".trellis/tasks/task-one").is_dir())
+        events = [json.loads(line) for line in (self.root / task / "decisions.jsonl").read_text().splitlines()]
+        self.assertEqual([event["event"] for event in events], ["decision"])
 
     def test_commit_only_records_multiple_repository_commits(self) -> None:
         """多仓 commit-only 保存全部提交并以最后一仓作为兼容主提交。"""

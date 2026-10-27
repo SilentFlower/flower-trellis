@@ -33,6 +33,8 @@ tasks_module = importlib_util.module_from_spec(tasks_spec)
 sys.modules["common.tasks"] = tasks_module
 tasks_spec.loader.exec_module(tasks_module)
 
+from decision_log import append_decision
+
 
 class TaskProgressDiagnosticsTest(unittest.TestCase):
     """验证健康候选与损坏诊断可以同时返回。"""
@@ -239,7 +241,7 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
             self.assertEqual(list(task_dir.glob(".task.json.*.tmp")), [])
 
     def test_complete_writes_progress_and_status_atomically(self) -> None:
-        """最终 push 只用一次原子写入完成进度与 completed 状态。"""
+        """含未审查决策的最终 push 同次原子写入进度、completed 与 Close。"""
         with tempfile.TemporaryDirectory(prefix="flower-progress-complete-") as temp:
             root = Path(temp)
             self.write_task(root, "current", {
@@ -247,6 +249,11 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
                 "completedAt": None,
             })
             task_dir = root / ".trellis/tasks/current"
+            append_decision(
+                task_dir, run_id="progress-test", topic="实现细节", options=["现有模式"],
+                choice="现有模式", summary="沿用现有实现", evidence=[], risk="low",
+                confidence="high", requirements=[], files=[],
+            )
             progress = {
                 "updatedAt": "2026-08-02T00:00:00Z",
                 "completedSteps": ["business push", "progress sync"],
@@ -275,6 +282,8 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
             payload = json.loads(output.getvalue())
             self.assertEqual(payload["closeResult"], "closed")
             self.assertEqual(payload["closeBlockers"], [])
+            events = [json.loads(line) for line in (task_dir / "decisions.jsonl").read_text().splitlines()]
+            self.assertEqual([event["event"] for event in events], ["decision"])
 
     def test_complete_write_failure_keeps_status_and_progress_unchanged(self) -> None:
         """最终原子写失败时不得留下 completed 或半份 progress。"""

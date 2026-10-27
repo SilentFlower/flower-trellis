@@ -40,6 +40,7 @@ from common.tasks import (
     normalize_closeout,
     task_closeout_view,
 )
+from decision_log import append_decision, decision_review_status, review_decisions
 
 
 class TaskLifecycleTest(unittest.TestCase):
@@ -96,6 +97,21 @@ class TaskLifecycleTest(unittest.TestCase):
             "children": [],
             "closeout": {"status": "closed", "closedAt": closed_at, "blockers": []},
         }
+
+    def append_task_decision(self, task_dir: Path) -> dict:
+        """追加一条合法的低风险决策，供生命周期联动验证。
+
+        Args:
+            task_dir: 隔离任务目录。
+
+        Returns:
+            已写入的决策事件。
+        """
+        return append_decision(
+            task_dir, run_id="lifecycle-test", topic="实现方案", options=["现有模式"],
+            choice="现有模式", summary="沿用仓库模式", evidence=["README.md"],
+            risk="low", confidence="high", requirements=[], files=[],
+        )
 
     def stage_unrelated_change(self) -> str:
         """创建一个与任务候选无关的 staged 差异。
@@ -212,6 +228,116 @@ class TaskLifecycleTest(unittest.TestCase):
         self.assertEqual(retried["blockers"], [blocker])
         self.assertEqual(exit_code, 0)
         self.assertEqual(resolved["status"], "closed")
+
+    def test_unreviewed_decisions_close_archive_and_remain_reviewable(self) -> None:
+        """未审查任务可关闭并延迟归档，归档后人工返工审查不自动重开。"""
+        task_dir = self.write_task("09-18-unreviewed", {"status": "completed", "children": []})
+        self.append_task_decision(task_dir)
+        task_ref = task_dir.relative_to(self.root).as_posix()
+        self.git("add", "--", task_ref)
+        self.git("commit", "-qm", "record unreviewed decision")
+        before_log = (task_dir / "decisions.jsonl").read_bytes()
+
+        closed = MODULE.apply_close(task_dir, self.root, closed_at="2026-09-18T00:00:00Z")
+
+        self.assertEqual(closed["status"], "closed")
+        self.assertNotIn(task_dir.name, {task.dir_name for task in iter_active_tasks(self.root / ".trellis/tasks")})
+        self.assertEqual((task_dir / "decisions.jsonl").read_bytes(), before_log)
+        self.assertTrue(decision_review_status(task_dir)["needs_review"])
+        self.git("add", "--", task_ref)
+        self.git("commit", "-qm", "record task close")
+        shutil.copytree(COMMON_DIR / "common", self.root / ".trellis/scripts/common")
+        review_command = [
+            sys.executable, "-X", "utf8", str(SCRIPT_DIR / "decision_log.py"), "review",
+            "--task", task_dir.name, "--verdict", "changes-requested", "--decision-id", "DEC-0001",
+        ]
+        with MODULE.maintenance_lock(self.root) as acquired:
+            self.assertTrue(acquired)
+            busy = subprocess.run(
+                review_command, cwd=self.root, capture_output=True, text=True, encoding="utf-8", check=False,
+            )
+            self.assertNotEqual(busy.returncode, 0)
+            self.assertIn("任务维护正在执行", json.loads(busy.stdout)["message"])
+            self.assertEqual((task_dir / "decisions.jsonl").read_bytes(), before_log)
+            gc = MODULE.gc_closed_tasks(self.root, "3d", now=datetime(2026, 9, 22, tzinfo=timezone.utc))
+        archived = self.root / ".trellis/tasks/archive/2026-09" / task_dir.name
+        self.assertTrue(gc["commit"])
+        self.assertFalse(task_dir.exists())
+        self.assertEqual((archived / "decisions.jsonl").read_bytes(), before_log)
+        task_json_before = (archived / "task.json").read_bytes()
+
+        reviewed = subprocess.run(
+            review_command, cwd=self.root, capture_output=True, text=True, encoding="utf-8", check=False,
+        )
+
+        self.assertEqual(reviewed.returncode, 0, reviewed.stderr)
+        self.assertEqual(json.loads(reviewed.stdout)["status"], "reviewed")
+        self.assertEqual((archived / "task.json").read_bytes(), task_json_before)
+        self.assertEqual(decision_review_status(archived)["pending_change_ids"], ["DEC-0001"])
+        self.assertFalse(task_dir.exists())
+        self.assertNotIn(archived.name, {task.dir_name for task in iter_active_tasks(self.root / ".trellis/tasks")})
+
+    def test_close_recomputes_requested_changes_after_new_decision(self) -> None:
+        """明确返工不会被新增决策或旧 blocker 解除参数绕过，接受后可重新关闭。"""
+        task_dir = self.write_task("09-22-rework", {"status": "completed", "children": []})
+        self.append_task_decision(task_dir)
+        review_decisions(task_dir, verdict="changes-requested", decision_ids=["DEC-0001"])
+        self.append_task_decision(task_dir)
+
+        blocked = MODULE.apply_close(
+            task_dir, self.root, delivery_verified=True,
+            resolved_blocker_codes={"decision-changes-requested"},
+        )
+
+        self.assertEqual(blocked["status"], "blocked")
+        self.assertEqual([item["code"] for item in blocked["blockers"]], ["decision-changes-requested"])
+        self.assertEqual(blocked["blockers"][0]["detail"]["decisionIds"], ["DEC-0001"])
+        review_decisions(task_dir, verdict="accepted")
+        closed = MODULE.apply_close(task_dir, self.root, delivery_verified=True)
+        self.assertEqual(closed["status"], "closed")
+
+    def test_retry_old_review_blocker_keeps_real_semantic_blocker(self) -> None:
+        """重试清除旧的待审查门槛，但保留尚未解除的交付语义阻塞。"""
+        release = {"code": "release-review-required", "owner": "trellis-release", "message": "交付未核验"}
+        old_review = {"code": "decision-review-required", "owner": "decision_log.py", "message": "旧人工审查门槛"}
+        task_dir = self.write_task("09-22-old-review", {
+            "status": "completed", "children": [],
+            "closeout": {"status": "blocked", "closedAt": None, "blockers": [old_review, release]},
+        })
+        self.append_task_decision(task_dir)
+
+        blocked = MODULE.apply_close(task_dir, self.root, delivery_verified=True)
+
+        self.assertEqual(blocked["blockers"], [release])
+        closed = MODULE.apply_close(
+            task_dir, self.root, delivery_verified=True, resolved_blocker_codes={"release-review-required"},
+        )
+        self.assertEqual(closed["status"], "closed")
+        self.assertTrue(decision_review_status(task_dir)["needs_review"])
+        self.assertEqual(len((task_dir / "decisions.jsonl").read_text().splitlines()), 1)
+
+    def test_unreviewed_decision_preserves_delivery_and_child_checks(self) -> None:
+        """放行待审查状态仍要求子任务完成、交付差异闭合。"""
+        child = self.write_task("09-22-child-open", {"status": "in_progress", "children": []})
+        task_dir = self.write_task("09-22-parent-unreviewed", {"status": "completed", "children": [child.name]})
+        self.append_task_decision(task_dir)
+
+        result = MODULE.apply_close(task_dir, self.root)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual({item["code"] for item in result["blockers"]}, {"open-children", "delivery-recovery-required"})
+
+    def test_corrupt_decision_log_still_blocks_close(self) -> None:
+        """损坏决策日志继续阻塞 Close，并完整保留原始失败证据。"""
+        task_dir = self.write_task("09-22-corrupt-decision", {"status": "completed", "children": []})
+        log = task_dir / "decisions.jsonl"
+        log.write_text("{broken\n", encoding="utf-8")
+
+        result = MODULE.apply_close(task_dir, self.root, delivery_verified=True)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual([item["code"] for item in result["blockers"]], ["decision-log-invalid"])
+        self.assertEqual(log.read_text(encoding="utf-8"), "{broken\n")
 
     def test_malformed_closeout_status_isolated_from_healthy_tasks(self) -> None:
         """数组、对象、数字和 null 状态只标记无效，不击穿其它共享任务读取。"""

@@ -37,6 +37,8 @@ FILESET_DIAGNOSTIC_RELATIVE = ".trellis/.runtime/task-maintenance-fileset.json"
 RECOMPUTABLE_BLOCKER_CODES = {
     "ambiguous-child",
     "decision-log-invalid",
+    "decision-changes-requested",
+    # 保留旧原因码用于重试时淘汰过时门槛，不能把它继承为持久化语义阻塞。
     "decision-review-required",
     "delivery-recovery-required",
     "missing-child",
@@ -255,10 +257,13 @@ def evaluate_close(
         decision_status = decision_review_status(task_dir)
         if not decision_status.get("close_allowed"):
             blockers.append(_blocker(
-                "decision-review-required",
+                "decision-changes-requested",
                 "decision_log.py",
-                "当前 AI 决策摘要尚未获得 accepted review",
-                {"decisionDigest": decision_status.get("decision_digest")},
+                "AI 决策存在尚未解决的明确返工要求",
+                {
+                    "decisionDigest": decision_status.get("decision_digest"),
+                    "decisionIds": decision_status.get("pending_change_ids", []),
+                },
             ))
     except (ImportError, OSError, ValueError) as error:
         blockers.append(_blocker("decision-log-invalid", "decision_log.py", str(error)))
