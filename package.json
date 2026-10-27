@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.12-beta.5",
+  "version": "0.6.12-beta.6",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -71,9 +71,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.12-beta.5",
+    "version": "0.6.12-beta.6",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **push:** 保留规定的计划与结果模板结构 ([f7346b0](https://github.com/SilentFlower/flower-trellis/commit/f7346b01765c2415555ad7ceae7a8891e7aead04))",
+    "body": "### ✨ 新功能 Features\n\n* **task:** 支持显式终止旧任务并保留拒绝记录 ([e6f7e5a](https://github.com/SilentFlower/flower-trellis/commit/e6f7e5a9c7c40c1094c6f5d80995b2a067ce2937))\n\n\n### 🐛 修复 Bug Fixes\n\n* **codex:** 保留用户多 agent 配置并修正版本说明 ([839e7e2](https://github.com/SilentFlower/flower-trellis/commit/839e7e2397baf4d78db150702707d90ace48ecc9))\n* **task:** 同步决策审查与归档规则 ([8ab3f0a](https://github.com/SilentFlower/flower-trellis/commit/8ab3f0ad4619b3bfa2afeceae3f57874566c2acd))\n* **workflow:** 同步快速直改收尾规则与验证 ([ef145c9](https://github.com/SilentFlower/flower-trellis/commit/ef145c955d9d282c92bae4e272e43eaebdcaaced))",
     "truncated": false
   },
   "optionalDependencies": {

@@ -4,6 +4,20 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.12-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.6.12-beta.5...v0.6.12-beta.6) (2026-10-27)
+
+
+### ✨ 新功能 Features
+
+* **task:** 支持显式终止旧任务并保留拒绝记录 ([e6f7e5a](https://github.com/SilentFlower/flower-trellis/commit/e6f7e5a9c7c40c1094c6f5d80995b2a067ce2937))
+
+
+### 🐛 修复 Bug Fixes
+
+* **codex:** 保留用户多 agent 配置并修正版本说明 ([839e7e2](https://github.com/SilentFlower/flower-trellis/commit/839e7e2397baf4d78db150702707d90ace48ecc9))
+* **task:** 同步决策审查与归档规则 ([8ab3f0a](https://github.com/SilentFlower/flower-trellis/commit/8ab3f0ad4619b3bfa2afeceae3f57874566c2acd))
+* **workflow:** 同步快速直改收尾规则与验证 ([ef145c9](https://github.com/SilentFlower/flower-trellis/commit/ef145c955d9d282c92bae4e272e43eaebdcaaced))
+
 ## [0.6.12-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.6.12-beta.4...v0.6.12-beta.5) (2026-10-26)
 
 
