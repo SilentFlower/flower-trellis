@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { applyPatchPlan, preparePatchPlan } from "../../src/lib/patch-engine.js";
+import { spawnPythonSync } from "../../scripts/python-runtime.mjs";
 
 const TEST_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SHARED_CORE_FIXTURE = path.join(
@@ -57,6 +58,53 @@ function sharedCoreFixture() {
   fs.cpSync(path.join(SHARED_CORE_FIXTURE, "target"), f.target, { recursive: true });
   return f;
 }
+
+test("任务终止参数支持旧生命周期脚本升级、首次安装及重复应用", (t) => {
+  const canonical = path.join(TEST_ROOT, "../../vendor/skill-garden/.trellis/0.6/overrides/patches/scripts/task-closeout-lifecycle");
+  const patch = JSON.parse(fs.readFileSync(path.join(canonical, "patch.json"), "utf8"));
+  const selectedIds = new Set([
+    "task-lifecycle-doc-commands", "task-lifecycle-parser-commands", "task-lifecycle-retirement-option",
+  ]);
+  const operations = patch.operations.filter(({ id }) => selectedIds.has(id));
+  assert.equal(operations.length, selectedIds.size);
+  for (const installed of [false, true]) {
+    const f = fixture();
+    t.after(() => fs.rmSync(f.root, { recursive: true, force: true }));
+    const sources = {};
+    for (const operation of operations) {
+      for (const source of [operation.selector.source, operation.content.source]) {
+        sources[source] = fs.readFileSync(path.join(canonical, source), "utf8");
+      }
+    }
+    addPatch(f, "scripts/task-closeout-lifecycle", { ...patch, operations }, sources);
+    addBundle(f, { schemaVersion: 1, id: "task-retirement", patches: ["scripts/task-closeout-lifecycle"] });
+    const doc = sources[installed ? "task-doc-commands-content.py" : "task-doc-commands-selector.py"];
+    const parser = sources[installed ? "task-parser-lifecycle-content.py" : "task-parser-archive-selector.py"];
+    const script = write(f.target, ".trellis/scripts/task.py", [
+      `\"\"\"\n${doc}\"\"\"`,
+      "import argparse",
+      "def build_parser():",
+      "    parser = argparse.ArgumentParser()",
+      "    subparsers = parser.add_subparsers(dest='command')",
+      parser,
+      "    return parser",
+      "if __name__ == '__main__':",
+      "    print(build_parser().parse_args().retire_reason)",
+      "",
+    ].join("\n"));
+    const first = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+    assert.equal(first.changed, 1);
+    const after = fs.readFileSync(script, "utf8");
+    const second = applyPatchPlan(f.target, preparePatchPlan(f.target, [f.catalogSpec]));
+    assert.equal(second.changed, 0);
+    assert.equal(fs.readFileSync(script, "utf8"), after);
+    const result = spawnPythonSync([script, "close", "old-task", "--retire-reason", "保留拒绝并结束旧任务"], {
+      cwd: f.target, encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), "保留拒绝并结束旧任务");
+  }
+});
 
 test("literal insert/replace/remove 支持旧 transform marker 迁移且重复应用幂等", () => {
   const f = sharedCoreFixture();

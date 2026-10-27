@@ -99,6 +99,15 @@
       "content": { "source": "task-parser-lifecycle-content.py" }
     },
     {
+      "id": "task-lifecycle-retirement-option",
+      "operation": "insert",
+      "position": "after",
+      "dependsOn": ["task-lifecycle-parser-commands"],
+      "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "hash" }],
+      "selector": { "type": "literal", "source": "task-retirement-parser-selector.py" },
+      "content": { "source": "task-retirement-parser-content.py" }
+    },
+    {
       "id": "task-lifecycle-parser-list-views",
       "operation": "replace",
       "targets": [{ "kind": "file", "path": ".trellis/scripts/task.py", "missing": "error", "markerStyle": "none" }],

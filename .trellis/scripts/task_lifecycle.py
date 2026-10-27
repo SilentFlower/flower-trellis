@@ -200,6 +200,7 @@ def evaluate_close(
     explicit_blockers: Optional[list[dict[str, Any]]] = None,
     resolved_blocker_codes: Optional[set[str]] = None,
     closed_at: Optional[str] = None,
+    retire_reason: Optional[str] = None,
 ) -> dict[str, Any]:
     """确定性评估任务 Close，不写文件。
 
@@ -211,12 +212,20 @@ def evaluate_close(
         explicit_blockers: 上游 owner 明确传入的语义 blocker。
         resolved_blocker_codes: 上游 owner 明确声明已解决的持久化 blocker code。
         closed_at: 测试或迁移使用的固定关闭时间。
+        retire_reason: 用户明确终止旧任务的原因；保留返工结论，不表示业务验收通过。
 
     Returns:
         结构化 close 结果；``closeout`` 可直接写入 task.json。
     """
     data = task_data if isinstance(task_data, dict) else read_json(task_dir / FILE_TASK_JSON)
     task_ref = _task_relative(repo_root, task_dir)
+    if retire_reason is not None and (not isinstance(retire_reason, str) or not retire_reason.strip()):
+        return {
+            "status": "error",
+            "task": task_ref,
+            "reason": "invalid-retire-reason",
+            "message": "终止旧任务必须提供非空原因",
+        }
     if not isinstance(data, dict):
         return {
             "status": "error",
@@ -255,7 +264,8 @@ def evaluate_close(
         from decision_log import decision_review_status
 
         decision_status = decision_review_status(task_dir)
-        if not decision_status.get("close_allowed"):
+        # 显式终止保留尚未解决的返工事实；正常交付仍必须解决返工要求。
+        if not decision_status.get("close_allowed") and retire_reason is None:
             blockers.append(_blocker(
                 "decision-changes-requested",
                 "decision_log.py",
@@ -321,13 +331,24 @@ def evaluate_close(
         }
     timestamp = closed_at or utc_now()
     closeout = {"status": "closed", "closedAt": timestamp, "blockers": []}
-    return {
+    result = {
         "status": "closed",
         "task": task_ref,
         "closedAt": timestamp,
         "blockers": [],
         "closeout": closeout,
     }
+    if retire_reason is not None:
+        result["retirement"] = {
+            "disposition": "ended-by-user",
+            "reason": retire_reason.strip(),
+            "retiredAt": timestamp,
+            "businessAcceptancePassed": False,
+            "decisionDigest": decision_status.get("decision_digest"),
+            "reviewVerdict": decision_status.get("review_verdict"),
+            "pendingChangeIds": decision_status.get("pending_change_ids", []),
+        }
+    return result
 
 
 def apply_close(
@@ -338,6 +359,7 @@ def apply_close(
     explicit_blockers: Optional[list[dict[str, Any]]] = None,
     resolved_blocker_codes: Optional[set[str]] = None,
     closed_at: Optional[str] = None,
+    retire_reason: Optional[str] = None,
 ) -> dict[str, Any]:
     """评估并原子写入 Close 结果。
 
@@ -348,6 +370,7 @@ def apply_close(
         explicit_blockers: 上游明确传入的 blocker。
         resolved_blocker_codes: 上游明确声明已经解决的 blocker code。
         closed_at: 测试或迁移固定时间。
+        retire_reason: 用户明确终止旧任务的原因，随关闭结果原子记录。
 
     Returns:
         结构化 Close 结果。
@@ -362,11 +385,23 @@ def apply_close(
         explicit_blockers=explicit_blockers,
         resolved_blocker_codes=resolved_blocker_codes,
         closed_at=closed_at,
+        retire_reason=retire_reason,
     )
     if result["status"] in {"error", "already-closed"}:
         return result
     if not isinstance(data, dict):
         return result
+    if "retirement" in result:
+        meta = data.get("meta")
+        if meta is not None and not isinstance(meta, dict):
+            return {
+                "status": "error",
+                "task": result["task"],
+                "reason": "invalid-task-meta",
+                "message": "任务 meta 不是对象，无法安全记录终止原因",
+            }
+        data["meta"] = dict(meta or {})
+        data["meta"]["retirement"] = result["retirement"]
     if data.get("closeout") == result["closeout"]:
         return result
     data["closeout"] = result["closeout"]
@@ -414,19 +449,26 @@ def cmd_close(args: argparse.Namespace) -> int:
     """执行 ``task.py close``。
 
     Args:
-        args: 含 task、resolve_blocker 与 json 的 argparse 参数。
+        args: 含 task、resolve_blocker、retire_reason 与 json 的 argparse 参数。
 
     Returns:
         closed/already-closed 为 0，blocked/error 为 1。
     """
     repo_root = get_repo_root()
     try:
-        task_dir = _resolve_top_level_task(repo_root, args.task)
-        result = apply_close(
-            task_dir,
-            repo_root,
-            resolved_blocker_codes=set(getattr(args, "resolve_blocker", []) or []),
-        )
+        # 与审查写入及物理 GC 使用同一锁，终止快照必须绑定本次读取的决策。
+        with maintenance_lock(repo_root) as acquired:
+            if not acquired:
+                raise TaskLifecycleError("maintenance-busy", "任务维护正在执行，请稍后重试关闭")
+            if any((repo_root / journal).exists() for journal in [GC_JOURNAL_RELATIVE, EXACT_COMMIT_JOURNAL_RELATIVE]):
+                raise TaskLifecycleError("maintenance-recovery-required", "任务维护事务尚未恢复，请先恢复维护操作")
+            task_dir = _resolve_top_level_task(repo_root, args.task)
+            result = apply_close(
+                task_dir,
+                repo_root,
+                resolved_blocker_codes=set(getattr(args, "resolve_blocker", []) or []),
+                retire_reason=getattr(args, "retire_reason", None),
+            )
     except TaskLifecycleError as error:
         result = {"status": "error", "reason": error.reason, "message": str(error)}
     if getattr(args, "json", False):

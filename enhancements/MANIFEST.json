@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-10-27T06:03:31.981Z",
+  "syncedAt": "2026-10-27T07:02:04.415Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "62af0a8f04e95ac9ea789b496cd89c1b642853a4",
+  "sourceCommit": "53c65aa6286ffe6e3f9be296436f4218529dda84",
   "common": {
     "codexSkills": [
       "aliyun-ops",
@@ -280,6 +280,8 @@
         "scripts/task-closeout-lifecycle/task-parser-lifecycle-content.py",
         "scripts/task-closeout-lifecycle/task-parser-list-content.py",
         "scripts/task-closeout-lifecycle/task-parser-list-selector.py",
+        "scripts/task-closeout-lifecycle/task-retirement-parser-content.py",
+        "scripts/task-closeout-lifecycle/task-retirement-parser-selector.py",
         "scripts/task-closeout-lifecycle/task-start-active-reference-content.py",
         "scripts/task-closeout-lifecycle/task-start-active-reference-selector.py",
         "scripts/task-closeout-lifecycle/task-store-config-content.py",

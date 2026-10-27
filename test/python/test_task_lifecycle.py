@@ -339,6 +339,122 @@ class TaskLifecycleTest(unittest.TestCase):
         self.assertEqual([item["code"] for item in result["blockers"]], ["decision-log-invalid"])
         self.assertEqual(log.read_text(encoding="utf-8"), "{broken\n")
 
+    def test_explicit_retirement_preserves_rejected_review_through_gc(self) -> None:
+        """用户终止旧任务可归档，但原拒绝、未完返工和业务未通过结论保持。"""
+        task_dir = self.write_task("09-22-retired-rework", {"status": "completed", "children": [], "meta": {"kept": "原记录"}})
+        self.append_task_decision(task_dir)
+        review_decisions(task_dir, verdict="changes-requested", decision_ids=["DEC-0001"])
+        before_log = (task_dir / "decisions.jsonl").read_bytes()
+        rejected_digest = decision_review_status(task_dir)["decision_digest"]
+        MODULE.apply_close(task_dir, self.root, delivery_verified=True)
+
+        result = MODULE.apply_close(
+            task_dir, self.root, delivery_verified=True, closed_at="2026-09-18T00:00:00Z",
+            retire_reason=" 用户明确结束旧阶段并保留原拒绝 ",
+        )
+
+        self.assertEqual(result["status"], "closed")
+        persisted = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+        retirement = persisted["meta"]["retirement"]
+        self.assertEqual(retirement["reason"], "用户明确结束旧阶段并保留原拒绝")
+        self.assertEqual(retirement["decisionDigest"], rejected_digest)
+        self.assertEqual(retirement["reviewVerdict"], "changes-requested")
+        self.assertEqual(retirement["pendingChangeIds"], ["DEC-0001"])
+        self.assertFalse(retirement["businessAcceptancePassed"])
+        self.assertEqual(persisted["meta"]["kept"], "原记录")
+        self.assertEqual((task_dir / "decisions.jsonl").read_bytes(), before_log)
+        self.assertFalse(decision_review_status(task_dir)["close_allowed"])
+        before_task = (task_dir / "task.json").read_bytes()
+        again = MODULE.apply_close(task_dir, self.root, retire_reason="另一个原因")
+        self.assertEqual(again["status"], "already-closed")
+        self.assertEqual((task_dir / "task.json").read_bytes(), before_task)
+        self.git("add", "--", task_dir.relative_to(self.root).as_posix())
+        self.git("commit", "-qm", "record explicit retirement")
+        with MODULE.maintenance_lock(self.root) as acquired:
+            self.assertTrue(acquired)
+            gc = MODULE.gc_closed_tasks(self.root, "3d", now=datetime(2026, 9, 22, tzinfo=timezone.utc))
+        archived = self.root / ".trellis/tasks/archive/2026-09" / task_dir.name
+        self.assertEqual(len(gc["moved"]), 1)
+        self.assertFalse(task_dir.exists())
+        self.assertEqual((archived / "decisions.jsonl").read_bytes(), before_log)
+        self.assertEqual((archived / "task.json").read_bytes(), before_task)
+
+    def test_retirement_requires_nonempty_explicit_reason(self) -> None:
+        """空白或错误类型的终止原因失败关闭，不写任务或审查记录。"""
+        task_dir = self.write_task("09-22-empty-retirement", {"status": "completed", "children": []})
+        before = (task_dir / "task.json").read_bytes()
+        for reason in ("", " \n ", False, 1):
+            with self.subTest(reason=reason):
+                result = MODULE.apply_close(task_dir, self.root, retire_reason=reason)
+                self.assertEqual(result["status"], "error")
+                self.assertEqual(result["reason"], "invalid-retire-reason")
+                self.assertEqual((task_dir / "task.json").read_bytes(), before)
+
+    def test_retirement_metadata_does_not_waive_normal_close(self) -> None:
+        """普通 Close 不从既有元数据推断本次已获终止授权。"""
+        task_dir = self.write_task("09-22-old-retirement", {
+            "status": "completed", "children": [], "meta": {"retirement": {"reason": "旧说明"}},
+        })
+        self.append_task_decision(task_dir)
+        review_decisions(task_dir, verdict="changes-requested", decision_ids=["DEC-0001"])
+
+        result = MODULE.apply_close(task_dir, self.root, delivery_verified=True)
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual([row["code"] for row in result["blockers"]], ["decision-changes-requested"])
+
+    def test_retirement_preserves_other_close_blockers(self) -> None:
+        """显式终止不绕过开放子项、未闭合交付、语义阻塞或损坏日志。"""
+        child = self.write_task("09-22-retirement-child", {"status": "in_progress", "children": []})
+        release = {"code": "release-review-required", "owner": "trellis-release", "message": "交付未核验"}
+        parent = self.write_task("09-22-retirement-parent", {
+            "status": "completed", "children": [child.name],
+            "closeout": {"status": "blocked", "closedAt": None, "blockers": [release]},
+        })
+        self.append_task_decision(parent)
+        review_decisions(parent, verdict="changes-requested", decision_ids=["DEC-0001"])
+        result = MODULE.apply_close(parent, self.root, retire_reason="结束旧阶段")
+        self.assertEqual({row["code"] for row in result["blockers"]}, {
+            "release-review-required", "open-children", "delivery-recovery-required",
+        })
+        self.assertNotIn("retirement", json.loads((parent / "task.json").read_text()).get("meta", {}))
+        (parent / "decisions.jsonl").write_text("{broken\n", encoding="utf-8")
+        corrupt = MODULE.apply_close(parent, self.root, delivery_verified=True, retire_reason="结束旧阶段")
+        self.assertIn("decision-log-invalid", {row["code"] for row in corrupt["blockers"]})
+        unfinished = MODULE.apply_close(child, self.root, delivery_verified=True, retire_reason="尚未完成的工作")
+        self.assertEqual([row["code"] for row in unfinished["blockers"]], ["work-not-completed"])
+
+    def test_retirement_rejects_invalid_meta_without_overwriting_it(self) -> None:
+        """异常 meta 不被终止写入覆盖，保留原文件供恢复。"""
+        task_dir = self.write_task("09-22-invalid-retirement-meta", {"status": "completed", "children": [], "meta": ["原记录"]})
+        before = (task_dir / "task.json").read_bytes()
+        result = MODULE.apply_close(task_dir, self.root, retire_reason="结束旧阶段")
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["reason"], "invalid-task-meta")
+        self.assertEqual((task_dir / "task.json").read_bytes(), before)
+
+    def test_close_cli_records_retirement_and_respects_maintenance_lock(self) -> None:
+        """CLI 显式终止原子记录原因，维护锁忙时保持任务原字节。"""
+        task_dir = self.write_task("09-22-cli-retirement", {"status": "completed", "children": []})
+        self.append_task_decision(task_dir)
+        review_decisions(task_dir, verdict="changes-requested", decision_ids=["DEC-0001"])
+        self.git("add", "--", task_dir.relative_to(self.root).as_posix())
+        self.git("commit", "-qm", "record rejected decision")
+        args = Namespace(task=task_dir.name, retire_reason="用户结束旧任务", json=True)
+        before = (task_dir / "task.json").read_bytes()
+        with mock.patch.object(MODULE, "get_repo_root", return_value=self.root):
+            output = StringIO()
+            with MODULE.maintenance_lock(self.root) as acquired:
+                self.assertTrue(acquired)
+                with redirect_stdout(output):
+                    self.assertEqual(MODULE.cmd_close(args), 1)
+            self.assertEqual(json.loads(output.getvalue())["reason"], "maintenance-busy")
+            self.assertEqual((task_dir / "task.json").read_bytes(), before)
+            output = StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(MODULE.cmd_close(args), 0)
+            self.assertEqual(json.loads(output.getvalue())["retirement"]["reviewVerdict"], "changes-requested")
+
     def test_malformed_closeout_status_isolated_from_healthy_tasks(self) -> None:
         """数组、对象、数字和 null 状态只标记无效，不击穿其它共享任务读取。"""
         for index, status in enumerate(([], {}, 1, None)):

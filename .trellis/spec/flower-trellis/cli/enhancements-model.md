@@ -3373,6 +3373,7 @@ auto-loop internal commit-only -> 不读取、不渲染、不确认
 
 ```bash
 python3 ./.trellis/scripts/task.py close <task> [--json]
+python3 ./.trellis/scripts/task.py close <task> --retire-reason "<用户明确终止原因>" [--json]
 python3 ./.trellis/scripts/task.py list [--mine] [--json]
 python3 ./.trellis/scripts/task.py list --closed [--mine] [--json]
 python3 ./.trellis/scripts/task.py list --all [--mine] [--json]
@@ -3420,6 +3421,12 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   `decision-log-invalid`。当前返工形成 `decision-changes-requested`，不能用解除旧 blocker 的参数绕过。
 - 旧 `decision-review-required` 仍登记为可重算原因码，仅供下次正常 Close 重试淘汰过时门槛；
   不批量改写旧 task.json、不删审计日志、不自动生成 accepted，且保留真实交付和语义 blocker。
+- 用户明确结束旧 completed 任务时，可显式传 `--retire-reason`，与 Close 原子写入 `meta.retirement`：
+  `disposition="ended-by-user"`、去除首尾空白的 `reason`、`retiredAt`、`businessAcceptancePassed=false`、
+  `decisionDigest`、`reviewVerdict` 与 `pendingChangeIds`。该路径结束旧任务，不修改 `decisions.jsonl`、不伪造 accepted；
+  其它工作状态、子任务、交付差异、损坏日志及语义 blocker 仍生效。
+  普通 Close 不从已存在的 retirement 元数据推断本次终止授权；重复关闭不覆盖原终止原因。
+- CLI Close 与 review、GC 共用维护锁；锁忙或存在待恢复事务时拒绝本次写入。
 - `decision_log.py status/review --task` 支持活跃、顶层 closed 和物理 archive 任务，可使用项目内路径、
   绝对路径、完整目录名或唯一短名。复用共享全任务枚举，拒绝目录外引用、软链别名、短名歧义和
   active/archive 同名身份冲突；显式路径不能绕过重复身份。只扩大审查解析，不扩大默认 active 视图。
@@ -3496,11 +3503,16 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 | completed 且结构条件全部满足 | 原子 closed，立即退出 active，清 Session，运行 after_close |
 | 仅有未审查 decision，其它 Close 条件满足 | 正常 closed，保留 `needs_review=true`，不追加 accepted |
 | 明确返工未解除，或其后又追加 decision | `decision-changes-requested`，detail.decisionIds 保留待返工 ID |
+| 用户为 completed 任务显式传入非空终止原因，其它条件满足 | closed，并记录 `meta.retirement`；原拒绝及待返工事实保留 |
+| 终止原因为空白，或 API 收到非字符串原因 | `invalid-retire-reason`，不改任务与决策日志 |
+| 终止写入遇到非对象 `meta` | `invalid-task-meta`，保留原 task.json |
+| CLI Close 时维护锁忙或存在未恢复事务 | `maintenance-busy` / `maintenance-recovery-required`，不改任务与决策日志 |
+| 已有旧 retirement 元数据，但本次未传终止原因 | 普通 Close 仍按当前决策和其它条件评估，不自动取得终止授权 |
 | 旧 `decision-review-required` 后正常重试 | 按当前日志重新计算，真实语义 blocker 不被一并清除 |
 | closed/archived 后补审查 | 仅追加审查，task.json 与 closed 视图保持不变 |
 | 审查引用存在歧义、重复身份、软链别名或目录越界 | 非零 `decision-log-error`，不写日志 |
 | 审查时维护锁忙或事务 journal 尚未恢复 | 非零 `decision-log-error`，保留日志与恢复证据 |
-| 重复 Close | `already-closed`，保留原 closedAt，零写入 |
+| 重复 Close，包括传入另一终止原因 | `already-closed`，保留原 closedAt 与终止记录，任务文件零写入 |
 | 持久化语义 blocker 仍未显式解除 | 重试仍 blocked，不清空 blocker |
 | Close 后 task-record commit/push 失败 | 新会话用显式 `status --task` 读取 closed 任务并恢复发布 |
 | 旧 runtime 无 task_json_sha256 但允许字段可完全重建 | reconciliation 精确提交迁移；重复运行零写入 |
@@ -3530,6 +3542,8 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   Continue 使用显式任务引用恢复，不把 closed 任务重新放回默认候选。
 - Good:未审查 decision 不阻 Close，72 小时后 GC 归档；随后用唯一短名或完整归档路径补写 review，
   task.json 字节不变，任务不重新进入 active。
+- Good:用户明确结束被拒绝的旧 completed 任务，执行 `close <task> --retire-reason "结束旧阶段"`；
+  任务退出 active，`businessAcceptancePassed=false`，changes-requested 日志与待返工 ID 原样保留。
 - Good:auto-loop 旧 completed 记录没有新摘要，但旧 pending_archive、commit 和五字段 progress
   精确互证；首次 SessionStart 迁移并提交，第二次无变化。
 - Good:完整未跟踪的 planning 旧任务包含 prd/notes；reconciliation 补齐 pending closeout，按整个任务
@@ -3540,6 +3554,7 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
 - Base:旧物理 archive 没有 closeout；closed view 只读解释为 historical closed，restore 时才显式化。
 - Bad:重复 Close 用空 explicit blockers 覆盖旧 release blocker；这会让交付语义尚未核验的任务退出 active。
 - Bad:通过追加 decision 冲掉旧返工，或为关闭任务自动写 accepted；应完成返工，经真实有效审查后重试 Close。
+- Bad:因为旧 `meta.retirement` 已有原因就让本次普通 Close 跳过返工；应依据用户对本次终止的明确授权显式传参。
 - Bad:用换行拆分 `git diff --name-only` 或 `git show --name-only`；Git quote 会破坏非 ASCII 路径。
 - Bad:目录已移动但未提交时只重新扫描顶层候选；源目录消失会导致事务永久遗留。
 - Bad:对整目录 `git add -f` 或把整个 staged 集合拼进异常；应精确暂存并仅展示有界差集摘要。
@@ -3559,6 +3574,8 @@ physical archive -> restore as closed -> explicit reopen -> in_progress
   move/stage/commit 中断恢复、真实 index 刷新失败、reconciliation/restore 共享提交恢复、
   GC 中断与 legacy reconciliation 组合恢复、候选 staged 清零且无关 staged 保持不变、
   restore -> closed -> reopen、候选外 dirty/staged、非法/未来 closedAt、目标碰撞和幂等。
+- `test_task_lifecycle.py` 覆盖显式终止保留 changes-requested 后真实 GC、非空原因、原 meta 保持、
+  普通 Close 不从旧终止元数据取得授权、其它阻塞不被清除、CLI 维护锁以及重复关闭原因不变。
 - `test_task_lifecycle.py` 同时覆盖原路径白名单失效、整个 archive 被忽略、中文/空格/通配符字面路径、
   ignored 本地产物不提交、无关 staged 保留，以及大量缺失加并发新增时诊断完整、提示有界和事务回滚。
   严格 Git 替身拒绝未跟踪的 `add -u` 参数，串联验证归档、恢复及完全未跟踪旧任务迁移；
