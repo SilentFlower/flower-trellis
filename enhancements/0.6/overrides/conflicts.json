@@ -412,7 +412,9 @@
           "| Deferred Physical GC | SessionStart |",
           "| Task Progress Recovery | `trellis-continue` |",
           "A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.",
-          "Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; successful delivery writes completion and deterministic Close"
+          "Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push` for task/tracked work.",
+          "Eligible quick direct edits use successful focused validation -> `trellis-update-spec` -> `trellis-push` in the same turn through `workflow-state:no_task`",
+          "Successful task delivery writes completion and deterministic Close"
         ]
       },
       "owner": "workflow-hub",

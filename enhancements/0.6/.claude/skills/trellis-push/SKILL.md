@@ -5,7 +5,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 # Trellis Push
 
-`trellis-push` 是 Phase 3.4 唯一的代码提交入口。它只负责生成最小计划、精确提交、普通推送，以及在 task 上触发进度同步或在 untracked 上完成状态清理。
+`trellis-push` 是 Phase 3.4 唯一的代码提交入口。负责最小计划、精确提交与普通推送；task 同步进度，untracked 清理状态。
 
 ## 职责与条件入口
 
@@ -26,15 +26,15 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 ## Step 0：记录完成链证据
 
-除 auto-loop 内部 `commit-only` 外，普通 push 或用户 `commit-only` 已经构成明确 Git 意图。本 skill 在读取 Git 提交计划前只记录当前可用的完成链证据，不补跑、不切换阶段，也不新增确认：
+普通 push 或用户 `commit-only` 已经构成明确 Git 意图；也接受完成链 owner 的合法交接。除 auto-loop 内部 `commit-only` 外，按当前结果与实际 diff 记录：
 
-- Check-All：用当前报告与实际 diff 记录通过、有效已接受风险、未运行/失效、未处置问题、blocked 或部分验证；保留问题 ID/严重度，`[上线后验证]` 作为非阻断风险保留动作、责任与预期。
+- Check-All：通过、有效已接受风险、未运行/失效、未处置 findings、blocked 或部分验证；保留 ID/严重度；`[上线后验证]` 作为非阻断风险保留动作、责任、预期。
+- 快速直改：仅无 task/untracked、仍符合 Request Triage 且必要定向验证成功覆盖当前 diff，才记 `不适用（快速直改）` 并列真实命令、结果、范围。验证缺失/失败/失效或范围扩大不得使用；task/tracked 缺检查仍按实际状态列风险，不得伪造通过。
 - Update-Spec：根据当前 `spec_update_result` 与实际 diff 标记 `no-op`、`written`、`needs-review` 或未运行/失效。
-- 不从历史消息、摘要或 dirty 状态推断通过、风险接受或授权；完整展示字段由输出模板所有。
 
-上述状态只进入 Step 3 的完成链证据与风险展示，不会阻止读取 Git 状态或生成提交计划。本步骤不得返回 Phase 2.2，不得加载 `trellis-check-all` 或 `trellis-update-spec`，不要求改写请求；正常 workflow 顺序由各自 owner 推进。
+禁止从历史、摘要或 dirty 推断通过、风险接受或授权。Step 3 展示证据，不会阻止读取 Git 状态或生成提交计划。本步骤不得返回 Phase 2.2，不得加载 `trellis-check-all` 或 `trellis-update-spec`，不补跑；阶段由各 owner 推进。
 
-没有活动 task 时运行 `python3 ./.trellis/scripts/untracked_flow.py status --verbose`。命中 untracked 后，记录 work id、summary 和 stage，并要求 `stage=push`；完成链证据仍从当前 Check-All / Update-Spec 结果与实际 diff 获取。`miss` 才按既有“无活动任务”普通 Git 路径处理；损坏状态停止，不从摘要猜测。游标命中不表示 Push 已计划、已确认或已执行。
+无 task 时运行 `python3 ./.trellis/scripts/untracked_flow.py status --verbose`。命中须记录 work id/summary/stage 且要求 `stage=push`；miss 走无任务路径，损坏则停。游标命中不表示 Push 已计划、已确认或已执行。
 
 ## Step 1：发现仓库与任务
 

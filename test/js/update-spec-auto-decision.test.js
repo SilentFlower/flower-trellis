@@ -160,8 +160,47 @@ test("auto-loop 对 Update-Spec 三态使用确定性 record 映射", () => {
   assert.match(runner, /needs-review[\s\S]*spec-needs-review/);
 });
 
+test("快速直改用真实定向验证同轮衔接规范评估与计划，停止和证据边界保持一致", () => {
+  for (const root of [sourceRoot, snapshotRoot]) {
+    const triage = read(root, "overrides/patches/workflow/intent-routing/request-triage/content.md");
+    const noTask = read(root, "overrides/patches/workflow/state-no-task/content.md");
+    const spec = read(root, "overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md");
+
+    assert.match(triage, /do not create a task or `untracked_flow` for those/);
+    assert.match(triage, /successful completion continues through Spec evaluation and the Push plan in the same turn/);
+    assert.match(noTask, /briefly report progress, then load `trellis-update-spec` in the same turn/);
+    assert.match(noTask, /Do not end the turn at the progress report or wait for another continuation request/);
+    assert.match(noTask, /Missing, failed, or stale validation must be resolved within the authorized scope before this handoff/);
+    assert.match(noTask, /scope outgrows quick direct edit, return to `Request Triage`/);
+    assert.match(noTask, /explicit user stop or deferral, report the outcome and end with one guide/);
+    assert.match(noTask, /say continue when ready for Spec evaluation -> Push plan\. Do not start that handoff yet/);
+    assert.match(noTask, /without deliverable changes finish without a Git plan/);
+    assert.match(spec, /quick direct edit completion authorized by `workflow-state:no_task`/);
+    assert.match(spec, /current successful focused validation covers it/);
+    assert.match(spec, /Do not invent task evidence or a Check-All pass/);
+    assert.match(spec, /without requiring a Check-All report, task, or untracked cursor/);
+
+    for (const platform of [".agents", ".claude"]) {
+      const base = `${platform}/skills/trellis-push`;
+      const push = read(root, `${base}/SKILL.md`);
+      const templates = read(root, `${base}/references/output-templates.md`);
+      assert.match(push, /也接受完成链 owner 的合法交接/);
+      assert.match(push, /仅无 task\/untracked、仍符合 Request Triage/);
+      assert.match(push, /必要定向验证成功覆盖当前 diff/);
+      assert.match(push, /验证缺失\/失败\/失效或范围扩大不得使用/);
+      assert.match(push, /task\/tracked 缺检查仍按实际状态列风险/);
+      assert.match(push, /确认前禁止 `git add`、`git commit` 或 `git push`/);
+      assert.match(templates, /\*\*定向验证\*\*：<真实命令、结果与覆盖范围>（仅合法快速直改时显示）/);
+      assert.match(templates, /遵守 Step 0 资格，不算未检查风险；必须展示“定向验证”行/);
+      assert.match(templates, /其它风险照常/);
+    }
+  }
+});
+
 test("0.6 发布快照包含相同 Update-Spec 自主决策协议", () => {
   const paths = [
+    "overrides/patches/workflow/intent-routing/request-triage/content.md",
+    "overrides/patches/workflow/state-no-task/content.md",
     "overrides/patches/skills/trellis-update-spec/autonomous-evaluation/content.md",
     "overrides/patches/workflow/hub/content.md",
     "overrides/patches/workflow/states-in-progress/common-content.md",
@@ -171,6 +210,8 @@ test("0.6 发布快照包含相同 Update-Spec 自主决策协议", () => {
     ".claude/skills/trellis-auto-loop/SKILL.md",
     ".agents/skills/trellis-push/SKILL.md",
     ".claude/skills/trellis-push/SKILL.md",
+    ".agents/skills/trellis-push/references/output-templates.md",
+    ".claude/skills/trellis-push/references/output-templates.md",
     "scripts/auto_loop.py",
   ];
 

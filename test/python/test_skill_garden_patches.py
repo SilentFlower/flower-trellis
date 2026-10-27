@@ -1524,6 +1524,18 @@ class PatchConsumerTest(unittest.TestCase):
         )
         self.assertIn("Use quick direct edit for one-turn small fixes", workflow)
         self.assertIn(
+            "briefly report progress, then load `trellis-update-spec` in the same turn",
+            workflow,
+        )
+        self.assertIn(
+            "Missing, failed, or stale validation must be resolved within the authorized scope before this handoff",
+            workflow,
+        )
+        self.assertIn(
+            "say continue when ready for Spec evaluation -> Push plan. Do not start that handoff yet",
+            workflow,
+        )
+        self.assertIn(
             "Use tracked direct edit only when the user explicitly wants no task but still wants later turns to remember the current phase",
             workflow,
         )

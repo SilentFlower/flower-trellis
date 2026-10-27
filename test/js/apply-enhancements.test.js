@@ -105,6 +105,10 @@ function assertIntentRoutingSemantics(value) {
   assert.match(value, /exact rollback or mechanically synchronized known change/);
   assert.match(value, /Use quick direct edit for one-turn small fixes/);
   assert.match(value, /Use tracked direct edit only when the user explicitly wants no task but still wants later turns to remember the current phase/);
+  assert.match(value, /briefly report progress, then load `trellis-update-spec` in the same turn/);
+  assert.match(value, /Do not end the turn at the progress report or wait for another continuation request/);
+  assert.match(value, /Missing, failed, or stale validation must be resolved within the authorized scope before this handoff/);
+  assert.match(value, /say continue when ready for Spec evaluation -> Push plan\. Do not start that handoff yet/);
   assert.match(value, /build a short query from the request, intended commands, affected files or systems, package\/layer, and domain terms/);
   assert.match(value, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(value, /once per user intent, workflow phase, or decision boundary/);

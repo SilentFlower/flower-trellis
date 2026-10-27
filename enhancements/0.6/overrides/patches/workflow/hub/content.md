@@ -26,4 +26,4 @@ Cross-stage ordering:
 
 1. Request intent, active-task scope, and any current untracked work are resolved before task creation, task routing, or file edits.
 2. A validated auto-loop result returns through matching `record` + `next` before the interactive post-check stop applies.
-3. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`; successful delivery writes completion and deterministic Close in one lifecycle update.
+3. Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push` for task/tracked work. Eligible quick direct edits use successful focused validation -> `trellis-update-spec` -> `trellis-push` in the same turn through `workflow-state:no_task`; explicit user stops remain effective. Successful task delivery writes completion and deterministic Close in one lifecycle update.

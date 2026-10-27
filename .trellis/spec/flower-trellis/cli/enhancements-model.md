@@ -1123,7 +1123,7 @@ node scripts/check-ai-context-budget.mjs --strict
 
 - Trigger:无活动 task 的请求最终路由为 tracked direct edit，或修改 No-Task 的恢复、检查、
   规范更新、Push、纳管和阶段面包屑行为。quick direct edit 是本轮可完成的小改/快修，不创建
-  untracked 游标，也不默认进入 Update-Spec。
+  untracked 游标；有交付变更且必要定向验证成功时，同轮进入 Update-Spec 和 Push 计划。
 - Scope:使用 session runtime 中的单一 untracked work item 保存 Phase 2/3 流程游标；不创建轻量
   task，不保存 workspace fingerprint，也不复制 Check-All、Update-Spec、Push 或 task route 的
   owner 证据与门禁。
@@ -1157,7 +1157,11 @@ session 字段固定为：
 
 ### 3. Contracts
 
-- quick direct edit 不调用 `begin`；完成本轮编辑和 focused validation 后直接报告。只有用户明确要求
+- quick direct edit 不调用 `begin`；实际范围仍符合 Request Triage 且必要 focused validation 成功覆盖当前 diff 时，
+  简短进度汇报后同轮调用 Update-Spec，`no-op` / `written` 再展示 Push 计划，不等待额外“继续”。
+  当前用户明确停止或暂不收尾时，报告实际结果，并引导后续“继续”恢复规范评估和提交计划；当轮不进入这些阶段。
+  验证缺失、失败或失效时不得交接；范围扩大则返回 Request Triage。无交付变更的只读、版本检查或 dry-run 不制造 Git 计划。
+- 只有用户明确要求
   无任务但后续 `下一步` / `继续` / check / push 仍要记住当前事项，或当前事项确实需要跨轮恢复时，
   才调用 `begin --mode tracked-direct-edit`，新事项直接进入 `implement`。helper 不读取 Git、不要求
   文件范围，也不验证 focused validation、Check-All 或 Update-Spec 是否完成。
@@ -1188,6 +1192,10 @@ session 字段固定为：
 | 条件 | 结果 |
 |---|---|
 | `begin` 缺少 `--mode tracked-direct-edit` | 参数错误；quick direct edit 和 workflow action 不创建游标 |
+| 合法 quick direct edit 有交付变更且必要定向验证成功 | 同轮进度汇报 -> Update-Spec -> Push 计划，不创建 task/untracked |
+| quick direct edit 明确暂不收尾 | 实际结果 + 后续规范评估/提交计划引导，当轮停止 |
+| quick direct edit 验证缺失/失败/失效或范围扩大 | 不伪造通过或继续自动计划；解决验证或重新分类 |
+| 只读、版本检查或 dry-run 没有交付变更 | 汇报结果，不生成 Git 计划 |
 | 当前 session 已绑定 task | `active-task-present`，不创建 untracked 状态 |
 | 已有不同事项 | `active-work-conflict`，保留原游标和 dirty diff |
 | 代码、规范、submodule 或独立 package 发生变化 | helper 不读取 Git，`status` / `advance` 继续成功 |
@@ -1204,8 +1212,8 @@ session 字段固定为：
 
 - Good:用户明确“不走 task，但后面继续帮我接检查和 push”，实现并验证后说“下一步”；恢复同一 work id，进入 Check-All，
   不重新执行 task intent classification。
-- Base:一行文案/配置小改或发布 dry-run 中的临时说明修正，完成 focused validation 后报告，不创建
-  untracked，也不强制 Update-Spec。
+- Base:一行文案/配置小改完成必要 focused validation 后，同轮评估规范并展示提交计划；不创建
+  task/untracked，也不强制完整 Check-All。实际 Git 写入仍等待精确计划确认。
 - Good:Update-Spec 写入 `.trellis/spec/**` 后直接把游标推进到 `push`，不会因 fingerprint 漂移要求
   撤回合法规范 diff。
 - Good:compact/resume 时 hook 看到 `stage=push`，只提示加载 `trellis-push`，不重放实现、检查或规范。
@@ -1225,6 +1233,8 @@ session 字段固定为：
   `push -> trellis-push` 且不得把游标解释成已执行。
 - 最终验证覆盖 fresh/upgrade/selective Bundle、全部平台 agent、SessionStart/per-turn hook、meta Patch、
   vendor/snapshot/compiled targets 一致性，以及第二次 dogfood 零变化。
+- JS/Python consumer 守护最终快速出口；真实会话回放覆盖默认同轮计划、明确停止后的引导、必要验证失败和纯只读，
+  同时核对没有 task/untracked、没有未确认 Git 写入尝试，HEAD/索引/远端保持不变。
 
 ### 7. Wrong vs Correct
 
@@ -2719,7 +2729,7 @@ outstanding action 并要求用户显式 `retry-blocked`。
 
 - Trigger:普通 interactive Check-All 通过后保留用户继续卡点;已经进入当前 Check-All 完成链且
   最新消息明确请求普通 push 或用户主动 `commit-only` 时,strict pass 或用户明确接受当前 findings 后不应再次要求“继续”。
-  两条路径进入 Update-Spec 后都不再询问是否更新 spec,也不应在 Update-Spec 与 Trellis Push
+  合法 quick direct edit 也通过 `workflow-state:no_task` 同轮交接。进入 Update-Spec 后不再询问是否更新 spec,也不应在 Update-Spec 与 Trellis Push
   之间再停一次。显式进入 `trellis-push` 后的行为由 Push owner 负责，不由本场景反向补门禁。
 - Scope:`overrides/patches/skills/trellis-update-spec/autonomous-evaluation/` 保存自主三态、证据、最小写入和自校验;
   workflow hub/state 只保存停止点与 resume-chain;auto-loop skill/runner 保存确定性 record 映射;
@@ -2776,6 +2786,8 @@ run_check_all -> run_spec_update -> commit_only
   已经进入 `trellis-push` 的请求；Push owner 只读取完成链证据并决定 Git 计划。
 - Update-Spec 的交互入口承接 Check-All `Interactive Post-Check Stop Gate` 的当前继续判断，
   不另设仅限 strict pass 的门槛；自身 `needs-review` 仍停止后续 Push 计划。
+- 无 task/untracked 的合法 quick direct edit 可使用本轮请求、实际 diff、必要定向验证的真实命令、结果和覆盖范围，
+  不要求 Check-All 报告，不伪造其通过。入口须验证范围仍符合 Request Triage，缺失/失败/失效证据不得替代交接条件。
 - 当前 Check-All 完成链通过且无明确停止要求，或用户明确恢复已停止收尾时，若没有当前有效结果，同一轮必须先调用
   `trellis-update-spec`;不得询问“是否更新 spec”或先生成提交计划。
 - `no-op` 用于无可复用契约、现有 spec 已覆盖、一次性实现、纯文案/格式变化或用户当前明确
@@ -2790,7 +2802,7 @@ run_check_all -> run_spec_update -> commit_only
   不再单列重复的 Wrong vs Correct；规则、模板和自检清单保持一致。现有规范沿用最小修改边界。
 - `needs-review` 只用于目标、语义、冲突或验证失败无法从仓库证据唯一解决的情况,只问一个
   解除当前歧义所需的问题。
-- 证据顺序固定为任务 JSONL 引用 -> prd/design/implement -> Check-All 证据 -> 实际 diff、源码、
+- 证据顺序固定为任务 JSONL 引用 -> prd/design/implement -> Check-All 或合法 quick 定向验证证据 -> 实际 diff、源码、
   测试/提交 -> `spec_router.py` 命中的现有 spec/index。聊天摘要和任务标题不能单独授权写入。
 - `written` 返回前必须复读 spec diff、反向核对源码/测试并运行
   `git diff --check -- .trellis/spec`;适用时继续跑 index/link、签名或项目专用验证。无法唯一修复
@@ -2810,6 +2822,7 @@ run_check_all -> run_spec_update -> commit_only
 | 条件 | 行为 |
 |------|------|
 | 普通 Check-All passed,无明确停止要求 | 标准报告后同轮运行 Update-Spec |
+| 合法 quick direct edit 的必要定向验证通过，无明确停止要求 | 无 task/untracked/Check-All 报告也可评估；no-op/written 同轮进入 Push |
 | 当前事项明确只检查/检查后停止/仅接受不继续 | 报告或简短确认后停止，不运行 Update-Spec或生成 Git 计划 |
 | 当前 Check-All 完成链内 direct Git + strict pass | 展示现有标准报告,同轮运行 Update-Spec |
 | 当前 Check-All 完成链内 direct Git + accepted-risk pass | 报告或简短接受确认,同轮运行 Update-Spec,不重贴未变化项 |
@@ -2988,14 +3001,16 @@ risk_items          ->始终逐项展示,不折叠
 - 普通及 direct Git Check-All 的 strict pass 或已接受风险通过，按增量展示规则报告或简短确认后默认同轮进入 Phase 3.3；
   明确停止、未处置问题及阻塞不进入该路径。由
   no-op/written 同轮加载 `trellis-push`,needs-review 停止。
-- 除 auto-loop 内部 commit-only 外，普通 push 或用户 `commit-only` 已经构成明确 Git 意图。
+- 除 auto-loop 内部 commit-only 外，普通 push 或用户 `commit-only` 已经构成明确 Git 意图；也接受完成链 owner 合法交接。
   `trellis-push` 在读取 Git 计划前只记录当前可验证的 Check-All / Update-Spec 证据，不补跑、
   不切换阶段、不要求用户改写成“跳过检查后 push”，也不增加运行/跳过检查的二选一确认。
-- Check-All 证据状态固定为 `通过`、`通过（已接受风险）`、`未运行`、`已失效`、`存在未处置 findings`、
+- Check-All 证据状态固定为 `通过`、`通过（已接受风险）`、`不适用（快速直改）`、`未运行`、`已失效`、`存在未处置 findings`、
   `blocked` 或 `部分验证`；两类问题均为 0 时标记 `通过`，全部剩余问题都有当前有效用户接受时标记
   `通过（已接受风险）` 并保留 ID 与严重度。Update-Spec 证据状态固定为
   `no-op`、`written`、`needs-review`、`未运行` 或
   `已失效`。没有当前可验证证据时使用 `未运行`，不得从历史、摘要或 dirty 状态猜测通过。
+- `不适用（快速直改）` 仅用于无 task/untracked、仍符合 Request Triage 且必要定向验证成功覆盖当前 diff 的变更；
+  此时计划必须展示定向验证的真实命令、结果、范围，不按缺少 Check-All 计入风险。task/tracked 缺检查、验证失败/缺失/失效或范围扩大不得使用；其它风险照常展示。
 - 完成链状态不阻止读取 Git 状态或生成提交计划。`未运行`、`已失效`、任一未处置 `CHK-*` / `FBK-*`、
   blocked、部分验证或 `needs-review` 必须同时进入计划风险区；未变化的有效已接受项只在完成链证据汇总数量,
   不再进入风险区或顶部风险计数,内部保留 ID、严重度、影响与接受依据。接受失效或证据缺失时说明变化或缺口,
