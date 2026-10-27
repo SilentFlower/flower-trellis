@@ -249,6 +249,20 @@ test("Pi 旧私有 Skill 被用户修改时拒绝迁移删除", (t) => {
   assert.equal(fs.existsSync(path.join(legacyRoot, "SKILL.md")), true);
 });
 
+test("0.5/old 兼容入口保留用户 Codex 版本配置原文", (t) => {
+  for (const variant of ["0.5", "old"]) {
+    const target = createTarget(t);
+    const config = path.join(target, ".codex/config.toml");
+    fs.mkdirSync(path.dirname(config), { recursive: true });
+    const userConfig = "[features.multi_agent_v2]\r\nenabled = true\r\nmax_concurrent_threads_per_session = 8\r\n\r\n[agents]\r\nmax_depth = 2\r\n";
+    fs.writeFileSync(config, userConfig);
+    quietApply(target, { variant, skills: ["trellis-route"] });
+    assert.equal(fs.readFileSync(config, "utf8"), userConfig);
+    quietApply(target, { variant, skills: ["trellis-route"] });
+    assert.equal(fs.readFileSync(config, "utf8"), userConfig);
+  }
+});
+
 test("legacy manifest 迁移后删除且重复运行保留来源标记", (t) => {
   const target = createTarget(t);
   quietApply(target, { variant: "0.5", skills: ["trellis-route"] });

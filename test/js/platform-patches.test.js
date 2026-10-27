@@ -65,8 +65,9 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   write(target, ".codex/config.toml", [
     "model = \"gpt\"",
     "",
-    "[features.multi_agent_v2] # remove legacy feature",
+    "[features.multi_agent_v2] # 保留用户版本配置",
     "enabled = true",
+    "max_concurrent_threads_per_session = 8",
     "",
     "[other] # keep user section",
     "keep = true",
@@ -119,7 +120,7 @@ test("Flower 平台 Patch 归位 Hook、保留用户配置并重复执行幂等"
   assert.equal(claudeSessionHooks.length, 3);
   assert.ok(claudeSessionHooks.every((hook) => !Object.hasOwn(hook, "additionalContextLimit")));
   const toml = fs.readFileSync(path.join(target, ".codex/config.toml"), "utf8");
-  assert.doesNotMatch(toml, /multi_agent_v2/);
+  assert.ok(toml.includes("[features.multi_agent_v2] # 保留用户版本配置\nenabled = true\nmax_concurrent_threads_per_session = 8\n"));
   assert.match(toml, /\[other\] # keep user section/);
   const yaml = fs.readFileSync(path.join(target, ".trellis/config.yaml"), "utf8");
   assert.match(yaml, /codex:\n  dispatch_mode: auto\n  other: true/);
@@ -234,7 +235,7 @@ test("缺失平台目录安全跳过，损坏 JSON/YAML/TOML 失败且不覆盖"
   fs.mkdirSync(path.join(invalidToml, ".codex"));
   write(invalidToml, ".codex/config.toml", "[features.multi_agent_v2\nenabled = true\n");
   const tomlBefore = fs.readFileSync(path.join(invalidToml, ".codex/config.toml"), "utf8");
-  assert.throws(() => prepare(invalidToml), /TOML 字符串或容器未闭合/);
+  assert.throws(() => prepare(invalidToml), /TOML 默认配置无法安全更新:语法错误/);
   assert.equal(
     fs.readFileSync(path.join(invalidToml, ".codex/config.toml"), "utf8"),
     tomlBefore,

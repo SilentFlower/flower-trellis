@@ -193,3 +193,4 @@ jobs:
           test/js/plugin-skill-garden.test.js
           test/js/plugin-transaction-writer.test.js
           test/js/platform-patches.test.js
+          test/js/codex-sync-user-interaction.test.js

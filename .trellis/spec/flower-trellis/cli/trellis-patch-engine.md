@@ -879,8 +879,10 @@ Correct：明确解析 true/false，只在匹配的 Codex SessionStart state 追
   内容及内部 LF/CRLF；末尾沿用核心单 LF 规范化。非法语法、重复定义和非布尔目标失败关闭，
   parser 错误只显示行列，不回显可能含凭证的配置原文。
 - 注释修正只匹配唯一的完整已知注释段；缺失跳过，同文字符串不匹配，重复真实注释失败。
-- 默认 Patch 先于 `flower-codex-remove-multi-agent-v2`：配置缺失时先在同轮内存计划创建文件，
-  后续清理仍进入 provenance，确保首次与重复更新的完整记录一致；不得放宽幂等断言。
+- 保留用户的 `multi_agent` / `multi_agent_v2` 布尔值、结构化表、注释和参数；0.6 平台 Patch
+  与 0.5/old 兼容入口均不得删除或注释其版本配置。版本选择交给 Codex，更新不新增版本开关。
+- 已知模板注释说明模型元数据与会话状态也参与实际版本选择，`multi_agent_v2=false` 不保证 v1。
+  保留 `agents.max_depth` 的用户值，并明确该参数仅对 v1 生效，v2 忽略；不把它描述成 v2 的硬限制。
 - 启动注入只在 Codex/state/`startup|clear|compact` 且原生成功时追加一次，覆盖所有模型；
   Claude、rules/stages、resume、Hook 禁用和非交互零追加。三个模型 hint 原文与开关独立保留。
 - 询问使用当前工具指令/schema 允许的同步 `request_user_input`；不允许或无法表达时在 final
@@ -915,7 +917,10 @@ Correct：明确解析 true/false，只在匹配的 Codex SessionStart state 追
 
 - `codex-sync-user-interaction.test.js`：配置各写法、显式值保留、quoted/multiline 示例、损坏与
   重复零写入、错误不回显值、平台/skill-only边界、真实 init/update/dry-run/uninstall-dry-run。
-- `apply-enhancements.test.js`：缺配置首次创建与后续清理 provenance 同步、重复全树不变。
+- `apply-enhancements.test.js`：缺配置首次创建的 provenance 稳定、重复全树不变。
+- `platform-patches.test.js` / `codex-sync-user-interaction.test.js`：保留 v2 配置的布尔、结构化表
+  与用户注释；真实 init/update 不删除显式版本设置，模板注释修正不改变 `max_depth` 值。
+- `plugin-skill-garden.test.js`：0.5/old 兼容入口保持 Codex 配置原文及重复应用幂等。
 - `test_flower_session_start.py`：平台/来源/分段/模型块数、独立开关、禁用路径和模型原文 hash。
 - 预算 checker 与 `ai-context-budget.test.js`：完整通用块≤512 B，原模型差分保持，总量不重复计数；
   strict 不调阈值。本地 token 差分独立说明 tokenizer 和范围。

@@ -417,11 +417,13 @@ flower banner → 平台多选菜单 → Trellis 原生交互(模板 / monorepo 
 ```
 
 - **统一品牌头部**:Trellis 子进程在伪终端(`node-pty`)中运行,其原生的模板 / monorepo / 冲突等交互完整保留,但重复打印的启动 banner 被过滤,全程只呈现一个 flower banner。
-- **按平台铺设技能**:Claude 铺到 `.claude/skills`,Codex / Gemini 等铺到 `.agents/skills`;并做平台后处理:Codex 兼容清理旧 `config.toml` 的 `[features.multi_agent_v2]`,在保留上游 hooks 的基础上补全 `SessionStart`;Claude Code 只在 `startup` SessionStart 挂载启动更新检查。
+- **按平台铺设技能**:Claude 铺到 `.claude/skills`,Codex / Gemini 等铺到 `.agents/skills`;并做平台后处理:Codex 保留用户的 `multi_agent` / `multi_agent_v2` 配置,在保留上游 hooks 的基础上补全 `SessionStart`;Claude Code 只在 `startup` SessionStart 挂载启动更新检查。
 - **幂等执行**:0.6 Patch 使用受管 marker 原位升级，完整预检通过后只写 changed 文件；技能资产和现代 `.flower/state.json` 记录进入同一插件事务，通过路径 ownership 与摘要精确清理淘汰内容。0.5/old 继续使用兼容注入路径，旧 manifest 只用于迁移识别。
 - **结构化 Patch**:Trellis 0.6 的 workflow、skill、hook 与平台配置统一通过 `insert / replace / remove` 预检后应用；selector/baseline 或已知最终协议冲突时在写入前停止。
 - **上线事项账本**:强化包通过 Finish-Work Patch 在归档前智能识别 SQL、配置、批处理 / 部署脚本 / 数据修复、外部系统 / 依赖平台等上线事项,必要时写入任务 `release.md`;`trellis-release` 可在正式上线前核对任务文档、`release.md` 和 git 证据,生成 `YYYY-MM-DD-<release-slug>.md` 格式的版本 / 批次操作单。
 - **安全中止**:`Ctrl+C` 取消后不会继续叠加。
+
+Codex 的实际多 agent 版本由客户端配置、模型元数据与会话状态共同决定；`multi_agent_v2=false` 不能保证使用 v1。Flower 保留用户的版本设置，0.5/old 兼容入口也保留配置原文。`agents.max_depth` 仅限制 v1 的递归深度，v2 忽略该值；`codex.dispatch_mode:auto` 负责 Trellis 上下文准备，版本选择仍由 Codex 处理。
 
 ## 强化包与更新
 

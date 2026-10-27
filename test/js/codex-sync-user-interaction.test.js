@@ -36,7 +36,7 @@ function fixture(t, config) {
 }
 
 /**
- * 执行完整 Flower 平台 Patch，包含旧配置清理与新的默认值。
+ * 执行完整 Flower 平台 Patch，补入默认值并保留用户版本配置。
  *
  * @param {string} root 临时项目根目录
  * @param {object} [options] 精细安装选项
@@ -94,6 +94,29 @@ test("已有同步询问 true/false 在三种配置写法中保持原值", (t) =
   }
 });
 
+test("用户多 agent 版本配置的布尔、结构化表和注释在更新后保留", (t) => {
+  for (const value of ["true", "false"]) {
+    for (const input of [
+      `[features] # 用户配置\nmulti_agent = true\nmulti_agent_v2 = ${value} # 保留显式选择\n`,
+      `features.multi_agent_v2 = ${value} # 保留点号键\n`,
+      `features = { multi_agent_v2 = ${value}, hooks = true } # 保留内联表\n`,
+      `[features.multi_agent_v2] # 保留结构化参数\nenabled = ${value}\nmax_concurrent_threads_per_session = 8\n`,
+    ]) {
+      const root = fixture(t, input);
+      apply(root);
+      const file = path.join(root, ".codex/config.toml");
+      const output = fs.readFileSync(file, "utf8");
+      const { default_mode_request_user_input, ...userFeatures } = parseToml(output).features;
+      assert.equal(default_mode_request_user_input, true);
+      assert.deepEqual(userFeatures, { ...parseToml(input).features });
+      for (const comment of input.match(/#.*$/gm) || []) assert.ok(output.includes(comment));
+      const before = snapshotProjectFiles(root);
+      assert.equal(apply(root).changed, 0);
+      assert.deepEqual(snapshotProjectFiles(root), before);
+    }
+  }
+});
+
 test("字符串、数组和多行文本中的配置示例不能被当成真实 section 或默认值", (t) => {
   const input = 'note = """\n[features.multi_agent_v2]\nenabled = true\n[features]\ndefault_mode_request_user_input = false\n"""\n'
     + "literal = '''\n[features]\ndefault_mode_request_user_input = false\n'''\n"
@@ -109,19 +132,23 @@ test("字符串、数组和多行文本中的配置示例不能被当成真实 s
 test("只修正已知模板注释，不修改字符串中的同一段模板文字", (t) => {
   const payload = JSON.parse(fs.readFileSync(path.join(ROOT,
     "src/patches/platforms/codex/sync-user-interaction/config-content.json.txt"), "utf8"));
-  const { from, to } = payload.commentReplacements[0];
-  const plain = fixture(t, `${from}\n[agents]\nmax_depth=1\n`);
-  apply(plain);
-  assert.ok(fs.readFileSync(path.join(plain, ".codex/config.toml"), "utf8").startsWith(to + "\n"));
-  const quotedInput = `note = '''\n${from}\n'''\n`;
-  const quoted = fixture(t, quotedInput);
-  apply(quoted);
-  assert.ok(fs.readFileSync(path.join(quoted, ".codex/config.toml"), "utf8").startsWith(quotedInput));
-  const combined = fixture(t, `${quotedInput}${from}\n[agents]\nmax_depth=1\n`);
-  apply(combined);
-  const output = fs.readFileSync(path.join(combined, ".codex/config.toml"), "utf8");
-  assert.ok(output.startsWith(quotedInput));
-  assert.ok(output.slice(quotedInput.length).startsWith(to + "\n"));
+  for (const { from, to } of payload.commentReplacements) {
+    const plain = fixture(t, `${from}\n[agents]\nmax_depth=1\n`);
+    apply(plain);
+    const plainOutput = fs.readFileSync(path.join(plain, ".codex/config.toml"), "utf8");
+    assert.ok(plainOutput.startsWith(to + "\n"));
+    assert.equal(parseToml(plainOutput).agents.max_depth, 1);
+    assert.equal(apply(plain).changed, 0);
+    const quotedInput = `note = '''\n${from}\n'''\n`;
+    const quoted = fixture(t, quotedInput);
+    apply(quoted);
+    assert.ok(fs.readFileSync(path.join(quoted, ".codex/config.toml"), "utf8").startsWith(quotedInput));
+    const combined = fixture(t, `${quotedInput}${from}\n[agents]\nmax_depth=1\n`);
+    apply(combined);
+    const output = fs.readFileSync(path.join(combined, ".codex/config.toml"), "utf8");
+    assert.ok(output.startsWith(quotedInput));
+    assert.ok(output.slice(quotedInput.length).startsWith(to + "\n"));
+  }
 });
 
 test("重复或损坏的目标配置阻断全部平台写入", (t) => {
@@ -187,12 +214,20 @@ test("真实 init/update 通过 Plugin 生命周期分发同步默认值与交�
   assert.equal(init.status, 0, init.stderr + init.stdout);
   const file = path.join(root, ".codex/config.toml");
   assert.match(fs.readFileSync(file, "utf8"), /default_mode_request_user_input = true/);
+  const initialConfig = fs.readFileSync(file, "utf8");
+  assert.match(initialConfig, /MultiAgentV2 ignores agents.max_depth/);
+  assert.match(initialConfig, /A false multi_agent_v2 flag does not guarantee V1/);
+  assert.equal(parseToml(initialConfig).agents.max_depth, 1);
+  assert.equal(Object.hasOwn(parseToml(initialConfig).features, "multi_agent_v2"), false);
   const wrapper = fs.readFileSync(path.join(root, ".trellis/scripts/flower_session_start.py"), "utf8");
   assert.ok(wrapper.includes("<trellis-codex-user-interaction>"));
   assert.ok(wrapper.includes("Do not call request_user_input_async, send_user_message_async"));
+  const userVersionConfig = "\n[features.multi_agent_v2] # 用户版本选择\nenabled = false\nmax_concurrent_threads_per_session = 8\n";
+  fs.appendFileSync(file, userVersionConfig);
   const update = runFlower(root, ["update", "--enhance-only", "--no-update-check", "-y"], cliOptions);
   assert.equal(update.status, 0, update.stderr + update.stdout);
   assert.match(fs.readFileSync(file, "utf8"), /default_mode_request_user_input = true/);
+  assert.ok(fs.readFileSync(file, "utf8").includes(userVersionConfig));
   const before = snapshotProjectFiles(root);
   const dry = runFlower(root, ["update", "--enhance-only", "--dry-run", "--no-update-check", "-y"], cliOptions);
   assert.equal(dry.status, 0, dry.stderr + dry.stdout);
