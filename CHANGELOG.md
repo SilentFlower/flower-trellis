@@ -4,6 +4,45 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.12](https://github.com/SilentFlower/flower-trellis/compare/v0.6.11...v0.6.12) (2026-10-28)
+
+
+### ✨ 新功能 Features
+
+* **codex:** 默认启用同步用户交互 ([8f56915](https://github.com/SilentFlower/flower-trellis/commit/8f56915b297c8b797cd03d1255f5a6847f7af7b0))
+* **hooks:** 注入简洁设计原则并精简启动上下文 ([92fb5f0](https://github.com/SilentFlower/flower-trellis/commit/92fb5f06671e17cf41af753f5faa99ba68db183e))
+* **route:** 同步按需加载与简短路由展示 ([b38853d](https://github.com/SilentFlower/flower-trellis/commit/b38853d59844c63245102081c2a4d446b2437d7a))
+* **task:** 支持显式终止旧任务并保留拒绝记录 ([e6f7e5a](https://github.com/SilentFlower/flower-trellis/commit/e6f7e5a9c7c40c1094c6f5d80995b2a067ce2937))
+* **workflow:** 同步连续收尾与增量方案确认 ([c13ebc2](https://github.com/SilentFlower/flower-trellis/commit/c13ebc2da1572e1fadd5eea7515440d1da3dc996))
+* **worktree:** 支持独立创建和目标本地准备 ([83c51b5](https://github.com/SilentFlower/flower-trellis/commit/83c51b53e334dae4e847a05628cf8602c1f70411))
+
+
+### 🐛 修复 Bug Fixes
+
+* **auto-loop:** 同步启动选模交接与回归 ([50d11e5](https://github.com/SilentFlower/flower-trellis/commit/50d11e55012a761a6c0eaffe49404d8052df289e))
+* **check-all:** 同步修复续行入口与回归检查 ([36cd997](https://github.com/SilentFlower/flower-trellis/commit/36cd997f664781eebe4b4a97df266b37e5a1747a))
+* **check-all:** 同步修复续行规则与回归检查 ([ca7c64b](https://github.com/SilentFlower/flower-trellis/commit/ca7c64ba4736d03643ce4b0cbe5fabb8aaf30cfc))
+* **codex:** 保留用户多 agent 配置并修正版本说明 ([839e7e2](https://github.com/SilentFlower/flower-trellis/commit/839e7e2397baf4d78db150702707d90ace48ecc9))
+* **hooks:** 修复任务归档失败与启动诊断刷屏 ([9dc372f](https://github.com/SilentFlower/flower-trellis/commit/9dc372f5a0cbe878504f836593121c505c3e289d))
+* **push:** 保留规定的计划与结果模板结构 ([f7346b0](https://github.com/SilentFlower/flower-trellis/commit/f7346b01765c2415555ad7ceae7a8891e7aead04))
+* **task:** 同步 Git 路径校验兼容修正 ([e9a7e0e](https://github.com/SilentFlower/flower-trellis/commit/e9a7e0eb04363a34bfba19fbaecf52e82367bb51))
+* **task:** 同步决策审查与归档规则 ([8ab3f0a](https://github.com/SilentFlower/flower-trellis/commit/8ab3f0ad4619b3bfa2afeceae3f57874566c2acd))
+* **test:** 对齐跨平台 Python 命令夹具 ([e07287a](https://github.com/SilentFlower/flower-trellis/commit/e07287a523f777e7f389adac8064a4b82b3272b2))
+* **test:** 隔离同步交互回归的全局 Trellis ([4ad9c0c](https://github.com/SilentFlower/flower-trellis/commit/4ad9c0c62acaef101f5fcce2356cd79d6b73ac77))
+* **workflow:** 同步快速直改收尾规则与验证 ([ef145c9](https://github.com/SilentFlower/flower-trellis/commit/ef145c955d9d282c92bae4e272e43eaebdcaaced))
+* **workflow:** 同步流程精简与能力回归 ([cb46908](https://github.com/SilentFlower/flower-trellis/commit/cb4690880eaac5f0d27f38f852c0d4d8475573bd))
+* **workflow:** 校验停止指令来源并同步规则快照 ([dcadf66](https://github.com/SilentFlower/flower-trellis/commit/dcadf66b16904e1e4c9c36abedc47685da07e6a3))
+
+
+### ⚡ 性能 Performance
+
+* **context:** 仅在输出中省略 Patch 归属注释 ([2e0d0d0](https://github.com/SilentFlower/flower-trellis/commit/2e0d0d0d902fa2a8c1a7b10a24ecd80de2d9f987))
+
+
+### ♻️ 重构 Refactor
+
+* **route:** 同步静默展示规则与快照 ([ff8659d](https://github.com/SilentFlower/flower-trellis/commit/ff8659dcc66789a3f77656167131c7a76b3dd0d0))
+
 ## [0.6.12-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.6.12-beta.5...v0.6.12-beta.6) (2026-10-27)
 
 
