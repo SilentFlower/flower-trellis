@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "id": "context-output-cleanup",
+  "purpose": "control_plane_integrity",
+  "operations": [
+    {
+      "id": "workflow-phase-index-output-cleanup",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/workflow_phase.py",
+        "missing": "skip",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "phase-index-selector.py" },
+      "content": { "source": "phase-index-content.py" }
+    }
+  ]
+}

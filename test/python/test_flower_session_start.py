@@ -241,6 +241,53 @@ if __name__ == "__main__":
                     self.assertEqual(prompt.returncode, 0, prompt.stderr)
                     self.assertEqual(prompt.stdout, "")
 
+    def test_state_removes_only_patch_boundary_comments(self) -> None:
+        """只移除独占一行的归属标记，逐字保留规则、普通注释和行内示例。
+
+        @return: 无返回值；任一正文或平台边界变化时断言失败。
+        """
+        native = ("原生状态。\n<!-- 保留原生注释 -->\n"
+                  "<!-- BEGIN skill-garden patch native-boundary v0.6 -->\n")
+        workflow = "### Request Triage\n规则\n### Planning Artifacts\n阶段\n"
+        lines = [
+            "<workflow-state>",
+            "Status: in_progress",
+            "先读 brief，再进入匹配的实现或检查路由。",
+            "<!-- 保留规则说明 -->",
+            "行内示例：`<!-- BEGIN skill-garden patch example v0.6 -->`。",
+            "<!-- BEGIN skill-garden patch inline v0.6 --> 后续说明仍应保留。",
+            "<!-- BEGIN skill-garden patch inline v0.6 --> 保留正文 <!-- 业务注释 -->",
+            "</workflow-state>",
+        ]
+        for newline in ("\n", "\r\n"):
+            clean = newline.join(lines) + newline
+            annotated = newline.join([
+                *lines[:2],
+                "<!-- BEGIN skill-garden patch workflow-state-in-progress v0.6 -->",
+                *lines[2:-1],
+                "<!-- END skill-garden patch workflow-state-in-progress v0.6 -->",
+                lines[-1],
+            ]) + newline
+            for hook in SESSION.HOOKS:
+                for source in ("startup", "clear", "compact"):
+                    with self.subTest(newline=repr(newline), hook=hook, source=source):
+                        original = {"hookSpecificOutput": {
+                            "hookEventName": "SessionStart",
+                            "additionalContext": native + "<trellis-workflow>\n" + workflow
+                                                 + "</trellis-workflow>\n",
+                        }}
+                        with patch.object(SESSION, "_run_native_hook", return_value=original), \
+                                patch.object(SESSION, "_run_workflow_state_refresh", return_value=annotated), \
+                                patch.object(SESSION, "_run_task_maintenance", return_value=""):
+                            result = SESSION.render_part(self.root, hook, "state", {"source": source})
+                        expected = native + clean + "\n" + SESSION.CODE_DESIGN_HINT
+                        if hook == SESSION.HOOKS[0]:
+                            expected += "\n" + SESSION.CODEX_USER_INTERACTION_HINT
+                        self.assertEqual(
+                            result["hookSpecificOutput"]["additionalContext"],
+                            '<trellis-session-part name="state">\n' + expected + '\n</trellis-session-part>',
+                        )
+
     def test_workflow_state_refresh_failure_preserves_native_state(self) -> None:
         """刷新脚本失败时保留原生 state，并输出可见诊断。"""
         (self.root / ".codex/hooks/inject-workflow-state.py").unlink()

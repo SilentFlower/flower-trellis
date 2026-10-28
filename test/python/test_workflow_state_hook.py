@@ -10,6 +10,7 @@ import sys
 import tempfile
 import types
 import unittest
+from hashlib import sha256
 from pathlib import Path
 from unittest import mock
 
@@ -619,6 +620,44 @@ class WorkflowStateHookTest(unittest.TestCase):
                 self.assertIn("State unchanged for 5 user turns", heartbeat)
                 self.assertNotIn("<workflow-state>\n", heartbeat)
                 self.assertIsNone(self._run_hook(input_data, platform))
+
+    def test_output_cleanup_preserves_source_and_raw_tracker_fingerprint(self) -> None:
+        """完整状态仅清理输出注释，源标记、刷新原文和指纹保持一致。
+
+        @return: 无返回值；任一源内容、规则或状态基线变化时断言失败。
+        """
+        begin = "<!-- BEGIN skill-garden patch cleanup-test v0.6 -->\n"
+        end = "<!-- END skill-garden patch cleanup-test v0.6 -->"
+        body = (begin + "先读规范，再执行已授权的当前动作。\n"
+                "<!-- 保留普通注释 -->\n"
+                "<!-- BEGIN skill-garden patch inline v0.6 --> 保留正文 <!-- 业务说明 -->\n"
+                + end)
+        self._prepare_conditional_state(body)
+        workflow = self.root / ".trellis/workflow.md"
+        source = workflow.read_bytes()
+        tracker_root = self.root / ".trellis/.runtime/workflow-state"
+        for platform in ("codex", "claude"):
+            with self.subTest(platform=platform):
+                data = {"cwd": str(self.root), "session_id": f"cleanup-{platform}"}
+                output = self._run_hook(data, platform)
+                original = self._run_hook(data, platform, "--trellis-session-start-refresh")
+                self.assertIn(begin, original)
+                self.assertIn(end, original)
+                self.assertEqual(output, original.replace(begin, "").replace(end + "\n", ""))
+                tracker = next(
+                    json.loads(path.read_text(encoding="utf-8"))
+                    for path in tracker_root.glob("*.json")
+                    if json.loads(path.read_text(encoding="utf-8"))["platform"] == platform
+                )
+                self.assertEqual(tracker["fingerprint"], sha256(original.encode("utf-8")).hexdigest())
+                self.assertEqual(tracker["unchangedTurns"], 0)
+                self.assertIsNone(self._run_hook(data, platform))
+                self.assertEqual(workflow.read_bytes(), source)
+        other = self._run_hook(
+            {"cwd": str(self.root), "session_id": "cleanup-gemini"}, "gemini"
+        )
+        self.assertIn(begin, other)
+        self.assertIn(end, other)
 
     def test_state_change_emits_full_context_and_restarts_counter(self) -> None:
         """状态正文变化立即完整注入，并从零重新累计心跳。"""

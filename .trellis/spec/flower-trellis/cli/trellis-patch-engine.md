@@ -616,7 +616,8 @@ full-only control-plane-integrity -> atomic I/O + resolution + fallback + set
   非法、完整上下文指纹变化时输出完整状态并把计数归零；状态未变化时静默，默认第 5 个未变化
   用户输入输出一次 `<workflow-state-heartbeat>`，随后重新计数。其它平台与无法解析 context key 的
   输入每轮输出完整状态且不共享 tracker。
-- 指纹是最终完整上下文的 SHA-256；Codex 的 mode、bootstrap 与实际 workflow-state 都在指纹范围内。
+- 指纹是输出清理前完整上下文的 SHA-256；Codex 的 mode、bootstrap、实际 workflow-state 和源归属
+  注释都在指纹范围内，不以省略注释后的展示文本替代基线。
   tracker 以平台和 `common.active_task.resolve_context_key()` 返回的会话身份隔离，同一项目的不同会话
   不得共享计数，也不得把 tracker 与 task 目录绑定。
 - tracker 必须只包含六个 schema 字段：`version=1`、匹配当前平台、64 位小写十六进制
@@ -634,6 +635,10 @@ full-only control-plane-integrity -> atomic I/O + resolution + fallback + set
   workflow-state Hook 并传内部刷新参数，强制返回完整状态并重置基线；`rules` / `stages` 不刷新。
   `resume`、全局禁用和 Codex 非交互仍保持零输出。刷新失败保留原生 state 和既有诊断，追加可见
   `workflow-state 基线未刷新` 诊断，让后续 UserPromptSubmit 按完整降级路径恢复。
+- 普通 Codex / Claude UserPromptSubmit 在条件 helper 返回后，仅从输出副本省略独占整行的
+  `<!-- BEGIN/END skill-garden patch ... -->` 注释；规则、普通注释和行内示例保持原文。
+  内部强制刷新仍返回带归属注释的原文，由 SessionStart wrapper 清理展示副本；源文件、tracker
+  指纹、静默和心跳计数不变，其他平台不应用此清理。
 - 配置说明必须由 Flower Patch 投影到 `.trellis/config.yaml`，保留用户已有
   `prompt_injection` 键和值。条件 helper 的 canonical 源位于 Skill-Garden vendor，先同步
   `enhancements/0.6/overrides`，再刷新 compiled targets；Flower SessionStart 的 canonical 源仍为
@@ -652,6 +657,7 @@ full-only control-plane-integrity -> atomic I/O + resolution + fallback + set
 | tracker 写入失败 | 输出完整状态，不因缓存优化丢失工作流指令 |
 | 无 context key | 每轮完整输出，不创建跨会话共享 tracker |
 | 普通输入命中 skip keyword | 零输出且 tracker 字节不变 |
+| 普通 Codex / Claude 完整输出包含独占整行的归属注释 | 输出省略注释，指纹仍等于内部强制刷新原文的 SHA-256 |
 | Gemini 等其它平台 | 每轮完整输出，既有事件 envelope 保持不变 |
 | SessionStart startup / clear / compact | state 含完整 workflow-state，基线归零，下一轮未变化输入静默 |
 | SessionStart 刷新 Hook 缺失、失败或输出非法 | 保留原生 state 并输出可见诊断；rules / stages 不受影响 |
@@ -672,6 +678,8 @@ full-only control-plane-integrity -> atomic I/O + resolution + fallback + set
 - `test_workflow_state_hook.py` 覆盖 Codex / Claude 首次完整、四轮静默、第五轮心跳、状态与 mode
   变化、task / untracked / missing-task 动作、间隔 `0` / 非法值 / 动态修改、跨会话隔离、无 context
   key、skip keyword、其它平台、损坏及语义非法 tracker、写入失败和内部强制刷新。
+  输出清理须比对过滤前后完整正文、源文件字节和原文 SHA-256；刷新后的未变化输入仍静默，
+  Gemini 等非目标平台仍保留归属注释。
 - `test_flower_session_start.py` 覆盖 Codex / Claude 的 `startup | clear | compact` 完整刷新与后续静默，
   `resume` / 禁用边界，以及刷新失败时原生 state 和诊断保留。
 - `platform-patches.test.js` / `apply-enhancements.test.js` 覆盖配置注释投影、用户值保留、Bundle
@@ -679,6 +687,50 @@ full-only control-plane-integrity -> atomic I/O + resolution + fallback + set
 - 修改后运行相关 Python/JS 专项、完整 `npm test`、`npm run sync`、Patch conflict、compiled-target
   一致性、默认与 strict AI context budget、`git diff --check`，并在当前项目执行两次 update dogfood，
   第二次必须为零目标变化。
+
+## Scenario: Phase Index Output Ownership Preservation
+
+### 1. Scope / Trigger
+
+修改 `get_context.py --mode phase` 无 `--step` 时的摘要输出清理，或其 Skill-Garden Patch 时读取本节。
+
+### 2. Signatures
+
+- `python3 ./.trellis/scripts/get_context.py --mode phase` 调用 `common.workflow_phase.get_phase_index() -> str`。
+- `--step <X.Y>` 仍由 `get_step()` 加载详细步骤，不属于本次摘要清理范围。
+
+### 3. Contracts
+
+- canonical 声明位于 Skill-Garden `overrides/patches/scripts/context-output-cleanup/`；
+  `shared-hook-runtime` full-only Bundle 引用它。先同步快照与 compiled targets，再经 Plugin 生命周期部署。
+- Patch 以 literal selector 替换 `.trellis/scripts/common/workflow_phase.py` 的摘要返回逻辑，使用
+  `markerStyle=hash`；模块源码中的归属标记必须保留，不能对源码执行注释清理。
+- 保持原有摘要选择和 workflow-state 块过滤，只从返回文本移除独占整行的
+  `<!-- BEGIN/END skill-garden patch ... -->`；普通注释、行内标记、标记后带正文或其他注释的行保留。
+  读取摘要不得修改 `.trellis/workflow.md` 或模块源码，不通过缩写规则正文节省字符。
+- 摘要模块缺失时按 `missing=skip` 返回 `missing-target`，不阻断其余 Patch，也不创建模块；
+  模块存在而 literal selector 漂移时仍按 required Patch 失败，保持 preflight 零写入。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| 摘要含整行归属注释、普通注释及行内示例 | 只省略整行归属注释，其余正文逐字保留，源文件字节不变 |
+| 摘要模块不存在 | 跳过该显示优化，记录 `missing-target` |
+| 模块存在但 selector 不匹配 | Patch preflight 失败，目标和备份均不写入 |
+
+### 5. Scenarios and Examples
+
+- 正常：CLI 摘要省略 Patch 边界行，workflow 源文件仍保留同一组 BEGIN/END，后续更新继续按源标记定位。
+- 基础：普通 HTML 注释或带后续说明的标记行仍显示；重复应用 Patch 为零变更，provenance 保持一致。
+- 错误：为了减小上下文直接删除 workflow 源标记，会破坏后续升级定位。正确：只过滤返回文本副本。
+
+### 6. Tests Required
+
+- `test_phase_output_cleanup_keeps_patch_markers_replay_and_backups` 经真实 CLI 比对清理前后正文，
+  并断言源码标记、workflow 字节、重复应用、provenance 和首次备份保持正确。
+- `test_phase_output_cleanup_skips_missing_target_and_rejects_drift` 验证缺失可跳过、已有目标漂移零写入失败。
+- 真实 Plugin 安装与重复更新须保留源标记和归属记录；JS/Python Patch Engine 的备份与重放契约均须验证。
 
 ## Scenario: SessionStart Parts And Context Limit Preservation
 
@@ -742,6 +794,10 @@ subprocess.run(
   仍在 wrapper 进程只调用 Codex `_build_workflow_toc` 或 Claude
   `_build_workflow_overview`，读取同一 `.trellis/workflow.md`，在 `### Planning Artifacts` 前无损分割。
   handler 可并行，不能依赖执行顺序、其他分段的缓存或绑定结果。
+- state 刷新 workflow-state 后，仅从本次注入文本省略独占整行的
+  `<!-- BEGIN/END skill-garden patch ... -->` 归属注释，兼容 LF、CRLF 和末行无换行。
+  规则正文、原生上下文、普通注释及行内示例逐字保留；标记后还有文字或其他注释时不得删除。
+  源文件标记和 helper 已写入的状态指纹保持原样，不通过概括提示措辞节省字符。
 - state 子进程固定 `cwd=root`，继承当前环境并设置 `PYTHONIOENCODING=utf-8`；命令必须使用参数数组、
   `sys.executable -X utf8` 和 `shell=False` 语义。stdin 发送 UTF-8 JSON bytes，stdout 按严格
   `utf-8-sig` 解码并要求 JSON 对象，stderr 按 UTF-8 replacement 解码后原样转发。空 stdout 返回
@@ -795,6 +851,7 @@ subprocess.run(
 | resume 或显式禁用 | wrapper 退出 0，无注入输出 |
 | Windows 原生入口重配真实标准流或调用 `sys.stdout.detach()` | state 在独立解释器成功，父 wrapper 标准流不受影响 |
 | 原生 stdout 为空 | state 返回 `None`，wrapper 退出 0 且无 stdout |
+| workflow-state 含整行 Patch 归属注释 | 仅省略归属注释，规则原文不变；普通注释、行内示例及带后续正文的标记保留 |
 | 原生 stderr 非空且退出码非 0 | stderr 原样转发；stdout 输出含退出码的 systemMessage 与 trellis-injection-error，wrapper 退出 0 |
 | Astra、Sol 或 Sol 6.1 + startup/clear/compact + state + 对应开关开启 | 原状态后追加对应模型的一个英文块，三段合计一次 |
 | 其他模型、缺失/非法 model、别名、非目标 source、Claude 或 rules/stages | 不新增提示，保留原路径输出 |
@@ -824,6 +881,8 @@ python3 -m unittest discover -s test/python -p 'test_flower_session_start.py'
 断言：原文拼回等价、关键路由完整、并行无状态副作用、禁用与 resume 无输出；原额度 / 分段独立额度 /
 0 / 缺省 / 冲突 / 非法值迁移；缺少或损坏源的可见诊断与超限尾部保留；真实内容投影、目标 ownership
 和二次安装文件树不变。预算场景和汇总规则见 AI Context Budget，不得只测缺失 model 的旧路径。
+归属注释过滤覆盖两平台 × startup/clear/compact × LF/CRLF；用整段输出比对验证规则与其他注释
+逐字保留，并沿用刷新后首轮 UserPromptSubmit 静默的回归，确认状态指纹基线仍有效。
 Python 回归必须使用 `sys.executable` 和显式 UTF-8，不依赖 Windows 的 `python3` 别名或系统代码页；事故夹具
 须让伪原生 `main()` 实际对捕获流调用 `detach()`，先证明旧同进程边界失败，再断言隔离 state 成功。
 同一专项测试必须在 GitHub Actions 的 `ubuntu-latest` / `windows-latest` 矩阵运行；本地或 CI 脚本结果

@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-10-27T07:38:48.725Z",
+  "syncedAt": "2026-10-28T04:03:59.384Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "53c65aa6286ffe6e3f9be296436f4218529dda84",
+  "sourceCommit": "dc9fc156c5e8ad457a6cc5cb1ae25cd8725038e7",
   "common": {
     "codexSkills": [
       "aliyun-ops",
@@ -224,6 +224,9 @@
         "hooks/session-start/update-boundary/notice-output-selector.py",
         "hooks/session-start/update-boundary/patch.json",
         "hooks/session-start/update-boundary/update-resolver-selector.py",
+        "scripts/context-output-cleanup/patch.json",
+        "scripts/context-output-cleanup/phase-index-content.py",
+        "scripts/context-output-cleanup/phase-index-selector.py",
         "scripts/runtime-state-integrity/active-task-fallback-content.py",
         "scripts/runtime-state-integrity/active-task-fallback-selector.py",
         "scripts/runtime-state-integrity/active-task-resolution-content.py",

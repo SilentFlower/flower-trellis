@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -177,6 +178,85 @@ class PatchConsumerTest(unittest.TestCase):
             self.target,
             dirs_exist_ok=True,
         )
+
+    def test_phase_output_cleanup_keeps_patch_markers_replay_and_backups(self) -> None:
+        """阶段输出清理只影响返回文本，保留源标记、重放归属和首次备份。
+
+        @return: 无返回值；输出、源文件、归属或重放断言不满足时失败。
+        """
+        relative = ".trellis/scripts/common/workflow_phase.py"
+        source = (ROOT / "node_modules/@mindfoldhq/trellis/dist/templates/trellis/scripts/common/workflow_phase.py").read_bytes()
+        scripts = self.target / ".trellis/scripts"
+        shutil.copytree(ROOT / ".trellis/scripts/common", scripts / "common")
+        shutil.copy2(ROOT / ".trellis/scripts/get_context.py", scripts / "get_context.py")
+        phase_file = self.target / relative
+        phase_file.write_bytes(source)
+        _write(self.target, ".trellis/.version", "0.6.14\n")
+        begin = "<!-- BEGIN skill-garden patch phase-example v0.6 -->\n"
+        end = "<!-- END skill-garden patch phase-example v0.6 -->\n"
+        workflow = _write(
+            self.target,
+            ".trellis/workflow.md",
+            "## Phase Index\n" + begin + "按顺序执行当前步骤。\n" + end
+            + "<!-- 保留普通注释 -->\n"
+            + "<!-- BEGIN skill-garden patch inline v0.6 --> 保留正文 <!-- 业务说明 -->\n"
+            + "## Phase 1: Plan\n#### 1.0 Create task\n任务规则。\n",
+        )
+        original_workflow = workflow.read_bytes()
+
+        def render_phase() -> str:
+            """通过真实 CLI 返回阶段摘要。
+
+            @return: UTF-8 阶段摘要原文。
+            """
+            result = subprocess.run(
+                [sys.executable, "-X", "utf8", str(scripts / "get_context.py"), "--mode", "phase"],
+                cwd=self.target,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=True,
+            )
+            return result.stdout
+
+        original_output = render_phase()
+        patch_ref = "scripts/context-output-cleanup"
+        shutil.copytree(OVERRIDES / "patches" / patch_ref, self.overrides / "patches" / patch_ref)
+        self.add_bundle({"schemaVersion": 1, "id": "context-output-cleanup", "patches": [patch_ref]})
+        runner = _load_runner()
+        first = runner.apply_prepared(self.target, runner.prepare_patches(self.overrides, self.target))
+        self.assertEqual(first["changed"], 1)
+        patched_source = phase_file.read_bytes()
+        self.assertIn(b"# BEGIN skill-garden patch workflow-phase-index-output-cleanup", patched_source)
+        self.assertEqual(render_phase(), original_output.replace(begin, "").replace(end, ""))
+        self.assertEqual(workflow.read_bytes(), original_workflow)
+        self.assertEqual(phase_file.read_bytes(), patched_source)
+        second = runner.apply_prepared(self.target, runner.prepare_patches(self.overrides, self.target))
+        self.assertEqual(second["changed"], 0)
+        self.assertEqual(second["provenance"], first["provenance"])
+        backup = self.target / ".trellis/.backup-flower" / relative
+        self.assertEqual(backup.read_bytes(), source)
+
+    def test_phase_output_cleanup_skips_missing_target_and_rejects_drift(self) -> None:
+        """缺少摘要模块时跳过优化，已有模块的选择器漂移仍须零写入失败。
+
+        @return: 无返回值；缺失或漂移边界不满足时断言失败。
+        """
+        patch_ref = "scripts/context-output-cleanup"
+        shutil.copytree(OVERRIDES / "patches" / patch_ref, self.overrides / "patches" / patch_ref)
+        self.add_bundle({"schemaVersion": 1, "id": "context-output-cleanup", "patches": [patch_ref]})
+        runner = _load_runner()
+        result = runner.apply_prepared(self.target, runner.prepare_patches(self.overrides, self.target))
+        self.assertEqual(result["changed"], 0)
+        self.assertEqual(result["missingTargets"], 1)
+        relative = ".trellis/scripts/common/workflow_phase.py"
+        phase_file = _write(self.target, relative, "# 用户自定义摘要模块\n")
+        before = phase_file.read_bytes()
+        with self.assertRaises(runner.PatchError):
+            runner.prepare_patches(self.overrides, self.target)
+        self.assertEqual(phase_file.read_bytes(), before)
+        self.assertFalse((self.target / ".trellis/.backup-flower" / relative).exists())
 
     def load_compiled_targets(self) -> None:
         """把 0.6.14 全平台 canonical 最终产物复制到临时目标。"""

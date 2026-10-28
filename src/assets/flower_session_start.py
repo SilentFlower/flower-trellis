@@ -369,6 +369,13 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
                 result.pop("systemMessage", None)
         try:
             workflow_state = _run_workflow_state_refresh(root, hook, hook_input)
+            # 归属标记留在源文件中；注入时仅省略这些整行注释，避免压缩规则措辞。
+            workflow_state = re.sub(
+                r"^<!-- (?:BEGIN|END) skill-garden patch [^<>\r\n]+ -->(?:\r?\n|$)",
+                "",
+                workflow_state,
+                flags=re.MULTILINE,
+            )
             separator = "" if not context or context.endswith("\n") else "\n"
             context = f"{context}{separator}{workflow_state}"
         except Exception as error:
