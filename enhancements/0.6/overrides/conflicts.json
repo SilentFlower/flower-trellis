@@ -797,7 +797,7 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch trellis-meta-managed-template-hashes v0.6 -->\n## Meaning Of Template Hashes",
-          "Plugin ownership, Patch provenance, transaction checks",
+          "Plugin ownership, Patch application records, transaction checks",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-file-boundaries v0.6 -->\n## Local Customization Boundaries",
           "| Skill-Garden managed |"
         ]
@@ -817,7 +817,7 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch trellis-meta-managed-template-hashes v0.6 -->\n## Meaning Of Template Hashes",
-          "Plugin ownership, Patch provenance, transaction checks",
+          "Plugin ownership, Patch application records, transaction checks",
           "<!-- BEGIN skill-garden patch trellis-meta-managed-file-boundaries v0.6 -->\n## Local Customization Boundaries",
           "| Skill-Garden managed |"
         ]

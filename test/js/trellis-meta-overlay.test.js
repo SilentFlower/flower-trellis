@@ -171,7 +171,7 @@ function assertManagedMeta(target, skillRoot) {
   assert.match(skill, /runtime truth for current behavior, but it is not automatically the authoring source/);
   assert.match(architecture, /\*\*Plugin management layer\*\*/);
   assert.match(architecture, /npm run sync.*enhancements\/0\.6/);
-  assert.match(generated, /Plugin ownership, Patch provenance, transaction checks/);
+  assert.match(generated, /Plugin ownership, Patch application records, transaction checks/);
   assert.match(bundled, /selectors and full baselines fail closed on upstream drift/);
   assert.match(bundled, /collect<Platform>Templates\(\)/);
   assert.match(bundled, /writeTemplateMap/);

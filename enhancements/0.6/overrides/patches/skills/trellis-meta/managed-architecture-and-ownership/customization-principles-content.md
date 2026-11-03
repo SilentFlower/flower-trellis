@@ -6,4 +6,4 @@
 4. **Keep the lifecycle ordered**: Change `vendor/skill-garden/.trellis/0.6/`, run `npm run sync` to refresh `enhancements/0.6/`, regenerate/check compiled targets, then update dogfood through the Flower Plugin lifecycle.
 5. **Keep shared semantics aligned**: Workflow owner changes may require matching skill, hook, helper, or platform entry updates, but each full procedure stays with its owning capability.
 6. **Keep project-specific rules project-local**: Use `.trellis/spec/` or a separately owned local skill; do not turn public `trellis-meta` into a project notebook.
-7. **Preserve evidence and user content**: Respect Plugin ownership, first-backup/provenance records, template conflicts, and current user modifications. Never use `node_modules` as an authoring target.
+7. **Preserve evidence and user content**: Respect Plugin ownership, first-backup and Patch application records, template conflicts, and current user modifications. Never use `node_modules` as an authoring target.
