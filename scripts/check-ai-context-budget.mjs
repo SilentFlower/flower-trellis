@@ -140,7 +140,7 @@ function measureSessionStart(compiledRoot) {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "flower-context-budget-"));
   try {
     copyIfExists(
-      path.join(PKG_ROOT, ".trellis", "workflow.md"),
+      path.join(compiledRoot, ".trellis", "workflow.md"),
       path.join(fixture, ".trellis", "workflow.md"),
     );
     copyIfExists(
@@ -183,6 +183,8 @@ function measureSessionStart(compiledRoot) {
       { platform: "claude", name: "astra-compact", source: "compact", model: "gpt-6-astra" },
       { platform: "claude", name: "sol-startup", source: "startup", model: "gpt-6-sol" },
       { platform: "claude", name: "sol-6-1-startup", source: "startup", model: "gpt-6.1-sol" },
+      { platform: "codex", name: "large-catalog", source: "compact", model: "gpt-6.1-sol", expectedHint: "sol-6-1", catalogSize: 1000 },
+      { platform: "claude", name: "large-catalog", source: "compact", model: "gpt-6.1-sol", catalogSize: 1000 },
     ];
     const cases = [];
     const modelHints = { astra: "", sol: "", "sol-6-1": "" };
@@ -196,9 +198,21 @@ function measureSessionStart(compiledRoot) {
     for (const scenario of scenarios) {
       const { platform, name, source, model } = scenario;
       const hook = `.${platform}/hooks/session-start.py`;
-      copyIfExists(path.join(PKG_ROOT, hook), path.join(fixture, hook));
+      copyIfExists(path.join(compiledRoot, hook), path.join(fixture, hook));
       const workflowHook = `.${platform}/hooks/inject-workflow-state.py`;
       copyIfExists(path.join(compiledRoot, workflowHook), path.join(fixture, workflowHook));
+      if (scenario.catalogSize) {
+        const specRoot = path.join(fixture, ".trellis", "spec");
+        fs.rmSync(specRoot, { recursive: true, force: true });
+        // 真实目录规模必须进入测量，少量本地规范无法暴露清单随仓库增长的问题。
+        for (let index = 0; index < scenario.catalogSize; index++) {
+          const relative = index === 0 ? "guides/index.md"
+            : `package-${index}-预算回归-${"catalog-".repeat(6)}/backend/index.md`;
+          const target = path.join(specRoot, relative);
+          fs.mkdirSync(path.dirname(target), { recursive: true });
+          fs.writeFileSync(target, "# 测试规范\n", "utf8");
+        }
+      }
       // 固定测试配置，个人关闭设置不能让预算检查漏掉默认开启的实际成本。
       fs.writeFileSync(path.join(fixture, ".trellis/config.yaml"),
         `codex:\n  dispatch_mode: auto\n  astra_workflow_hint: ${scenario.disabledHint !== "astra"}\n  sol_workflow_hint: ${scenario.disabledHint !== "sol"}\n  sol_6_1_workflow_hint: ${scenario.disabledHint !== "sol-6-1"}\n`);
@@ -230,6 +244,11 @@ function measureSessionStart(compiledRoot) {
         }
         if (part === "state" && !value.includes("<workflow-state>\n")) {
           throw new Error(`SessionStart ${platform}/${name}/state 未包含完整 workflow-state`);
+        }
+        if (part === "state" && scenario.catalogSize
+          && (!value.includes(`Spec indexes: ${scenario.catalogSize} available.`)
+            || !value.includes("spec_router.py") || value.includes(".trellis/spec/package-"))) {
+          throw new Error(`SessionStart ${platform}/${name}/state 未保留有界的规范发现入口`);
         }
         for (const [hintModel, pattern] of Object.entries(hintPatterns)) {
           const hints = [...value.matchAll(pattern)];

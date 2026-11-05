@@ -21,6 +21,15 @@ from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
+COMPILED_TARGETS = ROOT / "vendor/skill-garden/compiled-targets/0.6.14/full/targets"
+SCRIPTS_DIR = ROOT / ".trellis/scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from common.active_task import set_active_task
+from common.tasks import pending_closeout
+
+
 SPEC = spec_from_file_location("flower_session", ROOT / "src/assets/flower_session_start.py")
 SESSION = module_from_spec(SPEC)
 SPEC.loader.exec_module(SESSION)
@@ -37,19 +46,17 @@ class FlowerSessionStartTest(unittest.TestCase):
         for name in ["scripts", "spec"]:
             shutil.copytree(ROOT / ".trellis" / name, self.root / ".trellis" / name,
                             ignore=shutil.ignore_patterns("__pycache__"))
-        for name in ["workflow.md", "config.yaml"]:
-            shutil.copy2(ROOT / ".trellis" / name, self.root / ".trellis" / name)
+        shutil.copy2(COMPILED_TARGETS / ".trellis/workflow.md", self.root / ".trellis/workflow.md")
+        shutil.copy2(ROOT / ".trellis/config.yaml", self.root / ".trellis/config.yaml")
         # `.developer` 是本地忽略文件；夹具必须自行创建，避免依赖开发者工作区。
         (self.root / ".trellis/.developer").write_text("name=tester\n", encoding="utf-8")
         for platform in ["codex", "claude"]:
             target = self.root / f".{platform}/hooks/session-start.py"
             target.parent.mkdir(parents=True)
-            shutil.copy2(ROOT / f".{platform}/hooks/session-start.py", target)
+            shutil.copy2(COMPILED_TARGETS / f".{platform}/hooks/session-start.py", target)
             workflow_hook = self.root / f".{platform}/hooks/inject-workflow-state.py"
             shutil.copy2(
-                ROOT
-                / "vendor/skill-garden/compiled-targets/0.6.14/full/targets"
-                / f".{platform}/hooks/inject-workflow-state.py",
+                COMPILED_TARGETS / f".{platform}/hooks/inject-workflow-state.py",
                 workflow_hook,
             )
         shutil.copy2(ROOT / "src/assets/flower_session_start.py", self.root / ".trellis/scripts")
@@ -107,6 +114,119 @@ class FlowerSessionStartTest(unittest.TestCase):
             capture_output=True,
             timeout=20,
         )
+
+    def prepare_spec_catalog(self, count: int, with_guide: bool = True, long_names: bool = False) -> list[Path]:
+        """生成指定数量的规范索引，避免测试只覆盖当前仓库的小目录。
+
+        @param count: 包括指南在内的索引总数。
+        @param with_guide: 是否在非空目录中创建通用指南。
+        @param long_names: 是否使用合法的较长 Unicode 包名。
+        @return: 所有已创建索引的路径。
+        """
+        spec_dir = self.root / ".trellis/spec"
+        shutil.rmtree(spec_dir)
+        spec_dir.mkdir()
+        indexes = []
+        if count and with_guide:
+            indexes.append(spec_dir / "guides/index.md")
+        for index in range(count - len(indexes)):
+            suffix = "-预算回归-" + "catalog-" * 6 if long_names else ""
+            indexes.append(spec_dir / f"package-{index:04d}{suffix}/backend/index.md")
+        for index in indexes:
+            index.parent.mkdir(parents=True, exist_ok=True)
+            index.write_text("# 测试规范\n", encoding="utf-8")
+        return indexes
+
+    def test_499_indexes_remain_discoverable_after_compaction(self) -> None:
+        """真实大目录压缩恢复时保留关键状态，索引发现不能挤占整个分段。"""
+        self.prepare_spec_catalog(499)
+        for platform in ("codex", "claude"):
+            with self.subTest(platform=platform):
+                result = self.run_hook(platform, "state", "compact", hook_input={"model": "gpt-6.1-sol"})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                data = json.loads(result.stdout)
+                context = data["hookSpecificOutput"]["additionalContext"]
+                self.assertLessEqual(len(context), 8000)
+                self.assertFalse(data.get("systemMessage"), data.get("systemMessage"))
+                self.assertIn("Spec indexes: 499 available.", context)
+                self.assertIn(".trellis/spec/guides/index.md", context)
+                self.assertIn("spec_router.py", context)
+                self.assertNotIn(".trellis/spec/package-", context)
+                for tag in ("current-state", "guidelines", "task-status", "workflow-state", "trellis-code-design"):
+                    self.assertIn(f"<{tag}>", context)
+                    self.assertIn(f"</{tag}>", context)
+                if platform == "codex":
+                    self.assertIn(SESSION.SOL_6_1_WORKFLOW_HINT, context)
+                    self.assertIn(SESSION.CODEX_USER_INTERACTION_HINT, context)
+
+    def test_catalog_sizes_and_paths_fit_all_rebuilt_states(self) -> None:
+        """大目录、长路径和空目录在两类任务状态的三种重建事件中均保持有界。"""
+        sizes = {}
+        for in_progress in (False, True):
+            if in_progress:
+                task = self.root / ".trellis/tasks/catalog-budget"
+                task.mkdir(parents=True)
+                (task / "task.json").write_text(
+                    # 使用现代任务结构，避免把预算测试意外变成旧任务迁移测试。
+                    json.dumps({"title": "规范目录预算回归", "status": "in_progress",
+                                "closeout": pending_closeout()}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                for name in ("prd.md", "design.md", "implement.md"):
+                    (task / name).write_text("# 目录预算回归\n", encoding="utf-8")
+                with patch.dict(os.environ, self.env):
+                    for platform in ("codex", "claude"):
+                        active = set_active_task(
+                            ".trellis/tasks/catalog-budget", self.root,
+                            {"session_id": "session-parts-test"}, platform,
+                        )
+                        self.assertIsNotNone(active)
+            for count, with_guide, long_names in ((0, False, False), (2, False, False),
+                                                 (499, True, False), (1000, True, True)):
+                indexes = self.prepare_spec_catalog(count, with_guide, long_names)
+                self.assertEqual(len(indexes), count)
+                for platform in ("codex", "claude"):
+                    for source in ("startup", "clear", "compact"):
+                        with self.subTest(count=count, platform=platform, source=source, active=in_progress):
+                            for part in SESSION.PARTS:
+                                result = self.run_hook(platform, part, source, hook_input={"model": "gpt-6.1-sol"})
+                                self.assertEqual(result.returncode, 0, result.stderr)
+                                data = json.loads(result.stdout)
+                                self.assertFalse(data.get("systemMessage"), data.get("systemMessage"))
+                                context = data["hookSpecificOutput"]["additionalContext"]
+                                self.assertLessEqual(len(context), 8000)
+                                self.assertIn("</trellis-session-part>", context)
+                                if part != "state":
+                                    continue
+                                self.assertIn(f"Spec indexes: {count} available.", context)
+                                self.assertEqual(".trellis/spec/guides/index.md" in context, with_guide)
+                                self.assertIn("spec_router.py", context)
+                                self.assertIn("get_context.py --mode packages", context)
+                                self.assertNotIn(".trellis/spec/package-", context)
+                                self.assertIn("Status: IN_PROGRESS" if in_progress else "Status: NO ACTIVE TASK", context)
+                                self.assertIn("</task-status>", context)
+                                self.assertIn("</workflow-state>", context)
+                                self.assertIn(SESSION.CODE_DESIGN_HINT, context)
+                                if in_progress:
+                                    self.assertIn("Current task: .trellis/tasks/catalog-budget; status=in_progress.", context)
+                                if platform == "codex":
+                                    self.assertIn(SESSION.SOL_6_1_WORKFLOW_HINT, context)
+                                    self.assertIn(SESSION.CODEX_USER_INTERACTION_HINT, context)
+                                sizes.setdefault((platform, source, in_progress), []).append(len(context))
+        for key, values in sizes.items():
+            # 目录规模只影响计数位数和固定指南入口，不再把路径清单带入上下文。
+            self.assertLess(max(values) - min(values), 256, key)
+
+    def test_spec_discovery_command_still_finds_unlisted_index(self) -> None:
+        """移出常驻清单的规范仍能由现有发现命令定位。"""
+        indexes = self.prepare_spec_catalog(2, with_guide=False)
+        target = indexes[-1]
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", ".trellis/scripts/spec_router.py", "package-0001 backend"],
+            cwd=self.root, env=self.env, capture_output=True, text=True, encoding="utf-8", timeout=20,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(target.relative_to(self.root).as_posix(), result.stdout)
 
     def test_state_uses_real_stdio_boundary_for_native_reconfiguration(self) -> None:
         """原生入口可重配真实标准流，不再对包装器的内存流执行 detach。"""

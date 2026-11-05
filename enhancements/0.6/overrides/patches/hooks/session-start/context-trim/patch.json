@@ -4,6 +4,44 @@
   "purpose": "hook_override",
   "operations": [
     {
+      "id": "session-start-spec-discovery",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "hook", "path": ".codex/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".codebuddy/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".cursor/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".factory/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".gemini/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".kiro/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".qoder/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".trae/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".zcode/hooks/session-start.py", "missing": "skip", "markerStyle": "none" }
+      ],
+      "selector": { "type": "literal", "source": "spec-discovery-selector.py", "expectedMatches": 1 },
+      "content": { "source": "spec-discovery-content.py" }
+    },
+    {
+      "id": "session-start-spec-count",
+      "operation": "replace",
+      "targetPolicy": "each-existing",
+      "targets": [
+        { "kind": "hook", "path": ".codex/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".claude/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".codebuddy/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".cursor/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".factory/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".gemini/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".kiro/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".qoder/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".trae/hooks/session-start.py", "missing": "skip", "markerStyle": "none" },
+        { "kind": "hook", "path": ".zcode/hooks/session-start.py", "missing": "skip", "markerStyle": "none" }
+      ],
+      "selector": { "type": "literal", "source": "spec-count-selector.py", "expectedMatches": 1 },
+      "content": { "source": "spec-count-content.py" }
+    },
+    {
       "id": "codex-session-start-platform-dispatch-helper",
       "operation": "insert",
       "position": "before",

@@ -1352,6 +1352,19 @@ class PatchConsumerTest(unittest.TestCase):
                 self.assertNotIn("get_update_hint", value)
                 self.assertNotIn("Also relay this Trellis maintenance notice", value)
 
+    def test_real_catalog_bounds_spec_discovery_for_every_session_start_target(self) -> None:
+        """各原生启动目标保留发现入口，不能再次投影出无界的索引输出循环。"""
+        self.load_compiled_targets()
+        for relative in (".codex/hooks/session-start.py", *SESSION_START_TARGETS):
+            with self.subTest(relative=relative):
+                value = self.target.joinpath(*relative.split("/")).read_text(encoding="utf-8")
+                self.assertIn('lines.append(f"Spec indexes: {len(spec_index_paths)} available.")', value)
+                self.assertIn('if ".trellis/spec/guides/index.md" in spec_index_paths:', value)
+                self.assertIn("spec_router.py", value)
+                self.assertIn("get_context.py --mode packages", value)
+                self.assertNotIn("for p in spec_index_paths:", value)
+                self.assertNotIn("## Available indexes (read on demand)", value)
+
     def test_real_catalog_projects_grok_memory_guidance_to_all_skill_roots(self) -> None:
         """全部物理 Skill root 必须获得与 0.6.14 runtime 一致的 Grok 说明。"""
         self.load_compiled_targets()

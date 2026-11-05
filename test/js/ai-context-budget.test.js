@@ -32,6 +32,7 @@ test("最终入口分别计量 Auto-Loop 与两平台实际 SessionStart 分段"
     assert.equal(metric.unit, "characters");
     assert.ok(metric.characters > 0);
     assert.ok(metric.bytes >= metric.characters);
+    assert.ok(metric.characters <= 8000, `${metric.name}: ${metric.characters} chars`);
   }
   const platformTotals = ["codex", "claude"].map((platform) =>
     parts.filter((metric) => metric.name.includes(`:${platform}:`)).reduce((sum, metric) => sum + metric.bytes, 0)
@@ -55,7 +56,7 @@ test("最终入口分别计量 Auto-Loop 与两平台实际 SessionStart 分段"
   assert.equal(interaction.target, 512);
   assert.equal(interaction.review, 512);
   const scenarios = metrics.filter((metric) => metric.name.startsWith("session-start-case:"));
-  assert.equal(scenarios.length, 18);
+  assert.equal(scenarios.length, 20);
   const scenarioBytes = (name) => scenarios.find((metric) => metric.name === `session-start-case:${name}`).bytes;
   const baseline = scenarioBytes("codex:missing-model");
   for (const [model, hint] of Object.entries(hints)) {
@@ -70,6 +71,10 @@ test("最终入口分别计量 Auto-Loop 与两平台实际 SessionStart 分段"
   assert.equal(scenarioBytes("claude:astra-startup"), scenarioBytes("claude:astra-compact"));
   assert.equal(scenarioBytes("claude:astra-startup"), scenarioBytes("claude:sol-startup"));
   assert.equal(scenarioBytes("claude:astra-startup"), scenarioBytes("claude:sol-6-1-startup"));
+  for (const platform of ["codex", "claude"]) {
+    assert.ok(scenarioBytes(`${platform}:large-catalog`) > 0);
+    assert.ok(scenarioBytes(`${platform}:large-catalog`) <= 20 * 1024);
+  }
   assert.equal(metrics.find((metric) => metric.name === "session-start").bytes,
     Math.max(...scenarios.map((metric) => metric.bytes)));
 });

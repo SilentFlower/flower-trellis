@@ -748,8 +748,7 @@ def _build_compact_current_state(
                 f"Journal: {_repo_relative(repo_root, journal)}, {count_lines(journal)} / 2000 lines."
             )
 
-    if spec_index_paths:
-        lines.append(f"Spec indexes: {len(spec_index_paths)} available.")
+    lines.append(f"Spec indexes: {len(spec_index_paths)} available.")
 
     return "\n".join(lines)
 
@@ -924,11 +923,15 @@ Trellis compact SessionStart context. Use it to orient the session; load details
         "are skipped for lightweight tasks.\n\n"
     )
 
-    if spec_index_paths:
-        output.write("## Available indexes (read on demand)\n")
-        for p in spec_index_paths:
-            output.write(f"- {p}\n")
-        output.write("\n")
+    if ".trellis/spec/guides/index.md" in spec_index_paths:
+        output.write("## Shared guidelines\n")
+        output.write("- .trellis/spec/guides/index.md\n\n")
+
+    output.write(
+        "Read the active task's `implement.jsonl` or `check.jsonl` for task-specific guidelines. "
+        "Find other relevant specs with "
+        "`python3 ./.trellis/scripts/spec_router.py \"<task keywords>\"`.\n\n"
+    )
 
     output.write(
         "Discover more via: "

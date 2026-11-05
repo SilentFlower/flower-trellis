@@ -26,7 +26,7 @@
 - Update-Spec：读取 compiled full 中实际存在的最终 `.agents`、`.claude/skills`、`.claude/commands` 入口。
 - Auto-Loop：该 skill 不是 Patch target，读取 `vendor/skill-garden/.trellis/0.6` 下直接铺设的 canonical `.agents/.claude` 入口；源、快照和 dogfood 一致性由同步测试单独保证。
 - Phase summary：真实运行 `python3 ./.trellis/scripts/get_context.py --mode phase`。
-- SessionStart：在隔离临时 fixture 部署 Flower 分段脚本及 Codex / Claude 原生 hook，分别运行 `.trellis/scripts/flower_session_start.py --hook <原生路径> --part state|rules|stages`。覆盖十八个场景、每场景三份实际 `additionalContext`：Codex 缺失模型、Astra、Sol 与 Sol 6.1 各自的 startup/clear/compact、其他模型、三个模型各自关闭，以及 Claude 携带 Astra 输入的 startup/compact、Sol 与 Sol 6.1 输入的 startup。每个平台取最大场景保留六份分段汇总，`session-start` 取最大平台/场景合计，不重复累加等价入口。
+- SessionStart：在隔离临时 fixture 部署 Flower 分段脚本，原生 hook、workflow-state hook 和 workflow 使用 pinned full 编译目标，分别运行 `.trellis/scripts/flower_session_start.py --hook <原生路径> --part state|rules|stages`。保留十八个模型/来源场景：Codex 缺失模型、Astra、Sol 与 Sol 6.1 各自的 startup/clear/compact、其他模型、三个模型各自关闭，以及 Claude 携带 Astra 输入的 startup/compact、Sol 与 Sol 6.1 输入的 startup；另为两平台各运行一个带 1000 个长路径索引的 compact 场景，共二十场景。每场景三份真实 `additionalContext`，每个平台取最大场景保留六份分段汇总，`session-start` 取最大平台/场景合计，不重复累加等价入口。
 
 Patch 的 `content.md`、`common-content.md`、`subagent-content.md` 只是构建输入。直接测它们会漏掉 frontmatter、上游保留段、marker、结构拼接和平台差异，因此不构成预算证据。
 
@@ -225,14 +225,63 @@ node scripts/check-ai-context-budget.mjs --strict
 - strict 只在 high-warning 时退出非 0。
 - 结构性测量错误始终非 0。
 - Codex / Claude 的三个 SessionStart 分段均返回非空 `additionalContext`，不能把注入失败诊断当作成功测量；原文完整性、并行执行和额度迁移另由分段及平台回归验证。
-- 十三个 SessionStart 场景必须全部实际运行；Astra 与 Sol 各自的三种来源均等于同配置无提示基线加对应完整块及一个换行，其他模型和关闭场景与基线相同。每个平台保留最大场景，控制面只计全局最大合计。
-- `astra-workflow-hint` 与 `sol-workflow-hint` 必须分别非空且不超过 2048 UTF-8 字节；独立故障测试使用多字节字符确认超限拒绝，不能只比较字符数或提示源文件大小。
+- 二十个 SessionStart 场景必须全部实际运行；十八个模型/来源场景中，Astra、Sol 与 Sol 6.1 各自的三种来源均等于同配置无提示基线加对应完整块及一个换行，其他模型和关闭场景与基线相同。两个大目录场景必须进入各平台最大真实输出的选择，控制面只计全局最大合计。
+- `astra-workflow-hint`、`sol-workflow-hint` 与 `sol-6-1-workflow-hint` 必须分别非空且不超过 2048 UTF-8 字节；独立故障测试使用多字节字符确认超限拒绝，不能只比较字符数或提示源文件大小。
 - state 从最终 workflow 动态枚举，不写死文件数量。
 - Update-Spec 从 compiled final 平台入口测量，不读取 Patch content；Auto-Loop 从直接铺设的 canonical variant skill 测量。
 - control-context-total 使用固定公式和最大平台入口。
 - 专项 skill 测试同时固定默认必读字节基线与受保护能力断言；不能只测文件变小。
 - 条件加载 reference 单独计量，并断言主入口没有复制其低频类型矩阵或证据细则。
 - 深度路由必须有反向用例：载体名称不触发 full，真实行为契约和未知影响仍触发 full/fallback-full。
+
+## Scenario: Bounded SessionStart Spec Discovery
+
+### 1. Scope / Trigger
+
+- 修改规范发现、原生 SessionStart 的 `guidelines` 或预算夹具时适用；仓库规模必须作为真实运行维度，不能只测维护仓库的少量规范。
+
+### 2. Signatures
+
+```text
+python3 -X utf8 .trellis/scripts/flower_session_start.py --hook .codex/hooks/session-start.py --part state
+python3 ./.trellis/scripts/spec_router.py "<task keywords>"
+python3 ./.trellis/scripts/get_context.py --mode packages
+```
+
+事件仍使用既有 `cwd`、`session_id`、`source`、`model` 字段，分段仍从 `hookSpecificOutput.additionalContext` 读取。作者源为 `hooks/session-start/context-trim` Patch 的 `session-start-spec-discovery` 与 `session-start-spec-count` 操作。
+
+### 3. Contracts
+
+- 原生索引收集器和已有包筛选不变；当前状态输出筛选后真实计数，包括 `Spec indexes: 0 available.`。
+- `guidelines` 只保留固定发现提示：可用集合中确有指南时输出其路径，任务规范指向 `implement.jsonl` / `check.jsonl` 和现有关键词查询命令。完整包目录由已有 packages 命令按需枚举。
+- 默认正文不逐条打印全部索引，也不以“前 N 条”代替任务相关性；输出体积不随索引数量或每条路径长度线性增长。
+- 对 pinned full 默认工作流的规定规模场景，三段真实输出分别不超过 8000 字符；任务状态、workflow-state、首答、平台和模型规则保持完整。
+- 本项行为回归不改变全局预算 target/review ceiling、默认/strict 告警政策或宿主显式额度。其它原因造成的超限仍保留全文并输出已有可见诊断，不截尾部规则。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 预期 |
+| --- | --- |
+| 空目录或缺失通用指南 | 真实计数，固定发现入口仍在，不生成不存在的指南路径 |
+| 499/1000 个索引及合法长路径、Unicode 包名 | 不常驻路径清单；三段各 ≤8000 字符，必要闭合块完整 |
+| 无任务/进行中 × startup/clear/compact | 实际状态、模型和平台规则完整；覆盖提示开启的成本 |
+| 已有包筛选 | 计数沿用原生可用集合，不误报全仓数量 |
+| 新模板不再唯一匹配 selector | 原有 Patch preflight 失败，不猜测新边界或直接裁剪正文 |
+| 更新后再次应用 | 目标零变化，已有额度及无关用户配置不变 |
+
+### 5. Scenarios and Examples
+
+- Normal：499 个索引只显示真实总数、存在的指南和查询入口；按任务清单读取所需规范。
+- Base：零索引显示计数 0，缺失指南不输出指南文件链接。
+- Incorrect use：用小目录夹具通过预算后，直接把 1000 条索引路径注入 state；Correct handling：真实创建大目录运行最终 Hook，固定发现提示并检查关键块。
+- Incorrect use：调高宿主额度或裁剪整个 state 来消除告警；Correct handling：只收敛动态清单，保留既有规则及完整超限诊断。
+
+### 6. Tests Required
+
+- `test/python/test_flower_session_start.py`：先用 499 索引复现，再覆盖 0、少量、499、1000 及长路径，验证两平台的任务状态/来源矩阵、发现命令可达、计数和关键块完整；目录增长引起的 state 差值须保持小幅有界。
+- `test/python/test_skill_garden_patches.py`：全部十个原生目标保留发现入口并删除全量输出循环。
+- `scripts/check-ai-context-budget.mjs` 与 `test/js/ai-context-budget.test.js`：使用最终编译 Hook，保留十八个模型/来源场景并加入两平台大目录场景；保持字符/UTF-8 字节分离与最大平台总量公式。
+- 隔离更新核对受保护块逐字不变及二次零变化；真实宿主下一次重建另行取证，脚本尺寸或语法扫描不冒充宿主接收或原生平台运行。
 
 ## Wrong vs Correct
 

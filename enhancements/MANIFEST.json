@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-11-03T13:56:54.951Z",
+  "syncedAt": "2026-11-05T12:23:45.780Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "01b241eae125e085738828dd6f7a1cea65e55ccb",
+  "sourceCommit": "c71dbe89261b6426313ce931ff2543ef630da189",
   "common": {
     "codexSkills": [
       "aliyun-ops",
@@ -213,6 +213,10 @@
         "hooks/session-start/context-trim/shared-builder-content.py",
         "hooks/session-start/context-trim/shared-builder-selector.py",
         "hooks/session-start/context-trim/shared-dispatch-helper-selector.py",
+        "hooks/session-start/context-trim/spec-count-content.py",
+        "hooks/session-start/context-trim/spec-count-selector.py",
+        "hooks/session-start/context-trim/spec-discovery-content.py",
+        "hooks/session-start/context-trim/spec-discovery-selector.py",
         "hooks/session-start/pre-check-hold/claude-content.py",
         "hooks/session-start/pre-check-hold/claude-selector.py",
         "hooks/session-start/pre-check-hold/codex-content.py",

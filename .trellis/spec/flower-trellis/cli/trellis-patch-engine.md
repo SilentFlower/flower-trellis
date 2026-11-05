@@ -788,6 +788,8 @@ subprocess.run(
   供既有 bootstrap 检测与后续迁移识别；不能把原生路径一并删除。
 - stdin 为宿主 JSON 对象；原生入口继续消费 session 字段。wrapper 按自身部署位置确定项目根并设置
   输入 `cwd`；宿主的项目目录环境变量应与目标项目一致。CLI 注册仍沿用项目根目录的相对命令约定。
+- 原生规范索引的有界发现由 `hooks/session-start/context-trim` Patch 所有，具体输出与大目录回归见
+  [Bounded SessionStart Spec Discovery](./ai-context-budget.md#scenario-bounded-sessionstart-spec-discovery)。
 - `state` 通过 `_run_native_hook()` 在独立 Python 子进程调用原生 `main()`，父进程不得先导入原生模块，
   避免 Windows 原生 Hook 重配或 `detach` 标准流时破坏 wrapper 的内存捕获。state 从标准
   additionalContext 移除唯一完整 `trellis-workflow` 块，独占会话绑定等副作用；`rules` / `stages`
