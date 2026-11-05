@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "确认 Flower CLI 分层、受管 Patch 作者源与项目语言约定。"}
+{"file": ".trellis/tasks/11-05-sessionstart-index-budget/research/spec-contracts.md", "reason": "有界注入 SessionStart 与快照生命周期的相关规范原文；包含原始文件位置，避免大型规范被静默截断。"}
+{"file": ".trellis/spec/flower-trellis/cli/ai-context-budget.md", "reason": "以最终真实输出计量，保持字符/字节区别、模型场景和默认/strict 政策。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "确定 Hook 与 Patch 验证范围、Python 兼容性和原生平台 CI 门禁。"}
+{"file": ".trellis/tasks/11-05-sessionstart-index-budget/research/sessionstart-evidence.md", "reason": "读取 499 索引截断证据、内存模拟的证明范围以及既有测试缺口。"}
