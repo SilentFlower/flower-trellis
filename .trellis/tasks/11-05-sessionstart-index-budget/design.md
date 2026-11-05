@@ -16,6 +16,7 @@
 | 预算验证 | `scripts/check-ai-context-budget.mjs`、`test/js/ai-context-budget.test.js` | 从最新编译目标运行 Hook，加入索引规模维度并保留现有模型矩阵 |
 | 规范沉淀 | `.trellis/spec/flower-trellis/cli/ai-context-budget.md`、`trellis-patch-engine.md` | 在实施完成后记录发现清单有界和大仓库真实输出要求 |
 | 本地运行副本 | 当前 Flower 项目与 `/root/project/xiaoxian-desktop` 的受管文件 | 通过 Flower 生命周期应用，经预检核对范围 |
+| 原生验证前置 | `.github/workflows/ci.yml` | Ubuntu / Python 3.8 组合使用官方已有解释器发行包的 Ubuntu 24.04，保持四个兼容组合和其余 latest 覆盖 |
 
 `src/assets/flower_session_start.py` 继续拥有分段、模型提示和可见诊断逻辑；当前设计不需要修改 wrapper、额度注册或全局预算策略。
 
@@ -48,6 +49,7 @@
 - 对每段直接断言 `len(additionalContext) <= 8000` 和必要闭合块存在。该行为回归断言独立于全局预算 checker 的告警政策。
 - 保留原有十八场景及提示差值检查；追加规模场景仍按每个平台的最大真实输出和固定 control-total 公式汇总。
 - 在变体投影、隔离安装和两次更新中验证全部受影响平台；真实 Codex/Claude 三段测量与其他平台静态生成验证分别记录。
+- 推送后发现 `ubuntu-latest` 漂移到 Ubuntu 26.04，而官方 Python 3.8 发行清单仅覆盖旧版 Ubuntu。用 matrix exclude/include 只替换 Linux / Python 3.8 的运行器为 Ubuntu 24.04；完整测试步骤、版本覆盖、失败策略和发布复用关系不变。修改后核对展开的四个组合、CI 分流专项及真实原生结果。
 
 ## Delivery And Recovery
 

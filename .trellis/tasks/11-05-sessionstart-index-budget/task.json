@@ -3,7 +3,7 @@
   "name": "sessionstart-index-budget",
   "title": "修复大型仓库 SessionStart 索引注入超限",
   "description": "修复大型仓库在 SessionStart 全量输出规范索引造成的 state 超限与宿主截断，补充多平台投影和大规模索引预算回归。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,10 +11,10 @@
   "creator": "silentflower",
   "assignee": "silentflower",
   "createdAt": "2026-11-05",
-  "completedAt": null,
+  "completedAt": "2026-11-05",
   "closeout": {
-    "status": "pending",
-    "closedAt": null,
+    "status": "closed",
+    "closedAt": "2026-11-05T13:58:15Z",
     "blockers": []
   },
   "branch": null,
@@ -30,15 +30,15 @@
   "meta": {},
   "progress": {
     "completedSteps": [
-      "已批准任务规划并完成共享 SessionStart 索引发现修复，十个平台编译目标与发行快照同步",
-      "本地关联回归、完整回归、二十场景严格预算及真实项目幂等更新验证通过",
-      "Check-All full 与 Spec 更新完成",
-      "两个维护仓业务提交与推送完成，提交后快照门禁通过",
-      "已核对原生 CI；规则与产物、两平台 Node 更新检查和 Linux Python 3.12 通过"
+      "完成共享 SessionStart 有界规范发现修复及十个平台编译目标、快照同步",
+      "本地关联回归、完整回归、二十场景严格预算及两个真实项目的幂等更新验证通过",
+      "原窗口真实收到预算内完整三段上下文，历史全文与原业务任务文件可读取",
+      "修复原生 Python 3.8 的 Linux 运行器配置，全部必需原生 CI 检查成功",
+      "完成 Check-All 与 Spec 更新，并按确认范围提交推送修复"
     ],
-    "partialStep": "AC5 的原窗口真实接收尚待重建；AC6 的 Ubuntu Python 3.8 因运行器没有对应解释器发行包而失败，Windows 两个 Python 检查在记录时仍在运行",
-    "nextStep": "解决原生 CI 的 Python 3.8 解释器供应问题并核对完整矩阵；原窗口下次 compact 后补齐无截断及关键规则完整的接收证据",
-    "notes": "受影响项目的受管 Hook 已更新；原窗口最新 state 仍为旧截断记录。本轮不调整预算、不发版、不提交目标项目的业务工作区；验收未齐，保持 in_progress 和 pending Close。",
-    "updatedAt": "2026-11-05T12:51:38Z"
+    "partialStep": null,
+    "nextStep": "修复任务已完成；后续 beta 发布按项目发版 SOP 执行。",
+    "notes": "真实宿主 state 为 7766 字符，rules/stages 为 6907/3664 字符，均完整且无截断。保持已有预算、宿主额度、工作流和任务恢复语义。",
+    "updatedAt": "2026-11-05T13:58:15Z"
   }
 }

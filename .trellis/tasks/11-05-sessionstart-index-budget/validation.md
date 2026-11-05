@@ -63,9 +63,20 @@
 
 Ubuntu / Python 3.8 的 [job 127250799741](https://github.com/SilentFlower/flower-trellis/actions/runs/42029120355/job/127250799741) 在 `actions/setup-python@v7` 安装阶段报告：`The version '3.8' with architecture 'x64' was not found for Ubuntu 26.04.` 当前工作流使用 `ubuntu-latest`。这是已观察到的解释器供应阻塞，不能据此宣称该平台测试通过，也不能用本地语法扫描替代必需运行结果。本次已确认的 Git 文件范围不包含 CI 工作流修改。
 
-## Remaining Stage Gates
+## Stage Gate Results
 
-- [上线后验证] AC5 的真实宿主接收：受影响原窗口拥有者在下一次实际 `compact` 重建后，核对无截断提示、任务状态与尾部规则完整。本轮已更新 Hook、验证真实脚本输出和受管哈希；只读复核原窗口历史，最新 state 仍是 `2026-11-05T10:23:20.022Z` 的旧截断记录（10101 字符，缺少 `task-status` 和末尾闭合）。尚未取得该原窗口使用新 Hook 的接收记录，不打断原窗口或改写其 runtime 来代替验收。
-- AC6 的原生 CI 尚未全部通过；先解决 Ubuntu / Python 3.8 解释器供应问题，再核对必需矩阵的成功结果。
+- AC5 已补齐真实宿主接收证据：只读复核原窗口日志，`2026-11-05T12:50:51.386Z` 的 state 为 7766 字符；紧随其后的 rules / stages 分别为 6907 / 3664 字符。三段均无截断标记且闭合完整，state 的 current-state、guidelines、task-status、workflow-state、代码设计和同步交互块均完整，规范发现入口可达。该次重建为无活动任务状态，符合原窗口业务任务已结束的实际状态。
+- 原先 34603 字符的宿主全文仍可读取；原业务任务的 `task.json` 和 `prd.md` 均可读取。未向原窗口发送指令、未改写其历史或 runtime，也未把隔离脚本的 6748 字符误作真实宿主接收尺寸。
+- AC6 已通过：运行器修复提交 `80676e67989183f926224f05934a0d5f67b7880a` 的 [CI run 42036337360](https://github.com/SilentFlower/flower-trellis/actions/runs/42036337360) 最终为 `success`，八项必需检查全部成功。覆盖 Ubuntu 24.04 / Python 3.8、Ubuntu latest / Python 3.12、Windows latest / Python 3.8、Windows latest / Python 3.12，以及两平台 Node 更新检查、规则与产物和验证范围判定。
 - Check-All full 已通过，无 CHK/FBK，唯一 DOC 为任务状态事实同步；Spec 结果为 `written`，仅修改两份 CLI 权威规范并完成边界与反向核对。
-- 两维护仓业务提交、推送及提交后快照门禁已完成；AC5、AC6 尚未齐备，任务保持 `in_progress`，不提前写入完成态或 Close。
+- 两维护仓修复提交、推送及提交后快照门禁已完成；AC1 至 AC6 的证据均已齐备，可由任务进度 helper 写入完成态及确定性 Close。后续 beta 发布是用户另行授权的项目工作流动作。
+
+## Beta Readiness Follow-up
+
+- 用户在前述推送后明确要求发布新 beta，进入项目 `release-and-publishing.md` 所有的版本预览、确认及 tag 发布流程；原修复任务的宿主接收验收仍单独保留。
+- 复核原 run 的最终结果：Windows / Python 3.8、Windows / Python 3.12 均成功，其余既有成功检查不变；最终仅 Ubuntu / Python 3.8 的解释器安装失败。
+- 对照 [GitHub Actions 官方 Python 发行清单](https://github.com/actions/python-versions/blob/main/versions-manifest.json)，查询得到 Python 3.8 的 x64 Linux 安装包覆盖 Ubuntu 20.04、22.04、24.04。本轮只固定 Linux / Python 3.8 的运行器到 Ubuntu 24.04，后续原生检查结果仍需来自实际推送。
+- `FLOWER_NO_TELEMETRY=1 node --test test/js/ci-impact.test.js`：10 项通过，0 失败；工作流改动仍触发完整矩阵。
+- 用 YAML 解析结果展开 matrix：Ubuntu 24.04 / 3.8、Ubuntu latest / 3.12、Windows latest / 3.8、Windows latest / 3.12，恰好四个组合；与 HEAD 对比仅 Python matrix 不同，其它 job、步骤及发布依赖完全一致。
+- `npm run release:dry -- --prerelease beta` 成功预览 `0.6.13-beta.0`，包含索引发现修复及 Meta 文档修订；版本文件、CHANGELOG 和 tag 尚未修改。
+- 用户已明确确认上述版本、CHANGELOG、CI 修复与任务记录提交范围；候选 CI 已全部成功，后续按发版 SOP 继续同步、快照校验与版本生成。
