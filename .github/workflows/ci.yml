@@ -97,6 +97,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         python: ["3.8", "3.12"]
+        # Python 3.8 的发行包覆盖已有 Ubuntu 镜像，避免 latest 漂移阻断测试。
+        exclude:
+          - os: ubuntu-latest
+            python: "3.8"
+        include:
+          - os: ubuntu-24.04
+            python: "3.8"
     env:
       # 显式命令供上游 init 使用；实际套件使用 setup-python 的绝对路径。
       TRELLIS_PYTHON_CMD: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}

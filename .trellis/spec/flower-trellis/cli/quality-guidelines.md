@@ -159,6 +159,9 @@ common._configure_stream(stream: object) -> object
 - 兼容矩阵的 `FLOWER_TEST_PYTHON` 固定为 `setup-python` 的 `python-path` 输出；上游 init 不读取它，
   另在 job env 设置 `TRELLIS_PYTHON_CMD: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}`。
   后者使用上游支持的显式命令覆盖，实际测试仍运行矩阵版本；不修改上游默认要求 3.9+ 的探测策略。
+- Python 3.8 的 Linux 组合通过 matrix `exclude/include` 固定为 `ubuntu-24.04`；Ubuntu latest 保留
+  Python 3.12，Windows latest 保留 3.8/3.12。升级旧解释器的运行器前，先核对官方
+  `actions/python-versions` 清单中对应平台及架构的安装包，避免 latest 漂移在测试前阻断兼容验证。
 - Flower 与 Skill-Garden 两仓 `.gitattributes` 均使用 `* text=auto eol=lf`，保证 Windows
   `core.autocrlf=true` 检出时 selector、baseline、快照与 compiled 文本仍为 LF，二进制字节不变。
   不放宽 Patch 精确匹配来补偿检出差异；子仓现有 diff sidecar `-whitespace` 规则继续保留。
@@ -194,6 +197,7 @@ common._configure_stream(stream: object) -> object
 | Windows 创建软链报 WinError 1314 | 仅跳过该能力依赖的子场景；其它错误继续失败 |
 | compiled targets 受平台命令或换行影响 | 零漂移门禁失败，不更新基线掩盖平台差异 |
 | Python 3.8 矩阵只设置 FLOWER_TEST_PYTHON | 上游 init 仍可能按默认 3.9+ 探测拒绝；须补矩阵命令覆盖 |
+| latest Ubuntu 没有 Python 3.8 安装包 | setup-python 在测试前失败；固定已有对应安装包的 Ubuntu 24.04，不删除旧版本测试 |
 | core.autocrlf=true 的真实 Git 检出 | 文本保持 LF，二进制原字节不变，Patch 预检仍按精确原文执行 |
 | workflow 读取子模块文件但 checkout 未启用 submodules | 干净 Runner 缺少目标文件并失败；递归检出后再运行测试 |
 | Windows 测试直接 patch 不存在的 `os` 属性 | mock 初始化失败；使用 `create=True` 后验证产品降级分支 |
@@ -216,6 +220,8 @@ common._configure_stream(stream: object) -> object
   并区分初始化命令覆盖、实际测试解释器和 canonical 产物命令这三个边界。
 - Incorrect use：本地子模块已初始化便省略 CI checkout 配置，或直接 patch Windows 不存在的
   `os.fchmod`。应让 workflow 递归检出子模块，并用 `mock.patch.object(..., create=True)` 构造缺失能力。
+- Incorrect use：把 Python 3.8 直接交给已升级到 Ubuntu 26.04 的 `ubuntu-latest`。应排除该组合，
+  加入 `ubuntu-24.04` / `3.8`，同时保留其余三个兼容组合和全部测试步骤。
 - 边界证据：受控 CP936 测试只能证明指定编解码边界；不能冒充本机默认代码页或真实 Codex/Claude 会话加载。
   语法扫描也不能替代实际运行，括号式 `with` 在 3.8 可能解析成功却在运行时报错。
 
@@ -236,6 +242,8 @@ common._configure_stream(stream: object) -> object
   和 Node 启动入口；完整模式额外验证原生平台 compiled targets，strict budget 由 `contracts` 检查一次。
   SessionStart 包含在 Python 套件内；明确区分 CI 配置、实际 job、实机、模拟与条件 skip；
   Linux skip 不作 Windows 通过证据，局部复验不声称完整套件重跑全绿。
+- 矩阵修改后解析并展开 `exclude/include`，断言四个组合无缺失、无重复；CI 分流专项仍须将工作流
+  修改归为完整回归，并以实际原生 job 的成功结果验收运行器调整。
 - 读取 `vendor/skill-garden` 的专项 workflow 必须在干净 Runner 检出子模块；平台能力缺失测试应断言
   被测逻辑实际执行完成，不能让 mock 自身的属性错误替代产品行为验证。
 
