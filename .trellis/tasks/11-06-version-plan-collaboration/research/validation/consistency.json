@@ -1,0 +1,40 @@
+{
+  "skills": {
+    "trellis-plan-version": {
+      "sha256": "250d64cd844d5accf08f8c319a1504024183ea6315810820e9ad2f4c5c71e99e",
+      "paths": [
+        "vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-plan-version/SKILL.md",
+        "vendor/skill-garden/.trellis/0.6/.claude/skills/trellis-plan-version/SKILL.md",
+        "enhancements/0.6/.agents/skills/trellis-plan-version/SKILL.md",
+        "enhancements/0.6/.claude/skills/trellis-plan-version/SKILL.md",
+        ".agents/skills/trellis-plan-version/SKILL.md",
+        ".claude/skills/trellis-plan-version/SKILL.md"
+      ]
+    },
+    "trellis-extract-prd": {
+      "sha256": "560fea2f1f193e3c938cc1241ffad231c9d8cc422c4a1c199e71551b9ea5423b",
+      "paths": [
+        "vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-extract-prd/SKILL.md",
+        "vendor/skill-garden/.trellis/0.6/.claude/skills/trellis-extract-prd/SKILL.md",
+        "enhancements/0.6/.agents/skills/trellis-extract-prd/SKILL.md",
+        "enhancements/0.6/.claude/skills/trellis-extract-prd/SKILL.md",
+        ".agents/skills/trellis-extract-prd/SKILL.md",
+        ".claude/skills/trellis-extract-prd/SKILL.md"
+      ]
+    },
+    "trellis-verify-task": {
+      "sha256": "b84c5465231c62d83b18b7c4e9e0cf4242b073a62e5be1fd35ef1cda09af9edc",
+      "paths": [
+        "vendor/skill-garden/.trellis/0.6/.agents/skills/trellis-verify-task/SKILL.md",
+        "vendor/skill-garden/.trellis/0.6/.claude/skills/trellis-verify-task/SKILL.md",
+        "enhancements/0.6/.agents/skills/trellis-verify-task/SKILL.md",
+        "enhancements/0.6/.claude/skills/trellis-verify-task/SKILL.md",
+        ".agents/skills/trellis-verify-task/SKILL.md",
+        ".claude/skills/trellis-verify-task/SKILL.md"
+      ]
+    }
+  },
+  "sourceCommit": "a6eb24b6f76fe2e3db6ed7992a87a41891b09db8",
+  "result": "passed",
+  "releaseCleanGate": "passed"
+}

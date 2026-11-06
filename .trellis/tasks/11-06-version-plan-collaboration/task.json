@@ -1,0 +1,79 @@
+{
+  "id": "version-plan-collaboration",
+  "name": "version-plan-collaboration",
+  "title": "改进版本规划与多人任务协作 Skill 链路",
+  "description": "借鉴实际分工与重规划，统一版本规划、PRD提取和校验中的工作包、交接、容量与业务验收语义",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-06",
+  "completedAt": "2026-11-06",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-06T03:14:15Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-11-06T02:09:11Z",
+      "contextKey": "codex_01a1ae9a-5b1c-7d51-886d-383f46a42181",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "990402551ca73937d31a2f2dd7190d7d1fb38c6b",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "990402551ca73937d31a2f2dd7190d7d1fb38c6b",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "5475d256ffb3e16574f000428665b9075b55db5930785a7db7d8f50cfef4e964"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "c71dbe89261b6426313ce931ff2543ef630da189",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "1c3e92a1e387160d57ed09ff10666bfa4cad0ce1d1c6d90a1ae6a0404efe4ecd"
+          }
+        ],
+        "fingerprint": "39714c301f935d3be86bac0267fcf73fa2765184e977c3f6738287c79146bc8c"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-11-06T03:14:15Z",
+    "completedSteps": [
+      "三个 Skill 的业务操作 Wave、工程工作包、交接责任及小时工时规则已改造，并同步维护源、快照与安装副本",
+      "本地 187 项规则测试及产物、预算、模板和受管一致性检查通过；八类人工场景推演完成",
+      "两个业务仓库已精确提交并推送，提交后快照清洁门禁通过",
+      "业务提交的 8 个 CI job 全部成功，包含 Linux／Windows 与 Python 3.8／3.12"
+    ],
+    "partialStep": null,
+    "nextStep": "任务已完成，无后续开发步骤",
+    "notes": "工时默认使用小时区间并区分人工、Agent 运行与等待。CI 链接、headSha 和矩阵结果记录在 implement.md；参考项目保持只读。"
+  }
+}
