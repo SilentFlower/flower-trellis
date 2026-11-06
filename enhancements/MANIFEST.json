@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-11-06T02:55:56.310Z",
+  "syncedAt": "2026-11-06T04:23:15.700Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "a6eb24b6f76fe2e3db6ed7992a87a41891b09db8",
+  "sourceCommit": "8a9eb46fffb591db747d88685424ffb96cd3a357",
   "common": {
     "codexSkills": [
       "aliyun-ops",
