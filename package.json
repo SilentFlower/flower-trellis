@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.13-beta.0",
+  "version": "0.6.13-beta.1",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -71,9 +71,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.13-beta.0",
+    "version": "0.6.13-beta.1",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **hooks:** 同步索引发现修复与大目录预算回归 ([975cf5f](https://github.com/SilentFlower/flower-trellis/commit/975cf5f5c1927bd614b2f3e8c09c940dd70301a0))\n\n\n### 📝 文档 Docs\n\n* 同步 Trellis Meta 的术语修订 ([972160b](https://github.com/SilentFlower/flower-trellis/commit/972160be06b92d6896b23c57b96a1b9d5de9cbb2))",
+    "body": "### ✨ 新功能 Features\n\n* **skills:** 同步业务 Wave 与小时工时协作规则 ([70c96ee](https://github.com/SilentFlower/flower-trellis/commit/70c96ee463a85ebead84626f5c2cc6ae6faf6d14))\n\n\n### 🐛 修复 Bug Fixes\n\n* **skills:** 同步具体业务摘要与校验规则 ([b01131e](https://github.com/SilentFlower/flower-trellis/commit/b01131e5da1f7df2c21bce9c8a9fe7fc91fd6538))",
     "truncated": false
   },
   "optionalDependencies": {
