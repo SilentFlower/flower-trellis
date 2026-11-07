@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.2](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.1...v0.6.13-beta.2) (2026-11-07)
+
+
+### ✨ 新功能 Features
+
+* **session:** 接入前台限时确认与退出清理 ([5517830](https://github.com/SilentFlower/flower-trellis/commit/551783027f3ada4057c86b1f992a06b0169f305b))
+
 ## [0.6.13-beta.1](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.0...v0.6.13-beta.1) (2026-11-06)
 
 
