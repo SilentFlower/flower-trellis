@@ -88,6 +88,8 @@ function printHelp() {
   flower-trellis plugin                                 交互管理 Plugin、来源与 GitLab 授权
   flower-trellis worktree <status|prepare|migrate|create|remove>
                                                         管理分支本地化 Git worktree
+  flower-trellis session [--target <dir>] -- codex|claude [原参数]
+                                                        启动支持确认超时的前台会话
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
   flower-trellis <命令> --help                           查看命令级用法与下一步引导
@@ -137,9 +139,6 @@ async function main() {
   // 新进程先修复旧版或异常退出遗留的 ConPTY 输入模式，退出时再兜底恢复一次。
   installWindowsTerminalInputRecovery();
 
-  // Ctrl+C:父进程也立即退出,绝不在子进程被取消后继续叠加
-  process.on("SIGINT", () => process.exit(130));
-
   const argv = process.argv.slice(2);
 
   // 顶层 -v / -h 仅在作为首个参数时拦截；Flower 子命令各自处理帮助，其它命令透传 Trellis。
@@ -154,6 +153,8 @@ async function main() {
 
   const { command, ctx } = parseCliArgs(argv);
   const cmd = command || "init"; // 裸跑等同 init
+  // 会话入口需要先撤销许可和恢复终端，其余命令保持原有立即退出行为。
+  if (cmd !== "session") process.on("SIGINT", () => process.exit(130));
 
   // 互斥校验
   if (ctx.enhanceOnly && !ctx.enhance) {
@@ -203,6 +204,10 @@ async function main() {
       const { worktree } = await import("./commands/worktree.js");
       const code = await worktree(ctx);
       if (code !== 0) process.exitCode = code;
+    } else if (cmd === "session") {
+      const { session } = await import("./commands/session.js");
+      const code = await session(ctx);
+      if (code !== 0) process.exitCode = code;
     } else if (cmd === "uninstall") {
       const { uninstall } = await import("./commands/uninstall.js");
       await uninstall(ctx);
@@ -212,7 +217,7 @@ async function main() {
       process.exit(code);
     }
     // 非交互完成不会经过退出菜单；必须等编排、计时和遥测收尾后再释放 Windows CLI。
-    if (process.platform === "win32" && (cmd === "init" || cmd === "update")) {
+    if (process.platform === "win32" && (cmd === "init" || cmd === "update" || cmd === "session")) {
       // Windows 管道写入是异步的，显式退出前等两个输出流排空，避免截断完成行和计时。
       await Promise.all([process.stdout, process.stderr].map((stream) => new Promise((resolve) => stream.write("", resolve))));
       scheduleWindowsTerminalExit({ exitCode: process.exitCode ?? 0 });

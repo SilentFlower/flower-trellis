@@ -5,7 +5,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 # Trellis Push
 
-`trellis-push` 是 Phase 3.4 唯一的代码提交入口。负责最小计划、精确提交与普通推送；task 同步进度，untracked 清理状态。
+`trellis-push` 是 Phase 3.4 唯一的代码提交入口。负责最小计划、精确提交推送、task 进度与 untracked 清理。
 
 ## 职责与条件入口
 
@@ -21,6 +21,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 | 普通 push 且有活动 task | [task-progress.md](references/task-progress.md)；计划前读取，业务 Git 后执行 |
 | taskStatus=completed 的恢复 | [completed-task-recovery.md](references/completed-task-recovery.md)；先完成只读 preflight |
 | validated runner 的内部 commit-only | [auto-loop-commit.md](references/auto-loop-commit.md)；不 push、不执行 Step 5、不渲染交互模板 |
+| 超时 | `.trellis/scripts/confirmation.md` |
 
 未命中场景不加载其 reference；命中却缺失细则时阻塞，不凭记忆代替。内部 commit-only 只接受 runner 的合法预授权。
 

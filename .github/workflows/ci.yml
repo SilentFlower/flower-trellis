@@ -140,6 +140,11 @@ jobs:
           test/js/worktree-flower-state.test.js
           test/js/worktree-setup.test.js
           test/js/plugin-lifecycle-cli.test.js
+          test/js/confirmation-state.test.js
+          test/js/confirmation-runtime.test.js
+          test/js/confirmation-session.test.js
+          test/js/confirmation-harnesses.test.js
+          test/js/confirmation-install.test.js
       # 只有生成链路变化、未知变化或手动完整回归才验证各平台生成的一致性。
       - name: 验证原生平台编译产物
         if: needs.impact.outputs.full == 'true'
@@ -201,3 +206,41 @@ jobs:
           test/js/plugin-transaction-writer.test.js
           test/js/platform-patches.test.js
           test/js/codex-sync-user-interaction.test.js
+
+  confirmation-harness:
+    name: ${{ matrix.os }} / 原生确认入口
+    needs: impact
+    if: needs.impact.outputs.full == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v7
+        id: python
+        with:
+          python-version: "3.12"
+      - name: 准备项目原生依赖
+        run: npm ci --ignore-scripts
+      - run: npm rebuild node-pty
+      - name: 在专用prefix安装固定版本Harness
+        run: npm install --global --prefix .trellis-tmp/confirmation-clis @openai/codex@0.167.0 @anthropic-ai/claude-code@2.1.293
+      - name: 配置当前job专用PATH
+        shell: pwsh
+        run: |
+          $confirmationPrefix = Join-Path $env:GITHUB_WORKSPACE '.trellis-tmp/confirmation-clis'
+          if ($IsWindows) { $confirmationPrefix | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8 }
+          else { (Join-Path $confirmationPrefix 'bin') | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8 }
+      - name: 原生TUI完整展示、100/130/200秒、人工撤销与强杀入口
+        env:
+          FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: node test/helpers/confirmation-native-matrix.mjs

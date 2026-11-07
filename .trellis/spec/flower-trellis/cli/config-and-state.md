@@ -1596,3 +1596,69 @@ await observeTelemetryOperation(ctx, "self_update", executeSelfUpdate)
 ```
 
 原因：全局安装替换文件后，旧 Node 进程仍执行旧代码；记录必须反映真实执行器。
+
+## Scenario: Foreground Confirmation Timeout
+
+### 1. Scope / Trigger
+
+- 新增或修改 `ftl session`、确认策略、MCP wait、材料复核、人工输入、进程清理或三个流程 owner 时适用。
+- 活许可是本节的临时内存态，不写入可恢复队列；首版仅接入 Codex / Claude 的受控 Linux / Windows 前台会话。其他系统、原生命令和不兼容模式保持人工确认。
+
+### 2. Signatures
+
+```text
+ftl session [--target <project>] -- codex|claude [native args]
+confirmation.py status|materialize|prepare|claim|finish [options]
+MCP wait({request_id: string}) -> {request_id, source, decision, reason?}
+createConfirmationSnapshot(root, {python, env, helper}) -> (spec, owner, descriptor) => Promise<snapshot>
+startConfirmationServer({root, platform, snapshot, display, audit, onAuditError?, ...}) -> Promise<{descriptor, state, close}>
+```
+
+### 3. Contracts
+
+- `--` 后的 argv 原样交给 Harness。单次注入一个随机名称的 MCP 服务，只精确预授权其 `wait`；不扩大普通工具权限，不写用户全局配置。
+- `.trellis/config.yaml` 的 `confirmation_timeout` 支持项目和各类 `enabled`。缺失采用默认；类型、YAML、材料或预算无效时回人工，不能截短时长。
+- Brief 将 LF 规范化并去除首尾空白，以 Unicode 字符计数：`base_seconds=100`、`threshold_chars=1000`、`increment_chars=500`、`increment_seconds=30`；每多一档向上取整。检查去重后零条不等待，否则按 `base_seconds + (count-1) * increment_seconds` 计算，两字段默认分别为 100 / 30；提交 `push.seconds=200`。
+- `prepare` 绑定 kind、正文路径、依据文件、全部问题 ID 或精确 Git 计划；准备不计时。`wait` 由控制器完整写出冻结正文、默认动作和秒数，排空、再次复核后才计时。
+- 状态为 `prepared → waiting → timeout_ready → claimed → finished`。前三态可撤销；重复 prepare / wait 复用同一版本，已取消、领取或完成的同版本不得重启。到期短结果不是执行许可，必须 claim 成功后才能进入原流程。
+- claim 再查所有者、实例、策略、正文、任务及 Git 基线，并留一个 IO 轮次处理已排队输入。真实输入先取消再透传；工具返回后到领取前仍可取消。设备应答不视为人工介入。
+- `FLOWER_CONFIRMATION_SESSION` 只传给自有进程，包含 version、instance_id、platform、root、owner_pid、port、token、server_name；不把控制凭据或正文写入审计、工具定义或状态输出。原生 SessionStart 绑定主会话，不从唯一活动任务猜测所有者。
+- `.trellis/.runtime/confirmations/` 只保存最小审计和跨进程材料，不保存可重放许可。重开实例使用新身份，不补跑旧请求，不 queue / resume / 唤醒模型。
+- 审计首次异常使本实例 `audit_ok=false`、status `ready=false/manual=true`，撤销全部未领取请求并禁止新 prepare / claim。取消、按键透传、连接与监听关闭不因审计或诊断回调抛错中断；重复 close 等待同一清理。已领取动作仍可 finish，保留真实 outcome，审计失败时另给 `audit_ok=false`。
+- CLI 与异步材料检查均受生命连接和原生约束管理。Linux 检查守护器自行隔离进程组，绑定父死亡信号并核对 owner_pid；Windows 使用不继承的 Kill-On-Close Job。检查超时、生命连接断开或入口强杀均结束自有检查及后代，不影响其他会话。
+- 检查守护器正常退出保留检查 stdout / 退出码，不发送 CLI 的 `exit` 事件；只有 CLI 守护器交回真实 Harness 退出码，再清理自有进程树。没有当前描述符时 Node 检查入口不启动独立进程。
+- Brief、Check-All、Push 的既有门禁分别由匹配的 claim 替代一次选择；动作前置检查继续执行。检查默认修复全部并重检，提交沿用当前 push / commit-only 模式；Spec 歧义和独立权限审批仍人工处置。
+- 作者源在 `vendor/skill-garden/.trellis/0.6/`；经 snapshot、compiled targets 与生命周期投影交付。两套脚本投影都只对 `confirmation.md` 按[目标 Python 命令物化合同](trellis-patch-engine.md#scenario-target-python-command-materialization)渲染；Plugin 复用 provider 命令，legacy 按目标证据解析，`.py` 保持原字节。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| Brief 1000 / 1001 / 1500 / 1501 字 | 100 / 130 / 130 / 160 秒 |
+| 检查 0 / 1 / 2 条去重问题 | 0 / 100 / 130 秒 |
+| 工具未就绪、项目或单类关闭、损坏配置 | 人工确认，不创建可领取的许可 |
+| 展示失败、正文 / Git / 会话变化、人工输入、工具断连 | 取消未领取请求，不执行默认动作 |
+| prepared / waiting / timeout_ready / claimed 记录失败 | 停用本实例自动确认，不返回可用 claim |
+| 取消审计写盘失败、诊断也抛错 | 输入继续透传；关闭后端口不可连接 |
+| 材料检查超时、关闭服务、SIGKILL 前台 | 检查守护器、检查器及其后代均不再执行 |
+| 已开始动作后退出或审计失败 | 如实保留 completed / interrupted / needs_verification，不声称副作用已撤销 |
+| 项目使用 python / py -3，选择安装或重复更新 | 协议使用目标命令，Python 脚本字节不变 |
+
+### 5. Scenarios and Examples
+
+- Normal：`ftl session -- codex` 进入当前项目，工具发现和 SessionStart 绑定后，流程准备完整材料，wait 展示并等待，claim 成功才进入对应动作。
+- Base：用户在超时返回后、claim 前输入，原许可仍取消；重开入口不会恢复该许可。
+- Incorrect：依赖 Node 的十秒检查超时来保证入口被强杀后的清理；父进程退出后，该计时器也消失。
+- Correct：检查在启动业务子进程前建立独立进程组 / Job 和生命连接，入口退出由内核约束或连接 EOF 结束整树。
+- Incorrect：吞掉审计异常却继续返回执行许可，或让审计失败阻断输入和 server.close。
+- Correct：永久停用本实例自动许可，同时独立完成取消、人工输入与清理。
+
+### 6. Tests Required
+
+- `confirmation-state.test.js`：公式外的状态竞争、异步准备 / 展示 / 领取期间输入、重试去重、旧实例拒绝及各状态审计故障；异常诊断回调也不能传播。
+- `test_confirmation.py`：默认公式、开关、损坏配置、任务 / 路径 / 问题 ID 校验和精确 Git 基线。
+- `confirmation-runtime.test.js`：实际 Python → TCP → MCP → claim、材料变化、跨会话拒绝；审计失败后状态回人工，重复 close 后端口不能连接。
+- `confirmation-session.test.js`：真实 PTY 退出码、人工输入、EOF / HUP / SIGKILL、审计路径不可写，以及独立检查的正常 / 超时 / 关闭 / 强杀进程树与退出码隔离。
+- `confirmation-install.test.js`：三 owner 选择安装、重复更新、卸载、配置保留，以及两投影的 python / py -3 文档与 `.py` 字节一致。
+- `confirmation-harnesses.test.js`、`test_flower_session_start.py`：精确权限 / 预算、原参数、Windows shim、原生会话身份和上下文预算。
+- 完整 `npm test` 及真实 CLI 回环 mock 验证；原生 Ubuntu / Windows、Python 3.8 / 3.12 与两个 CLI 的匹配提交 CI 成功后才完成任务。100 / 130 / 200 秒、人工撤销、强杀后无新主回合须独立覆盖。

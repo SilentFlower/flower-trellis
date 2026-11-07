@@ -1,6 +1,8 @@
+import fs from "node:fs";
 import path from "node:path";
 import { copyPath, listFiles } from "./fs-utils.js";
 import { shouldInstallName } from "./skill-filter.js";
+import { materializeTrellisPythonText, resolveTrellisPythonCommand } from "./trellis-python-command.js";
 
 /**
  * 把强化包携带的 `.trellis/scripts/` 辅助脚本铺到目标项目。
@@ -22,7 +24,9 @@ export function copyScriptAssets(target, variantDir, skills = []) {
   for (const file of listFiles(scriptsSrc)) {
     const name = file.replace(/\.[^.]+$/, "");
     let aliases = [];
-    if (name === "auto_loop") {
+    if (name === "confirmation") {
+      aliases = ["confirmation-timeout", "trellis-task-brief", "task-brief", "brief", "trellis-check-all", "check-all", "trellis-push", "push"];
+    } else if (name === "auto_loop") {
       aliases = ["auto-loop", "auto-loop-runner", "trellis-auto-loop"];
     } else if (name === "decision_log") {
       aliases = [
@@ -120,10 +124,13 @@ export function copyScriptAssets(target, variantDir, skills = []) {
     }
     if (!shouldInstallName(name, skills, aliases)) continue;
 
-    copyPath(
-      path.join(scriptsSrc, file),
-      path.join(target, ".trellis", "scripts", file),
-    );
+    const destination = path.join(target, ".trellis", "scripts", file);
+    if (file === "confirmation.md") {
+      // 协议中的可执行命令必须与目标Hook一致；不改写Python脚本或其它随包资产。
+      const command = resolveTrellisPythonCommand(target).command;
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.writeFileSync(destination, materializeTrellisPythonText(fs.readFileSync(path.join(scriptsSrc, file), "utf8"), command));
+    } else copyPath(path.join(scriptsSrc, file), destination);
     installed.push(`script:${file}`);
     paths.push(`.trellis/scripts/${file}`);
   }

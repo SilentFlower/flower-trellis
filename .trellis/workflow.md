@@ -268,7 +268,7 @@ Planning is not implementation permission. Load `trellis-brainstorm` and stay in
 A created task or default `prd.md` is not enough to start implementation. Lightweight tasks may remain PRD-only; complex tasks require `prd.md`, `design.md`, and `implement.md`.
 Before changing artifacts, routing, or files, follow `Request Triage`: resolve selected Check-All repairs first; apply the Active Task Scope Guard only to new work.
 If the latest current-request switch says no task/direct edit, call `task_intent.py discard --task <current-task>` only for a task auto-created by intent routing. Continue only on `status=discarded`; keep manual or historical tasks unchanged.
-Before the first implementation approval, refresh and display `brief.md` through `trellis-task-brief`, then wait for planning review confirmation. After initial approval, use that owner's incremental change rules instead of repeating whole-Brief approval on every artifact update.
+Before the first implementation approval, refresh and fully display `brief.md` through `trellis-task-brief`; its owner validates manual confirmation, preauthorization, or a matching controlled-session policy-timeout claim. After initial approval, use that owner's incremental change rules instead of repeating whole-Brief approval on every artifact update.
 After status becomes `in_progress`, enter Phase 2 through `trellis-route(target=implement)` instead of editing or dispatching directly.
 Sub-agent mode requires at least one real curated entry in both `implement.jsonl` and `check.jsonl`; the seed `_example` row alone is not ready.
 <!-- END skill-garden patch workflow-state-planning v0.6 -->
@@ -286,7 +286,7 @@ Planning is not implementation permission. Load `trellis-brainstorm` and stay in
 A created task or default `prd.md` is not enough to start implementation. Lightweight tasks may remain PRD-only; complex tasks require `prd.md`, `design.md`, and `implement.md`.
 Before changing artifacts, routing, or files, follow `Request Triage`: resolve selected Check-All repairs first; apply the Active Task Scope Guard only to new work.
 If the latest current-request switch says no task/direct edit, call `task_intent.py discard --task <current-task>` only for a task auto-created by intent routing. Continue only on `status=discarded`; keep manual or historical tasks unchanged.
-Before the first implementation approval, refresh and display `brief.md` through `trellis-task-brief`, then wait for planning review confirmation. After initial approval, use that owner's incremental change rules instead of repeating whole-Brief approval on every artifact update.
+Before the first implementation approval, refresh and fully display `brief.md` through `trellis-task-brief`; its owner validates manual confirmation, preauthorization, or a matching controlled-session policy-timeout claim. After initial approval, use that owner's incremental change rules instead of repeating whole-Brief approval on every artifact update.
 After status becomes `in_progress`, enter Phase 2 through `trellis-route(target=implement)` instead of editing or dispatching directly.
 Inline mode skips JSONL curation and loads task artifacts plus relevant specs through `trellis-before-dev` before editing.
 <!-- END skill-garden patch workflow-state-planning-inline v0.6 -->
@@ -376,7 +376,7 @@ The route result owns the inline/subagent choice. Do not infer execution mode fr
 ### Guardrails
 
 <!-- BEGIN skill-garden patch workflow-task-implementation-guardrail v0.6 -->
-- Task creation approval is not implementation approval; task implementation waits for `task.py start` after artifact review.
+- Task creation approval is not implementation approval; task implementation waits for `task.py start` after artifact review. `trellis-task-brief` owns any verified controlled-session timeout claim.
 <!-- END skill-garden patch workflow-task-implementation-guardrail v0.6 -->
 
 - Planning must be persisted to task artifacts; checks must run before reporting completion.
@@ -541,13 +541,13 @@ Skip this step. Context is loaded directly by the `trellis-before-dev` skill in 
 <!-- BEGIN skill-garden patch workflow-phase-1-activate v0.6 -->
 #### 1.4 Activate task `[required · once]`
 
-Before changing task status, load `trellis-task-brief`. For the first implementation approval, refresh `<task>/brief.md` and display the full brief in chat. Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief, stop the current turn and wait for planning review confirmation. Ordinary implementation or task-creation intent is not confirmation.
+Before changing task status, load `trellis-task-brief`. For the first implementation approval, refresh `<task>/brief.md` and fully display it through that owner. Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief or a matching controlled-session `brief` policy-timeout claim, stop and wait for planning review confirmation. Ordinary implementation or task-creation intent is not confirmation.
 
 After initial approval, follow that owner's incremental change rules: synchronize affected artifacts and resolve only new decisions, without repeating whole-Brief approval for a document refresh or an already authorized change. Existing approval with no unresolved change decisions permits activation without another confirmation.
 
 Lightweight tasks need `prd.md`; complex tasks also need `design.md` and `implement.md`. Sub-agent routes require real entries in both JSONL manifests.
 
-After a later confirmation, or in the same turn when that explicit preauthorization remains valid, run:
+After a later confirmation, or in the same turn when that explicit preauthorization remains valid or a matching single-use policy-timeout claim succeeds, run:
 
 ```bash
 python3 ./.trellis/scripts/task.py start <task-dir>
@@ -616,9 +616,9 @@ For untracked work, route reads only the personal pref helper and the dispatch p
 
 Before interactive Check-All begins, run `python3 ./.trellis/scripts/pre_check_state.py clear`. A missing, subject-mismatched, or already-cleared preference is a no-op; a damaged runtime is reported diagnostically but safely defaults to checking.
 
-Check-All selects light/full depth from intent, actual behavioral-contract impact, and runtime context. It is audit-only and collect-all by default: classify main-path issues as `CHK-*`, fallback-path issues as `FBK-*`, and low-risk factual drift as `DOC-*`. Assign P0/P1/P2 after root-cause classification; severity does not choose the channel. Report all items and stop before code changes only when `CHK-*` / `FBK-*` repair scope needs confirmation. The only write exception is low-risk `DOC-*` auto-remediation for eligible documents or narrowly verified source-comment facts, never executable code, unless a validated auto-loop owns the continuation.
+Check-All selects light/full depth from intent, actual behavioral-contract impact, and runtime context. It is audit-only and collect-all by default: classify main-path issues as `CHK-*`, fallback-path issues as `FBK-*`, and low-risk factual drift as `DOC-*`. Assign P0/P1/P2 after classification. Report all items before code changes; repair needs a selected scope or a matching controlled-session `check` claim under Check-All's reporting owner. Low-risk `DOC-*` auto-remediation remains the sole audit-stage write exception, unless a validated auto-loop owns continuation.
 
-The existing `Interactive Post-Check Stop Gate` owns default continuation and explicit stopping. Unless the user explicitly requests check-only, read-only checking, stopping after the check, or no further completion work for this subject, a strict pass or a pass with every remaining finding explicitly and validly accepted by the user continues to `trellis-update-spec` in the same turn, without another next/continue reply or a direct Git prerequisite. Both paths require no blocker, no blocking partial verification, and no unaccepted material residual risk outside explicitly recorded `[上线后验证]`. A user reply accepting all findings from the current report covers the full report, including P0, without a fixed phrase or repeated ID confirmation; partial acceptance must identify a unique subset. Do not infer acceptance or Git write authorization from unrelated history, summaries, or dirty state. Preserve accepted findings in existing evidence and use the reporting reference's incremental display rules. `[上线后验证]` items remain visible but do not block. Any unaccepted finding or blocker reports and stops for human disposition; checks never authorize ordinary code repair, create the Git plan themselves, or replace Push confirmation.
+The existing `Interactive Post-Check Stop Gate` owns default continuation and explicit stopping. Unless the user explicitly requests check-only, read-only checking, stopping after the check, or no further completion work for this subject, a strict pass or a pass with every remaining finding explicitly and validly accepted by the user continues to `trellis-update-spec` in the same turn, without another next/continue reply or a direct Git prerequisite. Both paths require no blocker, no blocking partial verification, and no unaccepted material residual risk outside explicitly recorded `[上线后验证]`. A user reply accepting all findings from the current report covers the full report, including P0, without a fixed phrase or repeated ID confirmation; partial acceptance must identify a unique subset. Do not infer acceptance or Git write authorization from unrelated history, summaries, or dirty state. Preserve accepted findings in existing evidence and use the reporting reference's incremental display rules. `[上线后验证]` items remain visible but do not block. Unresolved findings return to Check-All's reporting owner for manual disposition or a verified timeout repair selection; timeout cannot accept risks. Checks do not create the Git plan or replace Push confirmation.
 
 After authorized repairs, return through the same route and re-run Check-All. Finishing Phase 2.2 or entering the commit chain does not itself force another Full: reuse still-valid Full evidence plus complete focused recheck evidence. Run Full again only when the user explicitly requests it, a hard-full signal appears, scope cannot be closed, a baseline or related contract changes, an unknown dirty path appears, or prior evidence becomes stale or invalid.
 <!-- END skill-garden patch workflow-phase-2-check v0.6 -->

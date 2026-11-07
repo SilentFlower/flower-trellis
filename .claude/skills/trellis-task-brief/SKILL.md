@@ -13,6 +13,10 @@ description: "从最新 prd.md、design.md、implement.md 生成、刷新、校�
 
 本例外沿用 runner 的 prepare、Open Questions、readiness 和 artifact 校验，不扩张任务或授权边界。schema 1 返回的 `refresh_brief` 同样在展示后交回 runner，由后续 `confirm_brief` action 等待人工确认。run 已停止、终态、损坏或 action/task 不匹配时不得免确认或代为推进；由 auto-loop owner 处理诊断。普通交互调用继续遵守以下确认规则。
 
+## 受控会话超时确认
+
+当前启动上下文明确提供会话确认控制器时，首次评审先读取 `.trellis/scripts/confirmation.md`。按该协议把最新 Brief 交给控制器完整展示；只有匹配本次材料的 `brief / implement` 单次 claim 成功，才在同轮启动任务。未决事项、明确暂停、能力缺失或领取失败仍等待人工；这不是把沉默解释为用户确认。auto-loop 优先使用上方 runner 例外。
+
 ## 核心规则
 
 - 每次运行都重新读取最新 `prd.md`、`design.md if present`、`implement.md if present`。
@@ -21,7 +25,7 @@ description: "从最新 prd.md、design.md、implement.md 生成、刷新、校�
 - 不要在 `brief.md` 里发明三件套没有表达的新需求。必填字段缺失时写“未明确”，并提示应补充三件套；没有明确技术机制时省略 `Technical Overview`，没有具体风险时省略 `Risks`。
 - `Goal` 保持一句话，`Scope` 只写本轮纳入的行为或改动对象；延期事项归入 `Non-Goals`，不另设栏目，也不把范围、方案和验收写成同义复述。
 - 首次开工评审或用户明确要求查看全貌时，写回 `brief.md` 后必须展示 brief 正文，不要只给文件路径；首次批准后的同步按下方增量规则展示变化。
-- 首次实施批准前必须展示完整 brief。除上方经 runner 校验的 Auto-Loop Action 例外外，默认等待用户确认后再运行 `task.py start`；只有用户明确把当前任务或最终 Brief 与“展示后直接开始 / 不用再次确认 / 视为已确认”绑定时，才可在范围未变化的前提下免除第二次确认。
+- 首次实施批准前必须展示完整 brief。除经 runner 校验的 Auto-Loop Action 或上方受控会话有效 claim 外，默认等待用户确认后再运行 `task.py start`；只有用户明确把当前任务或最终 Brief 与“展示后直接开始 / 不用再次确认 / 视为已确认”绑定时，才可在范围未变化的前提下免除第二次确认。
 - “开始做吧”“按你建议来”“可以创建任务”等普通实现或建任务意图不是 Brief 预授权，不能据此跳过确认。
 - 普通交互预授权只依赖当前对话中仍然明确可见的用户表达，不建立跨会话永久偏好，也不写 session runtime；auto-loop 恢复由上方 runner 例外所有。
 - `in_progress` 阶段只读取 brief 和任务材料，不例行重新生成、展示或确认；新会话或压缩恢复同样如此。首次批准后的方案变化按下方增量规则处理，用户明确要求查看时再完整展示。
@@ -69,6 +73,7 @@ description: "从最新 prd.md、design.md、implement.md 生成、刷新、校�
 6. 写回 `<task>/brief.md`。如果文件已存在，仍用最新三件套派生内容覆盖旧正文。
 7. 在对话中展示 brief 正文，并说明来源文件：
    - 经校验的 auto-loop `refresh_brief`：展示后返回 runner，不进入下方交互分支；schema 1 的确认由后续 action 所有。
+   - 受控会话：按上方协议由控制器完整展示并等待；只有有效 claim 才同轮返回主 workflow 启动任务，取消或失效时转人工。该可信终端展示满足本步骤，不重复输出正文。
    - 无有效预授权：展示后结束当前回合，等待用户确认。
    - 有有效预授权：先完整展示，再在同一回合返回主 workflow 执行 `task.py start`，不得省略展示步骤。
 

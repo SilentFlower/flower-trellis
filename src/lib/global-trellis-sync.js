@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { isRunningViaNpx } from "./runtime-env.js";
 import { trellisVersion } from "./versions.js";
+import { isStandardNpmNodeShim } from "./npm-node-shim.js";
 
 /** 全局同步的目标包名。 */
 const TRELLIS_PACKAGE = "@mindfoldhq/trellis";
@@ -130,16 +131,7 @@ export function installedGlobalTrellisVersion(prefix, command, platform = proces
     } else {
       if (path.resolve(command) !== path.resolve(prefix, "trellis.cmd")) return null;
       // 只接受 npm cmd-shim 的标准 Node 启动器全文；自定义包装可能另行调用其它版本。
-      const binRelative = path.relative(prefix, target).split(path.sep).join("\\");
-      const expected = [
-        "@ECHO off", "GOTO start", ":find_dp0", "SET dp0=%~dp0", "EXIT /b", ":start",
-        "SETLOCAL", "CALL :find_dp0", "", 'IF EXIST "%dp0%\\node.exe" (',
-        '  SET "_prog=%dp0%\\node.exe"', ') ELSE (', '  SET "_prog=node"',
-        '  SET PATHEXT=%PATHEXT:;.JS;=;%', ')', '',
-        `endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\${binRelative}" %*`,
-        "",
-      ].join("\n");
-      if (fs.readFileSync(command, "utf8").replaceAll("\r\n", "\n") !== expected) return null;
+      if (!isStandardNpmNodeShim(command, target)) return null;
     }
     return pkg.version;
   } catch {

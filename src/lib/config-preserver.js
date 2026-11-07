@@ -7,7 +7,7 @@ import path from "node:path";
  * 这些字段描述目标项目自身结构,不是 Trellis 模板默认值;用户在上游冲突菜单里选择
  * "Apply Overwrite to all" 时,它们最容易被整文件模板覆盖。
  */
-const PRESERVED_TOP_LEVEL_KEYS = ["packages", "default_package"];
+const PRESERVED_TOP_LEVEL_KEYS = ["packages", "default_package", "confirmation_timeout"];
 
 /** 返回目标项目 `.trellis/config.yaml` 路径。 */
 function configPath(target) {

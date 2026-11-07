@@ -105,6 +105,7 @@ flower-trellis -v
 | `telemetry` | 查询、启用或停用用户级匿名安装遥测 |
 | `plugin` | 管理 Flower Plugin、Marketplace 来源、GitLab 授权和作者校验 |
 | `worktree` | 创建独立 Git 工作区，准备目标本地工具 |
+| `session` | 通过统一前台入口启动 Codex / Claude，接入会话内限时确认 |
 | `uninstall` | 移除 Trellis 本体并清理强化包残留(支持 `-y` / `--dry-run`) |
 | `<其它命令>` | 原样透传给 Trellis,覆盖其现有及未来子命令 |
 | `-v` / `-h` | 打印版本 / 帮助 |
@@ -123,6 +124,44 @@ flower-trellis -v
 | `--backup-retention <n>` | `update` 成功后保留最近 n 份 `.trellis/.backup-<timestamp>` 快照(默认 1，`0` 表示本次不清理) |
 
 未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` / `--devin` / `--zcode` / `--trae` / `--omp` / `--grok` / `--kimi` / `--snow` 等指定,或用 `-y` 跳过菜单。`--windsurf` 仍作为 Devin 的旧别名透传给 Trellis。其余未识别的 flag(如 `-u`、`-f`、`--template`、`--with-statusline`)一律透传给 Trellis。
+
+## 限时确认
+
+项目安装或更新到包含确认协议的强化包后，通过统一入口启动交互会话：
+
+```bash
+ftl session -- codex
+ftl session -- claude
+ftl session --target ../my-project -- codex --model <模型>
+```
+
+`--` 后的原参数完整交给 Harness。入口仅为本次会话注册一个 MCP `wait` 工具，精确允许该等待工具；保留其它工具和权限，不写用户全局 MCP 配置。接口基线为 Codex 0.167.0、Claude Code 2.1.293，且须通过当前会话身份、工具发现和进程约束验证。原生命令继续可用，非交互、不同工作目录或独立配置模式回到人工确认；其他 Harness 和尚未验证的操作系统不启用自动模式。
+
+Brief 首次开工、Check-All 问题处置、Push 提交计划在能力有效时默认开启。入口完整展示冻结方案、默认动作及秒数后开始等待；Brief 默认开工，检查默认修复当前全部待处置项并重检，提交沿用有效计划的 commit + push，明确 commit-only 时才仅本地提交。Spec 未决事项和新业务取舍仍由用户决定。
+
+在 `.trellis/config.yaml` 调整秒数；省略字段采用下列默认值，更新会保留该配置：
+
+```yaml
+confirmation_timeout:
+  enabled: true
+  brief:
+    enabled: true
+    base_seconds: 100
+    threshold_chars: 1000
+    increment_chars: 500
+    increment_seconds: 30
+  check:
+    enabled: true
+    base_seconds: 100
+    increment_seconds: 30
+  push:
+    enabled: true
+    seconds: 200
+```
+
+Brief 超过1000字后每500字加30秒，不足一档按一档；文件首尾空白不计字。检查第一条100秒、之后每条加30秒，零条不等待。项目或单类 `enabled: false` 可关闭；损坏配置和超出工具预算会保持人工确认，不截短等待时间。
+
+任何真实按键会先撤销尚未领取的默认决定，再交给原生界面；工具已返回而尚未领取时也可取消。材料或 Git 基线变化后必须重新展示。关闭入口会取消本次等待并结束自有 CLI 和辅助进程，重开不会补跑；已开始的副作用按实际结果报告。最小审计保存在项目 gitignored `.trellis/.runtime/confirmations/`，没有持久唤醒任务，等待期间不轮询模型。
 
 ## 并行工作区
 

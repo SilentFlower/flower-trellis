@@ -36,7 +36,7 @@ test("Brief 显式预授权只形成文案级窄例外", () => {
   )).join("\n");
 
   assert.equal(agents, claude);
-  assert.match(phase, /Unless `trellis-task-brief` validates an explicit preauthorization/);
+  assert.match(phase, /Unless `trellis-task-brief` validates an explicit preauthorization.*or a matching controlled-session `brief` policy-timeout claim/);
   assert.match(phase, /Ordinary implementation or task-creation intent is not confirmation/);
   assert.match(phase, /After a later confirmation, or in the same turn/);
   assert.doesNotMatch(phase, /If the final Brief expands scope|permission\/security\/privacy/);

@@ -694,7 +694,7 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     assert.match(brainstormText, /skill-garden patch brainstorm-planning-handoff/);
     assert.match(brainstormText, /skill-garden patch brainstorm-planning-readiness/);
     assert.match(brainstormText, /By default, end the current turn and wait for the user's planning review confirmation/);
-    assert.match(brainstormText, /Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope/);
+    assert.match(brainstormText, /Only valid explicit preauthorization or a matching controlled-session policy-timeout claim under `trellis-task-brief` permits same-turn start within unchanged scope/);
     assert.match(brainstormText, /Ordinary implementation intent expressed before the final artifacts/);
     assert.doesNotMatch(brainstormText, /Only a subsequent user message|In a subsequent message, the user explicitly approved|which still requires a subsequent explicit approval/);
     assert.doesNotMatch(brainstormText, /The user has reviewed the final planning artifacts/);
