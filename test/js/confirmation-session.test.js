@@ -74,7 +74,8 @@ test("真实PTY完整展示后超时领取，正常退出保留CLI退出码并�
 
 test("真实PTY人工输入先撤销再透传，不产生执行许可", { timeout: 20000 }, async t => {
   const f = await fixture(t, 30);
-  f.child.stdin.write("不同意\n");
+  // 真实Enter使用CR；Windows ConPTY的行输入不会把单独LF当作提交。
+  f.child.stdin.write("不同意\r");
   assert.equal((await f.exited).code, 7, f.output());
   const outcome = JSON.parse(fs.readFileSync(path.join(f.root, "outcome.json"), "utf8"));
   assert.equal(outcome.result.source, "cancelled");
@@ -88,7 +89,7 @@ test("真实PTY取消审计不可写时，按键仍透传，退出完成且不�
   const directory = path.join(f.root, ".trellis/.runtime/confirmations");
   fs.rmSync(directory, { recursive: true });
   fs.writeFileSync(directory, "模拟审计路径不可写");
-  f.child.stdin.write("取消并继续人工\n");
+  f.child.stdin.write("取消并继续人工\r");
   assert.equal((await f.exited).code, 7, f.output());
   const outcome = JSON.parse(fs.readFileSync(path.join(f.root, "outcome.json"), "utf8"));
   assert.equal(outcome.result.source, "cancelled");
