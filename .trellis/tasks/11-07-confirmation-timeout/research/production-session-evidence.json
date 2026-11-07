@@ -1,0 +1,1144 @@
+{
+  "environment": "原生Linux；真实CLI、生产ftl session与MCP；所有模型响应仅127.0.0.1 mock",
+  "binding": "探针通过真实shell会话变量桥接；原生SessionStart另由实际Python helper集成测试覆盖",
+  "cases": [
+    {
+      "harness": "codex",
+      "version": "codex-cli 0.167.0",
+      "scenario": "timeout",
+      "seconds": 3,
+      "passed": true,
+      "observed_wait_seconds": 3.006,
+      "main_requests": 4,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": null,
+      "source": ".trellis-tmp/confirmation-product-codex-6hHPDQ/result.json"
+    },
+    {
+      "harness": "codex",
+      "version": "codex-cli 0.167.0",
+      "scenario": "timeout",
+      "seconds": 100,
+      "passed": true,
+      "observed_wait_seconds": 100.001,
+      "main_requests": 4,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": null,
+      "source": ".trellis-tmp/confirmation-product-codex-ozAqlf/result.json"
+    },
+    {
+      "harness": "codex",
+      "version": "codex-cli 0.167.0",
+      "scenario": "timeout",
+      "seconds": 130,
+      "passed": true,
+      "observed_wait_seconds": 130.001,
+      "main_requests": 4,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": null,
+      "source": ".trellis-tmp/confirmation-product-codex-YWrVaK/result.json"
+    },
+    {
+      "harness": "codex",
+      "version": "codex-cli 0.167.0",
+      "scenario": "timeout",
+      "seconds": 200,
+      "passed": true,
+      "observed_wait_seconds": 200.0,
+      "main_requests": 4,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": null,
+      "source": ".trellis-tmp/confirmation-product-codex-cICSzN/result.json"
+    },
+    {
+      "harness": "codex",
+      "version": "codex-cli 0.167.0",
+      "scenario": "human",
+      "seconds": 3,
+      "passed": true,
+      "observed_wait_seconds": 0.519,
+      "main_requests": 3,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": null,
+      "source": ".trellis-tmp/confirmation-product-codex-WLudQD/result.json"
+    },
+    {
+      "harness": "codex",
+      "version": "codex-cli 0.167.0",
+      "scenario": "kill",
+      "seconds": 3,
+      "passed": true,
+      "observed_wait_seconds": null,
+      "main_requests": 2,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": null,
+      "source": ".trellis-tmp/confirmation-product-codex-xpslOW/result.json"
+    },
+    {
+      "harness": "claude",
+      "version": "2.1.293 (Claude Code)",
+      "scenario": "timeout",
+      "seconds": 3,
+      "passed": true,
+      "observed_wait_seconds": 3.001,
+      "main_requests": 4,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": 314,
+      "source": ".trellis-tmp/confirmation-product-claude-fb954j/result.json"
+    },
+    {
+      "harness": "claude",
+      "version": "2.1.293 (Claude Code)",
+      "scenario": "timeout",
+      "seconds": 100,
+      "passed": true,
+      "observed_wait_seconds": 100.001,
+      "main_requests": 4,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": 314,
+      "source": ".trellis-tmp/confirmation-product-claude-0YTk5h/result.json"
+    },
+    {
+      "harness": "claude",
+      "version": "2.1.293 (Claude Code)",
+      "scenario": "timeout",
+      "seconds": 130,
+      "passed": true,
+      "observed_wait_seconds": 130.002,
+      "main_requests": 4,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": 314,
+      "source": ".trellis-tmp/confirmation-product-claude-zrh2u6/result.json"
+    },
+    {
+      "harness": "claude",
+      "version": "2.1.293 (Claude Code)",
+      "scenario": "timeout",
+      "seconds": 200,
+      "passed": true,
+      "observed_wait_seconds": 200.001,
+      "main_requests": 4,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": 314,
+      "source": ".trellis-tmp/confirmation-product-claude-0YKGhy/result.json"
+    },
+    {
+      "harness": "claude",
+      "version": "2.1.293 (Claude Code)",
+      "scenario": "human",
+      "seconds": 3,
+      "passed": true,
+      "observed_wait_seconds": 0.52,
+      "main_requests": 3,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": 314,
+      "source": ".trellis-tmp/confirmation-product-claude-4h3aIu/result.json"
+    },
+    {
+      "harness": "claude",
+      "version": "2.1.293 (Claude Code)",
+      "scenario": "kill",
+      "seconds": 3,
+      "passed": true,
+      "observed_wait_seconds": null,
+      "main_requests": 2,
+      "post_exit_requests": 0,
+      "tool_definition_bytes": 314,
+      "source": ".trellis-tmp/confirmation-product-claude-J4eP56/result.json"
+    }
+  ],
+  "limitations": [
+    "100/130/200秒为配置化check等待，未在探针中执行业务修复或Git动作；公式、默认动作和Git模式绑定由行为测试覆盖。",
+    "模型响应均来自本机回环mock；真实CLI、PTY、生产ftl session、MCP和Python客户端实际运行，不证明任意模型供应商的推理或网络稳定性。",
+    "最初12组本地长等待在迭代中运行；最终提交已由Ubuntu/原生Windows的完整20场景再次验收。其他Harness仍保留人工确认。"
+  ],
+  "repair_recheck": {
+    "environment": "修复后原生Linux；真实Codex/Claude、生产入口及MCP，模型仅回环mock",
+    "cases": [
+      {
+        "harness": "codex",
+        "version": "codex-cli 0.167.0",
+        "scenario": "timeout",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 4,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-codex-gwEJUg/result.json"
+      },
+      {
+        "harness": "codex",
+        "version": "codex-cli 0.167.0",
+        "scenario": "human",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 3,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-codex-HJGcLg/result.json"
+      },
+      {
+        "harness": "codex",
+        "version": "codex-cli 0.167.0",
+        "scenario": "kill",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 2,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-codex-sQoPpK/result.json"
+      },
+      {
+        "harness": "claude",
+        "version": "2.1.293 (Claude Code)",
+        "scenario": "timeout",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 4,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-claude-tRRzX1/result.json"
+      },
+      {
+        "harness": "claude",
+        "version": "2.1.293 (Claude Code)",
+        "scenario": "human",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 3,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-claude-ArsqcE/result.json"
+      },
+      {
+        "harness": "claude",
+        "version": "2.1.293 (Claude Code)",
+        "scenario": "kill",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 2,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-claude-BT02SY/result.json"
+      }
+    ],
+    "full_regression": {
+      "command": "npm test",
+      "exit_code": 0,
+      "javascript": {
+        "passed": 726,
+        "skipped": 2
+      },
+      "python": {
+        "passed": 554,
+        "skipped": 2
+      },
+      "patch_conflicts": "passed",
+      "compiled_targets": "passed",
+      "context_budget": "passed",
+      "output_templates": "passed"
+    },
+    "lifecycle_faults": [
+      "审计异常时许可停用、按键透传、关闭端口",
+      "检查器正常、超时、服务关闭与入口强杀时清理自有后代"
+    ],
+    "probe_limitation": "Codex人工场景首次已收到cancelled，但未捕获终端最终标记，未计通过；独立复验通过。",
+    "log": ".trellis-tmp/confirmation-repair-full.log"
+  },
+  "ci_attempts": [
+    {
+      "run_id": 42358479110,
+      "head_sha": "551783027f3ada4057c86b1f992a06b0169f305b",
+      "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110",
+      "status": "completed",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "name": "判断验证范围",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110/job/128361629158"
+        },
+        {
+          "name": "规则与产物",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110/job/128361658164"
+        },
+        {
+          "name": "ubuntu-latest / Python 3.12",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110/job/128361658184"
+        },
+        {
+          "name": "windows-latest / Python 3.12",
+          "conclusion": "failure",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110/job/128361658210"
+        },
+        {
+          "name": "ubuntu-latest / 原生确认入口",
+          "conclusion": "failure",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110/job/128361658228"
+        },
+        {
+          "name": "windows-latest / 原生确认入口",
+          "conclusion": "cancelled",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110/job/128361658239"
+        },
+        {
+          "name": "windows-latest / Python 3.8",
+          "conclusion": "failure",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110/job/128361658243"
+        },
+        {
+          "name": "windows-latest / Node 22",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110/job/128361658257"
+        },
+        {
+          "name": "ubuntu-latest / Node 22",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110/job/128361658334"
+        },
+        {
+          "name": "ubuntu-24.04 / Python 3.8",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42358479110/job/128361658565"
+        }
+      ],
+      "diagnosis": [
+        "原生Codex在干净环境启动即退出；本机已复现只为不存在MCP项设置enabled=false会触发invalid transport。",
+        "Windows 3.8/3.12完整Python均成功（556项，55项能力相关跳过），Node的PTY runner退出超时；3.8另有进程已停止后的目录EBUSY清理失败。",
+        "Windows原生Claude的100秒超时及claim成功，但外层PTY探针进程未退出，job最终取消。"
+      ],
+      "logs": [
+        ".trellis-tmp/confirmation-ci-linux-native.log",
+        ".trellis-tmp/confirmation-ci-windows-py312.log",
+        ".trellis-tmp/confirmation-ci-windows-py38.log",
+        ".trellis-tmp/confirmation-ci-windows-native.log"
+      ]
+    },
+    {
+      "run_id": 42360683991,
+      "head_sha": "5aad957020ccbee8449d67743d2c7e249b0b4cc4",
+      "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991",
+      "status": "completed",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "name": "判断验证范围",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991/job/128368231496"
+        },
+        {
+          "name": "规则与产物",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991/job/128368258719"
+        },
+        {
+          "name": "windows-latest / Node 22",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991/job/128368258738"
+        },
+        {
+          "name": "ubuntu-latest / Node 22",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991/job/128368258740"
+        },
+        {
+          "name": "ubuntu-latest / 原生确认入口",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991/job/128368258786"
+        },
+        {
+          "name": "windows-latest / Python 3.8",
+          "conclusion": "failure",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991/job/128368258798"
+        },
+        {
+          "name": "ubuntu-latest / Python 3.12",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991/job/128368258808"
+        },
+        {
+          "name": "ubuntu-24.04 / Python 3.8",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991/job/128368258831"
+        },
+        {
+          "name": "windows-latest / 原生确认入口",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991/job/128368258883"
+        },
+        {
+          "name": "windows-latest / Python 3.12",
+          "conclusion": "failure",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42360683991/job/128368258906"
+        }
+      ],
+      "native_cases": [
+        {
+          "platform": "linux",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 100,
+          "passed": true,
+          "elapsed_ms": 101479
+        },
+        {
+          "platform": "linux",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 100,
+          "passed": true,
+          "elapsed_ms": 103585
+        },
+        {
+          "platform": "linux",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 130,
+          "passed": true,
+          "elapsed_ms": 131433
+        },
+        {
+          "platform": "linux",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 130,
+          "passed": true,
+          "elapsed_ms": 133528
+        },
+        {
+          "platform": "linux",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 200,
+          "passed": true,
+          "elapsed_ms": 201435
+        },
+        {
+          "platform": "linux",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "human",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 1699
+        },
+        {
+          "platform": "linux",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 200,
+          "passed": true,
+          "elapsed_ms": 203484
+        },
+        {
+          "platform": "linux",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "kill",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 5480
+        },
+        {
+          "platform": "linux",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "human",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 3963
+        },
+        {
+          "platform": "linux",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "kill",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 7537
+        },
+        {
+          "platform": "windows",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 100,
+          "passed": true,
+          "elapsed_ms": 106616
+        },
+        {
+          "platform": "windows",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 100,
+          "passed": true,
+          "elapsed_ms": 110120
+        },
+        {
+          "platform": "windows",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 130,
+          "passed": true,
+          "elapsed_ms": 132708
+        },
+        {
+          "platform": "windows",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 130,
+          "passed": true,
+          "elapsed_ms": 135565
+        },
+        {
+          "platform": "windows",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 200,
+          "passed": true,
+          "elapsed_ms": 202696
+        },
+        {
+          "platform": "windows",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "human",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 2749
+        },
+        {
+          "platform": "windows",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 200,
+          "passed": true,
+          "elapsed_ms": 205605
+        },
+        {
+          "platform": "windows",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "kill",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 6440
+        },
+        {
+          "platform": "windows",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "human",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 6289
+        },
+        {
+          "platform": "windows",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "kill",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 10190
+        }
+      ],
+      "diagnosis": [
+        "原生Ubuntu/Windows的Codex与Claude各5个场景通过，共20个。",
+        "Windows Python 3.8/3.12 Node入口验证均为97通过、2取消；仅两个等待人工输入的夹具超时，其余退出及清理通过。",
+        "夹具向ConPTY发送LF而非真实Enter的CR，保留生产输入透传逻辑，仅修正测试输入。"
+      ],
+      "logs": [
+        ".trellis-tmp/confirmation-ci-repair-linux-native.log",
+        ".trellis-tmp/confirmation-ci-repair-windows-native.log",
+        ".trellis-tmp/confirmation-ci-repair-windows-py38.log",
+        ".trellis-tmp/confirmation-ci-repair-windows-py312.log"
+      ]
+    },
+    {
+      "run_id": 42361968270,
+      "head_sha": "6bacaf0d11ba1fbb305ea5d317628b7734b1759c",
+      "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270",
+      "status": "completed",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "name": "判断验证范围",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270/job/128372071551"
+        },
+        {
+          "name": "windows-latest / 原生确认入口",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270/job/128372104380"
+        },
+        {
+          "name": "windows-latest / Python 3.12",
+          "conclusion": "failure",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270/job/128372104385"
+        },
+        {
+          "name": "ubuntu-24.04 / Python 3.8",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270/job/128372104406"
+        },
+        {
+          "name": "windows-latest / Node 22",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270/job/128372104423"
+        },
+        {
+          "name": "windows-latest / Python 3.8",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270/job/128372104441"
+        },
+        {
+          "name": "ubuntu-latest / Node 22",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270/job/128372104448"
+        },
+        {
+          "name": "ubuntu-latest / Python 3.12",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270/job/128372104461"
+        },
+        {
+          "name": "ubuntu-latest / 原生确认入口",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270/job/128372104464"
+        },
+        {
+          "name": "规则与产物",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270/job/128372104465"
+        }
+      ],
+      "diagnosis": [
+        "9个job成功；Windows Python 3.8完整矩阵、两个原生入口矩阵及人工输入用例通过。",
+        "Windows Python 3.12仅两个after目录清理钩子因初始rmdir EBUSY失败，进程停止和许可断言未改动。",
+        "读取实际Node 22内部rimraf并故障注入复现：同步清理的初始EBUSY不重试；异步清理对该错误进入有界重试。"
+      ],
+      "logs": [
+        ".trellis-tmp/confirmation-ci-enter-windows-py312.log"
+      ]
+    },
+    {
+      "run_id": 42363218845,
+      "head_sha": "6d051883e1e0dbad98c690dfa18a1de23948b798",
+      "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "判断验证范围",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845/job/128375739507",
+          "required_steps": [
+            {
+              "name": "按实际差异选择验证范围，未知变化保留完整回归",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "ubuntu-latest / Python 3.12",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845/job/128375769907",
+          "required_steps": [
+            {
+              "name": "运行 Python 套件，包含 SessionStart 与动态更新上下文",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证 Node 到 Python 启动入口",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证原生平台编译产物",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "ubuntu-latest / 原生确认入口",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845/job/128375769929",
+          "required_steps": [
+            {
+              "name": "原生TUI完整展示、100/130/200秒、人工撤销与强杀入口",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "ubuntu-latest / Node 22",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845/job/128375769930",
+          "required_steps": [
+            {
+              "name": "验证遥测队列跨平台行为",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证真实更新、缓存预算、全局快路径与终端恢复",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "规则与产物",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845/job/128375769933",
+          "required_steps": [
+            {
+              "name": "运行规则专项或完整 JavaScript 套件",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证快照来源与真实 Patch 冲突",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证编译产物",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证上下文预算",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证输出模板",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "ubuntu-24.04 / Python 3.8",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845/job/128375769934",
+          "required_steps": [
+            {
+              "name": "运行 Python 套件，包含 SessionStart 与动态更新上下文",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证 Node 到 Python 启动入口",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证原生平台编译产物",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "windows-latest / Python 3.12",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845/job/128375769950",
+          "required_steps": [
+            {
+              "name": "运行 Python 套件，包含 SessionStart 与动态更新上下文",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证 Node 到 Python 启动入口",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证原生平台编译产物",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "windows-latest / Node 22",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845/job/128375769954",
+          "required_steps": [
+            {
+              "name": "验证遥测队列跨平台行为",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证真实更新、缓存预算、全局快路径与终端恢复",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "windows-latest / 原生确认入口",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845/job/128375769972",
+          "required_steps": [
+            {
+              "name": "原生TUI完整展示、100/130/200秒、人工撤销与强杀入口",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "windows-latest / Python 3.8",
+          "conclusion": "success",
+          "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845/job/128375769979",
+          "required_steps": [
+            {
+              "name": "运行 Python 套件，包含 SessionStart 与动态更新上下文",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证 Node 到 Python 启动入口",
+              "conclusion": "success"
+            },
+            {
+              "name": "验证原生平台编译产物",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ],
+      "native_cases": [
+        {
+          "platform": "linux",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 100,
+          "passed": true,
+          "elapsed_ms": 102030
+        },
+        {
+          "platform": "linux",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 100,
+          "passed": true,
+          "elapsed_ms": 104243
+        },
+        {
+          "platform": "linux",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 130,
+          "passed": true,
+          "elapsed_ms": 131976
+        },
+        {
+          "platform": "linux",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 130,
+          "passed": true,
+          "elapsed_ms": 134070
+        },
+        {
+          "platform": "linux",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 200,
+          "passed": true,
+          "elapsed_ms": 201936
+        },
+        {
+          "platform": "linux",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "human",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 2175
+        },
+        {
+          "platform": "linux",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 200,
+          "passed": true,
+          "elapsed_ms": 204111
+        },
+        {
+          "platform": "linux",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "kill",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 5865
+        },
+        {
+          "platform": "linux",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "human",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 4321
+        },
+        {
+          "platform": "linux",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "kill",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 8000
+        },
+        {
+          "platform": "windows",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 100,
+          "passed": true,
+          "elapsed_ms": 104789
+        },
+        {
+          "platform": "windows",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 100,
+          "passed": true,
+          "elapsed_ms": 107905
+        },
+        {
+          "platform": "windows",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 130,
+          "passed": true,
+          "elapsed_ms": 132685
+        },
+        {
+          "platform": "windows",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 130,
+          "passed": true,
+          "elapsed_ms": 135653
+        },
+        {
+          "platform": "windows",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "timeout",
+          "seconds": 200,
+          "passed": true,
+          "elapsed_ms": 202692
+        },
+        {
+          "platform": "windows",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "human",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 6723
+        },
+        {
+          "platform": "windows",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "timeout",
+          "seconds": 200,
+          "passed": true,
+          "elapsed_ms": 205724
+        },
+        {
+          "platform": "windows",
+          "harness": "codex",
+          "version": "codex-cli 0.167.0",
+          "scenario": "kill",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 7108
+        },
+        {
+          "platform": "windows",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "human",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 6891
+        },
+        {
+          "platform": "windows",
+          "harness": "claude",
+          "version": "2.1.293 (Claude Code)",
+          "scenario": "kill",
+          "seconds": 3,
+          "passed": true,
+          "elapsed_ms": 10032
+        }
+      ],
+      "windows_suites": {
+        "38": {
+          "python": {
+            "tests": 556,
+            "skipped": 55,
+            "result": "OK"
+          },
+          "node_entry": {
+            "tests": 99,
+            "pass": 99,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0
+          }
+        },
+        "312": {
+          "python": {
+            "tests": 556,
+            "skipped": 55,
+            "result": "OK"
+          },
+          "node_entry": {
+            "tests": 99,
+            "pass": 99,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0
+          }
+        }
+      },
+      "diagnosis": [
+        "全部10个必需job成功；24个目标验证步骤均实际执行成功，没有用skip代替验收。",
+        "Ubuntu/Windows各10个真实CLI场景通过，覆盖Codex/Claude的100、130、200秒、人工撤销和强杀。",
+        "Windows Python 3.8/3.12完整Python套件均OK（556项、55项能力相关跳过），Node入口各99通过、0失败、0取消、0跳过。"
+      ],
+      "logs": [
+        ".trellis-tmp/confirmation-ci-final-linux-native.log",
+        ".trellis-tmp/confirmation-ci-final-windows-native.log",
+        ".trellis-tmp/confirmation-ci-final-windows-py38.log",
+        ".trellis-tmp/confirmation-ci-final-windows-py312.log"
+      ]
+    }
+  ],
+  "ci_fixture_repair": {
+    "stage": "已提交推送；最终匹配提交CI全10项成功",
+    "changes": [
+      "按原生MCP目录停用已存在服务器",
+      "复用Windows生产CLI退出收尾",
+      "进程停止后的目录释放做有界重试",
+      "保留已核验最终标记并输出失败摘要"
+    ],
+    "focused": {
+      "command": "node --test test/js/confirmation-session.test.js test/js/terminal-state.test.js",
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0
+    },
+    "native_cases": [
+      {
+        "harness": "claude",
+        "scenario": "timeout",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 4,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-claude-nkGvuO/result.json"
+      },
+      {
+        "harness": "codex",
+        "scenario": "timeout",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 4,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-codex-Y7kCpi/result.json"
+      },
+      {
+        "harness": "claude",
+        "scenario": "human",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 3,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-claude-mpyacq/result.json"
+      },
+      {
+        "harness": "codex",
+        "scenario": "human",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 4,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-codex-ATmnZ9/result.json"
+      },
+      {
+        "harness": "claude",
+        "scenario": "kill",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 2,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-claude-Gqfg5Z/result.json"
+      },
+      {
+        "harness": "codex",
+        "scenario": "kill",
+        "seconds": 3,
+        "passed": true,
+        "main_requests": 2,
+        "post_exit_requests": 0,
+        "source": ".trellis-tmp/confirmation-product-codex-9W9jly/result.json"
+      }
+    ],
+    "commit": "5aad957020ccbee8449d67743d2c7e249b0b4cc4"
+  },
+  "enter_fixture_repair": {
+    "commit": "6bacaf0d11ba1fbb305ea5d317628b7734b1759c",
+    "stage": "已提交推送；最终Windows两组Node入口各99项通过",
+    "file": "test/js/confirmation-session.test.js",
+    "change": "两个测试输入的行结束由LF改为CR，匹配真实Enter",
+    "focused": {
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0
+    },
+    "ci_url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42361968270"
+  },
+  "cleanup_fixture_repair": {
+    "commit": "6d051883e1e0dbad98c690dfa18a1de23948b798",
+    "stage": "已提交推送；最终Windows两组完整矩阵通过，目录清理无失败",
+    "file": "test/js/confirmation-session.test.js",
+    "change": "两个异步after钩子改用await fs.promises.rm，保留maxRetries=10、retryDelay=100和全部业务断言",
+    "fault_injection": {
+      "node": "v22.23.4",
+      "initial_error": "EBUSY",
+      "sync_calls": 1,
+      "sync_result": "抛错",
+      "async_calls": 2,
+      "async_result": "重试成功删除"
+    },
+    "focused": {
+      "command": "node --test test/js/confirmation-session.test.js test/js/terminal-state.test.js",
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0
+    },
+    "ci_url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845"
+  },
+  "accepted_ci": {
+    "run_id": 42363218845,
+    "head_sha": "6d051883e1e0dbad98c690dfa18a1de23948b798",
+    "url": "https://github.com/SilentFlower/flower-trellis/actions/runs/42363218845",
+    "jobs_passed": 10,
+    "required_steps_executed": 24,
+    "native_cases_passed": 20
+  }
+}

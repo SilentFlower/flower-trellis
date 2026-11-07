@@ -1,0 +1,468 @@
+{
+  "date": "2026-11-07",
+  "network": "仅本机回环mock，无真实模型推理",
+  "cases": [
+    {
+      "case": "codex-idle-250",
+      "version": "Codex 0.167.0",
+      "mode": "tui --no-daemon; yield_time_ms=250; 观察8秒",
+      "source": ".trellis-tmp/confirmation-timeout-codex-S6ez70/events.jsonl",
+      "events": [
+        {
+          "事件": "独立原生 CLI 启动",
+          "相对毫秒": 8,
+          "版本": "codex-cli 0.167.0",
+          "模式": "tui",
+          "观察毫秒": 8000
+        },
+        {
+          "事件": "主请求",
+          "相对毫秒": 1342,
+          "序号": 1,
+          "输入摘要": {
+            "工具结果数": 0,
+            "计时完成数": 0,
+            "最终等待数": 0,
+            "后台会话已返回": false,
+            "计时调用结果存在": false
+          }
+        },
+        {
+          "事件": "计时工具已核对并返回",
+          "相对毫秒": 1343,
+          "序号": 1,
+          "工具名": "exec",
+          "参数名": [
+            "cmd",
+            "yield_time_ms",
+            "login",
+            "workdir",
+            "max_output_tokens"
+          ]
+        },
+        {
+          "事件": "自有计时进程已出现",
+          "相对毫秒": 1513
+        },
+        {
+          "事件": "主请求",
+          "相对毫秒": 1835,
+          "序号": 2,
+          "输入摘要": {
+            "工具结果数": 1,
+            "计时完成数": 0,
+            "最终等待数": 0,
+            "后台会话已返回": true,
+            "计时调用结果存在": true
+          }
+        },
+        {
+          "事件": "最终等待响应已发送",
+          "相对毫秒": 1836,
+          "序号": 2
+        },
+        {
+          "事件": "PTY 已输出最终等待标记",
+          "相对毫秒": 1841
+        },
+        {
+          "事件": "自有计时进程已结束",
+          "相对毫秒": 4519
+        },
+        {
+          "事件": "观察结束",
+          "相对毫秒": 9841,
+          "结果": "未观察到满足判据的原生续接"
+        },
+        {
+          "事件": "专用 TUI 已退出",
+          "相对毫秒": 9865,
+          "退出码": 0
+        }
+      ]
+    },
+    {
+      "case": "codex-idle-1000",
+      "version": "Codex 0.167.0",
+      "mode": "tui --no-daemon; yield_time_ms=1000; 观察15秒",
+      "source": ".trellis-tmp/confirmation-timeout-codex-JVAcAV/events.jsonl",
+      "events": [
+        {
+          "事件": "独立原生 CLI 启动",
+          "相对毫秒": 8,
+          "版本": "codex-cli 0.167.0",
+          "模式": "tui",
+          "观察毫秒": 15000
+        },
+        {
+          "事件": "主请求",
+          "相对毫秒": 1326,
+          "序号": 1,
+          "输入摘要": {
+            "工具结果数": 0,
+            "计时完成数": 0,
+            "最终等待数": 0,
+            "后台会话已返回": false,
+            "计时调用结果存在": false
+          }
+        },
+        {
+          "事件": "计时工具已核对并返回",
+          "相对毫秒": 1327,
+          "序号": 1,
+          "工具名": "exec",
+          "参数名": [
+            "cmd",
+            "yield_time_ms",
+            "login",
+            "workdir",
+            "max_output_tokens"
+          ]
+        },
+        {
+          "事件": "自有计时进程已出现",
+          "相对毫秒": 1515
+        },
+        {
+          "事件": "主请求",
+          "相对毫秒": 2564,
+          "序号": 2,
+          "输入摘要": {
+            "工具结果数": 1,
+            "计时完成数": 0,
+            "最终等待数": 0,
+            "后台会话已返回": true,
+            "计时调用结果存在": true
+          }
+        },
+        {
+          "事件": "最终等待响应已发送",
+          "相对毫秒": 2564,
+          "序号": 2
+        },
+        {
+          "事件": "PTY 已输出最终等待标记",
+          "相对毫秒": 2569
+        },
+        {
+          "事件": "自有计时进程已结束",
+          "相对毫秒": 4519
+        },
+        {
+          "事件": "观察结束",
+          "相对毫秒": 17569,
+          "结果": "未观察到满足判据的原生续接"
+        },
+        {
+          "事件": "专用 TUI 已退出",
+          "相对毫秒": 17595,
+          "退出码": 0
+        }
+      ]
+    },
+    {
+      "case": "claude-idle",
+      "version": "Claude Code 2.1.293",
+      "mode": "普通 tui; 观察8秒",
+      "source": ".trellis-tmp/confirmation-timeout-claude-A1Ktoy/summary-17d068cb-edd9-4bac-8ba2-7cf92465b0b0.jsonl",
+      "events": [
+        {
+          "time_ms": 18599,
+          "event": "主 Messages 请求",
+          "sequence": 1,
+          "tools": [
+            "Bash"
+          ],
+          "tool_result_present": false,
+          "fresh_task_notification": false,
+          "completed_event": false,
+          "probe_task_event": false
+        },
+        {
+          "time_ms": 19073,
+          "event": "主 Messages 请求",
+          "sequence": 2,
+          "tools": [
+            "Bash"
+          ],
+          "tool_result_present": true,
+          "fresh_task_notification": false,
+          "completed_event": false,
+          "probe_task_event": false
+        },
+        {
+          "time_ms": 19144,
+          "event": "已观察到最终等待标记",
+          "marker": "FLOWER_WAITING",
+          "input_writes": 1
+        },
+        {
+          "time_ms": 22167,
+          "event": "主 Messages 请求",
+          "sequence": 3,
+          "tools": [
+            "Bash"
+          ],
+          "tool_result_present": true,
+          "fresh_task_notification": true,
+          "completed_event": true,
+          "probe_task_event": true
+        },
+        {
+          "time_ms": 22225,
+          "event": "已观察到续接标记",
+          "marker": "FLOWER_RESUMED"
+        },
+        {
+          "time_ms": 27145,
+          "event": "探针结果",
+          "result": "通过",
+          "reason": "观察窗口结束",
+          "main_requests": 3,
+          "auxiliary_requests": 0,
+          "waiting_visible": true,
+          "resumed_visible": true,
+          "third_request": {
+            "afterWaiting": true,
+            "completedEvent": true,
+            "probeTaskEvent": true,
+            "freshNotification": true,
+            "at": 22167.657917
+          },
+          "input_writes": 1
+        },
+        {
+          "time_ms": 27491,
+          "event": "CLI 已退出"
+        },
+        {
+          "time_ms": 27500,
+          "event": "探针资源已清理",
+          "tracked_processes": 18,
+          "completed_observation": true
+        }
+      ]
+    },
+    {
+      "case": "claude-normal-exit",
+      "version": "Claude Code 2.1.293",
+      "mode": "普通 tui; 正常退出并确认停止后台任务",
+      "source": ".trellis-tmp/confirmation-timeout-claude-A1Ktoy/summary-97256816-cae2-4216-a294-09da5b74bef6.jsonl",
+      "events": [
+        {
+          "time_ms": 719,
+          "event": "主 Messages 请求",
+          "sequence": 1,
+          "tools": [
+            "Bash"
+          ],
+          "tool_result_present": false,
+          "fresh_task_notification": false,
+          "completed_event": false,
+          "probe_task_event": false
+        },
+        {
+          "time_ms": 1100,
+          "event": "主 Messages 请求",
+          "sequence": 2,
+          "tools": [
+            "Bash"
+          ],
+          "tool_result_present": true,
+          "fresh_task_notification": false,
+          "completed_event": false,
+          "probe_task_event": false
+        },
+        {
+          "time_ms": 1139,
+          "event": "已观察到最终等待标记",
+          "marker": "FLOWER_WAITING",
+          "input_writes": 0
+        },
+        {
+          "time_ms": 1640,
+          "event": "已发送第一次 Ctrl+D 退出按键"
+        },
+        {
+          "time_ms": 1891,
+          "event": "已发送第二次 Ctrl+D 退出按键"
+        },
+        {
+          "time_ms": 1904,
+          "event": "已确认退出并停止本次实验后台任务"
+        },
+        {
+          "time_ms": 2242,
+          "event": "CLI 已退出"
+        },
+        {
+          "time_ms": 9140,
+          "event": "探针结果",
+          "result": "通过",
+          "reason": "观察窗口结束",
+          "main_requests": 2,
+          "auxiliary_requests": 0,
+          "waiting_visible": true,
+          "resumed_visible": false,
+          "third_request": null,
+          "input_writes": 1
+        },
+        {
+          "time_ms": 9495,
+          "event": "探针资源已清理",
+          "tracked_processes": 11,
+          "completed_observation": true
+        }
+      ]
+    },
+    {
+      "case": "claude-kill-cli",
+      "version": "Claude Code 2.1.293",
+      "mode": "普通 tui; 强杀专用CLI; 保留观察窗口",
+      "source": ".trellis-tmp/confirmation-timeout-claude-A1Ktoy/summary-7425044c-bb33-4c5b-82c0-69d98d9d5ea7.jsonl",
+      "events": [
+        {
+          "time_ms": 2184,
+          "event": "主 Messages 请求",
+          "sequence": 1,
+          "tools": [
+            "Bash"
+          ],
+          "tool_result_present": false,
+          "fresh_task_notification": false,
+          "completed_event": false,
+          "probe_task_event": false
+        },
+        {
+          "time_ms": 2983,
+          "event": "主 Messages 请求",
+          "sequence": 2,
+          "tools": [
+            "Bash"
+          ],
+          "tool_result_present": true,
+          "fresh_task_notification": false,
+          "completed_event": false,
+          "probe_task_event": false
+        },
+        {
+          "time_ms": 3120,
+          "event": "已观察到最终等待标记",
+          "marker": "FLOWER_WAITING",
+          "input_writes": 0
+        },
+        {
+          "time_ms": 3623,
+          "event": "已强杀专用实验 CLI"
+        },
+        {
+          "time_ms": 3745,
+          "event": "CLI 已退出"
+        },
+        {
+          "time_ms": 11121,
+          "event": "探针结果",
+          "result": "通过",
+          "reason": "观察窗口结束",
+          "main_requests": 2,
+          "auxiliary_requests": 0,
+          "waiting_visible": true,
+          "resumed_visible": false,
+          "third_request": null,
+          "input_writes": 0
+        },
+        {
+          "time_ms": 11488,
+          "event": "探针资源已清理",
+          "tracked_processes": 20,
+          "completed_observation": true
+        }
+      ]
+    },
+    {
+      "case": "codex-independent-server-idle",
+      "version": "Codex 0.167.0",
+      "mode": "独立 App Server + remote TUI; yield_time_ms=250; 观察15秒",
+      "source": ".trellis-tmp/confirmation-timeout-codex-TMVJsi/events.jsonl",
+      "events": [
+        {
+          "事件": "专用 App Server 已启动",
+          "相对毫秒": 14,
+          "pid": 26699,
+          "说明": "独立server对照，不是默认managed daemon"
+        },
+        {
+          "事件": "独立原生 CLI 启动",
+          "相对毫秒": 215,
+          "版本": "codex-cli 0.167.0",
+          "模式": "server-tui",
+          "观察毫秒": 15000
+        },
+        {
+          "事件": "主请求",
+          "相对毫秒": 1692,
+          "序号": 1,
+          "输入摘要": {
+            "工具结果数": 0,
+            "计时完成数": 0,
+            "最终等待数": 0,
+            "后台会话已返回": false,
+            "计时调用结果存在": false
+          }
+        },
+        {
+          "事件": "计时工具已核对并返回",
+          "相对毫秒": 1693,
+          "序号": 1,
+          "工具名": "exec",
+          "参数名": [
+            "cmd",
+            "yield_time_ms",
+            "login",
+            "workdir",
+            "max_output_tokens"
+          ]
+        },
+        {
+          "事件": "自有计时进程已出现",
+          "相对毫秒": 1925
+        },
+        {
+          "事件": "主请求",
+          "相对毫秒": 2244,
+          "序号": 2,
+          "输入摘要": {
+            "工具结果数": 1,
+            "计时完成数": 0,
+            "最终等待数": 0,
+            "后台会话已返回": true,
+            "计时调用结果存在": true
+          }
+        },
+        {
+          "事件": "最终等待响应已发送",
+          "相对毫秒": 2244,
+          "序号": 2
+        },
+        {
+          "事件": "PTY 已输出最终等待标记",
+          "相对毫秒": 2253
+        },
+        {
+          "事件": "自有计时进程已结束",
+          "相对毫秒": 4930
+        },
+        {
+          "事件": "观察结束",
+          "相对毫秒": 17254,
+          "结果": "未观察到满足判据的原生续接"
+        },
+        {
+          "事件": "专用 TUI 已退出",
+          "相对毫秒": 17270,
+          "退出码": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1528 @@
+{
+  "date": "2026-11-07",
+  "versions": {
+    "codex": "0.167.0",
+    "claude": "2.1.293"
+  },
+  "model_backend": "127.0.0.1 mock；无真实推理",
+  "cases": [
+    {
+      "harness": "claude",
+      "scenario": "close-window",
+      "wait_ms": 3000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-claude-HikcVm/events-0a2d0d7a-0ca4-4f19-a637-8c2713325ba1.jsonl",
+      "main_requests": 1,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "name": "mcp__flower_confirmation_probe__wait",
+        "definitionBytes": 286
+      },
+      "events": [
+        {
+          "time_ms": 13,
+          "event": "probe_started",
+          "harness": "claude",
+          "scenario": "close-window",
+          "wait_ms": 3000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 834,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 783,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1271,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 1304,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1254
+          }
+        },
+        {
+          "time_ms": 1317,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1266,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1317,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1266,
+            "wait_ms": 3000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 1818,
+          "event": "scenario_triggered",
+          "scenario": "close-window"
+        },
+        {
+          "time_ms": 1819,
+          "event": "controller:decision",
+          "detail": {
+            "event": "decision",
+            "time_ms": 1769,
+            "source": "cancelled",
+            "decision": "stop",
+            "reason": "front_terminal_closed"
+          }
+        },
+        {
+          "time_ms": 1918,
+          "event": "controller:harness_exited",
+          "detail": {
+            "event": "harness_exited",
+            "time_ms": 1867,
+            "exit_code": 143
+          }
+        },
+        {
+          "time_ms": 2527,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 8318,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "原截止时间及退出观察窗口已结束",
+          "main_requests": 1,
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 9521,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": 502
+    },
+    {
+      "harness": "claude",
+      "scenario": "human-input",
+      "wait_ms": 3000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-claude-HikcVm/events-85ea06ea-67c4-4d7f-ac84-c84fe3796351.jsonl",
+      "main_requests": 2,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "name": "mcp__flower_confirmation_probe__wait",
+        "definitionBytes": 286
+      },
+      "events": [
+        {
+          "time_ms": 20,
+          "event": "probe_started",
+          "harness": "claude",
+          "scenario": "human-input",
+          "wait_ms": 3000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 945,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 883,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1387,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 1421,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1360
+          }
+        },
+        {
+          "time_ms": 1434,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1373,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1434,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1373,
+            "wait_ms": 3000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 1936,
+          "event": "scenario_triggered",
+          "scenario": "human-input"
+        },
+        {
+          "time_ms": 1937,
+          "event": "controller:decision",
+          "detail": {
+            "event": "decision",
+            "time_ms": 1876,
+            "source": "cancelled",
+            "decision": "stop",
+            "reason": "human_input"
+          }
+        },
+        {
+          "time_ms": 1938,
+          "event": "controller:input_forwarded",
+          "detail": {
+            "event": "input_forwarded",
+            "time_ms": 1876,
+            "during_wait": true,
+            "startup": false
+          }
+        },
+        {
+          "time_ms": 1939,
+          "event": "controller:tool_result_delivered",
+          "detail": {
+            "event": "tool_result_delivered",
+            "time_ms": 1878,
+            "source": "cancelled",
+            "result_bytes": 84
+          }
+        },
+        {
+          "time_ms": 2011,
+          "event": "model_request",
+          "number": 2,
+          "phase": "cancelled",
+          "tool_error": false
+        },
+        {
+          "time_ms": 2049,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1987,
+            "marker": "FLOWER_MCP_CANCELLED"
+          }
+        },
+        {
+          "time_ms": 8436,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "原截止时间及退出观察窗口已结束",
+          "main_requests": 2,
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 8530,
+          "event": "controller:harness_exited",
+          "detail": {
+            "event": "harness_exited",
+            "time_ms": 8469,
+            "exit_code": 143
+          }
+        },
+        {
+          "time_ms": 9145,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 9639,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": 503
+    },
+    {
+      "harness": "claude",
+      "scenario": "kill-controller",
+      "wait_ms": 3000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-claude-HikcVm/events-3b983cd8-54b9-47c0-9ea0-2c377c170fe1.jsonl",
+      "main_requests": 1,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "name": "mcp__flower_confirmation_probe__wait",
+        "definitionBytes": 286
+      },
+      "events": [
+        {
+          "time_ms": 20,
+          "event": "probe_started",
+          "harness": "claude",
+          "scenario": "kill-controller",
+          "wait_ms": 3000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 1114,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 1053,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1567,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 1616,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1556
+          }
+        },
+        {
+          "time_ms": 1634,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1574,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1634,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1574,
+            "wait_ms": 3000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 2137,
+          "event": "scenario_triggered",
+          "scenario": "kill-controller"
+        },
+        {
+          "time_ms": 2144,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 8636,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "原截止时间及退出观察窗口已结束",
+          "main_requests": 1,
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 9840,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": null
+    },
+    {
+      "harness": "claude",
+      "scenario": "kill-harness",
+      "wait_ms": 3000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-claude-HikcVm/events-7a86c96a-55ec-47de-87a4-e7d15c01bde9.jsonl",
+      "main_requests": 1,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "name": "mcp__flower_confirmation_probe__wait",
+        "definitionBytes": 286
+      },
+      "events": [
+        {
+          "time_ms": 16,
+          "event": "probe_started",
+          "harness": "claude",
+          "scenario": "kill-harness",
+          "wait_ms": 3000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 844,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 786,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1278,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 1306,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1249
+          }
+        },
+        {
+          "time_ms": 1320,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1263,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1320,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1263,
+            "wait_ms": 3000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 1822,
+          "event": "scenario_triggered",
+          "scenario": "kill-harness"
+        },
+        {
+          "time_ms": 1853,
+          "event": "controller:harness_exited",
+          "detail": {
+            "event": "harness_exited",
+            "time_ms": 1796,
+            "exit_code": 0
+          }
+        },
+        {
+          "time_ms": 1853,
+          "event": "controller:decision",
+          "detail": {
+            "event": "decision",
+            "time_ms": 1796,
+            "source": "cancelled",
+            "decision": "stop",
+            "reason": "harness_exited"
+          }
+        },
+        {
+          "time_ms": 2560,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 8327,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "原截止时间及退出观察窗口已结束",
+          "main_requests": 1,
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 9530,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": 533
+    },
+    {
+      "harness": "claude",
+      "scenario": "timeout",
+      "wait_ms": 3000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-claude-HikcVm/events-faea5b0a-074c-42bf-801e-78032188cd4d.jsonl",
+      "main_requests": 2,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "name": "mcp__flower_confirmation_probe__wait",
+        "definitionBytes": 286
+      },
+      "events": [
+        {
+          "time_ms": 10,
+          "event": "probe_started",
+          "harness": "claude",
+          "scenario": "timeout",
+          "wait_ms": 3000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 894,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 844,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1368,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 1406,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1356
+          }
+        },
+        {
+          "time_ms": 1422,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1372,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1423,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1373,
+            "wait_ms": 3000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 4424,
+          "event": "controller:decision",
+          "detail": {
+            "event": "decision",
+            "time_ms": 4374,
+            "source": "policy_timeout",
+            "decision": "continue"
+          }
+        },
+        {
+          "time_ms": 4426,
+          "event": "controller:tool_result_delivered",
+          "detail": {
+            "event": "tool_result_delivered",
+            "time_ms": 4376,
+            "source": "policy_timeout",
+            "result_bytes": 70
+          }
+        },
+        {
+          "time_ms": 4459,
+          "event": "model_request",
+          "number": 2,
+          "phase": "policy_timeout",
+          "tool_error": false
+        },
+        {
+          "time_ms": 4501,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 4451,
+            "marker": "FLOWER_MCP_CONTINUED"
+          }
+        },
+        {
+          "time_ms": 5001,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "结果标记已出现",
+          "main_requests": 2,
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 5101,
+          "event": "controller:harness_exited",
+          "detail": {
+            "event": "harness_exited",
+            "time_ms": 5050,
+            "exit_code": 143
+          }
+        },
+        {
+          "time_ms": 5711,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 6206,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": 3001
+    },
+    {
+      "harness": "claude",
+      "scenario": "timeout",
+      "wait_ms": 200000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-claude-HikcVm/events-3133f164-3694-40d0-bad9-241ba0295d97.jsonl",
+      "main_requests": 2,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "name": "mcp__flower_confirmation_probe__wait",
+        "definitionBytes": 286
+      },
+      "events": [
+        {
+          "time_ms": 16,
+          "event": "probe_started",
+          "harness": "claude",
+          "scenario": "timeout",
+          "wait_ms": 200000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 865,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 812,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1307,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 1343,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1290
+          }
+        },
+        {
+          "time_ms": 1360,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1307,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1361,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1307,
+            "wait_ms": 200000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 201361,
+          "event": "controller:decision",
+          "detail": {
+            "event": "decision",
+            "time_ms": 201308,
+            "source": "policy_timeout",
+            "decision": "continue"
+          }
+        },
+        {
+          "time_ms": 201364,
+          "event": "controller:tool_result_delivered",
+          "detail": {
+            "event": "tool_result_delivered",
+            "time_ms": 201310,
+            "source": "policy_timeout",
+            "result_bytes": 70
+          }
+        },
+        {
+          "time_ms": 201410,
+          "event": "model_request",
+          "number": 2,
+          "phase": "policy_timeout",
+          "tool_error": false
+        },
+        {
+          "time_ms": 201452,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 201399,
+            "marker": "FLOWER_MCP_CONTINUED"
+          }
+        },
+        {
+          "time_ms": 201953,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "结果标记已出现",
+          "main_requests": 2,
+          "tool_summary": {
+            "name": "mcp__flower_confirmation_probe__wait",
+            "definitionBytes": 286
+          }
+        },
+        {
+          "time_ms": 202052,
+          "event": "controller:harness_exited",
+          "detail": {
+            "event": "harness_exited",
+            "time_ms": 201998,
+            "exit_code": 143
+          }
+        },
+        {
+          "time_ms": 202662,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 203156,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": 200000
+    },
+    {
+      "harness": "codex",
+      "scenario": "close-window",
+      "wait_ms": 3000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-codex-fJoSCn/events-64427d3e-ad35-48bb-8ae1-cf0a7727fe4d.jsonl",
+      "main_requests": 1,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "exposure": "code-mode",
+        "wrapperName": "functions.exec",
+        "wrapperDefinitionBytes": 14721,
+        "metadataPending": true
+      },
+      "events": [
+        {
+          "time_ms": 12,
+          "event": "probe_started",
+          "harness": "codex",
+          "scenario": "close-window",
+          "wait_ms": 3000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 853,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 803,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1524,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": true
+          },
+          "summary": null
+        },
+        {
+          "time_ms": 1532,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1482,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1558,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1508
+          }
+        },
+        {
+          "time_ms": 1559,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1508,
+            "wait_ms": 3000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 2061,
+          "event": "scenario_triggered",
+          "scenario": "close-window"
+        },
+        {
+          "time_ms": 2062,
+          "event": "controller:decision",
+          "detail": {
+            "event": "decision",
+            "time_ms": 2012,
+            "source": "cancelled",
+            "decision": "stop",
+            "reason": "front_terminal_closed"
+          }
+        },
+        {
+          "time_ms": 2085,
+          "event": "controller:harness_exited",
+          "detail": {
+            "event": "harness_exited",
+            "time_ms": 2035,
+            "exit_code": 0
+          }
+        },
+        {
+          "time_ms": 2770,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 8560,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "原截止时间及退出观察窗口已结束",
+          "main_requests": 1,
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": true
+          }
+        },
+        {
+          "time_ms": 9762,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": 503
+    },
+    {
+      "harness": "codex",
+      "scenario": "human-input",
+      "wait_ms": 3000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-codex-fJoSCn/events-d97c39d0-1c0c-4518-81f2-f7c16a934cb4.jsonl",
+      "main_requests": 2,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "exposure": "code-mode",
+        "wrapperName": "functions.exec",
+        "wrapperDefinitionBytes": 14721,
+        "metadataPending": false,
+        "name": "mcp__flower_confirmation_probe__wait",
+        "metadataBytes": 313,
+        "descriptionBytes": 244
+      },
+      "events": [
+        {
+          "time_ms": 10,
+          "event": "probe_started",
+          "harness": "codex",
+          "scenario": "human-input",
+          "wait_ms": 3000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 910,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 860,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1250,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": true
+          },
+          "summary": null
+        },
+        {
+          "time_ms": 1276,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1227,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1325,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1275
+          }
+        },
+        {
+          "time_ms": 1325,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1275,
+            "wait_ms": 3000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 1827,
+          "event": "scenario_triggered",
+          "scenario": "human-input"
+        },
+        {
+          "time_ms": 1827,
+          "event": "controller:decision",
+          "detail": {
+            "event": "decision",
+            "time_ms": 1778,
+            "source": "cancelled",
+            "decision": "stop",
+            "reason": "human_input"
+          }
+        },
+        {
+          "time_ms": 1828,
+          "event": "controller:input_forwarded",
+          "detail": {
+            "event": "input_forwarded",
+            "time_ms": 1778,
+            "during_wait": true,
+            "startup": false
+          }
+        },
+        {
+          "time_ms": 1830,
+          "event": "controller:tool_result_delivered",
+          "detail": {
+            "event": "tool_result_delivered",
+            "time_ms": 1781,
+            "source": "cancelled",
+            "result_bytes": 84
+          }
+        },
+        {
+          "time_ms": 1864,
+          "event": "model_request",
+          "number": 2,
+          "phase": "cancelled",
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": false,
+            "name": "mcp__flower_confirmation_probe__wait",
+            "metadataBytes": 313,
+            "descriptionBytes": 244
+          },
+          "summary": {
+            "found": true,
+            "pendingCell": false,
+            "outcome": {
+              "request_id": "probe",
+              "source": "cancelled",
+              "decision": "stop"
+            },
+            "metadata": {
+              "name": "mcp__flower_confirmation_probe__wait",
+              "metadataBytes": 313,
+              "descriptionBytes": 244
+            }
+          }
+        },
+        {
+          "time_ms": 1870,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1820,
+            "marker": "FLOWER_MCP_CANCELLED"
+          }
+        },
+        {
+          "time_ms": 8326,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "原截止时间及退出观察窗口已结束",
+          "main_requests": 2,
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": false,
+            "name": "mcp__flower_confirmation_probe__wait",
+            "metadataBytes": 313,
+            "descriptionBytes": 244
+          }
+        },
+        {
+          "time_ms": 8354,
+          "event": "controller:harness_exited",
+          "detail": {
+            "event": "harness_exited",
+            "time_ms": 8304,
+            "exit_code": 0
+          }
+        },
+        {
+          "time_ms": 9038,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 9532,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": 502
+    },
+    {
+      "harness": "codex",
+      "scenario": "kill-controller",
+      "wait_ms": 3000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-codex-fJoSCn/events-fee3decf-4ad6-4c2d-8200-340ac810dfb9.jsonl",
+      "main_requests": 1,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "exposure": "code-mode",
+        "wrapperName": "functions.exec",
+        "wrapperDefinitionBytes": 14721,
+        "metadataPending": true
+      },
+      "events": [
+        {
+          "time_ms": 10,
+          "event": "probe_started",
+          "harness": "codex",
+          "scenario": "kill-controller",
+          "wait_ms": 3000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 797,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 750,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1492,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": true
+          },
+          "summary": null
+        },
+        {
+          "time_ms": 1499,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1452,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1526,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1478
+          }
+        },
+        {
+          "time_ms": 1526,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1478,
+            "wait_ms": 3000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 2028,
+          "event": "scenario_triggered",
+          "scenario": "kill-controller"
+        },
+        {
+          "time_ms": 2033,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 8527,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "原截止时间及退出观察窗口已结束",
+          "main_requests": 1,
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": true
+          }
+        },
+        {
+          "time_ms": 9730,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": null
+    },
+    {
+      "harness": "codex",
+      "scenario": "timeout",
+      "wait_ms": 3000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-codex-fJoSCn/events-cc16e304-644c-4cf3-8918-d406721d4733.jsonl",
+      "main_requests": 2,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "exposure": "code-mode",
+        "wrapperName": "functions.exec",
+        "wrapperDefinitionBytes": 14721,
+        "metadataPending": false,
+        "name": "mcp__flower_confirmation_probe__wait",
+        "metadataBytes": 313,
+        "descriptionBytes": 244
+      },
+      "events": [
+        {
+          "time_ms": 10,
+          "event": "probe_started",
+          "harness": "codex",
+          "scenario": "timeout",
+          "wait_ms": 3000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 807,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 756,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1508,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": true
+          },
+          "summary": null
+        },
+        {
+          "time_ms": 1516,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1465,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1542,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1491
+          }
+        },
+        {
+          "time_ms": 1542,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1491,
+            "wait_ms": 3000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 4542,
+          "event": "controller:decision",
+          "detail": {
+            "event": "decision",
+            "time_ms": 4491,
+            "source": "policy_timeout",
+            "decision": "continue"
+          }
+        },
+        {
+          "time_ms": 4544,
+          "event": "controller:tool_result_delivered",
+          "detail": {
+            "event": "tool_result_delivered",
+            "time_ms": 4493,
+            "source": "policy_timeout",
+            "result_bytes": 70
+          }
+        },
+        {
+          "time_ms": 4574,
+          "event": "model_request",
+          "number": 2,
+          "phase": "continued",
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": false,
+            "name": "mcp__flower_confirmation_probe__wait",
+            "metadataBytes": 313,
+            "descriptionBytes": 244
+          },
+          "summary": {
+            "found": true,
+            "pendingCell": false,
+            "outcome": {
+              "request_id": "probe",
+              "source": "policy_timeout",
+              "decision": "continue"
+            },
+            "metadata": {
+              "name": "mcp__flower_confirmation_probe__wait",
+              "metadataBytes": 313,
+              "descriptionBytes": 244
+            }
+          }
+        },
+        {
+          "time_ms": 4579,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 4528,
+            "marker": "FLOWER_MCP_CONTINUED"
+          }
+        },
+        {
+          "time_ms": 5080,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "结果标记已出现",
+          "main_requests": 2,
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": false,
+            "name": "mcp__flower_confirmation_probe__wait",
+            "metadataBytes": 313,
+            "descriptionBytes": 244
+          }
+        },
+        {
+          "time_ms": 5107,
+          "event": "controller:harness_exited",
+          "detail": {
+            "event": "harness_exited",
+            "time_ms": 5056,
+            "exit_code": 0
+          }
+        },
+        {
+          "time_ms": 5791,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 6285,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": 3000
+    },
+    {
+      "harness": "codex",
+      "scenario": "timeout",
+      "wait_ms": 200000,
+      "passed": true,
+      "source": ".trellis-tmp/confirmation-timeout-mcp-codex-fJoSCn/events-5f49951a-f205-44c3-be50-b89062d646a2.jsonl",
+      "main_requests": 2,
+      "requested_after_exit": 0,
+      "tool_summary": {
+        "exposure": "code-mode",
+        "wrapperName": "functions.exec",
+        "wrapperDefinitionBytes": 14721,
+        "metadataPending": false,
+        "name": "mcp__flower_confirmation_probe__wait",
+        "metadataBytes": 313,
+        "descriptionBytes": 244
+      },
+      "events": [
+        {
+          "time_ms": 10,
+          "event": "probe_started",
+          "harness": "codex",
+          "scenario": "timeout",
+          "wait_ms": 200000,
+          "model": "仅回环mock，无真实推理"
+        },
+        {
+          "time_ms": 744,
+          "event": "controller:catalog",
+          "detail": {
+            "event": "catalog",
+            "time_ms": 693,
+            "tool_count": 1,
+            "definition_bytes": 255
+          }
+        },
+        {
+          "time_ms": 1448,
+          "event": "model_request",
+          "number": 1,
+          "phase": "waiting",
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": true
+          },
+          "summary": null
+        },
+        {
+          "time_ms": 1456,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 1405,
+            "marker": "FLOWER_MCP_PLAN"
+          }
+        },
+        {
+          "time_ms": 1481,
+          "event": "controller:wait_requested",
+          "detail": {
+            "event": "wait_requested",
+            "time_ms": 1431
+          }
+        },
+        {
+          "time_ms": 1482,
+          "event": "controller:wait_started",
+          "detail": {
+            "event": "wait_started",
+            "time_ms": 1431,
+            "wait_ms": 200000,
+            "plan_seen": true
+          }
+        },
+        {
+          "time_ms": 201482,
+          "event": "controller:decision",
+          "detail": {
+            "event": "decision",
+            "time_ms": 201431,
+            "source": "policy_timeout",
+            "decision": "continue"
+          }
+        },
+        {
+          "time_ms": 201484,
+          "event": "controller:tool_result_delivered",
+          "detail": {
+            "event": "tool_result_delivered",
+            "time_ms": 201433,
+            "source": "policy_timeout",
+            "result_bytes": 70
+          }
+        },
+        {
+          "time_ms": 201515,
+          "event": "model_request",
+          "number": 2,
+          "phase": "continued",
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": false,
+            "name": "mcp__flower_confirmation_probe__wait",
+            "metadataBytes": 313,
+            "descriptionBytes": 244
+          },
+          "summary": {
+            "found": true,
+            "pendingCell": false,
+            "outcome": {
+              "request_id": "probe",
+              "source": "policy_timeout",
+              "decision": "continue"
+            },
+            "metadata": {
+              "name": "mcp__flower_confirmation_probe__wait",
+              "metadataBytes": 313,
+              "descriptionBytes": 244
+            }
+          }
+        },
+        {
+          "time_ms": 201520,
+          "event": "controller:visible_marker",
+          "detail": {
+            "event": "visible_marker",
+            "time_ms": 201470,
+            "marker": "FLOWER_MCP_CONTINUED"
+          }
+        },
+        {
+          "time_ms": 202021,
+          "event": "probe_result",
+          "passed": true,
+          "reason": "结果标记已出现",
+          "main_requests": 2,
+          "tool_summary": {
+            "exposure": "code-mode",
+            "wrapperName": "functions.exec",
+            "wrapperDefinitionBytes": 14721,
+            "metadataPending": false,
+            "name": "mcp__flower_confirmation_probe__wait",
+            "metadataBytes": 313,
+            "descriptionBytes": 244
+          }
+        },
+        {
+          "time_ms": 202049,
+          "event": "controller:harness_exited",
+          "detail": {
+            "event": "harness_exited",
+            "time_ms": 201998,
+            "exit_code": 0
+          }
+        },
+        {
+          "time_ms": 202732,
+          "event": "controller_exited"
+        },
+        {
+          "time_ms": 203225,
+          "event": "probe_cleaned",
+          "finished": true,
+          "live_processes": 0
+        }
+      ],
+      "elapsed_until_decision_ms": 200000
+    }
+  ]
+}
