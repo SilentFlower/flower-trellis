@@ -9,6 +9,7 @@ import { gunzipSync, inflateSync, brotliDecompressSync } from "node:zlib";
 import { buildCodexResponseEvents, encodeCodexSse } from "./confirmation-mock.mjs";
 import { sendClaudeMessage } from "./confirmation-mock.mjs";
 import { resolveConfirmationHarness } from "../../src/lib/confirmation-harnesses.js";
+import { scheduleWindowsTerminalExit } from "../../src/lib/terminal-state.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const args = process.argv.slice(2);
@@ -42,6 +43,7 @@ for (const key of ["PATH", "Path", "HOME", "home", "CODEX_HOME", "USER", "LOGNAM
   if (process.env[key] !== undefined) env[key] = process.env[key];
 Object.assign(env, { FLOWER_NO_TELEMETRY: "1", FLOWER_NO_UPDATE_CHECK: "1", PYTHONUTF8: "1", TERM: "xterm-256color" });
 let stage = "prepare";
+let finalMessage = "FLOWER_PRODUCT_DONE";
 let requestId;
 let sequence = 0;
 let requests = 0;
@@ -110,14 +112,17 @@ const server = createServer(async (request, response) => {
       const decision = find(body, value => value.request_id === requestId && ["cancelled", "policy_timeout"].includes(value.source));
       if (!decision) throw new Error("未取得真实wait结果");
       record("wait_returned_to_model", { source: decision.source, requests });
-      if (decision.source === "cancelled") { stage = "done"; reply = { text: "FLOWER_PRODUCT_CANCELLED" }; }
+      if (decision.source === "cancelled") { stage = "done"; finalMessage = "FLOWER_PRODUCT_CANCELLED"; reply = { text: finalMessage }; }
       else { reply = invoke(`${process.platform === "win32" ? "python" : "python3"} .trellis/scripts/confirmation.py claim --request-id ${requestId}`); stage = "finish"; }
     } else if (stage === "finish") {
       const claim = find(body, value => value.request_id === requestId && value.source === "policy_timeout" && value.action === "repair_all_and_recheck" && typeof value.revision === "string");
       if (!claim) throw new Error("未取得真实claim结果");
       record("claim_returned_to_model", { action: claim.action, requests });
-      reply = { text: "FLOWER_PRODUCT_CONFIRMED" }; stage = "done";
-    } else reply = { text: "FLOWER_PRODUCT_DONE" };
+      finalMessage = "FLOWER_PRODUCT_CONFIRMED"; reply = { text: finalMessage }; stage = "done";
+    } else {
+      // 真实人工输入可能排队成新回合，仍返回已经核验的最终标记，避免重绘时序造成假失败。
+      reply = { text: finalMessage };
+    }
     record("model_request", { number: requests, next: stage });
     if (harness === "claude") sendClaudeMessage(response, body, reply.blocks || [{ type: "text", text: reply.text }]);
     else {
@@ -139,8 +144,17 @@ if (harness === "codex") {
   nativeArgs = ["--sandbox", "danger-full-access", "--ask-for-approval", "on-request", "-c", 'model="gpt-6.1-sol"',
     "-c", 'model_provider="flower_product_probe"', "-c", `model_providers.flower_product_probe={name="回环产品测试",base_url="${address}/v1",wire_api="responses",env_key="FLOWER_PRODUCT_DUMMY",requires_openai_auth=false,supports_websockets=false}`,
     "-c", `projects={${JSON.stringify(root)}={trust_level="trusted"}}`, "-c", `log_dir=${JSON.stringify(path.join(root, "native-logs"))}`,
-    ...["features.hooks=false", "features.apps=false", "features.plugins=false", "features.memories=false", "features.shell_snapshot=false", "features.api_key_model_discovery=false", "check_for_update_on_startup=false", "mcp_servers.mysql.enabled=false", "mcp_servers.openaiDeveloperDocs.enabled=false"].flatMap(value => ["-c", value]),
-    "FLOWER_PRODUCT_PROBE_START"];
+    ...["features.hooks=false", "features.apps=false", "features.plugins=false", "features.memories=false", "features.shell_snapshot=false", "features.api_key_model_discovery=false", "check_for_update_on_startup=false"].flatMap(value => ["-c", value])];
+  const servers = JSON.parse(execFileSync(resolved.executable, [...resolved.args, ...nativeArgs, "mcp", "list", "--json"],
+    { cwd: root, env, encoding: "utf8", timeout: 10000 }));
+  if (!Array.isArray(servers)) throw new Error("原生MCP目录格式无效");
+  for (const server of servers) {
+    if (!server.enabled) continue;
+    if (typeof server.name !== "string" || !/^[A-Za-z0-9_-]+$/.test(server.name)) throw new Error("探针无法安全覆盖当前MCP名称");
+    // 仅停用当前配置中真实存在的项；为不存在的项只写enabled会导致invalid transport。
+    nativeArgs.push("-c", `mcp_servers.${server.name}.enabled=false`);
+  }
+  nativeArgs.push("FLOWER_PRODUCT_PROBE_START");
 } else {
   const config = path.join(root, "claude-config"); fs.mkdirSync(config);
   // 仅实验目录的非凭据设置。工作区信任通过实际菜单处理，不写入真实用户配置。
@@ -188,6 +202,7 @@ try {
   timeout = setTimeout(() => { record("deadline", { stage, catalogSeen, prompted, trustAnswered }); fs.writeFileSync(path.join(root, "terminal.txt"), output); completed(false); }, seconds * 1000 + 60000);
   const passed = await done;
   fs.writeFileSync(path.join(root, "terminal.txt"), output);
+  if (!passed) record("terminal_failure", { tail: output.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").slice(-6000) });
   const result = { passed, harness, version, scenario, seconds, requests, postExitRequests, toolBytes, waiting_ms: waitingAt ? Date.now() - waitingAt : null, events };
   fs.writeFileSync(resultFile, JSON.stringify(result, null, 2)); record("result", { passed, result_file: resultFile }); process.exitCode = passed ? 0 : 2;
 } finally {
@@ -196,4 +211,8 @@ try {
   await new Promise(resolve => setTimeout(resolve, 800));
   for (const socket of sockets) socket.destroy();
   await new Promise(resolve => server.close(resolve));
+  if (process.platform === "win32") {
+    await Promise.all([process.stdout, process.stderr].map(stream => new Promise(resolve => stream.write("", resolve))));
+    scheduleWindowsTerminalExit({ exitCode: process.exitCode ?? 0 });
+  }
 }

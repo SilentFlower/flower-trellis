@@ -8,6 +8,7 @@ import { runConfirmationSession } from "../../../src/lib/confirmation-session.js
 import { CONFIRMATION_SESSION_ENV } from "../../../src/constants.js";
 import { startConfirmationServer } from "../../../src/lib/confirmation-server.js";
 import { createConfirmationSnapshot } from "../../../src/lib/confirmation-snapshot.js";
+import { scheduleWindowsTerminalExit } from "../../../src/lib/terminal-state.js";
 
 const self = fileURLToPath(import.meta.url);
 const root = process.env.CONFIRMATION_FIXTURE_ROOT;
@@ -22,6 +23,11 @@ if (role === "runner") {
       env: { ...env, [CONFIRMATION_SESSION_ENV]: JSON.stringify(descriptor), CODEX_THREAD_ID: "lifecycle" } }),
   });
   process.exitCode = code;
+  if (process.platform === "win32") {
+    // 与生产CLI一样先排空管道，再结束残留ConPTY worker持有的宿主进程。
+    await Promise.all([process.stdout, process.stderr].map(stream => new Promise(resolve => stream.write("", resolve))));
+    scheduleWindowsTerminalExit({ exitCode: code });
+  }
 } else if (role === "descendant") {
   setInterval(() => {}, 1000);
 } else if (role === "inspector-runner") {

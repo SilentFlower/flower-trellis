@@ -50,7 +50,8 @@ async function fixture(t, seconds) {
   t.after(async () => {
     if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
     await exited;
-    fs.rmSync(root, { recursive: true, force: true });
+    // Windows进程已停止后，ConPTY的目录句柄仍可能短暂占用；仅为清理做有界重试。
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
   await until(() => output.includes("输入任意按键取消自动默认"), () => `会话未进入等待：${output}`);
   const pids = JSON.parse(fs.readFileSync(path.join(root, "processes.json"), "utf8"));
@@ -130,7 +131,7 @@ for (const reason of ["normal", "timeout", "close", "SIGKILL"]) {
       if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
       await exited;
       for (const pid of pids.filter(alive)) try { process.kill(pid, "SIGKILL"); } catch { /* 退出竞争。 */ }
-      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     });
     if (reason !== "normal") {
       await until(() => fs.existsSync(path.join(root, "processes.json")), () => `检查器未启动：${output}`);
