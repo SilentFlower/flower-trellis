@@ -1,0 +1,78 @@
+{
+  "id": "native-confirmation-timeout",
+  "name": "native-confirmation-timeout",
+  "title": "原生 Codex 与 Claude 会话默认启用超时确认",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-07",
+  "completedAt": null,
+  "closeout": {
+    "status": "pending",
+    "closedAt": null,
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-11-07T13:20:16Z",
+      "contextKey": "codex_01a1b61c-49d4-7411-84c7-6f909643b658",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "52649aaf31322d0d4a59bfb8116ade1a6043b159",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "52649aaf31322d0d4a59bfb8116ade1a6043b159",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "dfb2fd1c10a858c71df2a94300cea10104d6d722541ab28f6a9418bb40cf48ae"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "04a79899d1d0e3663b51c7b95472bafb8592fae1",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "679b66c3d7363db6dd9f789c9d1d8f83d3db8dd9cd1e5e441661e0dd79d59c0a"
+          }
+        ],
+        "fingerprint": "c8d897602c9b4b0b3a4d21bda34a61de9794119fe1e371145a0438fb31014d53"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-11-08T02:26:45.944570+00:00",
+    "completedSteps": [
+      "统一原生 Codex 与 Claude 的前台确认流程，并移除旧入口",
+      "修复退订时取消遗漏，完成连接层和原版终端回归",
+      "完成本地完整回归、Spec 更新及代码和快照提交推送"
+    ],
+    "partialStep": "按用户要求不等待托管 CI，最终提交的兼容矩阵尚未验收",
+    "nextStep": "准备并确认 0.6.13-beta.3 的版本号与 CHANGELOG",
+    "notes": "本地 JavaScript 708 项通过、2 项跳过；Python 运行 556 项、2 项跳过；快照与 Patch 检查通过。按用户最新指示不监控 GitHub Actions，继续 beta 发版；未将托管 CI 记为通过。"
+  }
+}
