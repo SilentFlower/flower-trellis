@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.13-beta.2",
+  "version": "0.6.13-beta.3",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -72,9 +72,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.13-beta.2",
+    "version": "0.6.13-beta.3",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **session:** 接入前台限时确认与退出清理 ([5517830](https://github.com/SilentFlower/flower-trellis/commit/551783027f3ada4057c86b1f992a06b0169f305b))",
+    "body": "### ✨ 新功能 Features\n\n* **confirmation:** 统一原生会话前台确认 ([e0aebc1](https://github.com/SilentFlower/flower-trellis/commit/e0aebc132bb6ed4e8cc84f7c7817783decdee7ec))",
     "truncated": false
   },
   "optionalDependencies": {
