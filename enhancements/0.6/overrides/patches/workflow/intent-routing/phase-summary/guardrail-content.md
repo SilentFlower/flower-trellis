@@ -1,1 +1,1 @@
-- Task creation approval is not implementation approval; task implementation waits for `task.py start` after artifact review. `trellis-task-brief` owns any verified controlled-session timeout claim.
+- Task creation approval is not implementation approval; task implementation waits for `task.py start` after artifact review.

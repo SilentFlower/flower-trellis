@@ -602,12 +602,10 @@ print(json.dumps({
             self.assertNotIn("<trellis-code-design>", output)
             self.assertNotIn("<trellis-codex-user-interaction>", output)
 
-    def test_sol_reuses_confirmation_aware_astra_body(self) -> None:
-        """三个模型共用同一门禁正文，仅为有效受控领取保留窄例外。"""
+    def test_sol_reuses_unchanged_astra_body(self) -> None:
+        """Astra 最终原文不漂移，两个 Sol 仅替换模型标识和标签。"""
         self.assertEqual(sha256(SESSION.ASTRA_WORKFLOW_HINT.encode("utf-8")).hexdigest(),
-                         "faa9892d0bd379df09a01e094e877813f5a53b074ec6659646ff052ba6c86b4c")
-        self.assertIn("A verified policy-timeout claim satisfies only its matching gate", SESSION.ASTRA_WORKFLOW_HINT)
-        self.assertIn("Verify the actual reply or claim", SESSION.ASTRA_WORKFLOW_HINT)
+                         "50da76355fe333285e691706479784c06dec3e868fd1f42858671531cc51eb6f")
         self.assertEqual(SESSION.SOL_WORKFLOW_HINT.replace("trellis-sol-workflow-hint", "trellis-astra-workflow-hint")
                          .replace(SESSION.SOL_MODEL, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
         self.assertEqual(SESSION.SOL_6_1_WORKFLOW_HINT.replace("trellis-sol-6-1-workflow-hint", "trellis-astra-workflow-hint")

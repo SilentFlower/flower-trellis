@@ -116,13 +116,12 @@
         "values": [
           "The existing `Interactive Post-Check Stop Gate` owns default continuation and explicit stopping.",
           "without another next/continue reply or a direct Git prerequisite",
-          "repair needs a selected scope or a matching controlled-session `check` claim",
-          "timeout cannot accept risks",
+          "checks never authorize ordinary code repair",
           "or replace Push confirmation"
         ]
       },
       "owner": "trellis-check-all",
-      "reason": "检查通过后默认推进，明确只检查仍停止；修复需人工范围或有效受控 claim，风险接受仍须人工，Git 归 Push。"
+      "reason": "检查通过后默认推进，明确只检查仍停止；普通修复和 Git 写入仍需人工决定。"
     },
     {
       "id": "workflow-required-task-brief-review",
@@ -135,14 +134,14 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch workflow-phase-1-activate v0.6 -->\n#### 1.4 Activate task `[required · once]`\n\nBefore changing task status, load `trellis-task-brief`",
-          "Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief or a matching controlled-session `brief` policy-timeout claim",
+          "Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief",
           "Ordinary implementation or task-creation intent is not confirmation.",
           "After initial approval, follow that owner's incremental change rules",
-          "After a later confirmation, or in the same turn when that explicit preauthorization remains valid or a matching single-use policy-timeout claim succeeds"
+          "After a later confirmation, or in the same turn when that explicit preauthorization remains valid"
         ]
       },
       "owner": "trellis-task-brief",
-      "reason": "Phase 1.4 由 trellis-task-brief 完整展示并校验人工、预授权或匹配材料的一次性超时 claim。"
+      "reason": "Phase 1.4 只保留 Brief 展示、默认等待和由 trellis-task-brief 验证的预授权分支。"
     },
     {
       "id": "brainstorm-required-planning-handoff",
@@ -158,7 +157,7 @@
           "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Quality Bar",
           "## Planning Handoff",
           "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n8. Load `trellis-task-brief`",
-          "Only valid explicit preauthorization or a matching controlled-session policy-timeout claim under `trellis-task-brief` permits same-turn start within unchanged scope.",
+          "Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope.",
           "The final Brief must cover a one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance, and one-hop Next Step",
           "Ordinary implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
           "Once initial Brief approval exists, plan updates use `trellis-task-brief`'s incremental change rules.",
@@ -183,7 +182,7 @@
           "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Quality Bar",
           "## Planning Handoff",
           "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n8. Load `trellis-task-brief`",
-          "Only valid explicit preauthorization or a matching controlled-session policy-timeout claim under `trellis-task-brief` permits same-turn start within unchanged scope.",
+          "Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope.",
           "The final Brief must cover a one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance, and one-hop Next Step",
           "Ordinary implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
           "Once initial Brief approval exists, plan updates use `trellis-task-brief`'s incremental change rules.",

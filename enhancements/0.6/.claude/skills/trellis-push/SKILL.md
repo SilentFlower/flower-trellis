@@ -5,7 +5,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 # Trellis Push
 
-`trellis-push` 是 Phase 3.4 唯一的代码提交入口。负责最小计划、精确提交推送、task 进度与 untracked 清理。
+`trellis-push` 是 Phase 3.4 唯一的代码提交入口。负责最小计划、精确提交与普通推送；task 同步进度，untracked 清理状态。
 
 ## 职责与条件入口
 
@@ -21,7 +21,6 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 | 普通 push 且有活动 task | [task-progress.md](references/task-progress.md)；计划前读取，业务 Git 后执行 |
 | taskStatus=completed 的恢复 | [completed-task-recovery.md](references/completed-task-recovery.md)；先完成只读 preflight |
 | validated runner 的内部 commit-only | [auto-loop-commit.md](references/auto-loop-commit.md)；不 push、不执行 Step 5、不渲染交互模板 |
-| 计划确认 | `.trellis/scripts/confirmation.md` |
 
 未命中场景不加载其 reference；命中却缺失细则时阻塞，不凭记忆代替。内部 commit-only 只接受 runner 的合法预授权。
 
@@ -115,8 +114,9 @@ git rev-list --reverse @{u}..HEAD 2>/dev/null || true
 
 确认前禁止 `git add`、`git commit` 或 `git push`。
 
-即将展示用户可见计划时，读取 `references/output-templates.md` 的“计划模板”和“共用展示规则”；缺失或不可读则 `阻塞`，不得凭记忆重建、缩写或自制替代模板。
-按 `.trellis/scripts/confirmation.md` 使用 `ftl confirm` 冻结和展示完整计划；收到匹配 `push / execute_git_plan` 的领取结果才执行，否则等人工。
+普通模式或用户 `commit-only` 在所有计划数据已经收敛、即将展示用户可见计划时，读取 `references/output-templates.md` 的“计划模板”和“共用展示规则”再渲染；已读、未变化且内容仍可用时直接复用。
+
+reference 缺失、无法读取或缺少对应章节时停止并报告 `阻塞`，不得凭记忆重建、缩写或自制替代模板。
 
 普通多仓只确认一次。计划已展示生成命令和预计 exact files 时，命令成功且没有出现预计列表外的新 dirty path 就沿用原确认；内容、hash 或统计变化不重问。其它计划边界变化仍按 Step 4 重新规划。
 

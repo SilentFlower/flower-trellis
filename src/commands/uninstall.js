@@ -44,8 +44,7 @@ export async function uninstall(ctx) {
   if (cleanupPlan.managed) {
     console.log(
       `· Plugin 清理计划:删除 ${cleanupPlan.removals.length} 个、` +
-        `共享保留 ${cleanupPlan.shared.length} 个、冲突 ${cleanupPlan.conflicts.length} 个` +
-        (cleanupPlan.confirmationEvents.length ? "；清理 Flower 管理的 Claude 确认 Hook" : ""),
+        `共享保留 ${cleanupPlan.shared.length} 个、冲突 ${cleanupPlan.conflicts.length} 个`,
     );
   } else {
     console.log("· 未发现 flower/skill-garden Plugin state，不猜测强化残留");

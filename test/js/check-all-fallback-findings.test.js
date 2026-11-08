@@ -166,8 +166,7 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
   assert.match(agentBody, /Any remaining `CHK-\*` or `FBK-\*`, blocker, or blocking partial verification blocks strict pass/);
   assert.match(agentBody, /do not infer, grant, or erase that acceptance yourself/);
   assert.match(workflow, /every remaining finding explicitly and validly accepted by the user/);
-  assert.match(workflow, /Unresolved findings return to Check-All's reporting owner for manual disposition or a verified timeout repair selection/);
-  assert.match(workflow, /timeout cannot accept risks/);
+  assert.match(workflow, /Any unaccepted finding.*reports and stops/);
   assert.match(workflow, /`\[上线后验证\]` items remain visible but do not block/);
   assert.match(workflow, /does not itself force another Full/);
   assert.match(pushAgents, /有效已接受风险/);

@@ -28,7 +28,6 @@ function findHookCommand(config, event, needle) {
 }
 
 function resolveCommand(name, config, pythonCommand) {
-  if (name === "claude-flower-confirmation") return "ftl confirm hook";
   const codexBase = findHookCommand(config, "UserPromptSubmit", CODEX_WORKFLOW_HOOK) ||
     `${pythonCommand} -X utf8 ${CODEX_WORKFLOW_HOOK}`;
   if (name === "codex-session-start") {
@@ -134,12 +133,6 @@ function applyJsonHookCommand({ value, operation, pythonCommand = "python3" }) {
         ? command.replace(commandNeedle, `${FLOWER_SESSION_HOOK_REL} --hook ${commandNeedle} --part ${part}`)
         : command;
       const handler = { type: "command", command: nextCommand, timeout: content.timeout };
-      if (content.if !== undefined) {
-        if (!["PreToolUse", "PostToolUseFailure"].includes(event) || typeof content.if !== "string" || !content.if) {
-          return { error: "json-hook-command if 仅用于工具事件，且必须是非空字符串" };
-        }
-        handler.if = content.if;
-      }
       const limit = retainedLimits.get(part) ?? retainedLimits.get("legacy");
       if (limit !== undefined) handler.additionalContextLimit = limit;
       group.hooks.push(handler);

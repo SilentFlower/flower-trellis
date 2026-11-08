@@ -27,7 +27,6 @@ const HELP_CASES = [
   { args: ["skill", "--help"], expected: /flower-trellis skill/ },
   { args: ["plugin", "--help"], expected: /flower-trellis plugin list/ },
   { args: ["plugin", "add", "--help"], expected: /flower-trellis plugin add/ },
-  { args: ["confirm", "--help"], expected: /ftl confirm <request-id>/ },
   { args: ["worktree", "--help"], expected: /worktree <子命令> --help/ },
   { args: ["worktree", "create", "--help"], expected: /--branch 必须是尚不存在的新分支/ },
   { args: ["uninstall", "--help"], expected: /flower-trellis uninstall/ },

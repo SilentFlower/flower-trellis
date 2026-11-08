@@ -88,7 +88,6 @@ function printHelp() {
   flower-trellis plugin                                 交互管理 Plugin、来源与 GitLab 授权
   flower-trellis worktree <status|prepare|migrate|create|remove>
                                                         管理分支本地化 Git worktree
-  flower-trellis confirm <status|prepare|请求ID|finish>  原生会话的前台限时确认
   flower-trellis uninstall [-y | --dry-run]              卸载 + 清理强化残留
   flower-trellis <其它命令> [...]                        透传给 trellis(面向未来)
   flower-trellis <命令> --help                           查看命令级用法与下一步引导
@@ -135,22 +134,13 @@ init / update 启动时会顺带检测 flower-trellis 自身是否有新版(联�
 }
 
 async function main() {
-  const argv = process.argv.slice(2);
-  if (argv[0] === "confirm") {
-    try {
-      const { confirm } = await import("./commands/confirm.js");
-      await confirm(argv.slice(1));
-    } catch (error) {
-      if (!process.stdout.destroyed && process.stdout.writable) {
-        process.stdout.write(`${JSON.stringify({ error: error.message, manual: true })}\n`);
-      }
-      process.exitCode = 2;
-    }
-    return;
-  }
-
   // 新进程先修复旧版或异常退出遗留的 ConPTY 输入模式，退出时再兜底恢复一次。
   installWindowsTerminalInputRecovery();
+
+  // Ctrl+C:父进程也立即退出,绝不在子进程被取消后继续叠加
+  process.on("SIGINT", () => process.exit(130));
+
+  const argv = process.argv.slice(2);
 
   // 顶层 -v / -h 仅在作为首个参数时拦截；Flower 子命令各自处理帮助，其它命令透传 Trellis。
   if (argv[0] === "-v" || argv[0] === "--version") {
@@ -164,7 +154,6 @@ async function main() {
 
   const { command, ctx } = parseCliArgs(argv);
   const cmd = command || "init"; // 裸跑等同 init
-  process.on("SIGINT", () => process.exit(130));
 
   // 互斥校验
   if (ctx.enhanceOnly && !ctx.enhance) {

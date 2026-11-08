@@ -10,7 +10,6 @@
     "codex/sync-user-interaction",
     "claude/startup-update-hook",
     "claude/session-start-hooks",
-    "claude/confirmation-hooks",
     "claude/statusline-active-tasks",
     "claude/telemetry-hooks",
     "codex/telemetry-hooks"

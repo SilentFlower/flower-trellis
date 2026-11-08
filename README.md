@@ -124,48 +124,6 @@ flower-trellis -v
 
 未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` / `--devin` / `--zcode` / `--trae` / `--omp` / `--grok` / `--kimi` / `--snow` 等指定,或用 `-y` 跳过菜单。`--windsurf` 仍作为 Devin 的旧别名透传给 Trellis。其余未识别的 flag(如 `-u`、`-f`、`--template`、`--with-statusline`)一律透传给 Trellis。
 
-## 限时确认
-
-Codex 和 Claude Code 共用 `ftl confirm`。走到确认点时，助手先展示完整方案、默认动作和等待时长，再调用命令。项目策略默认开启，日常无需手动调用命令。
-
-- Linux Claude Code 2.1.293：普通安装或更新写入项目 Hook，照常运行 `claude`。现有 Hook、MCP 和权限规则保留。
-- Linux Codex 0.167.0：使用原版 Codex 和原版 App Server。共享连接先接入本机连接见证，即使同一会话只开一个窗口，也用原连接判断关窗。普通 Flower 安装或更新不改现用连接。
-
-Codex 连接见证由本机操作者显式启动。使用上游 App Server 的 Unix socket 绝对路径和私有目录里的空闲监听路径：
-
-```bash
-ftl confirm witness --upstream /绝对路径/app-server.sock --listen /私有目录/flower.sock
-codex --remote unix:///私有目录/flower.sock
-```
-
-若本机服务已把见证安排在普通 Codex 的控制入口，日常仍用 `codex`。不要覆盖运行中服务的 socket。未接见证、非交互、未受信任的项目或尚未验证的平台保持人工确认。
-
-Brief 默认开工，Check-All 默认修复当前全部待处置项并重检，Push 沿用已展示的提交和推送计划，明确 commit-only 时仅本地提交。Spec 未决事项和新业务取舍仍由用户决定。
-
-在 `.trellis/config.yaml` 调整秒数；省略字段采用下列默认值，更新会保留该配置：
-
-```yaml
-confirmation_timeout:
-  enabled: true
-  brief:
-    enabled: true
-    base_seconds: 100
-    threshold_chars: 1000
-    increment_chars: 500
-    increment_seconds: 30
-  check:
-    enabled: true
-    base_seconds: 100
-    increment_seconds: 30
-  push:
-    enabled: true
-    seconds: 200
-```
-
-Brief 超过1000字后每500字加30秒，不足一档按一档；文件首尾空白不计字。检查第一条100秒、之后每条加30秒，零条不等待。项目或单类 `enabled: false` 可关闭；损坏配置和超出工具预算会保持人工确认，不截短等待时间。
-
-在领取前提交回复、按 Esc、修改材料或关闭原窗口，都会使旧决定失效。原窗口与共享服务断开时也会取消，重开不会补跑。已开始的动作按实际结果报告。最小审计保存在项目 gitignored `.trellis/.runtime/confirmations/`。
-
 ## 并行工作区
 
 先查看创建计划，再使用返回的指纹确认。任务参数可选，省略时只创建和准备工作区：

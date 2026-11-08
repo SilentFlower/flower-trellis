@@ -91,9 +91,7 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   assert.match(interactiveGate, /无需 direct Git intent 或额外回复“继续”/);
   assert.match(reporting, /只从当前完成链证据识别 direct Git intent/);
   assert.match(reporting, /未处置 `CHK-\*` \/ `FBK-\*`、blocked、阻断型部分验证或其它未接受实质风险/);
-  assert.match(reporting, /无有效 claim 时报告并停止等待人工选择/);
-  assert.match(reporting, /任何超时均不接受风险/);
-  assert.match(reporting, /没有停止\/只读要求/);
+  assert.match(reporting, /普通代码问题始终由用户选择修复范围/);
   assert.match(reporting, /所有 interactive 标准报告都必须在末尾输出 `### 下一步`/);
   assert.match(reporting, /有 blocked、阻断型部分验证或未标记 `\[上线后验证\]` 的实质风险：指出所需决策、授权或验证/);
   assert.match(reporting, /无有效停止要求且 strict pass \/ 已接受风险通过：说明本轮正在进入 `trellis-update-spec`/);

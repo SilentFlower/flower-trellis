@@ -37,7 +37,6 @@ import {
 } from "../../plugin/runtime-errors.js";
 
 const SCRIPT_ALIASES = Object.freeze({
-  confirmation: ["confirmation-timeout", "trellis-task-brief", "task-brief", "brief", "trellis-check-all", "check-all", "trellis-push", "push"],
   auto_loop: ["auto-loop", "auto-loop-runner", "trellis-auto-loop"],
   decision_log: [
     "decision-log", "auto-loop", "auto-loop-runner", "trellis-auto-loop",
@@ -801,8 +800,6 @@ export function projectSkillGardenContent(options) {
         `.trellis/scripts/${file.name}`,
         fs.readFileSync(path.join(scriptsRoot, file.name)),
         `skill-garden:${pluginPackage.skillGarden.variant}:script:${file.name}`,
-        "exclusive",
-        file.name === "confirmation.md",
       );
       installed.add(`script:${file.name}`);
     }

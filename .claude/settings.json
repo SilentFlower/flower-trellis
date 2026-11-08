@@ -60,17 +60,6 @@
             "timeout": 30
           }
         ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "ftl confirm hook",
-            "timeout": 2,
-            "if": "Bash(ftl confirm *)"
-          }
-        ]
       }
     ],
     "UserPromptSubmit": [
@@ -88,38 +77,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "ftl confirm hook",
-            "timeout": 2
-          },
-          {
-            "type": "command",
             "command": "python3 .trellis/scripts/flower_telemetry_hook.py --platform claude",
             "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "ftl confirm hook",
-            "timeout": 2,
-            "if": "Bash(ftl confirm *)"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "ftl confirm hook",
-            "timeout": 2
           }
         ]
       }
