@@ -7,11 +7,9 @@ import json
 import os
 import re
 import shutil
-import socketserver
 import subprocess
 import sys
 import tempfile
-import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stderr, redirect_stdout
@@ -614,40 +612,6 @@ print(json.dumps({
                          .replace(SESSION.SOL_MODEL, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
         self.assertEqual(SESSION.SOL_6_1_WORKFLOW_HINT.replace("trellis-sol-6-1-workflow-hint", "trellis-astra-workflow-hint")
                          .replace(SESSION.SOL_6_1_MODEL, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
-
-    def test_controlled_session_binds_native_identity_without_growing_state(self) -> None:
-        """真实helper通过回环绑定；普通启动指引放入rules，resume仍由state恢复。"""
-        messages = []
-
-        class Handler(socketserver.StreamRequestHandler):
-            """仅接收测试绑定请求，不代替生产授权状态机。"""
-            def handle(self):
-                message = json.loads(self.rfile.readline())
-                messages.append(message)
-                self.wfile.write(b'{"bound":true}\n')
-
-        server = socketserver.TCPServer(("127.0.0.1", 0), Handler)
-        self.addCleanup(server.server_close)
-        worker = threading.Thread(target=server.serve_forever, daemon=True)
-        worker.start()
-        self.addCleanup(server.shutdown)
-        shutil.copy2(ROOT / "enhancements/0.6/scripts/confirmation.py", self.root / ".trellis/scripts/confirmation.py")
-        for platform in ("codex", "claude"):
-            descriptor = {"version": 1, "platform": platform, "port": server.server_address[1],
-                          "token": "a" * 64, "instance_id": "fixture-instance", "root": str(self.root.resolve())}
-            environment = {**self.env, "FLOWER_CONFIRMATION_SESSION": json.dumps(descriptor)}
-            for source in ("startup", "resume"):
-                state = json.loads(self.run_hook(platform, "state", source, env=environment).stdout)
-                context = state["hookSpecificOutput"]["additionalContext"]
-                self.assertNotIn(descriptor["token"], context)
-                self.assertEqual("<trellis-confirmation-timeout>" in context, source == "resume")
-                if source == "startup":
-                    rules = json.loads(self.run_hook(platform, "rules", source, env=environment).stdout)
-                    content = rules["hookSpecificOutput"]["additionalContext"]
-                    self.assertIn("<trellis-confirmation-timeout>", content)
-                    self.assertLessEqual(len(content), SESSION.MAX_PART_CHARS)
-            self.assertTrue(any(message["owner"] == platform + "_session-parts-test" for message in messages))
-        self.assertTrue(all(message["method"] == "bind" for message in messages))
 
     def test_model_switch_and_unknown_values_use_event_input_only(self) -> None:
         """同一会话的连续启动事件重新判断模型，别名和非法值不推断。"""

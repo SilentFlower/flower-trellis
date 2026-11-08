@@ -33,7 +33,7 @@ export function classifyCiChanges(files, { root = ROOT } = {}) {
   for (const original of files) {
     const file = original.replace(/^vendor\/skill-garden\/\.trellis\//, "enhancements/");
     // 确认协议跨越Node/Python、PTY、Hooks和三个流程门禁，变更时保留完整原生矩阵。
-    if (/^(?:src\/(?:lib\/confirmation-|commands\/session\.|assets\/confirmation_)|enhancements\/0\.6\/scripts\/confirmation\.|test\/(?:js\/confirmation-|python\/test_confirmation\.))/.test(file)) return { ...FULL };
+    if (/^(?:src\/(?:commands\/confirm\.js$|lib\/confirmation-|patches\/platforms\/claude\/confirmation-hooks\/)|enhancements\/0\.6\/scripts\/confirmation\.|test\/(?:js\/confirmation-|python\/test_confirmation\.|helpers\/confirmation-))/.test(file)) return { ...FULL };
     if (/^(?:README|CHANGELOG|AGENTS)\.md$|^LICENSE$|^docs\/.*\.md$/.test(file)) continue;
     if (/^\.trellis\/(?:spec|workspace|tasks)\/.*\.(?:md|json|jsonl)$/.test(file)) continue;
     contracts = true;

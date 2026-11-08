@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-claude-confirmation-hooks",
+  "purpose": "platform_config",
+  "operations": [
+    {
+      "id": "flower-claude-confirmation-userpromptsubmit",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".claude/settings.json",
+          "missing": "create",
+          "requires": [
+            ".claude"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "UserPromptSubmit",
+        "commandNeedle": "ftl confirm hook"
+      },
+      "content": {
+        "value": {
+          "matcher": "*",
+          "timeout": 2,
+          "commandResolver": "claude-flower-confirmation"
+        }
+      }
+    },
+    {
+      "id": "flower-claude-confirmation-pretooluse",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".claude/settings.json",
+          "missing": "create",
+          "requires": [
+            ".claude"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "PreToolUse",
+        "commandNeedle": "ftl confirm hook"
+      },
+      "content": {
+        "value": {
+          "matcher": "Bash",
+          "timeout": 2,
+          "commandResolver": "claude-flower-confirmation",
+          "if": "Bash(ftl confirm *)"
+        }
+      }
+    },
+    {
+      "id": "flower-claude-confirmation-posttoolusefailure",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".claude/settings.json",
+          "missing": "create",
+          "requires": [
+            ".claude"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "PostToolUseFailure",
+        "commandNeedle": "ftl confirm hook"
+      },
+      "content": {
+        "value": {
+          "matcher": "Bash",
+          "timeout": 2,
+          "commandResolver": "claude-flower-confirmation",
+          "if": "Bash(ftl confirm *)"
+        }
+      }
+    },
+    {
+      "id": "flower-claude-confirmation-sessionend",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".claude/settings.json",
+          "missing": "create",
+          "requires": [
+            ".claude"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "SessionEnd",
+        "commandNeedle": "ftl confirm hook"
+      },
+      "content": {
+        "value": {
+          "matcher": "*",
+          "timeout": 2,
+          "commandResolver": "claude-flower-confirmation"
+        }
+      }
+    }
+  ]
+}

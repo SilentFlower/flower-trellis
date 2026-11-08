@@ -94,6 +94,27 @@ test("领取异步复核期间到达的输入优先，不能产生许可", async
   await assert.rejects(claim, /许可已变化/);
 });
 
+test("原生到期复核期间人工输入优先，不发出到期通知", async () => {
+  let blocking = false;
+  let release;
+  const f = fixture({ snapshot: async () => {
+    if (blocking) await new Promise(resolve => { release = resolve; });
+    return { enabled: true, seconds: 100, revision: "v1", display: "完整方案",
+      kind: "brief", action: "implement", contextKey: "codex_main" };
+  } });
+  const prepared = await f.state.prepare({}, "codex_main");
+  const waiting = f.state.wait(prepared.request_id);
+  await drain();
+  blocking = true;
+  f.fire();
+  f.state.cancelAll("human_input");
+  release();
+  assert.equal((await waiting).source, "cancelled");
+  await drain();
+  assert.ok(!f.events.some(event => event.event === "timeout_ready"));
+  await assert.rejects(f.state.claim(prepared.request_id, "codex_main"), /撤销/);
+});
+
 test("重复wait只展示与启动一次，材料变化阻止领取", async () => {
   let displays = 0;
   const f = fixture({ display: async () => { displays++; } });

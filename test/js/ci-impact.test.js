@@ -86,7 +86,8 @@ test("Patch 配置、依赖、共享运行时、未知测试与空范围保留�
     [], ["package-lock.json"], [".github/workflows/ci.yml"], ["scripts/ci-impact.mjs"],
     ["test/js/ci-impact.test.js"], ["test/js/new-runtime.test.js"], [".gitattributes"],
     ["src/commands/update.js"], ["src/plugin/application-service.js"],
-    ["enhancements/0.6/scripts/confirmation.py"], ["src/lib/confirmation-session.js"],
+    ["enhancements/0.6/scripts/confirmation.py"], ["src/commands/confirm.js"],
+    ["src/lib/confirmation-witness.js"], ["src/patches/platforms/claude/confirmation-hooks/patch.json"],
     ["enhancements/0.6/overrides/patches/workflow/state-no-task/patch.json"],
     ["vendor/skill-garden/scripts/generate-compiled-targets.py"], ["unknown.py"],
   ]) assert.deepEqual(classifyCiChanges(files), FULL, JSON.stringify(files));

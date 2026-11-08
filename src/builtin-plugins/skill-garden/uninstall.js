@@ -1,8 +1,40 @@
+import fs from "node:fs";
 import path from "node:path";
 import { ProjectStore } from "../../plugin/state/project-store.js";
 import { TransactionWriter } from "../../plugin/install/transaction-writer.js";
-import { hashFileIfExists } from "../../plugin/install/content-hash.js";
+import { hashContent, hashFileIfExists } from "../../plugin/install/content-hash.js";
 import { SKILL_GARDEN_PLUGIN_ID } from "./provider.js";
+
+/** 共享设置只撤回安装记录拥有的确认 Hook，保留其它设置和用户改写的 handler。 */
+function planConfirmationCleanup(root, events) {
+  const target = ".claude/settings.json";
+  if (!events.length) return null;
+  const file = path.join(fs.realpathSync(root), target);
+  let content, value;
+  try {
+    if (fs.realpathSync(file) !== file || !fs.lstatSync(file).isFile()) return null;
+    content = fs.readFileSync(file);
+    value = JSON.parse(content);
+  } catch { return null; }
+  let changed = false;
+  for (const event of events) {
+    if (!Array.isArray(value?.hooks?.[event])) continue;
+    const condition = event.includes("Tool") ? "Bash(ftl confirm *)" : undefined;
+    value.hooks[event] = value.hooks[event].flatMap(group => {
+      if (!Array.isArray(group?.hooks)) return [group];
+      const hooks = group.hooks.filter(hook => !(hook?.type === "command" && hook.command === "ftl confirm hook"
+        && hook.timeout === 2 && hook.if === condition && Object.keys(hook).every(key => ["type", "command", "timeout", "if"].includes(key))));
+      if (hooks.length === group.hooks.length) return [group];
+      changed = true;
+      if (!hooks.length && group.matcher === (condition ? "Bash" : "*")
+        && Object.keys(group).every(key => ["matcher", "hooks"].includes(key))) return [];
+      return [{ ...group, hooks }];
+    });
+  }
+  if (!changed) return null;
+  const bytes = Buffer.from(JSON.stringify(value, null, 2) + "\n");
+  return { bytes, mutation: { owner: SKILL_GARDEN_PLUGIN_ID, target, beforeHash: hashContent(content), afterHash: hashContent(bytes) } };
+}
 
 /**
  * 按 Plugin state 生成 skill-garden 卸载计划。
@@ -10,7 +42,7 @@ import { SKILL_GARDEN_PLUGIN_ID } from "./provider.js";
  * `.trellis/` 内目标交给 Trellis uninstall；这里只计划平台侧受管普通文件。
  *
  * @param {string} projectRoot 项目根
- * @returns {{managed:boolean,removals:object[],conflicts:object[],shared:string[],dependents:string[],plugins:object|null,lock:object|null,state:object|null}} 卸载计划
+ * @returns {{managed:boolean,removals:object[],confirmationEvents:string[],conflicts:object[],shared:string[],dependents:string[],plugins:object|null,lock:object|null,state:object|null}} 卸载计划
  */
 export function planSkillGardenUninstall(projectRoot) {
   const store = new ProjectStore(projectRoot);
@@ -22,6 +54,7 @@ export function planSkillGardenUninstall(projectRoot) {
     return {
       managed: false,
       removals: [],
+      confirmationEvents: [],
       conflicts: [],
       shared: [],
       dependents: [],
@@ -61,7 +94,10 @@ export function planSkillGardenUninstall(projectRoot) {
       source: `state:${SKILL_GARDEN_PLUGIN_ID}:${item.path}`,
     });
   }
-  return { managed: true, removals, conflicts, shared, dependents, plugins, lock, state };
+  const confirmationEvents = ["UserPromptSubmit", "PreToolUse", "PostToolUseFailure", "SessionEnd"].filter(event =>
+    entry.patches.some(patch => patch.target === ".claude/settings.json"
+      && patch.operation === `flower/flower-claude-confirmation-${event.toLowerCase()}`));
+  return { managed: true, removals, confirmationEvents, conflicts, shared, dependents, plugins, lock, state };
 }
 
 /**
@@ -106,15 +142,17 @@ export function applySkillGardenUninstall(projectRoot, cleanupPlan) {
   } : { schemaVersion: 1, transactionVersion: 1, plugins: [] };
   const store = new ProjectStore(projectRoot);
   const writer = new TransactionWriter(projectRoot, { store });
+  // 上游卸载也会移除其自身 Hook，因此在同一已批准事件范围内重新读取剩余设置。
+  const patchCleanup = planConfirmationCleanup(projectRoot, cleanupPlan.confirmationEvents || []);
   const transaction = writer.apply({
     plan: {
       graph: { roots: [...lock.roots], plugins: [...lock.plugins] },
       contentMutations: cleanupPlan.removals,
-      patchMutations: [],
+      patchMutations: patchCleanup ? [patchCleanup.mutation] : [],
       diagnostics: [],
     },
     payloads: new Map(),
-    patchPayloads: new Map(),
+    patchPayloads: new Map(patchCleanup ? [[patchCleanup.mutation.target, patchCleanup.bytes]] : []),
     plugins,
     lock,
     state,

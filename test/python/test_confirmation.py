@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / ".trellis/scripts"))
@@ -79,6 +80,24 @@ class ConfirmationPolicyTests(unittest.TestCase):
         (task / "task.json").write_text('{"status":"in_progress"}', encoding="utf-8")
         with self.assertRaises(ValueError):
             confirmation.build_snapshot(self.root, spec, "codex_main")
+
+    def test_display_digest_keeps_same_bytes_during_material_rewrite(self):
+        """在读正文和生成指纹之间改材料，旧正文不能绑定新指纹。"""
+        report = self.root / "report.md"
+        report.write_text("CHK-1 原始报告\n", encoding="utf-8")
+        spec = {"kind": "check", "file": "report.md", "problem_ids": ["CHK-1"]}
+        read_policy = confirmation.read_policy
+
+        def replace_material(root):
+            report.write_text("CHK-1 已修改报告\n", encoding="utf-8")
+            return read_policy(root)
+
+        with patch.object(confirmation, "read_policy", side_effect=replace_material):
+            old = confirmation.build_snapshot(self.root, spec, "codex_main")
+        new = confirmation.build_snapshot(self.root, spec, "codex_main")
+        self.assertIn("原始报告", old["display"])
+        self.assertIn("已修改报告", new["display"])
+        self.assertNotEqual(old["revision"], new["revision"])
 
     def test_terminal_controls_and_outside_files_are_rejected(self):
         task = self.task()

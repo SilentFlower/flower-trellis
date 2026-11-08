@@ -26,9 +26,6 @@ SOL_MODEL = "gpt-6-sol"
 SOL_6_1_MODEL = "gpt-6.1-sol"
 MODEL_HINT_MAX_BYTES = 2048
 WORKFLOW_STATE_REFRESH_ARG = "--trellis-session-start-refresh"
-CONFIRMATION_CONTEXT_HINT = """<trellis-confirmation-timeout>
-Session confirmation entry present. For Brief, Check-All disposition and Push, read .trellis/scripts/confirmation.md. Validate status, frozen display and a matching single-use claim before acting; otherwise keep manual confirmation. Other gates remain unchanged.
-</trellis-confirmation-timeout>"""
 CODE_DESIGN_HINT = """<trellis-code-design>
 Prefer simple, clear code for confirmed needs (KISS, YAGNI). Apply SOLID and DRY when they reduce complexity or duplicated business knowledge; favor clarity if these principles conflict. Reuse project patterns. Avoid premature abstractions, extra layers, excessive splitting, and speculative config or dependencies. Preserve behavior, compatibility, required verification, workflows, review gates, and templates.
 </trellis-code-design>"""
@@ -135,33 +132,6 @@ def _load_hook(root: Path, hook: str):
     module = module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def _confirmation_context(root: Path, hook: str, hook_input: dict) -> str:
-    """绑定受控入口并返回短提示；普通原生会话不读取或创建确认状态。
-
-    @param root: 当前项目根目录。
-    @param hook: 原生SessionStart入口。
-    @param hook_input: 原生会话事件。
-    @return: 已绑定且启用时的提示，缺少接入或配置无效时为空串。
-    """
-    if not os.environ.get("FLOWER_CONFIRMATION_SESSION"):
-        return ""
-    script = root / ".trellis/scripts/confirmation.py"
-    if not script.is_file():
-        return ""
-    try:
-        result = subprocess.run(
-            [sys.executable, "-X", "utf8", str(script), "bind", "--root", str(root)],
-            cwd=root, input=json.dumps(hook_input, ensure_ascii=False), encoding="utf-8",
-            capture_output=True, check=False, timeout=5,
-        )
-        bound = json.loads(result.stdout)
-        if result.returncode != 0 or not bound.get("bound") or not bound.get("enabled"):
-            return ""
-    except (OSError, ValueError, subprocess.TimeoutExpired):
-        return ""
-    return CONFIRMATION_CONTEXT_HINT
 
 
 def _run_native_hook(root: Path, hook: str, hook_input: dict) -> dict | None:
@@ -367,14 +337,13 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
         if source in ("startup", "resume"):
             maintenance_message = _run_task_maintenance(root)
         if source == "resume":
-            confirmation = _confirmation_context(root, hook, hook_input)
-            if not maintenance_message and not confirmation:
+            if not maintenance_message:
                 return None
             return {
                 "systemMessage": maintenance_message,
                 "hookSpecificOutput": {
                     "hookEventName": "SessionStart",
-                    "additionalContext": confirmation,
+                    "additionalContext": "",
                 },
             }
         result = _run_native_hook(root, hook, hook_input)
@@ -385,7 +354,6 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
                 filter(None, [result.get("systemMessage"), maintenance_message])
             )
         context = result["hookSpecificOutput"]["additionalContext"]
-        _confirmation_context(root, hook, hook_input)
         if len(WORKFLOW_BLOCK.findall(context)) != 1:
             raise ValueError("原生启动输出必须包含且仅包含一个 trellis-workflow 块")
         context = WORKFLOW_BLOCK.sub("", context)
@@ -446,9 +414,6 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
         builder = module._build_workflow_toc if hook == HOOKS[0] else module._build_workflow_overview
         platform = "codex" if hook == HOOKS[0] else "claude"
         context = split_workflow(builder(root / ".trellis/workflow.md", platform))[part]
-        if part == "rules" and os.environ.get("FLOWER_CONFIRMATION_SESSION"):
-            # rules仍无绑定副作用；这里只提示读取协议，真实能力由state和后续status严格核验。
-            context = f"{context}\n{CONFIRMATION_CONTEXT_HINT}"
         result = {"hookSpecificOutput": {"hookEventName": "SessionStart"}}
 
     context = f'<trellis-session-part name="{part}">\n{context}\n</trellis-session-part>'

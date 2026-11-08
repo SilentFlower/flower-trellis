@@ -11,13 +11,6 @@ export const VARIANTS = ["old", "0.5", "0.6"];
 /** `flower-trellis update` 默认保留的 Trellis 时间戳备份数量。 */
 export const DEFAULT_UPDATE_BACKUP_RETENTION = 1;
 
-/** 统一确认入口的进程内协议名；不代表持久化授权。 */
-export const CONFIRMATION_SESSION_ENV = "FLOWER_CONFIRMATION_SESSION";
-/** 会话内唯一等待工具的 MCP 注册名。 */
-export const CONFIRMATION_MCP_SERVER = "flower_confirmation";
-/** 宿主工具等待预算；超过预算的请求保持人工，不截短业务时长。 */
-export const CONFIRMATION_TOOL_BUDGET_SECONDS = 86400;
-
 /**
  * Trellis init 支持的全部平台 flag。
  *

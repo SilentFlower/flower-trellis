@@ -158,7 +158,17 @@ export function createConfirmationState({ snapshot, display, audit = () => {}, o
         if (request.state !== "prepared" || closed) return;
         request.state = "waiting";
         if (!record(request, "waiting", { seconds: request.snapshot.seconds })) return;
-        request.timer = setTimer(() => {
+        request.timer = setTimer(async () => {
+          if (closed || request.state !== "waiting") return;
+          try {
+            const due = await snapshot(request.spec, request.owner);
+            if (!due.enabled || due.contextKey !== request.owner || due.revision !== request.snapshot.revision) {
+              return cancel(id, "material_changed");
+            }
+          } catch {
+            return cancel(id, "validation_failed");
+          }
+          // 复核材料时也可能发生人工回复或连接关闭。
           if (closed || request.state !== "waiting") return;
           request.state = "timeout_ready";
           if (!record(request, "timeout_ready")) return;

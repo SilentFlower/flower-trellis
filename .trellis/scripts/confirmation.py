@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""统一确认入口的材料快照、计时策略与会话内控制客户端。"""
+"""原生确认的材料快照与计时策略。"""
 
 from __future__ import annotations
 
@@ -8,15 +8,13 @@ import hashlib
 import json
 import os
 import re
-import socket
 import stat
 import subprocess
 import sys
-import uuid
+import tempfile
 from pathlib import Path
 
 
-SESSION_ENV = "FLOWER_CONFIRMATION_SESSION"
 KINDS = {"brief": "implement", "check": "repair_all_and_recheck", "push": "execute_git_plan"}
 DEFAULTS = {
     "enabled": True,
@@ -226,7 +224,9 @@ def build_snapshot(root, spec, owner):
     if kind == "brief" and not active.task_path:
         raise ValueError("Brief确认必须绑定当前任务")
     body_file = _project_file(root, spec.get("file"))
-    display = body_file.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    # 展示与指纹必须使用同一次读取，避免把正在改写的材料配给旧正文。
+    observed = {body_file: body_file.read_bytes()}
+    display = observed[body_file].decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
     if not display.strip() or re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", display):
         raise ValueError("确认正文为空或含终端控制字符")
     basis = spec.get("basis", [])
@@ -242,7 +242,9 @@ def build_snapshot(root, spec, owner):
     files = [body_file, *[_project_file(root, item) for item in basis]]
     if active.task_path:
         task = _project_file(root, active.task_path + "/task.json")
-        task_data = json.loads(task.read_text(encoding="utf-8"))
+        if task not in observed:
+            observed[task] = task.read_bytes()
+        task_data = json.loads(observed[task].decode("utf-8"))
         if kind == "brief":
             if task_data.get("status") != "planning":
                 raise ValueError("首次Brief确认仅适用于planning任务")
@@ -281,73 +283,13 @@ def build_snapshot(root, spec, owner):
                            + "\n".join("- " + item for item in entry["paths"]) for entry in git_basis["repositories"])
     policy = read_policy(root)
     seconds = calculate_seconds(policy, kind, display, problems)
-    fingerprints = {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+    fingerprints = {p.relative_to(root).as_posix(): hashlib.sha256(observed[p] if p in observed else p.read_bytes()).hexdigest()
+                    for p in files}
     revision = _digest({"policy": policy, "spec": spec, "files": fingerprints, "git": git_basis,
                         "owner": owner, "task": active.task_path})
     return {"enabled": seconds > 0, "seconds": seconds, "revision": revision, "display": display + summary,
             "kind": kind, "action": KINDS[kind], "contextKey": owner, "task": active.task_path,
             "material": body_file.relative_to(root).as_posix()}
-
-
-def session_descriptor():
-    """读取本次入口的控制信息；@return 描述符，缺失或损坏时抛出异常。"""
-    descriptor = json.loads(os.environ.get(SESSION_ENV, "null"))
-    if (not isinstance(descriptor, dict) or descriptor.get("version") != 1
-            or descriptor.get("platform") not in ("codex", "claude")
-            or not isinstance(descriptor.get("port"), int) or isinstance(descriptor["port"], bool)
-            or not 0 < descriptor["port"] < 65536
-            or not isinstance(descriptor.get("token"), str) or len(descriptor["token"]) < 24
-            or not isinstance(descriptor.get("root"), str) or not descriptor["root"]
-            or not isinstance(descriptor.get("instance_id"), str) or not descriptor["instance_id"]):
-        raise ValueError("当前没有有效的统一确认入口，保持人工确认")
-    return descriptor
-
-
-def session_request(message):
-    """向当前入口发送控制消息；@param message 消息；@return 不含凭据的结果。"""
-    descriptor = session_descriptor()
-    payload = {**message, "token": descriptor["token"], "instance_id": descriptor.get("instance_id")}
-    with socket.create_connection(("127.0.0.1", descriptor["port"]), timeout=15) as connection:
-        connection.sendall((json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8"))
-        data = b""
-        while b"\n" not in data:
-            chunk = connection.recv(65536)
-            if not chunk or len(data) + len(chunk) > 1024 * 1024:
-                raise ValueError("确认入口已断开或响应无效")
-            data += chunk
-    result = json.loads(data.split(b"\n", 1)[0].decode("utf-8"))
-    if result.get("error"):
-        raise ValueError(result["error"])
-    return result
-
-
-def bind_session(root, hook_input, platform):
-    """由SessionStart绑定当前主会话。
-
-    @param root: 当前项目根。
-    @param hook_input: 原生SessionStart事件。
-    @param platform: codex或claude。
-    @return: 不含控制凭据的入口状态。
-    """
-    from common.active_task import resolve_context_key
-
-    owner = resolve_context_key(hook_input, platform, allow_environment_context=False)
-    if not owner:
-        raise ValueError("原生SessionStart未提供会话身份")
-    result = session_request({"method": "bind", "owner": owner, "root": str(root.resolve())})
-    result["enabled"] = read_policy(root)["enabled"]
-    return result
-
-
-def _owner(platform):
-    """只采用已核实的原生shell会话变量，不用历史任务猜身份。"""
-    from common.active_task import resolve_context_key
-
-    name = "CODEX_THREAD_ID" if platform == "codex" else "CLAUDE_CODE_SESSION_ID"
-    value = os.environ.get(name)
-    if not value:
-        raise ValueError("当前工具未携带原生会话身份，保持人工确认")
-    return resolve_context_key({"session_id": value}, platform, allow_environment_context=False)
 
 
 def materialize(root, body):
@@ -357,7 +299,8 @@ def materialize(root, body):
     @param body: 完整文本。
     @return: gitignored材料相对路径，不含执行许可。
     """
-    if not body.strip() or len(body.encode("utf-8")) > 4 * 1024 * 1024:
+    content = body.encode("utf-8")
+    if not body.strip() or len(content) > 4 * 1024 * 1024:
         raise ValueError("确认材料为空或超过4MiB")
     directory = (root / ".trellis/.runtime/confirmations/materials").resolve()
     try:
@@ -365,57 +308,39 @@ def materialize(root, body):
     except ValueError:
         raise ValueError("材料目录超出当前项目")
     directory.mkdir(parents=True, exist_ok=True)
-    file = directory / (str(uuid.uuid4()) + ".md")
-    with file.open("x", encoding="utf-8", newline="\n") as handle:
-        handle.write(body)
+    # 同一正文得到相同的材料路径，重复 prepare 不会因此绕过一次性等待。
+    file = directory / (hashlib.sha256(content).hexdigest() + ".md")
+    descriptor, name = tempfile.mkstemp(dir=directory)
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(content)
+        os.link(temporary, file)
+    except FileExistsError:
+        if file.is_symlink() or not file.is_file() or file.stat().st_size != len(content) or file.read_bytes() != content:
+            raise ValueError("确认材料已变化，保持人工确认")
+    finally:
+        temporary.unlink()
     return {"file": file.relative_to(root).as_posix()}
 
 
 def main():
     """执行命令行客户端；@return 成功0，拒绝或配置错误2。"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("status", "prepare", "claim", "finish", "inspect", "bind", "materialize"))
+    parser.add_argument("command", choices=("inspect", "materialize", "policy"))
     parser.add_argument("--root", default=str(Path(__file__).resolve().parents[2]))
-    parser.add_argument("--kind", choices=tuple(KINDS))
-    parser.add_argument("--file")
-    parser.add_argument("--basis-file", action="append", default=[])
-    parser.add_argument("--problem-id", action="append", default=[])
-    parser.add_argument("--git-path", action="append", default=[])
-    parser.add_argument("--repository", action="append", default=[], help='多仓计划JSON：{"root":"路径","git_paths":["精确文件"]}')
-    parser.add_argument("--mode", choices=("push", "commit-only"))
-    parser.add_argument("--request-id")
-    parser.add_argument("--outcome", choices=("completed", "interrupted", "needs_verification"))
     parser.add_argument("--owner")
     args = parser.parse_args()
     root = Path(args.root).resolve()
     sys.path.insert(0, str(root / ".trellis/scripts"))
     try:
-        if args.command != "inspect" and os.environ.get(SESSION_ENV):
-            descriptor = session_descriptor()
-            if Path(descriptor["root"]).resolve() != root:
-                raise ValueError("当前命令与统一入口项目不匹配，保持人工确认")
         if args.command == "materialize":
             result = materialize(root, sys.stdin.read(4 * 1024 * 1024 + 1))
         elif args.command == "inspect":
             result = build_snapshot(root, json.load(sys.stdin), args.owner)
-        elif args.command == "bind":
-            result = bind_session(root, json.load(sys.stdin), session_descriptor()["platform"])
-        elif args.command == "status":
-            result = session_request({"method": "status"}) if os.environ.get(SESSION_ENV) else {"bound": False, "manual": True}
-            if result.get("bound"):
-                policy = read_policy(root)
-                result.update({"enabled": policy["enabled"], "kinds": {kind: policy[kind]["enabled"] for kind in KINDS}})
         else:
-            descriptor = session_descriptor()
-            owner = _owner(descriptor["platform"])
-            message = {"method": args.command, "owner": owner}
-            if args.command == "prepare":
-                message["spec"] = {"kind": args.kind, "file": args.file, "basis": args.basis_file,
-                                   "problem_ids": args.problem_id, "git_paths": args.git_path, "mode": args.mode,
-                                   "repositories": [json.loads(value) for value in args.repository]}
-            else:
-                message.update({"request_id": args.request_id, "outcome": args.outcome})
-            result = session_request(message)
+            policy = read_policy(root)
+            result = {"enabled": policy["enabled"], "kinds": {kind: policy[kind]["enabled"] for kind in KINDS}}
         print(json.dumps(result, ensure_ascii=False))
         return 0
     except (ValueError, OSError, KeyError, TypeError, ImportError) as error:

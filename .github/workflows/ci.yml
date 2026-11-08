@@ -208,18 +208,15 @@ jobs:
           test/js/codex-sync-user-interaction.test.js
 
   confirmation-harness:
-    name: ${{ matrix.os }} / 原生确认入口
+    name: Linux / 原生确认入口
     needs: impact
     if: needs.impact.outputs.full == 'true'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           submodules: recursive
       - uses: actions/setup-node@v6
         with:
@@ -232,15 +229,18 @@ jobs:
       - name: 准备项目原生依赖
         run: npm ci --ignore-scripts
       - run: npm rebuild node-pty
-      - name: 在专用prefix安装固定版本Harness
-        run: npm install --global --prefix .trellis-tmp/confirmation-clis @openai/codex@0.167.0 @anthropic-ai/claude-code@2.1.293
-      - name: 配置当前job专用PATH
-        shell: pwsh
+      - name: 安装原版 Codex 和 Claude Code
         run: |
-          $confirmationPrefix = Join-Path $env:GITHUB_WORKSPACE '.trellis-tmp/confirmation-clis'
-          if ($IsWindows) { $confirmationPrefix | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8 }
-          else { (Join-Path $confirmationPrefix 'bin') | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8 }
-      - name: 原生TUI完整展示、100/130/200秒、人工撤销与强杀入口
+          sudo apt-get install -y bubblewrap
+          npm install --global --prefix .trellis-tmp/confirmation-clis @openai/codex@0.167.0 @anthropic-ai/claude-code@2.1.293
+          echo "$GITHUB_WORKSPACE/.trellis-tmp/confirmation-clis/bin" >> "$GITHUB_PATH"
+      - name: 普通入口运行 Brief、检查、提交和 200 秒推送，验证输入与关闭
         env:
           FLOWER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
-        run: node test/helpers/confirmation-native-matrix.mjs
+        run: |
+          packages="$GITHUB_WORKSPACE/.trellis-tmp/confirmation-clis/lib/node_modules"
+          codex_binary="$(find "$packages/@openai/codex" -type f -path '*/vendor/*/bin/codex' -print -quit)"
+          test -x "$codex_binary"
+          node test/helpers/confirmation-native-matrix.mjs "$codex_binary" "$packages/@anthropic-ai/claude-code/bin/claude.exe"
+      - name: beta.2 连续升级与卸载保留用户配置
+        run: node test/helpers/confirmation-native-install.mjs

@@ -1,25 +1,24 @@
-# 会话内超时确认
+# 前台限时确认
 
-本协议只服务 Brief 首次开工、Check-All 问题处置、Push 精确计划。必须由 `ftl session -- codex|claude` 管理当前前台会话；普通原生启动、其它 Harness、无效配置和失联均继续人工确认。经校验的 auto-loop 使用原 runner，不叠加本协议。Spec 歧义、未决业务取舍和独立权限审批不能自动作答。
+本协议用于 Brief 首次开工、Check-All 问题处置、Push 精确计划。项目默认启用，由助手在当前原生窗口直接运行 `ftl confirm`。原版 Codex 需能核验原连接，Claude Code 需能核验当前终端和项目 Hook；能力缺失、配置关闭或失联时沿用人工。已校验的 auto-loop 继续用 runner。Spec 歧义、未决业务取舍、风险接受和独立权限审批仍由人工决定。
 
-## 先确认能力
+1. **检查能力。** 用当前主对话的内置 Shell 调用 `ftl confirm status`。只在 `protocol=1`、`bound=true`、`ready=true`、`enabled=true` 且本类 `kinds.<brief|check|push>=true` 时继续。命令缺失、诊断异常或 `manual=true` 时，简述原因，照常完整展示并等待人工。
+2. **准备材料。** 按当前流程的原模板形成完整正文，保留全部范围、风险与生成命令。Brief 的 `file` 必须是最新的 `<task>/brief.md`；检查和 Git 计划用 `body` 提供完整正文，或用已冻结的项目内相对 `file`。可用 `python3 -X utf8 .trellis/scripts/confirmation.py materialize` 从 stdin 冻结较长正文，结果只写入 gitignored runtime。可选 `basis` 填项目内证据路径；检查 `problem_ids` 列全当前待处置 CHK/FBK/DOC；提交明确 `mode: "push"|"commit-only"`，单仓用 `git_paths`，多仓用 `repositories: [{"root":"仓库路径","git_paths":["精确文件"]}]` 按计划顺序列全。
+3. **前台等待。** `prepare` 从 stdin 读取单行 JSON，输出 `request_id`、`review`、`seconds`、`kind` 和 `action`，此时未计时。把 `review` 原样作为一条普通、可见的助手正文发送，再调用 `ftl confirm <request-id>`。不要加导语、引用、代码围栏、截取末段或用链接替代正文。Claude 把正文和 Bash 调用放在同一条助手消息，Bash 用 `timeout: 600000` 和 `run_in_background: false`；Codex 使用内置 `exec_command`，若返回会话 ID，只用 `write_stdin` 空输入等同一进程，Code Mode 若先让出则等待同一单元。不要用 `&`、后台任务、定时唤醒或重复运行等待命令。Shell 工具输出不是展示回执。
+4. **核对并执行。** 仅当该前台命令成功返回同一 `request_id`、`source=policy_timeout`、`decision=continue` 且 `kind`、`action` 均匹配时，本次范围选择才被领取。立即按原 owner 的前置条件与精确范围执行；用户回复、取消、材料变化、预算不足或错误时停止旧决定并转人工。不得重试已取消或已领取的决定，也不能把它带到另一个回合。真实执行结果用 `ftl confirm finish <request-id> <completed|interrupted|needs_verification>` 记录；失联后核实已发生的副作用。
 
-执行 `python3 .trellis/scripts/confirmation.py status`，项目选用其它 Python 命令时沿用该命令。只有结果同时为 `bound=true`、`ready=true`、`enabled=true`，且 `kinds.<brief|check|push>=true` 才准备自动确认。`server_name` 是本次随机注册的 MCP 名称；只能调用它实际提供的 `wait`，找不到工具就回到人工。禁止给 `request_user_input` 添加 timeout 字段、启动定时唤醒或每秒询问模型。
+`prepare` 例子（用实际材料替换 JSON；分隔符保持单引号，避免 Shell 展开）：
 
-## 冻结、展示与领取
+```bash
+ftl confirm prepare <<'FTL_CONFIRM_SPEC'
+{"kind":"brief","file":".trellis/tasks/实际任务/brief.md"}
+FTL_CONFIRM_SPEC
+```
 
-1. 先按流程 owner 形成完整材料，保留原模板、全部范围和风险。Brief 直接使用最新 `<task>/brief.md`。检查报告和 Git 计划将完整正文送入 `confirmation.py materialize` 的 stdin；结果给出 gitignored `.trellis/.runtime/confirmations/materials/<id>.md`。该文件仅用于当前跨进程校验，不是导出附件，不放入任务交付或 Git 计划。禁止用 shell 插值生成正文。
-2. 执行 `confirmation.py prepare --kind <kind> --file <正文相对路径>`。关联依据逐个加 `--basis-file <相对路径>`；检查为当前**全部待处置**条目逐个加 `--problem-id CHK-1`（同样接受 FBK/DOC）；提交必须加 `--mode push|commit-only` 及逐个 `--git-path <精确文件>`。多仓逐个加 `--repository '{"root":"仓库路径","git_paths":["精确文件"]}'`，按原计划顺序列出，当前主仓也可用此格式；任务记录、生成命令和预计输出仍完整写在原计划正文中。prepare 成功不计时。
-3. 使用返回的 `request_id` 调用本次 MCP `wait(request_id)`。控制器直接向用户完整展示冻结正文、默认动作和实际秒数，排空后开始计时；这次可信终端展示满足对应 owner 的完整展示要求，无需另输出一份正文。不得以模型结束标记、仅文件链接或自行估算时间替代。按宿主工具协议等待原调用完成，pending 时继续原等待，不创建第二次决定。
-4. 只有 `source=policy_timeout`、`decision=continue` 才执行 `confirmation.py claim --request-id <id>`。**claim 成功**且返回的 kind/action 与本次 owner 匹配，才替代该次人工范围选择。工具返回后、claim 之前到达的人工按键仍会撤销旧决定。claim 拒绝、取消、版本变化、工具失败或预算不足时保持人工；不得重试领取来重复执行，也不得把 cancelled 当成拒绝业务方案，用户回复仍由 owner 解释。
-5. 领取后仍遵守 owner 全部检查、前置条件、文件与分支范围。动作结束执行 `confirmation.py finish --request-id <id> --outcome completed|interrupted|needs_verification`，据实际结果选择；失联时如实报告已完成副作用和待核验项，不能声称撤销。活许可只存在于本次入口内存，重开不会消费旧请求。
-
-## 默认动作
-
-| kind | 时长默认值 | claim.action | 领取后的动作 |
+| kind | 默认时长 | action | 匹配后的动作 |
 | --- | --- | --- | --- |
-| brief | 正文1000字内100秒，之后每500字加30秒，不足一档按一档 | implement | 对这份已展示且有效的方案运行 `task.py start`，进入实现 |
-| check | 第一条100秒，每多一条加30秒；零条不等待 | repair_all_and_recheck | 修复当前报告全部待处置项并重检；新业务取舍暂停，风险接受仍必须人工明确决定 |
-| push | 200秒 | execute_git_plan | 沿用当前计划和模式；普通 commit + push，明确 commit-only 时仅本地提交 |
+| brief | 正文 1000 字内 100 秒；每多 500 字加 30 秒，不足一档按一档 | implement | 对已展示的 Brief 运行 `task.py start` |
+| check | 第一条 100 秒，每多一条加 30 秒；零条不等待 | repair_all_and_recheck | 修复当前全部待处置项并重检；新业务取舍暂停 |
+| push | 200 秒 | execute_git_plan | 按当前精确计划提交并推送；明确 commit-only 时仅本地提交 |
 
-报告必须把自动决定来源写为 `policy_timeout`，不能写成“用户已经确认”。人工分支由原 owner 核对真实回复并记 `human`；按键取消本身不是批准。prepare 重试复用同一请求，已领取或撤销的同版本材料不能重新自动执行。材料、范围、模式、Git 基线或会话变化后，旧请求失效；更改方案必须重新冻结和展示。显式只读、暂停、停止、拒绝或用户更改范围时不准备自动决定。项目默认启用，`.trellis/config.yaml` 的 `confirmation_timeout.enabled: false` 可关闭；各类的 `enabled` 和秒数配置独立，缺失采用默认、损坏回人工，不得临时缩短用户时长来促使当前动作执行。
+自动决定记为 `policy_timeout`，人工明确回复记为 `human`。项目或单类可在 `.trellis/config.yaml` 的 `confirmation_timeout` 中设置 `enabled: false`；缺失使用默认，损坏或超过预算时人工确认，不截短等待。运行记录不入 Git，也不能在窗口重开时补跑。

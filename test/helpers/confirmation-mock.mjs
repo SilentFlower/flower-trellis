@@ -11,7 +11,7 @@ export function buildCodexResponseEvents({ sequence, text, toolCall, planText })
   if (typeof planText === "string") items.push({ id: `msg_flower_plan_${sequence}`, type: "message", role: "assistant",
     phase: "commentary", status: "completed", content: [{ type: "output_text", text: planText, annotations: [], logprobs: [] }] });
   if (toolCall) items.push({ id: `fc_flower_mcp_${sequence}`, type: toolCall.type === "custom" ? "custom_tool_call" : "function_call",
-    call_id: CODEX_MCP_CALL_ID, name: toolCall.name, ...(toolCall.namespace ? { namespace: toolCall.namespace } : {}),
+    call_id: toolCall.callId ?? CODEX_MCP_CALL_ID, name: toolCall.name, ...(toolCall.namespace ? { namespace: toolCall.namespace } : {}),
     ...(toolCall.type === "custom" ? { input: toolCall.input } : { arguments: JSON.stringify(toolCall.arguments) }), status: "completed" });
   else items.push({ id: `msg_flower_final_${sequence}`, type: "message", role: "assistant", phase: "final_answer",
     status: "completed", content: [{ type: "output_text", text, annotations: [], logprobs: [] }] });

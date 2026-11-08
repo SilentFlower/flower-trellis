@@ -3,159 +3,164 @@ import test from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { PassThrough } from "node:stream";
-import { execFile } from "node:child_process";
+import { execFileSync } from "node:child_process";
+import { once } from "node:events";
+import { createServer } from "node:http";
 import { createConnection } from "node:net";
 import { fileURLToPath } from "node:url";
-import { startConfirmationServer } from "../../src/lib/confirmation-server.js";
-import { createConfirmationSnapshot } from "../../src/lib/confirmation-snapshot.js";
-import { callConfirmation } from "../../src/lib/confirmation-ipc.js";
-import { runConfirmationMcp } from "../../src/lib/confirmation-mcp.js";
-import { CONFIRMATION_SESSION_ENV } from "../../src/constants.js";
+import { WebSocket, WebSocketServer } from "ws";
+import { confirmationDigest } from "../../src/lib/confirmation-files.js";
+import { codexConfirmationOrigin, startConfirmationWitness } from "../../src/lib/confirmation-witness.js";
+import { createConfirmationSnapshot, materializeConfirmation, readConfirmationPolicy } from "../../src/lib/confirmation-snapshot.js";
 import { resolvePythonExecutable } from "../../scripts/python-runtime.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const HELPER = path.join(ROOT, "vendor/skill-garden/.trellis/0.6/scripts/confirmation.py");
-const PYTHON = resolvePythonExecutable();
+const ROOT = fileURLToPath(new URL("../../", import.meta.url));
+const PYTHON = { executable: resolvePythonExecutable(), args: [] };
+const OWNER = "codex_fixture";
+const SPEC = { kind: "check", file: "报告.md", problem_ids: ["CHK-1"] };
 
-/** 真实Python客户端与真实TCP服务之间的端到端夹具。 */
-async function fixture(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "flower-confirmation-中文 "));
-  const scripts = path.join(root, ".trellis/scripts/common");
-  fs.cpSync(path.join(ROOT, ".trellis/scripts/common"), scripts, { recursive: true,
-    filter: file => !file.includes("__pycache__") });
-  fs.writeFileSync(path.join(root, ".trellis/config.yaml"), "confirmation_timeout:\n  check:\n    base_seconds: 1\n");
-  fs.writeFileSync(path.join(root, "报告.md"), "CHK-1 修复当前问题；中文 & % ! ^\n");
-  const shown = [];
-  const events = [];
-  const runtime = await startConfirmationServer({ root, platform: "codex",
-    snapshot: createConfirmationSnapshot(root, { python: PYTHON, helper: HELPER }),
-    display: async material => shown.push(material.display), audit: event => events.push(event) });
-  const environment = { ...process.env, [CONFIRMATION_SESSION_ENV]: JSON.stringify(runtime.descriptor), CODEX_THREAD_ID: "fixture" };
-  const stdin = new PassThrough();
-  const stdout = new PassThrough();
-  const pending = new Map();
-  let buffer = "";
-  stdout.setEncoding("utf8");
-  stdout.on("data", chunk => {
-    buffer += chunk;
-    while (buffer.includes("\n")) {
-      const end = buffer.indexOf("\n");
-      const message = JSON.parse(buffer.slice(0, end));
-      buffer = buffer.slice(end + 1);
-      pending.get(message.id)?.(message);
-      pending.delete(message.id);
-    }
+function project(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "flower-confirm-test-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const scripts = path.join(root, ".trellis/scripts");
+  fs.cpSync(path.join(ROOT, ".trellis/scripts/common"), path.join(scripts, "common"), {
+    recursive: true, filter: file => !file.includes("__pycache__"),
   });
-  const mcp = runConfirmationMcp({ descriptor: runtime.descriptor, stdin, stdout });
-  t.after(async () => { mcp.close(); await runtime.close(); fs.rmSync(root, { recursive: true, force: true }); });
-  const command = (args, input = "", commandRoot = root) => new Promise((resolve, reject) => {
-    const child = execFile(PYTHON, ["-X", "utf8", HELPER, ...args, "--root", commandRoot],
-      { env: environment, encoding: "utf8" }, (error, output) => {
-        try { resolve({ code: error?.code || 0, value: JSON.parse(output) }); } catch { reject(error || new Error(output)); }
+  fs.copyFileSync(path.join(ROOT, "enhancements/0.6/scripts/confirmation.py"), path.join(scripts, "confirmation.py"));
+  const config = path.join(root, ".trellis/config.yaml");
+  fs.writeFileSync(config, "confirmation_timeout:\n  check:\n    base_seconds: 1\n");
+  fs.writeFileSync(path.join(root, SPEC.file), "CHK-1 修复当前问题；中文 & % ! ^\n");
+  return { root, config };
+}
+
+test("真实项目策略、快照与冻结正文按同一份材料复核", async t => {
+  const { root, config } = project(t);
+  const inspect = createConfirmationSnapshot(root, { python: PYTHON });
+  const original = await inspect(SPEC, OWNER);
+  assert.equal(original.seconds, 1);
+  assert.match(original.display, /中文 & % ! \^/);
+  const frozen = await materializeConfirmation(root, PYTHON, original.display);
+  assert.deepEqual(await materializeConfirmation(root, PYTHON, original.display), frozen);
+  fs.appendFileSync(path.join(root, SPEC.file), "待确认范围变化\n");
+  assert.notEqual((await inspect(SPEC, OWNER)).revision, original.revision);
+  fs.writeFileSync(config, "confirmation_timeout:\n  check:\n    enabled: false\n");
+  assert.deepEqual((await readConfirmationPolicy(root, PYTHON)).kinds, { brief: true, check: false, push: true });
+  assert.equal((await inspect(SPEC, OWNER)).enabled, false);
+  fs.writeFileSync(config, "confirmation_timeout:\n  enabled: false\n");
+  assert.equal((await readConfirmationPolicy(root, PYTHON)).enabled, false);
+  fs.writeFileSync(config, "confirmation_timeout:\n  enabled: invalid\n");
+  await assert.rejects(readConfirmationPolicy(root, PYTHON), /true 或 false/);
+});
+
+test("普通 shell 或伪造的线程环境不会开启计时", t => {
+  const { root } = project(t);
+  const bin = path.join(ROOT, "bin/flower-trellis.js");
+  const env = { ...process.env, HOME: root, FLOWER_TEST_PYTHON: PYTHON.executable };
+  delete env.CLAUDE_CODE_SESSION_ID;
+  for (const extras of [{ CODEX_THREAD_ID: "", CODEX_TOOL_CALL_ID: "" }, { CODEX_THREAD_ID: "fictional", CODEX_TOOL_CALL_ID: "exec-fictional" }]) {
+    const result = JSON.parse(execFileSync(process.execPath, [bin, "confirm", "status"],
+      { cwd: root, env: { ...env, ...extras }, encoding: "utf8" }));
+    assert.equal(result.enabled, true);
+    assert.equal(result.bound, false);
+    assert.equal(result.manual, true);
+  }
+  assert.ok(!fs.existsSync(path.join(root, ".trellis/.runtime/confirmations/requests")));
+});
+
+for (const ending of ["关闭连接", "只退订", "退订后关闭"]) test(`原连接${ending}后中断旧确认，旁观者不能重新领取`,
+  { skip: process.platform !== "linux" }, async t => {
+    const { root } = project(t);
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "flower-confirm-home-"));
+    const previous = process.env.HOME;
+    process.env.HOME = home;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "flower-confirm-ws-"));
+    const upstream = path.join(dir, "upstream.sock");
+    const listen = path.join(dir, "front.sock");
+    const http = createServer();
+    const back = new WebSocketServer({ server: http });
+    const clients = [];
+    let witness;
+    t.after(async () => {
+      for (const client of clients) client.terminate();
+      await witness?.close();
+      for (const peer of back.clients) peer.terminate();
+      back.close();
+      await new Promise(resolve => http.close(resolve));
+      if (previous === undefined) delete process.env.HOME;
+      else process.env.HOME = previous;
+      for (const place of [home, dir]) fs.rmSync(place, { recursive: true, force: true });
+    });
+    http.listen(upstream);
+    await once(http, "listening");
+    fs.chmodSync(upstream, 0o600);
+    witness = await startConfirmationWitness({ upstream, listen });
+    const interrupted = [];
+    const acknowledged = [];
+    back.on("connection", peer => {
+      peer.on("message", raw => {
+        const event = JSON.parse(raw);
+        if (event.method === "turn/start") peer.send(JSON.stringify({ id: event.id, result: { turn: { id: "turn-one" } } }));
+        if (event.method === "turn/interrupt") {
+          interrupted.push(event.params);
+          // 延迟回执，验证退订后立即断开时上游仍保留到中断处理完毕。
+          setTimeout(() => {
+            if (peer.readyState === WebSocket.OPEN) peer.send(JSON.stringify({ id: event.id, result: {} }), error => {
+              if (!error) acknowledged.push(event.id);
+            });
+          }, 50);
+        }
       });
-    child.stdin.end(input);
+    });
+    async function connect() {
+      const paired = once(back, "connection");
+      const front = new WebSocket("ws://localhost/", { createConnection: () => createConnection({ path: listen }) });
+      clients.push(front);
+      await once(front, "open");
+      const [peer] = await paired;
+      front.send(JSON.stringify({ id: 1, method: "initialize", params: { clientInfo: { name: "codex-tui" } } }));
+      return { front, peer };
+    }
+    async function emit({ front, peer }, method, item) {
+      const ack = once(front, "message");
+      peer.send(JSON.stringify({ method, params: { threadId: "thread-one", turnId: "turn-one", item } }));
+      await ack;
+    }
+    const origin = await connect();
+    const observer = await connect();
+    const ack = once(origin.front, "message");
+    origin.front.send(JSON.stringify({ id: 2, method: "turn/start", params: { threadId: "thread-one", turnTrigger: "user" } }));
+    await ack;
+    const operation = confirmationDigest("材料");
+    const text = "完整冻结的确认正文";
+    const command = { type: "commandExecution", id: "exec-wait", command: `ftl confirm ${operation}`, cwd: root };
+    await emit(origin, "item/started", command);
+    await emit(origin, "item/completed", { type: "agentMessage", id: "msg1", phase: "commentary", text });
+    const env = { CODEX_THREAD_ID: "thread-one", CODEX_TOOL_CALL_ID: command.id };
+    const tooEarly = codexConfirmationOrigin(root, operation, env);
+    await assert.rejects(tooEarly.verify(confirmationDigest(text)), /未展示完整/);
+    await emit(origin, "item/completed", { ...command, exitCode: 2 });
+    await emit(origin, "item/started", command);
+    const binding = await codexConfirmationOrigin(root, operation, env).verify(confirmationDigest(text));
+    assert.match(binding, /^[a-f0-9-]{36}$/);
+    const internalReplies = [];
+    origin.front.on("message", raw => {
+      const reply = JSON.parse(raw);
+      if (typeof reply.id === "string" && reply.id.startsWith("flower-confirm-")) internalReplies.push(reply.id);
+    });
+    observer.front.send(JSON.stringify({ id: 3, method: "thread/unsubscribe", params: { threadId: "thread-one" } }));
+    assert.equal(await codexConfirmationOrigin(root, operation, env).verify(confirmationDigest(text)), binding);
+    if (ending !== "关闭连接") {
+      origin.front.send(JSON.stringify({ id: 4, method: "thread/unsubscribe", params: { threadId: "thread-one" } }));
+    }
+    if (ending !== "只退订") origin.front.close();
+    const deadline = Date.now() + 1500;
+    while (!interrupted.length && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+    assert.deepEqual(interrupted, [{ threadId: "thread-one", turnId: "turn-one" }]);
+    while (!acknowledged.length && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(acknowledged.length, 1, "上游连接必须保留到收到中断回执");
+    if (ending === "只退订") assert.equal(origin.front.readyState, WebSocket.OPEN);
+    await emit(observer, "item/started", command);
+    await assert.rejects(codexConfirmationOrigin(root, operation, env).verify(confirmationDigest(text)), /已中断/);
+    assert.equal(observer.front.readyState, WebSocket.OPEN);
+    assert.deepEqual(internalReplies, [], "见证发起的中断回执不转发给客户端");
   });
-  let sequence = 0;
-  const request = (method, params) => {
-    const id = ++sequence;
-    const result = new Promise(resolve => pending.set(id, resolve));
-    stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
-    return result;
-  };
-  await request("initialize", { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-  const catalog = await request("tools/list");
-  const binding = await command(["bind"], JSON.stringify({ session_id: "fixture", source: "startup" }));
-  assert.equal(binding.code, 0, JSON.stringify(binding.value));
-  assert.equal(binding.value.bound, true);
-  return { root, runtime, shown, events, command, request, catalog, stdin };
-}
-
-test("Python准备→单工具MCP等待→Python单次领取完整贯通，正文不进入工具定义", async t => {
-  const f = await fixture(t);
-  assert.equal(f.catalog.result.tools.length, 1);
-  assert.ok(Buffer.byteLength(JSON.stringify(f.catalog.result.tools[0])) < 1024);
-  const prepared = await f.command(["prepare", "--kind", "check", "--file", "报告.md", "--problem-id", "CHK-1"]);
-  assert.equal(prepared.value.seconds, 1);
-  assert.equal(f.shown.length, 0);
-  const waited = await f.request("tools/call", { name: "wait", arguments: { request_id: prepared.value.request_id } });
-  const result = JSON.parse(waited.result.content[0].text);
-  assert.equal(result.source, "policy_timeout");
-  assert.equal(f.shown.length, 1);
-  assert.match(f.shown[0], /中文 & % ! \^/);
-  assert.ok(!waited.result.content[0].text.includes("修复当前问题"));
-  const claimed = await f.command(["claim", "--request-id", prepared.value.request_id]);
-  assert.equal(claimed.code, 0);
-  assert.equal(claimed.value.action, "repair_all_and_recheck");
-  assert.equal((await f.command(["claim", "--request-id", prepared.value.request_id])).code, 2);
-  assert.equal(f.events.filter(event => event.event === "claimed").length, 1);
-});
-
-test("真实材料变更使已返回超时结果的领取失效", async t => {
-  const f = await fixture(t);
-  const prepared = await f.command(["prepare", "--kind", "check", "--file", "报告.md", "--problem-id", "CHK-1"]);
-  await f.request("tools/call", { name: "wait", arguments: { request_id: prepared.value.request_id } });
-  fs.appendFileSync(path.join(f.root, "报告.md"), "新增业务取舍\n");
-  const claim = await f.command(["claim", "--request-id", prepared.value.request_id]);
-  assert.equal(claim.code, 2);
-  assert.equal(claim.value.manual, true);
-  assert.equal(f.events.filter(event => event.event === "claimed").length, 0);
-});
-
-test("当前入口拒绝跨会话、旧请求、畸形JSON与凭据且继续存活", async t => {
-  const f = await fixture(t);
-  await assert.rejects(callConfirmation(f.runtime.descriptor, { method: "prepare", owner: "codex_other", spec: {} }), /当前主会话/);
-  await assert.rejects(callConfirmation(f.runtime.descriptor, { method: "wait", request_id: "00000000-0000-0000-0000-000000000000" }), /当前入口/);
-  await assert.rejects(callConfirmation({ ...f.runtime.descriptor, token: "中".repeat(64) }, { method: "status" }));
-  await new Promise((resolve, reject) => {
-    const socket = createConnection({ host: "127.0.0.1", port: f.runtime.descriptor.port });
-    socket.on("connect", () => socket.write("null\n"));
-    socket.on("error", reject);
-    socket.on("close", resolve);
-  });
-  const status = await callConfirmation(f.runtime.descriptor, { method: "status" });
-  assert.equal(status.bound, true);
-  assert.equal(status.ready, true);
-  assert.ok(!JSON.stringify(status).includes(f.runtime.descriptor.token));
-  const otherRoot = path.join(f.root, "another-project");
-  fs.mkdirSync(otherRoot);
-  const mismatched = await f.command(["status"], "", otherRoot);
-  assert.equal(mismatched.code, 2);
-  assert.match(mismatched.value.error, /入口项目不匹配/);
-});
-
-test("MCP调用期间人工撤销返回cancelled并阻止默认动作", async t => {
-  const f = await fixture(t);
-  const prepared = await f.command(["prepare", "--kind", "check", "--file", "报告.md", "--problem-id", "CHK-1"]);
-  const waiting = f.request("tools/call", { name: "wait", arguments: { request_id: prepared.value.request_id } });
-  const deadline = Date.now() + 5000;
-  while (!f.events.some(event => event.event === "waiting") && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));
-  assert.ok(f.events.some(event => event.event === "waiting"), "等待必须进入受控状态");
-  f.runtime.state.cancelAll("human_input");
-  const result = JSON.parse((await waiting).result.content[0].text);
-  assert.equal(result.source, "cancelled");
-  assert.equal((await f.command(["claim", "--request-id", prepared.value.request_id])).code, 2);
-});
-
-for (const failedEvent of ["tool_ready", "cancelled"]) {
-  test(`${failedEvent}审计异常后保持人工并完整关闭监听，重复close等待清理完成`, async t => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "flower-confirmation-audit-"));
-    const runtime = await startConfirmationServer({ root, platform: "codex",
-      snapshot: async () => ({ enabled: true, seconds: 100, revision: "v1", display: "方案", contextKey: "codex_fixture" }),
-      display: async () => {}, audit: event => { if (event.event === failedEvent) throw new Error("磁盘已满"); } });
-    t.after(async () => { await runtime.close(); fs.rmSync(root, { recursive: true, force: true }); });
-    runtime.state.bind("codex_fixture");
-    const ready = await callConfirmation(runtime.descriptor, { method: "ready" });
-    if (failedEvent === "tool_ready") {
-      assert.equal(ready.ready, false);
-      const status = await callConfirmation(runtime.descriptor, { method: "status" });
-      assert.equal(status.manual, true);
-      await assert.rejects(runtime.state.prepare({}, "codex_fixture"), /审计不可用/);
-    } else await runtime.state.prepare({}, "codex_fixture");
-    await Promise.all([runtime.close(), runtime.close()]);
-    await runtime.close();
-    assert.equal(runtime.state.describe().bound, false);
-    assert.equal(runtime.state.describe().audit_ok, false);
-    await assert.rejects(callConfirmation(runtime.descriptor, { method: "status" }), /不可用|关闭/);
-  });
-}

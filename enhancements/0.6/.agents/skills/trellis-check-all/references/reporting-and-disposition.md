@@ -6,7 +6,7 @@
 - validated auto-loop：读 `references/auto-loop-return.md`，匹配 action 的 record 成功后立即 next；不渲染交互报告。
 - 普通 light strict pass：只执行下方简短格式，不读取上述细则。
 
-默认只在对话中报告，不新建报告附件；受控跨进程确认仅按 `.trellis/scripts/confirmation.md` 使用 gitignored runtime。导出须用户明确要求或交付约定；Maven 与 runner 沿用机器证据。不得用链接代替应展示内容。
+默认只在对话中报告，不新建报告附件；确认材料只进 gitignored runtime。导出须用户明确要求或交付约定；Maven 与 runner 沿用机器证据。不得用链接代替应展示内容。
 
 ## Light 通过报告
 
@@ -40,10 +40,10 @@ untracked helper 不存检查证据或风险接受。通过且按下方 Gate 默
 
 ## Interactive Post-Check Stop Gate
 
-非 validated auto-loop 先按本文件输出标准报告或接受状态的简短确认，再依序分流；不重贴已有报告：
+非 validated auto-loop 先按本文件输出标准报告或接受状态的简短确认；第 2 项使用超时时先冻结再展示，不重贴：
 
 1. 先识别当前事项最新有效的明确停止要求：`只检查`、`只读检查`、`检查后停止`、`暂不收尾`、`仅接受、不继续` 等。停止收尾，不运行 Update-Spec 或生成 Git 计划；同一事项后续明确继续可解除该限制。普通“检查一下”不等于只检查后停止，不从无关历史或摘要猜测限制。
-2. 未处置 `CHK-*` / `FBK-*`、blocked、阻断型部分验证或其它未接受实质风险（`[上线后验证]` 除外）时，不运行 Update-Spec 或生成 Git 计划。受控会话没有停止/只读要求、全部当前项可修复时，按 `.trellis/scripts/confirmation.md` 冻结完整报告和全部待处置 ID；有效 check claim 选择修复全部并重检，新业务取舍暂停。无有效 claim 时报告并停止等待人工选择；任何超时均不接受风险。受控例外以外，普通代码问题始终由用户选择修复范围；Git 请求本身不授权修复。
+2. 未处置 `CHK-*` / `FBK-*`、blocked、阻断型部分验证或其它未接受实质风险（`[上线后验证]` 除外）时，不运行 Update-Spec 或生成 Git 计划。没有停止/只读要求、全部可修复时，按 `.trellis/scripts/confirmation.md` 用 `ftl confirm` 冻结、展示报告和全部待处置 ID。匹配 `check / repair_all_and_recheck` 后修复、重检并记录结果；新业务取舍暂停。无有效 claim 时报告并停止等待人工选择；任何超时均不接受风险。其余普通代码问题始终由用户选择修复范围，Git 请求本身不授权修复。
 3. 没有有效停止要求且 strict pass，或全部 findings 已有效接受时，默认同轮继续；通过条件沿用已加载 findings reference 的风险接受规则和本文件验证阶段，完整登记的 `[上线后验证]` 不阻断。报告或简短确认后同轮进入 Update-Spec，`no-op|written` 再到 Push，`needs-review` 停止。无需 direct Git intent 或额外回复“继续”，通过不授权 Git 写入。
 4. 只从当前完成链证据识别 direct Git intent，保留 push / 用户主动 `commit-only` 选择；不从无关历史、摘要、dirty 状态或 auto-loop action 推断。风险接受沿用 findings reference 的证据规则。
 
