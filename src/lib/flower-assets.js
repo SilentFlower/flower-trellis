@@ -20,6 +20,12 @@ export const FLOWER_TELEMETRY_HOOK = "flower_telemetry_hook.py";
 /** 活动 hook 在项目内的受管位置。 */
 export const FLOWER_TELEMETRY_HOOK_REL = `.trellis/scripts/${FLOWER_TELEMETRY_HOOK}`;
 
+/** Flower 原生确认事件入口。 */
+export const FLOWER_CONFIRMATION_HOOK = "flower_confirmation_hook.py";
+
+/** 原生确认 Hook 的受管路径。 */
+export const FLOWER_CONFIRMATION_HOOK_REL = `.trellis/scripts/${FLOWER_CONFIRMATION_HOOK}`;
+
 /**
  * 复制 flower 自有脚本资产。
  *
@@ -30,7 +36,7 @@ export const FLOWER_TELEMETRY_HOOK_REL = `.trellis/scripts/${FLOWER_TELEMETRY_HO
  * @returns {{installed:string[],paths:string[]}} 已安装资产和 manifest 路径
  */
 export function copyFlowerAssets(target) {
-  const assets = [FLOWER_UPDATE_HOOK, FLOWER_SESSION_HOOK, FLOWER_TELEMETRY_HOOK];
+  const assets = [FLOWER_UPDATE_HOOK, FLOWER_SESSION_HOOK, FLOWER_TELEMETRY_HOOK, FLOWER_CONFIRMATION_HOOK];
   for (const asset of assets) {
     copyPath(
       path.join(PKG_ROOT, "src", "assets", asset),

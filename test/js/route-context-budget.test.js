@@ -137,5 +137,5 @@ test("路由缺省只读且不冒充用户选择，特殊提交仍先载入适�
   assert.match(push, /多仓\/生成依赖、已有 merge 或历史 GC ahead/);
   assert.match(push, /git-special-cases\.md.*相关规划或副作用前读取/);
   assert.match(push, /`MERGE_HEAD` 存在时仅普通模式可继续/);
-  assert.match(push, /确认前禁止 `git add`、`git commit` 或 `git push`/);
+  assert.match(push, /started 回执之前，禁止 `git add`、`git commit` 或 `git push`/);
 });

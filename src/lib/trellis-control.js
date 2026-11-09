@@ -7,6 +7,7 @@ import {
 } from "@mindfoldhq/trellis/dist/configurators/index.js";
 import { computeHash } from "@mindfoldhq/trellis/dist/utils/template-hash.js";
 import { flowerVersion, trellisVersion } from "./versions.js";
+import { cancelProjectConfirmations } from "./codex-confirmation.js";
 import {
   createUpdateSnapshot,
   disposeUpdateSnapshot,
@@ -1124,6 +1125,7 @@ export function disableTrellis(projectRoot, options = {}) {
     }
     atomicWriteJson(target, manifestPath, manifest);
 
+    cancelProjectConfirmations(target);
     for (let index = 0; index < plan.length; index += 1) {
       const entry = plan[index];
       options.onOperation?.({ phase: "before-disable", path: entry.path, index });

@@ -653,7 +653,7 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
   assert.match(workflowText, /task_progress\.py reopen --task <task-name> --json/);
   assert.match(workflowText, /task_intent\.py create --title/);
   assert.match(workflowText, /skill-garden patch workflow-phase-1-activate/);
-  assert.match(workflowText, /Unless `trellis-task-brief` validates an explicit preauthorization/);
+  assert.match(workflowText, /Activation still requires valid human\/runner authorization/);
   assert.match(workflowText, /After a later confirmation, or in the same turn/);
   assert.ok(
     workflowText.indexOf("| Task Brief Handoff |") <
@@ -693,8 +693,8 @@ test("fresh 0.6 apply 写入 Patch/helper/provenance 且重复运行文件树不
     const brainstormText = fs.readFileSync(path.join(target, relativePath), "utf8");
     assert.match(brainstormText, /skill-garden patch brainstorm-planning-handoff/);
     assert.match(brainstormText, /skill-garden patch brainstorm-planning-readiness/);
-    assert.match(brainstormText, /By default, end the current turn and wait for the user's planning review confirmation/);
-    assert.match(brainstormText, /Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope/);
+    assert.match(brainstormText, /delegate confirmation mode to that owner BEFORE the final reply/);
+    assert.match(brainstormText, /start only after that owner's valid human\/runner authorization or one-time policy_timeout claim plus started receipt/);
     assert.match(brainstormText, /Ordinary implementation intent expressed before the final artifacts/);
     assert.doesNotMatch(brainstormText, /Only a subsequent user message|In a subsequent message, the user explicitly approved|which still requires a subsequent explicit approval/);
     assert.doesNotMatch(brainstormText, /The user has reviewed the final planning artifacts/);
@@ -992,7 +992,7 @@ test("task-intent 与 intent-routing 精细安装刷新完整 intent Bundle", ()
     assert.match(value, /skill-garden patch workflow-state-missing-task/);
     assert.match(value, /skill-garden patch workflow-runtime-contract-reference/);
     assert.match(value, /skill-garden patch workflow-phase-1-activate/);
-    assert.match(value, /Unless `trellis-task-brief` validates an explicit preauthorization/);
+    assert.match(value, /Activation still requires valid human\/runner authorization/);
     assert.match(value, /After a later confirmation, or in the same turn/);
     assert.match(value, /follow `\[workflow-state:no_task\]` \/ Request Intent Routing/);
     assert.match(

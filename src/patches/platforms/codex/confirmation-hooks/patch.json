@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-codex-confirmation-hooks",
+  "purpose": "platform_config",
+  "operations": [
+    {
+      "id": "flower-codex-confirmation-input",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".codex/hooks.json",
+          "missing": "create",
+          "requires": [
+            ".codex"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "UserPromptSubmit",
+        "commandNeedle": ".trellis/scripts/flower_confirmation_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "*",
+          "timeout": 5,
+          "commandResolver": "codex-flower-confirmation",
+          "prependGroup": true
+        }
+      }
+    },
+    {
+      "id": "flower-codex-confirmation-interrupt",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".codex/hooks.json",
+          "missing": "create",
+          "requires": [
+            ".codex"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "Interrupt",
+        "commandNeedle": ".trellis/scripts/flower_confirmation_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "*",
+          "timeout": 3,
+          "commandResolver": "codex-flower-confirmation",
+          "prependGroup": false
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-claude-confirmation-hooks",
+  "purpose": "platform_config",
+  "operations": [
+    {
+      "id": "flower-claude-confirmation-start",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".claude/settings.json",
+          "missing": "create",
+          "requires": [
+            ".claude"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "SessionStart",
+        "commandNeedle": ".trellis/scripts/flower_confirmation_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "startup|resume|clear|compact",
+          "timeout": 5,
+          "commandResolver": "claude-flower-confirmation"
+        }
+      }
+    },
+    {
+      "id": "flower-claude-confirmation-input",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".claude/settings.json",
+          "missing": "create",
+          "requires": [
+            ".claude"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "UserPromptSubmit",
+        "commandNeedle": ".trellis/scripts/flower_confirmation_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "*",
+          "timeout": 5,
+          "commandResolver": "claude-flower-confirmation",
+          "prependGroup": true
+        }
+      }
+    },
+    {
+      "id": "flower-claude-confirmation-stop",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".claude/settings.json",
+          "missing": "create",
+          "requires": [
+            ".claude"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "Stop",
+        "commandNeedle": ".trellis/scripts/flower_confirmation_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "*",
+          "timeout": 5,
+          "commandResolver": "claude-flower-confirmation"
+        }
+      }
+    },
+    {
+      "id": "flower-claude-confirmation-end",
+      "operation": "replace",
+      "targets": [
+        {
+          "kind": "json",
+          "path": ".claude/settings.json",
+          "missing": "create",
+          "requires": [
+            ".claude"
+          ]
+        }
+      ],
+      "selector": {
+        "type": "json-hook-command",
+        "event": "SessionEnd",
+        "commandNeedle": ".trellis/scripts/flower_confirmation_hook.py"
+      },
+      "content": {
+        "value": {
+          "matcher": "*",
+          "timeout": 5,
+          "commandResolver": "claude-flower-confirmation"
+        }
+      }
+    }
+  ]
+}

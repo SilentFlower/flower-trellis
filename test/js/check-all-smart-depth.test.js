@@ -25,12 +25,12 @@ test("已授权检查修复保留原事项，新增未决变化仍只确认增�
   }
   const reporting = read(sourceRoot, `.agents/${references}/findings-and-reporting.md`);
   const repairs = read(sourceRoot, `.agents/${references}/repair-and-recheck.md`);
-  assert.match(reporting, /用户选择.*后，必须先读取 `references\/repair-and-recheck\.md`/);
-  assert.match(reporting, /未选择时不加载/);
+  assert.match(reporting, /用户选择.*或 reporting owner 验证 policy_timeout claim 与 started 后，必须先读取 `references\/repair-and-recheck\.md`/);
+  assert.match(reporting, /没有上述授权不加载/);
   assert.doesNotMatch(read(sourceRoot, ".agents/skills/trellis-check-all/SKILL.md"), /repair-and-recheck/);
   assert.match(repairs, /优先于新需求分类和 Active Task Scope Guard/);
-  assert.match(repairs, /受检事项、报告证据和用户选定范围/);
-  assert.match(repairs, /跨模块、属于既有缺陷或未写入任务标题\/Brief/);
+  assert.match(repairs, /受检事项、报告证据和选定范围/);
+  assert.match(repairs, /跨模块、既有缺陷或标题\/Brief 未列明/);
   assert.match(repairs, /不得因此新建或纳管任务，也不得重走首次 Brief 确认/);
   assert.match(repairs, /指针缺失时先按既有恢复规则找回受检事项/);
   assert.match(repairs, /超出所选修复范围/);
@@ -38,6 +38,7 @@ test("已授权检查修复保留原事项，新增未决变化仍只确认增�
   assert.match(repairs, /只确认尚未决定的增量/);
   assert.match(repairs, /修复过程中不对每个问题重复确认/);
   assert.match(repairs, /复用当前 check route 重新执行 Check-All/);
+  assert.match(repairs, /重检结束后记 completed，不以定向验证代替重检/);
 });
 
 test("Check-All 双平台副本统一智能深度契约", () => {
@@ -55,8 +56,8 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   );
 
   assert.equal(agents, claude);
-  assert.match(agents, /本 skill 是 \*\*薄入口\*\*/);
-  assert.match(agents, /不要提前读取未命中的 profile/);
+  assert.match(agents, /本入口检查：做对了、假设成立、做全了/);
+  assert.match(agents, /未命中的 profile\/低频细则不预读/);
   assert.match(agents, /低风险事实漂移进入 `DOC-\*` 通道/);
   assert.match(depthRouting, /requested_depth: auto \| light \| full/);
   assert.match(depthRouting, /effective_depth: light \| full/);
@@ -87,12 +88,12 @@ test("Check-All 双平台副本统一智能深度契约", () => {
   assert.match(autoLoopGate, /validated auto-loop 不渲染交互式下一步段/);
   assert.match(autoLoopGate, /record 成功后立即 `next`/);
   assert.doesNotMatch(autoLoopGate, /提示用户回复 `继续`/);
-  assert.match(interactiveGate, /非 validated auto-loop 先按本文件输出标准报告或接受状态的简短确认/);
+  assert.match(interactiveGate, /非 validated auto-loop 最终回复前/);
   assert.match(interactiveGate, /无需 direct Git intent 或额外回复“继续”/);
   assert.match(reporting, /只从当前完成链证据识别 direct Git intent/);
-  assert.match(reporting, /未处置 `CHK-\*` \/ `FBK-\*`、blocked、阻断型部分验证或其它未接受实质风险/);
-  assert.match(reporting, /普通代码问题始终由用户选择修复范围/);
-  assert.match(reporting, /所有 interactive 标准报告都必须在末尾输出 `### 下一步`/);
+  assert.match(reporting, /blocked、阻断型部分验证或未决实质风险/);
+  assert.match(reporting, /普通.*CHK\/FBK 进入“后台处置”/);
+  assert.match(reporting, /interactive 标准报告末尾必须输出 `### 下一步`/);
   assert.match(reporting, /有 blocked、阻断型部分验证或未标记 `\[上线后验证\]` 的实质风险：指出所需决策、授权或验证/);
   assert.match(reporting, /无有效停止要求且 strict pass \/ 已接受风险通过：说明本轮正在进入 `trellis-update-spec`/);
   assert.match(reporting, /有有效的明确停止要求且检查通过：说明已按要求停止/);

@@ -6,6 +6,39 @@ import test from "node:test";
 const sourceRoot = path.resolve("vendor/skill-garden/.trellis/0.6");
 const snapshotRoot = path.resolve("enhancements/0.6");
 
+test("自然确认入口在最终回复前准备，三 owner 与两端投影遵守同一领取门禁", () => {
+  const owners = [
+    ["trellis-task-brief/SKILL.md", "action=implement"],
+    ["trellis-check-all/references/reporting-and-disposition.md", "action=repair_all_and_recheck"],
+    ["trellis-push/SKILL.md", "action=execute_git_plan"],
+  ];
+  for (const [owner, action] of owners) {
+    const agents = read(sourceRoot, `.agents/skills/${owner}`);
+    assert.equal(agents, read(sourceRoot, `.claude/skills/${owner}`), owner);
+    for (const platform of [".agents", ".claude"]) {
+      assert.equal(agents, read(snapshotRoot, `${platform}/skills/${owner}`), owner);
+    }
+    assert.match(agents, /最终回复前|结束回合前/, owner);
+    assert.match(agents, /confirm prepare/, owner);
+    assert.match(agents, /confirm wait/, owner);
+    assert.match(agents, /原样完整展示.*`display`/, owner);
+    assert.ok(agents.includes(action), owner);
+    assert.match(agents, /started/, owner);
+    assert.match(agents, /实际.*原因|实际原因/, owner);
+    assert.match(agents, /本机制自身开发/, owner);
+  }
+  const protocol = read(sourceRoot, "scripts/confirmation.md");
+  assert.match(protocol, /prepare 成功而 wait 失败时，先 cancel 本请求/);
+  const handoff = read(sourceRoot, "overrides/patches/skills/trellis-brainstorm/planning-handoff/content.md");
+  const phase = read(sourceRoot, "overrides/patches/workflow/task-brief-review/phase-1-activate-content.md");
+  assert.match(handoff, /attempt its eligible background prepare\/wait/);
+  assert.match(phase, /No claim is needed to prepare/);
+  assert.doesNotMatch(handoff, /Only valid explicit preauthorization/);
+  const pushTemplate = read(sourceRoot, ".agents/skills/trellis-push/references/output-templates.md");
+  assert.match(pushTemplate, /<确认尾注：按下方规则选择后台或人工分支>/);
+  assert.match(pushTemplate, /不同时追加人工必答结尾/);
+});
+
 function read(root, relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
 }
@@ -36,22 +69,24 @@ test("Brief 显式预授权只形成文案级窄例外", () => {
   )).join("\n");
 
   assert.equal(agents, claude);
-  assert.match(phase, /Unless `trellis-task-brief` validates an explicit preauthorization/);
+  assert.match(phase, /Activation still requires valid human\/runner authorization/);
+  assert.match(phase, /No claim is needed to prepare; preparation is not implementation permission/);
   assert.match(phase, /Ordinary implementation or task-creation intent is not confirmation/);
   assert.match(phase, /After a later confirmation, or in the same turn/);
   assert.doesNotMatch(phase, /If the final Brief expands scope|permission\/security\/privacy/);
-  assert.match(agents, /展示后直接开始 \/ 不用再次确认 \/ 视为已确认/);
+  assert.match(agents, /展示后直接开始、不用再次确认或视为已确认/);
   assert.match(agents, /普通实现或建任务意图不是 Brief 预授权/);
   assert.match(agents, /若最终内容扩大范围、仍有未解决 Open Questions/);
   assert.match(agents, /不建立跨会话永久偏好，也不写 session runtime/);
-  assert.match(agents, /先完整展示，再在同一回合返回主 workflow/);
+  assert.match(agents, /有效人工授权或预授权先展示，再返回主 workflow 启动/);
   assert.match(agents, /`Goal` 保持一句话，`Scope` 只写本轮纳入的行为或改动对象/);
   assert.match(agents, /没有明确技术机制时省略 `Technical Overview`，没有具体风险时省略 `Risks`/);
   assert.match(agents, /延期事项归入 `Non-Goals`/);
   assert.doesNotMatch(agents, /Artifact Status/);
   assert.doesNotMatch(agents, /Planning artifacts|Context manifests|Review: awaiting approval/);
   assert.match(agents, /只写进入下一阶段后的一个直接动作/);
-  assert.match(brainstormHandoff, /display the full Brief in chat/);
+  assert.match(brainstormHandoff, /display the full returned display/);
+  assert.doesNotMatch(brainstormHandoff, /By default, end the current turn and wait/);
   assert.doesNotMatch(brainstormHandoff, /Artifact Status/);
   assert.match(briefShape, /one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance/);
   assert.match(briefShape, /include Technical Overview only when the planning artifacts define a technical mechanism, and Risks only when relevant/);
@@ -121,7 +156,7 @@ test("首次批准后的方案变化按已决和未决增量处理，不重复�
   assert.match(brief, /跨任务事项先服从 Active Task Scope Guard/);
   assert.match(brief, /不借泛化调整扩大范围/);
   assert.match(brief, /批准证据缺失时只定位并补核受影响决定/);
-  assert.match(phase, /For the first implementation approval/);
+  assert.match(phase, /It owns the first-review confirmation mode/);
   assert.match(phase, /Existing approval with no unresolved change decisions permits activation without another confirmation/);
   assert.match(phase, /freshness alone does not require repeating already granted approval/);
   assert.match(readiness, /follow `trellis-task-brief` for incremental plan changes/);
@@ -141,7 +176,7 @@ test("自动循环的 Brief 与 Continue 交接保留 runner 授权和旧 schema
   assert.match(brief, /不等待逐任务人工确认，也不直接执行 `task.py start`/);
   assert.match(brief, /schema 1.*后续 `confirm_brief` action 等待人工确认/);
   assert.match(brief, /run 已停止、终态、损坏或 action\/task 不匹配时不得免确认/);
-  assert.match(brief, /经校验的 auto-loop `refresh_brief`：展示后返回 runner，不进入下方交互分支/);
+  assert.match(brief, /合法 auto-loop `refresh_brief` 展示后返回 runner/);
   assert.match(autoLoop, /不逐任务执行 `confirm_brief`/);
   assert.ok(recovery.indexOf("auto_loop.py status") < recovery.indexOf("task_progress.py status"));
   assert.match(recovery, /`preparing`, `awaiting_input`, or `running`/);

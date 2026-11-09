@@ -81,6 +81,8 @@ function printHelp() {
   flower-trellis update-all --root <dir> --target <dir>   批量发现并更新多个项目
   flower-trellis update-check <get|set|disable|enable|snooze|skip|reset>
                                                         管理启动更新策略
+  flower-trellis confirm <prepare|wait|claim|result|status|cancel>
+                                                        原生对话后台超时确认
   flower-trellis telemetry <status|enable|disable>       管理匿名安装遥测
   flower-trellis status                                 检查项目级 Trellis 开关状态
   flower-trellis disable                                项目级关闭 Trellis
@@ -137,9 +139,6 @@ async function main() {
   // 新进程先修复旧版或异常退出遗留的 ConPTY 输入模式，退出时再兜底恢复一次。
   installWindowsTerminalInputRecovery();
 
-  // Ctrl+C:父进程也立即退出,绝不在子进程被取消后继续叠加
-  process.on("SIGINT", () => process.exit(130));
-
   const argv = process.argv.slice(2);
 
   // 顶层 -v / -h 仅在作为首个参数时拦截；Flower 子命令各自处理帮助，其它命令透传 Trellis。
@@ -154,6 +153,8 @@ async function main() {
 
   const { command, ctx } = parseCliArgs(argv);
   const cmd = command || "init"; // 裸跑等同 init
+  // 确认命令需要先失效状态；按解析后的命令识别，也支持 --target 位于命令前。
+  if (cmd !== "confirm") process.on("SIGINT", () => process.exit(130));
 
   // 互斥校验
   if (ctx.enhanceOnly && !ctx.enhance) {
@@ -181,6 +182,10 @@ async function main() {
     } else if (cmd === "update-check") {
       const { updateCheck } = await import("./commands/update-check.js");
       await updateCheck(ctx);
+    } else if (cmd === "confirm") {
+      const { confirm } = await import("./commands/confirm.js");
+      const code = await confirm(ctx);
+      if (code !== 0) process.exitCode = code;
     } else if (cmd === "telemetry") {
       const { telemetry } = await import("./commands/telemetry.js");
       await telemetry(ctx);

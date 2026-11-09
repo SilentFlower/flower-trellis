@@ -258,11 +258,11 @@ test("各 Gate 的完整契约位于原生 owner", () => {
   assert.match(untrackedState, /task_intent\.py adopt/);
   assert.match(untrackedState, /never authorizes immediate implementation/);
   assert.match(planningState, /task_intent\.py discard --task <current-task>/);
-  assert.match(brainstorm, /wait for the user's planning review confirmation/i);
+  assert.match(brainstorm, /delegate confirmation mode to that owner BEFORE the final reply/);
   assert.match(brainstormQualityBar, /contains testable acceptance criteria/);
   assert.match(brainstormQualityBar, /Repository-answerable questions have already been answered/);
-  assert.match(taskBrief, /默认等待用户确认后再运行 `task\.py start`/);
-  assert.match(taskBrief, /免除第二次确认/);
+  assert.match(taskBrief, /未取得人工授权或有效 policy_timeout 领取及 started 回执前，不运行 `task\.py start`/);
+  assert.match(taskBrief, /不能直接套人工模板停止/);
   assert.match(beforeDev, /Follow the workflow `Request Triage` Project Knowledge Discovery contract/);
   assert.doesNotMatch(beforeDev, /python3 \.\/\.trellis\/scripts\/spec_router\.py/);
   assert.match(updateHook, /priority: blocking_confirmation_required/);
@@ -274,11 +274,11 @@ test("各 Gate 的完整契约位于原生 owner", () => {
   assert.match(route, /返回 workflow Phase 2\.1 的 completion contract/);
   assert.match(checkAllReporting, /validated auto-loop.*auto-loop-return\.md/);
   assert.equal((checkAllReporting.match(/## Interactive Post-Check Stop Gate/g) || []).length, 1);
-  assert.match(checkAll, /本 skill 是 \*\*薄入口\*\*/);
+  assert.match(checkAll, /本入口检查：做对了、假设成立、做全了/);
   assert.match(checkAllReporting, /不新增 direct Git 摘要或 Git 计划/);
   assert.match(activeState, /follow the `Interactive Post-Check Stop Gate`/);
   assert.doesNotMatch(activeState, /no-op.*written|partial verification|material residual risk/);
-  assert.match(push, /Phase 3\.4 唯一的代码提交入口/);
+  assert.match(push, /独占 Phase 3\.4/);
   assert.match(push, /## Step 0：记录完成链证据/);
   assert.match(push, /根据当前 `spec_update_result` 与实际 diff 标记/);
   assert.match(push, /本步骤不得返回 Phase 2\.2/);
@@ -418,7 +418,7 @@ test("Workflow Gate 可达性场景覆盖真实入口顺序", () => {
   assert.doesNotMatch(requestTriage, /task_intent\.py discard/);
 
   for (const [name, value, downstream] of [
-    ["planning", planning, "Before the first implementation approval"],
+    ["planning", planning, "Before the first implementation"],
     ["in_progress", inProgress, "Enter Phase 2.1/2.2"],
   ]) {
     assertOrdered(

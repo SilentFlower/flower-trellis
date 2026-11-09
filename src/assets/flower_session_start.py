@@ -32,15 +32,18 @@ Prefer simple, clear code for confirmed needs (KISS, YAGNI). Apply SOLID and DRY
 CODEX_USER_INTERACTION_HINT = """<trellis-codex-user-interaction>
 For questions, use synchronous request_user_input when allowed by the active tool instructions and schema; otherwise ask in the final reply and wait. Do not call request_user_input_async, send_user_message_async, or async equivalents. Show progress in commentary and results in final. Keep existing review/approval gates; never switch modes to unlock a tool or infer consent from silence.
 </trellis-codex-user-interaction>"""
-MODEL_WORKFLOW_HINT_BODY = """Applies only while the active model is {model}; it does not apply after switching models. Perform checks internally, without a routine checklist report. Keep ordinary answers brief.
+CONFIRMATION_HINT = """<trellis-confirmation>
+Before final Brief/Check-All/Push output, follow .trellis/scripts/confirmation.md: resolve --entry, attempt eligible prepare, background wait, full display, end turn. Manual fallback needs an exclusion or actual failure reason. Generic commit intent does not approve a later plan. Execute only on valid human/runner authorization or policy_timeout claim plus started receipt. Human decisions and host approvals stay manual.
+</trellis-confirmation>"""
+MODEL_WORKFLOW_HINT_BODY = """Applies only to active {model}. Keep ordinary replies brief; perform checks internally.
 When executing the current task:
-- Act autonomously within applicable SKILL and WORKFLOW steps. Do not waive required steps, references, review gates or templates because work seems simple, a check seems redundant, or fewer interruptions are preferred.
-- Before a step, review its rules and required references. Reuse material already read in full and unchanged; search matches are not full reads.
-- Preserve required heading levels, section order, and conditional sections in specified templates. General brevity or no-heading preferences apply to ordinary prose and do not justify flattening, shortening, or reshaping a specified template.
-- Resolve conflicts by instruction hierarchy. Follow the owning workflow's phase-transition and review requirements. Permission to begin planning does not approve the final plan.
-- Where the workflow requires review of a displayed plan, a generic request such as "commit and push" starts that workflow; it does not itself confirm a plan produced afterward. Reuse approval of the same plan or an explicit waiver within its scope, including valid auto-loop preauthorization. Otherwise, display the plan and wait for the user's confirmation before acting. Verify the actual user reply; displaying a plan or saying "executing as authorized" is not confirmation.
-- Before claiming "read", "checked", or "complete", verify actual tool records and artifacts. Successful reading and compliant execution are separate facts.
-- When corrected, review the applicable rules, execution records, and actual result before repairing it. If evidence is missing, state uncertainty. Do not invent causes such as "not read", "forgot", or "file missing", or consult unrelated rules in place of the relevant ones."""
+- Follow SKILL and WORKFLOW steps autonomously. Simplicity, redundant checks or fewer interruptions do not waive required steps, references, gates or templates.
+- Before a step, read its rules and required references. Reuse fully read, unchanged material; search matches are not full reads.
+- Preserve required template headings, order and conditional sections. Brevity does not waive structure.
+- Resolve conflicts by instruction hierarchy; follow the owner's phase transitions. Planning intent does not approve a final plan.
+- Generic work/Git intent does not approve a later plan. Follow the gate owner BEFORE ending the turn: eligible prepare, background wait, full display; exclusions or actual failures use manual confirmation. Act only on a verified user reply, valid runner authorization, or policy_timeout claim AND started receipt. Silence and display are not human approval; unresolved decisions and host approvals stay manual.
+- Verify actual tool records and artifacts before claiming read, checked or complete. Reading and compliance are separate facts.
+- When corrected, inspect applicable rules, records and results before repairing. State missing evidence; do not invent causes or substitute unrelated rules."""
 ASTRA_WORKFLOW_HINT = (f'<trellis-astra-workflow-hint model="{ASTRA_MODEL}" version="1">\n'
                        f'{MODEL_WORKFLOW_HINT_BODY.format(model=ASTRA_MODEL)}\n'
                        '</trellis-astra-workflow-hint>')
@@ -337,15 +340,17 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
         if source in ("startup", "resume"):
             maintenance_message = _run_task_maintenance(root)
         if source == "resume":
-            if not maintenance_message:
+            if _load_hook(root, hook).should_skip_injection():
                 return None
-            return {
-                "systemMessage": maintenance_message,
+            result = {
                 "hookSpecificOutput": {
                     "hookEventName": "SessionStart",
-                    "additionalContext": "",
+                    "additionalContext": CONFIRMATION_HINT,
                 },
             }
+            if maintenance_message:
+                result["systemMessage"] = maintenance_message
+            return result
         result = _run_native_hook(root, hook, hook_input)
         if result is None:
             return None
@@ -384,7 +389,7 @@ def render_part(root: Path, hook: str, part: str, hook_input: dict) -> dict | No
             result["systemMessage"] = "\n".join(filter(None, [result.get("systemMessage"), message]))
             print(message, file=sys.stderr)
         if source in ("startup", "clear", "compact"):
-            context = f"{context}\n{CODE_DESIGN_HINT}"
+            context = f"{context}\n{CODE_DESIGN_HINT}\n{CONFIRMATION_HINT}"
         if hook == HOOKS[0] and source in ("startup", "clear", "compact"):
             # 交互方式属于 Codex 平台规则，不能因模型切换或关闭模型提示而消失。
             context = f"{context}\n{CODEX_USER_INTERACTION_HINT}"

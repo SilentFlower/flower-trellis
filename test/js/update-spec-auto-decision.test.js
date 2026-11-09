@@ -102,11 +102,11 @@ test("交互 Check-All 通过默认同轮收尾，明确停止、人工修复和
   }
   assert.match(postCheck, /同一事项后续明确继续可解除该限制/);
   assert.match(postCheck, /普通“检查一下”不等于只检查后停止/);
-  assert.match(postCheck, /普通代码问题始终由用户选择修复范围/);
+  assert.match(postCheck, /普通.*CHK\/FBK 进入“后台处置”/);
   assert.match(postCheck, /没有有效停止要求且 strict pass，或全部 findings 已有效接受时，默认同轮继续/);
   assert.match(postCheck, /无需 direct Git intent 或额外回复“继续”，通过不授权 Git 写入/);
-  assert.ok(postCheck.indexOf("先识别当前事项") < postCheck.indexOf("未处置 `CHK-*`"));
-  assert.ok(postCheck.indexOf("未处置 `CHK-*`") < postCheck.indexOf("没有有效停止要求且 strict pass"));
+  assert.ok(postCheck.indexOf("先识别当前事项") < postCheck.indexOf("2. blocked、阻断型部分验证或未决实质风险"));
+  assert.ok(postCheck.indexOf("2. blocked、阻断型部分验证或未决实质风险") < postCheck.indexOf("没有有效停止要求且 strict pass"));
   assert.doesNotMatch(postCheck, /普通 interactive 检查保持原行为|提示用户回复 `继续`/);
   assert.match(postCheck, /### 交互式下一步引导/);
   assert.match(postCheck, /无有效停止要求且 strict pass \/ 已接受风险通过：说明本轮正在进入 `trellis-update-spec`/);
@@ -116,7 +116,7 @@ test("交互 Check-All 通过默认同轮收尾，明确停止、人工修复和
   assert.match(workflow, /Interactive completion proceeds Check-All -> `trellis-update-spec` -> `trellis-push`/);
   assert.doesNotMatch(postCheck, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.match(state, /interactive strict pass or valid accepted-risk pass defaults to same-turn `trellis-update-spec`/);
-  assert.match(inlineState, /explicit check-only\/stop requests and unresolved findings stop/);
+  assert.match(inlineState, /explicit check-only\/stop requests stop.*Pending findings follow that owner’s background prepare\/wait/);
   assert.doesNotMatch(state, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.doesNotMatch(inlineState, /spec_update_result|changed_files|\.trellis\/spec/);
   assert.match(checkAllReporting, /## Interactive Post-Check Stop Gate/);
@@ -133,9 +133,9 @@ test("交互 Check-All 通过默认同轮收尾，明确停止、人工修复和
   assert.match(push, /不得加载 `trellis-check-all` 或 `trellis-update-spec`/);
   assert.match(push, /不会阻止读取 Git 状态或生成提交计划/);
   assert.match(push, /即将展示用户可见计划时，读取 `references\/output-templates\.md`/);
-  assert.match(push, /即将展示用户可见结果时，读取 `references\/output-templates\.md`/);
+  assert.match(push, /展示结果前，读取 `references\/output-templates\.md`/);
   assert.match(push, /已读、未变化且内容仍可用时直接复用/);
-  assert.match(push, /模板变化或上下文缺失才重读/);
+  assert.match(push, /变化或缺失才重读/);
   assert.match(push, /“共用展示规则”、“结果模板”和“结果补充规则”/);
   assert.match(push, /不得凭记忆重建、缩写或自制替代模板/);
   assert.match(pushTemplates, /### 完成链证据/);
@@ -189,7 +189,7 @@ test("快速直改用真实定向验证同轮衔接规范评估与计划，停�
       assert.match(push, /必要定向验证成功覆盖当前 diff/);
       assert.match(push, /验证缺失\/失败\/失效或范围扩大不得使用/);
       assert.match(push, /task\/tracked 缺检查仍按实际状态列风险/);
-      assert.match(push, /确认前禁止 `git add`、`git commit` 或 `git push`/);
+      assert.match(push, /started 回执之前，禁止 `git add`、`git commit` 或 `git push`/);
       assert.match(templates, /\*\*定向验证\*\*：<真实命令、结果与覆盖范围>（仅合法快速直改时显示）/);
       assert.match(templates, /遵守 Step 0 资格，不算未检查风险；必须展示“定向验证”行/);
       assert.match(templates, /其它风险照常/);

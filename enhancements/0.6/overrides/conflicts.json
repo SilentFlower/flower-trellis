@@ -116,12 +116,12 @@
         "values": [
           "The existing `Interactive Post-Check Stop Gate` owns default continuation and explicit stopping.",
           "without another next/continue reply or a direct Git prerequisite",
-          "checks never authorize ordinary code repair",
+          "A timeout permits repair only after claim plus started recording, never risk acceptance.",
           "or replace Push confirmation"
         ]
       },
       "owner": "trellis-check-all",
-      "reason": "检查通过后默认推进，明确只检查仍停止；普通修复和 Git 写入仍需人工决定。"
+      "reason": "检查通过默认推进；普通待处置项由 Stop Gate 准备后台确认，实际领取并 started 后才修复，阻塞和未决风险保持人工。"
     },
     {
       "id": "workflow-required-task-brief-review",
@@ -134,14 +134,16 @@
         "type": "required-literal",
         "values": [
           "<!-- BEGIN skill-garden patch workflow-phase-1-activate v0.6 -->\n#### 1.4 Activate task `[required · once]`\n\nBefore changing task status, load `trellis-task-brief`",
-          "Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief",
+          "Activation still requires valid human/runner authorization",
           "Ordinary implementation or task-creation intent is not confirmation.",
           "After initial approval, follow that owner's incremental change rules",
-          "After a later confirmation, or in the same turn when that explicit preauthorization remains valid"
+          "After a later confirmation, or in the same turn when that explicit preauthorization remains valid",
+          "No claim is needed to prepare; preparation is not implementation permission.",
+          "after a validated one-time policy-timeout claim with successful started recording"
         ]
       },
       "owner": "trellis-task-brief",
-      "reason": "Phase 1.4 只保留 Brief 展示、默认等待和由 trellis-task-brief 验证的预授权分支。"
+      "reason": "Phase 1.4 完整展示 Brief，确认、显式预授权或实际单次领取的后台策略决定后，才进入原激活与路由。"
     },
     {
       "id": "brainstorm-required-planning-handoff",
@@ -157,12 +159,13 @@
           "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Quality Bar",
           "## Planning Handoff",
           "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n8. Load `trellis-task-brief`",
-          "Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope.",
+          "start only after that owner's valid human/runner authorization or one-time policy_timeout claim plus started receipt.",
           "The final Brief must cover a one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance, and one-hop Next Step",
           "Ordinary implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
           "Once initial Brief approval exists, plan updates use `trellis-task-brief`'s incremental change rules.",
           "unresolved items are `- [ ]`",
-          "Do not write bare placeholders"
+          "Do not write bare placeholders",
+          "attempt its eligible background prepare/wait"
         ]
       },
       "owner": "trellis-brainstorm",
@@ -182,12 +185,13 @@
           "<!-- BEGIN skill-garden patch brainstorm-planning-handoff v0.6 -->\n## Quality Bar",
           "## Planning Handoff",
           "<!-- BEGIN skill-garden patch brainstorm-planning-readiness v0.6 -->\n8. Load `trellis-task-brief`",
-          "Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope.",
+          "start only after that owner's valid human/runner authorization or one-time policy_timeout claim plus started receipt.",
           "The final Brief must cover a one-sentence Goal, a Scope limited to included changes, Non-Goals, Context & Decisions, Acceptance, and one-hop Next Step",
           "Ordinary implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only",
           "Once initial Brief approval exists, plan updates use `trellis-task-brief`'s incremental change rules.",
           "unresolved items are `- [ ]`",
-          "Do not write bare placeholders"
+          "Do not write bare placeholders",
+          "attempt its eligible background prepare/wait"
         ]
       },
       "owner": "trellis-brainstorm",
@@ -266,7 +270,9 @@
       "id": "task-finish-required-clear-result",
       "severity": "error",
       "target": ".trellis/scripts/task.py",
-      "whenOperations": ["task-finish-clear-result"],
+      "whenOperations": [
+        "task-finish-clear-result"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -351,7 +357,9 @@
       "id": "paths-required-clear-result",
       "severity": "error",
       "target": ".trellis/scripts/common/paths.py",
-      "whenOperations": ["paths-clear-current-result"],
+      "whenOperations": [
+        "paths-clear-current-result"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1089,7 +1097,9 @@
       "id": "trellis-meta-no-stale-lifecycle-rebind-agents",
       "severity": "error",
       "target": ".agents/skills/trellis-meta/references/customize-local/change-task-lifecycle.md",
-      "whenOperations": ["trellis-meta-managed-lifecycle-entry-points"],
+      "whenOperations": [
+        "trellis-meta-managed-lifecycle-entry-points"
+      ],
       "assertion": {
         "type": "absent-literal",
         "values": [
@@ -1103,7 +1113,9 @@
       "id": "trellis-meta-no-stale-lifecycle-rebind-claude",
       "severity": "error",
       "target": ".claude/skills/trellis-meta/references/customize-local/change-task-lifecycle.md",
-      "whenOperations": ["trellis-meta-managed-lifecycle-entry-points"],
+      "whenOperations": [
+        "trellis-meta-managed-lifecycle-entry-points"
+      ],
       "assertion": {
         "type": "absent-literal",
         "values": [
@@ -1117,7 +1129,9 @@
       "id": "trellis-meta-no-static-continue-route-agents",
       "severity": "error",
       "target": ".agents/skills/trellis-meta/references/customize-local/change-workflow.md",
-      "whenOperations": ["trellis-meta-managed-continue-recovery"],
+      "whenOperations": [
+        "trellis-meta-managed-continue-recovery"
+      ],
       "assertion": {
         "type": "absent-literal",
         "values": [
@@ -1133,7 +1147,9 @@
       "id": "trellis-meta-no-static-continue-route-claude",
       "severity": "error",
       "target": ".claude/skills/trellis-meta/references/customize-local/change-workflow.md",
-      "whenOperations": ["trellis-meta-managed-continue-recovery"],
+      "whenOperations": [
+        "trellis-meta-managed-continue-recovery"
+      ],
       "assertion": {
         "type": "absent-literal",
         "values": [
@@ -1149,7 +1165,9 @@
       "id": "trellis-meta-required-check-all-agent-route-agents",
       "severity": "error",
       "target": ".agents/skills/trellis-meta/references/customize-local/change-agents.md",
-      "whenOperations": ["trellis-meta-managed-check-all-agent-route"],
+      "whenOperations": [
+        "trellis-meta-managed-check-all-agent-route"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1164,7 +1182,9 @@
       "id": "trellis-meta-required-check-all-agent-route-claude",
       "severity": "error",
       "target": ".claude/skills/trellis-meta/references/customize-local/change-agents.md",
-      "whenOperations": ["trellis-meta-managed-check-all-agent-route"],
+      "whenOperations": [
+        "trellis-meta-managed-check-all-agent-route"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1235,7 +1255,9 @@
       "id": "trellis-meta-required-platform-edit-route-agents",
       "severity": "error",
       "target": ".agents/skills/trellis-meta/references/platform-files/overview.md",
-      "whenOperations": ["trellis-meta-managed-platform-edit-route"],
+      "whenOperations": [
+        "trellis-meta-managed-platform-edit-route"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1251,7 +1273,9 @@
       "id": "trellis-meta-required-command-example-agents",
       "severity": "error",
       "target": ".agents/skills/trellis-meta/references/platform-files/skills-and-commands.md",
-      "whenOperations": ["trellis-meta-managed-command-example-language"],
+      "whenOperations": [
+        "trellis-meta-managed-command-example-language"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1265,7 +1289,9 @@
       "id": "trellis-meta-required-platform-edit-route-claude",
       "severity": "error",
       "target": ".claude/skills/trellis-meta/references/platform-files/overview.md",
-      "whenOperations": ["trellis-meta-managed-platform-edit-route"],
+      "whenOperations": [
+        "trellis-meta-managed-platform-edit-route"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1381,10 +1407,14 @@
       "id": "trellis-meta-no-native-only-scope-agents",
       "severity": "error",
       "target": ".agents/skills/trellis-meta/SKILL.md",
-      "whenOperations": ["trellis-meta-managed-scope"],
+      "whenOperations": [
+        "trellis-meta-managed-scope"
+      ],
       "assertion": {
         "type": "absent-literal",
-        "values": ["The default operating scope is local files in the user project:"]
+        "values": [
+          "The default operating scope is local files in the user project:"
+        ]
       },
       "owner": "trellis-meta",
       "reason": "managed mode 下不能继续把所有部署文件无条件视为本地编辑目标。"
@@ -1393,10 +1423,14 @@
       "id": "trellis-meta-no-native-only-scope-claude",
       "severity": "error",
       "target": ".claude/skills/trellis-meta/SKILL.md",
-      "whenOperations": ["trellis-meta-managed-scope"],
+      "whenOperations": [
+        "trellis-meta-managed-scope"
+      ],
       "assertion": {
         "type": "absent-literal",
-        "values": ["The default operating scope is local files in the user project:"]
+        "values": [
+          "The default operating scope is local files in the user project:"
+        ]
       },
       "owner": "trellis-meta",
       "reason": "Claude managed mode 不能保留无 ownership 条件的本地编辑范围。"
@@ -1481,10 +1515,14 @@
       "id": "trellis-meta-no-nearest-file-only-route-agents",
       "severity": "error",
       "target": ".agents/skills/trellis-meta/references/platform-files/overview.md",
-      "whenOperations": ["trellis-meta-managed-platform-edit-route"],
+      "whenOperations": [
+        "trellis-meta-managed-platform-edit-route"
+      ],
       "assertion": {
         "type": "absent-literal",
-        "values": ["4. Modify the local file closest to the user's need."]
+        "values": [
+          "4. Modify the local file closest to the user's need."
+        ]
       },
       "owner": "trellis-meta",
       "reason": "shared platform 路由必须先查 ownership，不能仅按最近部署文件选择。"
@@ -1493,10 +1531,14 @@
       "id": "trellis-meta-no-nearest-file-only-route-claude",
       "severity": "error",
       "target": ".claude/skills/trellis-meta/references/platform-files/overview.md",
-      "whenOperations": ["trellis-meta-managed-platform-edit-route"],
+      "whenOperations": [
+        "trellis-meta-managed-platform-edit-route"
+      ],
       "assertion": {
         "type": "absent-literal",
-        "values": ["4. Modify the local file closest to the user's need."]
+        "values": [
+          "4. Modify the local file closest to the user's need."
+        ]
       },
       "owner": "trellis-meta",
       "reason": "Claude platform 路由必须先查 ownership，不能只改最近部署文件。"
@@ -1611,7 +1653,9 @@
       "id": "session-insight-required-grok-memory-agents",
       "severity": "error",
       "target": ".agents/skills/trellis-session-insight/SKILL.md",
-      "whenOperations": ["session-insight-grok-overview"],
+      "whenOperations": [
+        "session-insight-grok-overview"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1647,7 +1691,9 @@
       "id": "codex-check-required-check-all-intent-guard",
       "severity": "error",
       "target": ".codex/agents/trellis-check.toml",
-      "whenOperations": ["codex-check-all-intent-guard"],
+      "whenOperations": [
+        "codex-check-all-intent-guard"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1664,7 +1710,9 @@
       "id": "channel-check-required-check-all-intent-guard",
       "severity": "error",
       "target": ".trellis/agents/check.md",
-      "whenOperations": ["channel-check-all-intent-guard"],
+      "whenOperations": [
+        "channel-check-all-intent-guard"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1681,7 +1729,9 @@
       "id": "workflow-required-completed-lifecycle",
       "severity": "error",
       "target": ".trellis/workflow.md",
-      "whenOperations": ["workflow-state-completed"],
+      "whenOperations": [
+        "workflow-state-completed"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1698,7 +1748,9 @@
       "id": "workflow-required-managed-customization-guidance",
       "severity": "error",
       "target": ".trellis/workflow.md",
-      "whenOperations": ["workflow-managed-customization-guidance"],
+      "whenOperations": [
+        "workflow-managed-customization-guidance"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1714,7 +1766,9 @@
       "id": "task-current-required-query-contract",
       "severity": "error",
       "target": ".trellis/scripts/task.py",
-      "whenOperations": ["task-current-query-contract"],
+      "whenOperations": [
+        "task-current-query-contract"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1730,7 +1784,9 @@
       "id": "task-reference-required-strict-resolver",
       "severity": "error",
       "target": ".trellis/scripts/common/task_utils.py",
-      "whenOperations": ["task-reference-resolution"],
+      "whenOperations": [
+        "task-reference-resolution"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1749,7 +1805,9 @@
       "id": "task-lifecycle-required-shared-views",
       "severity": "error",
       "target": ".trellis/scripts/common/tasks.py",
-      "whenOperations": ["task-lifecycle-shared-views"],
+      "whenOperations": [
+        "task-lifecycle-shared-views"
+      ],
       "assertion": {
         "type": "required-literal",
         "values": [
@@ -1827,10 +1885,14 @@
       "id": "task-lifecycle-no-after-archive-config",
       "severity": "error",
       "target": ".trellis/config.yaml",
-      "whenOperations": ["task-lifecycle-config-after-close"],
+      "whenOperations": [
+        "task-lifecycle-config-after-close"
+      ],
       "assertion": {
         "type": "absent-literal",
-        "values": ["after_archive"]
+        "values": [
+          "after_archive"
+        ]
       },
       "owner": "task-closeout-lifecycle",
       "reason": "生命周期配置只允许 after_close，不得恢复已删除的 after_archive。"
@@ -1839,10 +1901,14 @@
       "id": "task-lifecycle-no-after-archive-config-doc",
       "severity": "error",
       "target": ".trellis/scripts/common/config.py",
-      "whenOperations": ["task-lifecycle-config-doc-after-close"],
+      "whenOperations": [
+        "task-lifecycle-config-doc-after-close"
+      ],
       "assertion": {
         "type": "absent-literal",
-        "values": ["after_archive"]
+        "values": [
+          "after_archive"
+        ]
       },
       "owner": "task-closeout-lifecycle",
       "reason": "配置 helper 文档必须与 after_close 硬切换保持一致。"

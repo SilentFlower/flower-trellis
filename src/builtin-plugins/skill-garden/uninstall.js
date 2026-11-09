@@ -3,6 +3,8 @@ import { ProjectStore } from "../../plugin/state/project-store.js";
 import { TransactionWriter } from "../../plugin/install/transaction-writer.js";
 import { hashFileIfExists } from "../../plugin/install/content-hash.js";
 import { SKILL_GARDEN_PLUGIN_ID } from "./provider.js";
+import { prepareConfirmationHookRemoval } from "../../lib/confirmation-uninstall.js";
+import { buildPluginPatchMutations, buildPluginPatchPayloads } from "../../plugin/install/patch-planner.js";
 
 /**
  * 按 Plugin state 生成 skill-garden 卸载计划。
@@ -61,7 +63,9 @@ export function planSkillGardenUninstall(projectRoot) {
       source: `state:${SKILL_GARDEN_PLUGIN_ID}:${item.path}`,
     });
   }
-  return { managed: true, removals, conflicts, shared, dependents, plugins, lock, state };
+  const confirmationHooks = entry.patches.some(({ operation }) => /^flower\/flower-(?:claude|codex)-confirmation-/.test(operation));
+  if (confirmationHooks) prepareConfirmationHookRemoval(projectRoot);
+  return { managed: true, removals, conflicts, shared, dependents, plugins, lock, state, confirmationHooks };
 }
 
 /**
@@ -94,8 +98,9 @@ export function applySkillGardenUninstall(projectRoot, cleanupPlan) {
           paths: plugin.paths.filter((entry) => (
             entry.ownership === "shared" || conflictPaths.has(entry.path)
           )),
-          patches: plugin.patches.filter(({ target }) => (
-            target !== ".trellis" && !target.startsWith(".trellis/")
+          patches: plugin.patches.filter(({ target, operation }) => (
+            target !== ".trellis" && !target.startsWith(".trellis/") &&
+            !(cleanupPlan.confirmationHooks && /^flower\/flower-(?:claude|codex)-confirmation-/.test(operation))
           )),
         }
         : plugin
@@ -106,15 +111,18 @@ export function applySkillGardenUninstall(projectRoot, cleanupPlan) {
   } : { schemaVersion: 1, transactionVersion: 1, plugins: [] };
   const store = new ProjectStore(projectRoot);
   const writer = new TransactionWriter(projectRoot, { store });
+  // 上游卸载可能已移除平台目录；按卸载后的实际文件重建清理计划，不复活目录或覆盖用户 Hook。
+  const hookPlan = cleanupPlan.confirmationHooks ? prepareConfirmationHookRemoval(projectRoot) : null;
+  const patchMutations = hookPlan ? buildPluginPatchMutations(hookPlan, new Map([["flower-confirmation-cleanup", SKILL_GARDEN_PLUGIN_ID]])) : [];
   const transaction = writer.apply({
     plan: {
       graph: { roots: [...lock.roots], plugins: [...lock.plugins] },
       contentMutations: cleanupPlan.removals,
-      patchMutations: [],
+      patchMutations,
       diagnostics: [],
     },
     payloads: new Map(),
-    patchPayloads: new Map(),
+    patchPayloads: hookPlan ? buildPluginPatchPayloads(hookPlan) : new Map(),
     plugins,
     lock,
     state,

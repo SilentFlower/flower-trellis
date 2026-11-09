@@ -1691,7 +1691,7 @@ class PatchConsumerTest(unittest.TestCase):
         )
         self.assertIn("skill-garden patch workflow-phase-1-activate", workflow)
         self.assertIn(
-            "Unless `trellis-task-brief` validates an explicit preauthorization",
+            "Activation still requires valid human/runner authorization",
             workflow,
         )
         self.assertIn(

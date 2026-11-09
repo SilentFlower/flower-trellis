@@ -12,6 +12,8 @@
     "claude/session-start-hooks",
     "claude/statusline-active-tasks",
     "claude/telemetry-hooks",
-    "codex/telemetry-hooks"
+    "codex/telemetry-hooks",
+    "codex/confirmation-hooks",
+    "claude/confirmation-hooks"
   ]
 }

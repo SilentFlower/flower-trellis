@@ -166,7 +166,7 @@ test("route、专用 agent、workflow 与 push 使用相同的风险接受语义
   assert.match(agentBody, /Any remaining `CHK-\*` or `FBK-\*`, blocker, or blocking partial verification blocks strict pass/);
   assert.match(agentBody, /do not infer, grant, or erase that acceptance yourself/);
   assert.match(workflow, /every remaining finding explicitly and validly accepted by the user/);
-  assert.match(workflow, /Any unaccepted finding.*reports and stops/);
+  assert.match(workflow, /actual blockers, exclusions or failures stay manual with reasons/);
   assert.match(workflow, /`\[上线后验证\]` items remain visible but do not block/);
   assert.match(workflow, /does not itself force another Full/);
   assert.match(pushAgents, /有效已接受风险/);
@@ -215,7 +215,7 @@ test("全部有效风险接受后默认承接 Update-Spec，人工停止与 Git 
 
   assert.match(reporting, /全部 findings 已有效接受时，默认同轮继续/);
   assert.match(reporting, /明确“仅接受、不继续”时只更新处置/);
-  assert.match(reporting, /仍有未处置问题或阻塞时说明剩余项并停止/);
+  assert.match(reporting, /交由 reporting owner 决定后台准备或人工停止/);
   assert.match(reporting, /接受风险不替代 Push 的精确计划确认/);
   assert.match(workflow, /without another next\/continue reply or a direct Git prerequisite/);
   assert.match(workflow, /Unless the user explicitly requests check-only, read-only checking, stopping after the check/);

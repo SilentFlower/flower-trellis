@@ -1,4 +1,4 @@
-import { FLOWER_UPDATE_HOOK_REL, FLOWER_SESSION_HOOK_REL, FLOWER_TELEMETRY_HOOK_REL } from "./flower-assets.js";
+import { FLOWER_UPDATE_HOOK_REL, FLOWER_SESSION_HOOK_REL, FLOWER_TELEMETRY_HOOK_REL, FLOWER_CONFIRMATION_HOOK_REL } from "./flower-assets.js";
 import { applyTomlDefaultBoolean, scanTomlStatements } from "./toml-default-adapter.js";
 
 const CODEX_WORKFLOW_HOOK = ".codex/hooks/inject-workflow-state.py";
@@ -39,8 +39,12 @@ function resolveCommand(name, config, pythonCommand) {
   if (name === "codex-flower-update") {
     return codexBase.replace(CODEX_WORKFLOW_HOOK, FLOWER_UPDATE_HOOK_REL);
   }
+  if (name === "codex-flower-confirmation") {
+    return codexBase.replace(CODEX_WORKFLOW_HOOK, `${FLOWER_CONFIRMATION_HOOK_REL} --platform codex`);
+  }
   const claudeBase = findHookCommand(config, "UserPromptSubmit", CLAUDE_WORKFLOW_HOOK) ||
     `${pythonCommand} ${CLAUDE_WORKFLOW_HOOK}`;
+  if (name === "claude-flower-confirmation") return claudeBase.replace(CLAUDE_WORKFLOW_HOOK, FLOWER_CONFIRMATION_HOOK_REL);
   if (name === "claude-session-start") {
     return claudeBase.replace(CLAUDE_WORKFLOW_HOOK, ".claude/hooks/session-start.py");
   }

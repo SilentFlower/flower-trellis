@@ -1,12 +1,12 @@
 # Reporting And Disposition
 
-本文件保留普通通过报告、验证阶段与继续/停止规则；先按实际分支读取：
+本文件拥有报告与分流；按实际分支读取：
 
 - full 报告、存在 CHK/FBK/DOC、风险接受或修复重检，以及其它未通过/阻塞/部分验证结果：读 `references/findings-and-reporting.md`，保留完整模型、分类分区、证据和增量展示；未变化的有效已接受问题不重复展开。
 - validated auto-loop：读 `references/auto-loop-return.md`，匹配 action 的 record 成功后立即 next；不渲染交互报告。
 - 普通 light strict pass：只执行下方简短格式，不读取上述细则。
 
-默认只在对话中报告，不新建报告附件。只有用户明确导出或已确认交付约定要求时保存；Maven 与 runner 沿用机器证据。不得用链接代替应展示内容。
+默认对话报告；明确导出或已有交付约定才保存附件。Maven/runner 沿用机器证据；不以链接替代正文。
 
 ## Light 通过报告
 
@@ -40,16 +40,20 @@ untracked helper 不存检查证据或风险接受。通过且按下方 Gate 默
 
 ## Interactive Post-Check Stop Gate
 
-非 validated auto-loop 先按本文件输出标准报告或接受状态的简短确认，再依序分流；不重贴已有报告：
+非 validated auto-loop 最终回复前按以下 Gate 准备与展示；接受状态不重贴报告：
 
 1. 先识别当前事项最新有效的明确停止要求：`只检查`、`只读检查`、`检查后停止`、`暂不收尾`、`仅接受、不继续` 等。停止收尾，不运行 Update-Spec 或生成 Git 计划；同一事项后续明确继续可解除该限制。普通“检查一下”不等于只检查后停止，不从无关历史或摘要猜测限制。
-2. 未处置 `CHK-*` / `FBK-*`、blocked、阻断型部分验证或其它未接受实质风险（`[上线后验证]` 除外）时，报告并停止，不运行 Update-Spec 或生成 Git 计划。Git 请求不授权修复或代用户接受风险；普通代码问题始终由用户选择修复范围。
+2. blocked、阻断型部分验证或未决实质风险（`[上线后验证]` 除外）报告并保持人工，不进入 Spec/Git。普通 CHK/FBK 进入“后台处置”，不因检查或 Git 请求自行修复/接受风险。
 3. 没有有效停止要求且 strict pass，或全部 findings 已有效接受时，默认同轮继续；通过条件沿用已加载 findings reference 的风险接受规则和本文件验证阶段，完整登记的 `[上线后验证]` 不阻断。报告或简短确认后同轮进入 Update-Spec，`no-op|written` 再到 Push，`needs-review` 停止。无需 direct Git intent 或额外回复“继续”，通过不授权 Git 写入。
 4. 只从当前完成链证据识别 direct Git intent，保留 push / 用户主动 `commit-only` 选择；不从无关历史、摘要、dirty 状态或 auto-loop action 推断。风险接受沿用 findings reference 的证据规则。
 
+### 后台处置
+
+最终回复前读取 `.trellis/scripts/confirmation.md`：普通待处置项必须 `confirm prepare` 完整报告/全部 findings/版本，成功后后台 `confirm wait`，原样完整展示 `display`。实际失败说明原因；只检查、停止、本机制自身开发验证等排除项保持人工。提醒仅 `claimed=true`、`source=policy_timeout`、`action=repair_all_and_recheck` 且 started 成功才修复重检并记终态。准备不需领取。
+
 ### 交互式下一步引导
 
-所有 interactive 标准报告都必须在末尾输出 `### 下一步`，并按以下首个命中分支给出一个明确主动作：
+interactive 标准报告末尾必须输出 `### 下一步`，并按首个命中分支给出主动作：
 
 1. 有未处置 findings：提示 `修复全部`、精确 ID、接受当前报告全部风险、`接受风险 <ID> 并继续` 或 `仅保留报告`；不逐项重复确认。
 2. 有 blocked、阻断型部分验证或未标记 `[上线后验证]` 的实质风险：指出所需决策、授权或验证，完成后重跑 Check-All；不自行执行生产、外部或破坏性操作。

@@ -140,6 +140,11 @@ jobs:
           test/js/worktree-flower-state.test.js
           test/js/worktree-setup.test.js
           test/js/plugin-lifecycle-cli.test.js
+          test/js/confirmation-runtime.test.js
+          test/js/confirmation-store.test.js
+          test/js/codex-queue-client.test.js
+          test/js/claude-confirmation-client.test.js
+          test/js/codex-tui-lifetime.test.js
       # 只有生成链路变化、未知变化或手动完整回归才验证各平台生成的一致性。
       - name: 验证原生平台编译产物
         if: needs.impact.outputs.full == 'true'

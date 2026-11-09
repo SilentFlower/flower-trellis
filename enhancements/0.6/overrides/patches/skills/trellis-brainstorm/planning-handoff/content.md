@@ -14,7 +14,7 @@ Do not start implementation merely because the user originally asked for impleme
 
 ## Planning Handoff
 
-Once the Quality Bar is satisfied, load `trellis-task-brief`, refresh `brief.md` from the final planning artifacts, and display the full Brief in chat. By default, end the current turn and wait for the user's planning review confirmation. Only valid explicit preauthorization for the current final Brief, as defined by `trellis-task-brief`, permits same-turn start within unchanged scope.
+Once the Quality Bar is satisfied, load `trellis-task-brief` and delegate confirmation mode to that owner BEFORE the final reply: refresh the Brief, attempt its eligible background prepare/wait, and display the full returned display. Only exclusions or actual failure use manual confirmation with the reason. Do not impose a separate human-only stop. Preparation does not permit implementation; start only after that owner's valid human/runner authorization or one-time policy_timeout claim plus started receipt.
 
 Ordinary implementation intent expressed before the final artifacts and full Brief are shown authorizes planning only; it cannot be reused as the final review confirmation.
 

@@ -400,7 +400,7 @@ if __name__ == "__main__":
                                 patch.object(SESSION, "_run_workflow_state_refresh", return_value=annotated), \
                                 patch.object(SESSION, "_run_task_maintenance", return_value=""):
                             result = SESSION.render_part(self.root, hook, "state", {"source": source})
-                        expected = native + clean + "\n" + SESSION.CODE_DESIGN_HINT
+                        expected = native + clean + "\n" + SESSION.CODE_DESIGN_HINT + "\n" + SESSION.CONFIRMATION_HINT
                         if hook == SESSION.HOOKS[0]:
                             expected += "\n" + SESSION.CODEX_USER_INTERACTION_HINT
                         self.assertEqual(
@@ -430,11 +430,15 @@ if __name__ == "__main__":
                 SESSION.render_part(self.root, SESSION.HOOKS[0], part, {})
         native.main.assert_not_called()
 
-    def test_resume_and_disabled_hooks_emit_nothing(self) -> None:
-        """恢复会话和显式禁用不重复注入。"""
+    def test_resume_only_refreshes_confirmation_and_disabled_hooks_emit_nothing(self) -> None:
+        """恢复只刷新最小确认交接；显式禁用保持零输出。"""
         for platform in ["codex", "claude"]:
             for part in SESSION.PARTS:
-                self.assertEqual(self.run_hook(platform, part, "resume").stdout, "")
+                resumed = self.run_hook(platform, part, "resume").stdout
+                if part == "state":
+                    self.assertEqual(json.loads(resumed)["hookSpecificOutput"]["additionalContext"], SESSION.CONFIRMATION_HINT)
+                else:
+                    self.assertEqual(resumed, "")
                 self.assertEqual(self.run_hook(platform, part, env={**self.env, "TRELLIS_HOOKS": "0"}).stdout, "")
         self.assertEqual(self.run_hook("codex", "state", env={**self.env, "CODEX_NON_INTERACTIVE": "1"}).stdout, "")
 
@@ -469,7 +473,7 @@ print(json.dumps({
 
             self.assertIn("物理 GC 1 个", startup["systemMessage"])
             self.assertIn("物理 GC 1 个", resume["systemMessage"])
-            self.assertEqual(resume["hookSpecificOutput"]["additionalContext"], "")
+            self.assertEqual(resume["hookSpecificOutput"]["additionalContext"], SESSION.CONFIRMATION_HINT)
 
         self.assertEqual(log.read_text(encoding="utf-8").splitlines(), ["called"] * 4)
 
@@ -566,8 +570,20 @@ print(json.dumps({
                                 self.assertEqual(data, baseline)
                             self.assertNotIn("systemMessage", data)
 
+    def test_model_hints_keep_background_preparation_and_execution_gates(self) -> None:
+        """三个模型的高优先级提示必须允许准备等待，同时保留领取和人工决策边界。"""
+        for hint in (SESSION.ASTRA_WORKFLOW_HINT, SESSION.SOL_WORKFLOW_HINT,
+                     SESSION.SOL_6_1_WORKFLOW_HINT):
+            self.assertLessEqual(len(hint.encode("utf-8")), SESSION.MODEL_HINT_MAX_BYTES)
+            self.assertIn("BEFORE ending the turn", hint)
+            self.assertIn("prepare, background wait, full display", hint)
+            self.assertIn("policy_timeout claim AND started receipt", hint)
+            self.assertIn("unresolved decisions and host approvals stay manual", hint)
+            self.assertNotIn("Otherwise, display the plan and wait for the user's confirmation", hint)
+
     def test_shared_rules_follow_platform_boundaries_independent_of_model(self) -> None:
         """代码设计原则跨平台共享，交互规则仅属 Codex，均不受模型开关影响。"""
+        self.assertLessEqual(len(SESSION.CONFIRMATION_HINT.encode("utf-8")), 512)
         self.assertLessEqual(len(SESSION.CODE_DESIGN_HINT.encode("utf-8")), 512)
         self.assertLessEqual(len(SESSION.CODEX_USER_INTERACTION_HINT.encode("utf-8")), 512)
         for model in (None, SESSION.ASTRA_MODEL, SESSION.SOL_MODEL, SESSION.SOL_6_1_MODEL, "other-model"):
@@ -602,10 +618,10 @@ print(json.dumps({
             self.assertNotIn("<trellis-code-design>", output)
             self.assertNotIn("<trellis-codex-user-interaction>", output)
 
-    def test_sol_reuses_unchanged_astra_body(self) -> None:
-        """Astra 最终原文不漂移，两个 Sol 仅替换模型标识和标签。"""
+    def test_models_reuse_reviewed_workflow_body(self) -> None:
+        """三个模型共用已审阅正文，仅替换模型标识和标签。"""
         self.assertEqual(sha256(SESSION.ASTRA_WORKFLOW_HINT.encode("utf-8")).hexdigest(),
-                         "50da76355fe333285e691706479784c06dec3e868fd1f42858671531cc51eb6f")
+                         "d661c01ff842844df87367c1ffc7a34d616c63adb1bc08c3358242e8f1cde48c")
         self.assertEqual(SESSION.SOL_WORKFLOW_HINT.replace("trellis-sol-workflow-hint", "trellis-astra-workflow-hint")
                          .replace(SESSION.SOL_MODEL, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
         self.assertEqual(SESSION.SOL_6_1_WORKFLOW_HINT.replace("trellis-sol-6-1-workflow-hint", "trellis-astra-workflow-hint")
@@ -654,8 +670,7 @@ print(json.dumps({
         for env in ({"TRELLIS_HOOKS": "0"}, {"TRELLIS_DISABLE_HOOKS": "1"}, {"CODEX_NON_INTERACTIVE": "1"}):
             self.assertEqual(self.run_hook("codex", "state", env={**self.env, **env},
                                            hook_input={"model": SESSION.SOL_MODEL}).stdout, "")
-        self.assertEqual(self.run_hook("codex", "state", "resume",
-                                       hook_input={"model": SESSION.SOL_MODEL}).stdout, "")
+        self.assertEqual(json.loads(self.run_hook("codex", "state", "resume", hook_input={"model": SESSION.SOL_MODEL}).stdout)["hookSpecificOutput"]["additionalContext"], SESSION.CONFIRMATION_HINT)
         self.assertNotIn("trellis-sol-workflow-hint", self.run_prompt_hook(
             "codex", {"model": SESSION.SOL_MODEL, "prompt": "no-trellis"}).stdout)
 
@@ -684,14 +699,13 @@ print(json.dumps({
             for part in SESSION.PARTS:
                 self.assertEqual(self.run_hook("codex", part, env={**self.env, **env},
                                                hook_input={"model": SESSION.SOL_6_1_MODEL}).stdout, "")
-        self.assertEqual(self.run_hook("codex", "state", "resume",
-                                       hook_input={"model": SESSION.SOL_6_1_MODEL}).stdout, "")
+        self.assertEqual(json.loads(self.run_hook("codex", "state", "resume", hook_input={"model": SESSION.SOL_6_1_MODEL}).stdout)["hookSpecificOutput"]["additionalContext"], SESSION.CONFIRMATION_HINT)
         for prompt in ("普通问题", "no-trellis"):
             self.assertNotIn("trellis-sol-6-1-workflow-hint", self.run_prompt_hook(
                 "codex", {"model": SESSION.SOL_6_1_MODEL, "prompt": prompt}).stdout)
 
     def test_astra_config_and_global_disables_preserve_original_contract(self) -> None:
-        """关闭模型提示仍保留原上下文，全局禁用和 resume 保持零输出。"""
+        """关闭模型提示仍保留原上下文，全局禁用零输出，resume 只保留公共交接。"""
         config = self.root / ".trellis/config.yaml"
         baseline = json.loads(self.run_hook("codex", "state").stdout)
         for raw in ("false", '"false"', "FALSE"):
@@ -706,7 +720,7 @@ print(json.dumps({
             for part in SESSION.PARTS:
                 self.assertEqual(self.run_hook("codex", part, env={**self.env, **env},
                                                hook_input={"model": "gpt-6-astra"}).stdout, "")
-        self.assertEqual(self.run_hook("codex", "state", "resume", hook_input={"model": "gpt-6-astra"}).stdout, "")
+        self.assertEqual(json.loads(self.run_hook("codex", "state", "resume", hook_input={"model": "gpt-6-astra"}).stdout)["hookSpecificOutput"]["additionalContext"], SESSION.CONFIRMATION_HINT)
 
     def test_invalid_astra_config_is_diagnosed_without_losing_state(self) -> None:
         """非法开关停用增强并保留原生上下文，不冒充整个启动失败。"""
