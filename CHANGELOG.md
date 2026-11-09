@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.6](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.5...v0.6.13-beta.6) (2026-11-09)
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 隔离进程归属测试并保留权限拒绝边界 ([e3923d7](https://github.com/SilentFlower/flower-trellis/commit/e3923d7f1ad919b3ac4de5655c931e21560c0e10))
+
 ## [0.6.13-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.4...v0.6.13-beta.5) (2026-11-09)
 
 
