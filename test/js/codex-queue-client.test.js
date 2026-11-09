@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { WebSocketServer } from "ws";
-import { CodexQueueClient, confirmationWake, confirmationWakeId } from "../../src/lib/codex-queue-client.js";
+import { CodexQueueClient, confirmationWake, confirmationWakeId, formalConfirmationWake } from "../../src/lib/codex-queue-client.js";
 
 /** 启动没有模型和真实 daemon 的隔离 WebSocket 协议替身。
  * @param {object} t 测试生命周期
@@ -61,6 +61,9 @@ test("完整内部唤醒才能识别，不接受任意前缀或其它 clientId",
   assert.equal(confirmationWakeId({ ...item, clientId: randomUUID() }), null);
   assert.equal(confirmationWakeId({ ...item, content: [{ type: "text", text: `${confirmationWake(id)}\n用户新回复` }] }), null);
   assert.equal(confirmationWakeId({ ...item, content: [...item.content, { type: "text", text: "额外输入" }] }), null);
+  const formal = { ...item, content: [{ type: "text", text: formalConfirmationWake(id) }] };
+  assert.equal(confirmationWakeId(formal), id);
+  assert.equal(confirmationWakeId({ ...formal, clientId: undefined }), null);
 });
 
 test("不支持平台明确拒绝，未连接时不会假称投递成功", async () => {

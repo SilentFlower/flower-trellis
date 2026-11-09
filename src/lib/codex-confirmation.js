@@ -36,11 +36,11 @@ function directory(value, create = false) {
  * @param {string} file 状态文件
  * @returns {object|null} 状态
  */
-function readJson(file) {
+function readJson(file, maxBytes = MAX_STATE_BYTES) {
   directory(path.dirname(file));
   try {
     const stat = lstatSync(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_STATE_BYTES) throw new Error("确认状态必须是有界普通文件");
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes) throw new Error("确认状态必须是有界普通文件");
     return JSON.parse(readFileSync(file, "utf8"));
   } catch (error) { if (error.code === "ENOENT") return null; throw error; }
 }
@@ -50,10 +50,10 @@ function readJson(file) {
  * @param {object} value 新状态
  * @returns {void}
  */
-function writeJson(file, value) {
+function writeJson(file, value, maxBytes = MAX_STATE_BYTES) {
   const text = JSON.stringify(value);
-  if (Buffer.byteLength(text) > MAX_STATE_BYTES) throw new Error("确认状态超出大小限制");
-  readJson(file);
+  if (Buffer.byteLength(text) > maxBytes) throw new Error("确认状态超出大小限制");
+  readJson(file, maxBytes);
   const temporary = `${file}.${randomUUID()}.tmp`;
   let fd;
   try {
@@ -75,11 +75,15 @@ export class ConfirmationStore {
   /** 定位当前项目与唯一会话的状态。
    * @param {string} project 项目根目录
    * @param {string} sessionId 精确会话标识
+   * @param {object} options 正式平台；省略时保持原演练存储契约
    */
-  constructor(project, sessionId) {
+  constructor(project, sessionId, { platform = null } = {}) {
+    if (platform !== null && !["codex", "claude"].includes(platform)) throw new Error("未知确认平台");
     this.project = realpathSync(project);
     this.sessionId = confirmationId(sessionId);
-    this.directory = path.join(this.project, ".trellis", ".runtime", "codex-confirmation");
+    this.version = platform ? 2 : 1;
+    this.maxBytes = platform ? 1024 * 1024 : MAX_STATE_BYTES;
+    this.directory = path.join(this.project, ".trellis", ".runtime", platform ? `confirmation-${platform}` : "codex-confirmation");
     this.file = path.join(this.directory, `${sessionId}.json`);
   }
 
@@ -87,21 +91,24 @@ export class ConfirmationStore {
    * @returns {object|null} 会话状态
    */
   read() {
-    const state = readJson(this.file);
-    if (state && (state.version !== 1 || state.sessionId !== this.sessionId || !Number.isSafeInteger(state.generation)
-      || !state.request || !STATES.has(state.request.state) || state.request.generation > state.generation)) {
+    const state = readJson(this.file, this.maxBytes);
+    if (state && (state.version !== this.version || state.sessionId !== this.sessionId || !Number.isSafeInteger(state.generation)
+      || (!state.request && !(this.version === 2 && state.native))
+      || (state.request && (!STATES.has(state.request.state) || state.request.generation > state.generation)))) {
       throw new Error("确认状态版本、会话或结构无效");
     }
-    if (state) confirmationId(state.request.id);
+    if (state?.request) confirmationId(state.request.id);
     return state;
   }
 
   /** 原子修改当前会话；同步回调返回完整状态，null 表示不创建。
    * @param {Function} mutate 同步状态转换
+   * @param {object} options 是否允许创建缺失状态目录
    * @returns {object|null} 写入后的状态
    */
-  update(mutate) {
-    directory(this.directory, true);
+  update(mutate, { create = true } = {}) {
+    if (!create && !this.read()) return null;
+    directory(this.directory, create);
     const lock = `${this.file}.lock`;
     const token = randomUUID();
     const deadline = Date.now() + 1000;
@@ -152,7 +159,7 @@ export class ConfirmationStore {
     try {
       const state = mutate(this.read());
       if (state?.then) throw new Error("确认状态临界区不允许异步操作");
-      if (state) writeJson(this.file, state);
+      if (state) writeJson(this.file, state, this.maxBytes);
       return state;
     } finally {
       if (readJson(path.join(lock, "owner.json"))?.token === token) rmSync(lock, { recursive: true, force: true });
@@ -165,7 +172,7 @@ export class ConfirmationStore {
    * @returns {object|null} 当前状态
    */
   change(requestId, mutate) {
-    return this.update(state => { if (state?.request.id === requestId) mutate(state.request, state); return state; });
+    return this.update(state => { if (state?.request?.id === requestId) mutate(state.request, state); return state; }, { create: false });
   }
 }
 
@@ -184,7 +191,7 @@ export function validateConfirmation(seconds, message) {
  * @param {object} options 时间、文本和原生消息快照
  * @returns {object} 当前请求及旧请求
  */
-export function prepareConfirmation(store, { seconds, message, snapshot }) {
+export function prepareConfirmation(store, { seconds, message, snapshot, contract = null }) {
   validateConfirmation(seconds, message);
   if (!snapshot.humanId) throw new Error("缺少人工消息基线");
   if (!["inProgress", "completed"].includes(snapshot.turn?.status)) throw new Error("原回合已经中断、失败或无法核对");
@@ -192,12 +199,13 @@ export function prepareConfirmation(store, { seconds, message, snapshot }) {
   const state = store.update(old => {
     previous = old?.request || null;
     const generation = (old?.generation || 0) + 1;
-    return { version: 1, sessionId: store.sessionId, generation, lastHumanMessageId: snapshot.humanId,
+    return { version: store.version, sessionId: store.sessionId, generation, lastHumanMessageId: snapshot.humanId,
+      ...(old?.native ? { native: old.native } : {}),
       request: { id: randomUUID(), generation, baselineMessageId: snapshot.humanId, seconds, message,
         messageSha256: createHash("sha256").update(message).digest("hex"),
         originTurnId: snapshot.turn?.status === "inProgress" ? snapshot.turn.id : null,
         state: "prepared", createdAt: Date.now(), deadline: null, queueId: null, wakeTurnId: null,
-        workerToken: null, receipt: null, error: null, revocation: null } };
+        workerToken: null, receipt: null, error: null, revocation: null, ...(contract ? { contract } : {}) } };
   });
   return { request: state.request, previous };
 }
@@ -235,7 +243,7 @@ async function revoke(store, client, request) {
  * @param {object} options 存储、原生连接、请求、终止信号及事件输出
  * @returns {Promise<object>} 最终请求状态
  */
-export async function runConfirmationWorker({ store, client, requestId, signal, notify = () => {} }) {
+export async function runConfirmationWorker({ store, client, requestId, signal, notify = () => {}, validate = async () => {} }) {
   const token = randomUUID();
   const owned = store.change(requestId, request => {
     if (request.state === "prepared" && !request.workerToken) request.workerToken = token;
@@ -275,7 +283,7 @@ export async function runConfirmationWorker({ store, client, requestId, signal, 
     notify({ event: "prepared", requestId, state: store.read().request.state, seconds: owned.request.seconds });
     for (;;) {
       let current = store.read();
-      if (current?.request.id !== requestId) { await revoke(store, client, lastOwnedRequest); return { state: "replaced", id: requestId }; }
+      if (current?.request?.id !== requestId) { await revoke(store, client, lastOwnedRequest); return { state: "replaced", id: requestId }; }
       const request = current.request;
       lastOwnedRequest = request;
       if (!ACTIVE.has(request.state)) { if (request.state !== "consumed") await revoke(store, client, request); return store.read().request; }
@@ -283,7 +291,9 @@ export async function runConfirmationWorker({ store, client, requestId, signal, 
       if (failure || client.failure) throw failure || client.failure;
       if (originFailed) throw new Error("origin_turn_interrupted");
       if (Date.now() - request.createdAt > 2 * 86400 * 1000) throw new Error("worker_lifetime_exceeded");
+      if (request.contract && request.state === "prepared" && Date.now() - request.createdAt > CLAIM_BUDGET_MS) throw new Error("display_completion_unverified");
       if (request.state === "prepared" && originDone) {
+        await validate(request, "display");
         current = store.change(requestId, value => {
           if (value.state === "prepared") { value.state = "waiting"; value.deadline = Date.now() + Math.round(value.seconds * 1000); }
         });
@@ -291,6 +301,8 @@ export async function runConfirmationWorker({ store, client, requestId, signal, 
       } else if (request.state === "waiting" && Date.now() >= request.deadline) {
         const snapshot = await client.snapshot();
         observeHuman(store, requestId, snapshot.humanId);
+        await validate(request, "dispatch");
+        if (request.contract) observeHuman(store, requestId, (await client.snapshot()).humanId);
         let dispatch = false;
         store.change(requestId, value => {
           if (value.state === "waiting") { value.state = "dispatching"; dispatch = true; }
@@ -312,6 +324,8 @@ export async function runConfirmationWorker({ store, client, requestId, signal, 
           if (current?.request.id !== requestId || current.request.state !== "queued") {
             await revoke(store, client, { id: requestId, queueId: queued.id });
           } else notify({ event: "queued", requestId, queueId: queued.id, wakeObserved: Boolean(current.request.wakeTurnId) });
+          // Claude 只有原生后台命令结束才会通知主会话；状态已先落盘，领取仍走共享原子门禁。
+          if (client.deliveryOnExit) return store.read().request;
         }
       } else if (request.state === "queued" && Date.now() > request.claimDeadline) throw new Error("claim_expired");
       await sleep(50);
@@ -335,11 +349,11 @@ export async function runConfirmationWorker({ store, client, requestId, signal, 
  * @param {object} options 会话存储、原生客户端和请求标识
  * @returns {Promise<object>} claimed=true 时才包含 message
  */
-export async function claimConfirmation({ store, client, requestId }) {
+export async function claimConfirmation({ store, client, requestId, validate = async () => {} }) {
   confirmationId(requestId);
   const state = store.read();
   const denied = reason => ({ claimed: false, requestId, reason });
-  if (state?.request.id !== requestId) return denied("not_current");
+  if (state?.request?.id !== requestId) return denied("not_current");
   if (!ACTIVE.has(state.request.state)) return denied(state.request.state);
   let failure;
   const human = value => {
@@ -352,6 +366,8 @@ export async function claimConfirmation({ store, client, requestId }) {
     // idle 入队可能先启动模型，再返回回执；短暂等待回执落盘但绝不自行补发。
     const deadline = Date.now() + 1000;
     while (store.read()?.request.state === "dispatching" && Date.now() < deadline && !client.failure) await sleep(20);
+    await validate(store.read().request, "claim", snapshot);
+    if (state.request.contract) observeHuman(store, requestId, (await client.snapshot()).humanId);
     let result = denied("not_ready");
     store.change(requestId, (request, current) => {
       if (request.state !== "queued") { result = denied(request.state); return; }
@@ -360,7 +376,7 @@ export async function claimConfirmation({ store, client, requestId }) {
         request.state = "failed"; request.error = "claim_validation_failed"; result = denied(request.error); return;
       }
       request.state = "consumed";
-      request.receipt = { id: randomUUID(), at: Date.now() };
+      request.receipt = { id: randomUUID(), at: Date.now(), ...(request.contract ? { source: "policy_timeout", materialHash: request.contract.frozen.materialHash } : {}) };
       result = { claimed: true, requestId, message: request.message, receipt: request.receipt };
     });
     return result;
@@ -376,12 +392,12 @@ export async function claimConfirmation({ store, client, requestId }) {
  */
 export async function cancelConfirmation({ store, client, requestId }) {
   const state = store.update(current => {
-    if (current && (!requestId || current.request.id === requestId) && ACTIVE.has(current.request.state)) {
+    if (current?.request && (!requestId || current.request.id === requestId) && ACTIVE.has(current.request.state)) {
       current.request.state = "cancelled"; current.request.error = "explicit_cancel"; current.generation += 1;
     }
     return current;
-  });
-  if (state && (!requestId || state.request.id === requestId) && state.request.state === "cancelled" && client) await revoke(store, client, state.request);
+  }, { create: false });
+  if (state?.request && (!requestId || state.request.id === requestId) && state.request.state === "cancelled" && client) await revoke(store, client, state.request);
   return confirmationStatus(store);
 }
 
@@ -391,7 +407,7 @@ export async function cancelConfirmation({ store, client, requestId }) {
  */
 export function confirmationStatus(store) {
   const state = store.read();
-  if (!state) return { sessionId: store.sessionId, state: "absent" };
+  if (!state?.request) return { sessionId: store.sessionId, state: "absent" };
   const { message, messageSha256, ...request } = state.request;
   return { sessionId: state.sessionId, generation: state.generation, ...request };
 }

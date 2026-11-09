@@ -21,12 +21,18 @@ description: "从最新 prd.md、design.md、implement.md 生成、刷新、校�
 - 不要在 `brief.md` 里发明三件套没有表达的新需求。必填字段缺失时写“未明确”，并提示应补充三件套；没有明确技术机制时省略 `Technical Overview`，没有具体风险时省略 `Risks`。
 - `Goal` 保持一句话，`Scope` 只写本轮纳入的行为或改动对象；延期事项归入 `Non-Goals`，不另设栏目，也不把范围、方案和验收写成同义复述。
 - 首次开工评审或用户明确要求查看全貌时，写回 `brief.md` 后必须展示 brief 正文，不要只给文件路径；首次批准后的同步按下方增量规则展示变化。
-- 首次实施批准前必须展示完整 brief。除上方经 runner 校验的 Auto-Loop Action 例外外，默认等待用户确认后再运行 `task.py start`；只有用户明确把当前任务或最终 Brief 与“展示后直接开始 / 不用再次确认 / 视为已确认”绑定时，才可在范围未变化的前提下免除第二次确认。
+- 首次实施批准前必须展示完整 brief。除上方经 runner 校验的 Auto-Loop Action 例外及下方实际领取的后台策略决定外，默认等待用户确认后再运行 `task.py start`；只有用户明确把当前任务或最终 Brief 与“展示后直接开始 / 不用再次确认 / 视为已确认”绑定时，才可在范围未变化的前提下免除第二次确认。
 - “开始做吧”“按你建议来”“可以创建任务”等普通实现或建任务意图不是 Brief 预授权，不能据此跳过确认。
 - 普通交互预授权只依赖当前对话中仍然明确可见的用户表达，不建立跨会话永久偏好，也不写 session runtime；auto-loop 恢复由上方 runner 例外所有。
 - `in_progress` 阶段只读取 brief 和任务材料，不例行重新生成、展示或确认；新会话或压缩恢复同样如此。首次批准后的方案变化按下方增量规则处理，用户明确要求查看时再完整展示。
 - `in_progress` 阶段发现缺失 brief 时，不自动生成未经 review 的 brief；先读取三件套并建议回补。只有用户明确要求当场回补并 review 时，才继续写回 `brief.md`。
 - 不要机械限制 brief 或对话展示长度；信息完整优先，不能截掉会影响实现判断的范围、约束、风险或验收条件。
+
+## 原生后台策略例外
+
+普通交互的最终 Brief 收敛后，读取 `.trellis/scripts/confirmation.md`，准备 brief 类型材料、启动原生后台等待并完整展示返回的 display。只有实际 claim 返回 claimed=true、source=policy_timeout、action=implement 且 started 记账成功，才可运行原 task.py start 与 route。该回执不是人工确认或普通 Brief 预授权。
+
+禁用、能力缺失、坏配置、未知回执、任务/材料变化时回到原人工确认。产品决策未收敛、auto-loop 或正在开发/验证本机制自身的任务不启用。收到已有请求的原生提醒时先领取，不重写 Brief 或重建请求。
 
 ## 首次确认后的方案变更
 
@@ -69,7 +75,7 @@ description: "从最新 prd.md、design.md、implement.md 生成、刷新、校�
 6. 写回 `<task>/brief.md`。如果文件已存在，仍用最新三件套派生内容覆盖旧正文。
 7. 在对话中展示 brief 正文，并说明来源文件：
    - 经校验的 auto-loop `refresh_brief`：展示后返回 runner，不进入下方交互分支；schema 1 的确认由后续 action 所有。
-   - 无有效预授权：展示后结束当前回合，等待用户确认。
+   - 无有效预授权：按上方后台策略例外准备与展示；不可用时展示后等待用户确认。不得把后台工具退出码或沉默当成确认。
    - 有有效预授权：先完整展示，再在同一回合返回主 workflow 执行 `task.py start`，不得省略展示步骤。
 
 ## 模板

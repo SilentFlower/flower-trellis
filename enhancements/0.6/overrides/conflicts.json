@@ -137,11 +137,13 @@
           "Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief",
           "Ordinary implementation or task-creation intent is not confirmation.",
           "After initial approval, follow that owner's incremental change rules",
-          "After a later confirmation, or in the same turn when that explicit preauthorization remains valid"
+          "After a later confirmation, or in the same turn when that explicit preauthorization remains valid",
+          "actually claimed, unchanged policy-timeout receipt under `.trellis/scripts/confirmation.md`",
+          "after a validated one-time policy-timeout claim with successful started recording"
         ]
       },
       "owner": "trellis-task-brief",
-      "reason": "Phase 1.4 只保留 Brief 展示、默认等待和由 trellis-task-brief 验证的预授权分支。"
+      "reason": "Phase 1.4 完整展示 Brief，确认、显式预授权或实际单次领取的后台策略决定后，才进入原激活与路由。"
     },
     {
       "id": "brainstorm-required-planning-handoff",

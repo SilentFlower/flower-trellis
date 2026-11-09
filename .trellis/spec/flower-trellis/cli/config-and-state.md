@@ -1681,3 +1681,96 @@ claimConfirmation({store, client, requestId}) -> {claimed,requestId,message?,rec
   后计时、队列唤醒与撤回、迟到 claim 拒绝；另用用户实际新会话核对续接、打断和改时体验。
 - 两份专项纳入 Ubuntu/Windows CI。复用当前内容下有效的本地完整回归；推送后以对应 headSha
   的必需 CI 结果完成兼容验收，不能把 skip 或本地替身冒充未执行平台的实际通过。
+
+## Scenario: Native Background Policy Confirmation
+
+### 1. Scope / Trigger
+
+修改正式 `confirm` CLI、共享状态、Codex/Claude 适配、策略 helper、三个确认 owner 或安装卸载时适用。
+当前原生验收为 Linux/WSL、Codex 0.167.0 managed daemon、Claude Code 2.1.293 普通交互 TUI。
+旧演练仍使用上一场景的 v1 契约；正式业务策略通过独立 v2 状态和原 owner 执行，不增加 MCP、窗口或全局安装。
+
+### 2. Signatures
+
+```text
+flower-trellis confirm prepare --input <项目内 JSON 相对路径> [--seconds <正整数秒>]
+flower-trellis confirm wait --request <UUID>
+flower-trellis confirm claim --request <UUID>
+flower-trellis confirm result --request <UUID> --receipt <UUID> --state started|completed|interrupted|needs-verification
+flower-trellis confirm status
+flower-trellis confirm cancel [--request <UUID>]
+公共参数：--platform codex|claude --session <精确 UUID> --target <项目根>
+flower-trellis confirm hook  # 安装器内部入口，stdin 为 Claude 原生 JSON
+ConfirmationStore(project, sessionId, {platform}): update(mutate, {create?}) / change(requestId, mutate)
+recordConfirmationResult({store,client?,platform,requestId,receipt,state}) -> {recorded,requestId,execution?}
+```
+
+源码项目使用 `node bin/flower-trellis.js`。平台/会话可从唯一的 `CODEX_THREAD_ID` 或
+`CLAUDE_CODE_SESSION_ID` 推断；显式会话必须与当前平台环境一致，不猜最新窗口或共享 task 指针。
+
+### 3. Contracts
+
+- 共享策略作者源为 `vendor/skill-garden/.trellis/0.6/scripts/confirmation_policy.py`，通过快照和
+  正常 Plugin 投影到项目。复用 `common.config` 与精确 session 的 `common.active_task`；不使用单会话或环境回退。
+- `confirmation_timeout` 缺省开启，可项目级/分类关闭，更新保留整个用户配置块。Brief 默认字段为
+  `base_seconds=100,threshold_chars=1000,increment_chars=500,increment_seconds=30`；Check 为
+  `base_seconds=100,increment_seconds=30`；Push 为 `seconds=200`。各类另有 `enabled=true`。
+  布尔严格解析，重复字段拒绝；本次 `--seconds` 优先但不能绕过关闭。秒数只接受 1～86400 的正整数，越界转人工，不静默截短。
+- Brief 按 LF 规范化、trim 后的 Unicode 码点计数，公式为 `base + ceil(max(0,chars-threshold)/increment_chars)*increment_seconds`。
+  Check 去重统计 pending CHK/FBK，排除 DOC/accepted/resolved；同 ID 处置冲突拒绝，0 项不等待，其余 `base+(count-1)*increment`。
+- 输入文件限项目内无软链的普通 JSON，最大 512KiB；公共字段 `kind=brief|check|push`、`task`。
+  Brief 读取实际 brief.md；Check/Push 提供完整 `body`。任务材料摘要包含 task.json、prd/design/implement/brief，缺文件与新增文件也参与比较。
+- Check 输入还需非空 `reportVersion/dispositionVersion` 和完整 `findings:[{id,status?}]`，status 缺省 pending。
+  Push 输入还需 `mode=push|commit-only`、`evidence:{check:passed|accepted|focused,spec:no-op|written,unresolvedRisks:0}`、有序 repositories。
+  每仓提供真实 root/branch/head/upstream、精确 files/message；无 upstream 的 push 明确 remote/remoteBranch。
+  冻结全部输入、Git HEAD/upstream、索引、diff/status、远端配置、文件内容/模式与集成状态；不允许未完成 rebase/cherry-pick/revert，ready merge 还需精确 mergeHead。
+- 正式状态位于 `.trellis/.runtime/confirmation-{platform}/{session}.json`，`version=2`、上限 1MiB；
+  contract/frozen policy 各自版本为 1，不混淆三者。沿用 generation、1000ms 目录锁和原子替换，网络/策略 helper 在锁外。
+  Hook 可以先写 native 元数据而 request=null；旧演练、未知契约和损坏状态不能升级成许可。
+- `prepare` 只冻结并返回 display。`wait` 用原生后台工具启动，主会话完整展示 display 并结束回合后才计时；
+  不用前台 sleep/TaskOutput 轮询，不要求 Esc。五分钟仍无法核验展示完成则失败；完整材料、策略或任务变化拒绝旧决定。
+- Codex 精确订阅 daemon 线程，最终正文为 `agentMessage.phase=final_answer`；正式 v2 唤醒还须匹配原生 clientId，人工粘贴相同正文不算内部通知。
+  Claude 使用 UserPromptSubmit/Stop/SessionEnd；Stop 的 last_assistant_message 和 background_tasks 绑定展示回合与带引号的精确 wait 参数。
+  后台完成也会触发 UserPromptSubmit，领取时结合 transcript 的 `origin.kind=task-notification`、`turnOrigin=task_notification` 和本次 task ID 判断，不能仅认 XML 文本。
+- 到期只唤醒，`claim` 原子成功一次，来源固定 `policy_timeout`；固定动作只有 implement、repair_all_and_recheck、execute_git_plan。
+  首个业务动作前必须 `result started` 且 recorded=true；该写锁内再次比较 generation 与 lastHumanMessageId，防止新消息落在快照与写入之间。
+  已开始动作可据实记录 completed/interrupted/needs-verification，新消息不阻止终态记账，也不授予再次开始的许可。
+- 任意新人工输入先失效旧等待，人工确认走原流程；改时/改材料重建请求并重新展示。重复通知、未知投递和失败不盲目补发。
+  `status` 离线只读；`cancel` 只修改仍存在的状态，卸载后的信号清理不得重建目录。CLI SIGINT/SIGTERM 先取消自有请求再退出 130，通用入口不能提前 process.exit。
+- 三个 owner 的共享协议为 `.trellis/scripts/confirmation.md`。保留原路由、逐仓 Git 检查、失败恢复与 push/commit-only 模式；
+  产品问题、Spec 歧义、风险接受、宿主审批、已校验 auto-loop 及本机制自身开发验证不启用这套默认批准。
+- Claude Hook 经 Flower 自有 Python 资产转发当前运行时；只追加/移除自有三个事件条目，卸载清理由既有 Patch Engine 和 Plugin 事务执行，保留用户 Hook。
+  Hook 仅对确定未写入的锁繁忙最多重试两次，其它未知结果不重试；普通锁不可用时转人工。
+  源、compiled targets、enhancements 与项目投影需一致，npm 包排除 Python 缓存。
+- 自动模式不宣称原生 Windows/macOS 支持。Codex 关窗不等于 daemon 退出，已事先授权的默认动作仍可能到期；已开始副作用不能承诺撤销。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+| --- | --- |
+| 禁用、坏配置、超界时长、能力/会话/展示不可核验 | 人工确认，无默认动作 |
+| 原回合活动、展示不完整 | 不提前计时；无法核验则失败 |
+| 新消息、材料/策略/任务/Git 基线漂移 | 旧请求拒绝领取或开始 |
+| claim 后、新消息先于 started 写锁落盘 | recorded=false，不执行业务动作 |
+| 重复 worker/claim/started 或迟到通知 | 不重复授权或执行业务动作 |
+| 投递未知、断连或锁繁忙 | 保留诊断并转人工，不盲目重发 |
+| 卸载后直接取消或旧 CLI 收到信号 | 不创建缺失 .trellis；信号退出 130 |
+| 动作已开始后人工介入 | 原 owner 据实恢复并记录终态，不伪称回滚 |
+
+### 5. Scenarios and Examples
+
+- Normal：完整 Push 计划展示后等待 200 秒，原生唤醒只触发 claim；started 成功后由原 Push owner 按冻结精确范围执行。
+- Base：Brief 1000/1001/1501 字对应 100/130/160 秒；Check 0/1/2 项对应不等待/100/130 秒；明确“本次 60 秒”后重新准备、展示和计时。
+- Incorrect use：看到后台命令退出或旧 receipt 就直接执行；只在锁外检查人工快照；卸载后仍用默认 create=true 取消。
+- Correct handling：只消费本次 claim 和 started 的真实成功结果，写锁内核对最新人工基线；取消使用 create=false，已开始动作继续据实记账。
+
+### 6. Tests Required
+
+- `confirmation-runtime.test.js`：Unicode/策略边界、配置保留、完整展示、材料/Git 漂移、重复领取与 started、commit-only 精确提交且不推进隔离远端。
+  将真实 Claude Hook 插入最后一次快照和 started 写锁之间，断言 recorded=false 且无 execution；已开始后新消息仍能记 interrupted。
+  Linux 实际 CLI 子进程用 SIGSTOP 固定卸载顺序，再 SIGINT/SIGCONT，断言退出 130 且 .trellis 不复活。
+- `claude-confirmation-client.test.js`：真实版本事件形状、带引号任务绑定、通知不自取消、人工粘贴通知拒绝、输入去重、退出与缺少 transcript 的人工回退。
+- `confirmation-install.test.js`：实际 init、重复叠加、用户配置/Hook 保留、事务卸载、自有条目移除、卸载后 worker 和 cancel 零创建；共享 demo/queue 专项保持通过。
+- `test_confirmation_policy.py`：实际解释器、两端精确 session、中文路径、重复策略、处置冲突、可选材料新增；纳入 Python 3.8/3.12 的 Ubuntu/Windows CI。
+- 原生两端分别验证三个动作、100/130/200 秒、自定义时间、输入取消和材料漂移。记录版本、源摘要与实际调度，区分本地模型替身、用户实际会话和未验收平台；复用未变路径证据，修改相关路径后补验。
+  推送后等匹配 headSha 的必需 CI 全部 success 才完成任务，不能用本地结果、skip 或旧提交绿灯替代。

@@ -27,6 +27,8 @@
   "files": [
     "bin",
     "src",
+    "!src/**/__pycache__",
+    "!src/**/*.pyc",
     "!src/lib/patch-fixture.js",
     "enhancements",
     "!enhancements/**/__pycache__",

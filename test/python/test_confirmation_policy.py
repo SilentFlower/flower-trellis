@@ -1,0 +1,98 @@
+"""在真实 Python 解释器中验证确认 helper 的跨平台契约。"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+import uuid
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+SOURCE = ROOT / "vendor/skill-garden/.trellis/0.6/scripts/confirmation_policy.py"
+
+
+class ConfirmationPolicyTest(unittest.TestCase):
+    """用隔离会话运行发布 helper，避免模块缓存影响其他套件。"""
+
+    def setUp(self):
+        """创建支持中文路径的最小项目、材料和两端会话指针。"""
+        self.temporary = tempfile.TemporaryDirectory(prefix="flower-confirm-中文-")
+        self.root = Path(self.temporary.name)
+        scripts = self.root / ".trellis/scripts"
+        scripts.mkdir(parents=True)
+        shutil.copytree(ROOT / ".trellis/scripts/common", scripts / "common")
+        shutil.copy2(SOURCE, scripts / "confirmation_policy.py")
+        self.session = str(uuid.uuid4())
+        self.task = ".trellis/tasks/test"
+        task = self.root / self.task
+        task.mkdir(parents=True)
+        (task / "task.json").write_text(json.dumps({"name": "test", "status": "planning"}), encoding="utf-8")
+        (task / "brief.md").write_text("😀" * 1001, encoding="utf-8")
+        sessions = self.root / ".trellis/.runtime/sessions"
+        sessions.mkdir(parents=True)
+        for platform in ("codex", "claude"):
+            (sessions / (platform + "_" + self.session + ".json")).write_text(json.dumps({"current_task": self.task}), encoding="utf-8")
+        self.material = {"kind": "brief", "task": self.task}
+
+    def tearDown(self):
+        """清理本测试拥有的隔离项目。"""
+        self.temporary.cleanup()
+
+    def invoke(self, platform="codex", session=None):
+        """执行当前真实解释器下的 helper。
+
+        Args:
+            platform: 原生平台标识。
+            session: 可选的其它会话，用于拒绝越界测试。
+        Returns:
+            退出码与 JSON 输出。
+        """
+        (self.root / "input.json").write_text(json.dumps(self.material, ensure_ascii=False), encoding="utf-8")
+        process = subprocess.run([sys.executable, "-X", "utf8", str(self.root / ".trellis/scripts/confirmation_policy.py"),
+                                  "--project", str(self.root), "--input", "input.json", "--platform", platform,
+                                  "--session", session or self.session], cwd=str(self.root), env=dict(os.environ),
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", timeout=15)
+        self.assertEqual(process.stderr, "")
+        return process.returncode, json.loads(process.stdout)
+
+    def test_both_platforms_use_unicode_and_exact_session(self):
+        """两端共享 Unicode 计数；其它会话不能借用唯一任务。"""
+        for platform in ("codex", "claude"):
+            code, result = self.invoke(platform)
+            self.assertEqual(code, 0)
+            self.assertEqual(result["seconds"], 130)
+            self.assertEqual(result["action"], "implement")
+            code, result = self.invoke(platform, str(uuid.uuid4()))
+            self.assertEqual(code, 1)
+            self.assertFalse(result["enabled"])
+
+    def test_invalid_policy_and_conflicting_dispositions_fail_closed(self):
+        """重复策略字段及同 ID 的矛盾处置不能形成默认决定。"""
+        config = self.root / ".trellis/config.yaml"
+        config.write_text("confirmation_timeout:\n  enabled: false\n  enabled: true\n", encoding="utf-8")
+        code, result = self.invoke()
+        self.assertEqual(code, 1)
+        self.assertFalse(result["enabled"])
+        config.unlink()
+        self.material.update({"kind": "check", "body": "完整报告", "reportVersion": "1", "dispositionVersion": "1",
+                              "findings": [{"id": "CHK-001", "status": "pending"}, {"id": "CHK-001", "status": "accepted"}]})
+        code, result = self.invoke()
+        self.assertEqual(code, 1)
+        self.assertFalse(result["enabled"])
+
+    def test_missing_optional_artifact_and_new_file_change_snapshot(self):
+        """原来缺失的设计文件一旦出现，旧材料摘要必须失效。"""
+        code, before = self.invoke()
+        self.assertEqual(code, 0)
+        (self.root / self.task / "design.md").write_text("新设计", encoding="utf-8")
+        code, after = self.invoke()
+        self.assertEqual(code, 0)
+        self.assertNotEqual(before["materialHash"], after["materialHash"])
+
+
+if __name__ == "__main__":
+    unittest.main()

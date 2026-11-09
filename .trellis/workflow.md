@@ -268,7 +268,7 @@ Planning is not implementation permission. Load `trellis-brainstorm` and stay in
 A created task or default `prd.md` is not enough to start implementation. Lightweight tasks may remain PRD-only; complex tasks require `prd.md`, `design.md`, and `implement.md`.
 Before changing artifacts, routing, or files, follow `Request Triage`: resolve selected Check-All repairs first; apply the Active Task Scope Guard only to new work.
 If the latest current-request switch says no task/direct edit, call `task_intent.py discard --task <current-task>` only for a task auto-created by intent routing. Continue only on `status=discarded`; keep manual or historical tasks unchanged.
-Before the first implementation approval, refresh and display `brief.md` through `trellis-task-brief`, then wait for planning review confirmation. After initial approval, use that owner's incremental change rules instead of repeating whole-Brief approval on every artifact update.
+Before the first implementation approval, refresh and display `brief.md` through `trellis-task-brief`, then wait for planning review confirmation or follow that owner’s validated one-time background policy receipt. Silence alone never approves implementation; unresolved product decisions still require a human answer. After initial approval, use that owner's incremental change rules instead of repeating whole-Brief approval on every artifact update.
 After status becomes `in_progress`, enter Phase 2 through `trellis-route(target=implement)` instead of editing or dispatching directly.
 Sub-agent mode requires at least one real curated entry in both `implement.jsonl` and `check.jsonl`; the seed `_example` row alone is not ready.
 <!-- END skill-garden patch workflow-state-planning v0.6 -->
@@ -286,7 +286,7 @@ Planning is not implementation permission. Load `trellis-brainstorm` and stay in
 A created task or default `prd.md` is not enough to start implementation. Lightweight tasks may remain PRD-only; complex tasks require `prd.md`, `design.md`, and `implement.md`.
 Before changing artifacts, routing, or files, follow `Request Triage`: resolve selected Check-All repairs first; apply the Active Task Scope Guard only to new work.
 If the latest current-request switch says no task/direct edit, call `task_intent.py discard --task <current-task>` only for a task auto-created by intent routing. Continue only on `status=discarded`; keep manual or historical tasks unchanged.
-Before the first implementation approval, refresh and display `brief.md` through `trellis-task-brief`, then wait for planning review confirmation. After initial approval, use that owner's incremental change rules instead of repeating whole-Brief approval on every artifact update.
+Before the first implementation approval, refresh and display `brief.md` through `trellis-task-brief`, then wait for planning review confirmation or follow that owner’s validated one-time background policy receipt. Silence alone never approves implementation; unresolved product decisions still require a human answer. After initial approval, use that owner's incremental change rules instead of repeating whole-Brief approval on every artifact update.
 After status becomes `in_progress`, enter Phase 2 through `trellis-route(target=implement)` instead of editing or dispatching directly.
 Inline mode skips JSONL curation and loads task artifacts plus relevant specs through `trellis-before-dev` before editing.
 <!-- END skill-garden patch workflow-state-planning-inline v0.6 -->
@@ -541,13 +541,13 @@ Skip this step. Context is loaded directly by the `trellis-before-dev` skill in 
 <!-- BEGIN skill-garden patch workflow-phase-1-activate v0.6 -->
 #### 1.4 Activate task `[required · once]`
 
-Before changing task status, load `trellis-task-brief`. For the first implementation approval, refresh `<task>/brief.md` and display the full brief in chat. Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief, stop the current turn and wait for planning review confirmation. Ordinary implementation or task-creation intent is not confirmation.
+Before changing task status, load `trellis-task-brief`. For the first implementation approval, refresh `<task>/brief.md` and display the full brief in chat. Unless `trellis-task-brief` validates an explicit preauthorization for the current final Brief or an actually claimed, unchanged policy-timeout receipt under `.trellis/scripts/confirmation.md`, stop the current turn and wait for planning review confirmation. Ordinary implementation or task-creation intent is not confirmation.
 
 After initial approval, follow that owner's incremental change rules: synchronize affected artifacts and resolve only new decisions, without repeating whole-Brief approval for a document refresh or an already authorized change. Existing approval with no unresolved change decisions permits activation without another confirmation.
 
 Lightweight tasks need `prd.md`; complex tasks also need `design.md` and `implement.md`. Sub-agent routes require real entries in both JSONL manifests.
 
-After a later confirmation, or in the same turn when that explicit preauthorization remains valid, run:
+After a later confirmation, or in the same turn when that explicit preauthorization remains valid, or after a validated one-time policy-timeout claim with successful started recording, run:
 
 ```bash
 python3 ./.trellis/scripts/task.py start <task-dir>
