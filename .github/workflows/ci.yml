@@ -201,3 +201,5 @@ jobs:
           test/js/plugin-transaction-writer.test.js
           test/js/platform-patches.test.js
           test/js/codex-sync-user-interaction.test.js
+          test/js/codex-confirmation.test.js
+          test/js/codex-queue-client.test.js

@@ -1596,3 +1596,88 @@ await observeTelemetryOperation(ctx, "self_update", executeSelfUpdate)
 ```
 
 原因：全局安装替换文件后，旧 Node 进程仍执行旧代码；记录必须反映真实执行器。
+
+## Scenario: Project Codex Background Confirmation
+
+### 1. Scope / Trigger
+
+修改 `scripts/codex-confirmation.mjs`、`src/lib/codex-confirmation.js` 或
+`src/lib/codex-queue-client.js` 时适用。这是本项目主动调用的演练入口，原生支持范围限
+Linux/WSL、Codex 0.167.0 managed daemon；不自动接入 Brief、Check、Push 的业务默认动作。
+
+### 2. Signatures
+
+```text
+node scripts/codex-confirmation.mjs wait --seconds <0.1..86400> --message <演练文本>
+node scripts/codex-confirmation.mjs claim --request <请求 UUID>
+node scripts/codex-confirmation.mjs status
+node scripts/codex-confirmation.mjs cancel [--request <请求 UUID>]
+公共参数：--session <线程 UUID>；缺省 CODEX_THREAD_ID，同时提供时必须一致
+ConfirmationStore(project, sessionId): read() / update(mutate) / change(requestId, mutate)
+claimConfirmation({store, client, requestId}) -> {claimed,requestId,message?,receipt?,reason?}
+```
+
+### 3. Contracts
+
+- 必须从本项目根目录调用。目标取精确线程 ID，并核对原生线程的真实 cwd；禁止猜测最新
+  会话、跨项目补投递或自行启动 daemon。连接已有
+  `${CODEX_HOME || ~/.codex}/app-server-control/app-server-control.sock`，`ws` 是直接依赖。
+- `wait` 由原生命令工具以短 `yield_time_ms` 启动，取得后台 session 和 `prepared` 后结束
+  主回合；不轮询完整倒计时。原回合成功完成后才进入 `waiting`，中断或失败不触发默认动作。
+- 每个线程的当前记录位于 `.trellis/.runtime/codex-confirmation/<线程 UUID>.json`，最多
+  64KiB，`version=1`；包含 sessionId、generation、lastHumanMessageId，以及 request 的
+  id、generation、baselineMessageId、message/messageSha256、originTurnId、state、deadline、
+  queueId、wakeTurnId、workerToken、receipt、error。演练文本非空且最多 8192 UTF-8 字节。
+- 目录锁只保护同步读写，竞争预算 1000ms；普通文件检查与同目录原子替换防止半份记录。
+  网络调用和等待不进入锁内。同线程新请求替换旧请求，不同线程隔离；单请求只有一个 worker
+  可取得投递资格，不能依赖原生 `clientUserMessageId` 去重。
+- 状态主路径为 `prepared → waiting → dispatching → queued → consumed`。人工消息或显式
+  取消进入 `cancelled`，连接或执行失败进入 `failed`，投递回执未知进入 `delivery_unknown`。
+  后三者均不允许默认动作；未知投递不自动重发。worker 生命周期上限为两天。
+- 订阅 `item/started` / `item/completed` 按用户消息 ID 去重；完整固定格式内部唤醒与人工
+  输入区分。用户新消息使旧请求失效，并尽力撤回精确队列 ID；输入框草稿不可见，活动回合的
+  追加输入可能由 Codex 延后广播。取消与领取以本地原子转换的生效顺序裁决。
+- `queued` 只证明取得入队回执，`wakeTurnId` 才表示观察到了唤醒回合。唤醒后必须先 claim，
+  再核对当前请求、代次、原生最新人工消息、文本摘要和领取期限，不能依据提醒直接输出正文。
+- 成功领取只返回一次 `{claimed:true,requestId,message,receipt:{id,at}}`；拒绝领取返回
+  `{claimed:false,requestId,reason}`，不含 message。queued 后五分钟仍未领取则失败并尝试
+  撤回；消费回执不自动重放，不能把单次领取宣称为端到端 exactly-once 展示。
+- `status` 离线只读，空状态不创建目录；`cancel` 先本地取消，再尽力撤回原生队列。
+  帮助先于外部依赖加载、参数校验、联网及写盘；stdout 为帮助或 JSON/JSONL，诊断走 stderr。
+- 本地状态与原生队列不共享事务，已经启动的模型回合无法撤回；窗口关闭不保证立即取消。
+  到期、空回复、失败或演练唤醒均不构成真实开工、修复、提交或推送的新授权。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 预期结果 |
+| --- | --- |
+| 秒数越界、空/超长正文、无精确 session、session 冲突或 cwd 不匹配 | 明确失败，不投递默认动作 |
+| 原回合仍活动 | prepared，deadline=null |
+| 等待期间新人工消息或同会话新 wait | 旧请求取消或被替换，不能再次有效领取 |
+| 重复 worker、重复唤醒、并发 claim | 单次有效投递与领取；迟到提醒无演练正文 |
+| 队列接收但回执丢失 | delivery_unknown，不补发、不默认同意 |
+| 断连、原回合中断或领取超时 | failed/cancelled，尽力撤回本请求队列 |
+| daemon 不可用时显式 cancel | 本地取消有效，撤回未确认需诊断 |
+| Windows/macOS 原生 wait 或 claim | 明确不支持；不得伪报原生兼容 |
+
+### 5. Scenarios and Examples
+
+- Normal：发起 15 秒演练，主回合结束后计时；到期原生队列唤醒同一会话，claim 成功后仅输出
+  约定文本。实际用户试用方式见 `docs/codex-background-confirmation.md`。
+- Base：60 秒等待中提交修改意见，无需调用 cancel 就使旧请求失效；改为 10 秒时，新等待
+  从新回合结束后计时，旧截止时间不再输出旧文本。
+- Incorrect use：把队列退出码、后台终端完成通知或同一 client ID 当成去重/授权证据，直接
+  输出旧正文或执行真实业务动作。
+- Correct handling：保存精确原生回执，按当前请求和消息基线原子 claim；仅 claimed=true
+  时输出返回的演练文本，无效提醒结束回合，不盲目重试。
+
+### 6. Tests Required
+
+- `test/js/codex-confirmation.test.js`：两个时长、原回合结束后计时、消息去重、同会话替换、
+  跨会话隔离、多进程锁、重复 worker/领取、取消与投递竞争、未知回执、断连和无副作用帮助。
+- `test/js/codex-queue-client.test.js`：完整唤醒识别、精确订阅与线程隔离、快照分页/输入竞争、
+  参数及回执错误、不支持平台诊断；Unix socket 场景仅在支持的平台运行，不推定 Windows 通过。
+- 原生客户端或协议升级时，在隔离 CODEX_HOME 和本地模型替身下验证真实后台 session、final
+  后计时、队列唤醒与撤回、迟到 claim 拒绝；另用用户实际新会话核对续接、打断和改时体验。
+- 两份专项纳入 Ubuntu/Windows CI。复用当前内容下有效的本地完整回归；推送后以对应 headSha
+  的必需 CI 结果完成兼容验收，不能把 skip 或本地替身冒充未执行平台的实际通过。
