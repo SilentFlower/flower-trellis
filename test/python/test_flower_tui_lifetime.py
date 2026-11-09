@@ -7,6 +7,7 @@ import os
 import select
 import subprocess
 import sys
+import tempfile
 import unittest
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -45,6 +46,12 @@ class TuiLifetimeTest(unittest.TestCase):
         """额外窗口没出现在任何会话配置中时，不能借用另一窗口继续。"""
         child, binding = self.listener()
         original_readlink = LIFETIME.os.readlink
+        original_iterdir = LIFETIME.Path.iterdir
+        def own_processes(directory):
+            """限定枚举本测试创建的进程，避免宿主进程权限污染归属断言。"""
+            if directory == Path("/proc"):
+                return iter([Path("/proc") / str(child.pid)])
+            return original_iterdir(directory)
         def frontend_link(file):
             """只把本测试监听者标记为前台，不影响其他本机进程。"""
             if str(file) == "/proc/{}/exe".format(child.pid):
@@ -53,10 +60,26 @@ class TuiLifetimeTest(unittest.TestCase):
             if Path(file).name == "exe" and Path(value).name == "codex":
                 return "/test/other-program"
             return value
-        with patch.object(LIFETIME.os, "readlink", side_effect=frontend_link):
+        with patch.object(LIFETIME.Path, "iterdir", own_processes), \
+                patch.object(LIFETIME.os, "readlink", side_effect=frontend_link):
             with self.assertRaisesRegex(ValueError, "未对应"):
                 LIFETIME.check_frontend_coverage(["http://127.0.0.1:1"])
             LIFETIME.check_frontend_coverage([binding["origin"]])
+
+    def test_unreadable_same_user_process_keeps_manual(self):
+        """进程身份不可读取时继续拒绝自动路径，不能因修复测试而跳过权限边界。"""
+        with tempfile.TemporaryDirectory() as directory:
+            process = Path(directory) / "123"
+            process.mkdir()
+            uid = process.stat().st_uid
+            with patch.object(LIFETIME.sys, "platform", "linux"), \
+                    patch.object(LIFETIME.os, "getuid", return_value=uid, create=True), \
+                    patch.object(LIFETIME.Path, "iterdir", return_value=iter([process])), \
+                    patch.object(LIFETIME.Path, "read_text", return_value="header\n"), \
+                    patch.object(LIFETIME, "listening_inodes", return_value={"known"}), \
+                    patch.object(LIFETIME.os, "readlink", side_effect=PermissionError("无法核验进程身份")):
+                with self.assertRaisesRegex(PermissionError, "无法核验进程身份"):
+                    LIFETIME.check_frontend_coverage(["http://127.0.0.1:1"])
 
     @unittest.skipUnless(HAS_PIDFD, "仅 Linux 具备 pidfd 时验证真实退出")
     def test_pid_reuse_and_socket_loss_are_rejected(self):
