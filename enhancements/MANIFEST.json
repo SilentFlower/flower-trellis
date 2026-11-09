@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-11-09T05:20:37.721Z",
+  "syncedAt": "2026-11-08T03:45:22.141Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "ed98dc1a1dee91bdb519b89af1898192a68fd70b",
+  "sourceCommit": "8a9eb46fffb591db747d88685424ffb96cd3a357",
   "common": {
     "codexSkills": [
       "aliyun-ops",
@@ -633,8 +633,6 @@
       ],
       "scripts": [
         "auto_loop.py",
-        "confirmation.md",
-        "confirmation_policy.py",
         "decision_log.py",
         "git_evidence.py",
         "maven_verify.py",

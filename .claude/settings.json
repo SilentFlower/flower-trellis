@@ -79,35 +79,6 @@
             "type": "command",
             "command": "python3 .trellis/scripts/flower_telemetry_hook.py --platform claude",
             "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "python3 .trellis/scripts/flower_confirmation_hook.py",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .trellis/scripts/flower_confirmation_hook.py",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .trellis/scripts/flower_confirmation_hook.py",
-            "timeout": 5
           }
         ]
       }

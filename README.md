@@ -124,24 +124,6 @@ flower-trellis -v
 
 未指定平台时,交互模式会弹出多选菜单(默认勾选 Claude Code + Codex);也可直接传 `--claude` / `--codex` / `--cursor` / `--devin` / `--zcode` / `--trae` / `--omp` / `--grok` / `--kimi` / `--snow` 等指定,或用 `-y` 跳过菜单。`--windsurf` 仍作为 Devin 的旧别名透传给 Trellis。其余未识别的 flag(如 `-u`、`-f`、`--template`、`--with-statusline`)一律透传给 Trellis。
 
-## 后台超时确认
-
-0.6 强化包在已验证的 Linux/WSL Codex managed daemon、Claude 普通交互会话中，默认启用 Brief 开工、检查问题处置和提交计划的后台等待。完整材料展示后才计时，期间可直接输入修改意见、暂停或取消，无需 Esc 或另开窗口。
-
-Brief 默认 100 秒，超过 1000 个字符后每增加 500 字加 30 秒；检查 1 项 100 秒、每多一项加 30 秒；提交计划 200 秒。可以直接说“这次等 60 秒”，也可在 `.trellis/config.yaml` 配置项目或分类策略：
-
-```yaml
-confirmation_timeout:
-  enabled: true
-  push:
-    enabled: true
-    seconds: 200
-```
-
-设置 `enabled: false` 关闭，原配置在更新时保留。到期先核验会话、材料和 Git 计划，只消费一次；检查默认修复全部并重检，提交沿用当前 push/commit-only 模式。风险接受、产品取舍及客户端权限审批仍由人工处理。能力不可用或校验失败时保持人工确认。
-
-命令说明见 `flower-trellis confirm --help`；源码项目使用 `node bin/flower-trellis.js confirm --help`，无需改变全局安装。完整协议随项目安装到 `.trellis/scripts/confirmation.md`。Codex 关窗后服务端会话可能仍存活，需要撤销时应显式取消；已开始的业务动作不能承诺自动回滚。
-
 ## 并行工作区
 
 先查看创建计划，再使用返回的指纹确认。任务参数可选，省略时只创建和准备工作区：

@@ -102,11 +102,13 @@ git rev-list --reverse @{u}..HEAD 2>/dev/null || true
 
 普通模式存在活动任务时，当前任务目录中已存在且可归属的 dirty/untracked 产物不进入业务 `planned`，也不进入 `retained`；它们与预计由 helper 更新的 `<task-dir>/task.json` 组成 Step 5 的任务记录 exact files。其他任务目录和无法归属当前任务的文件仍属于 `retained` 或风险，不得顺带提交。
 
+多仓或本地生成链在计划前读取 [git-special-cases.md](references/git-special-cases.md) 的完整顺序、命令与输出边界。
+
 用户可见名称为“保留未提交的变更（dirty）”，阈值由输出模板所有；内部保留 exact paths 与状态，分组摘要不能作为 pathspec。未知 ahead、分支/upstream 异常或归属歧义单列风险；普通 retained 不默认阻塞。
 
 计划和基线默认留在执行上下文；仅跨进程校验或中断恢复确需落盘时复用 gitignored runtime 的必要临时记录。不生成 `retained.md` 等展示附件，不把计划加入任务产物或提交范围；runner 沿用既有持久化契约。
 
-执行前记录计划外 staged set，提交后确认这些 staged 文件仍保持原状。用户明确要求新增文件时，重新生成计划并确认，不能在执行中静默扩大范围。
+普通模式允许 `retained` 存在。执行前记录计划外 staged set，提交后确认这些 staged 文件仍保持原状。用户明确要求新增文件时，重新生成计划并确认，不能在执行中静默扩大范围。
 
 ## Step 3：展示最小计划
 
@@ -114,11 +116,9 @@ git rev-list --reverse @{u}..HEAD 2>/dev/null || true
 
 普通模式或用户 `commit-only` 在所有计划数据已经收敛、即将展示用户可见计划时，读取 `references/output-templates.md` 的“计划模板”和“共用展示规则”再渲染；已读、未变化且内容仍可用时直接复用。
 
-模板缺失、不可读或缺章时报 `阻塞`，不得凭记忆重建、缩写或自制替代模板。
+reference 缺失、无法读取或缺少对应章节时停止并报告 `阻塞`，不得凭记忆重建、缩写或自制替代模板。
 
 普通多仓只确认一次。计划已展示生成命令和预计 exact files 时，命令成功且没有出现预计列表外的新 dirty path 就沿用原确认；内容、hash 或统计变化不重问。其它计划边界变化仍按 Step 4 重新规划。
-
-普通交互计划收敛后按 `.trellis/scripts/confirmation.md` 接入后台确认；实际单次领取并完成 started 记账后进入 Step 4，其余仍待人工确认。
 
 ## Step 4：精确提交与推送
 
