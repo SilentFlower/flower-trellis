@@ -1,0 +1,6 @@
+{
+  "client_version": "0.167.0",
+  "transport": "codex app-server proxy stdio",
+  "daemon_start_code": 0,
+  "daemon_stop_code": 0
+}

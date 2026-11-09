@@ -1,0 +1,200 @@
+{
+  "root": "/tmp/flower-managed-queue-Wa9fIo",
+  "threadId": "01a1bde3-5db2-7552-b981-ded6cf1b0e07",
+  "events": [
+    {
+      "ms": 2705,
+      "event": "daemon_start",
+      "code": 0,
+      "stdout": "{\"status\":\"started\",\"backend\":\"pid\",\"pid\":24365,\"managedCodexPath\":\"/tmp/flower-managed-queue-Wa9fIo/codex-home/packages/app-server-daemon/current/bin/codex\",\"managedCodexVersion\":\"0.167.0\",\"socketPath\":\"/tmp/flower-managed-queue-Wa9fIo/codex-home/app-server-control/app-server-control.sock\",\"cliVersion\":\"0.167.0\",\"appServerVersion\":\"0.167.0\"}",
+      "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/tmp\" (codex_home: AbsolutePathBuf(\"/tmp/flower-managed-queue-Wa9fIo/codex-home\"))\nInstalling daemon from CLI version 0.167.0 into /tmp/flower-managed-queue-Wa9fIo/codex-home/packages/app-server-daemon...\n{\"timestampMs\":1794187156463,\"processPid\":24309,\"stage\":\"process_spawn\",\"outcome\":\"succeeded\",\"elapsedMs\":2,\"failure\":null}\n{\"timestampMs\":1794187156463,\"processPid\":24309,\"event\":\"process_spawned\",\"details\":{\"pid\":24365}}\n{\"timestampMs\":1794187156472,\"processPid\":24309,\"stage\":\"process_identity\",\"outcome\":\"succeeded\",\"elapsedMs\":9,\"failure\":null}\n{\"timestampMs\":1794187156472,\"processPid\":24309,\"stage\":\"pid_write\",\"outcome\":\"succeeded\",\"elapsedMs\":0,\"failure\":null}\n{\"timestampMs\":1794187156472,\"processPid\":24309,\"stage\":\"pid_publish\",\"outcome\":\"succeeded\",\"elapsedMs\":0,\"failure\":null}\n{\"timestampMs\":1794187156835,\"processPid\":24309,\"stage\":\"process_spawn\",\"outcome\":\"succeeded\",\"elapsedMs\":2,\"failure\":null}\n{\"timestampMs\":1794187156835,\"processPid\":24309,\"event\":\"process_spawned\",\"details\":{\"pid\":24450}}\n{\"timestampMs\":1794187156844,\"processPid\":24309,\"stage\":\"process_identity\",\"outcome\":\"succeeded\",\"elapsedMs\":9,\"failure\":null}\n{\"timestampMs\":1794187156845,\"processPid\":24309,\"stage\":\"pid_write\",\"outcome\":\"succeeded\",\"elapsedMs\":0,\"failure\":null}\n{\"timestampMs\":1794187156845,\"processPid\":24309,\"stage\":\"pid_publish\",\"outcome\":\"succeeded\",\"elapsedMs\":0,\"failure\":null}"
+    },
+    {
+      "ms": 2774,
+      "event": "thread_created",
+      "threadId": "01a1bde3-5db2-7552-b981-ded6cf1b0e07"
+    },
+    {
+      "ms": 2917,
+      "event": "model_request",
+      "kind": "initial"
+    },
+    {
+      "ms": 2955,
+      "event": "initial_idle"
+    },
+    {
+      "ms": 3018,
+      "event": "observer_attached",
+      "threadId": "01a1bde3-5db2-7552-b981-ded6cf1b0e07",
+      "status": {
+        "type": "idle"
+      }
+    },
+    {
+      "ms": 3066,
+      "event": "model_request",
+      "kind": "hold"
+    },
+    {
+      "ms": 3080,
+      "event": "observer_user_events",
+      "packets": [
+        {
+          "method": "item/started",
+          "params": {
+            "item": {
+              "type": "userMessage",
+              "id": "01a1bde3-5ed7-71c3-8f65-9958d31e6fda",
+              "clientId": null,
+              "content": [
+                {
+                  "type": "text",
+                  "text": "WAKE_PROBE_HOLD",
+                  "text_elements": []
+                }
+              ],
+              "startedAtMs": 1794187157209,
+              "completedAtMs": null
+            },
+            "threadId": "01a1bde3-5db2-7552-b981-ded6cf1b0e07",
+            "turnId": "01a1bde3-5ec5-7053-a9ac-ea127b545886",
+            "startedAtMs": 1794187157209
+          },
+          "emittedAtMs": 1794187157209
+        },
+        {
+          "method": "item/completed",
+          "params": {
+            "item": {
+              "type": "userMessage",
+              "id": "01a1bde3-5ed7-71c3-8f65-9958d31e6fda",
+              "clientId": null,
+              "content": [
+                {
+                  "type": "text",
+                  "text": "WAKE_PROBE_HOLD",
+                  "text_elements": []
+                }
+              ],
+              "startedAtMs": 1794187157209,
+              "completedAtMs": 1794187157209
+            },
+            "threadId": "01a1bde3-5db2-7552-b981-ded6cf1b0e07",
+            "turnId": "01a1bde3-5ec5-7053-a9ac-ea127b545886",
+            "completedAtMs": 1794187157209
+          },
+          "emittedAtMs": 1794187157213
+        }
+      ]
+    },
+    {
+      "ms": 3172,
+      "event": "duplicate_client_id",
+      "first": {
+        "queuedSubmission": {
+          "id": "01a1bde3-5eff-7652-89b1-5bae283650fc",
+          "input": [
+            {
+              "type": "text",
+              "text": "WAKE_PROBE_CANCELLED",
+              "text_elements": []
+            }
+          ],
+          "clientUserMessageId": "same-probe-client-id"
+        }
+      },
+      "second": {
+        "queuedSubmission": {
+          "id": "01a1bde3-5f1d-7330-b49d-1187534ec011",
+          "input": [
+            {
+              "type": "text",
+              "text": "WAKE_PROBE_CANCELLED",
+              "text_elements": []
+            }
+          ],
+          "clientUserMessageId": "same-probe-client-id"
+        }
+      },
+      "queue": {
+        "data": [
+          {
+            "id": "01a1bde3-5eff-7652-89b1-5bae283650fc",
+            "input": [
+              {
+                "type": "text",
+                "text": "WAKE_PROBE_CANCELLED",
+                "text_elements": []
+              }
+            ],
+            "clientUserMessageId": "same-probe-client-id"
+          },
+          {
+            "id": "01a1bde3-5f1d-7330-b49d-1187534ec011",
+            "input": [
+              {
+                "type": "text",
+                "text": "WAKE_PROBE_CANCELLED",
+                "text_elements": []
+              }
+            ],
+            "clientUserMessageId": "same-probe-client-id"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "ms": 3265,
+      "event": "queue_deleted",
+      "count": 2
+    },
+    {
+      "ms": 3861,
+      "event": "queue_cli_returned",
+      "code": 0,
+      "stdout": "Queued message 01a1bde3-5fbd-78e3-9540-0bfa1c122d02 for thread 01a1bde3-5db2-7552-b981-ded6cf1b0e07.",
+      "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/tmp\" (codex_home: AbsolutePathBuf(\"/tmp/flower-managed-queue-Wa9fIo/codex-home\"))"
+    },
+    {
+      "ms": 3887,
+      "event": "model_request",
+      "kind": "timeout"
+    },
+    {
+      "ms": 4393,
+      "event": "wake_observed",
+      "count": 1
+    },
+    {
+      "ms": 4432,
+      "event": "model_request",
+      "kind": "timeout"
+    },
+    {
+      "ms": 4623,
+      "event": "direct_queue_added",
+      "id": "01a1bde3-60d5-75b3-a4be-f06d37007f3f",
+      "autoStarted": true
+    },
+    {
+      "ms": 4654,
+      "event": "consumed_queue_start_again",
+      "accepted": false,
+      "message": "thread/queue/start: {\"code\":-32600,\"message\":\"queued submission not found: 01a1bde3-60d5-75b3-a4be-f06d37007f3f\"}"
+    },
+    {
+      "ms": 5044,
+      "event": "daemon_stop",
+      "code": 0,
+      "stdout": "{\"status\":\"stopped\",\"backend\":\"pid\",\"managedCodexPath\":\"/tmp/flower-managed-queue-Wa9fIo/codex-home/packages/app-server-daemon/current/bin/codex\",\"managedCodexVersion\":\"0.167.0\",\"socketPath\":\"/tmp/flower-managed-queue-Wa9fIo/codex-home/app-server-control/app-server-control.sock\",\"cliVersion\":\"0.167.0\"}",
+      "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/tmp\" (codex_home: AbsolutePathBuf(\"/tmp/flower-managed-queue-Wa9fIo/codex-home\"))\n{\"timestampMs\":1794187158294,\"processPid\":24531,\"event\":\"shutdown_requested\",\"details\":{\"pid\":24365}}"
+    },
+    {
+      "ms": 5245,
+      "event": "test_managers_cleaned",
+      "sampled": 2
+    }
+  ]
+}

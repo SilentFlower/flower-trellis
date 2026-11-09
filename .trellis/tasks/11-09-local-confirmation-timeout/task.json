@@ -1,0 +1,79 @@
+{
+  "id": "local-confirmation-timeout",
+  "name": "local-confirmation-timeout",
+  "title": "项目内自定义超时确认与 Codex 输入验证",
+  "description": "按用户明确选择的后台终端方案，验证 managed daemon 中同一会话的可靠唤醒、用户输入失效、队列撤回和请求只消费一次，交付本项目主动调用的试用入口。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-09",
+  "completedAt": "2026-11-09",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-09T02:45:09Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-11-09T00:52:45Z",
+      "contextKey": "codex_01a1bba8-268c-7b51-af0b-6916b5231e50",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "88a78dfddcf6586ad7db3fb1384af4f278515b6e",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "88a78dfddcf6586ad7db3fb1384af4f278515b6e",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "a7ef3275ebe8f39a78b9e85d7f883108c3799594e54c91c0397a73864bb9681d"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "8a9eb46fffb591db747d88685424ffb96cd3a357",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "787f05196e984ee25f8f579bd89525347e1ca4f45e6ae3ea39809c6a6ac4095e"
+          }
+        ],
+        "fingerprint": "5de59ee145835deb7b79d855d050840881a25c2295d6253d1cb53383da7d0258"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "实现自定义 Codex 后台演练、原生队列唤醒、输入取消与单次领取",
+      "完成本地全量回归及真实会话的到期、打断、改时验收",
+      "固化协议规范并通过 Ubuntu/Windows 必需 CI",
+      "按确认范围提交并推送功能变更"
+    ],
+    "partialStep": null,
+    "nextStep": "发布当前任务记录并核对其对应 CI；正式双端接入另行规划",
+    "notes": "当前交付仅为项目内演练。用户已要求另行正式接入 Brief、Check、Push，并明确同时支持 Codex 与 Claude；这些正式功能尚未实现。",
+    "updatedAt": "2026-11-09T02:45:09Z"
+  }
+}
