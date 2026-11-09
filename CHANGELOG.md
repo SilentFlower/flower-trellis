@@ -4,6 +4,20 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.5](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.4...v0.6.13-beta.5) (2026-11-09)
+
+
+### ✨ 新功能 Features
+
+* **confirmation:** 实现 Codex 与 Claude 后台超时确认 ([9fbd2f8](https://github.com/SilentFlower/flower-trellis/commit/9fbd2f89a763573e7c46fe84b9f98269ce8e6d84))
+* **confirmation:** 支持 Codex 后台计时与单次领取 ([fdb4198](https://github.com/SilentFlower/flower-trellis/commit/fdb4198ccf0475240a5880e15fe9c84dea4f7de1))
+* **confirmation:** 支持绑定原生窗口的后台超时确认 ([d98888f](https://github.com/SilentFlower/flower-trellis/commit/d98888fc9a9ed79e25cdce3d8d2e5d8654ecf3fa))
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 撤销共享服务超时确认并恢复人工确认 ([ab6f5cb](https://github.com/SilentFlower/flower-trellis/commit/ab6f5cba917cca20c42740fb4440c9c22418f397))
+
 ## [0.6.13-beta.4](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.3...v0.6.13-beta.4) (2026-11-08)
 
 

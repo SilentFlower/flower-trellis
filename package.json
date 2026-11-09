@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.13-beta.4",
+  "version": "0.6.13-beta.5",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -72,9 +72,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.13-beta.4",
+    "version": "0.6.13-beta.5",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **confirmation:** 移除超时自动确认并恢复人工确认 ([45c9eb8](https://github.com/SilentFlower/flower-trellis/commit/45c9eb80031c1c7f31e0068a65fb6fe627e884aa))",
+    "body": "### ✨ 新功能 Features\n\n* **confirmation:** 实现 Codex 与 Claude 后台超时确认 ([9fbd2f8](https://github.com/SilentFlower/flower-trellis/commit/9fbd2f89a763573e7c46fe84b9f98269ce8e6d84))\n* **confirmation:** 支持 Codex 后台计时与单次领取 ([fdb4198](https://github.com/SilentFlower/flower-trellis/commit/fdb4198ccf0475240a5880e15fe9c84dea4f7de1))\n* **confirmation:** 支持绑定原生窗口的后台超时确认 ([d98888f](https://github.com/SilentFlower/flower-trellis/commit/d98888fc9a9ed79e25cdce3d8d2e5d8654ecf3fa))\n\n\n### 🐛 修复 Bug Fixes\n\n* **confirmation:** 撤销共享服务超时确认并恢复人工确认 ([ab6f5cb](https://github.com/SilentFlower/flower-trellis/commit/ab6f5cba917cca20c42740fb4440c9c22418f397))",
     "truncated": false
   },
   "optionalDependencies": {
