@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/confirmation-runtime.md", "reason": "审查 Python 迁移后的协议等价、单次执行与原生来源核验。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "核对回归、隔离 PATH、平台能力和真实原生验证证据。"}

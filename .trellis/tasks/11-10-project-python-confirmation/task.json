@@ -1,0 +1,144 @@
+{
+  "id": "project-python-confirmation",
+  "name": "project-python-confirmation",
+  "title": "将自动确认运行时迁移为项目内 Python",
+  "description": "将 Codex/Claude 自动确认运行时随项目部署为 Python，保留现有确认协议及安装生命周期。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-10",
+  "completedAt": "2026-11-10",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-10T08:00:39Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-11-10T05:51:47Z",
+      "contextKey": "codex_01a1c400-0308-72c3-a128-b122e90635d0",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "981216e92e40081e05e64e87c8e1262fe38fe6fa",
+        "status": [
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-10-project-structure-doc/brief.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-10-project-structure-doc/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-10-project-structure-doc/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-10-project-structure-doc/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-10-project-structure-doc/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "981216e92e40081e05e64e87c8e1262fe38fe6fa",
+            "status": [
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-10-project-structure-doc/brief.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-10-project-structure-doc/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-10-project-structure-doc/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-10-project-structure-doc/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-10-project-structure-doc/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".trellis/tasks/11-10-project-structure-doc/brief.md",
+                "sha256": "9448dbdb03f16c889b00bc7136b8ab877963ad1c02eb860d802b3b6c12cff706"
+              },
+              {
+                "path": ".trellis/tasks/11-10-project-structure-doc/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/11-10-project-structure-doc/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/11-10-project-structure-doc/prd.md",
+                "sha256": "974d9440bcce45d5f261185660cd33a4d160fb61f72fc63531de13f741d32f4a"
+              },
+              {
+                "path": ".trellis/tasks/11-10-project-structure-doc/task.json",
+                "sha256": "bcd93d0807e620caa4fc1d5eaa36408b43cef47c35c5000201e150aa82b22b64"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "a082ffac64692acf5fc444b2faf36887fb2e59354bd60cb4e3f5af0f49e29db2"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "c9a0d905620feac2a1100fc96966557a04309e1b",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "ce43b54573f8f087a1fd0625002e279180c112c279dd0a1d901ee39a234894a8"
+          }
+        ],
+        "fingerprint": "4550fa594f5276f98dd85c5e6fa215d59d77949282c8d9c82e85bad31179aba3"
+      }
+    },
+    "confirmationTimeoutDisabled": true
+  },
+  "progress": {
+    "completedSteps": [
+      "项目内 Python 确认运行时迁移及旧 Node 入口清理",
+      "本地完整回归与两端原生验证",
+      "Windows 共享占用补修及四组跨平台 CI 验收",
+      "规范更新和精确 Git 交付",
+      "beta.8 发布及 npm/GitHub/实际发布包核验"
+    ],
+    "partialStep": null,
+    "nextStep": "任务交付完成",
+    "notes": "Ubuntu/Windows × Python 3.8/3.12 全部通过；npm beta 和 GitHub 预发布已核验。",
+    "updatedAt": "2026-11-10T08:00:39Z"
+  }
+}

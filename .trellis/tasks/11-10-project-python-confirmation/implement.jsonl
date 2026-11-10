@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/flower-trellis/cli/confirmation-runtime.md", "reason": "迁移时保持确认策略、状态、消息来源、窗口生命周期与安装卸载契约。"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "遵守 Python 3.8、跨平台、隔离验证与匹配提交的 CI 验收。"}
