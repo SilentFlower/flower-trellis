@@ -1,26 +1,22 @@
 #!/usr/bin/env python3
-"""将两平台原生事件交给当前 Flower 运行时，不要求额外全局安装。"""
+"""将两平台原生事件交给项目内 Python 确认运行时。"""
 
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 
 def resolve_confirmation_entry(root):
-    """解析当前项目已有的 Flower 命令，优先源码入口，不启动子进程。
+    """返回项目内 Python 入口，复用当前解释器。
 
     @param root: 已解析的项目根目录。
     @return: 精确 argv；入口缺失时抛出异常。
     """
-    package = root / "package.json"
-    local = (root / "bin/flower-trellis.js").is_file() and package.is_file()
-    local = local and json.loads(package.read_text(encoding="utf-8")).get("name") == "flower-trellis"
-    executable = shutil.which("node" if local else "flower-trellis")
-    if not executable:
-        raise ValueError("未找到项目所需的 Node/Flower 入口，保持人工确认")
-    return [executable] + ([str(root / "bin/flower-trellis.js")] if local else [])
+    entry = root / ".trellis/scripts/flower_confirmation.py"
+    if entry.is_symlink() or not entry.is_file():
+        raise ValueError("项目内 Python 确认入口缺失，保持人工确认")
+    return [sys.executable, "-X", "utf8", str(entry)]
 
 
 def main():
@@ -47,7 +43,7 @@ def main():
         root = Path(payload["cwd"]).resolve(strict=True)
         command = resolve_confirmation_entry(root)
         platform = "codex" if "--platform" in sys.argv and sys.argv[-1] == "codex" else "claude"
-        result = subprocess.run(command + ["confirm", "hook", "--platform", platform], input=raw, stdout=subprocess.PIPE,
+        result = subprocess.run(command + ["hook", "--platform", platform], input=raw, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, cwd=str(root), timeout=4)
         if result.returncode == 0:
             value = json.loads(result.stdout.decode("utf-8"))

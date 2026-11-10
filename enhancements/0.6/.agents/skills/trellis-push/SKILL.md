@@ -11,7 +11,7 @@ description: "按确认的精确文件范围提交普通变更或完成已就绪
 
 人工确认或有效 policy_timeout claim 与 started 回执之前，禁止 `git add`、`git commit` 或 `git push`。准备后台等待不执行 Git 写入。
 
-最终回复前按 `.trellis/scripts/confirmation.md`：已有授权续接；只看计划/停止、本机制自身开发验证或未决风险保持人工。其余必须 `confirm prepare` 完整计划及精确范围；成功后后台 `confirm wait`，原样完整展示 `display` 并结束回合。失败报告实际原因。提醒仅 `claimed=true`、`source=policy_timeout`、`action=execute_git_plan` 且 started 成功进 Step 4，后记终态。准备不需领取，回执不是人工确认，不扩大范围。
+最终回复前按 `.trellis/scripts/confirmation.md`：已有授权续接；只看计划/停止、本机制自身开发验证或未决风险保持人工。其余必须 项目 `prepare` 完整计划及精确范围；成功后后台 `wait`，原样完整展示 `display` 并结束回合。失败报告实际原因。提醒仅 `claimed=true`、`source=policy_timeout`、`action=execute_git_plan` 且 started 成功进 Step 4，后记终态。准备不需领取，回执不是人工确认，不扩大范围。
 
 普通模式精确计划确认一次后 commit + push；仅用户要求本地提交才 commit-only，不写任务进度。task 普通计划含独立记录提交。
 

@@ -49,7 +49,7 @@ untracked helper 不存检查证据或风险接受。通过且按下方 Gate 默
 
 ### 后台处置
 
-最终回复前读取 `.trellis/scripts/confirmation.md`：普通待处置项必须 `confirm prepare` 完整报告/全部 findings/版本，成功后后台 `confirm wait`，原样完整展示 `display`。实际失败说明原因；只检查、停止、本机制自身开发验证等排除项保持人工。提醒仅 `claimed=true`、`source=policy_timeout`、`action=repair_all_and_recheck` 且 started 成功才修复重检并记终态。准备不需领取。
+最终回复前读取 `.trellis/scripts/confirmation.md`：普通待处置项必须 项目 `prepare` 完整报告/全部 findings/版本，成功后后台 `wait`，原样完整展示 `display`。实际失败说明原因；只检查、停止、本机制自身开发验证等排除项保持人工。提醒仅 `claimed=true`、`source=policy_timeout`、`action=repair_all_and_recheck` 且 started 成功才修复重检并记终态。准备不需领取。
 
 ### 交互式下一步引导
 

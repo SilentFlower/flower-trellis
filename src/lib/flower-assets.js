@@ -1,5 +1,7 @@
 import path from "node:path";
-import { copyPath } from "./fs-utils.js";
+import fs from "node:fs";
+import { copyPath, rmrf } from "./fs-utils.js";
+import { listCanonicalTreeFiles } from "../plugin/integrity/canonical-tree.js";
 import { PKG_ROOT } from "./paths.js";
 
 /** flower 自有启动更新 hook 脚本名。 */
@@ -26,6 +28,14 @@ export const FLOWER_CONFIRMATION_HOOK = "flower_confirmation_hook.py";
 /** 原生确认 Hook 的受管路径。 */
 export const FLOWER_CONFIRMATION_HOOK_REL = `.trellis/scripts/${FLOWER_CONFIRMATION_HOOK}`;
 
+/** 确认运行时随项目分发的完整资产，目录由 Plugin 树投影管理。 */
+export const FLOWER_CONFIRMATION_ASSETS = Object.freeze([
+  FLOWER_CONFIRMATION_HOOK,
+  "flower_confirmation.py",
+  "flower_tui_lifetime.py",
+  "flower_confirmation_runtime",
+]);
+
 /**
  * 复制 flower 自有脚本资产。
  *
@@ -36,12 +46,18 @@ export const FLOWER_CONFIRMATION_HOOK_REL = `.trellis/scripts/${FLOWER_CONFIRMAT
  * @returns {{installed:string[],paths:string[]}} 已安装资产和 manifest 路径
  */
 export function copyFlowerAssets(target) {
-  const assets = [FLOWER_UPDATE_HOOK, FLOWER_SESSION_HOOK, FLOWER_TELEMETRY_HOOK, FLOWER_CONFIRMATION_HOOK];
+  const assets = [FLOWER_UPDATE_HOOK, FLOWER_SESSION_HOOK, FLOWER_TELEMETRY_HOOK, ...FLOWER_CONFIRMATION_ASSETS];
   for (const asset of assets) {
-    copyPath(
-      path.join(PKG_ROOT, "src", "assets", asset),
-      path.join(target, ".trellis", "scripts", asset),
-    );
+    const source = path.join(PKG_ROOT, "src", "assets", asset);
+    const destination = path.join(target, ".trellis", "scripts", asset);
+    if (fs.statSync(source).isDirectory()) {
+      rmrf(destination);
+      for (const file of listCanonicalTreeFiles(source, { ignoreVolatile: true })) {
+        copyPath(file.absolutePath, path.join(destination, file.path));
+      }
+    } else {
+      copyPath(source, destination);
+    }
   }
   return {
     installed: assets.map((asset) => `script:${asset}`),

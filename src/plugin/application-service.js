@@ -1,4 +1,5 @@
 import path from "node:path";
+import { invalidateChangedConfirmations } from "../lib/confirmation-lifecycle.js";
 import { ProjectStore } from "./state/project-store.js";
 import { isSemVerRange, parseCanonicalPluginId } from "./schemas/shared.js";
 import { validatePluginsFile } from "./schemas/project-files.js";
@@ -870,6 +871,7 @@ export class PluginApplicationService {
       patchReport: patchResult.patchReport,
       plan,
     });
+    invalidateChangedConfirmations(this.projectRoot, plan, input.dryRun);
     const transaction = this.writer.apply({
       plan,
       payloads: projection.payloads,

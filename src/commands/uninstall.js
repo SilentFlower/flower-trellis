@@ -4,6 +4,7 @@ import {
   planSkillGardenUninstall,
 } from "../builtin-plugins/skill-garden/uninstall.js";
 import { hasHelpFlag } from "../lib/cli-args.js";
+import { cancelProjectConfirmations } from "../lib/confirmation-lifecycle.js";
 
 /** 打印 uninstall 命令帮助。 */
 function printUninstallHelp() {
@@ -50,6 +51,7 @@ export async function uninstall(ctx) {
     console.log("· 未发现 flower/skill-garden Plugin state，不猜测强化残留");
   }
 
+  if (!dryRun) cancelProjectConfirmations(target, "project_uninstalled");
   const code = await runTrellis(["uninstall", ...ctx.passthrough], target);
   if (code !== 0) {
     throw new Error(`trellis uninstall 失败(退出码 ${code})，未清理 Plugin 资产`);

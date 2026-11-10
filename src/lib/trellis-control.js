@@ -7,7 +7,7 @@ import {
 } from "@mindfoldhq/trellis/dist/configurators/index.js";
 import { computeHash } from "@mindfoldhq/trellis/dist/utils/template-hash.js";
 import { flowerVersion, trellisVersion } from "./versions.js";
-import { cancelProjectConfirmations } from "./codex-confirmation.js";
+import { cancelProjectConfirmations } from "./confirmation-lifecycle.js";
 import {
   createUpdateSnapshot,
   disposeUpdateSnapshot,

@@ -35,7 +35,7 @@ description: "从最新 prd.md、design.md、implement.md 生成、刷新、校�
 1. 已有内部到期提醒：先按 `.trellis/scripts/confirmation.md` 领取，不重建请求。只有实际 `claimed=true`、`source=policy_timeout`、`action=implement` 且 `started` 记账成功，才运行原 `task.py start` 与 route；回执不代表人工确认。
 2. 有同一 Brief 的有效人工批准、明确预授权或合法 auto-loop action：按对应授权续接，不叠加计时。
 3. 用户明确“只规划 / 不开始 / 展示后停止”、产品决定未收敛、本机制自身开发验证：展示完整 Brief，说明具体原因并保持人工。普通“创建任务 / 开始做”本身不属于显式停止。
-4. 其余普通 Codex / Claude 交互：必须读取 `.trellis/scripts/confirmation.md`，实际执行 `confirm prepare`；不要求用户额外说“开启超时”，也不以尚无领取回执为由跳过准备。`prepared=true` 后用原生后台 terminal/Bash 启动 `confirm wait`，最终回复原样完整展示返回的 `display` 并结束回合。
+4. 其余普通 Codex / Claude 交互：必须读取 `.trellis/scripts/confirmation.md`，实际执行 项目 `prepare`；不要求用户额外说“开启超时”，也不以尚无领取回执为由跳过准备。`prepared=true` 后用原生后台 terminal/Bash 启动 `wait`，最终回复原样完整展示返回的 `display` 并结束回合。
 5. 禁用、坏配置、能力缺失或工具失败：使用实际返回原因，展示完整 Brief 和人工确认提示；无法读取入口或协议时明确缺失位置。不得未尝试就声称环境不支持，不显示虚构的倒计时。
 
 准备和展示只建立等待；业务许可必须在到期后另行领取。人工新消息优先，材料变化使旧许可失效。

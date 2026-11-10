@@ -8,10 +8,9 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { resolveTrellisBin } from "../../src/lib/trellis-runner.js";
 import { applyEnhancements } from "../../src/lib/apply-enhancements.js";
 import { planSkillGardenUninstall, applySkillGardenUninstall } from "../../src/builtin-plugins/skill-garden/uninstall.js";
-import { ConfirmationStore, prepareConfirmation, runConfirmationWorker, cancelConfirmation } from "../../src/lib/codex-confirmation.js";
-import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
-import { setTimeout as sleep } from "node:timers/promises";
+import { hashContent } from "../../src/plugin/install/content-hash.js";
+import { resolvePythonExecutable } from "../../scripts/python-runtime.mjs";
 import { disableTrellis } from "../../src/lib/trellis-control.js";
 
 /** 读取平台配置中的确认 Hook 数量。 */
@@ -40,7 +39,9 @@ test("实际安装及重复叠加保留用户 Hook，卸载只清理自有确认
   assert.deepEqual(hookCounts(target, "codex"), { SessionStart: 0, UserPromptSubmit: 1, Stop: 0, SessionEnd: 0, Interrupt: 1 });
   assert.ok(fs.existsSync(path.join(target, ".trellis/scripts/confirmation_policy.py")));
   assert.ok(fs.existsSync(path.join(target, ".trellis/scripts/confirmation.md")));
-  assert.ok(fs.existsSync(path.join(target, ".trellis/scripts/flower_confirmation_hook.py")));
+  for (const asset of ["flower_confirmation_hook.py", "flower_confirmation.py", "flower_tui_lifetime.py", "flower_confirmation_runtime/runtime.py"]) {
+    assert.ok(fs.existsSync(path.join(target, ".trellis/scripts", asset)), asset);
+  }
   assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/codex-local.sh")), false);
   assert.match(fs.readFileSync(codexFile, "utf8"), /flower_confirmation_hook.py --platform codex/);
   const config = path.join(target, ".trellis/config.yaml");
@@ -65,51 +66,62 @@ test("实际安装及重复叠加保留用户 Hook，卸载只清理自有确认
   }
 });
 
-test("清理不存在的平台不重建目录；旧后台 worker 不能在卸载后复活运行目录", async t => {
-  const root = fs.mkdtempSync(path.join(tmpdir(), "flower-confirm-uninstall-race-"));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const store = new ConfirmationStore(root, randomUUID(), { platform: "codex" });
-  const client = new EventEmitter();
-  client.snapshot = async () => ({ humanId: "human", turn: { id: "origin", status: "completed" } });
-  client.add = async () => ({ id: "owned-queue" }); client.remove = async () => "deleted";
-  const request = prepareConfirmation(store, { seconds: 0.1, message: "卸载竞争夹具", snapshot: await client.snapshot() }).request;
-  const worker = runConfirmationWorker({ store, client, requestId: request.id });
-  const end = Date.now() + 5000;
-  while (store.read().request.state !== "queued") { if (Date.now() > end) throw new Error("未进入排队状态"); await sleep(15); }
-  fs.rmSync(path.join(root, ".trellis"), { recursive: true });
-  assert.equal((await worker).state, "replaced");
-  assert.equal(fs.existsSync(path.join(root, ".trellis")), false);
-  await cancelConfirmation({ store, requestId: request.id });
-  assert.equal(fs.existsSync(path.join(root, ".trellis")), false);
-});
-
-test("确认 Hook 帮助零写入，未支持的原生平台忽略事件", t => {
+test("项目 Python 帮助零写入；Flower 帮助清理旧命令", t => {
   const target = fs.mkdtempSync(path.join(tmpdir(), "flower-confirm-hook-help-"));
   t.after(() => fs.rmSync(target, { recursive: true, force: true }));
-  // 帮助属于两平台共同契约：即使未安装项目或没有会话也应零写入。
-  const result = spawnSync(process.execPath, [path.resolve("bin/flower-trellis.js"), "confirm", "hook", "--help", "--target", target], { encoding: "utf8" });
+  const result = spawnSync(resolvePythonExecutable(), ["-X", "utf8", path.resolve("src/assets/flower_confirmation.py"), "--help", "--target", path.join(target, "missing")], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(fs.readdirSync(target), []);
-  if (process.platform !== "linux") {
-    const ignored = spawnSync(process.execPath, [path.resolve("bin/flower-trellis.js"), "confirm", "hook", "--target", target], { encoding: "utf8", input: "{}" });
-    assert.equal(ignored.status, 0, ignored.stderr);
-    assert.deepEqual(fs.readdirSync(target), []);
-  }
+  const help = spawnSync(process.execPath, [path.resolve("bin/flower-trellis.js"), "--help"], { encoding: "utf8" });
+  assert.equal(help.status, 0, help.stderr);
+  assert.doesNotMatch(help.stdout, /flower-trellis confirm/);
 });
 
 test("关闭项目先作废两平台现有请求，dry-run 不改变代次", t => {
   const target = fs.mkdtempSync(path.join(tmpdir(), "flower-confirm-disable-"));
   t.after(() => fs.rmSync(target, { recursive: true, force: true }));
   execFileSync(process.execPath, [resolveTrellisBin(), "init", "--claude", "--codex", "--no-monorepo", "-y", "-u", "probe"], { cwd: target, env: { ...process.env, FLOWER_NO_TELEMETRY: "1" }, stdio: "ignore" });
-  const stores = ["codex", "claude"].map(platform => new ConfirmationStore(target, randomUUID(), { platform }));
-  for (const store of stores) prepareConfirmation(store, { seconds: 20, message: "implement",
-    snapshot: { humanId: randomUUID(), turn: { id: randomUUID(), status: "inProgress" } } });
+  const files = ["codex", "claude"].map(platform => {
+    const session = randomUUID();
+    const file = path.join(target, ".trellis/.runtime", `confirmation-${platform}`, `${session}.json`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ version: 2, sessionId: session, generation: 1,
+      request: { id: randomUUID(), generation: 1, state: "prepared" } }));
+    return file;
+  });
   disableTrellis(target, { dryRun: true });
-  for (const store of stores) assert.equal(store.read().request.state, "prepared");
+  for (const file of files) assert.equal(JSON.parse(fs.readFileSync(file)).request.state, "prepared");
   disableTrellis(target);
-  for (const store of stores) {
-    assert.equal(store.read().request.state, "cancelled");
-    assert.equal(store.read().request.error, "project_disabled");
-    assert.notEqual(store.read().generation, store.read().request.generation);
+  for (const file of files) {
+    const state = JSON.parse(fs.readFileSync(file));
+    assert.equal(state.request.state, "cancelled");
+    assert.equal(state.request.error, "project_disabled");
+    assert.notEqual(state.generation, state.request.generation);
   }
+});
+
+test("实际运行时升级取消旧请求，预览和重复更新保持原代次", t => {
+  const target = fs.mkdtempSync(path.join(tmpdir(), "flower-confirm-upgrade-"));
+  t.after(() => fs.rmSync(target, { recursive: true, force: true }));
+  execFileSync(process.execPath, [resolveTrellisBin(), "init", "--claude", "--codex", "--no-monorepo", "-y", "-u", "probe"], { cwd: target, env: { ...process.env, FLOWER_NO_TELEMETRY: "1" }, stdio: "ignore" });
+  applyEnhancements(target, { variant: "0.6" });
+  const relative = ".trellis/scripts/flower_confirmation_hook.py";
+  const previous = "# 旧版安装资产\n";
+  fs.writeFileSync(path.join(target, relative), previous);
+  const stateFile = path.join(target, ".flower/state.json");
+  const state = JSON.parse(fs.readFileSync(stateFile));
+  state.plugins.find(({ id }) => id === "flower/skill-garden").paths.find(({ path: entry }) => entry === relative).hash = hashContent(previous);
+  fs.writeFileSync(stateFile, JSON.stringify(state));
+  const session = randomUUID();
+  const requestFile = path.join(target, ".trellis/.runtime/confirmation-codex", `${session}.json`);
+  fs.mkdirSync(path.dirname(requestFile), { recursive: true });
+  fs.writeFileSync(requestFile, JSON.stringify({ version: 2, sessionId: session, generation: 1,
+    request: { id: randomUUID(), generation: 1, state: "prepared" } }));
+  applyEnhancements(target, { variant: "0.6", dryRun: true });
+  assert.equal(JSON.parse(fs.readFileSync(requestFile)).request.state, "prepared");
+  applyEnhancements(target, { variant: "0.6" });
+  const cancelled = fs.readFileSync(requestFile, "utf8");
+  assert.equal(JSON.parse(cancelled).request.error, "project_updated");
+  applyEnhancements(target, { variant: "0.6" });
+  assert.equal(fs.readFileSync(requestFile, "utf8"), cancelled);
 });

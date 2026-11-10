@@ -19,8 +19,8 @@ test("自然确认入口在最终回复前准备，三 owner 与两端投影遵�
       assert.equal(agents, read(snapshotRoot, `${platform}/skills/${owner}`), owner);
     }
     assert.match(agents, /最终回复前|结束回合前/, owner);
-    assert.match(agents, /confirm prepare/, owner);
-    assert.match(agents, /confirm wait/, owner);
+    assert.match(agents, /项目.*`prepare`/, owner);
+    assert.match(agents, /`wait`/, owner);
     assert.match(agents, /原样完整展示.*`display`/, owner);
     assert.ok(agents.includes(action), owner);
     assert.match(agents, /started/, owner);
@@ -28,6 +28,8 @@ test("自然确认入口在最终回复前准备，三 owner 与两端投影遵�
     assert.match(agents, /本机制自身开发/, owner);
   }
   const protocol = read(sourceRoot, "scripts/confirmation.md");
+  assert.match(protocol, /flower_confirmation\.py prepare/);
+  assert.doesNotMatch(protocol, /flower-trellis confirm/);
   assert.match(protocol, /prepare 成功而 wait 失败时，先 cancel 本请求/);
   const handoff = read(sourceRoot, "overrides/patches/skills/trellis-brainstorm/planning-handoff/content.md");
   const phase = read(sourceRoot, "overrides/patches/workflow/task-brief-review/phase-1-activate-content.md");
