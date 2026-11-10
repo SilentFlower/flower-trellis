@@ -115,7 +115,13 @@ export class ConfirmationStore {
     const deadline = Date.now() + 1000;
     for (;;) {
       try {
-        mkdirSync(lock, { mode: 0o700 });
+        try { mkdirSync(lock, { mode: 0o700 }); }
+        catch (error) {
+          // Windows 删除中的目录可能暂报权限错误；未取得锁时只在原预算内重试。
+          if (process.platform !== "win32" || !["EPERM", "EACCES"].includes(error.code) || Date.now() >= deadline) throw error;
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+          continue;
+        }
         writeJson(path.join(lock, "owner.json"), { pid: process.pid, token });
         break;
       } catch (error) {

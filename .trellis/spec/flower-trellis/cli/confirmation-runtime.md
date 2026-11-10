@@ -71,6 +71,8 @@ watchCodexTui(binding, { project }) -> { ready, close, exited/invalid 事件 }
 
 - 正式状态为 version 2，位于 `.trellis/.runtime/confirmation-<platform>/<sessionId>.json`。
   原子替换与同步目录锁保护 generation；状态目录、文件不允许软链，正式文件最多 1 MiB。
+- Windows 创建锁目录短暂返回 `EPERM/EACCES` 时仅在原 1 秒预算内重试；持续拒绝保留原权限错误。
+  只有成功取得锁后才能写 owner 和执行状态回调，不因权限错误偷锁或重放业务回调。
 - 正式 `request.contract.version=2`，包含平台、输入路径、时长覆盖、冻结快照，以及 Codex
   `windowBinding` 或 Claude `runId`。旧协议不能升级为正式许可。
 - 主路径：`prepared -> waiting -> dispatching -> queued -> consumed`；终止态包括
@@ -145,6 +147,7 @@ watchCodexTui(binding, { project }) -> { ready, close, exited/invalid 事件 }
 
 - `confirmation-store` / `confirmation-runtime`：完整展示起点、单调计时、重复领取、输入与派发/started 竞争、
   材料和 Git 快照漂移、结果未知、信号及卸载不复活状态目录。
+  Windows 短暂拒绝创建锁后仅更新一次，持续拒绝时不执行回调；真实多进程竞争保留全部代次更新。
 - `codex-queue-client` / `codex-confirmation-client` / `codex-tui-lifetime`：只读观察、真实内部来源、出生身份、
   归属歧义、恢复拒绝、能力不足；在不存在宿主 Codex home 的环境实际运行，不能依赖本机配置。
 - `claude-confirmation-client`：精确后台任务、原生通知与人工粘贴区分、输入取消、退出及 runId 替换。

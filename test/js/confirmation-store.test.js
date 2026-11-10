@@ -2,7 +2,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { EventEmitter } from "node:events";
+import fs from "node:fs";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readdirSync, existsSync, symlinkSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -214,6 +216,62 @@ test("损坏、过大或软链接状态不能成为有效请求", async t => {
   try { symlinkSync(target, store.file); }
   catch (error) { if (process.platform === "win32" && error.code === "EPERM") return; throw error; }
   assert.throws(() => store.read(), /普通文件/);
+});
+
+/** 在同步调用期间模拟 Windows 文件系统失败，结束后恢复平台和 ESM 内置绑定。
+ * @param {object} t 测试上下文
+ * @param {Function} mkdir 模拟目录创建
+ * @param {Function} action 同步验证
+ * @returns {unknown} 验证结果
+ */
+function withWindowsMkdir(t, mkdir, action) {
+  const platform = Object.getOwnPropertyDescriptor(process, "platform");
+  const mocked = t.mock.method(fs, "mkdirSync", mkdir);
+  Object.defineProperty(process, "platform", { ...platform, value: "win32" });
+  syncBuiltinESMExports();
+  try { return action(); }
+  finally {
+    mocked.mock.restore();
+    syncBuiltinESMExports();
+    Object.defineProperty(process, "platform", platform);
+  }
+}
+
+test("Windows 锁目录短暂拒绝创建后只执行一次状态更新", async t => {
+  for (const code of ["EPERM", "EACCES"]) {
+    const { store, prepare } = fixture(t);
+    await prepare();
+    const original = fs.mkdirSync;
+    let attempts = 0;
+    let updates = 0;
+    withWindowsMkdir(t, (file, options) => {
+      if (file === `${store.file}.lock` && ++attempts <= 3) throw Object.assign(new Error("目录仍在删除"), { code });
+      return original(file, options);
+    }, () => store.update(state => { updates += 1; state.generation += 1; return state; }));
+    assert.equal(attempts, 4);
+    assert.equal(updates, 1);
+    assert.equal(store.read().generation, 2);
+    assert.equal(existsSync(`${store.file}.lock`), false);
+  }
+});
+
+test("Windows 持续拒绝创建锁时保留权限错误且不执行状态回调", t => {
+  const { store } = fixture(t);
+  const original = fs.mkdirSync;
+  const denied = Object.assign(new Error("访问被拒绝"), { code: "EPERM" });
+  let attempts = 0;
+  let updates = 0;
+  let milliseconds = 0;
+  const clock = t.mock.method(Date, "now", () => { milliseconds += 250; return milliseconds; });
+  try {
+    withWindowsMkdir(t, (file, options) => {
+      if (file === `${store.file}.lock`) { attempts += 1; throw denied; }
+      return original(file, options);
+    }, () => assert.throws(() => store.update(state => { updates += 1; return state; }), error => error === denied));
+  } finally { clock.mock.restore(); }
+  assert.equal(attempts, 4);
+  assert.equal(updates, 0);
+  assert.equal(existsSync(store.file), false);
 });
 
 test("多进程竞争状态锁仍保持全部代次更新", async t => {
