@@ -93,6 +93,58 @@ class ConfirmationStoreTest(unittest.TestCase):
             f.store.update(lambda value: callbacks.append(True))
         self.assertEqual(callbacks, [])
 
+    def test_windows_shared_files_retry_without_replaying_callback(self):
+        """原子替换和锁释放遇到短暂共享占用，状态转换各执行一次。"""
+        for operation in ("replace", "release"):
+            with self.subTest(operation=operation):
+                f = ProjectFixture(self)
+                lock = f.store.file.with_name(f.store.file.name + ".lock")
+                module, name = (storage.os, "replace") if operation == "replace" else (storage.shutil, "rmtree")
+                original = getattr(module, name)
+                attempts, callbacks = [], []
+                def apply(*args, **kwargs):
+                    target = Path(args[-1] if operation == "replace" else args[0])
+                    if target == (f.store.file if operation == "replace" else lock):
+                        attempts.append(True)
+                        if len(attempts) < 3:
+                            raise PermissionError(errno.EACCES, "共享占用")
+                    return original(*args, **kwargs)
+                def mutate(value):
+                    callbacks.append(True)
+                    return {**value, "generation": 1}
+                with patch.object(storage.sys, "platform", "win32"), patch.object(module, name, side_effect=apply):
+                    f.store.update(mutate)
+                self.assertEqual(len(attempts), 3)
+                self.assertEqual(len(callbacks), 1)
+                self.assertEqual(f.store.read()["generation"], 1)
+                self.assertFalse(lock.exists())
+
+    def test_persistent_shared_file_denial_preserves_error_and_execution_fact(self):
+        """持续拒绝保留原错误，写入事实与回调次数保持真实。"""
+        for operation in ("replace", "release"):
+            with self.subTest(operation=operation):
+                f = ProjectFixture(self)
+                lock = f.store.file.with_name(f.store.file.name + ".lock")
+                module, name = (storage.os, "replace") if operation == "replace" else (storage.shutil, "rmtree")
+                original = getattr(module, name)
+                callbacks = []
+                error = PermissionError(errno.EACCES, "持续共享占用")
+                def apply(*args, **kwargs):
+                    target = Path(args[-1] if operation == "replace" else args[0])
+                    if target == (f.store.file if operation == "replace" else lock):
+                        raise error
+                    return original(*args, **kwargs)
+                def mutate(value):
+                    callbacks.append(True)
+                    return {**value, "generation": 1}
+                with patch.object(storage.sys, "platform", "win32"), patch.object(module, name, side_effect=apply), \
+                        patch.object(storage.time, "monotonic", side_effect=range(0, 100, 2)), self.assertRaises(PermissionError) as caught:
+                    f.store.update(mutate)
+                self.assertIs(caught.exception, error)
+                self.assertEqual(len(callbacks), 1)
+                self.assertEqual(f.store.read()["generation"], 0 if operation == "replace" else 1)
+                self.assertEqual(lock.exists(), operation == "release")
+
 
 if __name__ == "__main__":
     unittest.main()

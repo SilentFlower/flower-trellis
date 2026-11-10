@@ -274,17 +274,27 @@ class ProjectConfirmationTest(unittest.TestCase):
         f, prepared = self.ready()
         f.client.delivery_on_exit = False
         result = []
-        worker = threading.Thread(target=lambda: result.append(runtime.wait(f.store, f.client, prepared["requestId"])))
+        queued, released, stopped = threading.Event(), threading.Event(), threading.Event()
+        def notify(value):
+            if value["event"] == "queued":
+                # 固定目录删除发生在入队落盘与下一次观察之间，避免轮询读取干扰 Windows 文件共享。
+                queued.set()
+                released.wait(20)
+        worker = threading.Thread(target=lambda: result.append(runtime.wait(
+            f.store, f.client, prepared["requestId"], interrupted=stopped.is_set, notify=notify)))
         worker.start()
-        deadline = time.monotonic() + 8
-        while f.store.read()["request"]["state"] != "queued":
-            self.assertLess(time.monotonic(), deadline)
-            time.sleep(0.02)
-        shutil.rmtree(str(f.root / ".trellis"))
-        worker.join(5)
-        self.assertFalse(worker.is_alive())
-        self.assertEqual(result[0]["state"], "replaced")
-        self.assertFalse((f.root / ".trellis").exists())
+        try:
+            self.assertTrue(queued.wait(20), repr(result))
+            shutil.rmtree(str(f.root / ".trellis"))
+            released.set()
+            worker.join(5)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(result[0]["state"], "replaced")
+            self.assertFalse((f.root / ".trellis").exists())
+        finally:
+            stopped.set()
+            released.set()
+            worker.join(5)
 
     def test_control_state_even_json_null_keeps_manual(self):
         """关闭、修复、损坏控制状态都保留人工边界。"""

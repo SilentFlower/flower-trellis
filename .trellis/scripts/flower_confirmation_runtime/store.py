@@ -130,6 +130,19 @@ def read_json(file, limit=MAX_BYTES):
         return None
 
 
+def _retry_windows_permission(operation):
+    # 竞争读取会短暂占用 Windows 文件；仅重试文件操作，避免重放已经执行的状态转换。
+    deadline = time.monotonic() + 1
+    while True:
+        try:
+            return operation()
+        except OSError as error:
+            if (sys.platform != "win32" or error.errno not in (errno.EACCES, errno.EPERM)
+                    or time.monotonic() >= deadline):
+                raise
+            time.sleep(0.01)
+
+
 def _write_json(file, value, limit=MAX_BYTES):
     raw = json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
     if len(raw) > limit:
@@ -142,7 +155,7 @@ def _write_json(file, value, limit=MAX_BYTES):
             stream.write(raw)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(str(temporary), str(file))
+        _retry_windows_permission(lambda: os.replace(str(temporary), str(file)))
     finally:
         try:
             temporary.unlink()
@@ -262,7 +275,7 @@ class ConfirmationStore:
         finally:
             owner = read_json(lock / "owner.json")
             if owner and owner.get("token") == token:
-                shutil.rmtree(str(lock))
+                _retry_windows_permission(lambda: shutil.rmtree(str(lock)))
 
     def _reap(self, lock, token):
         try:

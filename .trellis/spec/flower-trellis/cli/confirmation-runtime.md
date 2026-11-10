@@ -79,6 +79,9 @@ src/lib/confirmation-lifecycle.js:
   锁目录沿用 `<sessionId>.json.lock/owner.json` 的 `pid/token`，陈旧 owner 必须复核存活性后回收。
 - Windows 创建锁目录短暂返回 `EPERM/EACCES` 时仅在原 1 秒预算内重试；持续拒绝保留原权限错误。
   只有成功取得锁后才能写 owner 和执行状态回调，不因权限错误偷锁或重放业务回调。
+- Windows 竞争读取可能短暂占用 `owner.json` 或状态文件。原子 `replace` 和锁目录释放各使用
+  1 秒单调时钟预算重试 `EPERM/EACCES`，仅重试文件操作。状态转换回调仍只执行一次。
+  持续拒绝保留原权限错误；锁释放失败时，已经写入的状态事实继续保留。
 - 正式 `request.contract.version=2`，包含平台、输入路径、时长覆盖、冻结快照，以及 Codex
   `windowBinding` 或 Claude `runId`。旧协议不能升级为正式许可。
 - 主路径：`prepared -> waiting -> dispatching -> queued -> consumed`；终止态包括
@@ -147,6 +150,8 @@ src/lib/confirmation-lifecycle.js:
 | 新输入、改材料、改策略、改任务或 Git 快照 | 旧许可失效 |
 | 前台退出、PID 复用、服务重绑或归属歧义 | 不派发或拒绝领取，不借用其他窗口 |
 | 重复 worker、提醒、claim、started | 至多单次领取和单次业务开始 |
+| Windows 原子替换或锁释放短暂共享占用 | 有限重试文件操作，业务回调保持单次 |
+| Windows 共享占用持续超过预算 | 保留原权限错误与已写入的状态事实 |
 | 原生入队回执超时 | delivery_unknown，不重投 |
 | 缺少 pidfd、原生来源或受支持环境 | 保留人工路径 |
 
@@ -169,6 +174,8 @@ src/lib/confirmation-lifecycle.js:
 - `test_confirmation_store.py` / `test_project_confirmation.py`：完整展示起点、单调计时、重复领取、输入与派发/started 竞争、
   材料和 Git 快照漂移、结果未知、信号及卸载不复活状态目录。
   Windows 短暂拒绝创建锁后仅更新一次，持续拒绝时不执行回调；真实多进程竞争保留全部代次更新。
+  原子替换与锁释放的短暂/持续共享占用分别断言回调次数、原错误、持久代次和锁生命周期。
+  卸载竞争通过 queued 事件屏障固定目录删除与下一次观察的位置，保留真实线程退出及目录缺失断言。
 - `test_confirmation_native.py` / `test_flower_tui_lifetime.py`：本机 WebSocket、帧边界、只读观察、真实内部来源、
   出生身份、归属歧义、恢复拒绝、能力不足；不存在宿主 Codex home 和隔离 PATH 下完成两端真实 Python CLI 链路。
 - `test_project_confirmation.py`：Claude 精确后台任务、原生通知与人工粘贴区分、输入取消、退出、runId 替换
