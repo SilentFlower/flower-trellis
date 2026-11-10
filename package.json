@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.13-beta.6",
+  "version": "0.6.13-beta.7",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -72,9 +72,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.13-beta.6",
+    "version": "0.6.13-beta.7",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **confirmation:** 隔离进程归属测试并保留权限拒绝边界 ([e3923d7](https://github.com/SilentFlower/flower-trellis/commit/e3923d7f1ad919b3ac4de5655c931e21560c0e10))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **confirmation:** 修复 Windows 目录锁短暂拒绝创建 ([6b09023](https://github.com/SilentFlower/flower-trellis/commit/6b0902332c7d2ae40070a55fdbcb1ecc657ce527))",
     "truncated": false
   },
   "optionalDependencies": {
