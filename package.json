@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.13-beta.8",
+  "version": "0.6.13-beta.9",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -73,9 +73,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.13-beta.8",
+    "version": "0.6.13-beta.9",
     "source": "CHANGELOG.md",
-    "body": "### ✨ 新功能 Features\n\n* **confirmation:** 将确认运行时迁移为项目内 Python ([016cde7](https://github.com/SilentFlower/flower-trellis/commit/016cde775f1a8dec3a1a01634802915369e9c19e))\n\n\n### 🐛 修复 Bug Fixes\n\n* **confirmation:** 修复 Windows 文件共享占用竞争 ([8e24d13](https://github.com/SilentFlower/flower-trellis/commit/8e24d131abc7724413ce4bac26137e18447fed33))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **confirmation:** 空轮询跳过状态写锁 ([3c6291d](https://github.com/SilentFlower/flower-trellis/commit/3c6291d45d4a2a4bb2e22af0b9bdb97fe277f4d9))",
     "truncated": false
   },
   "optionalDependencies": {
