@@ -96,6 +96,8 @@ src/lib/confirmation-lifecycle.js:
   随后记录 `completed`、`interrupted` 或 `needs-verification`。存在 started 未终结时不能被新请求覆盖。
 - 新人工输入先使旧代次失效；领取与 started 写锁内再次复核。回执丢失视为投递结果未知，不重发。
   取消后尽力撤回自己的队列项；迟到通知仍须领取，不能重放旧动作。
+- `wait` 的常规轮询复用本轮已读状态。原生快照只包含已记录的人工消息或冻结基线时，不取写锁、不写状态；
+  发现候选新消息时，在写锁内按最新请求和消息基线重新判断，再更新代次并作废旧许可。
 - `wait` 收到 SIGINT/SIGTERM 先失效请求再退出 130。关闭项目先取消现有许可；卸载后的清理不能重建目录。
 
 #### Native Hosts
@@ -147,6 +149,7 @@ src/lib/confirmation-lifecycle.js:
 | `.flower/trellis-control.json` 存在，包括 null、损坏或漂移状态 | 保持人工确认 |
 | 原生结构损坏或来源校验异常 | 使当前活动许可失效，返回结构化失败 |
 | 未完整展示、原回合中断 | 不启动倒计时 |
+| 常规轮询无新人工消息，写锁被占用 | 继续只读观察 |
 | 新输入、改材料、改策略、改任务或 Git 快照 | 旧许可失效 |
 | 前台退出、PID 复用、服务重绑或归属歧义 | 不派发或拒绝领取，不借用其他窗口 |
 | 重复 worker、提醒、claim、started | 至多单次领取和单次业务开始 |
@@ -176,6 +179,7 @@ src/lib/confirmation-lifecycle.js:
   Windows 短暂拒绝创建锁后仅更新一次，持续拒绝时不执行回调；真实多进程竞争保留全部代次更新。
   原子替换与锁释放的短暂/持续共享占用分别断言回调次数、原错误、持久代次和锁生命周期。
   卸载竞争通过 queued 事件屏障固定目录删除与下一次观察的位置，保留真实线程退出及目录缺失断言。
+  空轮询跨过活锁；锁释放后观察到的新人工消息仍取消旧请求。
 - `test_confirmation_native.py` / `test_flower_tui_lifetime.py`：本机 WebSocket、帧边界、只读观察、真实内部来源、
   出生身份、归属歧义、恢复拒绝、能力不足；不存在宿主 Codex home 和隔离 PATH 下完成两端真实 Python CLI 链路。
 - `test_project_confirmation.py`：Claude 精确后台任务、原生通知与人工粘贴区分、输入取消、退出、runId 替换

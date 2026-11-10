@@ -81,11 +81,19 @@ def _normalize_display(text):
     return "\n".join(lines)
 
 
-def _observe(store, request_id, snapshot):
+def _observe(store, request_id, snapshot, *, observed=None):
     identifiers = snapshot.get("humanEvents", []) + [snapshot.get("humanId")]
+
+    def is_new(identifier, request, state):
+        return identifier and identifier not in (state.get("lastHumanMessageId"), request["baselineMessageId"])
+
+    # 等待轮询只用已读状态跳过无变化的观察；新消息必须按锁内最新状态重新判断。
+    if observed is not None and not any(is_new(identifier, observed["request"], observed) for identifier in identifiers):
+        return observed
+
     def apply(request, state):
         for identifier in identifiers:
-            if not identifier or identifier in (state.get("lastHumanMessageId"), request["baselineMessageId"]):
+            if not is_new(identifier, request, state):
                 continue
             state["lastHumanMessageId"] = identifier
             state["generation"] += 1
@@ -247,7 +255,7 @@ def wait(store, client, request_id, interrupted=lambda: False, notify=lambda val
             if interrupted():
                 raise ValueError("worker_interrupted")
             snapshot = client.snapshot()
-            _observe(store, request_id, snapshot)
+            _observe(store, request_id, snapshot, observed=value)
             if time.monotonic() - began > 2 * 86400:
                 raise ValueError("worker_lifetime_exceeded")
             if request["state"] == "prepared":

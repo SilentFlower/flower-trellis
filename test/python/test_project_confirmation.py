@@ -90,6 +90,37 @@ class ProjectConfirmationTest(unittest.TestCase):
             stopped.set()
             worker.join(4)
 
+    def test_idle_wait_observations_do_not_contend_with_state_writer(self):
+        """空轮询跨过活锁，新人工事件仍使旧请求失效。"""
+        f, prepared = self.ready()
+        f.client.turn["status"] = "inProgress"
+        lock = f.store.file.with_name(f.store.file.name + ".lock")
+        snapshot = f.client.snapshot
+        human_event = str(uuid4())
+        polls = 0
+
+        def observe():
+            nonlocal polls
+            polls += 1
+            if polls == 1:
+                lock.mkdir()
+                write_json(lock / "owner.json", {"pid": os.getpid(), "token": str(uuid4())})
+            if polls == 4:
+                shutil.rmtree(str(lock))
+                return {**snapshot(), "humanEvents": [human_event]}
+            return snapshot()
+
+        f.client.snapshot = observe
+        try:
+            result = runtime.wait(f.store, f.client, prepared["requestId"])
+        finally:
+            shutil.rmtree(str(lock), ignore_errors=True)
+        self.assertEqual(polls, 4)
+        self.assertEqual(result["state"], "cancelled")
+        self.assertEqual(result["error"], "user_replied")
+        self.assertEqual(f.store.read()["lastHumanMessageId"], human_event)
+        self.assertEqual(f.client.added, [])
+
     def test_changes_and_new_input_invalidate_before_dispatch_or_started(self):
         """材料、策略与输入代次的竞争拒绝旧动作。"""
         for mutation in ("material", "policy", "human", "window"):
