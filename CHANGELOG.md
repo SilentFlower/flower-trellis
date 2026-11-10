@@ -4,6 +4,18 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.8](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.7...v0.6.13-beta.8) (2026-11-10)
+
+
+### ✨ 新功能 Features
+
+* **confirmation:** 将确认运行时迁移为项目内 Python ([016cde7](https://github.com/SilentFlower/flower-trellis/commit/016cde775f1a8dec3a1a01634802915369e9c19e))
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 修复 Windows 文件共享占用竞争 ([8e24d13](https://github.com/SilentFlower/flower-trellis/commit/8e24d131abc7724413ce4bac26137e18447fed33))
+
 ## [0.6.13-beta.7](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.6...v0.6.13-beta.7) (2026-11-10)
 
 
