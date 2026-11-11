@@ -1,5 +1,6 @@
 import { FLOWER_UPDATE_HOOK_REL, FLOWER_SESSION_HOOK_REL, FLOWER_TELEMETRY_HOOK_REL, FLOWER_CONFIRMATION_HOOK_REL } from "./flower-assets.js";
 import { applyTomlDefaultBoolean, scanTomlStatements } from "./toml-default-adapter.js";
+import { isRegularProjectFile, migrateLegacyConfirmationConfig } from "./legacy-confirmation-config.js";
 
 const CODEX_WORKFLOW_HOOK = ".codex/hooks/inject-workflow-state.py";
 const CODEX_SESSION_START = ".codex/hooks/session-start.py";
@@ -453,10 +454,18 @@ function applyTomlSection({ value, operation }) {
  * Flower 自有 Patch Adapter 注册表。
  *
  * @param {string} [pythonCommand] 目标 Trellis 项目实际使用的 Python 命令
+ * @param {boolean} [migrateLegacyConfirmation] 是否处理已安装项目的旧确认配置
  * @returns {Record<string, Function>} selector type 到受控 Adapter 的映射
  */
-export function flowerPatchAdapters(pythonCommand = "python3") {
+export function flowerPatchAdapters(pythonCommand = "python3", migrateLegacyConfirmation = false) {
+  const legacyConfirmation = Object.assign(
+    (context) => migrateLegacyConfirmationConfig(context),
+    {
+      shouldReadTarget: (root, relative) => migrateLegacyConfirmation && isRegularProjectFile(root, relative),
+    },
+  );
   return {
+    "legacy-confirmation-config": legacyConfirmation,
     "json-hook-command": (context) => applyJsonHookCommand({ ...context, pythonCommand }),
     "yaml-comment-section": applyYamlCommentSection,
     "yaml-key": applyYamlKey,

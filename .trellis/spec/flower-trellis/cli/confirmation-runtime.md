@@ -193,3 +193,43 @@ src/lib/confirmation-lifecycle.js:
   原生 owner 验收不得在用户提示中给出确认命令；Check 必须观察最终重检报告后再回收测试窗口。
 - 原生实测分开记录：无模型窗口生命周期、Codex 真实队列唤醒、Claude 真实后台通知。隔离进程和协议替身
   不能代替真实模型验收；测试不得关闭用户窗口或停止共享服务。
+
+## Scenario: Retired Confirmation Configuration Migration
+
+### 1. Scope / Trigger
+
+已安装 Flower 的项目执行 Skill-Garden 0.6 全量更新或重放时，清理可确认属于旧自动确认方案的项目配置及退役脚本。安装证据来自既有 Skill-Garden state 或有效的旧 Flower manifest。部分技能更新和冻结重放保留原有配置。
+
+### 2. Signatures
+
+- `flower-trellis update --target <项目> --skip-all --dry-run`：预演保留上游冲突文件时的 Flower 迁移。
+- `flower-trellis update --target <项目> --skip-all`：应用同一迁移。上游冲突策略仍由 update 参数决定。
+- `migrateLegacyConfirmationConfig({ value, original?, operation?, targetSpec, priorResults? })`：返回 `{ value, entries }` 或 `{ unchanged: true }`；不会直接写盘。
+
+### 3. Contracts
+
+- 配置白名单为 `.codex/config.toml`、项目根 `.mcp.json`、`.claude/settings.json` 和 `.claude/settings.local.json`。只检查普通文件和普通父目录。跨版本沙箱带入普通的项目根 `.mcp.json`，使预演和实际升级读取同类输入。
+- 旧 MCP 同时核对实例名、Node 命令、`confirmation-mcp.js` 入口、旧会话变量及平台字段形态。Codex 仅移除与已移除服务器同值且无其它服务器引用的配套变量；Claude 仅移除同一计划已匹配项目注册的精确 `wait` 权限。
+- Claude 旧插件与 directory marketplace 按历史标识和来源成对清理。旧 `ftl confirm hook` 按已知事件、matcher、命令、超时及工具条件精确识别。保留现行确认 Hook、`codex_tui`、`confirmation_timeout` 和自定义配置。
+- 退役脚本仅检查 `.trellis/scripts/confirmation.py`。匹配历史分发内容或未修改的旧受管文件才删除。修改过的旧受管文件转为 shared，交还给用户维护。
+- 配置清理与当前平台 Patch 合并到同一安装计划。跳过和无变化也产生目标结果，分别保持 `missing-target`、`not-applicable` 或 `unchanged` 语义；这些结果不产生迁移写入。预演只显示相对路径和命中的条目名，不输出旧会话值。真实写入与回滚沿用 Plugin 事务。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 迁移结果 |
+| --- | --- |
+| 路径缺失或含软链，或目标非普通文件 | 跳过，迁移不创建文件 |
+| JSON 重复键、数字无法无损序列化，或配置无法解析 | 保留原文 |
+| TOML 删除后的完整语义与预期不一致 | 保留原文 |
+| 写入时发现内容漂移或事务失败 | 沿用现有冲突和回滚机制 |
+
+### 5. Scenarios and Examples
+
+- 正常：同一计划识别 `.mcp.json` 中的旧 Claude MCP，并删除配置中与其配对的精确权限。
+- 边界：重复升级时无旧条目，迁移无写入。现存的空配置仍保留文件。
+- 错误做法：按前缀批量删除所有确认条目，或删除仍由当前实现调用的 `flower_confirmation_hook.py`。应核对历史签名，只清理证实退役的项。
+
+### 6. Tests Required
+
+- `test/js/confirmation-install.test.js`：真实跨版本预演零写入，保留用户配置、清理旧注册、替换旧入口；注入事务失败后恢复文件；重复执行无迁移变更；大整数、重复键及含其它引用的 TOML 反例保留。
+- `test/js/platform-patches.test.js` / `test/js/patch-conflicts.test.js`：缺失平台目标的兼容语义和声明目标覆盖。原生 Ubuntu、Windows 按现有 CI 矩阵验证。

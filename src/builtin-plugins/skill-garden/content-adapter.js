@@ -6,6 +6,7 @@ import {
   ENHANCEMENT_SKILL_TARGETS,
 } from "../../constants.js";
 import { readLegacyManifestStatus } from "../../lib/manifest.js";
+import { isRegularProjectFile, RETIRED_CONFIRMATION_SCRIPT } from "../../lib/legacy-confirmation-config.js";
 import { projectFlowerMetadata } from "./project-metadata.js";
 import { shouldInstallName } from "../../lib/skill-filter.js";
 import { listCanonicalTreeFiles, isVolatileTreeArtifact } from "../../plugin/integrity/canonical-tree.js";
@@ -35,6 +36,12 @@ import {
   PLUGIN_RUNTIME_ERROR_CODES,
   PluginRuntimeError,
 } from "../../plugin/runtime-errors.js";
+
+// 历史 5517830 与 e0aebc1 的完整分发内容。只有 shebang 含 python3，物化时原样保留。
+const RETIRED_CONFIRMATION_HASHES = new Set([
+  "sha256:ecc43cacebe4b0334fb5320253a63df9860e2968246eb381b7c8e4c546096962",
+  "sha256:8abcb90b003151f55a3359e1c4075ce9760a35d25f41e12bddebc40766181bbf",
+]);
 
 const SCRIPT_ALIASES = Object.freeze({
   auto_loop: ["auto-loop", "auto-loop-runner", "trellis-auto-loop"],
@@ -969,6 +976,32 @@ export function projectSkillGardenContent(options) {
           path: relative,
         });
       }
+    }
+  }
+  if (pluginPackage.skillGarden.variant === "0.6" && pluginPackage.skillGarden.migrateLegacyConfirmation) {
+    const target = RETIRED_CONFIRMATION_SCRIPT;
+    const owned = previous?.paths.find((entry) => entry.path === target && entry.kind === "file");
+    if (isRegularProjectFile(projectRoot, target)) {
+      const bytes = fs.readFileSync(path.join(projectRoot, target));
+      const hash = hashContent(bytes);
+      const historical = RETIRED_CONFIRMATION_HASHES.has(hashContent(bytes.toString("utf8").replaceAll("\r\n", "\n")));
+      if (!owned && historical) {
+        mutations.push({
+          owner: resolved.id,
+          target,
+          operation: "remove",
+          beforeHash: hash,
+          afterHash: null,
+          source: "flower:legacy-confirmation",
+          allowUnownedRemove: true,
+        });
+      } else if (owned && owned.hash !== hash) {
+        // 把用户改过的旧脚本降为 shared，后续更新和卸载都不会把它作为退役资产删除。
+        paths.set(target, { ...owned, hash, ownership: "shared" });
+      }
+    } else if (owned) {
+      // 保留非普通目标，避免通用淘汰规则在迁移阶段尝试处理软链。
+      paths.set(target, { ...owned, ownership: "shared" });
     }
   }
   const metadata = projectFlowerMetadata(projectRoot, resolved.id);

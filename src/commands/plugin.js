@@ -1,6 +1,7 @@
 import { observeTelemetryOperation, beginTelemetryOperation, noteTelemetryError } from "../lib/telemetry-operation.js";
 import fs from "node:fs";
 import path from "node:path";
+import { RETIRED_CONFIRMATION_SCRIPT } from "../lib/legacy-confirmation-config.js";
 import { PLUGIN_ERROR_CODES, PluginError } from "../plugin/errors.js";
 import { PluginApplicationService } from "../plugin/application-service.js";
 import { stringifyCanonicalJson } from "../plugin/integrity/canonical-json.js";
@@ -712,6 +713,10 @@ function printResult(result, json, output, options = {}) {
     output.log(`${pluginEntry.id}@${pluginEntry.version} [${pluginEntry.source.type}:${pluginEntry.source.id}]`);
     if (dependencies.length > 0) output.log(`  依赖:${dependencies.join(", ")}`);
   }
+  if (options.compact && result.transaction.changed.includes(RETIRED_CONFIRMATION_SCRIPT) &&
+      result.changes.some(({ target, operation }) => target === RETIRED_CONFIRMATION_SCRIPT && operation === "remove")) {
+    output.log(`  旧确认脚本 ${RETIRED_CONFIRMATION_SCRIPT}`);
+  }
   if (!options.compact) {
     // 生命周期命令会重新投影整图，未受影响的 Plugin 会产生大量前后字节一致的幂等写入。
     // 判定依据取事务层的 changed 清单而不是 before/after hash 比较：ensure-directory 的
@@ -724,7 +729,9 @@ function printResult(result, json, output, options = {}) {
     const hidden = result.changes.length - visible.length;
     if (hidden > 0) output.log(`  · 另有 ${hidden} 项目标无变化(设 FLOWER_DEBUG=1 查看完整清单)`);
   }
-  for (const diagnostic of result.diagnostics.filter(({ severity }) => severity === "warning")) {
+  for (const diagnostic of result.diagnostics.filter(({ severity, code }) => (
+    severity === "warning" || code === "legacy-confirmation.config-cleanup"
+  ))) {
     output.log(`  · ${diagnostic.message}`);
   }
   printApprovalRequests(result.approvalRequests, output);

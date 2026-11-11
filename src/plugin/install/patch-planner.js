@@ -571,6 +571,16 @@ export function preparePluginPatchPlan(target, entries, options = {}) {
     if (error instanceof PluginCapabilityError) throw error;
     throw sanitizedPatchError(error, target, entries);
   }
+  for (const result of patchPlan.results.filter(({ id, entries }) => (
+    id === "flower-remove-legacy-confirmation-config" && entries?.length
+  ))) {
+    diagnostics.push({
+      code: "legacy-confirmation.config-cleanup",
+      path: result.target,
+      message: `旧确认配置 ${result.target}：${result.entries.join("、")}`,
+      severity: "info",
+    });
+  }
   const patchMutations = buildPluginPatchMutations(patchPlan, ownerByCatalog);
   const patchPayloads = buildPluginPatchPayloads(patchPlan);
   assertNoContentPatchConflicts(

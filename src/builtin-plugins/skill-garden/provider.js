@@ -8,6 +8,7 @@ import { listCanonicalTreeFiles } from "../../plugin/integrity/canonical-tree.js
 import { validatePluginManifest } from "../../plugin/schemas/plugin-manifest.js";
 import { markRuntimeBuiltinProvider } from "../../plugin/runtime-extensions.js";
 import { BuiltinSourceProvider } from "../../plugin/sources/builtin-provider.js";
+import { readLegacyManifestStatus } from "../../lib/manifest.js";
 import { flowerPatchAdapters } from "../../lib/platform-patch-adapters.js";
 import { resolveTrellisPythonCommand } from "../../lib/trellis-python-command.js";
 import { projectSkillGardenContent } from "./content-adapter.js";
@@ -201,6 +202,10 @@ export class SkillGardenBuiltinProvider {
     if (plugin.id !== SKILL_GARDEN_PLUGIN_ID || plugin.integrity !== acceptedIntegrity) {
       throw new Error(`内置 skill-garden 固定包不匹配:${plugin.id}`);
     }
+    const migrateLegacyConfirmation = this.skills.length === 0 && (
+      this.previousState?.plugins.some(({ id }) => id === SKILL_GARDEN_PLUGIN_ID) ||
+      readLegacyManifestStatus(this.projectRoot).status === "valid"
+    );
     const catalogs = this.snapshot.variant === "0.6" ? [
       {
         id: "skill-garden",
@@ -228,7 +233,7 @@ export class SkillGardenBuiltinProvider {
       integrity: acceptedIntegrity,
       catalogs,
       systemAdapters: this.snapshot.variant === "0.6"
-        ? flowerPatchAdapters(this.pythonCommand.command)
+        ? flowerPatchAdapters(this.pythonCommand.command, migrateLegacyConfirmation)
         : {},
       patchOptions: { skills: this.skills },
       allowContentPatchOverlap: true,
@@ -236,6 +241,7 @@ export class SkillGardenBuiltinProvider {
         ...this.snapshot,
         skills: this.skills,
         pythonCommand: this.pythonCommand.command,
+        migrateLegacyConfirmation,
       },
     };
   }

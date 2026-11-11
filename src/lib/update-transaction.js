@@ -50,6 +50,10 @@ function assertOrdinaryRoot(projectRoot) {
 
 function resolveManagedScopes(projectRoot) {
   const scopes = new Set([...ALL_MANAGED_DIRS, "AGENTS.md", ".flower"]);
+  // Claude 的旧确认 MCP 位于项目根。沙箱和真实升级需要同样的普通文件输入。
+  if (fs.lstatSync(path.join(projectRoot, ".mcp.json"), { throwIfNoEntry: false })?.isFile()) {
+    scopes.add(".mcp.json");
+  }
   const state = new ProjectStore(projectRoot).readState();
   for (const plugin of state?.plugins || []) {
     for (const entry of plugin.paths) scopes.add(validateRelativePath(entry.path));

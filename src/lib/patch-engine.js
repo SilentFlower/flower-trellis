@@ -1169,7 +1169,7 @@ function resolveOperationOrder(loaded) {
   };
 }
 
-function prepareFilePlan(files, targetRoot, targetSpec, operation) {
+function prepareFilePlan(files, targetRoot, targetSpec, operation, adapter) {
   for (const requiredPath of targetSpec.requires) {
     const required = resolveRelativePath(
       targetRoot,
@@ -1184,6 +1184,9 @@ function prepareFilePlan(files, targetRoot, targetSpec, operation) {
     `patch ${operation.id} target.path`,
   );
   const plannedFile = files.get(targetSpec.path);
+  if (adapter?.shouldReadTarget && !adapter.shouldReadTarget(targetRoot, targetSpec.path)) {
+    return { status: !plannedFile && !fs.existsSync(targetFile) ? "missing-target" : "not-applicable" };
+  }
   if (plannedFile) {
     // 同一轮中前序操作可能刚创建该文件，后续操作应基于内存结果继续计算。
     return { filePlan: plannedFile };
@@ -1246,39 +1249,32 @@ export function preparePatchPlan(target, catalogs, options = {}) {
     let readyTargets = 0;
     let existingTargets = 0;
     for (const targetSpec of operation.targets) {
+      const targetResult = {
+        id: operation.id,
+        catalog: operation.catalog,
+        qualifiedId: operation.qualifiedId,
+        patch: operation.patchId,
+        qualifiedPatch: operation.qualifiedPatchId,
+        bundle: operation.bundle,
+        bundles: operation.bundles,
+        target: targetSpec.path,
+        required: operation.required,
+      };
       let prepared;
+      const adapter = adapters[operation.selector.type];
       try {
-        prepared = prepareFilePlan(files, targetRoot, targetSpec, operation);
+        prepared = prepareFilePlan(files, targetRoot, targetSpec, operation, adapter);
       } catch (error) {
         prepared = { error: error.message };
       }
-      if (prepared.status === "missing-target") {
-        results.push({
-          id: operation.id,
-          catalog: operation.catalog,
-          qualifiedId: operation.qualifiedId,
-          patch: operation.patchId,
-          qualifiedPatch: operation.qualifiedPatchId,
-          bundle: operation.bundle,
-          bundles: operation.bundles,
-          target: targetSpec.path,
-          status: "missing-target",
-          required: operation.required,
-        });
+      if (prepared.status) {
+        results.push({ ...targetResult, status: prepared.status });
         continue;
       }
       if (prepared.error) {
         const result = {
-          id: operation.id,
-          catalog: operation.catalog,
-          qualifiedId: operation.qualifiedId,
-          patch: operation.patchId,
-          qualifiedPatch: operation.qualifiedPatchId,
-          bundle: operation.bundle,
-          bundles: operation.bundles,
-          target: targetSpec.path,
+          ...targetResult,
           status: operation.required ? "error" : "optional-skip",
-          required: operation.required,
           reason: prepared.error,
         };
         results.push(result);
@@ -1300,31 +1296,31 @@ export function preparePatchPlan(target, catalogs, options = {}) {
         if (CORE_SELECTORS.has(operation.selector.type)) {
           applied = applyCoreOperation(cleaned.value, operationForTarget);
         } else {
-          applied = adapters[operation.selector.type]({
+          applied = adapter({
             value: cleaned.value,
+            original: filePlan.original,
             operation: operationForTarget,
             targetSpec,
             targetRoot,
             targetFile: filePlan.targetFile,
+            priorResults: results,
           });
         }
       }
       if (applied.error) {
         const result = {
-          id: operation.id,
-          catalog: operation.catalog,
-          qualifiedId: operation.qualifiedId,
-          patch: operation.patchId,
-          qualifiedPatch: operation.qualifiedPatchId,
-          bundle: operation.bundle,
-          bundles: operation.bundles,
-          target: targetSpec.path,
+          ...targetResult,
           status: operation.required ? "error" : "optional-skip",
-          required: operation.required,
           reason: applied.error,
         };
         results.push(result);
         if (operation.required) errors.push(result);
+        continue;
+      }
+      readyTargets++;
+      if (applied.unchanged) {
+        // 没有写入仍记录目标结果，覆盖检查必须看见每个已声明目标。
+        results.push({ ...targetResult, status: "unchanged" });
         continue;
       }
       filePlan.next = applied.value;
@@ -1340,21 +1336,13 @@ export function preparePatchPlan(target, catalogs, options = {}) {
         bundle: operation.bundle,
         bundles: operation.bundles,
       });
-      readyTargets++;
       results.push({
-        id: operation.id,
-        catalog: operation.catalog,
-        qualifiedId: operation.qualifiedId,
-        patch: operation.patchId,
-        qualifiedPatch: operation.qualifiedPatchId,
-        bundle: operation.bundle,
-        bundles: operation.bundles,
-        target: targetSpec.path,
+        ...targetResult,
         status: "ready",
-        required: operation.required,
         source: cleaned.changed && applied.source === "selector"
           ? "legacy-cleanup"
           : applied.source,
+        ...(applied.entries ? { entries: applied.entries } : {}),
       });
     }
     if (

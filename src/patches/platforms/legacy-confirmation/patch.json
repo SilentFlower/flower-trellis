@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "id": "flower-legacy-confirmation",
+  "purpose": "platform_config",
+  "required": false,
+  "operations": [
+    {
+      "id": "flower-remove-legacy-confirmation-config",
+      "operation": "remove",
+      "after": ["flower-codex-sync-user-interaction", "flower-claude-confirmation-end"],
+      "targets": [
+        { "kind": "toml", "path": ".codex/config.toml", "missing": "skip" },
+        { "kind": "json", "path": ".mcp.json", "missing": "skip" },
+        { "kind": "json", "path": ".claude/settings.json", "missing": "skip" },
+        { "kind": "json", "path": ".claude/settings.local.json", "missing": "skip" }
+      ],
+      "selector": { "type": "legacy-confirmation-config" }
+    }
+  ]
+}

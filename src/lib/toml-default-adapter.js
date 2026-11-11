@@ -86,7 +86,7 @@ export function scanTomlStatements(text, separator = "\n") {
  * @param {string} text TOML 键或 section 名
  * @returns {string[]} 语义路径；不能安全识别时抛出错误
  */
-function keyPath(text) {
+export function keyPath(text) {
   const statements = scanTomlStatements(text, ".");
   if (!statements.length || statements[0].start !== 0 || statements.at(-1).end !== text.length
     || statements.some((item, index) => index > 0 && item.start !== statements[index - 1].end + 1)) {
