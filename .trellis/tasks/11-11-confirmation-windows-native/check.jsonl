@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/flower-trellis/cli/index.md", "reason": "Flower 工程约定与作者源分发边界"}
+{"file": ".trellis/spec/flower-trellis/cli/quality-guidelines.md", "reason": "Python 跨平台验证与 CI 门禁"}
+{"file": ".trellis/tasks/11-11-confirmation-windows-native/research/windows-host-probe.md", "reason": "区分隔离探针与真实窗口验收"}
