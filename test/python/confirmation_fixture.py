@@ -16,7 +16,7 @@ if str(ASSETS) not in sys.path:
     sys.path.insert(0, str(ASSETS))
 
 from flower_confirmation_runtime.store import ConfirmationStore
-from flower_confirmation_runtime.runtime import render_confirmation
+from flower_confirmation_runtime.runtime import inspect_confirmation, render_confirmation
 
 
 def write_json(file, value):
@@ -143,7 +143,9 @@ class FakeClient:
         @param turn_id: 原回合。
         @return: 展示正文。
         """
-        return self.text if self.text is not None else render_confirmation(self.store.read()["request"]["contract"]["frozen"])
+        contract = self.store.read()["request"]["contract"]
+        return self.text if self.text is not None else render_confirmation(
+            inspect_confirmation(self.store, contract["input"], contract.get("secondsOverride")))
 
     def add(self, request_id):
         """记录单次投递。

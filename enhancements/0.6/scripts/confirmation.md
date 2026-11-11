@@ -29,6 +29,8 @@ Codex 保持普通 `codex` / `codex resume` 与默认共享服务。通过当前
 6. 两端运行同一个 `python3 -X utf8 .trellis/scripts/flower_confirmation.py wait --platform <平台> --session <prepare.sessionId> --request <UUID>`。Claude 用 Bash `run_in_background:true`。Codex 用原生 `exec_command` 短 `yield_time_ms`（例如 1000）启动，取得持续运行的 terminal session 后结束当前回合；不等待命令完成、不轮询、不启动子代理、不用 clock.sleep。后台 worker 到期会经原生同会话队列唤醒。
 7. 最终回复完整展示 prepare 返回的 `display`；它包含标准正文和本次时长/默认动作。可在前后补必要说明，但不能省略、改写 display。后台会核验原回合最终正文，展示完成才开始计时；工具启动和生成时间不扣减等待时间。
 
+Git 整仓快照、仅用于哈希的文件以及两端会话记录不按总字节数拒绝。需要解析或展示的单条记录、材料和状态各有读取预算。Git 命令、Push 快照和策略检查分别使用超时预算，失败时展示实际阶段及原因。等待原回合完成展示与唤醒后等待领取分别过期；两者与用户设定的倒计时独立。
+
 ## 到期领取与原流程续接
 
 原生提醒仅唤醒：先执行 `python3 -X utf8 .trellis/scripts/flower_confirmation.py claim --platform <平台> --request <UUID>`。必须实际取得 `claimed=true`、`source=policy_timeout`、预期 action 和当前冻结 context，才可续接。false、错误、材料或会话漂移时结束旧提醒，不执行旧动作、不重复领取、不假称用户已确认。

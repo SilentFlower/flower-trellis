@@ -52,6 +52,36 @@ class ProjectConfirmationTest(unittest.TestCase):
                 self.assertTrue(runtime.record_result(f.store, None, result["id"], receipt, "completed")["recorded"])
                 self.assertEqual(f.client.added, [result["id"]])
 
+    def test_large_input_keeps_state_compact_and_returns_full_claim_context(self):
+        """较大的结构化输入可以准备并领取；状态文件只保留证明摘要。"""
+        f = ProjectFixture(self)
+        findings = [{"id": f"CHK-{index:05}", "status": "resolved"} for index in range(12000)]
+        findings[0]["status"] = "pending"
+        body = "完整正文。" + ("a" * (64 * 1024))
+        write_json(f.root / f.input, {"kind": "check", "task": f.task, "body": body,
+                                      "reportVersion": "1", "dispositionVersion": "1", "findings": findings})
+        self.assertGreater((f.root / f.input).stat().st_size, 512 * 1024)
+        prepared = runtime.prepare(f.store, f.client, f.input, "1")
+        self.assertTrue(prepared["prepared"])
+        self.assertLess(f.store.file.stat().st_size, 4096)
+        f.client.text = prepared["display"]
+        f.client.turn["status"] = "completed"
+        queued = runtime.wait(f.store, f.client, prepared["requestId"])
+        self.assertEqual(queued["state"], "queued")
+        result = runtime.claim(f.store, f.client, queued["id"])
+        self.assertTrue(result["claimed"])
+        self.assertEqual(result["context"]["body"], body)
+        self.assertEqual(result["context"]["findings"], findings)
+
+    def test_display_deadline_is_independent_of_claim_deadline(self):
+        """展示阶段使用独立期限；尚未展示时不会入队。"""
+        f = ProjectFixture(self)
+        prepared = runtime.prepare(f.store, f.client, f.input, "1")
+        with patch.object(runtime, "DISPLAY_BUDGET", 0):
+            stopped = runtime.wait(f.store, f.client, prepared["requestId"])
+        self.assertEqual(stopped["error"], "display_completion_unverified")
+        self.assertEqual(f.client.added, [])
+
     def test_display_is_required_and_only_heading_blank_lines_are_normalized(self):
         """原有展示匹配边界在 Python 中等价。"""
         f, prepared = self.ready()

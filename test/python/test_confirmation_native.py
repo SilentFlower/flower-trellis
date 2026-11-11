@@ -19,6 +19,7 @@ from uuid import uuid4
 
 from confirmation_fixture import ProjectFixture
 from flower_confirmation_runtime.codex import CodexClient
+from flower_confirmation_runtime.session_log import SessionLog
 from flower_confirmation_runtime.transport import CodexTransport
 
 
@@ -108,6 +109,10 @@ class NativeConfirmationTest(unittest.TestCase):
         self.invoke(f, ["hook"], {**payload, "hook_event_name": "UserPromptSubmit", "prompt_id": prompt_id, "prompt": "开始"})
         transcript.write_text(json.dumps({"type": "user", "sessionId": f.session, "promptId": prompt_id,
                                           "origin": {"kind": "human"}, "turnOrigin": "human", "message": {"content": "开始"}}) + "\n", encoding="utf-8")
+        record = b'{"type":"assistant","message":"' + b"x" * (6 * 1024 * 1024) + b'"}\n'
+        with transcript.open("ab") as stream:
+            for _ in range(3):
+                stream.write(record)
         prepared = self.invoke(f, ["prepare", "--input", f.input, "--seconds", "1"])
         self.assertTrue(prepared["prepared"], prepared)
         request_id = prepared["requestId"]
@@ -220,14 +225,52 @@ class NativeConfirmationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "人工消息基线"):
             client.snapshot()
         server.file.write_text(json.dumps({"type": "session_meta", "payload": {"id": str(uuid4())}}) + "\n", encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "标识不符"):
+        with self.assertRaisesRegex(ValueError, "替换、截断或重写"):
             client.snapshot()
+        fresh = CodexClient(f.root, f.session, env=f.env, timeout=0.3)
+        self.addCleanup(fresh.close)
+        with self.assertRaisesRegex(ValueError, "标识不符"):
+            fresh.read_rollout(str(server.file))
         with self.assertRaisesRegex(ValueError, "精确会话记录路径"):
             client.read_rollout(str(f.root / "wrong.jsonl"))
         outside = f.root / ("rollout-" + f.session + ".jsonl")
         outside.write_text("", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "越界"):
             client.read_rollout(str(outside))
+
+    def test_long_session_scans_only_new_records_and_rejects_replacement(self):
+        """跨过旧整份日志预算，续读完整行并拒绝另一个进程使用替换日志。"""
+        with tempfile.TemporaryDirectory() as directory:
+            file = Path(directory) / "session.jsonl"
+            irrelevant = b'{"type":"tool","data":"' + b"x" * (8 * 1024 * 1024) + b'"}\n'
+            with file.open("wb") as stream:
+                for _ in range(17):
+                    stream.write(irrelevant)
+                stream.write(b'{"type":"human","id":"first"}\n{"type":"human"')
+            self.assertGreater(file.stat().st_size, 128 * 1024 * 1024)
+
+            def consume(record, entry):
+                record["records"] += 1
+                if entry["type"] == "human":
+                    record["latest"] = entry["id"]
+
+            log = SessionLog()
+            initial = {"records": 0, "latest": None}
+            record, frozen = log.read(file, initial.copy(), consume)
+            self.assertEqual(record, {"records": 18, "latest": "first"})
+            with file.open("ab") as stream:
+                stream.write(b',"id":"new"}\n')
+            record, current = log.read(file, initial.copy(), consume)
+            self.assertEqual(record, {"records": 19, "latest": "new"})
+            SessionLog.verify(frozen, current)
+            replaced = file.with_suffix(".tmp")
+            replaced.write_text('{"type":"human","id":"first"}\n', encoding="utf-8")
+            replaced.replace(file)
+            with self.assertRaisesRegex(ValueError, "替换、截断或重写"):
+                log.read(file, initial.copy(), consume)
+            _, other = SessionLog().read(file, initial.copy(), consume)
+            with self.assertRaisesRegex(ValueError, "冻结的原生会话记录已替换"):
+                SessionLog.verify(frozen, other)
 
     @unittest.skipUnless(sys.platform == "linux", "自动路径限定 Linux/WSL")
     def test_native_rpc_unknown_receipt_is_not_retried_and_delete_is_precise(self):

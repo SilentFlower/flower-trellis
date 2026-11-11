@@ -4,13 +4,17 @@
 from __future__ import annotations
 
 import argparse
+from contextvars import ContextVar
 import hashlib
 import json
 import os
+import queue
 import re
 import stat
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 from common.config import parse_simple_yaml
@@ -18,7 +22,12 @@ from common.active_task import resolve_active_task
 
 
 VERSION = 1
-MAX_BYTES = 512 * 1024
+INPUT_BYTES = 1024 * 1024
+DOCUMENT_BYTES = 512 * 1024
+HASH_CHUNK = 64 * 1024
+GIT_TIMEOUT = 10
+SNAPSHOT_TIMEOUT = 30
+_SNAPSHOT_DEADLINE = ContextVar("snapshot_deadline", default=None)
 MAX_SECONDS = 86400
 DEFAULTS = {
     "enabled": True,
@@ -49,25 +58,60 @@ def _inside(root, relative):
     return current
 
 
-def _bytes(file, optional=False):
+def _bytes(file, optional=False, limit=DOCUMENT_BYTES):
     try:
         info = file.lstat()
     except FileNotFoundError:
         if optional:
             return None
         raise ValueError("确认材料不存在：" + file.name)
-    if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_BYTES:
-        raise ValueError("确认材料必须是有界普通文件")
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError("确认材料必须是普通文件：" + file.name)
+    if info.st_size > limit:
+        raise ValueError(f"结构化确认材料超过 {limit // 1024} KiB：{file.name}")
     with file.open("rb") as stream:
-        value = stream.read(MAX_BYTES + 1)
-    if len(value) > MAX_BYTES:
-        raise ValueError("确认材料超出大小限制")
+        opened = os.fstat(stream.fileno())
+        if not _same_file_state(info, opened):
+            raise ValueError("确认材料在打开时已变化：" + file.name)
+        value = stream.read(limit + 1)
+        if (not _same_file_state(opened, os.fstat(stream.fileno()), same_handle=True)
+                or not _same_file_state(info, file.lstat())):
+            raise ValueError("确认材料在读取期间已变化：" + file.name)
+    if len(value) > limit:
+        raise ValueError(f"结构化确认材料超过 {limit // 1024} KiB：{file.name}")
     return value
 
 
-def _fingerprint(file, optional=False):
-    data = _bytes(file, optional)
-    return hashlib.sha256(data).hexdigest() if data is not None else None
+def _fingerprint(file, optional=False, info=None):
+    if info is None:
+        try:
+            info = file.lstat()
+        except FileNotFoundError:
+            if optional:
+                return None
+            raise
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError("指纹材料必须是普通文件：" + str(file))
+    digest = hashlib.sha256()
+    with file.open("rb") as stream:
+        opened = os.fstat(stream.fileno())
+        if not _same_file_state(info, opened):
+            raise ValueError("指纹材料在打开时已变化：" + str(file))
+        for chunk in iter(lambda: stream.read(HASH_CHUNK), b""):
+            _snapshot_remaining(str(file))
+            digest.update(chunk)
+        if (not _same_file_state(opened, os.fstat(stream.fileno()), same_handle=True)
+                or not _same_file_state(info, file.lstat())):
+            raise ValueError("指纹材料在读取期间已变化：" + str(file))
+    return digest.hexdigest()
+
+
+def _same_file_state(first, second, *, same_handle=False):
+    fields = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns")
+    # Windows Python 3.12 的路径和句柄查询可能为同一文件返回不同的 ctime。
+    if sys.platform != "win32" or same_handle:
+        fields += ("st_ctime_ns",)
+    return all(getattr(first, field) == getattr(second, field) for field in fields)
 
 
 def _boolean(value, label):
@@ -132,15 +176,62 @@ def _policy(root):
 
 
 def _git(root, *args, optional=False):
-    process = subprocess.run(["git", "-C", str(root), *args], stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE, timeout=10)
+    command = ["git", "--no-optional-locks", "-C", str(root), *args]
+    label = str(root) + "：git " + " ".join(args)
+    try:
+        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                 timeout=_snapshot_remaining(label, GIT_TIMEOUT))
+    except subprocess.TimeoutExpired as error:
+        raise ValueError("Git 只读快照命令超时：" + label) from error
     if process.returncode:
         if optional:
             return None
-        raise ValueError("Git 只读快照失败：" + args[0])
-    if len(process.stdout) > 4 * 1024 * 1024:
-        raise ValueError("Git 快照超出大小限制")
+        raise ValueError("Git 只读快照命令失败：" + label)
     return process.stdout
+
+
+def _snapshot_remaining(label, limit=None):
+    deadline = _SNAPSHOT_DEADLINE.get()
+    if deadline is None:
+        return limit
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise ValueError("Push 快照总耗时超出预算：" + label)
+    return remaining if limit is None else min(limit, remaining)
+
+
+def _git_hash(root, *args):
+    command = ["git", "--no-optional-locks", "-C", str(root), *args]
+    label = str(root) + "：git " + " ".join(args)
+    deadline = time.monotonic() + _snapshot_remaining(label, GIT_TIMEOUT)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    results = queue.Queue(maxsize=1)
+
+    def read():
+        try:
+            # 分块复现旧 JSON 十六进制摘要，避免缓存整份 Git 输出或改变既有指纹。
+            digest = hashlib.sha256(b'"')
+            with process.stdout as stream:
+                for chunk in iter(lambda: stream.read(HASH_CHUNK), b""):
+                    digest.update(chunk.hex().encode("ascii"))
+            digest.update(b'"')
+            results.put(digest.hexdigest())
+        except OSError as error:
+            results.put(error)
+
+    # Windows 的匿名管道不能用 select；读线程独占 stdout，主线程负责超时回收 Git。
+    try:
+        threading.Thread(target=read, daemon=True).start()
+        digest = results.get(timeout=max(0, deadline - time.monotonic()))
+        if process.wait(timeout=max(0, deadline - time.monotonic())) or isinstance(digest, OSError):
+            raise ValueError("Git 只读快照命令失败：" + label)
+        return digest
+    except (queue.Empty, subprocess.TimeoutExpired) as error:
+        raise ValueError("Git 只读快照命令超时：" + label) from error
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
 
 
 def _git_file(root, relative):
@@ -161,8 +252,8 @@ def _git_file(root, relative):
         if Path(actual).resolve() != file.resolve():
             raise ValueError("计划目录不是精确 Git 子仓")
         return {"mode": "gitlink", "head": _git(file, "rev-parse", "HEAD").decode().strip(),
-                "status": _digest(_git(file, "status", "--porcelain=v1", "-z").hex())}
-    return {"mode": stat.S_IMODE(info.st_mode), "sha256": _fingerprint(file)}
+                "status": _git_hash(file, "status", "--porcelain=v1", "-z")}
+    return {"mode": stat.S_IMODE(info.st_mode), "sha256": _fingerprint(file, info=info)}
 
 
 def _repositories(project, material):
@@ -206,7 +297,8 @@ def _repositories(project, material):
             raise ValueError("Git 存在未完成集成状态，保持人工确认")
         if integration["MERGE_HEAD"]:
             merge = _git(root, "rev-parse", "--verify", "MERGE_HEAD").decode().strip()
-            if material["mode"] != "push" or plan.get("mergeHead") != merge or _git(root, "ls-files", "-u"):
+            if (material["mode"] != "push" or plan.get("mergeHead") != merge
+                    or _git_hash(root, "ls-files", "-u") != _digest("")):
                 raise ValueError("Git merge 不符合已展示的就绪计划")
         if material["mode"] == "push" and upstream is None:
             if not all(isinstance(plan.get(key), str) and plan[key] for key in ("remote", "remoteBranch")):
@@ -216,11 +308,11 @@ def _repositories(project, material):
         snapshots.append({
             "root": str(root), "branch": branch, "head": head.decode().strip() if head else None,
             "upstream": upstream.decode().strip() if upstream else None,
-            "remoteHash": _digest(_git(root, "remote", "-v").hex()),
-            "indexHash": _digest(_git(root, "ls-files", "--stage", "-z").hex()),
-            "diffHash": _digest(_git(root, "diff", "--binary").hex()),
-            "stagedHash": _digest(_git(root, "diff", "--cached", "--binary").hex()),
-            "statusHash": _digest(_git(root, "status", "--porcelain=v1", "-z", "--untracked-files=all").hex()),
+            "remoteHash": _git_hash(root, "remote", "-v"),
+            "indexHash": _git_hash(root, "ls-files", "--stage", "-z"),
+            "diffHash": _git_hash(root, "diff", "--binary"),
+            "stagedHash": _git_hash(root, "diff", "--cached", "--binary"),
+            "statusHash": _git_hash(root, "status", "--porcelain=v1", "-z", "--untracked-files=all"),
             "files": {name: _git_file(root, name) for name in files}, "integration": integration,
         })
         for key in ("branch", "head", "upstream"):
@@ -243,7 +335,8 @@ def inspect_confirmation(root, input_path, platform, session_id, seconds=None):
     """
     root = Path(root).resolve(strict=True)
     input_file = _inside(root, input_path)
-    material = json.loads(_bytes(input_file).decode("utf-8"))
+    input_bytes = _bytes(input_file, limit=INPUT_BYTES)
+    material = json.loads(input_bytes.decode("utf-8"))
     kind = material.get("kind")
     if kind not in ACTIONS:
         raise ValueError("未知确认种类")
@@ -253,25 +346,32 @@ def inspect_confirmation(root, input_path, platform, session_id, seconds=None):
     if material.get("task") != task:
         raise ValueError("确认材料与当前会话任务不符")
     task_manual_only = False
+    task_files = {}
     if task:
-        task_metadata = json.loads(_bytes(_inside(root, task + "/task.json")).decode("utf-8"))
+        metadata_bytes = _bytes(_inside(root, task + "/task.json"))
+        task_metadata = json.loads(metadata_bytes.decode("utf-8"))
         if not isinstance(task_metadata, dict) or not isinstance(task_metadata.get("meta", {}), dict):
             raise ValueError("任务元数据无效")
         task_manual_only = task_metadata.get("meta", {}).get("confirmationTimeoutDisabled") is True
-    task_files = {}
-    if task:
-        for name in ("task.json", "prd.md", "design.md", "implement.md", "brief.md"):
+        task_files["task.json"] = hashlib.sha256(metadata_bytes).hexdigest()
+        for name in ("prd.md", "design.md", "implement.md", "brief.md"):
+            if kind == "brief" and name == "brief.md":
+                continue
             task_files[name] = _fingerprint(_inside(root, task + "/" + name), optional=True)
     if kind == "brief":
         if not task:
             raise ValueError("Brief 确认缺少当前任务")
-        body = _bytes(_inside(root, task + "/brief.md")).decode("utf-8")
+        brief_bytes = _bytes(_inside(root, task + "/brief.md"))
+        task_files["brief.md"] = hashlib.sha256(brief_bytes).hexdigest()
+        body = brief_bytes.decode("utf-8")
     else:
         body = material.get("body")
     if not isinstance(body, str) or not body.strip():
         raise ValueError("确认正文不能为空")
     body = body.replace("\r\n", "\n").replace("\r", "\n").strip()
-    facts = {"task": task, "taskFiles": task_files, "inputHash": _fingerprint(input_file)}
+    if len(body.encode("utf-8")) > DOCUMENT_BYTES:
+        raise ValueError("确认正文超过 512 KiB 展示预算")
+    facts = {"task": task, "taskFiles": task_files, "inputHash": hashlib.sha256(input_bytes).hexdigest()}
     count = 0
     if kind == "check":
         if not all(isinstance(material.get(key), str) and material[key] for key in ("reportVersion", "dispositionVersion")):
@@ -295,7 +395,11 @@ def inspect_confirmation(root, input_path, platform, session_id, seconds=None):
         facts["pending"] = sorted(pending)
         count = len(pending)
     elif kind == "push":
-        facts["repositories"] = _repositories(root, material)
+        token = _SNAPSHOT_DEADLINE.set(time.monotonic() + SNAPSHOT_TIMEOUT)
+        try:
+            facts["repositories"] = _repositories(root, material)
+        finally:
+            _SNAPSHOT_DEADLINE.reset(token)
     policy = _policy(root)
     config = policy[kind]
     if kind == "brief":

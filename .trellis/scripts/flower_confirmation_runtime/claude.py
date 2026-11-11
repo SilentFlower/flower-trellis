@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import re
 import shlex
-import stat
 import sys
 from pathlib import Path
 from uuid import uuid4
 
+from .session_log import DISPLAY_BYTES, SessionLog
 from .store import ACTIVE, ConfirmationStore, confirmation_id, now_ms, wake_message
 
 
@@ -101,7 +100,7 @@ def record_event(payload):
         elif event == "Stop":
             prompt_id = confirmation_id(payload.get("prompt_id"))
             text = payload.get("last_assistant_message")
-            if not isinstance(text, str) or len(text.encode("utf-8")) > 512 * 1024:
+            if not isinstance(text, str) or len(text.encode("utf-8")) > DISPLAY_BYTES:
                 raise ValueError("Claude 最终展示正文不可核验")
             native["turn"] = {"id": prompt_id, "status": "completed"}
             native["display"] = {"turnId": prompt_id, "text": text, "at": native["at"]}
@@ -145,6 +144,7 @@ class ClaudeClient:
         self.store = ConfirmationStore(project, session_id, "claude")
         self.project = self.store.project
         self.session_id = self.store.session_id
+        self.session_log = SessionLog()
 
     def connect(self):
         """核对原生 Hook 和活动 runId。
@@ -159,7 +159,7 @@ class ClaudeClient:
         self.snapshot()
 
     def snapshot(self):
-        """核验有界 transcript 的真实人工和任务通知来源。
+        """增量核验 transcript 的真实人工和任务通知来源。
 
         @return: 人工基线、当前回合、通知和 runId。
         """
@@ -167,38 +167,42 @@ class ClaudeClient:
         if not native or native.get("ended"):
             raise ValueError("Claude 会话状态不可用")
         file = Path(native["transcript"])
-        info = file.lstat()
-        if not stat.S_ISREG(info.st_mode) or info.st_size > 16 * 1024 * 1024:
-            raise ValueError("Claude 会话记录不可核验或超过预算")
-        with file.open("rb") as stream:
-            raw = stream.read(16 * 1024 * 1024 + 1)
-        if len(raw) > 16 * 1024 * 1024:
-            raise ValueError("Claude 会话记录超过预算")
-        human_id = None
-        notification = None
-        for line in raw.split(b"\n")[:-1]:
-            if not line.strip():
-                continue
-            entry = json.loads(line.decode("utf-8"))
-            if entry.get("type") != "user" or entry.get("isSidechain") or entry.get("sessionId") != self.session_id:
-                continue
-            if (entry.get("origin") or {}).get("kind") == "human" and entry.get("turnOrigin") == "human":
-                human_id = confirmation_id(entry.get("promptId"))
-            elif (entry.get("origin") or {}).get("kind") == "task-notification" and entry.get("turnOrigin") == "task_notification":
-                task_id = _task_notice((entry.get("message") or {}).get("content"))
-                if task_id and native["tasks"].get(task_id):
-                    notification = {"taskId": task_id, "requestId": native["tasks"][task_id], "promptId": entry.get("promptId")}
-            elif isinstance((entry.get("message") or {}).get("content"), str) and not entry.get("isCompactSummary"):
-                raise ValueError("Claude 消息来源字段不可核验，保持人工确认")
+        if file.name != self.session_id + ".jsonl":
+            raise ValueError("Claude 缺少精确会话记录路径")
+        hook_notice = native.get("notification") or {}
+        initial = {"humanId": None, "notifications": {}}
+        record, observation = self.session_log.read(file, initial, self._consume_transcript)
+        human_id = record["humanId"]
+        task_id = hook_notice.get("taskId")
+        prompt_id = record["notifications"].get(task_id)
+        request_id = native.get("tasks", {}).get(task_id)
+        notification = ({"taskId": task_id, "requestId": request_id, "promptId": prompt_id}
+                        if prompt_id and request_id else None)
         if not human_id:
             raise ValueError("Claude 缺少真实人工输入基线；关闭记录的会话保持人工确认")
-        hook_notice = native.get("notification") or {}
         pending = (hook_notice.get("promptId") == (native.get("turn") or {}).get("id")
                    and hook_notice.get("requestId") == native.get("tasks", {}).get(hook_notice.get("taskId"))
                    and bool(hook_notice.get("requestId"))
                    and (notification or {}).get("promptId") != hook_notice.get("promptId"))
         return {"humanId": human_id, "turn": native.get("turn"), "notification": notification,
-                "notificationPending": pending, "runId": native.get("runId")}
+                "notificationPending": pending, "runId": native.get("runId"), "logObservation": observation}
+
+    def _consume_transcript(self, record, entry):
+        if entry.get("type") != "user" or entry.get("isSidechain") or entry.get("sessionId") != self.session_id:
+            return
+        kind = (entry.get("origin") or {}).get("kind")
+        if kind == "human" and entry.get("turnOrigin") == "human":
+            record["humanId"] = confirmation_id(entry.get("promptId"))
+        elif kind == "task-notification" and entry.get("turnOrigin") == "task_notification":
+            task_id = _task_notice((entry.get("message") or {}).get("content"))
+            if task_id:
+                notices = record["notifications"]
+                notices.pop(task_id, None)
+                notices[task_id] = entry.get("promptId")
+                if len(notices) > 8:
+                    del notices[next(iter(notices))]
+        elif isinstance((entry.get("message") or {}).get("content"), str) and not entry.get("isCompactSummary"):
+            raise ValueError("Claude 消息来源字段不可核验，保持人工确认")
 
     def assistant_text(self, turn_id):
         """读取 Stop 绑定的原始展示。

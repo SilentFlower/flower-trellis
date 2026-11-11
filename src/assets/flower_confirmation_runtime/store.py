@@ -18,6 +18,8 @@ from uuid import uuid4
 ACTIVE = frozenset(("prepared", "waiting", "dispatching", "queued"))
 STATES = ACTIVE | {"cancelled", "failed", "delivery_unknown", "consumed"}
 MAX_BYTES = 1024 * 1024
+STATE_BYTES = 2 * 1024 * 1024
+DISPLAY_BUDGET = 300
 CLAIM_BUDGET = 300
 UUID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", re.I)
 
@@ -216,7 +218,7 @@ class ConfirmationStore:
 
         @return: 已校验状态或 None；查询保持零写入。
         """
-        value = read_json(self.file)
+        value = read_json(self.file, STATE_BYTES)
         if value is None:
             return None
         if (not isinstance(value, dict) or type(value.get("version")) is not int or value["version"] != 2
@@ -270,7 +272,7 @@ class ConfirmationStore:
         try:
             value = mutate(self.read())
             if value is not None:
-                _write_json(self.file, value)
+                _write_json(self.file, value, STATE_BYTES)
             return value
         finally:
             owner = read_json(lock / "owner.json")

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import select
-import stat
 import sys
 import time
 from collections import OrderedDict
@@ -14,6 +12,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from flower_tui_lifetime import bind_origin, check_binding, check_frontend_coverage, open_binding
+from .session_log import DISPLAY_BYTES, SessionLog
 from .store import ACTIVE, ConfirmationStore, confirmation_id, now_ms, wake_id, wake_message
 from .transport import CodexTransport, RpcError
 
@@ -73,6 +72,7 @@ class CodexClient:
         self.home = Path(environment.get("CODEX_HOME") or (Path.home() / ".codex")).resolve(strict=True)
         self.transport = CodexTransport(self.home / "app-server-control/app-server-control.sock", timeout, self._notification)
         self.rollout = None
+        self.session_log = SessionLog()
         self.humans = []
         self.seen = OrderedDict()
         self.window_fd = None
@@ -133,7 +133,7 @@ class CodexClient:
         if wake and wake["turnId"] != (record["turn"] or {}).get("id"):
             wake = None
         return {"humanId": record["humanId"], "humanEvents": humans, "turn": record["turn"],
-                "status": thread.get("status"), "wake": wake}
+                "status": thread.get("status"), "wake": wake, "logObservation": self.session_log.observation}
 
     def read_rollout(self, filename):
         """按文件身份增量读取原生 JSONL，保留未完成行。
@@ -144,75 +144,58 @@ class CodexClient:
         if not isinstance(filename, str) or not Path(filename).name.endswith("-" + self.session_id + ".jsonl"):
             raise ValueError("Codex 未提供精确会话记录路径")
         file = Path(filename)
-        info = file.lstat()
         try:
             file.resolve(strict=True).relative_to(self.home / "sessions")
         except ValueError:
             raise ValueError("Codex 会话记录路径越界")
-        if not stat.S_ISREG(info.st_mode) or info.st_size > 128 * 1024 * 1024:
-            raise ValueError("Codex 会话记录不可核验或超出预算")
-        identity = (str(file), info.st_dev, info.st_ino)
-        cached = self.rollout
-        if cached and cached["identity"] == identity and cached["size"] == info.st_size and cached["modified"] == info.st_mtime_ns:
-            return cached
-        previous = cached if cached and cached["identity"] == identity and info.st_size > cached["size"] else None
-        record = ({**previous, "displays": OrderedDict(previous["displays"])} if previous else
-                  {"offset": 0, "verified": False, "humanId": None, "turn": None, "wake": None, "displays": OrderedDict()})
-        with file.open("rb") as stream:
-            stream.seek(record["offset"])
-            while stream.tell() < info.st_size:
-                raw = stream.readline(min(2 * 1024 * 1024 + 1, info.st_size - stream.tell()))
-                if not raw:
-                    raise ValueError("Codex 会话记录在读取期间截断")
-                if len(raw) > 2 * 1024 * 1024:
-                    raise ValueError("Codex 单条记录超出预算")
-                if not raw.endswith(b"\n"):
-                    break
-                record["offset"] = stream.tell()
-                if not raw.strip():
-                    continue
-                entry = json.loads(raw.decode("utf-8"))
-                if entry.get("type") == "session_meta":
-                    if (entry.get("payload") or {}).get("id") != self.session_id:
-                        raise ValueError("Codex 会话记录标识不符")
-                    record["verified"] = True
-                if entry.get("type") != "event_msg":
-                    continue
-                event = entry.get("payload") or {}
-                if event.get("thread_id") and event["thread_id"] != self.session_id:
-                    raise ValueError("Codex 记录中混入其他会话事件")
-                kind = event.get("type")
-                if kind in ("task_started", "turn_started"):
-                    record["turn"] = {"id": event.get("turn_id"), "status": "inProgress"}
-                if kind in ("task_complete", "turn_complete") and event.get("turn_id") == (record["turn"] or {}).get("id"):
-                    record["turn"]["status"] = "completed"
-                if kind == "turn_aborted" and (not event.get("turn_id") or event["turn_id"] == (record["turn"] or {}).get("id")):
-                    record["turn"] = {"id": (record["turn"] or {}).get("id"), "status": "interrupted"}
-                if kind == "thread_rolled_back":
-                    record.update(humanId=None, turn=None, wake=None)
-                    record["displays"].clear()
-                if kind != "item_completed":
-                    continue
-                item = event.get("item") or {}
-                if item.get("type") == "UserMessage":
-                    internal = wake_id({"type": "userMessage", "content": item.get("content"), "clientId": item.get("client_id")})
-                    if internal:
-                        record["wake"] = {"requestId": internal, "turnId": event.get("turn_id")}
-                    else:
-                        record["humanId"] = confirmation_id(item.get("id"))
-                if item.get("type") == "AgentMessage" and item.get("phase") == "final_answer":
-                    parts = item.get("content")
-                    if not isinstance(parts, list) or any(part.get("type") != "Text" or not isinstance(part.get("text"), str) for part in parts):
-                        raise ValueError("Codex 最终正文结构不可核验")
-                    turn_id = event.get("turn_id")
-                    record["displays"][turn_id] = record["displays"].get(turn_id, "") + "".join(part["text"] for part in parts)
-                    while len(record["displays"]) > 8:
-                        record["displays"].popitem(last=False)
+        initial = {"verified": False, "humanId": None, "turn": None, "wake": None, "displays": OrderedDict()}
+        record, _ = self.session_log.read(file, initial, self._consume_rollout)
         if not record["verified"]:
             raise ValueError("Codex 缺少原生会话身份记录")
-        record.update(identity=identity, size=info.st_size, modified=info.st_mtime_ns)
         self.rollout = record
         return record
+
+    def _consume_rollout(self, record, entry):
+        if entry.get("type") == "session_meta":
+            if (entry.get("payload") or {}).get("id") != self.session_id:
+                raise ValueError("Codex 会话记录标识不符")
+            record["verified"] = True
+        if entry.get("type") != "event_msg":
+            return
+        event = entry.get("payload") or {}
+        if event.get("thread_id") and event["thread_id"] != self.session_id:
+            raise ValueError("Codex 记录中混入其他会话事件")
+        kind = event.get("type")
+        if kind in ("task_started", "turn_started"):
+            record["turn"] = {"id": event.get("turn_id"), "status": "inProgress"}
+        if kind in ("task_complete", "turn_complete") and event.get("turn_id") == (record["turn"] or {}).get("id"):
+            record["turn"]["status"] = "completed"
+        if kind == "turn_aborted" and (not event.get("turn_id") or event.get("turn_id") == (record["turn"] or {}).get("id")):
+            record["turn"] = {"id": (record["turn"] or {}).get("id"), "status": "interrupted"}
+        if kind == "thread_rolled_back":
+            record.update(humanId=None, turn=None, wake=None)
+            record["displays"].clear()
+        if kind != "item_completed":
+            return
+        item = event.get("item") or {}
+        if item.get("type") == "UserMessage":
+            internal = wake_id({"type": "userMessage", "content": item.get("content"), "clientId": item.get("client_id")})
+            if internal:
+                record["wake"] = {"requestId": internal, "turnId": event.get("turn_id")}
+            else:
+                record["humanId"] = confirmation_id(item.get("id"))
+        if item.get("type") == "AgentMessage" and item.get("phase") == "final_answer":
+            parts = item.get("content")
+            if not isinstance(parts, list) or any(part.get("type") != "Text" or not isinstance(part.get("text"), str) for part in parts):
+                raise ValueError("Codex 最终正文结构不可核验")
+            turn_id = event.get("turn_id")
+            previous = record["displays"].get(turn_id, "")
+            if previous is not None:
+                text = previous + "".join(part["text"] for part in parts)
+                # 超大历史正文不应阻塞后续回合；该回合自身仍无法通过完整展示核验。
+                record["displays"][turn_id] = text if len(text.encode("utf-8")) <= DISPLAY_BYTES else None
+            while len(record["displays"]) > 8:
+                record["displays"].popitem(last=False)
 
     def assistant_text(self, turn_id):
         """读取原展示回合的最终正文。
@@ -222,9 +205,10 @@ class CodexClient:
         """
         snapshot = self.snapshot()
         self.humans[:0] = snapshot.get("humanEvents", [])
-        if turn_id not in self.rollout["displays"]:
-            raise ValueError("Codex 原始最终展示不存在")
-        return self.rollout["displays"][turn_id]
+        display = self.rollout["displays"].get(turn_id)
+        if display is None:
+            raise ValueError("Codex 原始最终展示缺失或超过核验预算")
+        return display
 
     def _origin(self):
         result = self.rpc("mcpServerStatus/list", {"threadId": self.session_id, "serverName": "codex_tui",

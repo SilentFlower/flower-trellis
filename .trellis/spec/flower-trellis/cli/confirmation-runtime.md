@@ -37,6 +37,8 @@ flower_confirmation_runtime.runtime.claim(store, client, request_id)
 flower_confirmation_runtime.runtime.record_result(store, client, request_id, receipt, outcome)
 flower_confirmation_runtime.codex.CodexClient(project, session_id, env=None, platform=None, timeout=5)
 flower_confirmation_runtime.claude.ClaudeClient(project, session_id, platform=None)
+flower_confirmation_runtime.session_log.SessionLog.read(file, initial, consume) -> (record, observation)
+flower_confirmation_runtime.session_log.SessionLog.verify(frozen, current)
 CodexClient.capture_window(turn_id) / verify_window(binding) / observe_window(binding)
 flower_confirmation_runtime.transport.CodexTransport(path, timeout=5, notification=None)
 src/lib/confirmation-lifecycle.js:
@@ -55,6 +57,10 @@ src/lib/confirmation-lifecycle.js:
   不再另设人工必答门槛。Check 修复结束必须重检，不能以定向测试代替，重检结束后才记 completed。
 - 输入为项目内有界普通 JSON 文件，公共字段为 `kind: brief|check|push`、精确当前 `task`，无任务用 null。
   材料路径不得越界或经过软链接；Brief 正文来自当前任务 `brief.md`。
+- 输入 JSON 上限 1 MiB；需要解析的任务元数据、项目配置、Brief 源文档和待展示正文各限 512 KiB。
+  仅用于指纹的普通文件分块哈希，读取前后核对文件身份和状态；其大小不受结构化材料上限约束。
+  Windows 路径与打开句柄之间比较设备、文件身份、模式、大小和修改时间。Windows Python 3.12 的两种查询
+  可能为同一文件返回不同的 `st_ctime_ns`，该字段只用于同一打开句柄读取前后的复核。Linux 保留完整比较。
 - Check 提供完整 `body`、非空 `reportVersion` / `dispositionVersion`、全部 `findings`，每项为
   `{id: CHK-*|FBK-*|DOC-*, status: pending|accepted|resolved}`；同 ID 处置矛盾时拒绝。
 - Push 提供完整 `body`、`mode: push|commit-only`、`evidence` 和 `repositories`。证据须满足
@@ -63,6 +69,9 @@ src/lib/confirmation-lifecycle.js:
   另给 `remote`、`remoteBranch`，就绪 merge 给 `mergeHead`。不从材料扩大原 owner 的权限或范围。
 - 冻结任务材料、策略及 Git 分支、HEAD、索引、dirty、远端、文件内容、集成状态。Git 软链只读取链接值，
   不跟随到项目外。派发、领取、首次执行前都复核；改变输入或时长必须重新 prepare。
+- Git 索引、两类 diff、状态及远端输出分块计算原有摘要，整仓输出不设固定字节上限。
+  单条 Git 命令限 10 秒，Push 快照合计限 30 秒，外层策略进程限 40 秒。策略结构化输出最多 16 MiB。
+  Git 超时或失败指出仓库与命令；预算理由参见容量任务的基线记录。
 - `.trellis/config.yaml` 的 `confirmation_timeout` 默认开启，支持总 `enabled` 和三种类型的 `enabled`。
   Brief 默认 1000 个规范化 Unicode 字符内 100 秒，每超 500 字符加 30 秒，按档向上取整；
   Check 一项 100 秒，每多一个唯一 pending CHK/FBK 加 30 秒，零项不等待；Push 默认 200 秒。
@@ -75,19 +84,20 @@ src/lib/confirmation-lifecycle.js:
 #### State And Single Execution
 
 - 正式状态为 version 2，位于 `.trellis/.runtime/confirmation-<platform>/<sessionId>.json`。
-  原子替换与同步目录锁保护 generation；状态目录、文件不允许软链，正式文件最多 1 MiB。
+  原子替换与同步目录锁保护 generation；状态目录、文件不允许软链，正式文件最多 2 MiB。
   锁目录沿用 `<sessionId>.json.lock/owner.json` 的 `pid/token`，陈旧 owner 必须复核存活性后回收。
 - Windows 创建锁目录短暂返回 `EPERM/EACCES` 时仅在原 1 秒预算内重试；持续拒绝保留原权限错误。
   只有成功取得锁后才能写 owner 和执行状态回调，不因权限错误偷锁或重放业务回调。
 - Windows 竞争读取可能短暂占用 `owner.json` 或状态文件。原子 `replace` 和锁目录释放各使用
   1 秒单调时钟预算重试 `EPERM/EACCES`，仅重试文件操作。状态转换回调仍只执行一次。
   持续拒绝保留原权限错误；锁释放失败时，已经写入的状态事实继续保留。
-- 正式 `request.contract.version=2`，包含平台、输入路径、时长覆盖、冻结快照，以及 Codex
-  `windowBinding` 或 Claude `runId`。旧协议不能升级为正式许可。
+- 正式 `request.contract.version=3`，包含平台、输入路径、时长覆盖、`frozenDigest`、原生记录观察点，以及
+  Codex `windowBinding` 或 Claude `runId`。落盘只保存冻结快照摘要；领取返回复核得到的完整原有上下文。
+  旧协议不能升级为正式许可；已经开始的动作继续支持终态记账。
 - 主路径：`prepared -> waiting -> dispatching -> queued -> consumed`；终止态包括
   `cancelled`、`failed`、`delivery_unknown`。每次 prepare 替换旧请求，每个请求只允许一个 worker。
 - 必须在活动回合 prepare，并最终完整展示返回的 `display`。worker 核对原回合完成和完整正文后才计时；
-  实际倒计时使用单调时钟，持久 `deadline` 只用于展示。展示核验与排队后的领取各有五分钟预算。
+  实际倒计时使用单调时钟，持久 `deadline` 只用于展示。展示核验和排队后的领取各有独立的 300 秒期限。
 - 展示匹配仅兼容围栏外 ATX 标题后的空行差异及 CRLF；正文、时长、动作、其它段落和围栏内容仍严格匹配，
   不改变冻结材料指纹，不把改写后的正文当作原材料。
 - `claim` 只有返回 `claimed=true`、`source=policy_timeout` 和固定 `action` 才允许续接。
@@ -114,16 +124,17 @@ src/lib/confirmation-lifecycle.js:
 - 用 `thread/loaded/list` 的会话来源与本机监听者核对覆盖；存在未对应会话的额外 Codex 前台时人工确认。
   同 thread 第二窗口不会接管原 MCP 服务，因此不能借第一窗口存活来证明第二窗口仍在。
 - 观察连接不得调用 `thread/resume` 建立额外订阅。被动 `thread/read(includeTurns=false)` 提供准确 rollout
-  路径；核对 session_meta、路径归属及完整 JSONL 行，按文件身份缓存并增量读取。上限为文件 128 MiB、
-  单条记录 2 MiB；不根据 cwd、进程名或最新文件猜会话。
+  路径；核对 session_meta、路径归属及完整 JSONL 行；不根据 cwd、进程名或最新文件猜会话。
 - Codex 的 UserPromptSubmit / Interrupt Hook 作废人工输入代次；prepare 要求当前回合确实收到输入 Hook。
   唤醒使用原生 `thread/queue/add` / `thread/queue/delete`；消息正文与原生 UserMessage.client_id 都须匹配
   当前请求，人工粘贴相同文字不能冒充内部消息。
 - Claude 使用 SessionStart / UserPromptSubmit / Stop / SessionEnd Hook。Stop 绑定精确后台 task ID 和完整
   最终正文；按 argv token 核对项目 Python `wait` 入口、会话与请求。完成后结束后台命令，由原生通知唤醒。
   领取时核对 transcript 的 human / task-notification 来源及当前 runId，不能仅凭通知文字批准。
-  transcript 限 16 MiB，仅消费完整 JSONL 行。Hook 先于该精确通知落盘时，claim 最多等待 1 秒补齐来源；
-  期间持续核验人工输入与当前代次，到期仍缺来源则使旧许可失效。
+  Hook 先于该精确通知落盘时，claim 最多等待 1 秒补齐来源；期间持续核验人工输入与当前代次，
+  到期仍缺来源则使旧许可失效。
+- 两端按文件身份和已消费位置增量读取完整 JSONL 行，单条解析上限 16 MiB，文件总大小不限。
+  原生最终展示核验上限 768 KiB。请求冻结记录文件身份和读取边界；替换、截断及边界漂移作废旧观察。
 - 两端原生等待分别用 Codex 短 yield 的后台 terminal session、Claude Bash `run_in_background:true`。
   主回合展示后结束，不轮询、不用 clock.sleep 或等待子代理占住聊天。
 
@@ -146,6 +157,10 @@ src/lib/confirmation-lifecycle.js:
 | 条件 | 结果 |
 | --- | --- |
 | 无效平台、时长、材料、会话或项目配置 | 人工确认，不准备有效默认动作 |
+| Windows 路径与句柄仅 `st_ctime_ns` 不同 | 正常读取；文件身份、内容状态或同一打开句柄的 `st_ctime_ns` 变化仍拒绝 |
+| 单条 Git 命令或整轮快照超时 | 停止本次核验，返回命令或快照阶段；未完成的 Git 进程回收 |
+| 会话文件超过历史总量，记录身份与完整行可核验 | 照常读取；只对新增完整行更新观察证据 |
+| 会话文件替换、截断或已消费边界变化 | 拒绝使用冻结的旧证据 |
 | `.flower/trellis-control.json` 存在，包括 null、损坏或漂移状态 | 保持人工确认 |
 | 原生结构损坏或来源校验异常 | 使当前活动许可失效，返回结构化失败 |
 | 未完整展示、原回合中断 | 不启动倒计时 |
@@ -165,6 +180,7 @@ src/lib/confirmation-lifecycle.js:
 - Base：Check 没有未处置项时不等待；总开关关闭或 Python 缺少 pidfd 时保持人工；查询空状态不创建目录。
 - Incorrect use：恢复会话后重新找一个活窗口继续旧请求，或把相同提醒正文当成领取凭证。
   Correct handling：冻结原窗口身份，核对原生消息来源和当前代次；失效则停止旧动作，必要时重新准备。
+- Normal：索引输出超过 4 MiB 或计划内普通文件超过 512 KiB 时按流式指纹核验；内容变化使旧许可失效。
 - Incorrect use：测试依赖开发机真实 `~/.codex`。Correct handling：构造客户端时显式注入夹具创建的独立
   `env.CODEX_HOME`，测试结束清理自己的目录；不存在的宿主目录必须始终保持不存在。
 - Normal：先用 `flower_confirmation_hook.py --entry` 获取精确 argv，再在该 argv 后追加 `prepare` 和
@@ -180,6 +196,10 @@ src/lib/confirmation-lifecycle.js:
   原子替换与锁释放的短暂/持续共享占用分别断言回调次数、原错误、持久代次和锁生命周期。
   卸载竞争通过 queued 事件屏障固定目录删除与下一次观察的位置，保留真实线程退出及目录缺失断言。
   空轮询跨过活锁；锁释放后观察到的新人工消息仍取消旧请求。
+- `test_confirmation_policy.py` 验证大 diff、大普通文件、旧摘要兼容、计划外状态漂移及 Git 超时回收。
+  Windows 路径和句柄时间戳不同的回归覆盖结构化材料及流式指纹，分别断言接受时间戳差异、拒绝替换和拒绝读取中变化。
+  `test_project_confirmation.py` 验证较大输入的状态仅存摘要、领取仍返回完整上下文、展示期限独立。
+  `test_confirmation_native.py` 验证超过旧总量的日志、增量读取、不完整行及替换后旧证据失效。
 - `test_confirmation_native.py` / `test_flower_tui_lifetime.py`：本机 WebSocket、帧边界、只读观察、真实内部来源、
   出生身份、归属歧义、恢复拒绝、能力不足；不存在宿主 Codex home 和隔离 PATH 下完成两端真实 Python CLI 链路。
 - `test_project_confirmation.py`：Claude 精确后台任务、原生通知与人工粘贴区分、输入取消、退出、runId 替换
