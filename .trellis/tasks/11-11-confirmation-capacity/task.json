@@ -1,0 +1,46 @@
+{
+  "id": "confirmation-capacity",
+  "name": "confirmation-capacity",
+  "title": "放宽后台确认的 Git 快照、会话日志与材料预算",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-11",
+  "completedAt": "2026-11-11",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-11T15:50:22Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "11-11-confirmation-capacity-and-windows",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "confirmationTimeoutDisabled": true
+  },
+  "progress": {
+    "updatedAt": "2026-11-11T15:50:22+00:00",
+    "completedSteps": [
+      "容量改造与大仓实测",
+      "本地回归与 Check-All",
+      "同步确认运行规范",
+      "来源仓与主仓业务变更推送",
+      "主仓 CI 验证：Linux 与 Windows 矩阵全部通过"
+    ],
+    "partialStep": null,
+    "nextStep": "容量任务已交付。",
+    "notes": "CI：https://github.com/SilentFlower/flower-trellis/actions/runs/43049598041。"
+  }
+}
