@@ -29,16 +29,34 @@ class ConfirmationStoreTest(unittest.TestCase):
     def test_real_processes_preserve_every_generation_update(self):
         """多个真实 Python 进程争锁，所有增量均保留。"""
         f = ProjectFixture(self)
-        program = (
-            "import sys; sys.path.insert(0, sys.argv[1]); "
-            "from flower_confirmation_runtime.store import ConfirmationStore; "
-            "store = ConfirmationStore(sys.argv[2], sys.argv[3], 'codex'); "
-            "[(store.update(lambda value: dict(value, generation=value['generation'] + 1))) for unused in range(12)]")
+        program = """import sys
+import time
+sys.path.insert(0, sys.argv[1])
+from flower_confirmation_runtime.store import ConfirmationStore
+store = ConfirmationStore(sys.argv[2], sys.argv[3], 'codex')
+deadline = time.monotonic() + 15
+for unused in range(12):
+    while True:
+        try:
+            store.update(lambda value: dict(value, generation=value['generation'] + 1))
+            break
+        except ValueError as error:
+            # 锁繁忙在执行回调前返回；慢盘争锁时可以重试这一次增量。
+            if str(error) != '确认状态锁繁忙' or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.02)
+"""
         children = [subprocess.Popen([sys.executable, "-X", "utf8", "-c", program, str(f.scripts), str(f.root), f.session],
                                      env=f.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for unused in range(4)]
-        for child in children:
-            stdout, stderr = child.communicate(timeout=20)
-            self.assertEqual(child.returncode, 0, stderr.decode("utf-8"))
+        try:
+            for child in children:
+                _, stderr = child.communicate(timeout=20)
+                self.assertEqual(child.returncode, 0, stderr.decode("utf-8"))
+        finally:
+            for child in children:
+                if child.poll() is None:
+                    child.kill()
+                child.communicate(timeout=5)
         self.assertEqual(f.store.read()["generation"], 48)
         self.assertFalse(f.store.file.with_name(f.store.file.name + ".lock").exists())
 

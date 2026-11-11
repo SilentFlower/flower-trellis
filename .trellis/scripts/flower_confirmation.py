@@ -14,7 +14,7 @@ from pathlib import Path
 from flower_confirmation_runtime.store import ConfirmationStore, cancel_project, confirmation_id, wake_message
 
 
-HELP = """项目内原生后台确认（Linux/WSL，Codex / Claude）
+HELP = """项目内原生后台确认（Linux/WSL、Windows，Codex / Claude）
 
   python3 -X utf8 .trellis/scripts/flower_confirmation.py prepare --input <项目内 JSON> [--seconds <1..86400>]
   python3 -X utf8 .trellis/scripts/flower_confirmation.py wait --request <UUID>
@@ -79,7 +79,7 @@ def main(argv=None):
             _output({"cancelled": cancel_project(project, reason)})
             return 0
         if command == "hook":
-            if sys.platform != "linux":
+            if sys.platform not in ("linux", "win32"):
                 _output({})
                 return 0
             raw = sys.stdin.buffer.read(1024 * 1024 + 1)

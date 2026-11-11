@@ -200,7 +200,7 @@ class NativeConfirmationTest(unittest.TestCase):
     def test_unsupported_platforms_and_missing_host_are_read_only(self):
         """平台能力失败和宿主缺失遵守实际读取边界。"""
         f = ProjectFixture(self)
-        for platform in ("win32", "darwin"):
+        for platform in (("darwin",) if sys.platform == "win32" else ("win32", "darwin")):
             with self.assertRaisesRegex(ValueError, "Linux/WSL"):
                 CodexClient(f.root, f.session, env=f.env, platform=platform)
         if sys.platform == "linux":

@@ -7,7 +7,8 @@
 - 修改项目 Python 确认入口、超时策略、状态机、宿主事件、窗口归属或确认 Hook 生命周期时适用。
 - Brief、Check-All、Push 共用一套策略与单次领取。到期提醒只唤醒，业务仍由各自 owner 执行。
 - Codex 保持普通启动和已有共享服务；Claude 使用原生后台任务通知。不增加启动包装、代理或 MCP。
-- 自动路径限于可核验的 Linux/WSL。Codex 必须具备 `/proc` 与 Python `os.pidfd_open`；能力不足保持人工。
+- 自动路径支持可核验的 Linux/WSL 和原生 Windows。Linux/WSL Codex 使用 `/proc` 与 Python `os.pidfd_open`；
+  Windows 核对本机控制连接、同用户的进程身份与退出句柄。任何必需能力缺失时保持人工。
   通用 CLI/脚本继续遵守 Node 18.17+、Python 3.8+ 基线；基线可加载不等于自动路径可用。
 
 ### 2. Signatures
@@ -40,7 +41,9 @@ flower_confirmation_runtime.claude.ClaudeClient(project, session_id, platform=No
 flower_confirmation_runtime.session_log.SessionLog.read(file, initial, consume) -> (record, observation)
 flower_confirmation_runtime.session_log.SessionLog.verify(frozen, current)
 CodexClient.capture_window(turn_id) / verify_window(binding) / observe_window(binding)
-flower_confirmation_runtime.transport.CodexTransport(path, timeout=5, notification=None)
+flower_confirmation_runtime.transport.CodexTransport(path, timeout=5, notification=None, *, proxy=None, env=None)
+flower_confirmation_runtime.windows_process.ProcessHandle(pid)
+flower_confirmation_runtime.windows_process.open_identity(identity) -> ProcessHandle
 src/lib/confirmation-lifecycle.js:
   cancelProjectConfirmations(project, reason = "project_disabled") -> number
   invalidateChangedConfirmations(project, plan, dryRun) -> void
@@ -118,11 +121,16 @@ src/lib/confirmation-lifecycle.js:
   `CODEX_THREAD_ID`、Claude 的 `CLAUDE_CODE_SESSION_ID` 用于精确会话识别；显式会话不得与当前环境冲突。
 - Codex 传输为标准库本机 Unix socket WebSocket/JSON-RPC：核验握手、掩码、分片及控制帧，
   单帧和聚合消息最多 16 MiB；连接及 RPC 默认超时 5 秒。写入回执未知时沿用单次投递边界。
+  Windows 从当前原生输入 Hook 的活跃同用户进程取得 Codex 映像，使用该映像的本地 `app-server proxy --sock`
+  连接同一已有控制服务。控制端点须位于本地目录；代理只收发字节并在关闭时回收自有进程。
 - `mcpServerStatus/list` 使用准确 `threadId` / `serverName=codex_tui`，只接受 connected 的唯一 loopback
   HTTP origin。通过真实监听 socket 找前台进程，冻结 `version=1`、`origin`、`pid`、`startTicks`、
   `exe`、`uid`、`bootId`、`socketInodes`；pidfd 不序列化。窗口失效后不绑定新窗口来恢复旧请求。
 - 用 `thread/loaded/list` 的会话来源与本机监听者核对覆盖；存在未对应会话的额外 Codex 前台时人工确认。
   同 thread 第二窗口不会接管原 MCP 服务，因此不能借第一窗口存活来证明第二窗口仍在。
+  Windows 用精确 TCP 监听地址核对 PID，以同用户身份、映像和进程创建时间冻结原前台；原生进程句柄监测退出。
+  同一发行的托管服务和前台可使用不同文件副本，须校验相同映像内容。
+  已核验的前台映像出现额外进程时拒绝继续，覆盖第二窗口尚未建立监听的间隙。
 - 观察连接不得调用 `thread/resume` 建立额外订阅。被动 `thread/read(includeTurns=false)` 提供准确 rollout
   路径；核对 session_meta、路径归属及完整 JSONL 行；不根据 cwd、进程名或最新文件猜会话。
 - Codex 的 UserPromptSubmit / Interrupt Hook 作废人工输入代次；prepare 要求当前回合确实收到输入 Hook。
@@ -130,9 +138,13 @@ src/lib/confirmation-lifecycle.js:
   当前请求，人工粘贴相同文字不能冒充内部消息。
 - Claude 使用 SessionStart / UserPromptSubmit / Stop / SessionEnd Hook。Stop 绑定精确后台 task ID 和完整
   最终正文；按 argv token 核对项目 Python `wait` 入口、会话与请求。完成后结束后台命令，由原生通知唤醒。
+  Windows 从 Hook 祖先链核对同用户的 `claude.exe` 原前台。第二个存活前台使旧请求失效；句柄跟踪原进程退出。
+  Windows 支持精确的 `py.exe -3.x` 和带引号的本地路径；命令范围、会话及请求照常核对。
   领取时核对 transcript 的 human / task-notification 来源及当前 runId，不能仅凭通知文字批准。
   Hook 先于该精确通知落盘时，claim 最多等待 1 秒补齐来源；期间持续核验人工输入与当前代次，
   到期仍缺来源则使旧许可失效。
+  Windows 原生 transcript 可只有结构化 `origin.kind`。出现 `turnOrigin` 时必须与其一致。
+  Linux/WSL 继续要求两个来源字段；任何平台都不从提醒正文推断真实通知。
 - 两端按文件身份和已消费位置增量读取完整 JSONL 行，单条解析上限 16 MiB，文件总大小不限。
   原生最终展示核验上限 768 KiB。请求冻结记录文件身份和读取边界；替换、截断及边界漂移作废旧观察。
 - 两端原生等待分别用 Codex 短 yield 的后台 terminal session、Claude Bash `run_in_background:true`。
@@ -167,6 +179,8 @@ src/lib/confirmation-lifecycle.js:
 | 常规轮询无新人工消息，写锁被占用 | 继续只读观察 |
 | 新输入、改材料、改策略、改任务或 Git 快照 | 旧许可失效 |
 | 前台退出、PID 复用、服务重绑或归属歧义 | 不派发或拒绝领取，不借用其他窗口 |
+| Windows 额外的同映像 Codex 前台尚未监听，或 Claude 同会话出现第二个存活前台 | 旧等待失败或取消，保持人工 |
+| Windows Claude 缺少结构化来源或两个来源字段冲突 | 不建立有效来源证据，不领取 |
 | 重复 worker、提醒、claim、started | 至多单次领取和单次业务开始 |
 | Windows 原子替换或锁释放短暂共享占用 | 有限重试文件操作，业务回调保持单次 |
 | Windows 共享占用持续超过预算 | 保留原权限错误与已写入的状态事实 |
@@ -180,6 +194,8 @@ src/lib/confirmation-lifecycle.js:
 - Base：Check 没有未处置项时不等待；总开关关闭或 Python 缺少 pidfd 时保持人工；查询空状态不创建目录。
 - Incorrect use：恢复会话后重新找一个活窗口继续旧请求，或把相同提醒正文当成领取凭证。
   Correct handling：冻结原窗口身份，核对原生消息来源和当前代次；失效则停止旧动作，必要时重新准备。
+- Normal：普通 Windows 窗口使用既有本机服务完成展示、倒计时与一次领取。启动第二窗口时，
+  原窗口的有效监听不能作为第二窗口的归属证据。
 - Normal：索引输出超过 4 MiB 或计划内普通文件超过 512 KiB 时按流式指纹核验；内容变化使旧许可失效。
 - Incorrect use：测试依赖开发机真实 `~/.codex`。Correct handling：构造客户端时显式注入夹具创建的独立
   `env.CODEX_HOME`，测试结束清理自己的目录；不存在的宿主目录必须始终保持不存在。
@@ -202,6 +218,8 @@ src/lib/confirmation-lifecycle.js:
   `test_confirmation_native.py` 验证超过旧总量的日志、增量读取、不完整行及替换后旧证据失效。
 - `test_confirmation_native.py` / `test_flower_tui_lifetime.py`：本机 WebSocket、帧边界、只读观察、真实内部来源、
   出生身份、归属歧义、恢复拒绝、能力不足；不存在宿主 Codex home 和隔离 PATH 下完成两端真实 Python CLI 链路。
+- `test_confirmation_windows.py`：真实 Windows 监听者、同映像副本、PID 创建时间、退出句柄、第二个未监听前台；
+  Claude 精确命令、双开作废、结构化来源缺失和冲突。实际 Windows Codex/Claude 窗口分别验证正常唤醒、退出和双开。
 - `test_project_confirmation.py`：Claude 精确后台任务、原生通知与人工粘贴区分、输入取消、退出、runId 替换
   及 Hook 先于 transcript 完整行的有限等待；原生结构损坏也必须失效活动许可。
 - `confirmation-install.test.js` / `test_confirmation_policy.py` / `test_flower_tui_lifetime.py`：默认与覆盖策略、关闭、重复更新、

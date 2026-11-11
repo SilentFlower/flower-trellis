@@ -370,15 +370,18 @@ class ProjectConfirmationTest(unittest.TestCase):
     def test_claude_pasted_notification_and_run_restart_revoke_old_permission(self):
         """迁移原 Claude 客户端的粘贴来源、重复输入和重启边界。"""
         from flower_confirmation_runtime.claude import ClaudeClient, record_event
+
+        def record_linux_event(payload):
+            return record_event(payload, platform="linux")
         f = ProjectFixture(self, "claude")
         transcript = f.root / (f.session + ".jsonl")
         prompt = str(uuid4())
         payload = {"cwd": str(f.root), "session_id": f.session, "transcript_path": str(transcript)}
-        record_event({**payload, "hook_event_name": "SessionStart"})
+        record_linux_event({**payload, "hook_event_name": "SessionStart"})
         event = {**payload, "hook_event_name": "UserPromptSubmit", "prompt_id": prompt, "prompt": "开始"}
-        record_event(event)
+        record_linux_event(event)
         generation = f.store.read()["generation"]
-        record_event(event)
+        record_linux_event(event)
         self.assertEqual(f.store.read()["generation"], generation)
         transcript.write_text(json.dumps({"type": "user", "sessionId": f.session, "promptId": prompt,
                                           "origin": {"kind": "human"}, "turnOrigin": "human", "message": {"content": "开始"}}) + "\n", encoding="utf-8")
@@ -392,7 +395,7 @@ class ProjectConfirmationTest(unittest.TestCase):
         f.store.update(queued)
         pasted = str(uuid4())
         notice = "<task-notification>\n<task-id>owned</task-id>\n</task-notification>"
-        record_event({**payload, "hook_event_name": "UserPromptSubmit", "prompt_id": pasted, "prompt": notice})
+        record_linux_event({**payload, "hook_event_name": "UserPromptSubmit", "prompt_id": pasted, "prompt": notice})
         with transcript.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps({"type": "user", "sessionId": f.session, "promptId": pasted,
                                      "origin": {"kind": "human"}, "turnOrigin": "human", "message": {"content": notice}}) + "\n")
@@ -400,9 +403,9 @@ class ProjectConfirmationTest(unittest.TestCase):
             runtime.claim(f.store, client, request_id)
         self.assertEqual(f.store.read()["request"]["state"], "cancelled")
         old_run = f.store.read()["native"]["runId"]
-        record_event({**payload, "hook_event_name": "SessionStart"})
+        record_linux_event({**payload, "hook_event_name": "SessionStart"})
         self.assertNotEqual(f.store.read()["native"]["runId"], old_run)
-        record_event({**payload, "hook_event_name": "SessionEnd"})
+        record_linux_event({**payload, "hook_event_name": "SessionEnd"})
         with self.assertRaisesRegex(ValueError, "退出"):
             client.connect()
 

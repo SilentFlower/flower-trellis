@@ -15,6 +15,7 @@ from flower_tui_lifetime import bind_origin, check_binding, check_frontend_cover
 from .session_log import DISPLAY_BYTES, SessionLog
 from .store import ACTIVE, ConfirmationStore, confirmation_id, now_ms, wake_id, wake_message
 from .transport import CodexTransport, RpcError
+from .windows_process import check_listener_coverage, hook_frontend, listener_identity, open_identity
 
 
 def record_event(payload):
@@ -30,11 +31,14 @@ def record_event(payload):
         return {}
     session_id = confirmation_id(payload["session_id"])
     store = ConfirmationStore(project, session_id, "codex")
+    frontend = hook_frontend("codex.exe") if sys.platform == "win32" else None
     def apply(old):
         value = old or {"version": 2, "sessionId": session_id, "generation": 0,
                         "lastHumanMessageId": None, "request": None}
         value["native"] = {"version": 2, "project": str(project), "sessionId": session_id,
                            "at": now_ms(), "turnId": payload.get("turn_id")}
+        if frontend is not None:
+            value["native"]["hookProcess"] = frontend
         request = value.get("request")
         internal = (payload["hook_event_name"] == "UserPromptSubmit" and request
                     and request["state"] in ("dispatching", "queued") and payload.get("prompt") == wake_message(request["id"]))
@@ -64,13 +68,28 @@ class CodexClient:
         @param timeout: 原生 RPC 超时秒数。
         @return: None。
         """
-        if (platform or sys.platform) != "linux":
+        self.platform = platform or sys.platform
+        if self.platform not in ("linux", "win32") or (self.platform == "win32" and sys.platform != "win32"):
             raise ValueError("后台确认目前只验证 Linux/WSL 的共享服务")
         self.project = Path(project).resolve(strict=True)
         self.session_id = confirmation_id(session_id)
         environment = os.environ if env is None else env
         self.home = Path(environment.get("CODEX_HOME") or (Path.home() / ".codex")).resolve(strict=True)
-        self.transport = CodexTransport(self.home / "app-server-control/app-server-control.sock", timeout, self._notification)
+        self.executable = None
+        if self.platform == "win32":
+            native = (ConfirmationStore(self.project, self.session_id, "codex").read() or {}).get("native") or {}
+            if native.get("project") != str(self.project) or native.get("sessionId") != self.session_id or not native.get("hookProcess"):
+                raise ValueError("缺少 Windows Codex 原生输入 Hook，保持人工确认")
+            # 使用真实 Hook 祖先进程的映像，避免在项目目录或 PATH 中挑选代理程序。
+            process = open_identity(native["hookProcess"])
+            try:
+                self.executable = Path(process.identity["exe"]).resolve(strict=True)
+                if self.executable.name.lower() != "codex.exe":
+                    raise ValueError("Windows Codex 原生 Hook 映像不匹配")
+            finally:
+                process.close()
+        self.transport = CodexTransport(self.home / "app-server-control/app-server-control.sock", timeout, self._notification,
+                                        proxy=self.executable, env=environment)
         self.rollout = None
         self.session_log = SessionLog()
         self.humans = []
@@ -112,12 +131,13 @@ class CodexClient:
         @return: 人工基线、当前回合及内部唤醒快照。
         """
         if self.window_fd is not None:
-            poll = select.poll()
-            poll.register(self.window_fd, select.POLLIN)
-            if poll.poll(0):
+            if self._frontend_exited():
                 raise ValueError("frontend_exited")
             if time.monotonic() - self.checked_at >= 0.25:
-                check_binding(self.window)
+                if self.platform == "win32":
+                    self._check_windows_binding(self.window)
+                else:
+                    check_binding(self.window)
                 self.checked_at = time.monotonic()
         thread = self.rpc("thread/read", {"threadId": self.session_id, "includeTurns": False})["thread"]
         if thread.get("id") != self.session_id or Path(thread["cwd"]).resolve(strict=True) != self.project:
@@ -231,7 +251,32 @@ class CodexClient:
                 raise ValueError("原生 TUI 来源超出核验预算")
             origins.update(value["httpOrigin"] for value in current.get("data", [])
                            if value.get("name") == "codex_tui" and value.get("runtimeStatus") == "connected" and value.get("httpOrigin"))
-        check_frontend_coverage(list(origins))
+        if self.platform == "win32":
+            identities = [self._windows_binding(origin)["identity"] for origin in origins]
+            owners = {item["pid"] for item in identities}
+            if not owners or len(owners) != len(origins):
+                raise ValueError("Windows Codex 前台归属不唯一")
+            check_listener_coverage(owners, self.executable, {Path(item["exe"]) for item in identities})
+        else:
+            check_frontend_coverage(list(origins))
+
+    def _windows_binding(self, origin):
+        from flower_tui_lifetime import parse_origin
+
+        host, port = parse_origin(origin)
+        return {"version": 1, "platform": "win32", "origin": origin,
+                "identity": listener_identity(host, port, self.executable)}
+
+    def _check_windows_binding(self, binding):
+        if binding != self._windows_binding(binding["origin"]):
+            raise ValueError("原 Windows Codex 前台或监听归属已变化")
+
+    def _frontend_exited(self):
+        if self.platform == "win32":
+            return self.window_fd.exited()
+        poll = select.poll()
+        poll.register(self.window_fd, select.POLLIN)
+        return bool(poll.poll(0))
 
     def capture_window(self, turn_id):
         """从当前输入 Hook 和实际监听者冻结前台身份。
@@ -244,7 +289,7 @@ class CodexClient:
                 or native.get("sessionId") != self.session_id or not turn_id or native.get("turnId") != turn_id):
             raise ValueError("当前会话尚未收到确认输入 Hook，重开原生客户端后使用；本次保持人工确认")
         origin = self._origin()
-        binding = bind_origin(origin)
+        binding = self._windows_binding(origin) if self.platform == "win32" else bind_origin(origin)
         if self._origin() != origin:
             raise ValueError("准备期间前台窗口绑定已改变")
         self._coverage()
@@ -258,8 +303,13 @@ class CodexClient:
         """
         if self._origin() != binding.get("origin"):
             raise ValueError("原前台窗口绑定已改变")
-        fd = open_binding(binding)
-        os.close(fd)
+        if self.platform == "win32":
+            self._check_windows_binding(binding)
+            handle = open_identity(binding["identity"])
+            handle.close()
+        else:
+            fd = open_binding(binding)
+            os.close(fd)
         if self._origin() != binding["origin"]:
             raise ValueError("核验期间前台窗口绑定已改变")
         self._coverage()
@@ -271,7 +321,7 @@ class CodexClient:
         @return: None。
         """
         self.verify_window(binding)
-        self.window_fd = open_binding(binding)
+        self.window_fd = open_identity(binding["identity"]) if self.platform == "win32" else open_binding(binding)
         self.window = binding
 
     def add(self, request_id):
@@ -302,11 +352,14 @@ class CodexClient:
             raise
 
     def close(self):
-        """释放自己的连接与 pidfd。
+        """释放自己的连接与进程退出句柄。
 
         @return: None。
         """
         if self.window_fd is not None:
-            os.close(self.window_fd)
+            if self.platform == "win32":
+                self.window_fd.close()
+            else:
+                os.close(self.window_fd)
             self.window_fd = None
         self.transport.close()

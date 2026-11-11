@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from .session_log import DISPLAY_BYTES, SessionLog
 from .store import ACTIVE, ConfirmationStore, confirmation_id, now_ms, wake_message
+from .windows_process import hook_frontend, open_identity
 
 
 def _task_notice(text):
@@ -27,9 +28,15 @@ def _wait_command(command, project, session_id, request_id):
         entry = next(index for index, token in enumerate(tokens)
                      if Path(token).name == "flower_confirmation.py")
         executable = Path(tokens[0]).name
+        if sys.platform == "win32":
+            executable = executable.lower()
+            if executable.endswith(".exe"):
+                executable = executable[:-4]
         if not re.fullmatch(r"(?:python(?:[0-9]+(?:\.[0-9]+)*)?|py)", executable):
             return False
         prefix = tokens[1:entry]
+        if sys.platform == "win32" and executable == "py" and prefix and re.fullmatch(r"-3(?:\.[0-9]+)?", prefix[0]):
+            prefix = prefix[1:]
         if prefix not in ([], ["-X", "utf8"], ["-3"], ["-3", "-X", "utf8"]):
             return False
         if (project / tokens[entry]).resolve(strict=True) != project / ".trellis/scripts/flower_confirmation.py":
@@ -52,10 +59,11 @@ def _wait_command(command, project, session_id, request_id):
         return False
 
 
-def record_event(payload):
+def record_event(payload, *, platform=None):
     """保存四类原生事件，内部通知在领取时再次核验来源。
 
     @param payload: 原始 Claude Hook JSON。
+    @param platform: 测试可注入的平台能力条件。
     @return: 空输出或本请求的原生唤醒上下文。
     """
     event = payload.get("hook_event_name")
@@ -69,6 +77,7 @@ def record_event(payload):
     if not isinstance(transcript, str) or Path(transcript).name != session_id + ".jsonl":
         raise ValueError("Claude 缺少精确会话记录路径")
     store = ConfirmationStore(project, session_id, "claude")
+    frontend = hook_frontend("claude.exe") if (platform or sys.platform) == "win32" else None
     reminders = []
     def apply(old):
         value = old or {"version": 2, "sessionId": session_id, "generation": 0, "lastHumanMessageId": None, "request": None}
@@ -76,8 +85,29 @@ def record_event(payload):
                                          "tasks": {}, "runId": str(uuid4())}
         if native.get("project") != str(project) or native.get("sessionId") != session_id:
             raise ValueError("Claude 事件会话或项目不符")
-        native.update(transcript=transcript, at=now_ms())
         request = value.get("request")
+        if frontend is not None:
+            if native.get("frontend") and native["frontend"] != frontend:
+                try:
+                    previous = open_identity(native["frontend"])
+                except (ProcessLookupError, ValueError):
+                    previous = None
+                except OSError as error:
+                    if getattr(error, "winerror", None) != 87:
+                        raise
+                    previous = None
+                if previous:
+                    previous.close()
+                    native["ambiguous"] = True
+                    value["generation"] += 1
+                    if request and request["state"] in ACTIVE:
+                        request.update(state="cancelled", error="frontend_ambiguous")
+                    return value
+            if event == "SessionStart":
+                native.update(frontend=frontend, ambiguous=False)
+            elif native.get("frontend") != frontend or native.get("ambiguous"):
+                raise ValueError("Windows Claude Hook 未绑定唯一的原始前台")
+        native.update(transcript=transcript, at=now_ms())
         if event == "SessionStart":
             native.update(runId=str(uuid4()), ended=False, tasks={}, humanId=None, turn=None)
             value["generation"] += 1
@@ -139,12 +169,14 @@ class ClaudeClient:
         @param platform: 可注入的平台能力条件。
         @return: None。
         """
-        if (platform or sys.platform) != "linux":
-            raise ValueError("Claude 后台确认目前只验证 Linux/WSL")
+        self.platform = platform or sys.platform
+        if self.platform not in ("linux", "win32") or (self.platform == "win32" and sys.platform != "win32"):
+            raise ValueError("Claude 后台确认需要可核验的 Linux/WSL 或原生 Windows 会话")
         self.store = ConfirmationStore(project, session_id, "claude")
         self.project = self.store.project
         self.session_id = self.store.session_id
         self.session_log = SessionLog()
+        self.frontend = None
 
     def connect(self):
         """核对原生 Hook 和活动 runId。
@@ -166,6 +198,14 @@ class ClaudeClient:
         native = (self.store.read() or {}).get("native") or {}
         if not native or native.get("ended"):
             raise ValueError("Claude 会话状态不可用")
+        if self.platform == "win32":
+            identity = native.get("frontend")
+            if not identity or native.get("ambiguous"):
+                raise ValueError("Windows Claude 缺少唯一原始前台，保持人工确认")
+            if self.frontend is None:
+                self.frontend = open_identity(identity)
+            if self.frontend.exited() or self.frontend.identity != identity:
+                raise ValueError("frontend_exited")
         file = Path(native["transcript"])
         if file.name != self.session_id + ".jsonl":
             raise ValueError("Claude 缺少精确会话记录路径")
@@ -191,9 +231,11 @@ class ClaudeClient:
         if entry.get("type") != "user" or entry.get("isSidechain") or entry.get("sessionId") != self.session_id:
             return
         kind = (entry.get("origin") or {}).get("kind")
-        if kind == "human" and entry.get("turnOrigin") == "human":
+        # Windows 原生记录可能只写结构化 origin；出现 turnOrigin 时仍要求两者一致。
+        only_origin = self.platform == "win32" and "turnOrigin" not in entry
+        if kind == "human" and (only_origin or entry.get("turnOrigin") == "human"):
             record["humanId"] = confirmation_id(entry.get("promptId"))
-        elif kind == "task-notification" and entry.get("turnOrigin") == "task_notification":
+        elif kind == "task-notification" and (only_origin or entry.get("turnOrigin") == "task_notification"):
             task_id = _task_notice((entry.get("message") or {}).get("content"))
             if task_id:
                 notices = record["notifications"]
@@ -239,4 +281,6 @@ class ClaudeClient:
 
         @return: None。
         """
-        return None
+        if self.frontend:
+            self.frontend.close()
+            self.frontend = None

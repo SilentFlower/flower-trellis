@@ -1,6 +1,6 @@
 # 原生后台确认
 
-本文件由 Brief、Check-All、Push 三个 owner 按需读取。仅 Codex / Claude 的已验证 Linux/WSL 原生会话可启用；项目 `confirmation_timeout` 缺省开启。其它平台、禁用、能力或展示无法核验时维持原人工流程，不从沉默推断人工确认。
+本文件由 Brief、Check-All、Push 三个 owner 按需读取。Codex / Claude 的 Linux/WSL 或原生 Windows 会话须通过宿主能力核验；项目 `confirmation_timeout` 缺省开启。其它平台、禁用、能力或展示无法核验时维持原人工流程，不从沉默推断人工确认。
 
 ## 适用边界
 
@@ -17,7 +17,7 @@
 
 ## 准备与完整展示
 
-Codex 保持普通 `codex` / `codex resume` 与默认共享服务。通过当前根会话内置 codex_tui 的本机监听者绑定原前台；需要新输入 Hook 已实际加载。缺少服务、出生身份或可靠退出能力时保持人工。Claude 保持原来的普通 TUI。
+Codex 保持普通 `codex` / `codex resume` 与默认共享服务。通过当前根会话内置 codex_tui 的本机监听者绑定原前台；需要新输入 Hook 已实际加载。Windows 复用当前 Codex 映像的本机代理接入已有控制端点。缺少服务、出生身份或可靠退出能力时保持人工。Claude 保持原来的普通 TUI；Windows 同时核验原生 Hook 的前台进程。
 
 先从项目根执行 `python3 .trellis/scripts/flower_confirmation_hook.py --entry`，读取实际返回的 `entry` argv，后续在其后追加 `prepare`、`wait` 等子命令。入口固定为项目内 `.trellis/scripts/flower_confirmation.py`，内部复用当前 Python 解释器，仅依赖标准库和项目脚本。`entry=null` 或工具失败才报告实际原因；不能用无 stdout 的 `test -f` 推断入口不存在。确认阶段无需 Node、npm、全局 Flower 或额外 pip 安装。
 
