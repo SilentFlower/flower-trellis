@@ -1,0 +1,78 @@
+{
+  "id": "legacy-confirmation-config-migration",
+  "name": "legacy-confirmation-config-migration",
+  "title": "升级时清理旧自动确认项目配置",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-11",
+  "completedAt": "2026-11-11",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-11T08:20:57Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-11-11T07:34:55Z",
+      "contextKey": "codex_01a1c984-89c7-71b3-85db-653edeee569f",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "654165bed5f3765f3de77a85219ae70796537cfa",
+        "status": [],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "654165bed5f3765f3de77a85219ae70796537cfa",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "34013a810ce73ed574fa21bf2ebcad5c9e3f80c1b438bad516dcb3a29f3db15c"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "ada1fe170443e2ffc4c0baeb1d74928628c13141",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "8b2436e06d7a0f9033cde5b8ed49adfe928104aead43bd5a409b04ddab34e9a0"
+          }
+        ],
+        "fingerprint": "842b89ef9a081566f378ef52eab8f126fc502f7eb7e84bb73e03c57ec73f4bcb"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "实现历代自动确认项目配置与退役脚本的升级迁移",
+      "修复目标覆盖及 JSON 配置保护并完成本地全量回归",
+      "同一业务提交的 Ubuntu 和 Windows 必需 CI 全部通过"
+    ],
+    "partialStep": null,
+    "nextStep": "由独立 beta 发布流程核验 npm beta 通道和 GitHub 预发布",
+    "notes": "匹配提交的 CI：https://github.com/SilentFlower/flower-trellis/actions/runs/42984565734",
+    "updatedAt": "2026-11-11T08:20:57Z"
+  }
+}
