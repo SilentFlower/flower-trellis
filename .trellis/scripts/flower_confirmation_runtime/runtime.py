@@ -160,14 +160,22 @@ def prepare(store, client, input_path, seconds=None):
     frozen = inspect_confirmation(store, input_path, seconds)
     if not frozen["enabled"]:
         return {"prepared": False, "mode": "manual", "reason": frozen.get("reason")}
-    snapshot = client.snapshot()
+    observe_prepare = getattr(client, "prepare_snapshot", client.snapshot)
+    snapshot = observe_prepare()
     if (snapshot.get("turn") or {}).get("status") != "inProgress":
         raise ValueError("正式确认必须由当前活动回合准备")
     lifetime = ({"windowBinding": client.capture_window(snapshot["turn"]["id"])} if store.platform == "codex"
                 else {"runId": confirmation_id(snapshot.get("runId"))})
-    current = client.snapshot()
-    if current["humanId"] != snapshot["humanId"] or any(identifier != snapshot["humanId"] for identifier in current.get("humanEvents", [])):
+    current = observe_prepare()
+    human_events = snapshot.get("humanEvents", []) + current.get("humanEvents", [])
+    if current["humanId"] != snapshot["humanId"] or any(identifier != snapshot["humanId"] for identifier in human_events):
         raise ValueError("准备期间出现新人工输入")
+    log_start = "codexLogStart" if store.platform == "codex" else "claudeLogStart"
+    if snapshot.get(log_start):
+        if (current.get(log_start) != snapshot[log_start]
+                or current["humanId"] != current["prepareBaseline"]):
+            raise ValueError("准备期间确认回合或人工输入已变化")
+        lifetime[log_start] = current[log_start]
     if snapshot.get("logObservation"):
         SessionLog.verify(snapshot["logObservation"], current.get("logObservation"))
         lifetime["logObservation"] = current["logObservation"]
@@ -176,7 +184,10 @@ def prepare(store, client, input_path, seconds=None):
                 "frozenDigest": _frozen_digest(frozen), **lifetime}
     previous = []
     def apply(old):
-        if (old or {}).get("generation", 0) != generation:
+        native = (old or {}).get("native") or {}
+        if ((old or {}).get("generation", 0) != generation
+                or lifetime.get("claudeLogStart") and native.get("turn") != current.get("turn")
+                or lifetime.get("codexLogStart") and native.get("turnId") != current["turn"]["id"]):
             raise ValueError("准备期间确认代次已变化")
         if old and old.get("request"):
             previous.append(old["request"])
@@ -217,7 +228,7 @@ def _validate(store, client, request, stage, snapshot=None):
         raise ValueError("确认材料、策略或当前任务已变化")
     if stage == "display" and _normalize_display(render_confirmation(current)) not in _normalize_display(client.assistant_text(request["originTurnId"])):
         raise ValueError("原回合未完整展示冻结材料、时长及默认动作")
-    if stage == "claim":
+    if stage == "claim" or (stage == "start" and (contract.get("claudeLogStart") or contract.get("codexLogStart"))):
         if store.platform == "codex":
             wake = snapshot.get("wake") or {}
             if wake.get("requestId") != request["id"] or wake.get("turnId") != (snapshot.get("turn") or {}).get("id"):
@@ -369,7 +380,11 @@ def claim(store, client, request_id):
             time.sleep(0.02)
         request = (store.read() or {}).get("request") or {}
         frozen = _validate(store, client, request, "claim", snapshot)
-        _observe(store, request_id, client.snapshot())
+        latest = client.snapshot()
+        _observe(store, request_id, latest)
+        claude_turn = (snapshot.get("turn") or {}).get("id") if request["contract"].get("claudeLogStart") else None
+        if claude_turn and (latest.get("turn") or {}).get("id") != claude_turn:
+            raise ValueError("Claude 领取期间回合已变化")
         result = denied("not_ready")
         def consume(current, state):
             nonlocal result
@@ -377,12 +392,13 @@ def claim(store, client, request_id):
                 result = denied(current["state"])
                 return
             if (state["generation"] != current["generation"] or state["lastHumanMessageId"] != current["baselineMessageId"]
+                    or claude_turn and ((state.get("native") or {}).get("turn") or {}).get("id") != claude_turn
                     or now_ms() > current["claimDeadline"] or message_hash(current["message"]) != current["messageSha256"]):
                 current.update(state="failed", error="claim_validation_failed")
                 result = denied("claim_validation_failed")
                 return
             receipt = {"id": str(uuid4()), "at": now_ms(), "source": "policy_timeout", "materialHash": frozen["materialHash"]}
-            current.update(state="consumed", receipt=receipt)
+            current.update(state="consumed", receipt=receipt, wakeTurnId=claude_turn)
             result = {"claimed": True, "requestId": request_id, "source": "policy_timeout", "action": frozen["action"],
                       "receipt": receipt, "context": {**frozen["plan"], "body": frozen["body"], "facts": frozen["facts"],
                                                       "materialHash": frozen["materialHash"], "policyHash": frozen["policyHash"]}}
@@ -427,6 +443,7 @@ def record_result(store, client, request_id, receipt, outcome):
             native = state.get("native") or {}
             run_id = request["contract"].get("runId")
             if (state["generation"] != request["generation"] or state["lastHumanMessageId"] != request["baselineMessageId"]
+                    or request.get("wakeTurnId") and (native.get("turn") or {}).get("id") != request["wakeTurnId"]
                     or (run_id and (native.get("runId") != run_id or native.get("ended"))) or request.get("execution")):
                 return
         elif (request.get("execution") or {}).get("state") != "started":

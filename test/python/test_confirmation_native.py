@@ -107,14 +107,19 @@ class NativeConfirmationTest(unittest.TestCase):
         payload = {"cwd": str(f.root), "session_id": f.session, "transcript_path": str(transcript)}
         self.invoke(f, ["hook"], {**payload, "hook_event_name": "SessionStart"})
         self.invoke(f, ["hook"], {**payload, "hook_event_name": "UserPromptSubmit", "prompt_id": prompt_id, "prompt": "开始"})
-        transcript.write_text(json.dumps({"type": "user", "sessionId": f.session, "promptId": prompt_id,
-                                          "origin": {"kind": "human"}, "turnOrigin": "human", "message": {"content": "开始"}}) + "\n", encoding="utf-8")
+        old = {"type": "user", "sessionId": f.session, "promptId": str(uuid4()),
+               "origin": {"kind": "unknown-old"}, "message": {"content": "旧记录"}}
+        human = {"type": "user", "sessionId": f.session, "promptId": prompt_id,
+                 "origin": {"kind": "human"}, "turnOrigin": "human", "message": {"content": "开始"}}
+        transcript.write_text(json.dumps(old) + "\n" + json.dumps(human) + "\n", encoding="utf-8")
         record = b'{"type":"assistant","message":"' + b"x" * (6 * 1024 * 1024) + b'"}\n'
         with transcript.open("ab") as stream:
             for _ in range(3):
                 stream.write(record)
         prepared = self.invoke(f, ["prepare", "--input", f.input, "--seconds", "1"])
         self.assertTrue(prepared["prepared"], prepared)
+        start = f.store.read()["request"]["contract"]["claudeLogStart"]
+        self.assertEqual(start["offset"], len((json.dumps(old) + "\n" + json.dumps(human) + "\n").encode()))
         request_id = prepared["requestId"]
         child = self.start_wait(f, request_id)
         command = " ".join(shlex.quote(token) for token in [sys.executable, "-X", "utf8", str(f.scripts / "flower_confirmation.py"),
@@ -128,6 +133,9 @@ class NativeConfirmationTest(unittest.TestCase):
         notice = "<task-notification>\n<task-id>owned-task</task-id>\n</task-notification>"
         notification_prompt = str(uuid4())
         with transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({**old, "origin": {"kind": "beer"}}) + "\n")
+            stream.write(json.dumps({**old, "origin": {"kind": "task-notification"}, "queueTranscriptOnly": True,
+                                     "message": {"content": notice}}) + "\n")
             stream.write(json.dumps({"type": "user", "sessionId": f.session, "promptId": notification_prompt,
                                      "origin": {"kind": "task-notification"}, "turnOrigin": "task_notification",
                                      "message": {"content": notice}}) + "\n")
@@ -140,6 +148,8 @@ class NativeConfirmationTest(unittest.TestCase):
         f = ProjectFixture(self)
         f.env["PATH"] = str(f.root / "empty-bin")
         server = CodexServer(self, f)
+        header, current = server.file.read_bytes().split(b"\n", 1)
+        server.file.write_bytes(header + b"\n{invalid-old-json}\n" + current)
         # 前台身份由独立 helper 专项与真实原生验收负责；此夹具只替换隔离项目的身份边界。
         (f.scripts / "flower_tui_lifetime.py").write_text(
             "import os\nwriters = []\n"
@@ -151,6 +161,7 @@ class NativeConfirmationTest(unittest.TestCase):
                                   "hook_event_name": "UserPromptSubmit", "prompt": "开始"})
         prepared = self.invoke(f, ["prepare", "--input", f.input, "--seconds", "1"])
         self.assertTrue(prepared["prepared"], prepared)
+        self.assertGreater(f.store.read()["request"]["contract"]["codexLogStart"]["offset"], len(header))
         request_id = prepared["requestId"]
         child = self.start_wait(f, request_id)
         server.append({"type": "item_completed", "thread_id": f.session, "turn_id": server.origin,
@@ -167,6 +178,58 @@ class NativeConfirmationTest(unittest.TestCase):
         self.assertEqual(server.added, [request_id])
         self.assertNotIn("thread/resume", server.calls)
         self.assertEqual(server.errors, [])
+
+    def test_codex_scoped_rollout_ignores_history_and_rejects_new_input_or_rollback(self):
+        """两种宿主共用起点读取，人工插话与回滚仍作废本次观察。"""
+        for platform in ("linux", "win32"):
+            with self.subTest(platform=platform):
+                f = ProjectFixture(self)
+                home = Path(f.env["CODEX_HOME"])
+                (home / "sessions").mkdir(parents=True)
+                file = home / "sessions" / ("rollout-test-" + f.session + ".jsonl")
+                turn, human = str(uuid4()), str(uuid4())
+                header = {"type": "session_meta", "payload": {"id": f.session}}
+                start = {"type": "task_started", "turn_id": turn}
+                item = {"type": "item_completed", "turn_id": turn, "item": {"type": "UserMessage", "id": human}}
+                newline = b"\r\n" if platform == "win32" else b"\n"
+
+                def append(*events):
+                    with file.open("ab") as stream:
+                        for event in events:
+                            stream.write(json.dumps({"type": "event_msg", "payload": event}).encode("utf-8") + newline)
+
+                def native(value):
+                    value["native"].update(version=2, turnId=turn)
+                    return value
+
+                f.store.update(native)
+                file.write_bytes(json.dumps(header).encode("utf-8") + newline + b"{invalid-old-json}" + newline)
+                append(start, {**item, "item": {**item["item"], "id": str(uuid4())}},
+                       {**item, "item": {"type": "AgentMessage", "phase": "final_answer", "content": "旧结构"}}, item,
+                       {"type": "beer", "turn_id": turn})
+                client = CodexClient(f.root, f.session, env=f.env, platform="linux")
+                client.platform = platform
+                rpc = {"thread": {"id": f.session, "cwd": str(f.root), "path": str(file)}}
+                with patch.object(client, "rpc", return_value=rpc):
+                    snapshot = client.prepare_snapshot()
+                    self.assertEqual(snapshot["humanId"], human)
+                    append({**item, "item": {**item["item"], "id": str(uuid4())}})
+                    with self.assertRaisesRegex(ValueError, "人工输入已变化"):
+                        client.prepare_snapshot()
+
+                def prepared(value):
+                    value["request"] = {"id": str(uuid4()), "state": "prepared", "generation": value["generation"],
+                                        "contract": {"codexLogStart": snapshot["codexLogStart"]},
+                                        "originTurnId": turn, "baselineMessageId": human}
+                    return value
+
+                f.store.update(prepared)
+                append({"type": "thread_rolled_back"}, start, item)
+                fresh = CodexClient(f.root, f.session, env=f.env, platform="linux")
+                fresh.platform = platform
+                with patch.object(fresh, "rpc", return_value=rpc):
+                    with self.assertRaisesRegex(ValueError, "本次观察期间已回滚"):
+                        fresh.snapshot()
 
     def test_websocket_fragmentation_ping_lengths_and_invalid_frames(self):
         """独立帧夹具覆盖控制帧插入、三种长度和非法帧。"""

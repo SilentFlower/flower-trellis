@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import select
@@ -12,7 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from flower_tui_lifetime import bind_origin, check_binding, check_frontend_coverage, open_binding
-from .session_log import DISPLAY_BYTES, SessionLog
+from .session_log import DISPLAY_BYTES, RECORD_BYTES, SessionLog
 from .store import ACTIVE, ConfirmationStore, confirmation_id, now_ms, wake_id, wake_message
 from .transport import CodexTransport, RpcError
 from .windows_process import check_listener_coverage, hook_frontend, listener_identity, open_identity
@@ -70,14 +71,15 @@ class CodexClient:
         """
         self.platform = platform or sys.platform
         if self.platform not in ("linux", "win32") or (self.platform == "win32" and sys.platform != "win32"):
-            raise ValueError("后台确认目前只验证 Linux/WSL 的共享服务")
+            raise ValueError("Codex 后台确认需要 Linux/WSL 或原生 Windows 的共享服务")
         self.project = Path(project).resolve(strict=True)
         self.session_id = confirmation_id(session_id)
+        self.store = ConfirmationStore(self.project, self.session_id, "codex")
         environment = os.environ if env is None else env
         self.home = Path(environment.get("CODEX_HOME") or (Path.home() / ".codex")).resolve(strict=True)
         self.executable = None
         if self.platform == "win32":
-            native = (ConfirmationStore(self.project, self.session_id, "codex").read() or {}).get("native") or {}
+            native = (self.store.read() or {}).get("native") or {}
             if native.get("project") != str(self.project) or native.get("sessionId") != self.session_id or not native.get("hookProcess"):
                 raise ValueError("缺少 Windows Codex 原生输入 Hook，保持人工确认")
             # 使用真实 Hook 祖先进程的映像，避免在项目目录或 PATH 中挑选代理程序。
@@ -92,6 +94,8 @@ class CodexClient:
                                         proxy=self.executable, env=environment)
         self.rollout = None
         self.session_log = SessionLog()
+        self.log_start = None
+        self.prepare_turn = None
         self.humans = []
         self.seen = OrderedDict()
         self.window_fd = None
@@ -125,11 +129,21 @@ class CodexClient:
         """
         return self.transport.rpc(method, params)
 
+    def prepare_snapshot(self):
+        """从当前原生 Hook 对应的回合建立本次观察起点。
+
+        @return: 当前回合的来源证据和冻结起点。
+        """
+        return self._snapshot(preparing=True)
+
     def snapshot(self):
         """被动读取精确线程及消息来源，观察前台退出。
 
         @return: 人工基线、当前回合及内部唤醒快照。
         """
+        return self._snapshot(preparing=False)
+
+    def _snapshot(self, preparing):
         if self.window_fd is not None:
             if self._frontend_exited():
                 raise ValueError("frontend_exited")
@@ -144,7 +158,59 @@ class CodexClient:
             raise ValueError("Codex 目标会话或项目目录不匹配")
         if thread.get("archived") or (thread.get("status") or {}).get("type") == "systemError":
             raise ValueError("Codex 目标线程处于错误状态")
-        record = self.read_rollout(thread.get("path"))
+        state = self.store.read() or {}
+        request = state.get("request") or {}
+        file = self._rollout_path(thread.get("path"))
+        if preparing:
+            native = state.get("native") or {}
+            if (native.get("version") != 2 or native.get("project") != str(self.project)
+                    or native.get("sessionId") != self.session_id or not native.get("turnId")):
+                raise ValueError("当前会话尚未收到确认输入 Hook，保持人工确认")
+            turn_id = confirmation_id(native["turnId"])
+            if self.prepare_turn != turn_id:
+                def matches(entry):
+                    event = entry.get("payload")
+                    return (entry.get("type") == "event_msg" and isinstance(event, dict)
+                            and event.get("type") in ("task_started", "turn_started")
+                            and event.get("turn_id") == turn_id and event.get("thread_id") in (None, self.session_id))
+
+                start = SessionLog.locate(file, turn_id, matches)
+                prior = ({key: request.get(key) for key in ("id", "baselineMessageId")}
+                         if request.get("state") == "consumed" else {})
+                self._resume_rollout(file, start, turn_id, prior=prior)
+                source = self._read_rollout(file)
+                if source.get("turn") != {"id": turn_id, "status": "inProgress"} or not source.get("inputAnchor"):
+                    raise ValueError("Codex 缺少可核验的当前回合输入")
+                identifier, internal = source["inputAnchor"]
+
+                def matches_input(entry):
+                    event = entry.get("payload")
+                    if (entry.get("type") != "event_msg" or not isinstance(event, dict)
+                            or event.get("type") != "item_completed" or event.get("turn_id") != turn_id
+                            or event.get("thread_id") not in (None, self.session_id)):
+                        return False
+                    item = event.get("item")
+                    return (isinstance(item, dict) and item.get("type") == "UserMessage" and item.get("id") == identifier
+                            and self._wake_id(item) == internal)
+
+                # 同回合在 prepare 之前的插话是基线；从其完整记录之后观察新的输入。
+                self._resume_rollout(file, SessionLog.locate(file, identifier, matches_input), turn_id,
+                                     baseline=source["humanId"])
+                self.prepare_turn = turn_id
+            record = self._read_rollout(file)
+            if (record.get("base") is None or record.get("newHuman") or record.get("rolledBack")
+                    or record.get("turn") != {"id": turn_id, "status": "inProgress"}):
+                raise ValueError("Codex 当前回合或人工输入已变化，或缺少可核验的当前回合输入")
+        elif request:
+            start = (request.get("contract") or {}).get("codexLogStart")
+            if not start:
+                raise ValueError("Codex 请求缺少当前确认的记录起点，保持人工确认")
+            if self.log_start != start:
+                self._resume_rollout(file, start, request["originTurnId"], baseline=confirmation_id(request["baselineMessageId"]))
+            self.prepare_turn = None
+            record = self._read_rollout(file)
+        else:
+            record = self._read_rollout(file)
         if not record["humanId"]:
             raise ValueError("Codex 会话没有可核验的人工消息基线")
         self.seen[record["humanId"]] = True
@@ -152,8 +218,11 @@ class CodexClient:
         wake = record["wake"]
         if wake and wake["turnId"] != (record["turn"] or {}).get("id"):
             wake = None
+        if record.get("newHuman"):
+            humans = [*humans, record["newHuman"]]
         return {"humanId": record["humanId"], "humanEvents": humans, "turn": record["turn"],
-                "status": thread.get("status"), "wake": wake, "logObservation": self.session_log.observation}
+                "status": thread.get("status"), "wake": wake, "logObservation": self.session_log.observation,
+                "codexLogStart": self.log_start, "prepareBaseline": record.get("base")}
 
     def read_rollout(self, filename):
         """按文件身份增量读取原生 JSONL，保留未完成行。
@@ -161,6 +230,9 @@ class CodexClient:
         @param filename: thread/read 返回的准确路径。
         @return: 有界消息来源和最终正文缓存。
         """
+        return self._read_rollout(self._rollout_path(filename))
+
+    def _rollout_path(self, filename):
         if not isinstance(filename, str) or not Path(filename).name.endswith("-" + self.session_id + ".jsonl"):
             raise ValueError("Codex 未提供精确会话记录路径")
         file = Path(filename)
@@ -168,12 +240,41 @@ class CodexClient:
             file.resolve(strict=True).relative_to(self.home / "sessions")
         except ValueError:
             raise ValueError("Codex 会话记录路径越界")
+        return file
+
+    def _resume_rollout(self, file, start, turn_id, baseline=None, prior=None):
+        # 首条身份记录独立于当前回合；只读这一行，保留线程身份约束。
+        if start["identity"][0] != str(file):
+            raise ValueError("Codex 会话记录路径已变化")
+        with file.open("rb") as stream:
+            info = os.fstat(stream.fileno())
+            if [info.st_dev, info.st_ino] != start["identity"][1:]:
+                raise ValueError("Codex 会话记录在打开时已替换")
+            line = stream.readline(RECORD_BYTES + 1)
+        if not line.endswith(b"\n") or len(line) > RECORD_BYTES:
+            raise ValueError("Codex 缺少原生会话身份记录")
+        header = json.loads(line)
+        if header.get("type") != "session_meta" or (header.get("payload") or {}).get("id") != self.session_id:
+            raise ValueError("Codex 会话记录标识不符")
+        self.session_log.resume(start, {"verified": True, "humanId": baseline, "base": baseline,
+                                        "anchorTurn": turn_id, "prior": prior or {}, "findingInput": baseline is None,
+                                        "turn": {"id": turn_id, "status": "inProgress"}, "wake": None,
+                                        "displays": OrderedDict()})
+        self.log_start = start
+
+    def _read_rollout(self, file):
         initial = {"verified": False, "humanId": None, "turn": None, "wake": None, "displays": OrderedDict()}
         record, _ = self.session_log.read(file, initial, self._consume_rollout)
         if not record["verified"]:
             raise ValueError("Codex 缺少原生会话身份记录")
+        if record.get("rolledBack"):
+            raise ValueError("Codex 会话在本次观察期间已回滚，保持人工确认")
         self.rollout = record
         return record
+
+    @staticmethod
+    def _wake_id(item):
+        return wake_id({"type": "userMessage", "content": item.get("content"), "clientId": item.get("client_id")})
 
     def _consume_rollout(self, record, entry):
         if entry.get("type") == "session_meta":
@@ -195,16 +296,33 @@ class CodexClient:
         if kind == "thread_rolled_back":
             record.update(humanId=None, turn=None, wake=None)
             record["displays"].clear()
+            if record.get("anchorTurn"):
+                record["rolledBack"] = True
         if kind != "item_completed":
             return
         item = event.get("item") or {}
         if item.get("type") == "UserMessage":
-            internal = wake_id({"type": "userMessage", "content": item.get("content"), "clientId": item.get("client_id")})
+            internal = self._wake_id(item)
             if internal:
                 record["wake"] = {"requestId": internal, "turnId": event.get("turn_id")}
+                if record.get("anchorTurn") and record.get("base") is None:
+                    prior = record["prior"]
+                    if event.get("turn_id") != record["anchorTurn"] or prior.get("id") != internal:
+                        raise ValueError("Codex 当前回合的队列唤醒来源不符")
+                    record["base"] = record["humanId"] = confirmation_id(prior.get("baselineMessageId"))
+                    record["inputAnchor"] = (confirmation_id(item.get("id")), internal)
             else:
-                record["humanId"] = confirmation_id(item.get("id"))
-        if item.get("type") == "AgentMessage" and item.get("phase") == "final_answer":
+                identifier = confirmation_id(item.get("id"))
+                if record.get("anchorTurn"):
+                    if record.get("findingInput"):
+                        if event.get("turn_id") != record["anchorTurn"]:
+                            raise ValueError("Codex 当前回合缺少可核验的人工输入")
+                        record["base"] = identifier
+                        record["inputAnchor"] = (identifier, None)
+                    elif record["base"] != identifier:
+                        record.setdefault("newHuman", identifier)
+                record["humanId"] = identifier
+        if not record.get("findingInput") and item.get("type") == "AgentMessage" and item.get("phase") == "final_answer":
             parts = item.get("content")
             if not isinstance(parts, list) or any(part.get("type") != "Text" or not isinstance(part.get("text"), str) for part in parts):
                 raise ValueError("Codex 最终正文结构不可核验")

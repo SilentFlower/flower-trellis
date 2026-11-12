@@ -38,6 +38,10 @@ flower_confirmation_runtime.runtime.claim(store, client, request_id)
 flower_confirmation_runtime.runtime.record_result(store, client, request_id, receipt, outcome)
 flower_confirmation_runtime.codex.CodexClient(project, session_id, env=None, platform=None, timeout=5)
 flower_confirmation_runtime.claude.ClaudeClient(project, session_id, platform=None)
+ClaudeClient.prepare_snapshot() / snapshot()
+CodexClient.prepare_snapshot() / snapshot()
+flower_confirmation_runtime.session_log.SessionLog.locate(file, identifier, matches) -> observation
+flower_confirmation_runtime.session_log.SessionLog.resume(observation, initial)
 flower_confirmation_runtime.session_log.SessionLog.read(file, initial, consume) -> (record, observation)
 flower_confirmation_runtime.session_log.SessionLog.verify(frozen, current)
 CodexClient.capture_window(turn_id) / verify_window(binding) / observe_window(binding)
@@ -95,7 +99,9 @@ src/lib/confirmation-lifecycle.js:
   1 秒单调时钟预算重试 `EPERM/EACCES`，仅重试文件操作。状态转换回调仍只执行一次。
   持续拒绝保留原权限错误；锁释放失败时，已经写入的状态事实继续保留。
 - 正式 `request.contract.version=3`，包含平台、输入路径、时长覆盖、`frozenDigest`、原生记录观察点，以及
-  Codex `windowBinding` 或 Claude `runId`。落盘只保存冻结快照摘要；领取返回复核得到的完整原有上下文。
+  Codex `windowBinding` 或 Claude `runId`。两端分别持久化 `codexLogStart` / `claudeLogStart`，
+  包含已核验输入的文件身份和读取边界；旧请求缺少对应字段时保持人工。材料落盘只保存冻结快照摘要；
+  领取返回复核得到的完整原有上下文。
   旧协议不能升级为正式许可；已经开始的动作继续支持终态记账。
 - 主路径：`prepared -> waiting -> dispatching -> queued -> consumed`；终止态包括
   `cancelled`、`failed`、`delivery_unknown`。每次 prepare 替换旧请求，每个请求只允许一个 worker。
@@ -134,17 +140,24 @@ src/lib/confirmation-lifecycle.js:
 - 观察连接不得调用 `thread/resume` 建立额外订阅。被动 `thread/read(includeTurns=false)` 提供准确 rollout
   路径；核对 session_meta、路径归属及完整 JSONL 行；不根据 cwd、进程名或最新文件猜会话。
 - Codex 的 UserPromptSubmit / Interrupt Hook 作废人工输入代次；prepare 要求当前回合确实收到输入 Hook。
+  按 Hook 的精确 turnId 在最近 32 MiB 的完整行定位当前回合开始，单独校验首条 `session_meta`。
+  同一回合准备前的插话纳入基线，以最新可核验的原生 `UserMessage` 后的边界续读。旧回合正文、坏记录
+  和未知事件不参与准备。起点后的人工输入、回滚和失效回合仍可作废本次等待。原始最终展示只从该边界后核对。
   唤醒使用原生 `thread/queue/add` / `thread/queue/delete`；消息正文与原生 UserMessage.client_id 都须匹配
-  当前请求，人工粘贴相同文字不能冒充内部消息。
+  当前请求，人工粘贴相同文字不能冒充内部消息。开始动作前复核当前回合的唤醒。
 - Claude 使用 SessionStart / UserPromptSubmit / Stop / SessionEnd Hook。Stop 绑定精确后台 task ID 和完整
   最终正文；按 argv token 核对项目 Python `wait` 入口、会话与请求。完成后结束后台命令，由原生通知唤醒。
   Windows 从 Hook 祖先链核对同用户的 `claude.exe` 原前台。第二个存活前台使旧请求失效；句柄跟踪原进程退出。
   Windows 支持精确的 `py.exe -3.x` 和带引号的本地路径；命令范围、会话及请求照常核对。
   领取时核对 transcript 的 human / task-notification 来源及当前 runId，不能仅凭通知文字批准。
+  准备只在最近 32 MiB 的完整行中按精确 promptId 定位当前回合；更早记录的来源和正文不参与判断。
+  当前回合缺少可核验来源时保持人工。等待、领取和开始动作使用同一个冻结起点，读取随后完成的记录，
+  不能直接从文件末尾起步而跳过准备期间的新输入。领取后同一个 Claude 唤醒回合才能开始动作。
   Hook 先于该精确通知落盘时，claim 最多等待 1 秒补齐来源；期间持续核验人工输入与当前代次，
   到期仍缺来源则使旧许可失效。
   Windows 原生 transcript 可只有结构化 `origin.kind`。出现 `turnOrigin` 时必须与其一致。
-  Linux/WSL 继续要求两个来源字段；任何平台都不从提醒正文推断真实通知。
+  Linux/WSL 对人工输入和实际唤醒继续要求两个来源字段；任何平台都不从提醒正文推断真实通知。
+  一致的其它结构化来源（可省略第二字段）和 `queueTranscriptOnly=true` 的同源日志通知不产生人工输入或唤醒证据。
 - 两端按文件身份和已消费位置增量读取完整 JSONL 行，单条解析上限 16 MiB，文件总大小不限。
   原生最终展示核验上限 768 KiB。请求冻结记录文件身份和读取边界；替换、截断及边界漂移作废旧观察。
 - 两端原生等待分别用 Codex 短 yield 的后台 terminal session、Claude Bash `run_in_background:true`。
@@ -181,6 +194,9 @@ src/lib/confirmation-lifecycle.js:
 | 前台退出、PID 复用、服务重绑或归属歧义 | 不派发或拒绝领取，不借用其他窗口 |
 | Windows 额外的同映像 Codex 前台尚未监听，或 Claude 同会话出现第二个存活前台 | 旧等待失败或取消，保持人工 |
 | Windows Claude 缺少结构化来源或两个来源字段冲突 | 不建立有效来源证据，不领取 |
+| Claude 当前回合无法定位，或旧请求缺少冻结起点 | 保持人工 |
+| Codex 首条会话身份无效、当前输入无法定位，或起点后的日志回滚 | 保持人工 |
+| Claude 旧历史含未知来源，或起点后出现其它明确来源 | 跳过，继续观察本次请求 |
 | 重复 worker、提醒、claim、started | 至多单次领取和单次业务开始 |
 | Windows 原子替换或锁释放短暂共享占用 | 有限重试文件操作，业务回调保持单次 |
 | Windows 共享占用持续超过预算 | 保留原权限错误与已写入的状态事实 |
@@ -203,6 +219,8 @@ src/lib/confirmation-lifecycle.js:
   材料参数。后续 `wait/claim/result` 继续使用同一入口，项目确认阶段可在隔离 Node/npm/Flower 的 PATH 运行。
 - Incorrect use：Hook 已收到通知便把缺少 transcript 完整行视为有效来源。Correct handling：仅对当前精确
   通知等待有限落盘时间，获得真实来源后再原子领取；人工粘贴提醒仍使旧代次失效。
+- Incorrect use：从头核验历史来源，或从当前文件末尾直接跳过已追加的记录。
+  Correct handling：用 Hook 的当前回合定位起点，随后观察新输入和精确唤醒。
 
 ### 6. Tests Required
 
@@ -222,6 +240,11 @@ src/lib/confirmation-lifecycle.js:
   Claude 精确命令、双开作废、结构化来源缺失和冲突。实际 Windows Codex/Claude 窗口分别验证正常唤醒、退出和双开。
 - `test_project_confirmation.py`：Claude 精确后台任务、原生通知与人工粘贴区分、输入取消、退出、runId 替换
   及 Hook 先于 transcript 完整行的有限等待；原生结构损坏也必须失效活动许可。
+  覆盖 Linux 双字段及 Windows 单字段的当前回合定位、未知当前来源、准备期间的新输入，以及独立进程读取冻结起点。
+- `test_confirmation_native.py`：旧未知来源不阻止 Claude 准备；起点后出现新的无关来源和仅落日志通知时，
+  仍只接受本次真实唤醒。
+- `test_confirmation_native.py`：Codex 旧坏记录和输入起点前的旧展示不阻止准备；LF/CRLF 共用边界。
+  准备前同回合插话纳入基线，准备后同回合插话及跨进程续读时发现回滚均作废本次观察。
 - `confirmation-install.test.js` / `test_confirmation_policy.py` / `test_flower_tui_lifetime.py`：默认与覆盖策略、关闭、重复更新、
   卸载、配置保留及缺能力分支；维持原生 Windows/Python 3.8/3.12 CI 覆盖。
   安装专项断言旧 CLI 清理、实际资产升级取消、dry-run/无变化代次保留，以及用户 Hook 保留。

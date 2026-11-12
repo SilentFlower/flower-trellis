@@ -400,7 +400,7 @@ class ProjectConfirmationTest(unittest.TestCase):
             stream.write(json.dumps({"type": "user", "sessionId": f.session, "promptId": pasted,
                                      "origin": {"kind": "human"}, "turnOrigin": "human", "message": {"content": notice}}) + "\n")
         with self.assertRaisesRegex(ValueError, "原生任务通知"):
-            runtime.claim(f.store, client, request_id)
+            runtime.claim(f.store, ClaudeClient(f.root, f.session, platform="linux"), request_id)
         self.assertEqual(f.store.read()["request"]["state"], "cancelled")
         old_run = f.store.read()["native"]["runId"]
         record_linux_event({**payload, "hook_event_name": "SessionStart"})
@@ -412,13 +412,19 @@ class ProjectConfirmationTest(unittest.TestCase):
     def test_claude_claim_waits_for_exact_notification_transcript_flush(self):
         """Hook 先到、完整通知行后到时，单次 claim 等待精确来源证据。"""
         from flower_confirmation_runtime.claude import ClaudeClient
-        f, prepared = self.ready("claude")
-        request_id = prepared["requestId"]
+        f = ProjectFixture(self, "claude")
         transcript = f.root / (f.session + ".jsonl")
         prompt = str(uuid4())
         human = {"type": "user", "sessionId": f.session, "promptId": f.client.human, "origin": {"kind": "human"},
                  "turnOrigin": "human", "message": {"content": "开始"}}
         transcript.write_text(json.dumps(human) + "\n", encoding="utf-8")
+        def active(value):
+            value["native"].update(transcript=str(transcript), tasks={},
+                                   turn={"id": f.client.human, "status": "inProgress"})
+            return value
+        f.store.update(active)
+        client = ClaudeClient(f.root, f.session, platform="linux")
+        request_id = runtime.prepare(f.store, client, f.input, "1")["requestId"]
         def queued(value):
             value["native"].update(transcript=str(transcript), tasks={"queue": request_id}, turn={"id": prompt, "status": "inProgress"},
                                    notification={"promptId": prompt, "taskId": "queue", "requestId": request_id})
@@ -439,6 +445,48 @@ class ProjectConfirmationTest(unittest.TestCase):
             self.assertTrue(runtime.claim(f.store, client, request_id)["claimed"])
         finally:
             writer.join(3)
+
+    def test_claude_prepare_requires_current_origin_and_checks_new_input_after_anchor(self):
+        """在两种来源字段格式下，旧记录跳过，当前未知和随后人工输入阻止准备。"""
+        from flower_confirmation_runtime.claude import ClaudeClient
+        for platform in ("linux", "win32"):
+            with self.subTest(platform=platform):
+                f = ProjectFixture(self, "claude")
+                client = ClaudeClient(f.root, f.session, platform="linux")
+                client.platform = platform
+                transcript = f.root / (f.session + ".jsonl")
+                identity = {"pid": 10, "exe": "claude.exe", "created": "10"}
+                prompt = f.client.human
+
+                def active(value):
+                    value["native"].update(transcript=str(transcript), frontend=identity,
+                                           turn={"id": prompt, "status": "inProgress"})
+                    return value
+
+                f.store.update(active)
+                entry = {"type": "user", "sessionId": f.session, "promptId": prompt,
+                         "origin": {"kind": "beer"}, "message": {"content": "当前记录"}}
+                old = {**entry, "promptId": str(uuid4()), "origin": {"kind": "peer"}, "turnOrigin": "peer"}
+                human = {**entry, "origin": {"kind": "human"}}
+                if platform == "linux":
+                    human["turnOrigin"] = "human"
+
+                def write(entries):
+                    transcript.write_text("".join(json.dumps(item) + "\n" for item in entries), encoding="utf-8")
+
+                with patch("flower_confirmation_runtime.claude.open_identity") as frontend:
+                    frontend.return_value.identity = identity
+                    frontend.return_value.exited.return_value = False
+                    write([old, entry])
+                    with self.assertRaisesRegex(ValueError, "当前回合缺少可核验"):
+                        runtime.prepare(f.store, client, f.input, "1")
+                    write([old, human, {**human, "promptId": str(uuid4())}])
+                    with self.assertRaisesRegex(ValueError, "回合或人工输入已变化"):
+                        runtime.prepare(f.store, client, f.input, "1")
+                    client = ClaudeClient(f.root, f.session, platform="linux")
+                    client.platform = platform
+                    write([old, human])
+                    self.assertTrue(runtime.prepare(f.store, client, f.input, "1")["prepared"])
 
 
 if __name__ == "__main__":
