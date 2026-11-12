@@ -1,6 +1,6 @@
 {
   "name": "flower-trellis",
-  "version": "0.6.13-beta.11",
+  "version": "0.6.13-beta.12",
   "description": "一键安装/升级 Trellis 并自动融合 skill-garden 强化包(默认 Claude + agents)",
   "type": "module",
   "bin": {
@@ -73,9 +73,9 @@
     "commit-and-tag-version": "^12.7.3"
   },
   "flowerReleaseNotes": {
-    "version": "0.6.13-beta.11",
+    "version": "0.6.13-beta.12",
     "source": "CHANGELOG.md",
-    "body": "### 🐛 修复 Bug Fixes\n\n* **confirmation:** 支持原生 Windows 后台超时确认 ([ef33e72](https://github.com/SilentFlower/flower-trellis/commit/ef33e724b329aea745af069d32c31eae0341d070))\n* **confirmation:** 支持长会话与大型确认计划 ([a4f159d](https://github.com/SilentFlower/flower-trellis/commit/a4f159d58d7cc3ea0cba81e65c771947dcd58db0))",
+    "body": "### 🐛 修复 Bug Fixes\n\n* **confirmation:** 从当前回合观察两端自动确认 ([60a565e](https://github.com/SilentFlower/flower-trellis/commit/60a565eaf43d9af5b35d464e03f6754fd3c37f27))",
     "truncated": false
   },
   "optionalDependencies": {
