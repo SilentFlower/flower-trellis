@@ -63,16 +63,95 @@ class ConfirmationPolicyTest(unittest.TestCase):
         self.assertEqual(process.stderr, "")
         return process.returncode, json.loads(process.stdout)
 
-    def test_both_platforms_use_unicode_and_exact_session(self):
-        """两端共享 Unicode 计数；其它会话不能借用唯一任务。"""
+    def test_both_platforms_use_unicode_and_explicit_brief_target(self):
+        """两端共享 Unicode 计数，空会话使用显式目标并冻结各自绑定。
+
+        @return: None。
+        """
         for platform in ("codex", "claude"):
             code, result = self.invoke(platform)
             self.assertEqual(code, 0)
             self.assertEqual(result["seconds"], 130)
             self.assertEqual(result["action"], "implement")
+            self.assertEqual(result["facts"]["sessionTask"], self.task)
             code, result = self.invoke(platform, str(uuid.uuid4()))
-            self.assertEqual(code, 1)
-            self.assertFalse(result["enabled"])
+            self.assertEqual(code, 0, result)
+            self.assertEqual(result["facts"]["task"], self.task)
+            self.assertIsNone(result["facts"]["sessionTask"])
+
+    def test_unbound_brief_freezes_target_materials_and_session_binding(self):
+        """清空或删除会话绑定后可确认，绑定和目标材料变化仍改变摘要。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            session_file = self.root / (".trellis/.runtime/sessions/" + platform + "_" + self.session + ".json")
+            for missing in (False, True):
+                with self.subTest(platform=platform, missing=missing):
+                    session_file.write_text(json.dumps({"current_task": None}), encoding="utf-8")
+                    if missing:
+                        session_file.unlink()
+                    code, before = self.invoke(platform)
+                    self.assertEqual(code, 0, before)
+                    self.assertIsNone(before["facts"]["sessionTask"])
+                    session_file.write_text(json.dumps({"current_task": self.task}), encoding="utf-8")
+                    code, bound = self.invoke(platform)
+                    self.assertEqual(code, 0, bound)
+                    self.assertNotEqual(before["materialHash"], bound["materialHash"])
+                    brief = self.root / self.task / "brief.md"
+                    brief.write_text(brief.read_text(encoding="utf-8") + "变化", encoding="utf-8")
+                    code, changed = self.invoke(platform)
+                    self.assertEqual(code, 0, changed)
+                    self.assertNotEqual(bound["materialHash"], changed["materialHash"])
+
+    def test_brief_requires_valid_target_and_healthy_session(self):
+        """空绑定仅放宽启动顺序，非法路径、关闭任务和损坏会话仍拒绝。
+
+        @return: None。
+        """
+        session_file = self.root / (".trellis/.runtime/sessions/codex_" + self.session + ".json")
+        session_file.unlink()
+        for target in (None, "", "../outside", ".trellis/tasks/../test", ".trellis/tasks/archive/test", ".trellis/tasks/missing"):
+            with self.subTest(target=target):
+                self.material["task"] = target
+                code, result = self.invoke()
+                self.assertEqual(code, 1)
+                self.assertFalse(result["enabled"])
+        self.material["task"] = self.task
+        metadata = self.root / self.task / "task.json"
+        metadata.write_text(json.dumps({"closeout": {"status": "closed", "closedAt": "2026-11-13T00:00:00Z",
+                                                     "blockers": []}}), encoding="utf-8")
+        code, result = self.invoke()
+        self.assertEqual(code, 1)
+        self.assertIn("已关闭", result["error"])
+        metadata.write_text(json.dumps({"status": "planning"}), encoding="utf-8")
+        session_file.write_text("{", encoding="utf-8")
+        code, result = self.invoke()
+        self.assertEqual(code, 1)
+        self.assertIn("会话任务状态无效", result["error"])
+
+    def test_existing_binding_and_check_push_still_require_exact_task(self):
+        """Brief 已有其它绑定及 Check/Push 的空绑定仍拒绝不匹配材料。
+
+        @return: None。
+        """
+        other = ".trellis/tasks/other"
+        (self.root / other).mkdir()
+        (self.root / other / "task.json").write_text(json.dumps({"status": "planning"}), encoding="utf-8")
+        for platform in ("codex", "claude"):
+            session_file = self.root / (".trellis/.runtime/sessions/" + platform + "_" + self.session + ".json")
+            session_file.write_text(json.dumps({"current_task": other}), encoding="utf-8")
+            for kind in ("brief", "check", "push"):
+                self.material["kind"] = kind
+                code, result = self.invoke(platform)
+                self.assertEqual(code, 1)
+                self.assertIn("当前会话任务不符", result["error"])
+            session_file.unlink()
+            for kind in ("check", "push"):
+                self.material["kind"] = kind
+                code, result = self.invoke(platform)
+                self.assertEqual(code, 1)
+                self.assertIn("当前会话任务不符", result["error"])
 
     def test_current_development_task_keeps_manual_confirmation(self):
         """本机制自身的任务显式禁用超时，仍保持完整策略返回契约。"""

@@ -62,8 +62,11 @@ src/lib/confirmation-lifecycle.js:
   准备不要求事先领取回执，业务仍须领取并 started。泛化的只读 inspect 不保证进入正式 Check-All。
 - Check-All 先单独完整读取 reporting，Push 的 Git 写入与确认模式门禁放在入口首部；上游交接和模板
   不再另设人工必答门槛。Check 修复结束必须重检，不能以定向测试代替，重检结束后才记 completed。
-- 输入为项目内有界普通 JSON 文件，公共字段为 `kind: brief|check|push`、精确当前 `task`，无任务用 null。
-  材料路径不得越界或经过软链接；Brief 正文来自当前任务 `brief.md`。
+- 输入为项目内有界普通 JSON 文件，公共字段为 `kind: brief|check|push`、`task`。
+  Brief 的 `task` 为显式目标活动任务目录 `.trellis/tasks/<name>`，正文来自该任务 `brief.md`；
+  当前会话可无绑定，已有绑定须匹配目标。损坏或陈旧的会话状态、已关闭或关闭状态无效的目标均拒绝。
+  Brief 快照的 `facts.task` 记录目标，`facts.sessionTask` 单独冻结当前绑定（可为 null），绑定变化使旧许可失效。
+  Check/Push 的 `task` 仍须匹配当前会话绑定，无任务用 null。材料路径不得越界或经过软链接。
 - 输入 JSON 上限 1 MiB；需要解析的任务元数据、项目配置、Brief 源文档和待展示正文各限 512 KiB。
   仅用于指纹的普通文件分块哈希，读取前后核对文件身份和状态；其大小不受结构化材料上限约束。
   Windows 路径与打开句柄之间比较设备、文件身份、模式、大小和修改时间。Windows Python 3.12 的两种查询
@@ -182,6 +185,8 @@ src/lib/confirmation-lifecycle.js:
 | 条件 | 结果 |
 | --- | --- |
 | 无效平台、时长、材料、会话或项目配置 | 人工确认，不准备有效默认动作 |
+| Brief 目标有效，当前会话绑定为空或会话任务文件缺失 | 以显式目标准备确认，冻结空绑定 |
+| Brief 已有其它绑定、会话损坏/陈旧、目标路径非法或目标已关闭 | 拒绝准备 |
 | Windows 路径与句柄仅 `st_ctime_ns` 不同 | 正常读取；文件身份、内容状态或同一打开句柄的 `st_ctime_ns` 变化仍拒绝 |
 | 单条 Git 命令或整轮快照超时 | 停止本次核验，返回命令或快照阶段；未完成的 Git 进程回收 |
 | 会话文件超过历史总量，记录身份与完整行可核验 | 照常读取；只对新增完整行更新观察证据 |
@@ -207,6 +212,8 @@ src/lib/confirmation-lifecycle.js:
 
 - Normal：用 `{"kind":"brief","task":".trellis/tasks/example"}` 准备 Brief，后台启动 wait，完整展示 display
   并结束回合；到期领取一次，started 成功后由原 owner 开工。
+- Base：关闭旧任务后会话绑定为空，新任务 Brief 可先准备、领取并 started，再由 `task.py start` 绑定目标。
+  Incorrect use：为准备确认而提前绑定目标。Correct handling：先完成 Brief 确认；等待期间绑定变化须重新准备。
 - Base：Check 没有未处置项时不等待；总开关关闭或 Python 缺少 pidfd 时保持人工；查询空状态不创建目录。
 - Incorrect use：恢复会话后重新找一个活窗口继续旧请求，或把相同提醒正文当成领取凭证。
   Correct handling：冻结原窗口身份，核对原生消息来源和当前代次；失效则停止旧动作，必要时重新准备。
@@ -231,6 +238,9 @@ src/lib/confirmation-lifecycle.js:
   卸载竞争通过 queued 事件屏障固定目录删除与下一次观察的位置，保留真实线程退出及目录缺失断言。
   空轮询跨过活锁；锁释放后观察到的新人工消息仍取消旧请求。
 - `test_confirmation_policy.py` 验证大 diff、大普通文件、旧摘要兼容、计划外状态漂移及 Git 超时回收。
+  两端覆盖空绑定及缺失会话文件的显式 Brief 目标、非法路径/关闭目标/损坏会话拒绝、Check/Push 原绑定校验。
+  `test_project_confirmation.py` 覆盖两端空绑定的 prepare/wait/claim/started、绑定后的终态记账，以及
+  等待期间绑定变化在派发、领取和 started 三处使旧快照失效。
   Windows 路径和句柄时间戳不同的回归覆盖结构化材料及流式指纹，分别断言接受时间戳差异、拒绝替换和拒绝读取中变化。
   `test_project_confirmation.py` 验证较大输入的状态仅存摘要、领取仍返回完整上下文、展示期限独立。
   `test_confirmation_native.py` 验证超过旧总量的日志、增量读取、不完整行及替换后旧证据失效。

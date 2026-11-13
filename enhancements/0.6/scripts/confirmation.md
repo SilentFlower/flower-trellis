@@ -22,7 +22,7 @@ Codex 保持普通 `codex` / `codex resume` 与默认共享服务。通过当前
 先从项目根执行 `python3 .trellis/scripts/flower_confirmation_hook.py --entry`，读取实际返回的 `entry` argv，后续在其后追加 `prepare`、`wait` 等子命令。入口固定为项目内 `.trellis/scripts/flower_confirmation.py`，内部复用当前 Python 解释器，仅依赖标准库和项目脚本。`entry=null` 或工具失败才报告实际原因；不能用无 stdout 的 `test -f` 推断入口不存在。确认阶段无需 Node、npm、全局 Flower 或额外 pip 安装。
 
 1. 在 gitignored `.trellis/.runtime/` 为当前平台和会话写一个 JSON 材料文件，路径不得复用于并行会话。不要把它放入提交集合，不生成公开报告附件。使用结构化文件写入，用户正文和 message 不拼入 shell。
-2. JSON 的公共字段为 `kind: brief|check|push`、`task`（当前精确任务相对路径，无任务为 null）。Brief 正文读取当前任务 `brief.md`。Check/Push 另提供完整标准报告/计划的 `body`。
+2. JSON 的公共字段为 `kind: brief|check|push`、`task`。Brief 必须指定目标活动任务的精确相对路径，正文读取该任务 `brief.md`；当前会话允许尚未绑定任务，已有绑定须与目标一致。会话绑定另行冻结，等待期间变化使旧确认失效。Check/Push 使用当前精确任务相对路径，无任务为 null，另提供完整标准报告/计划的 `body`。
 3. Check 必填 `reportVersion`、`dispositionVersion`（非空版本字符串）及 `findings: [{id:"CHK-001",status:"pending"}]`；status 只接受 pending/accepted/resolved。必须覆盖当前全部条目，禁止只传准备修复的子集来改变默认动作。
 4. Push 必填 `mode: push|commit-only`、`evidence: {check:passed|accepted|focused,spec:no-op|written,unresolvedRisks:0}` 和有序 `repositories`。每仓包含 `root`、实际 `branch`、完整 `head`（初始空仓为 null）、实际 `upstream`（没有为 null）、精确 `message`、完整 `files` 路径列表。把已展示的生成命令、任务记录 exact files 与顺序一并保存在输入中，不在领取后扩大范围。
 5. 从项目根执行 `python3 -X utf8 .trellis/scripts/flower_confirmation.py prepare --platform codex|claude --input <相对路径>`；用户明确指定本次时长时加 `--seconds <正整数秒>`。仅 `prepared=true` 可继续，任何错误或 false 保持原人工提示。

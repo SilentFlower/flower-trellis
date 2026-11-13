@@ -73,6 +73,65 @@ class ProjectConfirmationTest(unittest.TestCase):
         self.assertEqual(result["context"]["body"], body)
         self.assertEqual(result["context"]["findings"], findings)
 
+    def test_brief_before_task_start_completes_on_both_platforms(self):
+        """空绑定的 Brief 可完整领取并 started，随后绑定目标仍可记录终态。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            for missing in (False, True):
+                with self.subTest(platform=platform, missing=missing):
+                    f = ProjectFixture(self, platform)
+                    session_file = f.root / (".trellis/.runtime/sessions/" + platform + "_" + f.session + ".json")
+                    if missing:
+                        session_file.unlink()
+                    else:
+                        write_json(session_file, {"current_task": None})
+                    prepared = runtime.prepare(f.store, f.client, f.input, "1")
+                    self.assertTrue(prepared["prepared"])
+                    f.client.turn["status"] = "completed"
+                    queued = runtime.wait(f.store, f.client, prepared["requestId"])
+                    self.assertEqual(queued["state"], "queued")
+                    claimed = runtime.claim(f.store, f.client, prepared["requestId"])
+                    self.assertTrue(claimed["claimed"])
+                    self.assertEqual(claimed["context"]["task"], f.task)
+                    receipt = claimed["receipt"]["id"]
+                    self.assertTrue(runtime.record_result(f.store, f.client, prepared["requestId"], receipt, "started")["recorded"])
+                    write_json(session_file, {"current_task": f.task})
+                    self.assertTrue(runtime.record_result(f.store, None, prepared["requestId"], receipt, "completed")["recorded"])
+
+    def test_binding_during_brief_wait_invalidates_each_execution_gate(self):
+        """准备后提前绑定目标任务，在派发、领取和 started 各门禁拒绝旧快照。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            for phase in ("dispatch", "claim", "start"):
+                with self.subTest(platform=platform, phase=phase):
+                    f = ProjectFixture(self, platform)
+                    session_file = f.root / (".trellis/.runtime/sessions/" + platform + "_" + f.session + ".json")
+                    session_file.unlink()
+                    prepared = runtime.prepare(f.store, f.client, f.input, "1")
+                    request = prepared["requestId"]
+                    f.client.turn["status"] = "completed"
+                    if phase == "dispatch":
+                        write_json(session_file, {"current_task": f.task})
+                        self.assertEqual(runtime.wait(f.store, f.client, request)["state"], "failed")
+                        self.assertEqual(f.client.added, [])
+                        continue
+                    self.assertEqual(runtime.wait(f.store, f.client, request)["state"], "queued")
+                    if phase == "claim":
+                        write_json(session_file, {"current_task": f.task})
+                        with self.assertRaisesRegex(ValueError, "变化"):
+                            runtime.claim(f.store, f.client, request)
+                        continue
+                    claimed = runtime.claim(f.store, f.client, request)
+                    self.assertTrue(claimed["claimed"])
+                    write_json(session_file, {"current_task": f.task})
+                    with self.assertRaisesRegex(ValueError, "变化"):
+                        runtime.record_result(f.store, f.client, request, claimed["receipt"]["id"], "started")
+                    self.assertIsNone(f.store.read()["request"].get("execution"))
+
     def test_display_deadline_is_independent_of_claim_deadline(self):
         """展示阶段使用独立期限；尚未展示时不会入队。"""
         f = ProjectFixture(self)
