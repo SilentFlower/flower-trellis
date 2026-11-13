@@ -53,8 +53,11 @@ src/lib/confirmation-lifecycle.js:
   准备不要求事先领取回执，业务仍须领取并 started。泛化的只读 inspect 不保证进入正式 Check-All。
 - Check-All 先单独完整读取 reporting，Push 的 Git 写入与确认模式门禁放在入口首部；上游交接和模板
   不再另设人工必答门槛。Check 修复结束必须重检，不能以定向测试代替，重检结束后才记 completed。
-- 输入为项目内有界普通 JSON 文件，公共字段为 `kind: brief|check|push`、精确当前 `task`，无任务用 null。
-  材料路径不得越界或经过软链接；Brief 正文来自当前任务 `brief.md`。
+- 输入为项目内有界普通 JSON 文件，公共字段为 `kind: brief|check|push`、`task`。
+  Brief 的 `task` 为显式目标活动任务目录 `.trellis/tasks/<name>`，正文来自该任务 `brief.md`；
+  当前会话可无绑定，已有绑定须匹配目标。损坏或陈旧的会话状态、已关闭或关闭状态无效的目标均拒绝。
+  Brief 快照的 `facts.task` 记录目标，`facts.sessionTask` 单独冻结当前绑定（可为 null），绑定变化使旧许可失效。
+  Check/Push 的 `task` 仍须匹配当前会话绑定，无任务用 null。材料路径不得越界或经过软链接。
 - Check 提供完整 `body`、非空 `reportVersion` / `dispositionVersion`、全部 `findings`，每项为
   `{id: CHK-*|FBK-*|DOC-*, status: pending|accepted|resolved}`；同 ID 处置矛盾时拒绝。
 - Push 提供完整 `body`、`mode: push|commit-only`、`evidence` 和 `repositories`。证据须满足
@@ -146,6 +149,8 @@ src/lib/confirmation-lifecycle.js:
 | 条件 | 结果 |
 | --- | --- |
 | 无效平台、时长、材料、会话或项目配置 | 人工确认，不准备有效默认动作 |
+| Brief 目标有效，当前会话绑定为空或会话任务文件缺失 | 以显式目标准备确认，冻结空绑定 |
+| Brief 已有其它绑定、会话损坏/陈旧、目标路径非法或目标已关闭 | 拒绝准备 |
 | `.flower/trellis-control.json` 存在，包括 null、损坏或漂移状态 | 保持人工确认 |
 | 原生结构损坏或来源校验异常 | 使当前活动许可失效，返回结构化失败 |
 | 未完整展示、原回合中断 | 不启动倒计时 |
@@ -162,6 +167,8 @@ src/lib/confirmation-lifecycle.js:
 
 - Normal：用 `{"kind":"brief","task":".trellis/tasks/example"}` 准备 Brief，后台启动 wait，完整展示 display
   并结束回合；到期领取一次，started 成功后由原 owner 开工。
+- Base：关闭旧任务后会话绑定为空，新任务 Brief 可先准备、领取并 started，再由 `task.py start` 绑定目标。
+  Incorrect use：为准备确认而提前绑定目标。Correct handling：先完成 Brief 确认；等待期间绑定变化须重新准备。
 - Base：Check 没有未处置项时不等待；总开关关闭或 Python 缺少 pidfd 时保持人工；查询空状态不创建目录。
 - Incorrect use：恢复会话后重新找一个活窗口继续旧请求，或把相同提醒正文当成领取凭证。
   Correct handling：冻结原窗口身份，核对原生消息来源和当前代次；失效则停止旧动作，必要时重新准备。
@@ -184,6 +191,10 @@ src/lib/confirmation-lifecycle.js:
   出生身份、归属歧义、恢复拒绝、能力不足；不存在宿主 Codex home 和隔离 PATH 下完成两端真实 Python CLI 链路。
 - `test_project_confirmation.py`：Claude 精确后台任务、原生通知与人工粘贴区分、输入取消、退出、runId 替换
   及 Hook 先于 transcript 完整行的有限等待；原生结构损坏也必须失效活动许可。
+- `test_confirmation_policy.py` / `test_project_confirmation.py`：
+  两端覆盖空绑定及缺失会话文件的显式 Brief 目标、非法路径/关闭目标/损坏会话拒绝、Check/Push 原绑定校验。
+  `test_project_confirmation.py` 覆盖两端空绑定的 prepare/wait/claim/started、绑定后的终态记账，以及
+  等待期间绑定变化在派发、领取和 started 三处使旧快照失效。
 - `confirmation-install.test.js` / `test_confirmation_policy.py` / `test_flower_tui_lifetime.py`：默认与覆盖策略、关闭、重复更新、
   卸载、配置保留及缺能力分支；维持原生 Windows/Python 3.8/3.12 CI 覆盖。
   安装专项断言旧 CLI 清理、实际资产升级取消、dry-run/无变化代次保留，以及用户 Hook 保留。

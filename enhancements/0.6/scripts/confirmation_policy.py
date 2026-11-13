@@ -15,6 +15,7 @@ from pathlib import Path
 
 from common.config import parse_simple_yaml
 from common.active_task import resolve_active_task
+from common.tasks import normalize_closeout
 
 
 VERSION = 1
@@ -249,22 +250,30 @@ def inspect_confirmation(root, input_path, platform, session_id, seconds=None):
         raise ValueError("未知确认种类")
     active = resolve_active_task(root, {"session_id": session_id}, platform,
                                  allow_single_session_fallback=False, allow_environment_context=False)
-    task = active.task_path
-    if material.get("task") != task:
+    task = material.get("task") if kind == "brief" else active.task_path
+    if kind == "brief":
+        # Brief 先确认再 start，因此目标任务来自材料；会话绑定另行冻结以检测等待期间的切换。
+        if active.source_type != "session" or active.stale:
+            raise ValueError("Brief 确认的当前会话任务状态无效")
+        if not isinstance(task, str) or not re.fullmatch(r"\.trellis/tasks/[^/]+", task):
+            raise ValueError("Brief 确认必须指定活动任务目录")
+    if (kind != "brief" or active.task_path is not None) and material.get("task") != active.task_path:
         raise ValueError("确认材料与当前会话任务不符")
     task_manual_only = False
     if task:
         task_metadata = json.loads(_bytes(_inside(root, task + "/task.json")).decode("utf-8"))
         if not isinstance(task_metadata, dict) or not isinstance(task_metadata.get("meta", {}), dict):
             raise ValueError("任务元数据无效")
+        if kind == "brief":
+            closeout = normalize_closeout(task_metadata)
+            if not closeout["valid"] or closeout["status"] == "closed":
+                raise ValueError("Brief 确认目标任务已关闭或关闭状态无效")
         task_manual_only = task_metadata.get("meta", {}).get("confirmationTimeoutDisabled") is True
     task_files = {}
     if task:
         for name in ("task.json", "prd.md", "design.md", "implement.md", "brief.md"):
             task_files[name] = _fingerprint(_inside(root, task + "/" + name), optional=True)
     if kind == "brief":
-        if not task:
-            raise ValueError("Brief 确认缺少当前任务")
         body = _bytes(_inside(root, task + "/brief.md")).decode("utf-8")
     else:
         body = material.get("body")
@@ -272,6 +281,8 @@ def inspect_confirmation(root, input_path, platform, session_id, seconds=None):
         raise ValueError("确认正文不能为空")
     body = body.replace("\r\n", "\n").replace("\r", "\n").strip()
     facts = {"task": task, "taskFiles": task_files, "inputHash": _fingerprint(input_file)}
+    if kind == "brief":
+        facts["sessionTask"] = active.task_path
     count = 0
     if kind == "check":
         if not all(isinstance(material.get(key), str) and material[key] for key in ("reportVersion", "dispositionVersion")):
