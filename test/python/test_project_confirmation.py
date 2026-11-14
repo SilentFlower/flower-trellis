@@ -276,6 +276,73 @@ class ProjectConfirmationTest(unittest.TestCase):
         self.assertFalse(runtime.claim(f.store, f.client, prepared["requestId"])["claimed"])
         self.assertEqual(f.store.read()["request"]["id"], newer["requestId"])
 
+    def test_stale_reminder_preserves_current_wait_and_single_execution_on_both_platforms(self):
+        """迟到提醒保持新请求的状态和计时，新请求仍须独立领取并只开始一次。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            for phase in ("prepared", "queued", "consumed"):
+                with self.subTest(platform=platform, phase=phase):
+                    f = ProjectFixture(self, platform)
+                    previous = runtime.prepare(f.store, f.client, f.input, "1")
+                    current = runtime.prepare(f.store, f.client, f.input, "1")
+                    identifier = current["requestId"]
+                    if phase != "prepared":
+                        f.client.turn["status"] = "completed"
+                        self.assertEqual(runtime.wait(f.store, f.client, identifier)["state"], "queued")
+                    if phase == "consumed":
+                        claimed = runtime.claim(f.store, f.client, identifier)
+                    before = f.store.file.read_bytes()
+                    self.assertEqual(runtime.claim(f.store, f.client, previous["requestId"]),
+                                     {"claimed": False, "requestId": previous["requestId"], "reason": "not_current"})
+                    status = runtime.status(f.store)
+                    self.assertEqual(status["requestId"], identifier)
+                    self.assertEqual(status["state"], phase)
+                    self.assertEqual(f.store.file.read_bytes(), before)
+                    if phase == "prepared":
+                        f.client.turn["status"] = "completed"
+                        self.assertEqual(runtime.wait(f.store, f.client, identifier)["state"], "queued")
+                    if phase != "consumed":
+                        claimed = runtime.claim(f.store, f.client, identifier)
+                    self.assertTrue(claimed["claimed"])
+                    receipt = claimed["receipt"]["id"]
+                    self.assertTrue(runtime.record_result(f.store, f.client, identifier, receipt, "started")["recorded"])
+                    self.assertFalse(runtime.record_result(f.store, f.client, identifier, receipt, "started")["recorded"])
+                    self.assertTrue(runtime.record_result(f.store, None, identifier, receipt, "completed")["recorded"])
+                    self.assertEqual(f.client.added, [identifier])
+
+    def test_cancelled_wait_can_restart_with_latest_material_and_fresh_display(self):
+        """重建等待使用最新正文和新倒计时，完整展示后才可取得独立回执。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            with self.subTest(platform=platform):
+                f, previous = self.ready(platform)
+                runtime.cancel(f.store, request_id=previous["requestId"])
+                self.assertEqual(runtime.status(f.store)["state"], "cancelled")
+                f.client.human = str(uuid4())
+                f.client.turn = {"id": str(uuid4()), "status": "inProgress"}
+                (f.root / f.task / "brief.md").write_text("# 最新计划\n\n最新正文。", encoding="utf-8")
+                current = runtime.prepare(f.store, f.client, f.input, "2")
+                self.assertNotEqual(current["requestId"], previous["requestId"])
+                self.assertEqual(current["seconds"], 2)
+                self.assertIn("最新正文。", current["display"])
+                self.assertIsNone(runtime.status(f.store)["deadline"])
+                self.assertEqual(runtime.claim(f.store, f.client, previous["requestId"])["reason"], "not_current")
+                f.client.turn["status"] = "completed"
+                f.client.text = previous["display"]
+                with self.assertRaisesRegex(ValueError, "完整展示"):
+                    runtime._validate(f.store, f.client, f.store.read()["request"], "display", f.client.snapshot())
+                f.client.text = current["display"]
+                self.assertEqual(runtime.wait(f.store, f.client, current["requestId"])["state"], "queued")
+                claimed = runtime.claim(f.store, f.client, current["requestId"])
+                self.assertTrue(claimed["claimed"])
+                self.assertEqual(claimed["context"]["body"], "# 最新计划\n\n最新正文。")
+                self.assertTrue(runtime.record_result(f.store, f.client, current["requestId"],
+                                                     claimed["receipt"]["id"], "started")["recorded"])
+
     def test_claim_requires_native_origin_and_current_window(self):
         """人工粘贴、错回合与原窗口失效均拒绝领取。"""
         for mutation in ("wake", "window", "human"):
@@ -350,6 +417,22 @@ class ProjectConfirmationTest(unittest.TestCase):
         for changed in ({**item, "clientId": str(uuid4())}, {**item, "content": item["content"] * 2},
                         {**item, "content": [{"type": "text", "text": wake_message(identifier) + "\n额外回复"}]}):
             self.assertIsNone(wake_id(changed))
+
+    def test_wake_instructions_recover_expired_reminders_without_manual_reconfirmation(self):
+        """两端提醒指向自动恢复协议，保留旧请求领取和执行约束。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            with self.subTest(platform=platform):
+                identifier = str(uuid4())
+                message = wake_message(identifier, platform)
+                self.assertIn("claim --platform " + platform + " --request " + identifier, message)
+                self.assertIn("按协议读取当前 status 并恢复当前流程", message)
+                self.assertIn("需要新等待时自动重新准备、完整展示并计时", message)
+                self.assertIn("不得仅因旧提醒失效要求人工再确认", message)
+                self.assertIn("不得重试领取旧请求或执行旧动作", message)
+                self.assertNotIn("结束本回合", message)
 
     def test_check_policy_and_push_snapshots_preserve_original_plan(self):
         """Check 计数及 Push 的 HEAD、索引、内容与远端快照保持完整。"""

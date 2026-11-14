@@ -33,7 +33,21 @@ Git 整仓快照、仅用于哈希的文件以及两端会话记录不按总字�
 
 ## 到期领取与原流程续接
 
-原生提醒仅唤醒：先执行 `python3 -X utf8 .trellis/scripts/flower_confirmation.py claim --platform <平台> --request <UUID>`。必须实际取得 `claimed=true`、`source=policy_timeout`、预期 action 和当前冻结 context，才可续接。false、错误、材料或会话漂移时结束旧提醒，不执行旧动作、不重复领取、不假称用户已确认。
+原生提醒仅唤醒：先执行 `python3 -X utf8 .trellis/scripts/flower_confirmation.py claim --platform <平台> --request <UUID>`。必须实际取得 `claimed=true`、`source=policy_timeout`、预期 action 和当前冻结 context，才可续接。false、错误、材料或会话漂移时停止旧动作，不重复领取旧请求、不假称用户已确认；在同一回合进入下述恢复分支。
+
+### 失效提醒的自动恢复
+
+领取失败表示本次旧许可无效，不是当前工作流的终止条件。旧版提醒中的“结束本回合”按本节恢复规则处理。先读取当前用户消息及已有工作流上下文，再执行一次 `python3 -X utf8 .trellis/scripts/flower_confirmation.py status --platform <平台>`。只查询当前项目和当前原生会话，不搜索其它会话的许可，也不改用 status 返回的新请求 ID 领取旧通知。
+
+- 当前有 `prepared`、`waiting`、`dispatching` 或 `queued` 请求：保留当前请求及其后台等待，不重新准备、不重置计时、不重复启动 worker。迟到提醒到此处理完毕；继续当前用户消息中已授权的工作。当前请求由其自己的原生提醒领取。
+- 当前为 `consumed`：读取 `receipt` 和 `execution`，由原 owner 核对实际进度。已 `started` 的动作先据实恢复和记账，已完成的动作进入下一步；禁止重新执行旧默认动作。缺少 started 记录时也不能借本次旧通知补领或补启动。
+- 当前为 `absent`、`cancelled` 或 `failed`：从当前任务、最新报告或精确 Git 计划恢复原 owner。当前工作仍需要确认且范围已明确时，重建最新材料，自动执行原 prepare/wait/display 并重新计时。新请求必须完整展示并独立取得 claim 与 started；不沿用旧倒计时、旧回执或旧材料。没有待续工作时仅忽略旧提醒。
+- 当前为 `delivery_unknown`：先由原 owner 核对队列及实际执行结果，再按实际进度恢复。投递结果未知本身不授权重发或重执行业务。
+- 用户已明确暂停、取消或改变方向时，优先执行该指令。新的范围或产品取舍、风险接受、Spec 歧义、宿主权限及能力缺失仍按入口决策处理；只有这些实际条件才回到相应人工流程。单纯 `not_current` 或旧许可失效不要求用户再手动确认。
+
+一次提醒最多自动重新准备一次。准备或等待实际失败时报告具体原因并沿原人工分支交接，不在本回合循环领取、轮询或反复重建计时器。
+
+### 有效领取后的原流程续接
 
 领取后、首个业务动作前，执行 `python3 -X utf8 .trellis/scripts/flower_confirmation.py result --platform <平台> --request <UUID> --receipt <回执 UUID> --state started`。只有 `recorded=true` 才进入对应 owner；重复 started 不能再次执行。Brief 继续原 `task.py start` 与 route；Check 继续原“修复全部”及重检；Push 继续原精确范围和逐仓预检、提交、推送、进度/Close 及失败恢复。不得把 receipt 当成新产品决策、原生审批或任意 shell 的授权。
 

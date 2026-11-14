@@ -118,6 +118,11 @@ src/lib/confirmation-lifecycle.js:
   随后记录 `completed`、`interrupted` 或 `needs-verification`。存在 started 未终结时不能被新请求覆盖。
 - 新人工输入先使旧代次失效；领取与 started 写锁内再次复核。回执丢失视为投递结果未知，不重发。
   取消后尽力撤回自己的队列项；迟到通知仍须领取，不能重放旧动作。
+- 旧提醒领取失败后按 `confirmation.md` 自动恢复当前流程，不以 `not_current` 要求人工再确认。
+  同会话 `status` 只读一次；有当前活动请求时保留原等待、倒计时和 worker，旧通知不得改领新 ID。
+  `consumed` 由 owner 核对回执和实际进度，禁止重执行业务；`delivery_unknown` 先核实实际投递及执行结果。
+  `absent/cancelled/failed` 且当前工作仍需确认时，依据最新材料重新 prepare/wait/display，独立计时、领取和 started。
+  一次提醒最多自动重建一次；用户暂停/取消、未决选择及原有人工边界继续优先处理。
 - `wait` 的常规轮询复用本轮已读状态。原生快照只包含已记录的人工消息或冻结基线时，不取写锁、不写状态；
   发现候选新消息时，在写锁内按最新请求和消息基线重新判断，再更新代次并作废旧许可。
 - `wait` 收到 SIGINT/SIGTERM 先失效请求再退出 130。关闭项目先取消现有许可；卸载后的清理不能重建目录。
@@ -203,6 +208,9 @@ src/lib/confirmation-lifecycle.js:
 | Codex 首条会话身份无效、当前输入无法定位，或起点后的日志回滚 | 保持人工 |
 | Claude 旧历史含未知来源，或起点后出现其它明确来源 | 跳过，继续观察本次请求 |
 | 重复 worker、提醒、claim、started | 至多单次领取和单次业务开始 |
+| 旧提醒返回 not_current，当前已有活动请求 | 只读 status，保留当前等待；旧通知不领取当前请求 |
+| 旧等待失效，当前仍有明确待续计划且满足自动确认条件 | 自动重建最新材料、完整展示并重新计时 |
+| 旧提醒到达时动作已 consumed 或投递结果未知 | owner 核对实际进度；禁止重复执行旧动作 |
 | Windows 原子替换或锁释放短暂共享占用 | 有限重试文件操作，业务回调保持单次 |
 | Windows 共享占用持续超过预算 | 保留原权限错误与已写入的状态事实 |
 | 原生入队回执超时 | delivery_unknown，不重投 |
@@ -217,6 +225,8 @@ src/lib/confirmation-lifecycle.js:
 - Base：Check 没有未处置项时不等待；总开关关闭或 Python 缺少 pidfd 时保持人工；查询空状态不创建目录。
 - Incorrect use：恢复会话后重新找一个活窗口继续旧请求，或把相同提醒正文当成领取凭证。
   Correct handling：冻结原窗口身份，核对原生消息来源和当前代次；失效则停止旧动作，必要时重新准备。
+- Incorrect use：旧提醒返回 `not_current` 后结束当前工作流或要求用户重新确认。
+  Correct handling：读取当前同会话状态；保留新等待，或由原 owner 使用最新材料自动完整展示并重新计时。
 - Normal：普通 Windows 窗口使用既有本机服务完成展示、倒计时与一次领取。启动第二窗口时，
   原窗口的有效监听不能作为第二窗口的归属证据。
 - Normal：索引输出超过 4 MiB 或计划内普通文件超过 512 KiB 时按流式指纹核验；内容变化使旧许可失效。
@@ -233,6 +243,9 @@ src/lib/confirmation-lifecycle.js:
 
 - `test_confirmation_store.py` / `test_project_confirmation.py`：完整展示起点、单调计时、重复领取、输入与派发/started 竞争、
   材料和 Git 快照漂移、结果未知、信号及卸载不复活状态目录。
+  两端迟到提醒保持新请求的 prepared/queued/consumed 状态字节不变；新请求仍须独立领取且 started 仅成功一次。
+  取消后重建须使用最新正文和新时长；旧展示拒绝用于新等待，旧请求保持 not_current。
+  两端提醒正文指向自动恢复协议，去除强制结束回合的指令。
   Windows 短暂拒绝创建锁后仅更新一次，持续拒绝时不执行回调；真实多进程竞争保留全部代次更新。
   原子替换与锁释放的短暂/持续共享占用分别断言回调次数、原错误、持久代次和锁生命周期。
   卸载竞争通过 queued 事件屏障固定目录删除与下一次观察的位置，保留真实线程退出及目录缺失断言。
