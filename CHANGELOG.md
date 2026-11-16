@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.15](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.14...v0.6.13-beta.15) (2026-11-16)
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 分离回合来源并移除多余确认拦截 ([3702d40](https://github.com/SilentFlower/flower-trellis/commit/3702d40b09c2c190a0d421064fca57ae4c81f849))
+* **confirmation:** 支持未绑定任务的 Brief 确认 ([1203748](https://github.com/SilentFlower/flower-trellis/commit/1203748888a536f99f4608797eeda831fdf98557))
+
 ## [0.6.13-beta.14](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.13...v0.6.13-beta.14) (2026-11-14)
 
 
