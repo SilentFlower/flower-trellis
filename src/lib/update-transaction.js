@@ -36,7 +36,7 @@ function validateRelativePath(relativePath) {
 
 function isExcluded(relativePath, directory = false) {
   const candidate = directory ? `${relativePath.replace(/\/$/, "")}/` : relativePath;
-  return shouldExcludeFromBackup(candidate);
+  return scopeContains(".trellis/.runtime", relativePath) || shouldExcludeFromBackup(candidate);
 }
 
 function assertOrdinaryRoot(projectRoot) {
@@ -120,12 +120,17 @@ function scanScopes(projectRoot, scopes, onFile, options = {}) {
     scopeContains(scope, relativePath) || scopeContains(relativePath, scope)
   ));
 
-  function walk(absolutePath, relativePath) {
-    const stat = fs.lstatSync(absolutePath);
+  function walk(absolutePath, relativePath, knownStat) {
+    const excluded = isExcluded(relativePath, true);
+    // 排除范围保存用户资料和运行状态，应在读取节点属性前裁剪。
+    if (excluded && !isForced(relativePath)) return;
+    const stat = knownStat ?? fs.lstatSync(absolutePath);
     if (stat.isSymbolicLink()) throw new Error(`Update 受管范围包含软链:${relativePath}`);
     if (stat.isDirectory()) {
-      if (isExcluded(relativePath, true) && !isForced(relativePath)) return;
-      entries.set(relativePath, { path: relativePath, kind: "directory", mode: stat.mode & 0o777 });
+      // 仅用于到达精确目标的已排除祖先目录不属于新增路径，补偿时应保留。
+      if (!excluded || forcedScopes.some((scope) => scopeContains(scope, relativePath))) {
+        entries.set(relativePath, { path: relativePath, kind: "directory", mode: stat.mode & 0o777 });
+      }
       const children = fs.readdirSync(absolutePath, { withFileTypes: true })
         .sort((left, right) => left.name.localeCompare(right.name));
       for (const child of children) {
@@ -141,10 +146,22 @@ function scanScopes(projectRoot, scopes, onFile, options = {}) {
   }
 
   for (const scope of scopes) {
+    if (isExcluded(scope, true) && !isForced(scope)) continue;
     if ([...entries.keys()].some((entry) => scope === entry || scope.startsWith(`${entry}/`))) continue;
     const absolutePath = path.join(projectRoot, ...scope.split("/"));
-    if (!fs.existsSync(absolutePath)) continue;
-    walk(absolutePath, scope);
+    // 精确路径也需要校验祖先，避免穿过默认未遍历的链接读取项目外资料。
+    let parent = projectRoot;
+    for (const segment of scope.split("/").slice(0, -1)) {
+      parent = path.join(parent, segment);
+      const stat = fs.lstatSync(parent, { throwIfNoEntry: false });
+      if (!stat) break;
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        throw new Error(`Update 父路径不是普通目录:${toPosix(path.relative(projectRoot, parent))}`);
+      }
+    }
+    const stat = fs.lstatSync(absolutePath, { throwIfNoEntry: false });
+    if (!stat) continue;
+    walk(absolutePath, scope, stat);
   }
   return [...entries.values()].sort((left, right) => left.path.localeCompare(right.path));
 }

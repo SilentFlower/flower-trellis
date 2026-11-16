@@ -9,6 +9,7 @@ import { plugin } from "../../src/commands/plugin.js";
 import { parseCliArgs, trellisUpdatePassthroughArgs } from "../../src/lib/cli-args.js";
 import { projectUpdateForwardArgs } from "../../src/lib/self-check.js";
 import { trellisVersion } from "../../src/lib/versions.js";
+import { resolveTrellisBin } from "../../src/lib/trellis-runner.js";
 import {
   createUpdateCompensationError,
   replayPlugins,
@@ -43,6 +44,24 @@ function createTarget(t, prefix = "flower-update-backups-") {
   t.after(() => fs.rmSync(target, { recursive: true, force: true }));
   fs.mkdirSync(path.join(target, ".trellis"), { recursive: true });
   return target;
+}
+
+/**
+ * 创建运行时研究资料及同目录文件软链。
+ *
+ * @param {string} target 临时项目根目录
+ * @returns {{root:string,state:string,link:string,linkTarget:string}} 运行时夹具路径
+ */
+function createRuntimeResearch(target) {
+  const root = path.join(target, ".trellis", ".runtime");
+  const research = path.join(root, "research", "criu");
+  fs.mkdirSync(research, { recursive: true });
+  fs.writeFileSync(path.join(research, "GEMINI.md"), "研究源码\n");
+  const link = path.join(research, "CLAUDE.md");
+  fs.symlinkSync("GEMINI.md", link, "file");
+  const state = path.join(root, "worker.json");
+  fs.writeFileSync(state, "准备中\n");
+  return { root, state, link, linkTarget: fs.readlinkSync(link) };
 }
 
 function createBackups(target, names) {
@@ -318,6 +337,145 @@ test("Update 补偿恢复旧内容、mode 和 Plugin-owned path，并保留用�
   );
 });
 
+test("运行时研究软链不进入默认快照和沙箱，回滚保留当前执行状态", (t) => {
+  const target = createTarget(t, "flower-update-runtime-");
+  const runtime = createRuntimeResearch(target);
+  fs.mkdirSync(path.join(target, ".codex"));
+  const managed = path.join(target, ".codex/config.toml");
+  fs.writeFileSync(managed, "旧配置\n");
+  fs.mkdirSync(path.join(target, ".trellis/.runtime-copy"));
+  fs.writeFileSync(path.join(target, ".trellis/.runtime-copy/managed.txt"), "相似目录\n");
+
+  const snapshot = createUpdateSnapshot(target);
+  t.after(() => disposeUpdateSnapshot(snapshot));
+  assert.equal(snapshot.manifest.entries.some(({ path: entry }) => entry === ".trellis/.runtime" || entry.startsWith(".trellis/.runtime/")), false);
+  assert.ok(snapshot.manifest.entries.some(({ path: entry }) => entry === ".trellis/.runtime-copy/managed.txt"));
+  const sandbox = createUpdateSandbox(target);
+  t.after(() => disposeUpdateSandbox(sandbox));
+  assert.equal(fs.existsSync(path.join(sandbox.root, ".trellis/.runtime")), false);
+
+  fs.writeFileSync(managed, "新配置\n");
+  fs.writeFileSync(runtime.state, "执行中\n");
+  fs.writeFileSync(path.join(runtime.root, "new-receipt.json"), "新回执\n");
+  const recovery = restoreUpdateSnapshot(snapshot);
+  assert.equal(recovery.ok, true, JSON.stringify(recovery.failedPaths));
+  assert.equal(fs.readFileSync(managed, "utf8"), "旧配置\n");
+  assert.equal(fs.readFileSync(runtime.state, "utf8"), "执行中\n");
+  assert.equal(fs.readFileSync(path.join(runtime.root, "new-receipt.json"), "utf8"), "新回执\n");
+  assert.equal(fs.lstatSync(runtime.link).isSymbolicLink(), true);
+  assert.equal(fs.readlinkSync(runtime.link), runtime.linkTarget);
+});
+
+test("默认运行时范围在读取文件属性前裁剪", (t) => {
+  const target = createTarget(t, "flower-update-runtime-stat-");
+  const runtime = path.join(fs.realpathSync(target), ".trellis/.runtime");
+  fs.mkdirSync(runtime);
+  const original = fs.lstatSync;
+  let snapshot;
+  fs.lstatSync = (file, ...args) => {
+    if (path.resolve(file) === runtime) throw new Error("运行时属性不属于默认快照");
+    return original(file, ...args);
+  };
+  try {
+    snapshot = createUpdateSnapshot(target);
+  } finally {
+    fs.lstatSync = original;
+  }
+  t.after(() => disposeUpdateSnapshot(snapshot));
+  assert.equal(snapshot.manifest.entries.some(({ path: entry }) => entry.startsWith(".trellis/.runtime")), false);
+});
+
+test("运行时根为软链时默认快照和恢复保留链接及外部资料", (t) => {
+  const target = createTarget(t, "flower-update-runtime-root-");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "flower-runtime-outside-"));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(outside, "research.md"), "外部资料\n");
+  const runtime = path.join(target, ".trellis/.runtime");
+  fs.symlinkSync(outside, runtime, process.platform === "win32" ? "junction" : "dir");
+  const linkTarget = fs.readlinkSync(runtime);
+  const snapshot = createUpdateSnapshot(target);
+  t.after(() => disposeUpdateSnapshot(snapshot));
+  assert.equal(snapshot.manifest.entries.some(({ path: entry }) => entry.startsWith(".trellis/.runtime")), false);
+  const recovery = restoreUpdateSnapshot(snapshot);
+  assert.equal(recovery.ok, true, JSON.stringify(recovery.failedPaths));
+  assert.equal(fs.readlinkSync(runtime), linkTarget);
+  assert.equal(fs.readFileSync(path.join(outside, "research.md"), "utf8"), "外部资料\n");
+});
+
+test("上游已排除的 worktrees 链接同样不进入快照扫描", (t) => {
+  const target = createTarget(t, "flower-update-excluded-link-");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "flower-worktrees-outside-"));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(outside, "work.md"), "本地工作树\n");
+  const worktrees = path.join(target, ".trellis/worktrees");
+  fs.symlinkSync(outside, worktrees, process.platform === "win32" ? "junction" : "dir");
+  const snapshot = createUpdateSnapshot(target);
+  t.after(() => disposeUpdateSnapshot(snapshot));
+  assert.equal(snapshot.manifest.entries.some(({ path: entry }) => entry.startsWith(".trellis/worktrees")), false);
+  assert.equal(restoreUpdateSnapshot(snapshot).ok, true);
+  assert.equal(fs.readFileSync(path.join(outside, "work.md"), "utf8"), "本地工作树\n");
+});
+
+test("运行时精确目标可补偿且保留既有空父目录和非目标研究资料", (t) => {
+  const target = createTarget(t, "flower-update-runtime-owned-");
+  const runtimeRoot = path.join(target, ".trellis/.runtime");
+  fs.mkdirSync(path.join(runtimeRoot, "existing"), { recursive: true });
+  fs.mkdirSync(path.join(runtimeRoot, "owned-dir"));
+  fs.writeFileSync(path.join(runtimeRoot, "owned-dir/old.txt"), "旧子树\n");
+  const owned = path.join(runtimeRoot, "owned.json");
+  fs.writeFileSync(owned, "旧受管状态\n", { mode: 0o640 });
+  const originalMode = fs.statSync(owned).mode & 0o777;
+  const snapshot = createUpdateSnapshot(target);
+  t.after(() => disposeUpdateSnapshot(snapshot));
+  assert.equal(snapshot.manifest.entries.some(({ path: entry }) => entry.startsWith(".trellis/.runtime")), false);
+  const targets = [
+    ".trellis/.runtime/owned.json",
+    ".trellis/.runtime/owned-dir",
+    ".trellis/.runtime/existing/generated/new.json",
+    ".trellis/.runtime/created/nested/new.json",
+  ];
+  assert.deepEqual(new Set(extendUpdateSnapshot(snapshot, targets)), new Set([
+    ".trellis/.runtime/owned.json", ".trellis/.runtime/owned-dir",
+    ".trellis/.runtime/existing/generated", ".trellis/.runtime/created",
+  ]));
+  fs.writeFileSync(owned, "新受管状态\n");
+  fs.chmodSync(owned, 0o600);
+  fs.writeFileSync(path.join(runtimeRoot, "owned-dir/old.txt"), "新子树\n");
+  fs.writeFileSync(path.join(runtimeRoot, "owned-dir/new.txt"), "新增受管文件\n");
+  for (const relative of ["existing/generated/new.json", "created/nested/new.json"]) {
+    const file = path.join(runtimeRoot, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, "新增目标\n");
+  }
+  const runtime = createRuntimeResearch(target);
+  fs.writeFileSync(runtime.state, "当前执行事实\n");
+
+  const recovery = restoreUpdateSnapshot(snapshot);
+  assert.equal(recovery.ok, true, JSON.stringify(recovery.failedPaths));
+  assert.equal(fs.readFileSync(owned, "utf8"), "旧受管状态\n");
+  assert.equal(fs.statSync(owned).mode & 0o777, originalMode);
+  assert.equal(fs.readFileSync(path.join(runtimeRoot, "owned-dir/old.txt"), "utf8"), "旧子树\n");
+  assert.equal(fs.existsSync(path.join(runtimeRoot, "owned-dir/new.txt")), false);
+  assert.equal(fs.existsSync(path.join(runtimeRoot, "created")), false);
+  assert.equal(fs.existsSync(path.join(runtimeRoot, "existing/generated")), false);
+  assert.equal(fs.statSync(path.join(runtimeRoot, "existing")).isDirectory(), true);
+  assert.equal(fs.readFileSync(runtime.state, "utf8"), "当前执行事实\n");
+  assert.equal(fs.readlinkSync(runtime.link), runtime.linkTarget);
+});
+
+test("运行时精确目标的软链祖先在读取外部文件前拒绝", (t) => {
+  const target = createTarget(t, "flower-update-runtime-owned-link-");
+  const snapshot = createUpdateSnapshot(target);
+  t.after(() => disposeUpdateSnapshot(snapshot));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "flower-runtime-owned-outside-"));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(outside, "owned.json"), "外部资料\n");
+  fs.symlinkSync(outside, path.join(target, ".trellis/.runtime"), process.platform === "win32" ? "junction" : "dir");
+  assert.throws(() => extendUpdateSnapshot(snapshot, [".trellis/.runtime/owned.json"]), /软链|不是普通目录/);
+  assert.equal(fs.existsSync(path.join(snapshot.dataRoot, ".trellis/.runtime/owned.json")), false);
+  assert.equal(fs.readFileSync(path.join(outside, "owned.json"), "utf8"), "外部资料\n");
+});
+
 test("Plugin 预检扩展快照后可恢复新增外部路径及其原内容", (t) => {
   const target = createTarget(t, "flower-update-plugin-plan-");
   fs.mkdirSync(path.join(target, "custom"));
@@ -369,6 +527,8 @@ test("Plugin 精确快照可覆盖通常排除的 Trellis spec 目标", (t) => {
 
 test("真实 CLI 在 Plugin replay 失败后补偿恢复受管状态并保留备份", (t) => {
   const target = createTarget(t, "flower-update-cli-compensation-");
+  const runtime = createRuntimeResearch(target);
+  const runtimeBefore = snapshotTree(runtime.root);
   fs.mkdirSync(path.join(target, ".codex"));
   fs.mkdirSync(path.join(target, ".flower"));
   fs.mkdirSync(path.join(target, ".trellis/tasks/task-a"), { recursive: true });
@@ -410,9 +570,34 @@ test("真实 CLI 在 Plugin replay 失败后补偿恢复受管状态并保留备
   assert.equal(fs.existsSync(path.join(target, ".codex/new.toml")), false);
   assert.equal(fs.readFileSync(path.join(target, ".flower/plugins.json"), "utf8"), "{broken\n");
   assert.equal(fs.readFileSync(path.join(target, ".trellis/tasks/task-a/task.json"), "utf8"), "user task\n");
+  assert.deepEqual(snapshotTree(runtime.root), runtimeBefore);
+  assert.equal(fs.readlinkSync(runtime.link), runtime.linkTarget);
   const backups = fs.readdirSync(path.join(target, ".trellis"))
     .filter((name) => /^\.backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/.test(name));
   assert.ok(backups.length > 0, "Trellis 本轮升级备份应作为补偿证据保留");
+});
+
+test("真实 CLI 同版本预演和更新均保留运行时研究软链", (t) => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "flower-update-runtime-cli-"));
+  t.after(() => fs.rmSync(target, { recursive: true, force: true }));
+  const prefix = createFakeGlobalTrellis(t, trellisVersion());
+  const env = { ...process.env, FLOWER_NO_TELEMETRY: "1", npm_config_prefix: prefix };
+  const initialized = spawnSync(process.execPath, [
+    resolveTrellisBin(), "init", "--claude", "--codex", "--no-monorepo", "-y", "-u", "probe",
+  ], { cwd: target, env, encoding: "utf8", timeout: 60_000 });
+  assert.equal(initialized.status, 0, `${initialized.stdout}\n${initialized.stderr}`);
+  const runtime = createRuntimeResearch(target);
+  const before = snapshotTree(runtime.root);
+  for (const extra of [["--dry-run"], []]) {
+    const result = spawnSync(process.execPath, [
+      path.resolve("bin/flower-trellis.js"), "update", "--target", target,
+      "--force", "--no-update-check", "-y", ...extra,
+    ], { cwd: path.resolve("."), env, encoding: "utf8", timeout: 60_000 });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.deepEqual(snapshotTree(runtime.root), before);
+    assert.equal(fs.readlinkSync(runtime.link), runtime.linkTarget);
+    assert.equal(fs.readFileSync(path.join(target, ".trellis/.version"), "utf8").trim(), trellisVersion());
+  }
 });
 
 test("Update 补偿不完整时返回失败路径、manifest 和稳定错误码", {

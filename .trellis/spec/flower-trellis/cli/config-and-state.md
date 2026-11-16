@@ -243,10 +243,17 @@ checkForUpdate(ctx, label)
 - 真实、非 `--enhance-only` 更新在调用上游前必须创建项目外补偿快照。范围复用上游
   `ALL_MANAGED_DIRS` 与 `shouldExcludeFromBackup()`，并额外包含 `AGENTS.md`、`.flower` 和当前
   Plugin state 登记的 owned paths；文件内容、目录/文件类型和 mode 都要记录。
+- Flower 默认快照、沙箱和补偿扫描额外排除精确的 `.trellis/.runtime` 子树。该目录保存研究资料、
+  进程状态和新回执，失败补偿应保留操作后的当前执行事实。排除规则必须先于 `lstat`、软链和特殊
+  文件检查执行，覆盖运行时根及既有上游排除目录本身为链接的情况；`.runtime-copy` 等近似名称
+  继续按受管范围扫描。此规则属于 Flower 补偿扫描，上游自身备份仍沿用上游契约。
 - Plugin replay 必须把 `onPreflight` 透传到统一 Runtime，并在 Transaction Writer 写盘前读取
   `plan.contentMutations` 与 `plan.patchMutations` 的全部目标，通过 `extendUpdateSnapshot()` 扩展
   同一补偿快照。目标已存在时只记录该精确路径；目标不存在时记录最靠外的缺失祖先，使恢复可以
   删除本轮新建的完整目录树，同时不得扩大到已经存在的用户目录。
+- `forcedScopes` 可以精确覆盖默认排除范围中的显式目标，包括运行时目标。仅用于到达目标的既有
+  排除目录不进入新增路径删除集合；非目标兄弟节点与既有空父目录必须保留。扫描精确路径前校验
+  全部祖先为普通目录，明确受管的软链及特殊文件仍拒绝，快照 schemaVersion 保持 `1`。
 - `ctx.enhance=true` 的 Skill-Garden replay 必须先调用 `resolveSkillGardenPlatforms(target)`，并把结果
   转换为重复 `--platform <id>` 传给 Plugin CLI。这样 `flower-trellis update` 的平台事实来自 Trellis
   当前模板配置，而不是旧 `.flower/state.json`；普通 `plugin update --platform ...` 的显式选择语义不变。
@@ -272,6 +279,9 @@ checkForUpdate(ctx, label)
 | 真实 Trellis update 成功、Plugin replay 失败 | 自动还原升级前受管内容/mode，移除新增受管文件，保留 `.backup-*`，退出失败 |
 | Plugin preflight 计划修改既有外部文件 | 写盘前把精确文件加入补偿快照；失败时恢复旧内容和 mode |
 | Plugin preflight 计划写入尚不存在的外部目录树 | 记录最靠外缺失祖先；失败时删除本轮创建的整棵目录树，不删除既有父目录 |
+| `.trellis/.runtime` 中含研究软链，或运行时根、已排除的 worktrees 根为链接 | 默认快照、沙箱和恢复扫描裁剪该范围，保留原链接与资料 |
+| Plugin 显式写入运行时目标 | 精确捕获旧内容和 mode；补偿只恢复或清理目标，保留既有父目录及当前非目标状态 |
+| 精确目标的任一祖先为软链 | 读取目标内容前拒绝，项目外资料不进入快照 |
 | 旧 Skill-Garden state 含未启用平台 | replay 显式传入 Trellis 当前平台；新 state 收窄，错误平台 check-all agent 通过事务删除 |
 | 补偿恢复任一路径失败 | 抛 `UPDATE_COMPENSATION_INCOMPLETE`，输出 manifest 与失败路径，不删除恢复证据 |
 | 受管范围含软链、特殊文件或路径逃逸 | 创建快照时失败；Trellis 与 Plugin 均未开始写入 |
@@ -287,6 +297,10 @@ checkForUpdate(ctx, label)
   全部恢复，新增上游 `.backup-*` 仍保留用于人工审计。
 - Good: Plugin preflight 才声明 `generated/tool/config.json`，且 `generated/` 原本不存在；后续写入
   失败时恢复删除整个 `generated/`，不会遗漏中间目录，也不会删除其上层既有用户目录。
+- Good: `.trellis/.runtime/research/criu/CLAUDE.md` 指向同目录 `GEMINI.md`，真实更新完成；
+  后续失败补偿保留运行时的新回执和当前 worker 状态。
+- Good: Plugin 精确写入 `.trellis/.runtime/existing/generated/new.json`，`existing/` 原本为空；
+  失败补偿删除新增 `generated/` 子树并保留 `existing/`。
 - Good: 旧 `.flower/state.json` 误记 `gemini/zcode`，但 Trellis hash 只配置 Claude/Codex；
   update replay 传入 `claude/codex` 并清理纯旧 `.gemini/.zcode` check-all agent 目录。
 - Base: `flower-trellis update --target ./test-target --dry-run` 与过去行为一致。
@@ -303,6 +317,7 @@ checkForUpdate(ctx, label)
   replay 失败后留下混合版本项目。
 - Bad: 只根据旧 Plugin state 创建一次快照，不消费本轮 preflight plan；新增外部目标会在 replay
   失败后残留。也不能一律快照项目根目录，否则恢复可能误删用户数据。
+- Bad: 遍历排除目录后才检查排除规则，导致正常研究链接阻断升级；应先判断扫描范围，再校验受管节点。
 - Bad: update replay 不传平台参数，让 Runtime 复用旧 state 中污染的平台集合，导致升级重新生成
   未启用的 `.gemini` 或 `.zcode` 目录。
 
@@ -322,7 +337,11 @@ checkForUpdate(ctx, label)
 - Update replay 回归必须覆盖旧 Skill-Garden state 平台污染：旧 state 含 `gemini/zcode`，Trellis
   `.template-hashes` 只含 Claude/Codex 时，断言 replay 后 state 收窄并清理错误平台 check-all agent。
 - 快照单测必须覆盖软链/特殊文件/路径逃逸 fail closed，并与上游 `ALL_MANAGED_DIRS`、
-  `shouldExcludeFromBackup()` 的排除语义保持一致。
+  `shouldExcludeFromBackup()` 的排除语义保持一致，同时覆盖 Flower 的精确运行时排除规则。
+- 运行时回归必须断言默认快照/沙箱排除用户资料、排除发生在属性读取前、近似目录仍受管，
+  运行时根与既有排除目录根为链接时裁剪。精确目标回归覆盖旧内容/mode 恢复、新建子树清理、
+  既有空父目录及非目标兄弟资料保留、软链祖先拒绝。真实 CLI 同版本预演、真实更新和 replay
+  故障补偿均须覆盖研究软链；回滚另断言操作后的当前运行状态与新回执保留。
 - Dogfood 必须覆盖隔离目标上的
   `flower-trellis init --target <tmp> -y`、
   `flower-trellis update --target <tmp> -y --dry-run`、
