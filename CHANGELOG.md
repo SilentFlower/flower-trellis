@@ -4,6 +4,35 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.14](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.13...v0.6.13-beta.14) (2026-11-14)
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 完善原生确认运行时与失效恢复 ([12ca130](https://github.com/SilentFlower/flower-trellis/commit/12ca130e4ac02441dbf83298cdc94250b764b773))
+
+## [0.6.13-beta.13](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.12...v0.6.13-beta.13) (2026-11-13)
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 支持未绑定任务的 Brief 确认 ([d6a2cd1](https://github.com/SilentFlower/flower-trellis/commit/d6a2cd19ae662af92466e59cf05fbebf51fd1fb1))
+
+## [0.6.13-beta.12](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.11...v0.6.13-beta.12) (2026-11-12)
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 从当前回合观察两端自动确认 ([60a565e](https://github.com/SilentFlower/flower-trellis/commit/60a565eaf43d9af5b35d464e03f6754fd3c37f27))
+
+## [0.6.13-beta.11](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.10...v0.6.13-beta.11) (2026-11-11)
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 支持原生 Windows 后台超时确认 ([ef33e72](https://github.com/SilentFlower/flower-trellis/commit/ef33e724b329aea745af069d32c31eae0341d070))
+* **confirmation:** 支持长会话与大型确认计划 ([a4f159d](https://github.com/SilentFlower/flower-trellis/commit/a4f159d58d7cc3ea0cba81e65c771947dcd58db0))
+
 ## [0.6.13-beta.10](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.9...v0.6.13-beta.10) (2026-11-11)
 
 

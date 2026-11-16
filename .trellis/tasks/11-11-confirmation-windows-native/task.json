@@ -1,0 +1,46 @@
+{
+  "id": "confirmation-windows-native",
+  "name": "confirmation-windows-native",
+  "title": "支持原生 Windows 后台超时确认",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-11",
+  "completedAt": "2026-11-11",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-11T16:20:02Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "11-11-confirmation-capacity-and-windows",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "confirmationTimeoutDisabled": true
+  },
+  "progress": {
+    "updatedAt": "2026-11-11T16:20:02+00:00",
+    "completedSteps": [
+      "完成原生 Windows Codex 和 Claude 后台超时确认及窗口归属核验",
+      "通过两端 Windows 实机验收、Linux/WSL 回归及 Check-All",
+      "同步确认运行时规范和 Skill-Garden 快照",
+      "推送两仓业务变更",
+      "主仓 CI：Linux 和 Windows 矩阵全部通过"
+    ],
+    "partialStep": null,
+    "nextStep": "原生 Windows 自动确认已交付。",
+    "notes": "CI：https://github.com/SilentFlower/flower-trellis/actions/runs/43054609854。Beta 发布继续暂缓。"
+  }
+}

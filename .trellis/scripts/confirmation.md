@@ -1,6 +1,6 @@
 # 原生后台确认
 
-本文件由 Brief、Check-All、Push 三个 owner 按需读取。仅 Codex / Claude 的已验证 Linux/WSL 原生会话可启用；项目 `confirmation_timeout` 缺省开启。其它平台、禁用、能力或展示无法核验时维持原人工流程，不从沉默推断人工确认。
+本文件由 Brief、Check-All、Push 三个 owner 按需读取。Codex / Claude 的 Linux/WSL 或原生 Windows 会话须通过宿主能力核验；项目 `confirmation_timeout` 缺省开启。其它平台、禁用、能力或展示无法核验时维持原人工流程，不从沉默推断人工确认。
 
 ## 适用边界
 
@@ -17,7 +17,7 @@
 
 ## 准备与完整展示
 
-Codex 保持普通 `codex` / `codex resume` 与默认共享服务。通过当前根会话内置 codex_tui 的本机监听者绑定原前台；需要新输入 Hook 已实际加载。缺少服务、出生身份或可靠退出能力时保持人工。Claude 保持原来的普通 TUI。
+Codex 保持普通 `codex` / `codex resume` 与默认共享服务。通过当前根会话内置 codex_tui 的本机监听者绑定原前台；需要新输入 Hook 已实际加载。Windows 复用当前 Codex 映像的本机代理接入已有控制端点。缺少服务、出生身份或可靠退出能力时保持人工。Claude 保持原来的普通 TUI；Windows 同时核验原生 Hook 的前台进程。
 
 先从项目根执行 `python3 .trellis/scripts/flower_confirmation_hook.py --entry`，读取实际返回的 `entry` argv，后续在其后追加 `prepare`、`wait` 等子命令。入口固定为项目内 `.trellis/scripts/flower_confirmation.py`，内部复用当前 Python 解释器，仅依赖标准库和项目脚本。`entry=null` 或工具失败才报告实际原因；不能用无 stdout 的 `test -f` 推断入口不存在。确认阶段无需 Node、npm、全局 Flower 或额外 pip 安装。
 
@@ -29,9 +29,25 @@ Codex 保持普通 `codex` / `codex resume` 与默认共享服务。通过当前
 6. 两端运行同一个 `python3 -X utf8 .trellis/scripts/flower_confirmation.py wait --platform <平台> --session <prepare.sessionId> --request <UUID>`。Claude 用 Bash `run_in_background:true`。Codex 用原生 `exec_command` 短 `yield_time_ms`（例如 1000）启动，取得持续运行的 terminal session 后结束当前回合；不等待命令完成、不轮询、不启动子代理、不用 clock.sleep。后台 worker 到期会经原生同会话队列唤醒。
 7. 最终回复完整展示 prepare 返回的 `display`；它包含标准正文和本次时长/默认动作。可在前后补必要说明，但不能省略、改写 display。后台会核验原回合最终正文，展示完成才开始计时；工具启动和生成时间不扣减等待时间。
 
+Git 整仓快照、仅用于哈希的文件以及两端会话记录不按总字节数拒绝。需要解析或展示的单条记录、材料和状态各有读取预算。Git 命令、Push 快照和策略检查分别使用超时预算，失败时展示实际阶段及原因。等待原回合完成展示与唤醒后等待领取分别过期；两者与用户设定的倒计时独立。
+
 ## 到期领取与原流程续接
 
-原生提醒仅唤醒：先执行 `python3 -X utf8 .trellis/scripts/flower_confirmation.py claim --platform <平台> --request <UUID>`。必须实际取得 `claimed=true`、`source=policy_timeout`、预期 action 和当前冻结 context，才可续接。false、错误、材料或会话漂移时结束旧提醒，不执行旧动作、不重复领取、不假称用户已确认。
+原生提醒仅唤醒：先执行 `python3 -X utf8 .trellis/scripts/flower_confirmation.py claim --platform <平台> --request <UUID>`。必须实际取得 `claimed=true`、`source=policy_timeout`、预期 action 和当前冻结 context，才可续接。false、错误、材料或会话漂移时停止旧动作，不重复领取旧请求、不假称用户已确认；在同一回合进入下述恢复分支。
+
+### 失效提醒的自动恢复
+
+领取失败表示本次旧许可无效，不是当前工作流的终止条件。旧版提醒中的“结束本回合”按本节恢复规则处理。先读取当前用户消息及已有工作流上下文，再执行一次 `python3 -X utf8 .trellis/scripts/flower_confirmation.py status --platform <平台>`。只查询当前项目和当前原生会话，不搜索其它会话的许可，也不改用 status 返回的新请求 ID 领取旧通知。
+
+- 当前有 `prepared`、`waiting`、`dispatching` 或 `queued` 请求：保留当前请求及其后台等待，不重新准备、不重置计时、不重复启动 worker。迟到提醒到此处理完毕；继续当前用户消息中已授权的工作。当前请求由其自己的原生提醒领取。
+- 当前为 `consumed`：读取 `receipt` 和 `execution`，由原 owner 核对实际进度。已 `started` 的动作先据实恢复和记账，已完成的动作进入下一步；禁止重新执行旧默认动作。缺少 started 记录时也不能借本次旧通知补领或补启动。
+- 当前为 `absent`、`cancelled` 或 `failed`：从当前任务、最新报告或精确 Git 计划恢复原 owner。当前工作仍需要确认且范围已明确时，重建最新材料，自动执行原 prepare/wait/display 并重新计时。新请求必须完整展示并独立取得 claim 与 started；不沿用旧倒计时、旧回执或旧材料。没有待续工作时仅忽略旧提醒。
+- 当前为 `delivery_unknown`：先由原 owner 核对队列及实际执行结果，再按实际进度恢复。投递结果未知本身不授权重发或重执行业务。
+- 用户已明确暂停、取消或改变方向时，优先执行该指令。新的范围或产品取舍、风险接受、Spec 歧义、宿主权限及能力缺失仍按入口决策处理；只有这些实际条件才回到相应人工流程。单纯 `not_current` 或旧许可失效不要求用户再手动确认。
+
+一次提醒最多自动重新准备一次。准备或等待实际失败时报告具体原因并沿原人工分支交接，不在本回合循环领取、轮询或反复重建计时器。
+
+### 有效领取后的原流程续接
 
 领取后、首个业务动作前，执行 `python3 -X utf8 .trellis/scripts/flower_confirmation.py result --platform <平台> --request <UUID> --receipt <回执 UUID> --state started`。只有 `recorded=true` 才进入对应 owner；重复 started 不能再次执行。Brief 继续原 `task.py start` 与 route；Check 继续原“修复全部”及重检；Push 继续原精确范围和逐仓预检、提交、推送、进度/Close 及失败恢复。不得把 receipt 当成新产品决策、原生审批或任意 shell 的授权。
 

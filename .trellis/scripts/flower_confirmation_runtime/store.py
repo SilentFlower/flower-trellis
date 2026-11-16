@@ -18,6 +18,8 @@ from uuid import uuid4
 ACTIVE = frozenset(("prepared", "waiting", "dispatching", "queued"))
 STATES = ACTIVE | {"cancelled", "failed", "delivery_unknown", "consumed"}
 MAX_BYTES = 1024 * 1024
+STATE_BYTES = 2 * 1024 * 1024
+DISPLAY_BUDGET = 300
 CLAIM_BUDGET = 300
 UUID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", re.I)
 
@@ -46,7 +48,9 @@ def wake_message(request_id, platform="codex"):
     return ("[flower-confirmation:v2:" + request_id + "]\n后台确认已到期。"
             "先按 .trellis/scripts/confirmation.md 定位本项目的 Python 入口，再执行 claim --platform "
             + platform + " --request " + request_id + "。只有返回 claimed=true 才按返回的 action 和冻结 context 进入原流程；"
-            "必须继续执行原有范围检查与失败恢复。claimed=false 或失败表示已失效，结束本回合，不重试、不执行旧动作。")
+            "必须继续执行原有范围检查与失败恢复。claimed=false 或失败时，停止旧动作，"
+            "按协议读取当前 status 并恢复当前流程。已有有效等待予以保留；需要新等待时自动重新准备、完整展示并计时。"
+            "不得仅因旧提醒失效要求人工再确认，也不得重试领取旧请求或执行旧动作。")
 
 
 def wake_id(item):
@@ -216,7 +220,7 @@ class ConfirmationStore:
 
         @return: 已校验状态或 None；查询保持零写入。
         """
-        value = read_json(self.file)
+        value = read_json(self.file, STATE_BYTES)
         if value is None:
             return None
         if (not isinstance(value, dict) or type(value.get("version")) is not int or value["version"] != 2
@@ -270,7 +274,7 @@ class ConfirmationStore:
         try:
             value = mutate(self.read())
             if value is not None:
-                _write_json(self.file, value)
+                _write_json(self.file, value, STATE_BYTES)
             return value
         finally:
             owner = read_json(lock / "owner.json")

@@ -9,9 +9,13 @@ import base64
 import hashlib
 import json
 import os
+import queue
 import socket
 import struct
+import subprocess
+import threading
 import time
+from pathlib import Path
 
 
 MAX_PAYLOAD = 16 * 1024 * 1024
@@ -31,15 +35,97 @@ class RpcError(ValueError):
         self.code = error.get("code")
 
 
+class _WindowsProxy:
+    """用自有 Codex 原生代理转发已有本机 socket 的字节流。"""
+
+    def __init__(self, executable, path, env, timeout):
+        endpoint = Path(path)
+        if (not endpoint.is_absolute() or endpoint.drive.startswith("\\\\") or endpoint.is_symlink()
+                or endpoint.parent.resolve() != endpoint.parent):
+            raise ValueError("Windows Codex 本机控制端点路径无法核验，保持人工确认")
+        # Windows 托管控制端点可以连接，却未必能由普通文件查询观察到。
+        self.timeout = timeout
+        self.incoming = queue.Queue(maxsize=16)
+        self.stopped = threading.Event()
+        self.process = subprocess.Popen([str(executable), "app-server", "proxy", "--sock", str(endpoint)],
+                                        env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                        stderr=subprocess.DEVNULL, bufsize=0, creationflags=subprocess.CREATE_NO_WINDOW)
+        self.reader = threading.Thread(target=self._receive, daemon=True)
+        self.reader.start()
+
+    def _receive(self):
+        while not self.stopped.is_set():
+            try:
+                chunk = self.process.stdout.read(65536)
+            except (OSError, ValueError):
+                chunk = b""
+            while not self.stopped.is_set():
+                try:
+                    self.incoming.put(chunk, timeout=0.1)
+                    break
+                except queue.Full:
+                    continue
+            if not chunk:
+                break
+
+    def settimeout(self, timeout):
+        self.timeout = timeout
+
+    def recv(self, size):
+        try:
+            return self.incoming.get(timeout=self.timeout)
+        except queue.Empty as error:
+            raise socket.timeout("Windows Codex 本机代理读取超时") from error
+
+    def sendall(self, data):
+        result = queue.Queue(maxsize=1)
+
+        def write():
+            try:
+                remaining = memoryview(data)
+                while remaining:
+                    written = self.process.stdin.write(remaining)
+                    if not written:
+                        raise ConnectionError("Windows Codex 本机代理断开")
+                    remaining = remaining[written:]
+                result.put(None)
+            except (OSError, ValueError) as error:
+                result.put(error)
+
+        threading.Thread(target=write, daemon=True).start()
+        try:
+            error = result.get(timeout=self.timeout)
+        except queue.Empty as error:
+            self.close()
+            raise TimeoutError("Windows Codex 本机代理写入超时，结果未知") from error
+        if error:
+            raise error
+
+    def close(self):
+        if self.stopped.is_set():
+            return
+        self.stopped.set()
+        try:
+            if self.process.poll() is None:
+                self.process.kill()
+            self.process.wait(timeout=2)
+        finally:
+            self.process.stdin.close()
+            self.process.stdout.close()
+            self.reader.join(timeout=1)
+
+
 class CodexTransport:
     """单连接同步 RPC，写操作超时保持结果未知。"""
 
-    def __init__(self, path, timeout=5, notification=None):
+    def __init__(self, path, timeout=5, notification=None, *, proxy=None, env=None):
         """创建尚未连接的本机传输。
 
         @param path: 已有 Unix socket 路径。
         @param timeout: 每次 RPC 的秒数预算。
         @param notification: 可选原生通知回调。
+        @param proxy: Windows 现有 Codex 可执行文件；缺省直连 Unix socket。
+        @param env: 传给 Windows 代理的精确宿主环境。
         @return: None。
         """
         self.path = str(path)
@@ -48,16 +134,21 @@ class CodexTransport:
         self.socket = None
         self.buffer = b""
         self.sequence = 0
+        self.proxy = proxy
+        self.env = env
 
     def connect(self):
         """完成 RFC 6455 升级并初始化原生协议。
 
         @return: None；连接失败时关闭自有 socket。
         """
-        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.socket.settimeout(self.timeout)
         try:
-            self.socket.connect(self.path)
+            if self.proxy is not None:
+                self.socket = _WindowsProxy(self.proxy, self.path, self.env, self.timeout)
+            else:
+                self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.socket.settimeout(self.timeout)
+                self.socket.connect(self.path)
             key = base64.b64encode(os.urandom(16)).decode("ascii")
             request = ("GET / HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\n"
                        "Connection: Upgrade\r\nSec-WebSocket-Key: " + key

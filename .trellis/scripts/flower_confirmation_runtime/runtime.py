@@ -9,11 +9,19 @@ import sys
 import time
 from uuid import uuid4
 
-from .store import ACTIVE, CLAIM_BUDGET, confirmation_id, message_hash, now_ms, read_json
+from .session_log import SessionLog
+from .store import ACTIVE, CLAIM_BUDGET, DISPLAY_BUDGET, confirmation_id, message_hash, now_ms, read_json
 
 
 ACTION_NAMES = {"implement": "按当前完整 Brief 开工", "repair_all_and_recheck": "修复当前全部待处置问题并重检",
                 "execute_git_plan": "执行当前已展示的精确 Git 计划"}
+CONTRACT_VERSION = 3
+POLICY_TIMEOUT = 40
+POLICY_OUTPUT_BYTES = 16 * 1024 * 1024
+
+
+def _frozen_digest(value):
+    return message_hash(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
 
 
 def inspect_confirmation(store, input_path, seconds=None):
@@ -33,10 +41,13 @@ def inspect_confirmation(store, input_path, seconds=None):
                "--project", str(store.project), "--input", input_path, "--platform", store.platform, "--session", store.session_id]
     if seconds is not None:
         command.extend(("--seconds", str(seconds)))
-    result = subprocess.run(command, cwd=str(store.project), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            encoding="utf-8", timeout=15)
-    if len(result.stdout.encode("utf-8")) > 2 * 1024 * 1024:
-        raise ValueError("确认策略输出超出预算")
+    try:
+        result = subprocess.run(command, cwd=str(store.project), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                timeout=POLICY_TIMEOUT)
+    except subprocess.TimeoutExpired as error:
+        raise ValueError(f"确认策略检查超时（{POLICY_TIMEOUT} 秒）") from error
+    if len(result.stdout) > POLICY_OUTPUT_BYTES:
+        raise ValueError("确认策略结构化输出超过 16 MiB 预算")
     try:
         value = json.loads(result.stdout)
     except ValueError:
@@ -149,19 +160,34 @@ def prepare(store, client, input_path, seconds=None):
     frozen = inspect_confirmation(store, input_path, seconds)
     if not frozen["enabled"]:
         return {"prepared": False, "mode": "manual", "reason": frozen.get("reason")}
-    snapshot = client.snapshot()
+    observe_prepare = getattr(client, "prepare_snapshot", client.snapshot)
+    snapshot = observe_prepare()
     if (snapshot.get("turn") or {}).get("status") != "inProgress":
         raise ValueError("正式确认必须由当前活动回合准备")
     lifetime = ({"windowBinding": client.capture_window(snapshot["turn"]["id"])} if store.platform == "codex"
                 else {"runId": confirmation_id(snapshot.get("runId"))})
-    current = client.snapshot()
-    if current["humanId"] != snapshot["humanId"] or any(identifier != snapshot["humanId"] for identifier in current.get("humanEvents", [])):
+    current = observe_prepare()
+    human_events = snapshot.get("humanEvents", []) + current.get("humanEvents", [])
+    if current["humanId"] != snapshot["humanId"] or any(identifier != snapshot["humanId"] for identifier in human_events):
         raise ValueError("准备期间出现新人工输入")
-    contract = {"version": 2, "platform": store.platform, "input": input_path, "secondsOverride": seconds,
-                "frozen": frozen, **lifetime}
+    log_start = "codexLogStart" if store.platform == "codex" else "claudeLogStart"
+    if snapshot.get(log_start):
+        if (current.get(log_start) != snapshot[log_start]
+                or current["humanId"] != current["prepareBaseline"]):
+            raise ValueError("准备期间确认回合或人工输入已变化")
+        lifetime[log_start] = current[log_start]
+    if snapshot.get("logObservation"):
+        SessionLog.verify(snapshot["logObservation"], current.get("logObservation"))
+        lifetime["logObservation"] = current["logObservation"]
+    # 状态只保存整个计划的摘要；领取时用同一材料重算并返回原有完整上下文。
+    contract = {"version": CONTRACT_VERSION, "platform": store.platform, "input": input_path, "secondsOverride": seconds,
+                "frozenDigest": _frozen_digest(frozen), **lifetime}
     previous = []
     def apply(old):
-        if (old or {}).get("generation", 0) != generation:
+        native = (old or {}).get("native") or {}
+        if ((old or {}).get("generation", 0) != generation
+                or lifetime.get("claudeLogStart") and native.get("turn") != current.get("turn")
+                or lifetime.get("codexLogStart") and native.get("turnId") != current["turn"]["id"]):
             raise ValueError("准备期间确认代次已变化")
         if old and old.get("request"):
             previous.append(old["request"])
@@ -186,22 +212,23 @@ def prepare(store, client, input_path, seconds=None):
 
 def _validate(store, client, request, stage, snapshot=None):
     contract = request.get("contract") or {}
-    if contract.get("version") != 2 or contract.get("platform") != store.platform:
+    if contract.get("version") != CONTRACT_VERSION or contract.get("platform") != store.platform:
         raise ValueError("演练请求或未知契约不能获得正式动作许可")
     if store.platform == "codex":
         client.verify_window(contract.get("windowBinding") or {})
     if contract.get("runId"):
         native = (store.read() or {}).get("native") or {}
-        if native.get("runId") != contract["runId"] or native.get("ended") or client.snapshot().get("runId") != contract["runId"]:
+        if native.get("runId") != contract["runId"] or native.get("ended") or (snapshot or {}).get("runId") != contract["runId"]:
             raise ValueError("确认请求属于已经结束的旧运行")
+    if contract.get("logObservation"):
+        SessionLog.verify(contract["logObservation"], (snapshot or {}).get("logObservation"))
     current = inspect_confirmation(store, contract["input"], contract.get("secondsOverride"))
-    frozen = contract["frozen"]
-    if (not current["enabled"] or current != frozen or current["seconds"] != request["seconds"]
+    if (not current["enabled"] or _frozen_digest(current) != contract.get("frozenDigest") or current["seconds"] != request["seconds"]
             or current["action"] != request["message"]):
         raise ValueError("确认材料、策略或当前任务已变化")
-    if stage == "display" and _normalize_display(render_confirmation(frozen)) not in _normalize_display(client.assistant_text(request["originTurnId"])):
+    if stage == "display" and _normalize_display(render_confirmation(current)) not in _normalize_display(client.assistant_text(request["originTurnId"])):
         raise ValueError("原回合未完整展示冻结材料、时长及默认动作")
-    if stage == "claim":
+    if stage == "claim" or (stage == "start" and (contract.get("claudeLogStart") or contract.get("codexLogStart"))):
         if store.platform == "codex":
             wake = snapshot.get("wake") or {}
             if wake.get("requestId") != request["id"] or wake.get("turnId") != (snapshot.get("turn") or {}).get("id"):
@@ -211,6 +238,7 @@ def _validate(store, client, request, stage, snapshot=None):
             if (notice.get("requestId") != request["id"] or notice.get("taskId") != request["queueId"]
                     or notice.get("promptId") != (snapshot.get("turn") or {}).get("id")):
                 raise ValueError("Claude 领取未关联到本次原生任务通知")
+    return current
 
 
 def wait(store, client, request_id, interrupted=lambda: False, notify=lambda value: None):
@@ -224,7 +252,7 @@ def wait(store, client, request_id, interrupted=lambda: False, notify=lambda val
     @return: 请求实际终态。
     """
     request = (store.read() or {}).get("request") or {}
-    if request.get("id") != request_id or (request.get("contract") or {}).get("version") != 2:
+    if request.get("id") != request_id or (request.get("contract") or {}).get("version") != CONTRACT_VERSION:
         raise ValueError("正式请求不存在，保持人工确认")
     token = str(uuid4())
     def own(current, state):
@@ -259,7 +287,7 @@ def wait(store, client, request_id, interrupted=lambda: False, notify=lambda val
             if time.monotonic() - began > 2 * 86400:
                 raise ValueError("worker_lifetime_exceeded")
             if request["state"] == "prepared":
-                if time.monotonic() - began > CLAIM_BUDGET:
+                if time.monotonic() - began > DISPLAY_BUDGET:
                     raise ValueError("display_completion_unverified")
                 turn = snapshot.get("turn") or {}
                 if turn.get("id") == request["originTurnId"] and turn.get("status") == "inProgress":
@@ -267,7 +295,7 @@ def wait(store, client, request_id, interrupted=lambda: False, notify=lambda val
                     continue
                 if turn.get("id") == request["originTurnId"] and turn.get("status") != "completed":
                     raise ValueError("origin_turn_interrupted")
-                _validate(store, client, request, "display")
+                _validate(store, client, request, "display", snapshot)
                 def start_timer(current, state):
                     if current["state"] == "prepared":
                         current.update(state="waiting", deadline=now_ms() + current["seconds"] * 1000)
@@ -276,7 +304,7 @@ def wait(store, client, request_id, interrupted=lambda: False, notify=lambda val
                 if updated and updated["request"]["state"] == "waiting":
                     notify({"event": "waiting", "requestId": request_id, "deadline": updated["request"]["deadline"]})
             elif request["state"] == "waiting" and timer_deadline is not None and time.monotonic() >= timer_deadline:
-                _validate(store, client, request, "dispatch")
+                _validate(store, client, request, "dispatch", snapshot)
                 _observe(store, request_id, client.snapshot())
                 dispatch = []
                 def begin_dispatch(current, state):
@@ -351,8 +379,12 @@ def claim(store, client, request_id):
         while ((store.read() or {}).get("request") or {}).get("state") == "dispatching" and time.monotonic() < deadline:
             time.sleep(0.02)
         request = (store.read() or {}).get("request") or {}
-        _validate(store, client, request, "claim", snapshot)
-        _observe(store, request_id, client.snapshot())
+        frozen = _validate(store, client, request, "claim", snapshot)
+        latest = client.snapshot()
+        _observe(store, request_id, latest)
+        claude_turn = (snapshot.get("turn") or {}).get("id") if request["contract"].get("claudeLogStart") else None
+        if claude_turn and (latest.get("turn") or {}).get("id") != claude_turn:
+            raise ValueError("Claude 领取期间回合已变化")
         result = denied("not_ready")
         def consume(current, state):
             nonlocal result
@@ -360,13 +392,13 @@ def claim(store, client, request_id):
                 result = denied(current["state"])
                 return
             if (state["generation"] != current["generation"] or state["lastHumanMessageId"] != current["baselineMessageId"]
+                    or claude_turn and ((state.get("native") or {}).get("turn") or {}).get("id") != claude_turn
                     or now_ms() > current["claimDeadline"] or message_hash(current["message"]) != current["messageSha256"]):
                 current.update(state="failed", error="claim_validation_failed")
                 result = denied("claim_validation_failed")
                 return
-            frozen = current["contract"]["frozen"]
             receipt = {"id": str(uuid4()), "at": now_ms(), "source": "policy_timeout", "materialHash": frozen["materialHash"]}
-            current.update(state="consumed", receipt=receipt)
+            current.update(state="consumed", receipt=receipt, wakeTurnId=claude_turn)
             result = {"claimed": True, "requestId": request_id, "source": "policy_timeout", "action": frozen["action"],
                       "receipt": receipt, "context": {**frozen["plan"], "body": frozen["body"], "facts": frozen["facts"],
                                                       "materialHash": frozen["materialHash"], "policyHash": frozen["policyHash"]}}
@@ -396,7 +428,9 @@ def record_result(store, client, request_id, receipt, outcome):
     if current.get("id") != request_id or current.get("state") != "consumed" or (current.get("receipt") or {}).get("id") != receipt:
         raise ValueError("执行记账缺少本次已消费回执")
     if outcome == "started":
-        _validate(store, client, current, "start")
+        snapshot = client.snapshot()
+        _observe(store, request_id, snapshot)
+        _validate(store, client, current, "start", snapshot)
         snapshot = client.snapshot()
         _observe(store, request_id, snapshot)
         if snapshot["humanId"] != current["baselineMessageId"]:
@@ -409,6 +443,7 @@ def record_result(store, client, request_id, receipt, outcome):
             native = state.get("native") or {}
             run_id = request["contract"].get("runId")
             if (state["generation"] != request["generation"] or state["lastHumanMessageId"] != request["baselineMessageId"]
+                    or request.get("wakeTurnId") and (native.get("turn") or {}).get("id") != request["wakeTurnId"]
                     or (run_id and (native.get("runId") != run_id or native.get("ended"))) or request.get("execution")):
                 return
         elif (request.get("execution") or {}).get("state") != "started":
@@ -430,7 +465,7 @@ def status(store):
     if not request:
         return {"sessionId": store.session_id, "state": "absent"}
     result = {"sessionId": store.session_id, "requestId": request["id"], "state": request["state"],
-              "seconds": request["seconds"], "action": ((request.get("contract") or {}).get("frozen") or {}).get("action")}
+              "seconds": request["seconds"], "action": request.get("message") if request.get("message") in ACTION_NAMES else None}
     for key in ("deadline", "receipt", "execution", "error", "revocation"):
         result[key] = request.get(key)
     return result
