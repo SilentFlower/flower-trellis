@@ -94,7 +94,7 @@ test("关闭项目先作废两平台现有请求，dry-run 不改变代次", t =
     const session = randomUUID();
     const file = path.join(target, ".trellis/.runtime", `confirmation-${platform}`, `${session}.json`);
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify({ version: 2, sessionId: session, generation: 1,
+    fs.writeFileSync(file, JSON.stringify({ version: 2, sessionId: session, generation: 1, turnOrigin: { turnId: randomUUID() },
       request: { id: randomUUID(), generation: 1, state: "prepared" } }));
     return file;
   });
@@ -106,6 +106,7 @@ test("关闭项目先作废两平台现有请求，dry-run 不改变代次", t =
     assert.equal(state.request.state, "cancelled");
     assert.equal(state.request.error, "project_disabled");
     assert.notEqual(state.generation, state.request.generation);
+    assert.equal(Object.hasOwn(state, "turnOrigin"), false);
   }
 });
 
@@ -124,13 +125,14 @@ test("实际运行时升级取消旧请求，预览和重复更新保持原代�
   const session = randomUUID();
   const requestFile = path.join(target, ".trellis/.runtime/confirmation-codex", `${session}.json`);
   fs.mkdirSync(path.dirname(requestFile), { recursive: true });
-  fs.writeFileSync(requestFile, JSON.stringify({ version: 2, sessionId: session, generation: 1,
+  fs.writeFileSync(requestFile, JSON.stringify({ version: 2, sessionId: session, generation: 1, turnOrigin: { turnId: randomUUID() },
     request: { id: randomUUID(), generation: 1, state: "prepared" } }));
   applyEnhancements(target, { variant: "0.6", dryRun: true });
   assert.equal(JSON.parse(fs.readFileSync(requestFile)).request.state, "prepared");
   applyEnhancements(target, { variant: "0.6" });
   const cancelled = fs.readFileSync(requestFile, "utf8");
   assert.equal(JSON.parse(cancelled).request.error, "project_updated");
+  assert.equal(Object.hasOwn(JSON.parse(cancelled), "turnOrigin"), false);
   applyEnhancements(target, { variant: "0.6" });
   assert.equal(fs.readFileSync(requestFile, "utf8"), cancelled);
 });

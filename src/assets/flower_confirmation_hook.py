@@ -33,7 +33,7 @@ def main():
         except (ValueError, OSError) as error:
             sys.stdout.write(json.dumps({"entry": None, "reason": str(error)}, ensure_ascii=True) + "\n")
             return 1
-    if sys.platform != "linux":
+    if sys.platform not in ("linux", "win32"):
         return 0
     try:
         raw = sys.stdin.buffer.read(1024 * 1024 + 1)

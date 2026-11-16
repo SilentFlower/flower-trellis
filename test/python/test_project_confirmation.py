@@ -52,6 +52,27 @@ class ProjectConfirmationTest(unittest.TestCase):
                 self.assertTrue(runtime.record_result(f.store, None, result["id"], receipt, "completed")["recorded"])
                 self.assertEqual(f.client.added, [result["id"]])
 
+    def test_large_input_keeps_state_compact_and_returns_full_claim_context(self):
+        """较大的结构化输入可以准备并领取；状态文件只保留证明摘要。"""
+        f = ProjectFixture(self)
+        findings = [{"id": f"CHK-{index:05}", "status": "resolved"} for index in range(12000)]
+        findings[0]["status"] = "pending"
+        body = "完整正文。" + ("a" * (64 * 1024))
+        write_json(f.root / f.input, {"kind": "check", "task": f.task, "body": body,
+                                      "reportVersion": "1", "dispositionVersion": "1", "findings": findings})
+        self.assertGreater((f.root / f.input).stat().st_size, 512 * 1024)
+        prepared = runtime.prepare(f.store, f.client, f.input, "1")
+        self.assertTrue(prepared["prepared"])
+        self.assertLess(f.store.file.stat().st_size, 4096)
+        f.client.text = prepared["display"]
+        f.client.turn["status"] = "completed"
+        queued = runtime.wait(f.store, f.client, prepared["requestId"])
+        self.assertEqual(queued["state"], "queued")
+        result = runtime.claim(f.store, f.client, queued["id"])
+        self.assertTrue(result["claimed"])
+        self.assertEqual(result["context"]["body"], body)
+        self.assertEqual(result["context"]["findings"], findings)
+
     def test_brief_before_task_start_completes_on_both_platforms(self):
         """空绑定的 Brief 可完整领取并 started，随后绑定目标仍可记录终态。
 
@@ -78,7 +99,6 @@ class ProjectConfirmationTest(unittest.TestCase):
                     self.assertTrue(runtime.record_result(f.store, f.client, prepared["requestId"], receipt, "started")["recorded"])
                     write_json(session_file, {"current_task": f.task})
                     self.assertTrue(runtime.record_result(f.store, None, prepared["requestId"], receipt, "completed")["recorded"])
-
 
     def test_binding_during_brief_wait_invalidates_each_execution_gate(self):
         """准备后提前绑定目标任务，在派发、领取和 started 各门禁拒绝旧快照。
@@ -112,6 +132,24 @@ class ProjectConfirmationTest(unittest.TestCase):
                         runtime.record_result(f.store, f.client, request, claimed["receipt"]["id"], "started")
                     self.assertIsNone(f.store.read()["request"].get("execution"))
 
+    def test_slow_display_and_delayed_claim_keep_valid_request(self):
+        """展示和领取耗时不额外作废仍然有效的许可。"""
+        f = ProjectFixture(self)
+        prepared = runtime.prepare(f.store, f.client, f.input, "1")
+        clock = [0]
+        snapshot = f.client.snapshot
+        def observed():
+            clock[0] += 1000
+            if clock[0] >= 2000:
+                f.client.turn["status"] = "completed"
+            return snapshot()
+        f.client.snapshot = observed
+        with patch.object(runtime.time, "monotonic", side_effect=lambda: clock[0]), patch.object(runtime.time, "sleep"):
+            queued = runtime.wait(f.store, f.client, prepared["requestId"])
+        self.assertEqual(queued["state"], "queued")
+        # 旧状态中的固定领取期限不改变当前材料、输入和原窗口的真实有效性。
+        f.store.change(queued["id"], lambda request, state: request.update(claimDeadline=1))
+        self.assertTrue(runtime.claim(f.store, f.client, queued["id"])["claimed"])
 
     def test_display_is_required_and_only_heading_blank_lines_are_normalized(self):
         """原有展示匹配边界在 Python 中等价。"""
@@ -248,6 +286,73 @@ class ProjectConfirmationTest(unittest.TestCase):
         self.assertFalse(runtime.claim(f.store, f.client, prepared["requestId"])["claimed"])
         self.assertEqual(f.store.read()["request"]["id"], newer["requestId"])
 
+    def test_stale_reminder_preserves_current_wait_and_single_execution_on_both_platforms(self):
+        """迟到提醒保持新请求的状态和计时，新请求仍须独立领取并只开始一次。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            for phase in ("prepared", "queued", "consumed"):
+                with self.subTest(platform=platform, phase=phase):
+                    f = ProjectFixture(self, platform)
+                    previous = runtime.prepare(f.store, f.client, f.input, "1")
+                    current = runtime.prepare(f.store, f.client, f.input, "1")
+                    identifier = current["requestId"]
+                    if phase != "prepared":
+                        f.client.turn["status"] = "completed"
+                        self.assertEqual(runtime.wait(f.store, f.client, identifier)["state"], "queued")
+                    if phase == "consumed":
+                        claimed = runtime.claim(f.store, f.client, identifier)
+                    before = f.store.file.read_bytes()
+                    self.assertEqual(runtime.claim(f.store, f.client, previous["requestId"]),
+                                     {"claimed": False, "requestId": previous["requestId"], "reason": "not_current"})
+                    status = runtime.status(f.store)
+                    self.assertEqual(status["requestId"], identifier)
+                    self.assertEqual(status["state"], phase)
+                    self.assertEqual(f.store.file.read_bytes(), before)
+                    if phase == "prepared":
+                        f.client.turn["status"] = "completed"
+                        self.assertEqual(runtime.wait(f.store, f.client, identifier)["state"], "queued")
+                    if phase != "consumed":
+                        claimed = runtime.claim(f.store, f.client, identifier)
+                    self.assertTrue(claimed["claimed"])
+                    receipt = claimed["receipt"]["id"]
+                    self.assertTrue(runtime.record_result(f.store, f.client, identifier, receipt, "started")["recorded"])
+                    self.assertFalse(runtime.record_result(f.store, f.client, identifier, receipt, "started")["recorded"])
+                    self.assertTrue(runtime.record_result(f.store, None, identifier, receipt, "completed")["recorded"])
+                    self.assertEqual(f.client.added, [identifier])
+
+    def test_cancelled_wait_can_restart_with_latest_material_and_fresh_display(self):
+        """重建等待使用最新正文和新倒计时，完整展示后才可取得独立回执。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            with self.subTest(platform=platform):
+                f, previous = self.ready(platform)
+                runtime.cancel(f.store, request_id=previous["requestId"])
+                self.assertEqual(runtime.status(f.store)["state"], "cancelled")
+                f.client.human = str(uuid4())
+                f.client.turn = {"id": str(uuid4()), "status": "inProgress"}
+                (f.root / f.task / "brief.md").write_text("# 最新计划\n\n最新正文。", encoding="utf-8")
+                current = runtime.prepare(f.store, f.client, f.input, "2")
+                self.assertNotEqual(current["requestId"], previous["requestId"])
+                self.assertEqual(current["seconds"], 2)
+                self.assertIn("最新正文。", current["display"])
+                self.assertIsNone(runtime.status(f.store)["deadline"])
+                self.assertEqual(runtime.claim(f.store, f.client, previous["requestId"])["reason"], "not_current")
+                f.client.turn["status"] = "completed"
+                f.client.text = previous["display"]
+                with self.assertRaisesRegex(ValueError, "完整展示"):
+                    runtime._validate(f.store, f.client, f.store.read()["request"], "display", f.client.snapshot())
+                f.client.text = current["display"]
+                self.assertEqual(runtime.wait(f.store, f.client, current["requestId"])["state"], "queued")
+                claimed = runtime.claim(f.store, f.client, current["requestId"])
+                self.assertTrue(claimed["claimed"])
+                self.assertEqual(claimed["context"]["body"], "# 最新计划\n\n最新正文。")
+                self.assertTrue(runtime.record_result(f.store, f.client, current["requestId"],
+                                                     claimed["receipt"]["id"], "started")["recorded"])
+
     def test_claim_requires_native_origin_and_current_window(self):
         """人工粘贴、错回合与原窗口失效均拒绝领取。"""
         for mutation in ("wake", "window", "human"):
@@ -314,14 +419,35 @@ class ProjectConfirmationTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["entry"], [sys.executable, "-X", "utf8", entry])
 
-    def test_full_internal_body_and_client_id_are_both_required(self):
-        """完整正文、精确 client_id 与单消息结构共同确认来源。"""
+    def test_internal_marker_and_client_id_allow_notification_text_changes(self):
+        """原生身份和稳定标记保持精确，通知内容及分块可以变化。"""
         identifier = str(uuid4())
         item = {"type": "userMessage", "clientId": identifier, "content": [{"type": "text", "text": wake_message(identifier)}]}
         self.assertEqual(wake_id(item), identifier)
-        for changed in ({**item, "clientId": str(uuid4())}, {**item, "content": item["content"] * 2},
-                        {**item, "content": [{"type": "text", "text": wake_message(identifier) + "\n额外回复"}]}):
+        for changed in ({**item, "content": item["content"] * 2},
+                        {**item, "content": "新通知外壳\n[flower-confirmation:v2:" + identifier + "]\n新提示词"},
+                        {**item, "content": [{"type": "text", "text": wake_message(identifier)}, {"newType": "metadata"}]}):
+            self.assertEqual(wake_id(changed), identifier)
+        for changed in ({**item, "clientId": str(uuid4())}, {**item, "clientId": None},
+                        {**item, "content": "普通人工消息"},
+                        {**item, "content": wake_message(identifier) + wake_message(str(uuid4()))}):
             self.assertIsNone(wake_id(changed))
+
+    def test_wake_instructions_recover_expired_reminders_without_manual_reconfirmation(self):
+        """两端提醒指向自动恢复协议，保留旧请求领取和执行约束。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            with self.subTest(platform=platform):
+                identifier = str(uuid4())
+                message = wake_message(identifier, platform)
+                self.assertIn("claim --platform " + platform + " --request " + identifier, message)
+                self.assertIn("按协议读取当前 status 并恢复当前流程", message)
+                self.assertIn("需要新等待时自动重新准备、完整展示并计时", message)
+                self.assertIn("不得仅因旧提醒失效要求人工再确认", message)
+                self.assertIn("不得重试领取旧请求或执行旧动作", message)
+                self.assertNotIn("结束本回合", message)
 
     def test_check_policy_and_push_snapshots_preserve_original_plan(self):
         """Check 计数及 Push 的 HEAD、索引、内容与远端快照保持完整。"""
@@ -401,15 +527,18 @@ class ProjectConfirmationTest(unittest.TestCase):
     def test_claude_pasted_notification_and_run_restart_revoke_old_permission(self):
         """迁移原 Claude 客户端的粘贴来源、重复输入和重启边界。"""
         from flower_confirmation_runtime.claude import ClaudeClient, record_event
+
+        def record_linux_event(payload):
+            return record_event(payload, platform="linux")
         f = ProjectFixture(self, "claude")
         transcript = f.root / (f.session + ".jsonl")
         prompt = str(uuid4())
         payload = {"cwd": str(f.root), "session_id": f.session, "transcript_path": str(transcript)}
-        record_event({**payload, "hook_event_name": "SessionStart"})
+        record_linux_event({**payload, "hook_event_name": "SessionStart"})
         event = {**payload, "hook_event_name": "UserPromptSubmit", "prompt_id": prompt, "prompt": "开始"}
-        record_event(event)
+        record_linux_event(event)
         generation = f.store.read()["generation"]
-        record_event(event)
+        record_linux_event(event)
         self.assertEqual(f.store.read()["generation"], generation)
         transcript.write_text(json.dumps({"type": "user", "sessionId": f.session, "promptId": prompt,
                                           "origin": {"kind": "human"}, "turnOrigin": "human", "message": {"content": "开始"}}) + "\n", encoding="utf-8")
@@ -423,30 +552,36 @@ class ProjectConfirmationTest(unittest.TestCase):
         f.store.update(queued)
         pasted = str(uuid4())
         notice = "<task-notification>\n<task-id>owned</task-id>\n</task-notification>"
-        record_event({**payload, "hook_event_name": "UserPromptSubmit", "prompt_id": pasted, "prompt": notice})
+        record_linux_event({**payload, "hook_event_name": "UserPromptSubmit", "prompt_id": pasted, "prompt": notice})
         with transcript.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps({"type": "user", "sessionId": f.session, "promptId": pasted,
                                      "origin": {"kind": "human"}, "turnOrigin": "human", "message": {"content": notice}}) + "\n")
         with self.assertRaisesRegex(ValueError, "原生任务通知"):
-            runtime.claim(f.store, client, request_id)
+            runtime.claim(f.store, ClaudeClient(f.root, f.session, platform="linux"), request_id)
         self.assertEqual(f.store.read()["request"]["state"], "cancelled")
         old_run = f.store.read()["native"]["runId"]
-        record_event({**payload, "hook_event_name": "SessionStart"})
+        record_linux_event({**payload, "hook_event_name": "SessionStart"})
         self.assertNotEqual(f.store.read()["native"]["runId"], old_run)
-        record_event({**payload, "hook_event_name": "SessionEnd"})
+        record_linux_event({**payload, "hook_event_name": "SessionEnd"})
         with self.assertRaisesRegex(ValueError, "退出"):
             client.connect()
 
     def test_claude_claim_waits_for_exact_notification_transcript_flush(self):
         """Hook 先到、完整通知行后到时，单次 claim 等待精确来源证据。"""
         from flower_confirmation_runtime.claude import ClaudeClient
-        f, prepared = self.ready("claude")
-        request_id = prepared["requestId"]
+        f = ProjectFixture(self, "claude")
         transcript = f.root / (f.session + ".jsonl")
         prompt = str(uuid4())
         human = {"type": "user", "sessionId": f.session, "promptId": f.client.human, "origin": {"kind": "human"},
                  "turnOrigin": "human", "message": {"content": "开始"}}
         transcript.write_text(json.dumps(human) + "\n", encoding="utf-8")
+        def active(value):
+            value["native"].update(transcript=str(transcript), tasks={},
+                                   turn={"id": f.client.human, "status": "inProgress"})
+            return value
+        f.store.update(active)
+        client = ClaudeClient(f.root, f.session, platform="linux")
+        request_id = runtime.prepare(f.store, client, f.input, "1")["requestId"]
         def queued(value):
             value["native"].update(transcript=str(transcript), tasks={"queue": request_id}, turn={"id": prompt, "status": "inProgress"},
                                    notification={"promptId": prompt, "taskId": "queue", "requestId": request_id})
@@ -467,6 +602,48 @@ class ProjectConfirmationTest(unittest.TestCase):
             self.assertTrue(runtime.claim(f.store, client, request_id)["claimed"])
         finally:
             writer.join(3)
+
+    def test_claude_prepare_requires_current_origin_and_checks_new_input_after_anchor(self):
+        """在两种来源字段格式下，旧记录跳过，当前未知和随后人工输入阻止准备。"""
+        from flower_confirmation_runtime.claude import ClaudeClient
+        for platform in ("linux", "win32"):
+            with self.subTest(platform=platform):
+                f = ProjectFixture(self, "claude")
+                client = ClaudeClient(f.root, f.session, platform="linux")
+                client.platform = platform
+                transcript = f.root / (f.session + ".jsonl")
+                identity = {"pid": 10, "exe": "claude.exe", "created": "10"}
+                prompt = f.client.human
+
+                def active(value):
+                    value["native"].update(transcript=str(transcript), frontend=identity,
+                                           turn={"id": prompt, "status": "inProgress"})
+                    return value
+
+                f.store.update(active)
+                entry = {"type": "user", "sessionId": f.session, "promptId": prompt,
+                         "origin": {"kind": "beer"}, "message": {"content": "当前记录"}}
+                old = {**entry, "promptId": str(uuid4()), "origin": {"kind": "peer"}, "turnOrigin": "peer"}
+                human = {**entry, "origin": {"kind": "human"}}
+                if platform == "linux":
+                    human["turnOrigin"] = "human"
+
+                def write(entries):
+                    transcript.write_text("".join(json.dumps(item) + "\n" for item in entries), encoding="utf-8")
+
+                with patch("flower_confirmation_runtime.claude.open_identity") as frontend:
+                    frontend.return_value.identity = identity
+                    frontend.return_value.exited.return_value = False
+                    write([old, entry])
+                    with self.assertRaisesRegex(ValueError, "当前回合缺少可核验"):
+                        runtime.prepare(f.store, client, f.input, "1")
+                    write([old, human, {**human, "promptId": str(uuid4())}])
+                    with self.assertRaisesRegex(ValueError, "回合或人工输入已变化"):
+                        runtime.prepare(f.store, client, f.input, "1")
+                    client = ClaudeClient(f.root, f.session, platform="linux")
+                    client.platform = platform
+                    write([old, human])
+                    self.assertTrue(runtime.prepare(f.store, client, f.input, "1")["prepared"])
 
 
 if __name__ == "__main__":

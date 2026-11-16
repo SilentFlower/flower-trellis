@@ -7,7 +7,8 @@
 - 修改项目 Python 确认入口、超时策略、状态机、宿主事件、窗口归属或确认 Hook 生命周期时适用。
 - Brief、Check-All、Push 共用一套策略与单次领取。到期提醒只唤醒，业务仍由各自 owner 执行。
 - Codex 保持普通启动和已有共享服务；Claude 使用原生后台任务通知。不增加启动包装、代理或 MCP。
-- 自动路径限于可核验的 Linux/WSL。Codex 必须具备 `/proc` 与 Python `os.pidfd_open`；能力不足保持人工。
+- 自动路径支持可核验的 Linux/WSL 和原生 Windows。Linux/WSL Codex 使用 `/proc` 与 Python `os.pidfd_open`；
+  Windows 核对本机控制连接、同用户的进程身份与退出句柄。任何必需能力缺失时保持人工。
   通用 CLI/脚本继续遵守 Node 18.17+、Python 3.8+ 基线；基线可加载不等于自动路径可用。
 
 ### 2. Signatures
@@ -31,14 +32,25 @@ python3 .trellis/scripts/flower_confirmation_hook.py --entry
 
 ```text
 flower_confirmation_runtime.store.ConfirmationStore(project, session_id, platform)
+flower_confirmation_runtime.store.validate_turn_origin(origin, platform, session_id) -> origin | None
+flower_confirmation_runtime.store.native_id(value) -> str
+flower_confirmation_runtime.store.text_content(content) -> str
 flower_confirmation_runtime.runtime.prepare(store, client, input_path, seconds=None)
 flower_confirmation_runtime.runtime.wait(store, client, request_id, interrupted=lambda: False, notify=lambda value: None)
 flower_confirmation_runtime.runtime.claim(store, client, request_id)
 flower_confirmation_runtime.runtime.record_result(store, client, request_id, receipt, outcome)
 flower_confirmation_runtime.codex.CodexClient(project, session_id, env=None, platform=None, timeout=5)
 flower_confirmation_runtime.claude.ClaudeClient(project, session_id, platform=None)
+ClaudeClient.prepare_snapshot() / snapshot()
+CodexClient.prepare_snapshot() / snapshot()
+flower_confirmation_runtime.session_log.SessionLog.locate(file, identifier, matches) -> observation
+flower_confirmation_runtime.session_log.SessionLog.resume(observation, initial)
+flower_confirmation_runtime.session_log.SessionLog.read(file, initial, consume) -> (record, observation)
+flower_confirmation_runtime.session_log.SessionLog.verify(frozen, current)
 CodexClient.capture_window(turn_id) / verify_window(binding) / observe_window(binding)
-flower_confirmation_runtime.transport.CodexTransport(path, timeout=5, notification=None)
+flower_confirmation_runtime.transport.CodexTransport(path, timeout=5, notification=None, *, proxy=None, env=None)
+flower_confirmation_runtime.windows_process.ProcessHandle(pid)
+flower_confirmation_runtime.windows_process.open_identity(identity) -> ProcessHandle
 src/lib/confirmation-lifecycle.js:
   cancelProjectConfirmations(project, reason = "project_disabled") -> number
   invalidateChangedConfirmations(project, plan, dryRun) -> void
@@ -58,6 +70,10 @@ src/lib/confirmation-lifecycle.js:
   当前会话可无绑定，已有绑定须匹配目标。损坏或陈旧的会话状态、已关闭或关闭状态无效的目标均拒绝。
   Brief 快照的 `facts.task` 记录目标，`facts.sessionTask` 单独冻结当前绑定（可为 null），绑定变化使旧许可失效。
   Check/Push 的 `task` 仍须匹配当前会话绑定，无任务用 null。材料路径不得越界或经过软链接。
+- 输入 JSON 上限 1 MiB；需要解析的任务元数据、项目配置、Brief 源文档和待展示正文各限 512 KiB。
+  仅用于指纹的普通文件分块哈希，读取前后核对文件身份和状态；其大小不受结构化材料上限约束。
+  Windows 路径与打开句柄之间比较设备、文件身份、模式、大小和修改时间。Windows Python 3.12 的两种查询
+  可能为同一文件返回不同的 `st_ctime_ns`，该字段只用于同一打开句柄读取前后的复核。Linux 保留完整比较。
 - Check 提供完整 `body`、非空 `reportVersion` / `dispositionVersion`、全部 `findings`，每项为
   `{id: CHK-*|FBK-*|DOC-*, status: pending|accepted|resolved}`；同 ID 处置矛盾时拒绝。
 - Push 提供完整 `body`、`mode: push|commit-only`、`evidence` 和 `repositories`。证据须满足
@@ -66,6 +82,9 @@ src/lib/confirmation-lifecycle.js:
   另给 `remote`、`remoteBranch`，就绪 merge 给 `mergeHead`。不从材料扩大原 owner 的权限或范围。
 - 冻结任务材料、策略及 Git 分支、HEAD、索引、dirty、远端、文件内容、集成状态。Git 软链只读取链接值，
   不跟随到项目外。派发、领取、首次执行前都复核；改变输入或时长必须重新 prepare。
+- Git 索引、两类 diff、状态及远端输出分块计算原有摘要，整仓输出不设固定字节上限。
+  单条 Git 命令限 10 秒，Push 快照合计限 30 秒，外层策略进程限 40 秒。策略结构化输出最多 16 MiB。
+  Git 超时或失败指出仓库与命令；预算理由参见容量任务的基线记录。
 - `.trellis/config.yaml` 的 `confirmation_timeout` 默认开启，支持总 `enabled` 和三种类型的 `enabled`。
   Brief 默认 1000 个规范化 Unicode 字符内 100 秒，每超 500 字符加 30 秒，按档向上取整；
   Check 一项 100 秒，每多一个唯一 pending CHK/FBK 加 30 秒，零项不等待；Push 默认 200 秒。
@@ -78,19 +97,30 @@ src/lib/confirmation-lifecycle.js:
 #### State And Single Execution
 
 - 正式状态为 version 2，位于 `.trellis/.runtime/confirmation-<platform>/<sessionId>.json`。
-  原子替换与同步目录锁保护 generation；状态目录、文件不允许软链，正式文件最多 1 MiB。
+  原子替换与同步目录锁保护 generation；状态目录、文件不允许软链，正式文件最多 2 MiB。
   锁目录沿用 `<sessionId>.json.lock/owner.json` 的 `pid/token`，陈旧 owner 必须复核存活性后回收。
 - Windows 创建锁目录短暂返回 `EPERM/EACCES` 时仅在原 1 秒预算内重试；持续拒绝保留原权限错误。
   只有成功取得锁后才能写 owner 和执行状态回调，不因权限错误偷锁或重放业务回调。
 - Windows 竞争读取可能短暂占用 `owner.json` 或状态文件。原子 `replace` 和锁目录释放各使用
   1 秒单调时钟预算重试 `EPERM/EACCES`，仅重试文件操作。状态转换回调仍只执行一次。
   持续拒绝保留原权限错误；锁释放失败时，已经写入的状态事实继续保留。
-- 正式 `request.contract.version=2`，包含平台、输入路径、时长覆盖、冻结快照，以及 Codex
-  `windowBinding` 或 Claude `runId`。旧协议不能升级为正式许可。
+- 正式 `request.contract.version=3`，包含平台、输入路径、时长覆盖、`frozenDigest`、原生记录观察点，以及
+  Codex `windowBinding` 或 Claude `runId`。两端分别持久化 `codexLogStart` / `claudeLogStart`，
+  包含已核验输入的文件身份和读取边界；旧请求缺少对应字段时保持人工。材料落盘只保存冻结快照摘要；
+  领取返回复核得到的完整原有上下文。
+  旧协议不能升级为正式许可；已经开始的动作继续支持终态记账。
 - 主路径：`prepared -> waiting -> dispatching -> queued -> consumed`；终止态包括
   `cancelled`、`failed`、`delivery_unknown`。每次 prepare 替换旧请求，每个请求只允许一个 worker。
+- 顶层可选 `turnOrigin.version=1` 独立保存当前回合来源：`platform/sessionId/turnId/inputId`、
+  `baselineMessageId`、`kind=human|internal`、`wakeRequestId`、`logStart/logObservation`。
+  Codex 另存 `windowBinding`，Claude 另存 `runId/frontend` 和内部通知的 `taskId`。
+  prepare 在原目录锁内复核代次和原生回合后，同时写入来源与新请求。显式取消和同回合替换保留来源；
+  新人工输入、Interrupt、Claude 运行重启/退出和项目生命周期清理来源。来源仅供追溯，不充当请求许可。
+  复用前继续核验原回合、日志文件身份/边界及原窗口；准备期间换窗口仍拒绝沿用旧来源。
+  旧状态缺少该字段时，由真实人工输入或精确匹配的已消费原通知建立来源，再独立持久化。
 - 必须在活动回合 prepare，并最终完整展示返回的 `display`。worker 核对原回合完成和完整正文后才计时；
-  实际倒计时使用单调时钟，持久 `deadline` 只用于展示。展示核验与排队后的领取各有五分钟预算。
+  实际倒计时使用单调时钟，持久 `deadline` 只用于展示。展示核验与排队后的领取不额外设置固定期限；
+  旧状态的 `claimDeadline` 不参与授权。仍核对输入、材料、原窗口与运行状态，worker 整体保留两天资源期限。
 - 展示匹配仅兼容围栏外 ATX 标题后的空行差异及 CRLF；正文、时长、动作、其它段落和围栏内容仍严格匹配，
   不改变冻结材料指纹，不把改写后的正文当作原材料。
 - `claim` 只有返回 `claimed=true`、`source=policy_timeout` 和固定 `action` 才允许续接。
@@ -99,6 +129,11 @@ src/lib/confirmation-lifecycle.js:
   随后记录 `completed`、`interrupted` 或 `needs-verification`。存在 started 未终结时不能被新请求覆盖。
 - 新人工输入先使旧代次失效；领取与 started 写锁内再次复核。回执丢失视为投递结果未知，不重发。
   取消后尽力撤回自己的队列项；迟到通知仍须领取，不能重放旧动作。
+- 旧提醒领取失败后按 `confirmation.md` 自动恢复当前流程，不以 `not_current` 要求人工再确认。
+  同会话 `status` 只读一次；有当前活动请求时保留原等待、倒计时和 worker，旧通知不得改领新 ID。
+  `consumed` 由 owner 核对回执和实际进度，禁止重执行业务；`delivery_unknown` 先核实实际投递及执行结果。
+  `absent/cancelled/failed` 且当前工作仍需确认时，依据最新材料重新 prepare/wait/display，独立计时、领取和 started。
+  一次提醒最多自动重建一次；用户暂停/取消、未决选择及原有人工边界继续优先处理。
 - `wait` 的常规轮询复用本轮已读状态。原生快照只包含已记录的人工消息或冻结基线时，不取写锁、不写状态；
   发现候选新消息时，在写锁内按最新请求和消息基线重新判断，再更新代次并作废旧许可。
 - `wait` 收到 SIGINT/SIGTERM 先失效请求再退出 130。关闭项目先取消现有许可；卸载后的清理不能重建目录。
@@ -111,22 +146,44 @@ src/lib/confirmation-lifecycle.js:
   `CODEX_THREAD_ID`、Claude 的 `CLAUDE_CODE_SESSION_ID` 用于精确会话识别；显式会话不得与当前环境冲突。
 - Codex 传输为标准库本机 Unix socket WebSocket/JSON-RPC：核验握手、掩码、分片及控制帧，
   单帧和聚合消息最多 16 MiB；连接及 RPC 默认超时 5 秒。写入回执未知时沿用单次投递边界。
+  Windows 从当前原生输入 Hook 的活跃同用户进程取得 Codex 映像，使用该映像的本地 `app-server proxy --sock`
+  连接同一已有控制服务。控制端点须位于本地目录；代理只收发字节并在关闭时回收自有进程。
 - `mcpServerStatus/list` 使用准确 `threadId` / `serverName=codex_tui`，只接受 connected 的唯一 loopback
   HTTP origin。通过真实监听 socket 找前台进程，冻结 `version=1`、`origin`、`pid`、`startTicks`、
   `exe`、`uid`、`bootId`、`socketInodes`；pidfd 不序列化。窗口失效后不绑定新窗口来恢复旧请求。
 - 用 `thread/loaded/list` 的会话来源与本机监听者核对覆盖；存在未对应会话的额外 Codex 前台时人工确认。
   同 thread 第二窗口不会接管原 MCP 服务，因此不能借第一窗口存活来证明第二窗口仍在。
+  Windows 用精确 TCP 监听地址核对 PID，以同用户身份、映像和进程创建时间冻结原前台；原生进程句柄监测退出。
+  同一发行的托管服务和前台可使用不同文件副本，须校验相同映像内容。
+  已核验的前台映像出现额外进程时拒绝继续，覆盖第二窗口尚未建立监听的间隙。
 - 观察连接不得调用 `thread/resume` 建立额外订阅。被动 `thread/read(includeTurns=false)` 提供准确 rollout
-  路径；核对 session_meta、路径归属及完整 JSONL 行，按文件身份缓存并增量读取。上限为文件 128 MiB、
-  单条记录 2 MiB；不根据 cwd、进程名或最新文件猜会话。
+  路径；核对 session_meta、路径归属及完整 JSONL 行；日志文件名不要求固定前后缀。
+  回合、消息和 task ID 作为非空不透明字符串，继承状态/日志整体预算；Flower 自有会话、请求、回执和 runId 保持 UUID。
 - Codex 的 UserPromptSubmit / Interrupt Hook 作废人工输入代次；prepare 要求当前回合确实收到输入 Hook。
-  唤醒使用原生 `thread/queue/add` / `thread/queue/delete`；消息正文与原生 UserMessage.client_id 都须匹配
-  当前请求，人工粘贴相同文字不能冒充内部消息。
+  按 Hook 的精确 turnId 在最近 32 MiB 的完整行定位当前回合开始，单独校验首条 `session_meta`。
+  同一回合准备前的插话纳入基线，以最新可核验的原生 `UserMessage` 后的边界续读。旧回合正文、坏记录
+  和未知事件不参与准备。起点后的人工输入、回滚和失效回合仍可作废本次等待。原始最终展示只从该边界后核对。
+  唤醒使用原生 `thread/queue/add` / `thread/queue/delete`；稳定 Flower 请求标记与原生 UserMessage.client_id 须对应
+  当前请求。通知外壳、附加文字和内容分块不要求完整相等；人工粘贴仍须按其真实来源处理。
+  已核验日志中的其它线程及未知附加事件不参与当前证据。最终回复提取字符串或内容块文本，忽略附加块。
+  开始动作前复核当前回合的唤醒，实际冻结正文仍须完整展示。
 - Claude 使用 SessionStart / UserPromptSubmit / Stop / SessionEnd Hook。Stop 绑定精确后台 task ID 和完整
   最终正文；按 argv token 核对项目 Python `wait` 入口、会话与请求。完成后结束后台命令，由原生通知唤醒。
+  Windows 从 Hook 祖先链核对同用户的 `claude.exe` 原前台。第二个存活前台使旧请求失效；句柄跟踪原进程退出。
+  Windows 支持精确的 `py.exe -3.x` 和带引号的本地路径；命令范围、会话及请求照常核对。
   领取时核对 transcript 的 human / task-notification 来源及当前 runId，不能仅凭通知文字批准。
-  transcript 限 16 MiB，仅消费完整 JSONL 行。Hook 先于该精确通知落盘时，claim 最多等待 1 秒补齐来源；
-  期间持续核验人工输入与当前代次，到期仍缺来源则使旧许可失效。
+  准备只在最近 32 MiB 的完整行中按精确 promptId 定位当前回合；更早记录的来源和正文不参与判断。
+  当前回合缺少可核验来源时保持人工。等待、领取和开始动作使用同一个冻结起点，读取随后完成的记录，
+  不能直接从文件末尾起步而跳过准备期间的新输入。领取后同一个 Claude 唤醒回合才能开始动作。
+  Hook 先于该精确通知落盘时，claim 最多等待 1 秒补齐来源；期间持续核验人工输入与当前代次，
+  到期仍缺来源则使旧许可失效。
+  两个宿主统一以结构化 `origin.kind` 为主来源，缺失时回退旧 `turnOrigin`；重复辅助字段不覆盖主来源。
+  只提取明确的 human 和 task-notification/task_notification，未知附加记录与只写日志的通知不提供证据，
+  不因其新增字段、缺失字段、内容形状或元消息标记而作废整个流程。来源缺失在当前输入定位或本次领取时判断。
+  通知从字符串/内容块中提取唯一 task ID，再与本项目拥有的任务对应；不依赖固定 XML 外壳或完整文案。
+  原生日志路径来自 Hook，逐记录核对 sessionId；不限制文件名布局。Hook 通知仅比较必要身份字段。
+- 两端按文件身份和已消费位置增量读取完整 JSONL 行，单条解析上限 16 MiB，文件总大小不限。
+  原生最终展示核验上限 768 KiB。请求冻结记录文件身份和读取边界；替换、截断及边界漂移作废旧观察。
 - 两端原生等待分别用 Codex 短 yield 的后台 terminal session、Claude Bash `run_in_background:true`。
   主回合展示后结束，不轮询、不用 clock.sleep 或等待子代理占住聊天。
 
@@ -151,13 +208,29 @@ src/lib/confirmation-lifecycle.js:
 | 无效平台、时长、材料、会话或项目配置 | 人工确认，不准备有效默认动作 |
 | Brief 目标有效，当前会话绑定为空或会话任务文件缺失 | 以显式目标准备确认，冻结空绑定 |
 | Brief 已有其它绑定、会话损坏/陈旧、目标路径非法或目标已关闭 | 拒绝准备 |
+| Windows 路径与句柄仅 `st_ctime_ns` 不同 | 正常读取；文件身份、内容状态或同一打开句柄的 `st_ctime_ns` 变化仍拒绝 |
+| 单条 Git 命令或整轮快照超时 | 停止本次核验，返回命令或快照阶段；未完成的 Git 进程回收 |
+| 会话文件超过历史总量，记录身份与完整行可核验 | 照常读取；只对新增完整行更新观察证据 |
+| 会话文件替换、截断或已消费边界变化 | 拒绝使用冻结的旧证据 |
 | `.flower/trellis-control.json` 存在，包括 null、损坏或漂移状态 | 保持人工确认 |
-| 原生结构损坏或来源校验异常 | 使当前活动许可失效，返回结构化失败 |
+| 本次必需来源或记录完整性异常 | 使当前活动许可失效，返回结构化失败 |
 | 未完整展示、原回合中断 | 不启动倒计时 |
 | 常规轮询无新人工消息，写锁被占用 | 继续只读观察 |
 | 新输入、改材料、改策略、改任务或 Git 快照 | 旧许可失效 |
 | 前台退出、PID 复用、服务重绑或归属歧义 | 不派发或拒绝领取，不借用其他窗口 |
+| Windows 额外的同映像 Codex 前台尚未监听，或 Claude 同会话出现第二个存活前台 | 旧等待失败或取消，保持人工 |
+| Claude 只有主来源、旧来源或重复辅助字段变化 | 统一提取主来源，缺失时回退旧字段 |
+| Claude 当前回合无法定位，或旧请求缺少冻结起点 | 保持人工 |
+| 同一通知回合连续 prepare 或 cancel 后重新 prepare | 复核独立来源后准备新请求，完整展示后重新计时 |
+| Claude 同 promptId 的未知附加记录，或 Codex 无关线程/内容块 | 跳过，不产生当前人工或通知证据 |
+| 通知文案/分块、原生 ID 格式、JSON 转义或日志文件名变化 | 按原生身份及解析后的记录匹配 |
+| 展示或领取超过旧 300 秒限制 | 继续核对当前有效性，保持用户原倒计时 |
+| Codex 首条会话身份无效、当前输入无法定位，或起点后的日志回滚 | 保持人工 |
+| Claude 旧历史含未知来源，或起点后出现其它明确来源 | 跳过，继续观察本次请求 |
 | 重复 worker、提醒、claim、started | 至多单次领取和单次业务开始 |
+| 旧提醒返回 not_current，当前已有活动请求 | 只读 status，保留当前等待；旧通知不领取当前请求 |
+| 旧等待失效，当前仍有明确待续计划且满足自动确认条件 | 自动重建最新材料、完整展示并重新计时 |
+| 旧提醒到达时动作已 consumed 或投递结果未知 | owner 核对实际进度；禁止重复执行旧动作 |
 | Windows 原子替换或锁释放短暂共享占用 | 有限重试文件操作，业务回调保持单次 |
 | Windows 共享占用持续超过预算 | 保留原权限错误与已写入的状态事实 |
 | 原生入队回执超时 | delivery_unknown，不重投 |
@@ -172,29 +245,58 @@ src/lib/confirmation-lifecycle.js:
 - Base：Check 没有未处置项时不等待；总开关关闭或 Python 缺少 pidfd 时保持人工；查询空状态不创建目录。
 - Incorrect use：恢复会话后重新找一个活窗口继续旧请求，或把相同提醒正文当成领取凭证。
   Correct handling：冻结原窗口身份，核对原生消息来源和当前代次；失效则停止旧动作，必要时重新准备。
+- Incorrect use：旧提醒返回 `not_current` 后结束当前工作流或要求用户重新确认。
+  Correct handling：读取当前同会话状态；保留新等待，或由原 owner 使用最新材料自动完整展示并重新计时。
+- Normal：普通 Windows 窗口使用既有本机服务完成展示、倒计时与一次领取。启动第二窗口时，
+  原窗口的有效监听不能作为第二窗口的归属证据。
+- Normal：索引输出超过 4 MiB 或计划内普通文件超过 512 KiB 时按流式指纹核验；内容变化使旧许可失效。
 - Incorrect use：测试依赖开发机真实 `~/.codex`。Correct handling：构造客户端时显式注入夹具创建的独立
   `env.CODEX_HOME`，测试结束清理自己的目录；不存在的宿主目录必须始终保持不存在。
 - Normal：先用 `flower_confirmation_hook.py --entry` 获取精确 argv，再在该 argv 后追加 `prepare` 和
   材料参数。后续 `wait/claim/result` 继续使用同一入口，项目确认阶段可在隔离 Node/npm/Flower 的 PATH 运行。
 - Incorrect use：Hook 已收到通知便把缺少 transcript 完整行视为有效来源。Correct handling：仅对当前精确
   通知等待有限落盘时间，获得真实来源后再原子领取；人工粘贴提醒仍使旧代次失效。
+- Incorrect use：从头核验历史来源，或从当前文件末尾直接跳过已追加的记录。
+  Correct handling：用 Hook 的当前回合定位起点，随后观察新输入和精确唤醒。
+- Normal：通知 A 领取后创建确认 B，取消并修改材料后创建确认 C；独立来源仍指向 A 的原生输入，
+  C 必须完整展示并独立计时。A 和 B 的提醒不能领取或启动 C。
+- Incorrect use：将未知上下文当成来源损坏，或将来源记录当作当前请求已获许可。
+  Correct handling：只提取必要的正向证据，按当前请求的精确通知与回执核验执行。
 
 ### 6. Tests Required
 
 - `test_confirmation_store.py` / `test_project_confirmation.py`：完整展示起点、单调计时、重复领取、输入与派发/started 竞争、
   材料和 Git 快照漂移、结果未知、信号及卸载不复活状态目录。
+  两端迟到提醒保持新请求的 prepared/queued/consumed 状态字节不变；新请求仍须独立领取且 started 仅成功一次。
+  取消后重建须使用最新正文和新时长；旧展示拒绝用于新等待，旧请求保持 not_current。
+  两端提醒正文指向自动恢复协议，去除强制结束回合的指令。
   Windows 短暂拒绝创建锁后仅更新一次，持续拒绝时不执行回调；真实多进程竞争保留全部代次更新。
   原子替换与锁释放的短暂/持续共享占用分别断言回调次数、原错误、持久代次和锁生命周期。
   卸载竞争通过 queued 事件屏障固定目录删除与下一次观察的位置，保留真实线程退出及目录缺失断言。
   空轮询跨过活锁；锁释放后观察到的新人工消息仍取消旧请求。
-- `test_confirmation_native.py` / `test_flower_tui_lifetime.py`：本机 WebSocket、帧边界、只读观察、真实内部来源、
-  出生身份、归属歧义、恢复拒绝、能力不足；不存在宿主 Codex home 和隔离 PATH 下完成两端真实 Python CLI 链路。
-- `test_project_confirmation.py`：Claude 精确后台任务、原生通知与人工粘贴区分、输入取消、退出、runId 替换
-  及 Hook 先于 transcript 完整行的有限等待；原生结构损坏也必须失效活动许可。
-- `test_confirmation_policy.py` / `test_project_confirmation.py`：
+- `test_confirmation_policy.py` 验证大 diff、大普通文件、旧摘要兼容、计划外状态漂移及 Git 超时回收。
   两端覆盖空绑定及缺失会话文件的显式 Brief 目标、非法路径/关闭目标/损坏会话拒绝、Check/Push 原绑定校验。
   `test_project_confirmation.py` 覆盖两端空绑定的 prepare/wait/claim/started、绑定后的终态记账，以及
   等待期间绑定变化在派发、领取和 started 三处使旧快照失效。
+  Windows 路径和句柄时间戳不同的回归覆盖结构化材料及流式指纹，分别断言接受时间戳差异、拒绝替换和拒绝读取中变化。
+  `test_project_confirmation.py` 验证较大输入的状态仅存摘要、领取仍返回完整上下文，长展示和迟领取继续核验有效性。
+  `test_confirmation_native.py` 验证超过旧总量的日志、增量读取、不完整行及替换后旧证据失效。
+- `test_confirmation_native.py` / `test_flower_tui_lifetime.py`：本机 WebSocket、帧边界、只读观察、真实内部来源、
+  出生身份、归属歧义、恢复拒绝、能力不足；不存在宿主 Codex home 和隔离 PATH 下完成两端真实 Python CLI 链路。
+- `test_confirmation_windows.py`：真实 Windows 监听者、同映像副本、PID 创建时间、退出句柄、第二个未监听前台；
+  Claude 精确命令、双开作废、主来源优先、旧字段回退及未知上下文旁路。实际 Windows Codex/Claude 窗口分别验证正常唤醒、退出和双开。
+- `test_project_confirmation.py`：Claude 精确后台任务、原生通知与人工粘贴区分、输入取消、退出、runId 替换
+  及 Hook 先于 transcript 完整行的有限等待；本次必需来源结构损坏时必须失效活动许可。
+  覆盖两端统一单字段/旧字段的当前回合定位、缺少必要当前来源、准备期间的新输入，以及独立进程读取冻结起点。
+- `test_confirmation_native.py`：旧未知来源不阻止 Claude 准备；起点后出现新的无关来源和仅落日志通知时，
+  仍只接受本次真实唤醒。
+- `test_confirmation_native.py`：Codex 旧坏记录和输入起点前的旧展示不阻止准备；LF/CRLF 共用边界。
+  准备前同回合插话纳入基线，准备后同回合插话及跨进程续读时发现回滚均作废本次观察。
+- `test_confirmation_origin.py`：两端两个宿主分支的独立来源、取消与连续替换、请求缺失后的来源恢复、
+  来源结构/范围损坏、日志漂移、新输入/运行变化、原窗口与准备竞态。未知记录不依赖固定元消息标记，
+  原生非 UUID/长 ID、不同日志文件名和 JSON 转义、通知分块/文案及重复辅助字段均不阻断。
+  `test_confirmation_native.py` 的两端真实 CLI 链路连续两轮替换后完成 wait/claim/started/completed，
+  同时拒绝旧请求、重复领取和重复 started；安装/更新测试验证项目生命周期清理独立来源。
 - `confirmation-install.test.js` / `test_confirmation_policy.py` / `test_flower_tui_lifetime.py`：默认与覆盖策略、关闭、重复更新、
   卸载、配置保留及缺能力分支；维持原生 Windows/Python 3.8/3.12 CI 覆盖。
   安装专项断言旧 CLI 清理、实际资产升级取消、dry-run/无变化代次保留，以及用户 Hook 保留。
