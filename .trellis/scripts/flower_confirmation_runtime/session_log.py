@@ -30,7 +30,7 @@ class SessionLog:
         """在有界文件尾部定位当前回合的完整记录。
 
         @param file: 宿主报告的精确会话路径。
-        @param identifier: 原生回合 ID。
+        @param identifier: 用于失败诊断的原生标识，准确匹配由 matches 完成。
         @param matches: 核对候选记录及其结构化身份。
         @return: 可跨进程续读的记录边界。
         """
@@ -39,7 +39,6 @@ class SessionLog:
             raise ValueError("原生会话记录必须是普通文件")
         identity = [str(file), info.st_dev, info.st_ino]
         start = max(0, info.st_size - 2 * RECORD_BYTES)
-        needle = identifier.encode("ascii")
         with file.open("rb") as stream:
             opened = os.fstat(stream.fileno())
             if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
@@ -52,10 +51,10 @@ class SessionLog:
                 raise ValueError("原生会话记录在读取时已变化")
             lines = raw.split(b"\n")
             offset = info.st_size - len(lines.pop())
-            # 只解析可能属于当前回合的完整行。窗口左侧可能落在某条旧记录中间。
+            # 在有界窗口内按解析后的身份匹配，避免依赖原生 ID 的 JSON 转义形式。
             for index in range(len(lines) - 1, -1, -1):
                 line = lines[index]
-                if (index or not start) and len(line) < RECORD_BYTES and needle in line:
+                if (index or not start) and len(line) < RECORD_BYTES:
                     try:
                         entry = json.loads(line)
                     except (ValueError, UnicodeError):
@@ -69,7 +68,7 @@ class SessionLog:
                         return {"identity": identity, "size": info.st_size, "modified": info.st_mtime_ns,
                                 "offset": offset, "anchor": anchor_hash}
                 offset -= len(line) + 1
-        raise ValueError("当前回合缺少可核验的完整记录，保持人工确认")
+        raise ValueError("当前回合缺少可核验的完整记录，保持人工确认：" + identifier)
 
     def resume(self, observation, initial):
         """从冻结位置继续观察，并在首读时核对文件身份和边界。
