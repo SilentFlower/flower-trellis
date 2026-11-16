@@ -1,0 +1,147 @@
+{
+  "id": "update-runtime-snapshot",
+  "name": "update-runtime-snapshot",
+  "title": "修复升级快照误扫运行时目录",
+  "description": "排除升级默认快照中的 .trellis/.runtime，验证真实更新、沙箱与回滚，保留精确 Plugin 写入目标的补偿和受管软链校验，完成后发布新版 beta。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-16",
+  "completedAt": "2026-11-16",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-16T10:28:45Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-11-16T09:29:58Z",
+      "contextKey": "codex_01a1e29c-6965-72a0-a34f-eee797a5196f",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "484215a5a40dc80292283d423681443644f673c8",
+        "status": [
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/11-11-confirmation-capacity/task.json"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/11-11-confirmation-windows-native/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "484215a5a40dc80292283d423681443644f673c8",
+            "status": [
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json"
+              },
+              {
+                "status": " M",
+                "path": ".trellis/tasks/11-11-confirmation-capacity/task.json"
+              },
+              {
+                "status": " M",
+                "path": ".trellis/tasks/11-11-confirmation-windows-native/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "3cedbd5a919f276a5c3895949f22bba41ede6aefd815ab16d7dca03f029299bb",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md",
+                "sha256": "a5b026b082cabf4355695951b536b72eddd5cf1818c9a48bb36fe90c3872e1d2"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json",
+                "sha256": "db0bd6e65dfc58f77d2185568fd176ac3fa35ab1f6fda4265dc1f6eef4a9b314"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "eabac260499431d3e2033a7f2263d746fe64e4ec334d51c429b910e72f2d72cd"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "d12d725d69473f990ffc6854ad0d08958ea32c46",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "9e71282cb985dba8ef3197493ff98c678c3f2f9dc9e088f95c9e88a25e0c62a3"
+          }
+        ],
+        "fingerprint": "12707e7a7f0f694b6a4deb1e1d405edd46c18c542b0d4654b09cd060e35a1dc2"
+      }
+    }
+  },
+  "progress": {
+    "updatedAt": "2026-11-16T10:28:45Z",
+    "completedSteps": [
+      "修复默认快照、沙箱和补偿扫描的运行时排除及精确目标边界",
+      "完成29项定向、完整JavaScript/Python与隔离真实CLI验证",
+      "完成Check-All与可执行规范更新，修复代码已推送",
+      "完成对应提交Ubuntu/Windows原生CI，8项任务全部通过",
+      "完成0.6.13-beta.16版本及CHANGELOG发版预演"
+    ],
+    "partialStep": null,
+    "nextStep": "按已生成版本与CHANGELOG预览确认并发布0.6.13-beta.16",
+    "notes": "本地JS 697通过/2条件跳过，Python 620通过/4条件跳过；原生Python：Ubuntu3.12 618通过/6跳过、Ubuntu3.8 614通过/10跳过、Windows3.8及3.12各560通过/64跳过。既有跳过项沿平台、解释器能力及外部工具条件执行。新增7项回归及真实replay补偿在Ubuntu/Windows实际执行。CI：https://github.com/SilentFlower/flower-trellis/actions/runs/43846353933"
+  }
+}
