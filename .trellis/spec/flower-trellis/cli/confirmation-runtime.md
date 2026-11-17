@@ -70,7 +70,8 @@ src/lib/confirmation-lifecycle.js:
   当前会话可无绑定，已有绑定须匹配目标。损坏或陈旧的会话状态、已关闭或关闭状态无效的目标均拒绝。
   Brief 快照的 `facts.task` 记录目标，`facts.sessionTask` 单独冻结当前绑定（可为 null），绑定变化使旧许可失效。
   Check/Push 的 `task` 仍须匹配当前会话绑定，无任务用 null。材料路径不得越界或经过软链接。
-- 输入 JSON 上限 1 MiB；需要解析的任务元数据、项目配置、Brief 源文档和待展示正文各限 512 KiB。
+- 输入 JSON 上限 1 MiB；任务元数据 `task.json` 上限 8 MiB，容纳自动建任务时记录的 Git 基线。
+  项目配置、Brief 源文档和待展示正文各限 512 KiB。
   仅用于指纹的普通文件分块哈希，读取前后核对文件身份和状态；其大小不受结构化材料上限约束。
   Windows 路径与打开句柄之间比较设备、文件身份、模式、大小和修改时间。Windows Python 3.12 的两种查询
   可能为同一文件返回不同的 `st_ctime_ns`，该字段只用于同一打开句柄读取前后的复核。Linux 保留完整比较。
@@ -280,6 +281,7 @@ src/lib/confirmation-lifecycle.js:
   两端直接调用 `_observe` 同样跨过活锁且保持状态字节不变，新输入仍取消旧请求。
   锁 owner 在回调前可读，每次状态更新仅一次 `fsync`；状态同步失败时回调执行一次、旧状态保留且锁已释放。
 - `test_confirmation_policy.py` 验证大 diff、大普通文件、旧摘要兼容、计划外状态漂移及 Git 超时回收。
+  覆盖 8 MiB 任务元数据的完整字节指纹、超出 1 字节时拒绝，以及 Brief 源文档的独立 512 KiB 上限。
   两端覆盖空绑定及缺失会话文件的显式 Brief 目标、非法路径/关闭目标/损坏会话拒绝、Check/Push 原绑定校验。
   `test_project_confirmation.py` 覆盖两端空绑定的 prepare/wait/claim/started、绑定后的终态记账，以及
   等待期间绑定变化在派发、领取和 started 三处使旧快照失效。

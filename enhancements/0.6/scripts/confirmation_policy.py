@@ -25,6 +25,7 @@ from common.tasks import normalize_closeout
 VERSION = 1
 INPUT_BYTES = 1024 * 1024
 DOCUMENT_BYTES = 512 * 1024
+TASK_METADATA_BYTES = 8 * 1024 * 1024
 HASH_CHUNK = 64 * 1024
 GIT_TIMEOUT = 10
 SNAPSHOT_TIMEOUT = 30
@@ -355,7 +356,7 @@ def inspect_confirmation(root, input_path, platform, session_id, seconds=None):
     task_manual_only = False
     task_files = {}
     if task:
-        metadata_bytes = _bytes(_inside(root, task + "/task.json"))
+        metadata_bytes = _bytes(_inside(root, task + "/task.json"), limit=TASK_METADATA_BYTES)
         task_metadata = json.loads(metadata_bytes.decode("utf-8"))
         if not isinstance(task_metadata, dict) or not isinstance(task_metadata.get("meta", {}), dict):
             raise ValueError("任务元数据无效")

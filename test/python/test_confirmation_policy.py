@@ -153,6 +153,32 @@ class ConfirmationPolicyTest(unittest.TestCase):
                 self.assertEqual(code, 1)
                 self.assertIn("当前会话任务不符", result["error"])
 
+    def test_task_metadata_has_its_own_size_budget(self):
+        """任务元数据可用满 8 MiB，正文仍使用原来的预算。
+
+        @return: None。
+        """
+        task = self.root / self.task / "task.json"
+        prefix = b'{"status":"planning","meta":{"baseline":"'
+        suffix = b'"}}'
+        limit = 8 * 1024 * 1024
+        payload = prefix + b"x" * (limit - len(prefix) - len(suffix)) + suffix
+        task.write_bytes(payload)
+        code, result = self.invoke()
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["facts"]["taskFiles"]["task.json"], hashlib.sha256(payload).hexdigest())
+
+        task.write_bytes(payload + b" ")
+        code, result = self.invoke()
+        self.assertEqual(code, 1, result)
+        self.assertIn("8192 KiB：task.json", result["error"])
+
+        task.write_bytes(payload)
+        (task.parent / "brief.md").write_bytes(b"x" * (512 * 1024 + 1))
+        code, result = self.invoke()
+        self.assertEqual(code, 1, result)
+        self.assertIn("512 KiB：brief.md", result["error"])
+
     def test_current_development_task_keeps_manual_confirmation(self):
         """本机制自身的任务显式禁用超时，仍保持完整策略返回契约。"""
         task = self.root / self.task / "task.json"
