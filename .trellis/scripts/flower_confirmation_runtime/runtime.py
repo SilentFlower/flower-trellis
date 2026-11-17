@@ -98,8 +98,11 @@ def _observe(store, request_id, snapshot, *, observed=None):
     def is_new(identifier, request, state):
         return identifier and identifier not in (state.get("lastHumanMessageId"), request["baselineMessageId"])
 
-    # 等待轮询只用已读状态跳过无变化的观察；新消息必须按锁内最新状态重新判断。
-    if observed is not None and not any(is_new(identifier, observed["request"], observed) for identifier in identifiers):
+    # 各入口均先只读跳过重复观察；候选新消息仍按锁内最新请求重新判断。
+    if observed is None:
+        observed = store.read()
+    if (observed is not None and (observed.get("request") or {}).get("id") == request_id
+            and not any(is_new(identifier, observed["request"], observed) for identifier in identifiers)):
         return observed
 
     def apply(request, state):

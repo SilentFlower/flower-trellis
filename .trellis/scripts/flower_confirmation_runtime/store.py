@@ -207,7 +207,7 @@ def _retry_windows_permission(operation):
             time.sleep(0.01)
 
 
-def _write_json(file, value, limit=MAX_BYTES):
+def _write_json(file, value, limit=MAX_BYTES, *, durable=True):
     raw = json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
     if len(raw) > limit:
         raise ValueError("确认状态超出大小限制")
@@ -218,7 +218,8 @@ def _write_json(file, value, limit=MAX_BYTES):
         with os.fdopen(fd, "wb") as stream:
             stream.write(raw)
             stream.flush()
-            os.fsync(stream.fileno())
+            if durable:
+                os.fsync(stream.fileno())
         _retry_windows_permission(lambda: os.replace(str(temporary), str(file)))
     finally:
         try:
@@ -326,7 +327,8 @@ class ConfirmationStore:
                 time.sleep(0.01)
                 continue
             try:
-                _write_json(lock / "owner.json", {"pid": os.getpid(), "token": token})
+                # 锁归属只需跨进程可见；省去临时元数据落盘，缩短持锁时间。
+                _write_json(lock / "owner.json", {"pid": os.getpid(), "token": token}, durable=False)
             except BaseException:
                 lock.rmdir()
                 raise
