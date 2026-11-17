@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.18](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.17...v0.6.13-beta.18) (2026-11-17)
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 同步 8 MiB 任务元数据上限 ([ef614ae](https://github.com/SilentFlower/flower-trellis/commit/ef614ae913df3621990c4d534c0fe34dc36c0de7))
+
 ## [0.6.13-beta.17](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.16...v0.6.13-beta.17) (2026-11-17)
 
 
