@@ -26,6 +26,48 @@ class ConfirmationStoreTest(unittest.TestCase):
         self.assertIsNone(store.change(str(uuid4()), lambda request, state: None))
         self.assertFalse(store.directory.exists())
 
+    def test_lock_owner_is_visible_while_only_state_is_synced(self):
+        """锁持有者可被竞争进程识别，仅正式状态执行强制落盘。
+
+        @return: None。
+        """
+        f = ProjectFixture(self)
+        lock = f.store.file.with_name(f.store.file.name + ".lock")
+        owners = []
+
+        def mutate(value):
+            owners.append(storage.read_json(lock / "owner.json"))
+            return {**value, "generation": 1}
+
+        with patch.object(storage.os, "fsync", wraps=storage.os.fsync) as sync:
+            f.store.update(mutate)
+        self.assertEqual(len(owners), 1)
+        self.assertEqual(owners[0]["pid"], os.getpid())
+        self.assertTrue(owners[0]["token"])
+        self.assertEqual(sync.call_count, 1)
+        self.assertEqual(f.store.read()["generation"], 1)
+        self.assertFalse(lock.exists())
+
+    def test_state_sync_failure_preserves_previous_state_and_releases_lock(self):
+        """正式状态落盘失败保留旧代次，并释放本进程的锁。
+
+        @return: None。
+        """
+        f = ProjectFixture(self)
+        original = f.store.file.read_bytes()
+        callbacks = []
+
+        def mutate(value):
+            callbacks.append(True)
+            return {**value, "generation": 1}
+
+        with patch.object(storage.os, "fsync", side_effect=OSError("落盘失败")), \
+                self.assertRaisesRegex(OSError, "落盘失败"):
+            f.store.update(mutate)
+        self.assertEqual(callbacks, [True])
+        self.assertEqual(f.store.file.read_bytes(), original)
+        self.assertFalse(f.store.file.with_name(f.store.file.name + ".lock").exists())
+
     def test_real_processes_preserve_every_generation_update(self):
         """多个真实 Python 进程争锁，所有增量均保留。"""
         f = ProjectFixture(self)

@@ -99,6 +99,7 @@ src/lib/confirmation-lifecycle.js:
 - 正式状态为 version 2，位于 `.trellis/.runtime/confirmation-<platform>/<sessionId>.json`。
   原子替换与同步目录锁保护 generation；状态目录、文件不允许软链，正式文件最多 2 MiB。
   锁目录沿用 `<sessionId>.json.lock/owner.json` 的 `pid/token`，陈旧 owner 必须复核存活性后回收。
+  临时 `owner.json` 保留 flush、关闭与原子替换，仅正式状态执行 `fsync`，避免锁元数据落盘拉长持锁时间。
 - Windows 创建锁目录短暂返回 `EPERM/EACCES` 时仅在原 1 秒预算内重试；持续拒绝保留原权限错误。
   只有成功取得锁后才能写 owner 和执行状态回调，不因权限错误偷锁或重放业务回调。
 - Windows 竞争读取可能短暂占用 `owner.json` 或状态文件。原子 `replace` 和锁目录释放各使用
@@ -134,7 +135,8 @@ src/lib/confirmation-lifecycle.js:
   `consumed` 由 owner 核对回执和实际进度，禁止重执行业务；`delivery_unknown` 先核实实际投递及执行结果。
   `absent/cancelled/failed` 且当前工作仍需确认时，依据最新材料重新 prepare/wait/display，独立计时、领取和 started。
   一次提醒最多自动重建一次；用户暂停/取消、未决选择及原有人工边界继续优先处理。
-- `wait` 的常规轮询复用本轮已读状态。原生快照只包含已记录的人工消息或冻结基线时，不取写锁、不写状态；
+- `_observe` 在 `wait/claim/started` 各入口先只读检查，常规轮询复用本轮已读状态。
+  当前请求匹配且原生快照只包含已记录的人工消息或冻结基线时，不取写锁、不写状态；
   发现候选新消息时，在写锁内按最新请求和消息基线重新判断，再更新代次并作废旧许可。
 - `wait` 收到 SIGINT/SIGTERM 先失效请求再退出 130。关闭项目先取消现有许可；卸载后的清理不能重建目录。
 
@@ -215,7 +217,8 @@ src/lib/confirmation-lifecycle.js:
 | `.flower/trellis-control.json` 存在，包括 null、损坏或漂移状态 | 保持人工确认 |
 | 本次必需来源或记录完整性异常 | 使当前活动许可失效，返回结构化失败 |
 | 未完整展示、原回合中断 | 不启动倒计时 |
-| 常规轮询无新人工消息，写锁被占用 | 继续只读观察 |
+| 等待、领取或开始前的观察无新人工消息，写锁被占用 | 继续只读观察；实际状态转换仍须取锁校验 |
+| 正式状态 `fsync` 失败 | 保留旧状态、释放本进程的锁并传播原错误 |
 | 新输入、改材料、改策略、改任务或 Git 快照 | 旧许可失效 |
 | 前台退出、PID 复用、服务重绑或归属歧义 | 不派发或拒绝领取，不借用其他窗口 |
 | Windows 额外的同映像 Codex 前台尚未监听，或 Claude 同会话出现第二个存活前台 | 旧等待失败或取消，保持人工 |
@@ -274,6 +277,8 @@ src/lib/confirmation-lifecycle.js:
   原子替换与锁释放的短暂/持续共享占用分别断言回调次数、原错误、持久代次和锁生命周期。
   卸载竞争通过 queued 事件屏障固定目录删除与下一次观察的位置，保留真实线程退出及目录缺失断言。
   空轮询跨过活锁；锁释放后观察到的新人工消息仍取消旧请求。
+  两端直接调用 `_observe` 同样跨过活锁且保持状态字节不变，新输入仍取消旧请求。
+  锁 owner 在回调前可读，每次状态更新仅一次 `fsync`；状态同步失败时回调执行一次、旧状态保留且锁已释放。
 - `test_confirmation_policy.py` 验证大 diff、大普通文件、旧摘要兼容、计划外状态漂移及 Git 超时回收。
   两端覆盖空绑定及缺失会话文件的显式 Brief 目标、非法路径/关闭目标/损坏会话拒绝、Check/Push 原绑定校验。
   `test_project_confirmation.py` 覆盖两端空绑定的 prepare/wait/claim/started、绑定后的终态记账，以及

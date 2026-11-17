@@ -220,6 +220,33 @@ class ProjectConfirmationTest(unittest.TestCase):
         self.assertEqual(f.store.read()["lastHumanMessageId"], human_event)
         self.assertEqual(f.client.added, [])
 
+    def test_direct_observations_skip_live_lock_until_new_human_input(self):
+        """领取与记账的重复观察跨过活锁，新输入仍取消旧请求。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            with self.subTest(platform=platform):
+                f, prepared = self.ready(platform)
+                lock = f.store.file.with_name(f.store.file.name + ".lock")
+                original = f.store.file.read_bytes()
+                lock.mkdir()
+                write_json(lock / "owner.json", {"pid": os.getpid(), "token": str(uuid4())})
+                try:
+                    for unused in range(3):
+                        observed = runtime._observe(f.store, prepared["requestId"], f.client.snapshot())
+                        self.assertEqual(observed["request"]["state"], "prepared")
+                    self.assertEqual(f.store.file.read_bytes(), original)
+                    self.assertTrue(lock.exists())
+                finally:
+                    shutil.rmtree(str(lock))
+                f.client.human = str(uuid4())
+                runtime._observe(f.store, prepared["requestId"], f.client.snapshot())
+                state = f.store.read()
+                self.assertEqual(state["request"]["state"], "cancelled")
+                self.assertEqual(state["request"]["error"], "user_replied")
+                self.assertEqual(state["lastHumanMessageId"], f.client.human)
+
     def test_changes_and_new_input_invalidate_before_dispatch_or_started(self):
         """材料、策略与输入代次的竞争拒绝旧动作。"""
         for mutation in ("material", "policy", "human", "window"):
