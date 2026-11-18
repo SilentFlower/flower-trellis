@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.20](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.19...v0.6.13-beta.20) (2026-11-18)
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 修复 Python 3.8 夹具与日志追加误判 ([0d9db53](https://github.com/SilentFlower/flower-trellis/commit/0d9db53e661512bd949f659ea3ac898e92b28a2e))
+* **confirmation:** 支持恢复回合并修正会话身份识别 ([8eb4c02](https://github.com/SilentFlower/flower-trellis/commit/8eb4c02eaf3bb595826200fba1d0cbb49a24a784))
+
 ## [0.6.13-beta.19](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.18...v0.6.13-beta.19) (2026-11-18)
 
 
