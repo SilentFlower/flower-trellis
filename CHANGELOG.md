@@ -4,6 +4,13 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.19](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.18...v0.6.13-beta.19) (2026-11-18)
+
+
+### ✨ 新功能 Features
+
+* **session:** 将工作流提示扩展到全部 GPT 模型 ([9e5f07e](https://github.com/SilentFlower/flower-trellis/commit/9e5f07eaff810c0e01b42359d6a8ee870470514a))
+
 ## [0.6.13-beta.18](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.17...v0.6.13-beta.18) (2026-11-17)
 
 
