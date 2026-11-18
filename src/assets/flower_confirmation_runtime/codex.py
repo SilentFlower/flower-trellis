@@ -184,25 +184,19 @@ class CodexClient:
                     self.prepare_origin = {key: value for key, value in origin.items()
                                            if key != "logObservation"}
                 else:
-                    def matches(entry):
-                        event = entry.get("payload")
-                        return (entry.get("type") == "event_msg" and isinstance(event, dict)
-                                and event.get("type") in ("task_started", "turn_started")
-                                and event.get("turn_id") == turn_id and event.get("thread_id") in (None, self.session_id))
-
-                    start = SessionLog.locate(file, turn_id, matches)
                     prior = ({key: request.get(key) for key in ("id", "baselineMessageId")}
                              if request.get("state") == "consumed" else {})
-                    self._resume_rollout(file, start, turn_id, prior=prior)
+                    start, input_turns = self._source_start(file, turn_id, prior)
+                    self._resume_rollout(file, start, turn_id, prior=prior, input_turns=input_turns)
                     source = self._read_rollout(file)
                     if source.get("turn") != {"id": turn_id, "status": "inProgress"} or not source.get("inputAnchor"):
                         raise ValueError("Codex 缺少可核验的当前回合输入")
-                    identifier, internal = source["inputAnchor"]
+                    identifier, internal, input_turn = source["inputAnchor"]
 
                     def matches_input(entry):
                         event = entry.get("payload")
                         if (entry.get("type") != "event_msg" or not isinstance(event, dict)
-                                or event.get("type") != "item_completed" or event.get("turn_id") != turn_id
+                                or event.get("type") != "item_completed" or event.get("turn_id") != input_turn
                                 or event.get("thread_id") not in (None, self.session_id)):
                             return False
                         item = event.get("item")
@@ -214,6 +208,7 @@ class CodexClient:
                                          baseline=source["humanId"])
                     self.prepare_origin = {"version": 1, "platform": "codex", "sessionId": self.session_id,
                                            "turnId": turn_id, "inputId": identifier, "baselineMessageId": source["humanId"],
+                                           "inputTurnId": input_turn,
                                            "kind": "internal" if internal else "human", "wakeRequestId": internal,
                                            "logStart": self.log_start}
                 self.prepare_turn = turn_id
@@ -263,7 +258,47 @@ class CodexClient:
             raise ValueError("Codex 会话记录路径越界")
         return file
 
-    def _resume_rollout(self, file, start, turn_id, baseline=None, prior=None):
+    @staticmethod
+    def _recovery_root(event):
+        attribution = event.get("turn_attribution")
+        if not isinstance(attribution, dict) or attribution.get("turn_trigger") != "daemon_recovery":
+            return None
+        root = native_id(attribution.get("root_turn_id") or event.get("root_turn_id"))
+        if (attribution.get("turn_id", event.get("turn_id")) != event.get("turn_id")
+                or event.get("root_turn_id", root) != root or root == event.get("turn_id")):
+            raise ValueError("Codex 原生恢复回合关联无效")
+        return root
+
+    def _source_start(self, file, turn_id, prior):
+        current, turns, previous = turn_id, [], None
+        while current not in turns:
+            turns.append(current)
+            found = {}
+            def matches(entry):
+                event = entry.get("payload")
+                matched = (entry.get("type") == "event_msg" and isinstance(event, dict)
+                           and event.get("type") in ("task_started", "turn_started")
+                           and event.get("turn_id") == current and event.get("thread_id") in (None, self.session_id))
+                if matched:
+                    found.update(event)
+                return matched
+            start = SessionLog.locate(file, current, matches)
+            # 恢复只能回溯同一记录文件中的更早回合，避免跨文件或前向关联混入来源。
+            if previous and (start["identity"] != previous["identity"] or start["offset"] >= previous["offset"]):
+                raise ValueError("Codex 原生恢复回合的日志顺序无效")
+            previous = start
+            if current == turn_id:
+                # 恢复后已有新的原生输入时直接使用它，避免依赖已移出定位窗口的旧根回合。
+                self._resume_rollout(file, start, turn_id, prior=prior)
+                if self._read_rollout(file).get("inputAnchor"):
+                    return start, turns
+            root = self._recovery_root(found)
+            if root is None:
+                return start, turns
+            current = root
+        raise ValueError("Codex 原生恢复回合关联存在循环")
+
+    def _resume_rollout(self, file, start, turn_id, baseline=None, prior=None, input_turns=None):
         # 首条身份记录独立于当前回合；只读这一行，保留线程身份约束。
         if start["identity"][0] != str(file):
             raise ValueError("Codex 会话记录路径已变化")
@@ -279,6 +314,7 @@ class CodexClient:
             raise ValueError("Codex 会话记录标识不符")
         self.session_log.resume(start, {"verified": True, "humanId": baseline, "base": baseline,
                                         "anchorTurn": turn_id, "prior": prior or {}, "findingInput": baseline is None,
+                                        "inputTurns": input_turns or [turn_id],
                                         "turn": {"id": turn_id, "status": "inProgress"}, "wake": None,
                                         "displays": OrderedDict()})
         self.log_start = start
@@ -313,6 +349,10 @@ class CodexClient:
             return
         kind = event.get("type")
         if kind in ("task_started", "turn_started"):
+            if record.get("findingInput"):
+                root = self._recovery_root(event)
+                if root in record["inputTurns"] and event.get("turn_id") not in record["inputTurns"]:
+                    record["inputTurns"].append(event["turn_id"])
             record["turn"] = {"id": event.get("turn_id"), "status": "inProgress"}
         if kind in ("task_complete", "turn_complete") and event.get("turn_id") == (record["turn"] or {}).get("id"):
             record["turn"]["status"] = "completed"
@@ -336,18 +376,18 @@ class CodexClient:
                 record["wake"] = {"requestId": internal, "turnId": event.get("turn_id")}
                 if record.get("anchorTurn") and record.get("base") is None:
                     prior = record["prior"]
-                    if event.get("turn_id") != record["anchorTurn"] or prior.get("id") != internal:
+                    if event.get("turn_id") not in record["inputTurns"] or prior.get("id") != internal:
                         raise ValueError("Codex 当前回合的队列唤醒来源不符")
                     record["base"] = record["humanId"] = native_id(prior.get("baselineMessageId"))
-                    record["inputAnchor"] = (native_id(item.get("id")), internal)
+                    record["inputAnchor"] = (native_id(item.get("id")), internal, event.get("turn_id"))
             else:
                 identifier = native_id(item.get("id"))
                 if record.get("anchorTurn"):
                     if record.get("findingInput"):
-                        if event.get("turn_id") != record["anchorTurn"]:
+                        if event.get("turn_id") not in record["inputTurns"]:
                             raise ValueError("Codex 当前回合缺少可核验的人工输入")
                         record["base"] = identifier
-                        record["inputAnchor"] = (identifier, None)
+                        record["inputAnchor"] = (identifier, None, event.get("turn_id"))
                     elif record["base"] != identifier:
                         record.setdefault("newHuman", identifier)
                 record["humanId"] = identifier

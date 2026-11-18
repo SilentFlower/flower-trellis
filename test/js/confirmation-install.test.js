@@ -48,7 +48,7 @@ test("实际安装及重复叠加保留用户 Hook，卸载只清理自有确认
   assert.deepEqual(hookCounts(target, "codex"), { SessionStart: 0, UserPromptSubmit: 1, Stop: 0, SessionEnd: 0, Interrupt: 1 });
   assert.ok(fs.existsSync(path.join(target, ".trellis/scripts/confirmation_policy.py")));
   assert.ok(fs.existsSync(path.join(target, ".trellis/scripts/confirmation.md")));
-  for (const asset of ["flower_confirmation_hook.py", "flower_confirmation.py", "flower_tui_lifetime.py", "flower_confirmation_runtime/runtime.py"]) {
+  for (const asset of ["flower_confirmation_hook.py", "flower_confirmation.py", "flower_tui_lifetime.py", "flower_session_host.py", "flower_confirmation_runtime/runtime.py"]) {
     assert.ok(fs.existsSync(path.join(target, ".trellis/scripts", asset)), asset);
   }
   assert.equal(fs.existsSync(path.join(target, ".trellis/scripts/codex-local.sh")), false);

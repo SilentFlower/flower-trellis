@@ -1,7 +1,7 @@
 {
-  "syncedAt": "2026-11-18T02:01:57.134Z",
+  "syncedAt": "2026-11-18T06:00:19.877Z",
   "syncedFrom": "vendor/skill-garden",
-  "sourceCommit": "d061d0e7b4f4191c86e08ed4e7b06467de8ed766",
+  "sourceCommit": "ddc5b4b805e4d0c17f6fb91d779c61e231f775d6",
   "common": {
     "codexSkills": [
       "aliyun-ops",
@@ -231,6 +231,8 @@
         "scripts/context-output-cleanup/patch.json",
         "scripts/context-output-cleanup/phase-index-content.py",
         "scripts/context-output-cleanup/phase-index-selector.py",
+        "scripts/runtime-state-integrity/active-task-env-content.py",
+        "scripts/runtime-state-integrity/active-task-env-selector.py",
         "scripts/runtime-state-integrity/active-task-fallback-content.py",
         "scripts/runtime-state-integrity/active-task-fallback-selector.py",
         "scripts/runtime-state-integrity/active-task-resolution-content.py",

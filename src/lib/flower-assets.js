@@ -33,6 +33,7 @@ export const FLOWER_CONFIRMATION_ASSETS = Object.freeze([
   FLOWER_CONFIRMATION_HOOK,
   "flower_confirmation.py",
   "flower_tui_lifetime.py",
+  "flower_session_host.py",
   "flower_confirmation_runtime",
 ]);
 

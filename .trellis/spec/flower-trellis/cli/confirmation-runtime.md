@@ -51,6 +51,8 @@ CodexClient.capture_window(turn_id) / verify_window(binding) / observe_window(bi
 flower_confirmation_runtime.transport.CodexTransport(path, timeout=5, notification=None, *, proxy=None, env=None)
 flower_confirmation_runtime.windows_process.ProcessHandle(pid)
 flower_confirmation_runtime.windows_process.open_identity(identity) -> ProcessHandle
+flower_confirmation_runtime.windows_process.hook_frontend(executable) -> identity
+flower_session_host.select_platform(candidates) -> platform
 src/lib/confirmation-lifecycle.js:
   cancelProjectConfirmations(project, reason = "project_disabled") -> number
   invalidateChangedConfirmations(project, plan, dryRun) -> void
@@ -67,9 +69,9 @@ src/lib/confirmation-lifecycle.js:
   不再另设人工必答门槛。Check 修复结束必须重检，不能以定向测试代替，重检结束后才记 completed。
 - 输入为项目内有界普通 JSON 文件，公共字段为 `kind: brief|check|push`、`task`。
   Brief 的 `task` 为显式目标活动任务目录 `.trellis/tasks/<name>`，正文来自该任务 `brief.md`；
-  当前会话可无绑定，已有绑定须匹配目标。损坏或陈旧的会话状态、已关闭或关闭状态无效的目标均拒绝。
-  Brief 快照的 `facts.task` 记录目标，`facts.sessionTask` 单独冻结当前绑定（可为 null），绑定变化使旧许可失效。
-  Check/Push 的 `task` 仍须匹配当前会话绑定，无任务用 null。材料路径不得越界或经过软链接。
+  三类材料均以显式 task 声明目标，允许与准备时的会话绑定不同。Brief 的损坏或陈旧会话状态、已关闭或关闭状态无效目标仍拒绝。
+  三类快照的 `facts.task` 记录材料目标，`facts.sessionTask` 单独冻结当前绑定（可为 null），绑定变化使旧许可失效。
+  Check/Push 无任务用 null。材料路径不得越界或经过软链接。
 - 输入 JSON 上限 1 MiB；任务元数据 `task.json` 上限 8 MiB，容纳自动建任务时记录的 Git 基线。
   项目配置、Brief 源文档和待展示正文各限 512 KiB。
   仅用于指纹的普通文件分块哈希，读取前后核对文件身份和状态；其大小不受结构化材料上限约束。
@@ -147,6 +149,11 @@ src/lib/confirmation-lifecycle.js:
   resume 不重载完整工作流，禁用 Hook 时不输出。模型提示保持各自 2048 字节预算，不遮蔽确认准备分支。
 - Codex 仅连接已有 `$CODEX_HOME/app-server-control/app-server-control.sock`，缺省 home 为 `~/.codex`。
   `CODEX_THREAD_ID`、Claude 的 `CLAUDE_CODE_SESSION_ID` 用于精确会话识别；显式会话不得与当前环境冲突。
+- 普通任务命令保留显式 `TRELLIS_CONTEXT_ID`、Hook 输入及平台参数的优先语义。多个平台环境候选共存时，
+  先按最近的宿主进程选平台，再读取该平台的会话变量；单候选沿用既有解析。
+  Linux/WSL 识别 `codex`、`claude` 及使用 ELF 映像名 `claude.exe` 的安装形态。
+  Windows 的 `hook_frontend` 接受单个名称或名称元组，并在最近的允许宿主处停止遍历。
+  身份仍有歧义时返回显式平台或上下文提示。
 - Codex 传输为标准库本机 Unix socket WebSocket/JSON-RPC：核验握手、掩码、分片及控制帧，
   单帧和聚合消息最多 16 MiB；连接及 RPC 默认超时 5 秒。写入回执未知时沿用单次投递边界。
   Windows 从当前原生输入 Hook 的活跃同用户进程取得 Codex 映像，使用该映像的本地 `app-server proxy --sock`
@@ -164,7 +171,10 @@ src/lib/confirmation-lifecycle.js:
   回合、消息和 task ID 作为非空不透明字符串，继承状态/日志整体预算；Flower 自有会话、请求、回执和 runId 保持 UUID。
 - Codex 的 UserPromptSubmit / Interrupt Hook 作废人工输入代次；prepare 要求当前回合确实收到输入 Hook。
   按 Hook 的精确 turnId 在最近 32 MiB 的完整行定位当前回合开始，单独校验首条 `session_meta`。
-  同一回合准备前的插话纳入基线，以最新可核验的原生 `UserMessage` 后的边界续读。旧回合正文、坏记录
+  原生 `daemon_recovery` 可沿同会话 `turn_attribution/root_turn_id` 回溯原始输入；来源记录的 `inputTurnId`
+  与当前展示 `turnId` 分别保存。恢复回合已有原生输入时直接采用当前输入。
+  需要回溯时拒绝缺失、跨线程、自引用、循环或日志顺序错误的关联；普通恢复提示正文不构成输入证据。
+  同一回合及关联恢复链准备前的插话纳入基线，以最新可核验的原生 `UserMessage` 后的边界续读。旧回合正文、坏记录
   和未知事件不参与准备。起点后的人工输入、回滚和失效回合仍可作废本次等待。原始最终展示只从该边界后核对。
   唤醒使用原生 `thread/queue/add` / `thread/queue/delete`；稳定 Flower 请求标记与原生 UserMessage.client_id 须对应
   当前请求。通知外壳、附加文字和内容分块不要求完整相等；人工粘贴仍须按其真实来源处理。
@@ -210,7 +220,10 @@ src/lib/confirmation-lifecycle.js:
 | --- | --- |
 | 无效平台、时长、材料、会话或项目配置 | 人工确认，不准备有效默认动作 |
 | Brief 目标有效，当前会话绑定为空或会话任务文件缺失 | 以显式目标准备确认，冻结空绑定 |
-| Brief 已有其它绑定、会话损坏/陈旧、目标路径非法或目标已关闭 | 拒绝准备 |
+| 三类材料的声明目标与准备时会话绑定不同 | 按材料目标准备，独立冻结会话绑定 |
+| Brief 会话损坏/陈旧、目标路径非法或目标已关闭 | 拒绝准备 |
+| Codex/Claude 环境变量共存 | 按最近宿主解析，显式上下文及平台保持优先 |
+| Codex 原生恢复关联有效，或恢复回合已有新的原生输入 | 在当前回合准备新确认，完整展示后重新计时 |
 | Windows 路径与句柄仅 `st_ctime_ns` 不同 | 正常读取；文件身份、内容状态或同一打开句柄的 `st_ctime_ns` 变化仍拒绝 |
 | 单条 Git 命令或整轮快照超时 | 停止本次核验，返回命令或快照阶段；未完成的 Git 进程回收 |
 | 会话文件超过历史总量，记录身份与完整行可核验 | 照常读取；只对新增完整行更新观察证据 |
@@ -244,6 +257,11 @@ src/lib/confirmation-lifecycle.js:
 
 - Normal：用 `{"kind":"brief","task":".trellis/tasks/example"}` 准备 Brief，后台启动 wait，完整展示 display
   并结束回合；到期领取一次，started 成功后由原 owner 开工。
+- Normal：材料声明任务 B、会话绑定任务 A 时，按 B 的材料准备确认；等待期间 A 的绑定变化使旧快照失效。
+- Base：Codex 原生恢复回合沿 `root_turn_id` 找到原始输入，本次最终正文归属当前恢复回合。
+  该回合已有新的原生输入时，以当前输入作为基线。
+- Incorrect use：Codex 与 Claude 标识共存时按映射表先后次序选择。
+  Correct handling：使用显式身份，或从真实进程链识别最近宿主；Linux 的 `claude.exe` 按 Claude ELF 映像处理。
 - Base：关闭旧任务后会话绑定为空，新任务 Brief 可先准备、领取并 started，再由 `task.py start` 绑定目标。
   Incorrect use：为准备确认而提前绑定目标。Correct handling：先完成 Brief 确认；等待期间绑定变化须重新准备。
 - Base：Check 没有未处置项时不等待；总开关关闭或 Python 缺少 pidfd 时保持人工；查询空状态不创建目录。
@@ -282,7 +300,7 @@ src/lib/confirmation-lifecycle.js:
   锁 owner 在回调前可读，每次状态更新仅一次 `fsync`；状态同步失败时回调执行一次、旧状态保留且锁已释放。
 - `test_confirmation_policy.py` 验证大 diff、大普通文件、旧摘要兼容、计划外状态漂移及 Git 超时回收。
   覆盖 8 MiB 任务元数据的完整字节指纹、超出 1 字节时拒绝，以及 Brief 源文档的独立 512 KiB 上限。
-  两端覆盖空绑定及缺失会话文件的显式 Brief 目标、非法路径/关闭目标/损坏会话拒绝、Check/Push 原绑定校验。
+  两端覆盖空绑定及缺失会话文件的显式 Brief 目标、非法路径/关闭目标/损坏会话拒绝、三类材料的空绑定和不同绑定准入，以及非法任务路径拒绝。
   `test_project_confirmation.py` 覆盖两端空绑定的 prepare/wait/claim/started、绑定后的终态记账，以及
   等待期间绑定变化在派发、领取和 started 三处使旧快照失效。
   Windows 路径和句柄时间戳不同的回归覆盖结构化材料及流式指纹，分别断言接受时间戳差异、拒绝替换和拒绝读取中变化。
@@ -299,6 +317,11 @@ src/lib/confirmation-lifecycle.js:
   仍只接受本次真实唤醒。
 - `test_confirmation_native.py`：Codex 旧坏记录和输入起点前的旧展示不阻止准备；LF/CRLF 共用边界。
   准备前同回合插话纳入基线，准备后同回合插话及跨进程续读时发现回滚均作废本次观察。
+- `test_session_host_identity.py`：显式上下文和平台优先，单候选兼容，多候选按最近宿主解析；Linux/WSL 与 Windows 进程遍历覆盖两种继承方向。
+  覆盖 Linux 的 `claude.exe` 映像名，并断言在内层宿主停止遍历。
+- `test_task_progress.py`：隔离 CLI 夹具使用独立 `TRELLIS_CONTEXT_ID`，其子进程关闭字节码写入；
+  外部工具的继承标识保持与进度查询用例独立。
+- `test_confirmation_native.py`：连续原生恢复、恢复链中插话、跨进程准备/等待/领取/started，以及缺失、跨线程、循环和文本伪造恢复关系。
 - `test_confirmation_origin.py`：两端两个宿主分支的独立来源、取消与连续替换、请求缺失后的来源恢复、
   来源结构/范围损坏、日志漂移、新输入/运行变化、原窗口与准备竞态。未知记录不依赖固定元消息标记，
   原生非 UUID/长 ID、不同日志文件名和 JSON 转义、通知分块/文案及重复辅助字段均不阻断。

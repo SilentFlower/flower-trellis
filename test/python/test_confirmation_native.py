@@ -173,9 +173,39 @@ class NativeConfirmationTest(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "linux", "自动路径限定 Linux/WSL")
     def test_codex_project_cli_full_chain_with_isolated_native_transport(self):
         """真实本机 WebSocket、rollout 与队列链路在空 PATH 下执行。"""
+        self._codex_project_cli_flow()
+
+    @unittest.skipUnless(sys.platform == "linux", "本机 Unix socket 链路限定 Linux/WSL，Windows 使用原生分支专项")
+    def test_codex_recovered_turn_full_chain_with_isolated_native_transport(self):
+        """连续恢复后跨进程准备、展示、领取和 started 仍只执行一次。
+
+        @return: None。
+        """
+        self._codex_project_cli_flow(recovery=True)
+
+    def _codex_project_cli_flow(self, recovery=False):
+        """运行普通及连续恢复的实际 Python CLI 完成链。
+
+        @param recovery: 是否在输入后加入两次原生恢复和中途插话。
+        @return: None。
+        """
         f = ProjectFixture(self)
         f.env["PATH"] = str(f.root / "empty-bin")
         server = CodexServer(self, f)
+        input_turn = server.origin
+        if recovery:
+            original = server.origin
+            for index in range(2):
+                server.append({"type": "turn_aborted", "turn_id": server.origin, "reason": "interrupted"})
+                parent = server.origin
+                server.origin = str(uuid4())
+                server.append({"type": "task_started", "turn_id": server.origin, "root_turn_id": parent,
+                               "turn_attribution": {"turn_id": server.origin, "turn_trigger": "daemon_recovery", "root_turn_id": parent}})
+                if index == 0:
+                    input_turn = server.origin
+                    server.append({"type": "item_completed", "turn_id": input_turn,
+                                   "item": {"type": "UserMessage", "id": str(uuid4()), "content": []}})
+            self.assertNotEqual(original, server.origin)
         header, current = server.file.read_bytes().split(b"\n", 1)
         server.file.write_bytes(header + b"\n{invalid-old-json}\n" + current)
         # 前台身份由独立 helper 专项与真实原生验收负责；此夹具只替换隔离项目的身份边界。
@@ -190,6 +220,8 @@ class NativeConfirmationTest(unittest.TestCase):
         prepared = self.invoke(f, ["prepare", "--input", f.input, "--seconds", "1"])
         self.assertTrue(prepared["prepared"], prepared)
         self.assertGreater(f.store.read()["request"]["contract"]["codexLogStart"]["offset"], len(header))
+        self.assertEqual(f.store.read()["turnOrigin"]["inputTurnId"], input_turn)
+        self.assertEqual(f.store.read()["turnOrigin"]["turnId"], server.origin)
         request_id = prepared["requestId"]
         child = self.start_wait(f, request_id)
         server.append({"type": "item_completed", "thread_id": f.session, "turn_id": server.origin,
@@ -285,6 +317,58 @@ class NativeConfirmationTest(unittest.TestCase):
                 with patch.object(fresh, "rpc", return_value=rpc):
                     with self.assertRaisesRegex(ValueError, "本次观察期间已回滚"):
                         fresh.snapshot()
+
+    def test_recovery_requires_same_thread_acyclic_native_relationship(self):
+        """缺失、跨线程及循环恢复关系分别拒绝，普通文本不充当来源。
+
+        @return: None。
+        """
+        for invalid in ("valid", "own_input", "missing", "foreign", "cycle", "text", "future"):
+            with self.subTest(invalid=invalid):
+                f = ProjectFixture(self)
+                home = Path(f.env["CODEX_HOME"])
+                (home / "sessions").mkdir(parents=True)
+                file = home / "sessions/events.jsonl"
+                original, recovered = str(uuid4()), str(uuid4())
+                root = {"type": "task_started", "turn_id": original}
+                if invalid == "foreign":
+                    root["thread_id"] = str(uuid4())
+                if invalid == "cycle":
+                    root["turn_attribution"] = {"turn_trigger": "daemon_recovery", "root_turn_id": recovered}
+                recovery = {"type": "task_started", "turn_id": recovered,
+                            "turn_attribution": {"turn_trigger": "daemon_recovery", "root_turn_id": original}}
+                if invalid == "text":
+                    recovery.pop("turn_attribution")
+                rows = [{"type": "session_meta", "payload": {"id": f.session}}]
+                if invalid not in ("missing", "own_input"):
+                    rows.extend({"type": "event_msg", "payload": event} for event in (
+                        root, {"type": "item_completed", "turn_id": original,
+                               "item": {"type": "UserMessage", "id": str(uuid4())}}))
+                if invalid == "future":
+                    rows.insert(1, {"type": "event_msg", "payload": recovery})
+                else:
+                    rows.append({"type": "event_msg", "payload": recovery})
+                if invalid == "own_input":
+                    rows.append({"type": "event_msg", "payload": {"type": "item_completed", "turn_id": recovered,
+                                 "item": {"type": "UserMessage", "id": str(uuid4())}}})
+                rows.append({"type": "response_item", "payload": {"type": "message", "role": "user",
+                            "content": [{"type": "input_text", "text": "daemon_recovery " + original}]}})
+                file.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+                f.store.update(lambda state: {**state, "native": {"version": 2, "project": str(f.root),
+                                                                 "sessionId": f.session, "turnId": recovered}})
+                client = CodexClient(f.root, f.session, env=f.env, platform="linux")
+                if invalid in ("valid", "own_input"):
+                    client.platform = "win32"
+                with patch.object(client, "rpc", return_value={"thread": {"id": f.session, "cwd": str(f.root), "path": str(file)}}):
+                    if invalid in ("valid", "own_input"):
+                        snapshot = client.prepare_snapshot()
+                        self.assertEqual(snapshot["turn"]["id"], recovered)
+                        self.assertEqual(snapshot["turnOrigin"]["inputTurnId"], recovered if invalid == "own_input" else original)
+                        with file.open("a", encoding="utf-8") as stream:
+                            stream.write(json.dumps({"type": "event_msg", "payload": {"type": "item_completed", "turn_id": recovered,
+                                         "item": {"type": "UserMessage", "id": str(uuid4())}}}) + "\n")
+                    with self.assertRaises(ValueError):
+                        client.prepare_snapshot()
 
     def test_websocket_fragmentation_ping_lengths_and_invalid_frames(self):
         """独立帧夹具覆盖控制帧插入、三种长度和非法帧。"""

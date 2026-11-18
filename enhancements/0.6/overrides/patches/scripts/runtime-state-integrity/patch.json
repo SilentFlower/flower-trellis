@@ -4,6 +4,18 @@
   "purpose": "control_plane_integrity",
   "operations": [
     {
+      "id": "active-task-host-identity",
+      "operation": "replace",
+      "targets": [{
+        "kind": "file",
+        "path": ".trellis/scripts/common/active_task.py",
+        "missing": "error",
+        "markerStyle": "hash"
+      }],
+      "selector": { "type": "literal", "source": "active-task-env-selector.py" },
+      "content": { "source": "active-task-env-content.py" }
+    },
+    {
       "id": "active-task-runtime-json-io",
       "operation": "replace",
       "targets": [{

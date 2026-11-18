@@ -35,6 +35,7 @@ class WindowsConfirmationTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "不是当前 Codex 客户端"):
                 listener_identity("127.0.0.1", port, copy)
             self.assertEqual(hook_frontend(Path(identity["exe"]).name), identity)
+            self.assertEqual(hook_frontend(("missing-image.exe", Path(identity["exe"]).name)), identity)
             check_listener_coverage({os.getpid()}, sys.executable)
             with self.assertRaisesRegex(ValueError, "未归属"):
                 check_listener_coverage(set(), sys.executable)

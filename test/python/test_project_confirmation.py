@@ -476,6 +476,39 @@ class ProjectConfirmationTest(unittest.TestCase):
                 self.assertIn("不得重试领取旧请求或执行旧动作", message)
                 self.assertNotIn("结束本回合", message)
 
+    def test_declared_task_survives_different_binding_through_claim_and_started(self):
+        """两端三类材料按声明目标完成链路，并独立冻结初始绑定。
+
+        @return: None。
+        """
+        for platform in ("codex", "claude"):
+            for kind in ("brief", "check", "push"):
+                with self.subTest(platform=platform, kind=kind):
+                    f = ProjectFixture(self, platform)
+                    other = ".trellis/tasks/other"
+                    write_json(f.root / other / "task.json", {"status": "in_progress"})
+                    session = f.root / (".trellis/.runtime/sessions/" + platform + "_" + f.session + ".json")
+                    write_json(session, {"current_task": other})
+                    f.material.update(kind=kind, body="完整声明材料", reportVersion="1", dispositionVersion="1",
+                                      findings=[{"id": "CHK-001", "status": "pending"}])
+                    if kind == "push":
+                        subprocess.check_call(["git", "init", "-q", str(f.root)])
+                        branch = subprocess.check_output(["git", "-C", str(f.root), "symbolic-ref", "--short", "HEAD"], text=True).strip()
+                        (f.root / "planned.txt").write_text("精确计划", encoding="utf-8")
+                        f.material.update(mode="commit-only", evidence={"check": "focused", "spec": "no-op", "unresolvedRisks": 0},
+                                          repositories=[{"root": ".", "branch": branch, "head": None, "upstream": None,
+                                                         "files": ["planned.txt"], "message": "精确计划"}])
+                    f.save()
+                    prepared = runtime.prepare(f.store, f.client, f.input, "1")
+                    f.client.turn["status"] = "completed"
+                    request = prepared["requestId"]
+                    self.assertEqual(runtime.wait(f.store, f.client, request)["state"], "queued")
+                    claimed = runtime.claim(f.store, f.client, request)
+                    self.assertTrue(claimed["claimed"])
+                    self.assertEqual(claimed["context"]["task"], f.task)
+                    self.assertEqual(claimed["context"]["facts"]["sessionTask"], other)
+                    self.assertTrue(runtime.record_result(f.store, f.client, request, claimed["receipt"]["id"], "started")["recorded"])
+
     def test_check_policy_and_push_snapshots_preserve_original_plan(self):
         """Check 计数及 Push 的 HEAD、索引、内容与远端快照保持完整。"""
         f = ProjectFixture(self)

@@ -130,28 +130,33 @@ class ConfirmationPolicyTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("会话任务状态无效", result["error"])
 
-    def test_existing_binding_and_check_push_still_require_exact_task(self):
-        """Brief 已有其它绑定及 Check/Push 的空绑定仍拒绝不匹配材料。
+    def test_declared_task_is_independent_of_initial_binding_on_both_platforms(self):
+        """三类材料使用声明目标，空绑定和不同绑定均可准备。
 
         @return: None。
         """
         other = ".trellis/tasks/other"
         (self.root / other).mkdir()
         (self.root / other / "task.json").write_text(json.dumps({"status": "planning"}), encoding="utf-8")
+        subprocess.check_call(["git", "init", "-q", str(self.root)])
+        branch = subprocess.check_output(["git", "-C", str(self.root), "symbolic-ref", "--short", "HEAD"], text=True).strip()
+        (self.root / "planned.txt").write_text("计划", encoding="utf-8")
         for platform in ("codex", "claude"):
             session_file = self.root / (".trellis/.runtime/sessions/" + platform + "_" + self.session + ".json")
-            session_file.write_text(json.dumps({"current_task": other}), encoding="utf-8")
-            for kind in ("brief", "check", "push"):
-                self.material["kind"] = kind
-                code, result = self.invoke(platform)
-                self.assertEqual(code, 1)
-                self.assertIn("当前会话任务不符", result["error"])
-            session_file.unlink()
-            for kind in ("check", "push"):
-                self.material["kind"] = kind
-                code, result = self.invoke(platform)
-                self.assertEqual(code, 1)
-                self.assertIn("当前会话任务不符", result["error"])
+            for bound in (other, None):
+                session_file.write_text(json.dumps({"current_task": bound}), encoding="utf-8")
+                for kind in ("brief", "check", "push"):
+                    with self.subTest(platform=platform, bound=bound, kind=kind):
+                        self.material = {"kind": kind, "task": self.task, "body": "完整材料",
+                                         "reportVersion": "1", "dispositionVersion": "1",
+                                         "findings": [{"id": "CHK-001", "status": "pending"}],
+                                         "mode": "commit-only", "evidence": {"check": "focused", "spec": "no-op", "unresolvedRisks": 0},
+                                         "repositories": [{"root": ".", "branch": branch, "head": None, "upstream": None,
+                                                           "files": ["planned.txt"], "message": "精确计划"}]}
+                        code, result = self.invoke(platform)
+                        self.assertEqual(code, 0, result)
+                        self.assertEqual(result["facts"]["task"], self.task)
+                        self.assertEqual(result["facts"]["sessionTask"], bound)
 
     def test_task_metadata_has_its_own_size_budget(self):
         """任务元数据可用满 8 MiB，正文仍使用原来的预算。

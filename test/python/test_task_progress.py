@@ -8,6 +8,7 @@ from importlib import util as importlib_util
 from io import StringIO
 import sys
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -56,7 +57,12 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
         (task_dir / "task.json").write_text(value, encoding="utf-8")
 
     def run_cli(self, root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-        """在隔离项目运行 task_progress CLI。"""
+        """使用独立会话在隔离项目运行 task_progress CLI。
+
+        @param root: 隔离项目根目录。
+        @param args: CLI 子命令及其参数。
+        @return: 子进程退出状态与捕获的输出。
+        """
         scripts_dir = root / ".trellis/scripts"
         scripts_dir.mkdir(parents=True, exist_ok=True)
         if not (scripts_dir / "common").exists():
@@ -67,6 +73,8 @@ class TaskProgressDiagnosticsTest(unittest.TestCase):
         return subprocess.run(
             [sys.executable, "-X", "utf8", str(scripts_dir / "task_progress.py"), *args],
             cwd=root,
+            # 进度测试使用独立会话，避免继承当前 AI 工具的身份及宿主依赖。
+            env={**os.environ, "TRELLIS_CONTEXT_ID": "progress-test-session", "PYTHONDONTWRITEBYTECODE": "1"},
             capture_output=True,
             text=True,
             check=False,
