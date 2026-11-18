@@ -542,11 +542,12 @@ print(json.dumps({
         self.assertEqual(list(diagnostic.parent.glob(".maintenance-*")), [])
 
     def test_model_hints_only_in_codex_state_for_supported_starts(self) -> None:
-        """三个模型在三类启动来源各追加一次，其余平台和分段保持原文。"""
+        """既有及通用 GPT 模型在三类来源各追加一次，平台与分段边界保持原文。"""
         models = (
             (SESSION.ASTRA_MODEL, SESSION.ASTRA_WORKFLOW_HINT, "astra"),
             (SESSION.SOL_MODEL, SESSION.SOL_WORKFLOW_HINT, "sol"),
             (SESSION.SOL_6_1_MODEL, SESSION.SOL_6_1_WORKFLOW_HINT, "sol-6-1"),
+            ("gpt-5.5", SESSION._gpt_workflow_hint(self.root, "gpt-5.5"), "gpt"),
         )
         for model, hint, name in models:
             for source in ("startup", "clear", "compact"):
@@ -626,14 +627,18 @@ print(json.dumps({
                          .replace(SESSION.SOL_MODEL, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
         self.assertEqual(SESSION.SOL_6_1_WORKFLOW_HINT.replace("trellis-sol-6-1-workflow-hint", "trellis-astra-workflow-hint")
                          .replace(SESSION.SOL_6_1_MODEL, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
+        self.assertEqual(SESSION._gpt_workflow_hint(self.root, "gpt-5.5")
+                         .replace("trellis-gpt-workflow-hint", "trellis-astra-workflow-hint")
+                         .replace("gpt-5.5", SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
 
     def test_model_switch_and_unknown_values_use_event_input_only(self) -> None:
-        """同一会话的连续启动事件重新判断模型，别名和非法值不推断。"""
+        """事件输入覆盖未来 GPT 型号，非法名称和非 GPT 值维持基线。"""
         baseline = self.run_hook("codex", "state").stdout
         models = ["gpt-6-astra", "gpt-6-sol", "gpt-6.1-sol", "gpt-5.6-sol", None, 6, [], {},
                   "GPT-6-ASTRA", "GPT-6-SOL", "GPT-6.1-SOL", "gpt-6-astra-latest", "gpt-6-sol-latest",
                   "gpt-6.1-sol-latest", " gpt-6-astra", "gpt-6-astra ", " gpt-6-sol", "gpt-6-sol ",
-                  " gpt-6.1-sol", "gpt-6.1-sol "]
+                  " gpt-6.1-sol", "gpt-6.1-sol ", "gpt-5.5", "gpt-99-next_1", "claude-sonnet",
+                  "gpt-", "gpt-.5", "gpt-6\n", 'gpt-6\"><evil>', "gpt-模型", "gpt-6/sol"]
         for model in models:
             with self.subTest(model=model):
                 result = self.run_hook("codex", "state", hook_input={"model": model})
@@ -643,13 +648,69 @@ print(json.dumps({
                     self.assertIn("<trellis-sol-workflow-hint ", json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
                 elif model == "gpt-6.1-sol":
                     self.assertIn("<trellis-sol-6-1-workflow-hint ", json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
+                elif model in ("gpt-5.6-sol", "gpt-6-astra-latest", "gpt-6-sol-latest",
+                               "gpt-6.1-sol-latest", "gpt-5.5", "gpt-99-next_1"):
+                    context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+                    self.assertEqual(context.count("<trellis-gpt-workflow-hint "), 1)
+                    self.assertIn(f'model="{model}"', context)
+                    self.assertIn(f"Applies only to active {model}.", context)
                 else:
                     self.assertEqual(result.stdout, baseline)
         for model, name in ((SESSION.ASTRA_MODEL, "astra"), (SESSION.SOL_MODEL, "sol"),
-                            (SESSION.SOL_6_1_MODEL, "sol-6-1")):
+                            (SESSION.SOL_6_1_MODEL, "sol-6-1"), ("gpt-5.5", "gpt")):
             for source in ("unknown", "", None):
                 self.assertNotIn(f"trellis-{name}-workflow-hint", self.run_hook(
                     "codex", "state", hook_input={"model": model, "source": source}).stdout)
+
+    def test_gpt_master_switch_and_legacy_switches(self) -> None:
+        """总开关控制全部 GPT，旧独立开关保持相应型号的兼容行为。"""
+        config = self.root / ".trellis/config.yaml"
+        baseline = json.loads(self.run_hook("codex", "state").stdout)
+        for raw in ("false", '"false"', "FALSE"):
+            config.write_text(f"codex:\n  gpt_workflow_hint: {raw}\n  astra_workflow_hint: true\n",
+                              encoding="utf-8")
+            for model in (SESSION.ASTRA_MODEL, SESSION.SOL_MODEL, SESSION.SOL_6_1_MODEL, "gpt-5.5"):
+                self.assertEqual(json.loads(self.run_hook("codex", "state", hook_input={"model": model}).stdout),
+                                 baseline)
+        for raw in ("true", '"true"', "TRUE"):
+            config.write_text(f"codex:\n  gpt_workflow_hint: {raw}\n  astra_workflow_hint: false\n"
+                              "  sol_workflow_hint: false\n  sol_6_1_workflow_hint: false\n", encoding="utf-8")
+            self.assertIn("trellis-gpt-workflow-hint", self.run_hook(
+                "codex", "state", hook_input={"model": "gpt-5.5"}).stdout)
+            for model in (SESSION.ASTRA_MODEL, SESSION.SOL_MODEL, SESSION.SOL_6_1_MODEL):
+                self.assertEqual(json.loads(self.run_hook("codex", "state", hook_input={"model": model}).stdout),
+                                 baseline)
+
+    def test_gpt_skip_and_optional_failure_contracts(self) -> None:
+        """通用 GPT 沿用跳过规则，非法配置与超预算保留原生上下文。"""
+        model = "gpt-5.5"
+        baseline = json.loads(self.run_hook("codex", "state").stdout)["hookSpecificOutput"]
+        for config in ("codex: invalid\n", "codex:\n  gpt_workflow_hint: yes\n",
+                       "codex:\n  gpt_workflow_hint: 1\n", "codex:\n  gpt_workflow_hint:\n"):
+            (self.root / ".trellis/config.yaml").write_text(config, encoding="utf-8")
+            for target in (model, SESSION.ASTRA_MODEL, SESSION.SOL_MODEL, SESSION.SOL_6_1_MODEL):
+                result = self.run_hook("codex", "state", hook_input={"model": target})
+                data = json.loads(result.stdout)
+                self.assertEqual(data["hookSpecificOutput"], baseline)
+                self.assertIn("工作流提示未注入", data["systemMessage"])
+                self.assertIn("工作流提示未注入", result.stderr)
+        (self.root / ".trellis/config.yaml").write_text("codex:\n  gpt_workflow_hint: true\n", encoding="utf-8")
+        for env in ({"TRELLIS_HOOKS": "0"}, {"TRELLIS_DISABLE_HOOKS": "1"}, {"CODEX_NON_INTERACTIVE": "1"}):
+            for part in SESSION.PARTS:
+                self.assertEqual(self.run_hook("codex", part, env={**self.env, **env},
+                                               hook_input={"model": model}).stdout, "")
+        self.assertEqual(json.loads(self.run_hook("codex", "state", "resume", hook_input={"model": model}).stdout)
+                         ["hookSpecificOutput"]["additionalContext"], SESSION.CONFIRMATION_HINT)
+        for prompt in ("普通问题", "no-trellis"):
+            self.assertNotIn("trellis-gpt-workflow-hint", self.run_prompt_hook(
+                "codex", {"model": model, "prompt": prompt}).stdout)
+        original = SESSION.render_part(self.root, SESSION.HOOKS[0], "state", {"source": "clear"})
+        for value, target in (("中" * 683, model), (SESSION.MODEL_WORKFLOW_HINT_BODY, "gpt-" + "a" * 700)):
+            with patch.object(SESSION, "MODEL_WORKFLOW_HINT_BODY", value):
+                result = SESSION.render_part(self.root, SESSION.HOOKS[0], "state",
+                                             {"source": "clear", "model": target})
+            self.assertEqual(result["hookSpecificOutput"], original["hookSpecificOutput"])
+            self.assertIn("超过 2048 字节预算", result["systemMessage"])
 
     def test_sol_config_is_independent_and_preserves_skip_contract(self) -> None:
         """Sol 开关只控制 Sol；全局禁用、resume 和普通轮次保持原语义。"""
@@ -767,7 +828,8 @@ print(json.dumps({
         with patch.object(SESSION, "_run_native_hook", side_effect=native_result):
             for model, builder, label in ((SESSION.ASTRA_MODEL, "_astra_workflow_hint", "Astra"),
                                           (SESSION.SOL_MODEL, "_sol_workflow_hint", "Sol"),
-                                          (SESSION.SOL_6_1_MODEL, "_sol_6_1_workflow_hint", "Sol 6.1")):
+                                          (SESSION.SOL_6_1_MODEL, "_sol_6_1_workflow_hint", "Sol 6.1"),
+                                          ("gpt-5.5", "_gpt_workflow_hint", "GPT")):
                 for error in (ImportError("配置读取器不可用"), ValueError("提示超预算")):
                     with patch.object(SESSION, builder, side_effect=error):
                         result = SESSION.render_part(self.root, SESSION.HOOKS[0], "state",

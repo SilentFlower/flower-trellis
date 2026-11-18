@@ -167,13 +167,20 @@ flower-trellis enable --target .
 
 项目处于 disabled 时，`flower-trellis update`、`self-update` 的项目更新链，以及 `plugin add/update/remove/replay` 会临时恢复必要入口，完成写操作后再次 detach，并校验最终仍为 disabled；外部 Plugin 内容不会被当作 Trellis 入口删除。直接运行上游 `trellis update` 不经过这一控制面，可能重新生成入口，此时 `flower-trellis status` 会报告 `drifted`。`disable` 也不等同于 `uninstall`：历史数据和恢复能力会继续保留。
 
-## Astra、Sol 与 Sol 6.1 工作流提示
+## GPT 模型工作流提示
 
-Codex 的 SessionStart 在 `startup`、`clear`、`compact` 时，事件输入的当前模型精确为 `gpt-6-astra`、`gpt-6-sol` 或 `gpt-6.1-sol`，才会在 state 分段追加对应模型的一份英文工作流提示。三个模型使用相同的工作流正文和各自的模型标识；其他模型（包括 5.5）、缺失模型和未知别名不会追加；普通用户轮次不重复注入。
+Codex 的 SessionStart 在 `startup`、`clear`、`compact` 时，为事件输入中合法的 `gpt-…` 模型名称追加一份英文工作流提示，覆盖 GPT 5.x、6.x、版本后缀及未来型号。名称以小写 `gpt-` 开头，后接字母或数字，其余字符允许 ASCII 字母、数字、点、下划线和连字符。缺失模型、非法名称及非 GPT 模型保持原有上下文。普通用户轮次沿用原有注入频率。
 
-提示用于辅助遵循技能、工作流、模板和证据陈述，效果仍需行为对照验证。它不能删除宿主或历史指令，也不保证覆盖更高优先级要求。会话中切换模型后，要等下次 SessionStart 才重新判断是否追加。
+全部 GPT 模型共用工作流正文；Astra、Sol 和 Sol 6.1 保留既有标签，其他 GPT 型号使用 `trellis-gpt-workflow-hint`。提示用于辅助遵循技能、工作流、模板和证据陈述，效果仍需行为对照验证。会话内切换模型后，下次 SessionStart 重新判断当前模型。宿主指令及历史上下文继续按原有优先级生效。
 
-三个模型默认分别开启。要单独关闭某个模型的提示，在项目 `.trellis/config.yaml` 已有的 `codex` 配置下合并对应字段，保留原有字段：
+默认开启 GPT 提示。在项目 `.trellis/config.yaml` 已有的 `codex` 配置下合并总开关，保留原有字段：
+
+```yaml
+codex:
+  gpt_workflow_hint: false
+```
+
+总开关为 `false` 时停止全部 GPT 模型后续新增提示。设置 `true` 或删除字段可恢复默认值。Astra、Sol 和 Sol 6.1 的既有独立开关继续生效：
 
 ```yaml
 codex:
@@ -182,7 +189,7 @@ codex:
   sol_6_1_workflow_hint: false
 ```
 
-任一字段设置 `true` 或删除可恢复该模型的默认值。开关只影响后续新增提示；做无历史干扰的对照时应使用新会话。原工作流上下文继续注入，Trellis 全局禁用、resume 和非交互跳过规则保持原有行为。`no-trellis` 仍只跳过本轮 UserPromptSubmit。
+三个独立开关只控制对应的精确型号，其余 GPT 型号由总开关控制。总开关关闭时优先返回。配置值只接受布尔值或不区分大小写的 `true` / `false` 字符串。开关影响后续新增提示；做历史无干扰的对照时应使用新会话。Trellis 全局禁用、resume、非交互跳过及 `no-trellis` 沿用原有行为。
 
 ## Flower Plugin
 

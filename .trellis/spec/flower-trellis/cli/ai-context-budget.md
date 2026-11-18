@@ -26,7 +26,7 @@
 - Update-Spec：读取 compiled full 中实际存在的最终 `.agents`、`.claude/skills`、`.claude/commands` 入口。
 - Auto-Loop：该 skill 不是 Patch target，读取 `vendor/skill-garden/.trellis/0.6` 下直接铺设的 canonical `.agents/.claude` 入口；源、快照和 dogfood 一致性由同步测试单独保证。
 - Phase summary：真实运行 `python3 ./.trellis/scripts/get_context.py --mode phase`。
-- SessionStart：在隔离临时 fixture 部署 Flower 分段脚本，原生 hook、workflow-state hook 和 workflow 使用 pinned full 编译目标，分别运行 `.trellis/scripts/flower_session_start.py --hook <原生路径> --part state|rules|stages`。保留十八个模型/来源场景：Codex 缺失模型、Astra、Sol 与 Sol 6.1 各自的 startup/clear/compact、其他模型、三个模型各自关闭，以及 Claude 携带 Astra 输入的 startup/compact、Sol 与 Sol 6.1 输入的 startup；另为两平台各运行一个带 1000 个长路径索引的 compact 场景，共二十场景。每场景三份真实 `additionalContext`，每个平台取最大场景保留六份分段汇总，`session-start` 取最大平台/场景合计，不重复累加等价入口。
+- SessionStart：在隔离临时 fixture 部署 Flower 分段脚本，原生 hook、workflow-state hook 和 workflow 使用 pinned full 编译目标，分别运行 `.trellis/scripts/flower_session_start.py --hook <原生路径> --part state|rules|stages`。保留二十五个模型/来源场景：Codex 缺失模型、Astra、Sol、Sol 6.1 和通用 GPT 各自的 startup/clear/compact、非 GPT、三个旧型号各自关闭、总开关对四类型号分别关闭，以及 Claude 携带 Astra 输入的 startup/compact、Sol 与 Sol 6.1 输入的 startup；另为两平台各运行一个带 1000 个长路径索引的 compact 场景，共二十七场景。每场景三份真实 `additionalContext`，每个平台取最大场景保留六份分段汇总，`session-start` 取最大平台/场景合计，不重复累加等价入口。
 
 Patch 的 `content.md`、`common-content.md`、`subagent-content.md` 只是构建输入。直接测它们会漏掉 frontmatter、上游保留段、marker、结构拼接和平台差异，因此不构成预算证据。
 
@@ -52,7 +52,7 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 `session-start:<platform>:<part>` 另输出 Unicode 字符数，`unit=characters` 的 target / review 按字符比较；其余指标继续按 UTF-8 bytes 比较。分段字符指标与 Codex 的近似 token 额度不是同一单位，不能据此宣称已验证宿主实际接收。
 
 `session-start-case:<platform>:<name>` 输出每个场景的三段总字节数；`astra-workflow-hint`、
-`sol-workflow-hint` 与 `sol-6-1-workflow-hint` 分别从实际输出中提取完整闭合块计量，包含模型和版本标记。fixture 显式固定三个开关，
+`sol-workflow-hint`、`sol-6-1-workflow-hint` 与 `gpt-workflow-hint` 分别从实际输出中提取完整闭合块计量，包含模型和版本标记。fixture 显式固定四个开关，
 不能因本地配置关闭而漏测开启成本；匹配场景只有 state 的对应模型一块，其他输出零块，三种 source 的
 提示正文相同。数量或正文不一致是结构错误。
 
@@ -96,7 +96,7 @@ Phase 2 摘要与 Guardrails 中的任务实施前置条件不能被写成所有
 | Phase summary | 18 KiB | 20 KiB |
 | SessionStart 三段 `additionalContext` 合计（最大平台） | 18 KiB | 20 KiB |
 | 单个 SessionStart 分段 | 8000 字符 | 10000 字符 |
-| 单个完整 Astra、Sol 或 Sol 6.1 模型提示块 | 2 KiB | 2 KiB |
+| 单个完整 GPT 模型提示块（含旧三个型号） | 2 KiB | 2 KiB |
 | 单个完整共享代码设计原则块 | 512 B | 512 B |
 | 单个完整 Codex 同步交互规则块 | 512 B | 512 B |
 | control-context-total | 116 KiB | 128 KiB |
@@ -112,7 +112,7 @@ Phase 2 摘要与 Guardrails 中的任务实施前置条件不能被写成所有
 
 修改公式必须更新 checker、基线和本规范，不能只调整展示文本。
 
-Astra、Sol 与 Sol 6.1 提示分别受运行时 2048 字节硬限制：超限不新增提示并诊断，预算 fixture 因预期块缺失而报结构错误。
+每个 GPT 提示均受运行时 2048 字节硬限制：超限不新增提示并诊断，预算 fixture 因预期块缺失而报结构错误。
 这是可选模型提示的执行契约，不改变其它上下文对象默认告警的策略。实际拼接另有一个换行，须计入 state 和总量。
 
 ## Warning Policy
@@ -225,8 +225,8 @@ node scripts/check-ai-context-budget.mjs --strict
 - strict 只在 high-warning 时退出非 0。
 - 结构性测量错误始终非 0。
 - Codex / Claude 的三个 SessionStart 分段均返回非空 `additionalContext`，不能把注入失败诊断当作成功测量；原文完整性、并行执行和额度迁移另由分段及平台回归验证。
-- 二十个 SessionStart 场景必须全部实际运行；十八个模型/来源场景中，Astra、Sol 与 Sol 6.1 各自的三种来源均等于同配置无提示基线加对应完整块及一个换行，其他模型和关闭场景与基线相同。两个大目录场景必须进入各平台最大真实输出的选择，控制面只计全局最大合计。
-- `astra-workflow-hint`、`sol-workflow-hint` 与 `sol-6-1-workflow-hint` 必须分别非空且不超过 2048 UTF-8 字节；独立故障测试使用多字节字符确认超限拒绝，不能只比较字符数或提示源文件大小。
+- 二十七个 SessionStart 场景必须全部实际运行；二十五个模型/来源场景中，Astra、Sol、Sol 6.1 与通用 GPT 各自的三种来源均等于同配置无提示基线加对应完整块及一个换行，非 GPT 和关闭场景与基线相同。两个大目录场景必须进入各平台最大真实输出的选择，控制面只计全局最大合计。
+- `astra-workflow-hint`、`sol-workflow-hint`、`sol-6-1-workflow-hint` 与 `gpt-workflow-hint` 必须分别非空且不超过 2048 UTF-8 字节；独立故障测试使用多字节字符和超长合法模型名确认超限拒绝，不能只比较字符数或提示源文件大小。
 - state 从最终 workflow 动态枚举，不写死文件数量。
 - Update-Spec 从 compiled final 平台入口测量，不读取 Patch content；Auto-Loop 从直接铺设的 canonical variant skill 测量。
 - control-context-total 使用固定公式和最大平台入口。
