@@ -1,0 +1,149 @@
+{
+  "id": "confirmation-recovery-task-decoupling",
+  "name": "confirmation-recovery-task-decoupling",
+  "title": "放宽后台确认的恢复输入与任务绑定限制",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-18",
+  "completedAt": "2026-11-18",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-18T06:47:17Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-11-18T05:12:26Z",
+      "contextKey": "codex_01a1ed0b-6c1d-77c1-9931-96b5106158f5",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "63660348760ec03b833d8168ff5a7ffdb84eecd6",
+        "status": [
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/11-11-confirmation-capacity/task.json"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/11-11-confirmation-windows-native/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "63660348760ec03b833d8168ff5a7ffdb84eecd6",
+            "status": [
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json"
+              },
+              {
+                "status": " M",
+                "path": ".trellis/tasks/11-11-confirmation-capacity/task.json"
+              },
+              {
+                "status": " M",
+                "path": ".trellis/tasks/11-11-confirmation-windows-native/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "3cedbd5a919f276a5c3895949f22bba41ede6aefd815ab16d7dca03f029299bb",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md",
+                "sha256": "a5b026b082cabf4355695951b536b72eddd5cf1818c9a48bb36fe90c3872e1d2"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json",
+                "sha256": "db0bd6e65dfc58f77d2185568fd176ac3fa35ab1f6fda4265dc1f6eef4a9b314"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "fc64bca986c2eda503b83db493824709c5ab6721258cde5920428e15eb0aa152"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "d061d0e7b4f4191c86e08ed4e7b06467de8ed766",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "f67aa7583b544fd20b8c41abfa28723986ceff95564b4aa9373594a9728669df"
+          }
+        ],
+        "fingerprint": "5f77a4bef8df3ca22aa7a0623c56f181068852509ddf37c485f97929ee2e2a4f"
+      }
+    },
+    "confirmationTimeoutDisabled": true
+  },
+  "progress": {
+    "completedSteps": [
+      "修正多平台变量共存时的宿主会话解析",
+      "以材料任务确定确认范围并独立冻结会话绑定",
+      "支持 Codex 原生恢复回合追溯输入",
+      "修复 Python 3.8 测试夹具与正常日志追加误判",
+      "完成本地重检、分发同步和规范更新",
+      "完成业务交付及 Ubuntu/Windows 必需 CI 验证"
+    ],
+    "partialStep": null,
+    "nextStep": "任务完成并关闭，后续工作按新需求安排。",
+    "notes": "本地完整回归、定向边界及真实并发链路验证通过。跨平台 CI：https://github.com/SilentFlower/flower-trellis/actions/runs/44251555833。快照与 Patch 门禁通过。",
+    "updatedAt": "2026-11-18T06:47:17Z"
+  }
+}
