@@ -1,5 +1,7 @@
 """验证多平台环境中的任务身份选择与宿主识别。"""
 
+from __future__ import annotations
+
 import importlib.util
 import os
 import sys
@@ -26,6 +28,7 @@ class SessionHostIdentityTest(unittest.TestCase):
         with patch.dict(sys.modules, {spec.name: self.module}):
             spec.loader.exec_module(self.module)
         content = ROOT / "vendor/skill-garden/.trellis/0.6/overrides/patches/scripts/runtime-state-integrity/active-task-env-content.py"
+        # 目标模块启用延迟注解，片段编译须继承相同语义以兼容 Python 3.8。
         exec(compile(content.read_text(), str(content), "exec"), self.module.__dict__)
 
     def test_conflicting_variables_follow_nearest_host(self):

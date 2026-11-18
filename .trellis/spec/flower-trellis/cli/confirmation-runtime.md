@@ -197,6 +197,8 @@ src/lib/confirmation-lifecycle.js:
   原生日志路径来自 Hook，逐记录核对 sessionId；不限制文件名布局。Hook 通知仅比较必要身份字段。
 - 两端按文件身份和已消费位置增量读取完整 JSONL 行，单条解析上限 16 MiB，文件总大小不限。
   原生最终展示核验上限 768 KiB。请求冻结记录文件身份和读取边界；替换、截断及边界漂移作废旧观察。
+  正常追加可短暂先更新 mtime 再增长 size；定位、续读和读后核验各最多重读元数据 50 ms，
+  只有随后增长且身份、已消费边界一致时才按追加处理。持续同大小重写仍拒绝。
 - 两端原生等待分别用 Codex 短 yield 的后台 terminal session、Claude Bash `run_in_background:true`。
   主回合展示后结束，不轮询、不用 clock.sleep 或等待子代理占住聊天。
 
@@ -228,6 +230,7 @@ src/lib/confirmation-lifecycle.js:
 | 单条 Git 命令或整轮快照超时 | 停止本次核验，返回命令或快照阶段；未完成的 Git 进程回收 |
 | 会话文件超过历史总量，记录身份与完整行可核验 | 照常读取；只对新增完整行更新观察证据 |
 | 会话文件替换、截断或已消费边界变化 | 拒绝使用冻结的旧证据 |
+| 追加时 mtime 先变化、size 随后增长 | 每处最多重读 50 ms；增长后继续原有文件身份与边界核验 |
 | `.flower/trellis-control.json` 存在，包括 null、损坏或漂移状态 | 保持人工确认 |
 | 本次必需来源或记录完整性异常 | 使当前活动许可失效，返回结构化失败 |
 | 未完整展示、原回合中断 | 不启动倒计时 |
@@ -260,6 +263,8 @@ src/lib/confirmation-lifecycle.js:
 - Normal：材料声明任务 B、会话绑定任务 A 时，按 B 的材料准备确认；等待期间 A 的绑定变化使旧快照失效。
 - Base：Codex 原生恢复回合沿 `root_turn_id` 找到原始输入，本次最终正文归属当前恢复回合。
   该回合已有新的原生输入时，以当前输入作为基线。
+- Base：原生日志写入先公布修改时间时，短暂重读元数据，确认增长后继续处理完整行；
+  同大小重写持续到重读预算结束时，旧观察失效。
 - Incorrect use：Codex 与 Claude 标识共存时按映射表先后次序选择。
   Correct handling：使用显式身份，或从真实进程链识别最近宿主；Linux 的 `claude.exe` 按 Claude ELF 映像处理。
 - Base：关闭旧任务后会话绑定为空，新任务 Brief 可先准备、领取并 started，再由 `task.py start` 绑定目标。
@@ -306,6 +311,7 @@ src/lib/confirmation-lifecycle.js:
   Windows 路径和句柄时间戳不同的回归覆盖结构化材料及流式指纹，分别断言接受时间戳差异、拒绝替换和拒绝读取中变化。
   `test_project_confirmation.py` 验证较大输入的状态仅存摘要、领取仍返回完整上下文，长展示和迟领取继续核验有效性。
   `test_confirmation_native.py` 验证超过旧总量的日志、增量读取、不完整行及替换后旧证据失效。
+  覆盖定位、起读与读后核验的 mtime 先于 size 更新，以及重读期间的持续同大小重写、替换和截断拒绝。
 - `test_confirmation_native.py` / `test_flower_tui_lifetime.py`：本机 WebSocket、帧边界、只读观察、真实内部来源、
   出生身份、归属歧义、恢复拒绝、能力不足；不存在宿主 Codex home 和隔离 PATH 下完成两端真实 Python CLI 链路。
 - `test_confirmation_windows.py`：真实 Windows 监听者、同映像副本、PID 创建时间、退出句柄、第二个未监听前台；
@@ -319,6 +325,7 @@ src/lib/confirmation-lifecycle.js:
   准备前同回合插话纳入基线，准备后同回合插话及跨进程续读时发现回滚均作废本次观察。
 - `test_session_host_identity.py`：显式上下文和平台优先，单候选兼容，多候选按最近宿主解析；Linux/WSL 与 Windows 进程遍历覆盖两种继承方向。
   覆盖 Linux 的 `claude.exe` 映像名，并断言在内层宿主停止遍历。
+  动态编译 Patch 片段继承目标模块的延迟注解语义，在 Python 3.8/3.12 中均可加载。
 - `test_task_progress.py`：隔离 CLI 夹具使用独立 `TRELLIS_CONTEXT_ID`，其子进程关闭字节码写入；
   外部工具的继承标识保持与进度查询用例独立。
 - `test_confirmation_native.py`：连续原生恢复、恢复链中插话、跨进程准备/等待/领取/started，以及缺失、跨线程、循环和文本伪造恢复关系。

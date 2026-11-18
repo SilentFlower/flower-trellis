@@ -14,6 +14,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -230,7 +231,9 @@ class NativeConfirmationTest(unittest.TestCase):
         server.append({"type": "task_complete", "turn_id": server.origin})
         deadline = time.monotonic() + 10
         while f.store.read()["request"]["state"] != "queued":
-            self.assertIsNone(child.poll())
+            if child.poll() is not None:
+                output, errors = child.communicate()
+                self.fail(output + errors)
             self.assertLess(time.monotonic(), deadline)
             time.sleep(0.02)
         self.invoke(f, ["hook"], {"cwd": str(f.root), "session_id": f.session, "turn_id": server.wake_turn,
@@ -254,7 +257,9 @@ class NativeConfirmationTest(unittest.TestCase):
             server.append({"type": "task_complete", "turn_id": origin_turn})
             deadline = time.monotonic() + 10
             while f.store.read()["request"]["state"] != "queued":
-                self.assertIsNone(child.poll())
+                if child.poll() is not None:
+                    output, errors = child.communicate()
+                    self.fail(output + errors)
                 self.assertLess(time.monotonic(), deadline)
                 time.sleep(0.02)
             self.invoke(f, ["hook"], {"cwd": str(f.root), "session_id": f.session, "turn_id": server.wake_turn,
@@ -473,6 +478,62 @@ class NativeConfirmationTest(unittest.TestCase):
             _, other = SessionLog().read(file, initial.copy(), consume)
             with self.assertRaisesRegex(ValueError, "冻结的原生会话记录已替换"):
                 SessionLog.verify(frozen, other)
+
+    def test_log_append_metadata_settles_before_size_growth(self):
+        """追加的 mtime 先变化时，起读与读后核验均等待真实增长。
+
+        @return: None。
+        """
+        for phase in ("before", "after", "locate"):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
+                file = Path(directory) / "session.jsonl"
+                file.write_bytes(b'{"id":"old"}\n')
+                log = SessionLog()
+                consume = lambda record, entry: record.update(entry)
+                log.read(file, {}, consume)
+                if phase == "after":
+                    log.resume(log.observation, log.result)
+                before = file.lstat()
+                with file.open("ab") as stream:
+                    stream.write(b'{"id":"new"}\n')
+                grown = file.lstat()
+                lag = SimpleNamespace(st_mode=before.st_mode, st_dev=before.st_dev, st_ino=before.st_ino,
+                                      st_size=before.st_size, st_mtime_ns=before.st_mtime_ns + 1)
+                observed = [lag, grown, grown] if phase == "before" else [before, lag, grown]
+                with patch.object(Path, "lstat", side_effect=observed) as metadata:
+                    if phase == "locate":
+                        start = SessionLog.locate(file, "old", lambda entry: entry.get("id") == "old")
+                        log.resume(start, {"id": "old"})
+                    else:
+                        record, _ = log.read(file, {}, consume)
+                        self.assertEqual(record["id"], "new" if phase == "before" else "old")
+                    self.assertEqual(metadata.call_count, 3)
+                self.assertEqual(log.read(file, {}, consume)[0]["id"], "new")
+
+    def test_log_metadata_recheck_preserves_rewrite_and_replacement_rejection(self):
+        """元数据重读继续拒绝同大小重写和等待期间的文件替换。
+
+        @return: None。
+        """
+        for change in ("rewrite", "replacement", "truncation"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                file = Path(directory) / "session.jsonl"
+                file.write_bytes(b'{"id":"old"}\n')
+                log = SessionLog()
+                log.read(file, {}, lambda record, entry: record.update(entry))
+                before = file.lstat()
+                changed = SimpleNamespace(st_mode=before.st_mode, st_dev=before.st_dev, st_ino=before.st_ino,
+                                          st_size=before.st_size, st_mtime_ns=before.st_mtime_ns + 1)
+                if change != "rewrite":
+                    field = "st_ino" if change == "replacement" else "st_size"
+                    value = before.st_ino + 1 if change == "replacement" else before.st_size - 1
+                    altered = SimpleNamespace(**{**vars(changed), field: value})
+                    metadata = patch.object(Path, "lstat", side_effect=[changed, altered])
+                else:
+                    metadata = patch.object(Path, "lstat", return_value=changed)
+                with metadata, self.assertRaisesRegex(ValueError, "替换、截断或重写"):
+                    log.read(file, {}, lambda record, entry: record.update(entry))
+                self.assertEqual(log.result, {"id": "old"})
 
     @unittest.skipUnless(sys.platform == "linux", "自动路径限定 Linux/WSL")
     def test_native_rpc_unknown_receipt_is_not_retried_and_delete_is_precise(self):

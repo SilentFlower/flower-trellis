@@ -3,6 +3,7 @@
 import json
 import os
 import stat
+import time
 from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
@@ -45,7 +46,7 @@ class SessionLog:
                 raise ValueError("原生会话记录在打开时已替换")
             stream.seek(start)
             raw = stream.read(info.st_size - start)
-            end = file.lstat()
+            end = cls._stat(file, {"identity": identity, "size": info.st_size, "modified": info.st_mtime_ns})
             if (len(raw) != info.st_size - start or (end.st_dev, end.st_ino) != (info.st_dev, info.st_ino)
                     or end.st_size < info.st_size or (end.st_size == info.st_size and end.st_mtime_ns != info.st_mtime_ns)):
                 raise ValueError("原生会话记录在读取时已变化")
@@ -91,7 +92,7 @@ class SessionLog:
         @param consume: 处理一条完整记录并更新证据的回调。
         @return: 累计证据及可用于跨阶段核验的文件身份和进度。
         """
-        info = file.lstat()
+        info = self._stat(file, self.observation)
         if not stat.S_ISREG(info.st_mode):
             raise ValueError("原生会话记录必须是普通文件")
         identity = [str(file), info.st_dev, info.st_ino]
@@ -125,7 +126,7 @@ class SessionLog:
                 if not raw.isspace():
                     consume(result, json.loads(raw.decode("utf-8")))
             anchor = self._anchor(stream, offset)
-            end = file.lstat()
+            end = self._stat(file, {"identity": identity, "size": info.st_size, "modified": info.st_mtime_ns})
             if ((end.st_dev, end.st_ino) != (info.st_dev, info.st_ino) or end.st_size < info.st_size
                     or (end.st_size == info.st_size and end.st_mtime_ns != info.st_mtime_ns)):
                 raise ValueError("原生会话记录在读取时已变化")
@@ -155,6 +156,25 @@ class SessionLog:
             if ([opened.st_dev, opened.st_ino] != frozen["identity"][1:] or opened.st_size < frozen["size"]
                     or cls._anchor(stream, frozen["offset"]).hex() != frozen["anchor"]):
                 raise ValueError("冻结的原生会话记录边界已变化")
+
+    @staticmethod
+    def _stat(file, previous):
+        """短暂重读追加期间先更新的 mtime，保留稳定重写的拒绝条件。
+
+        @param file: 当前原生日志。
+        @param previous: 需要核对的既有身份、大小和修改时间。
+        @return: 预算内最终观察的文件元数据。
+        """
+        info = file.lstat()
+        if previous:
+            deadline = time.monotonic() + 0.05
+            # 写入可先公布 mtime 再增长 size；只等待该瞬态，身份和大小异常交给调用方拒绝。
+            while (stat.S_ISREG(info.st_mode) and [str(file), info.st_dev, info.st_ino] == previous["identity"]
+                   and info.st_size == previous["size"] and info.st_mtime_ns != previous["modified"]
+                   and time.monotonic() < deadline):
+                time.sleep(0.005)
+                info = file.lstat()
+        return info
 
     @staticmethod
     def _anchor(stream, offset):
