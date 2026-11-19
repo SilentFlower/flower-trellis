@@ -1,0 +1,147 @@
+{
+  "id": "gpt-code-guards",
+  "name": "gpt-code-guards",
+  "title": "完善 GPT 专属提示词的限制与兜底判断",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-19",
+  "completedAt": "2026-11-19",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-19T01:40:47Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-11-19T01:06:44Z",
+      "contextKey": "codex_01a1f12e-c183-7b40-984f-1e776cccd843",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "21e0a143d038909a3a1ee6af554e80a5f1401100",
+        "status": [
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/11-11-confirmation-capacity/task.json"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/11-11-confirmation-windows-native/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "21e0a143d038909a3a1ee6af554e80a5f1401100",
+            "status": [
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json"
+              },
+              {
+                "status": " M",
+                "path": ".trellis/tasks/11-11-confirmation-capacity/task.json"
+              },
+              {
+                "status": " M",
+                "path": ".trellis/tasks/11-11-confirmation-windows-native/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "3cedbd5a919f276a5c3895949f22bba41ede6aefd815ab16d7dca03f029299bb",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md",
+                "sha256": "a5b026b082cabf4355695951b536b72eddd5cf1818c9a48bb36fe90c3872e1d2"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json",
+                "sha256": "db0bd6e65dfc58f77d2185568fd176ac3fa35ab1f6fda4265dc1f6eef4a9b314"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "c77c2d644542057a157cea5fc6677f9c3b577364df49a38136a2249ce97fa155"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "2f28268c4fdb5ed52a232194d2a9135bb447b2a9",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "d380d8aa0349e201afcc17063d5a3795ca86430981f4dfb9dddfcf469f0d6bfe"
+          }
+        ],
+        "fingerprint": "042d92c22fae19bdeb9ceb15810ecbbf5fdb0f39b2a918b0be5ca85dbaa20b2c"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "完成所有 GPT 共用的有依据限制与兜底工程提示",
+      "完成35项SessionStart专项回归、预算与分发检查及Check-All",
+      "同步README、项目投影、Plugin ownership及可复用规范",
+      "业务提交推送成功，对应CI的规则产物及Ubuntu/Windows × Python 3.8/3.12全部通过",
+      "整理六类真实案例与独立同题行为评分依据"
+    ],
+    "partialStep": null,
+    "nextStep": "本任务工程交付完成；模型行为改善可按既定案例独立同题评估",
+    "notes": "工程注入与分发验收已完成。行为改善幅度属于后续同题对照结果。",
+    "updatedAt": "2026-11-19T01:40:47Z"
+  }
+}
