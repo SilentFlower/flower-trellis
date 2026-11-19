@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.21](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.20...v0.6.13-beta.21) (2026-11-19)
+
+
+### ✨ 新功能 Features
+
+* **brief:** 同步关键取舍展示与规划审查规则 ([338ceaf](https://github.com/SilentFlower/flower-trellis/commit/338ceaf94afca8f66a35e33b94d7941ca065e2e9))
+* **gpt:** 明确限制与兜底的工程判断规则 ([0d67473](https://github.com/SilentFlower/flower-trellis/commit/0d6747337bb7218c00b57e1844d592681fb61deb))
+
 ## [0.6.13-beta.20](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.19...v0.6.13-beta.20) (2026-11-18)
 
 
