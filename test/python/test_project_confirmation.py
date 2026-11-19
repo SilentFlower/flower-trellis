@@ -195,7 +195,6 @@ class ProjectConfirmationTest(unittest.TestCase):
         f.client.turn["status"] = "inProgress"
         lock = f.store.file.with_name(f.store.file.name + ".lock")
         snapshot = f.client.snapshot
-        human_event = str(uuid4())
         polls = 0
 
         def observe():
@@ -206,7 +205,7 @@ class ProjectConfirmationTest(unittest.TestCase):
                 write_json(lock / "owner.json", {"pid": os.getpid(), "token": str(uuid4())})
             if polls == 4:
                 shutil.rmtree(str(lock))
-                return {**snapshot(), "humanEvents": [human_event]}
+                return {**snapshot(), "inputSeq": snapshot()["inputSeq"] + 1}
             return snapshot()
 
         f.client.snapshot = observe
@@ -217,7 +216,7 @@ class ProjectConfirmationTest(unittest.TestCase):
         self.assertEqual(polls, 4)
         self.assertEqual(result["state"], "cancelled")
         self.assertEqual(result["error"], "user_replied")
-        self.assertEqual(f.store.read()["lastHumanMessageId"], human_event)
+        self.assertEqual(f.store.read()["inputSeq"], 1)
         self.assertEqual(f.client.added, [])
 
     def test_direct_observations_skip_live_lock_until_new_human_input(self):
@@ -245,7 +244,7 @@ class ProjectConfirmationTest(unittest.TestCase):
                 state = f.store.read()
                 self.assertEqual(state["request"]["state"], "cancelled")
                 self.assertEqual(state["request"]["error"], "user_replied")
-                self.assertEqual(state["lastHumanMessageId"], f.client.human)
+                self.assertEqual(state["inputSeq"], f.client.input_seq)
 
     def test_changes_and_new_input_invalidate_before_dispatch_or_started(self):
         """材料、策略与输入代次的竞争拒绝旧动作。"""
@@ -663,8 +662,11 @@ class ProjectConfirmationTest(unittest.TestCase):
         finally:
             writer.join(3)
 
-    def test_claude_prepare_requires_current_origin_and_checks_new_input_after_anchor(self):
-        """在两种来源字段格式下，旧记录跳过，当前未知和随后人工输入阻止准备。"""
+    def test_claude_prepare_uses_current_boundary_and_rejects_racing_input(self):
+        """两种宿主允许 peer 回合，准备后的人工输入无消息 ID 也会阻断。
+
+        @return: None。
+        """
         from flower_confirmation_runtime.claude import ClaudeClient
         for platform in ("linux", "win32"):
             with self.subTest(platform=platform):
@@ -673,37 +675,28 @@ class ProjectConfirmationTest(unittest.TestCase):
                 client.platform = platform
                 transcript = f.root / (f.session + ".jsonl")
                 identity = {"pid": 10, "exe": "claude.exe", "created": "10"}
-                prompt = f.client.human
-
-                def active(value):
-                    value["native"].update(transcript=str(transcript), frontend=identity,
-                                           turn={"id": prompt, "status": "inProgress"})
-                    return value
-
-                f.store.update(active)
-                entry = {"type": "user", "sessionId": f.session, "promptId": prompt,
-                         "origin": {"kind": "beer"}, "message": {"content": "当前记录"}}
-                old = {**entry, "promptId": str(uuid4()), "origin": {"kind": "peer"}, "turnOrigin": "peer"}
-                human = {**entry, "origin": {"kind": "human"}}
-                if platform == "linux":
-                    human["turnOrigin"] = "human"
-
-                def write(entries):
-                    transcript.write_text("".join(json.dumps(item) + "\n" for item in entries), encoding="utf-8")
-
+                prompt = str(uuid4())
+                f.store.update(lambda value: {**value, "native": {**value["native"], "transcript": str(transcript),
+                                    "frontend": identity, "turn": {"id": prompt, "status": "inProgress"}}})
+                transcript.write_text(json.dumps({"type": "user", "sessionId": f.session, "promptId": prompt,
+                                      "origin": {"kind": "peer"}, "message": {"content": "调研结果"}}) + "\n", encoding="utf-8")
                 with patch("flower_confirmation_runtime.claude.open_identity") as frontend:
                     frontend.return_value.identity = identity
                     frontend.return_value.exited.return_value = False
-                    write([old, entry])
-                    with self.assertRaisesRegex(ValueError, "当前回合缺少可核验"):
-                        runtime.prepare(f.store, client, f.input, "1")
-                    write([old, human, {**human, "promptId": str(uuid4())}])
-                    with self.assertRaisesRegex(ValueError, "回合或人工输入已变化"):
-                        runtime.prepare(f.store, client, f.input, "1")
-                    client = ClaudeClient(f.root, f.session, platform="linux")
-                    client.platform = platform
-                    write([old, human])
                     self.assertTrue(runtime.prepare(f.store, client, f.input, "1")["prepared"])
+                    observe = client.prepare_snapshot
+                    calls = []
+                    def racing():
+                        snapshot = observe()
+                        if not calls:
+                            calls.append(True)
+                            with transcript.open("a", encoding="utf-8") as stream:
+                                stream.write(json.dumps({"type": "user", "sessionId": f.session,
+                                             "origin": {"kind": "human"}, "message": {"content": "暂停"}}) + "\n")
+                        return snapshot
+                    client.prepare_snapshot = racing
+                    with self.assertRaisesRegex(ValueError, "准备期间出现新人工输入"):
+                        runtime.prepare(f.store, client, f.input, "1")
 
 
 if __name__ == "__main__":

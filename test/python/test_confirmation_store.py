@@ -80,7 +80,7 @@ deadline = time.monotonic() + 15
 for unused in range(12):
     while True:
         try:
-            store.update(lambda value: dict(value, generation=value['generation'] + 1))
+            store.update(lambda value: dict(value, generation=value['generation'] + 1, inputSeq=value.get('inputSeq', 0) + 1))
             break
         except ValueError as error:
             # 锁繁忙在执行回调前返回；慢盘争锁时可以重试这一次增量。
@@ -100,6 +100,7 @@ for unused in range(12):
                     child.kill()
                 child.communicate(timeout=5)
         self.assertEqual(f.store.read()["generation"], 48)
+        self.assertEqual(f.store.read()["inputSeq"], 48)
         self.assertFalse(f.store.file.with_name(f.store.file.name + ".lock").exists())
 
     def test_dead_owner_lock_is_reaped_without_stealing_live_lock(self):

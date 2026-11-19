@@ -89,12 +89,12 @@ class WindowsConfirmationTest(unittest.TestCase):
         fixture = ProjectFixture(self, "claude")
         client = claude.ClaudeClient(fixture.root, fixture.session, platform="linux")
         client.platform = "win32"
-        record = {"humanId": None, "notifications": {}}
+        record = {"inputCount": 0, "notifications": {}}
         prompt = str(uuid4())
         notice = "<task-notification>\n<task-id>test-task</task-id>\n</task-notification>"
         entry = {"type": "user", "sessionId": fixture.session, "promptId": prompt, "message": {"content": notice}}
         client._consume_transcript(record, {**entry, "origin": {"kind": "human"}})
-        self.assertEqual(record["humanId"], prompt)
+        self.assertEqual(record["inputCount"], 1)
         self.assertEqual(record["notifications"], {})
         client._consume_transcript(record, {**entry, "origin": {"kind": "task-notification"}, "turnOrigin": "human"})
         self.assertEqual(record["notifications"], {"test-task": prompt})

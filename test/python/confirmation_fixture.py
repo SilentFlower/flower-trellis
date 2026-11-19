@@ -94,6 +94,7 @@ class FakeClient:
         @return: None。
         """
         self.store = store
+        self.input_seq = 0
         self.human = str(uuid4())
         self.turn = {"id": str(uuid4()), "status": "inProgress"}
         self.run_id = str(uuid4())
@@ -102,13 +103,41 @@ class FakeClient:
         self.text = None
         self.window_valid = True
 
+    @property
+    def human(self):
+        """返回测试输入标记。
+
+        @return: 当前测试消息标记。
+        """
+        return self._human
+
+    @human.setter
+    def human(self, value):
+        """模拟用户插话并推进宿主输入序号。
+
+        @param value: 新的测试输入标记。
+        @return: None。
+        """
+        if hasattr(self, "_human") and self._human != value:
+            self.input_seq += 1
+            def received(state):
+                state["inputSeq"] = self.input_seq
+                state["generation"] += 1
+                request = state.get("request") or {}
+                if request.get("state") in ("prepared", "waiting", "dispatching", "queued"):
+                    request.update(state="cancelled", error="user_replied")
+                return state
+            self.store.update(received)
+        self._human = value
+
     def snapshot(self):
         """返回可控的精确快照。
 
         @return: 人工基线、回合、唤醒和运行身份。
         """
-        request = (self.store.read() or {}).get("request") or {}
-        return {"humanId": self.human, "turn": copy.deepcopy(self.turn), "runId": self.run_id,
+        state = self.store.read() or {}
+        request = state.get("request") or {}
+        return {"inputSeq": max(self.input_seq, state.get("inputSeq", 0)), "turn": copy.deepcopy(self.turn), "runId": self.run_id,
                 "wake": {"requestId": request.get("id"), "turnId": self.turn["id"]},
                 "notification": {"requestId": request.get("id"), "taskId": "queue", "promptId": self.turn["id"]}}
 

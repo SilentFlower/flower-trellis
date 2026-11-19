@@ -27,48 +27,80 @@ class SessionLog:
         self._verify_resume = False
 
     @classmethod
+    def checkpoint(cls, file):
+        """冻结当前完整行边界，后续仅观察新追加的记录。
+
+        @param file: 宿主提供的精确日志路径。
+        @return: 可跨进程续读的文件身份与边界。
+        """
+        info = file.lstat()
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("原生会话记录必须是普通文件")
+        identity = [str(file), info.st_dev, info.st_ino]
+        with file.open("rb") as stream:
+            opened = os.fstat(stream.fileno())
+            if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+                raise ValueError("原生会话记录在打开时已替换")
+            start = max(0, info.st_size - RECORD_BYTES - 1)
+            stream.seek(start)
+            tail = stream.read(info.st_size - start)
+            if len(tail) != info.st_size - start:
+                raise ValueError("原生会话记录在读取时已截断")
+            # 未写完的行必须留给下一次读取，避免准备过程中跳过新输入。
+            boundary = tail.rfind(b"\n") + 1
+            if not boundary and start:
+                raise ValueError("原生会话未完成记录超过 16 MiB 解析预算")
+            offset = start + boundary
+            anchor = cls._anchor(stream, offset).hex()
+            end = cls._stat(file, {"identity": identity, "size": info.st_size, "modified": info.st_mtime_ns})
+            if ((end.st_dev, end.st_ino) != (info.st_dev, info.st_ino) or end.st_size < info.st_size
+                    or (end.st_size == info.st_size and end.st_mtime_ns != info.st_mtime_ns)):
+                raise ValueError("原生会话记录在准备观察边界时已变化")
+        return {"identity": identity, "size": info.st_size, "modified": info.st_mtime_ns,
+                "offset": offset, "anchor": anchor}
+
+    @classmethod
     def locate(cls, file, identifier, matches):
-        """在有界文件尾部定位当前回合的完整记录。
+        """反向分块定位当前回合的完整记录。
 
         @param file: 宿主报告的精确会话路径。
         @param identifier: 用于失败诊断的原生标识，准确匹配由 matches 完成。
         @param matches: 核对候选记录及其结构化身份。
         @return: 可跨进程续读的记录边界。
         """
-        info = file.lstat()
-        if not stat.S_ISREG(info.st_mode):
-            raise ValueError("原生会话记录必须是普通文件")
-        identity = [str(file), info.st_dev, info.st_ino]
-        start = max(0, info.st_size - 2 * RECORD_BYTES)
+        frozen = cls.checkpoint(file)
+        offset = frozen["offset"]
+        position = max(0, offset - 1)
+        pending = b""
         with file.open("rb") as stream:
             opened = os.fstat(stream.fileno())
-            if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+            if [opened.st_dev, opened.st_ino] != frozen["identity"][1:]:
                 raise ValueError("原生会话记录在打开时已替换")
-            stream.seek(start)
-            raw = stream.read(info.st_size - start)
-            end = cls._stat(file, {"identity": identity, "size": info.st_size, "modified": info.st_mtime_ns})
-            if (len(raw) != info.st_size - start or (end.st_dev, end.st_ino) != (info.st_dev, info.st_ino)
-                    or end.st_size < info.st_size or (end.st_size == info.st_size and end.st_mtime_ns != info.st_mtime_ns)):
-                raise ValueError("原生会话记录在读取时已变化")
-            lines = raw.split(b"\n")
-            offset = info.st_size - len(lines.pop())
-            # 在有界窗口内按解析后的身份匹配，避免依赖原生 ID 的 JSON 转义形式。
-            for index in range(len(lines) - 1, -1, -1):
-                line = lines[index]
-                if (index or not start) and len(line) < RECORD_BYTES:
+            # 反向分块定位当前回合；总日志长度不限制可用性，单条解析仍沿用既有预算。
+            while position or pending:
+                start = max(0, position - 65536)
+                stream.seek(start)
+                chunk = stream.read(position - start)
+                if len(chunk) != position - start:
+                    raise ValueError("原生会话记录在读取时已截断")
+                lines = (chunk + pending).split(b"\n")
+                pending = lines.pop(0) if start else b""
+                if len(pending) > RECORD_BYTES:
+                    raise ValueError("原生会话单条记录超过 16 MiB 解析预算")
+                for line in reversed(lines):
+                    if len(line) > RECORD_BYTES:
+                        raise ValueError("原生会话单条记录超过 16 MiB 解析预算")
                     try:
                         entry = json.loads(line)
                     except (ValueError, UnicodeError):
                         entry = None
                     if isinstance(entry, dict) and matches(entry):
-                        anchor = raw[max(0, offset - start - ANCHOR_BYTES):offset - start]
-                        if len(anchor) != min(ANCHOR_BYTES, offset):
-                            anchor_hash = cls._anchor(stream, offset).hex()
-                        else:
-                            anchor_hash = sha256(anchor).hexdigest()
-                        return {"identity": identity, "size": info.st_size, "modified": info.st_mtime_ns,
-                                "offset": offset, "anchor": anchor_hash}
-                offset -= len(line) + 1
+                        anchor = cls._anchor(stream, offset).hex()
+                        current = cls.checkpoint(file)
+                        cls.verify(frozen, current)
+                        return {**frozen, "offset": offset, "anchor": anchor}
+                    offset -= len(line) + 1
+                position = start
         raise ValueError("当前回合缺少可核验的完整记录，保持人工确认：" + identifier)
 
     def resume(self, observation, initial):

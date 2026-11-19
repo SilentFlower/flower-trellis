@@ -43,6 +43,7 @@ flower_confirmation_runtime.codex.CodexClient(project, session_id, env=None, pla
 flower_confirmation_runtime.claude.ClaudeClient(project, session_id, platform=None)
 ClaudeClient.prepare_snapshot() / snapshot()
 CodexClient.prepare_snapshot() / snapshot()
+flower_confirmation_runtime.session_log.SessionLog.checkpoint(file) -> observation
 flower_confirmation_runtime.session_log.SessionLog.locate(file, identifier, matches) -> observation
 flower_confirmation_runtime.session_log.SessionLog.resume(observation, initial)
 flower_confirmation_runtime.session_log.SessionLog.read(file, initial, consume) -> (record, observation)
@@ -108,20 +109,23 @@ src/lib/confirmation-lifecycle.js:
 - Windows 竞争读取可能短暂占用 `owner.json` 或状态文件。原子 `replace` 和锁目录释放各使用
   1 秒单调时钟预算重试 `EPERM/EACCES`，仅重试文件操作。状态转换回调仍只执行一次。
   持续拒绝保留原权限错误；锁释放失败时，已经写入的状态事实继续保留。
-- 正式 `request.contract.version=3`，包含平台、输入路径、时长覆盖、`frozenDigest`、原生记录观察点，以及
+- 正式 `request.contract.version=4`，包含平台、输入路径、时长覆盖、`frozenDigest`、原生记录观察点，以及
   Codex `windowBinding` 或 Claude `runId`。两端分别持久化 `codexLogStart` / `claudeLogStart`，
-  包含已核验输入的文件身份和读取边界；旧请求缺少对应字段时保持人工。材料落盘只保存冻结快照摘要；
-  领取返回复核得到的完整原有上下文。
-  旧协议不能升级为正式许可；已经开始的动作继续支持终态记账。
+  保存本次准备时的完整行边界。新许可不要求 `humanId`、`lastHumanMessageId` 或 `baselineMessageId`。
+  材料落盘只保存冻结快照摘要；领取返回复核得到的完整原有上下文。旧许可不能直接升级，已 started 的旧动作保留终态记账。
+- 顶层和请求均保存非负整数 `inputSeq`；请求值不得高于顶层值。准备期间两次宿主观察与锁内值必须一致。
+  Hook 在原状态锁内递增输入序号并取消旧等待，prepare 替换请求只更新原 `generation`。
+  新宿主输入包括 Claude peer 回传触发的新主回合；序号只表示上下文变化，不提供人工授权。
+  疑似自有唤醒暂缓 Hook 取消，实际领取仍核验原生来源。新增日志中的真实人工消息即使没有消息 ID，也可补记输入变化。
 - 主路径：`prepared -> waiting -> dispatching -> queued -> consumed`；终止态包括
   `cancelled`、`failed`、`delivery_unknown`。每次 prepare 替换旧请求，每个请求只允许一个 worker。
-- 顶层可选 `turnOrigin.version=1` 独立保存当前回合来源：`platform/sessionId/turnId/inputId`、
-  `baselineMessageId`、`kind=human|internal`、`wakeRequestId`、`logStart/logObservation`。
-  Codex 另存 `windowBinding`，Claude 另存 `runId/frontend` 和内部通知的 `taskId`。
-  prepare 在原目录锁内复核代次和原生回合后，同时写入来源与新请求。显式取消和同回合替换保留来源；
-  新人工输入、Interrupt、Claude 运行重启/退出和项目生命周期清理来源。来源仅供追溯，不充当请求许可。
-  复用前继续核验原回合、日志文件身份/边界及原窗口；准备期间换窗口仍拒绝沿用旧来源。
-  旧状态缺少该字段时，由真实人工输入或精确匹配的已消费原通知建立来源，再独立持久化。
+  启动 worker 前请求已终止时返回实际终态；不能误报重复 worker。
+- 顶层可选 `turnOrigin.version=2` 独立保存当前宿主观察：`platform/sessionId/turnId/inputSeq`、
+  `kind=native`、`logStart/logObservation`。Codex 另存 `windowBinding/hookTurnId`，Claude 另存 `runId/frontend`。
+  回合身份服务当前展示，输入序号服务失效判断；不保存历史人工输入作为许可前提。
+  同回合取消和替换保留来源；新输入事件、Interrupt、Claude 重启/退出和项目生命周期清理来源。
+  复用前继续核验当前回合、日志文件身份/边界和原窗口；准备期间换窗口拒绝沿用旧来源。
+  旧版本来源在新准备时由当前已核验宿主重建，旧请求仍须遵守自身版本的取消与终态规则。
 - 必须在活动回合 prepare，并最终完整展示返回的 `display`。worker 核对原回合完成和完整正文后才计时；
   实际倒计时使用单调时钟，持久 `deadline` 只用于展示。展示核验与排队后的领取不额外设置固定期限；
   旧状态的 `claimDeadline` 不参与授权。仍核对输入、材料、原窗口与运行状态，worker 整体保留两天资源期限。
@@ -139,8 +143,8 @@ src/lib/confirmation-lifecycle.js:
   `absent/cancelled/failed` 且当前工作仍需确认时，依据最新材料重新 prepare/wait/display，独立计时、领取和 started。
   一次提醒最多自动重建一次；用户暂停/取消、未决选择及原有人工边界继续优先处理。
 - `_observe` 在 `wait/claim/started` 各入口先只读检查，常规轮询复用本轮已读状态。
-  当前请求匹配且原生快照只包含已记录的人工消息或冻结基线时，不取写锁、不写状态；
-  发现候选新消息时，在写锁内按最新请求和消息基线重新判断，再更新代次并作废旧许可。
+  当前请求匹配且快照输入序号没有增长时，不取写锁、不写状态；
+  发现序号增长时，在写锁内按最新值补记输入、更新代次并作废旧许可。派发、领取和 started 均复核冻结输入序号。
 - `wait` 收到 SIGINT/SIGTERM 先失效请求再退出 130。关闭项目先取消现有许可；卸载后的清理不能重建目录。
 
 #### Native Hosts
@@ -169,30 +173,26 @@ src/lib/confirmation-lifecycle.js:
 - 观察连接不得调用 `thread/resume` 建立额外订阅。被动 `thread/read(includeTurns=false)` 提供准确 rollout
   路径；核对 session_meta、路径归属及完整 JSONL 行；日志文件名不要求固定前后缀。
   回合、消息和 task ID 作为非空不透明字符串，继承状态/日志整体预算；Flower 自有会话、请求、回执和 runId 保持 UUID。
-- Codex 的 UserPromptSubmit / Interrupt Hook 作废人工输入代次；prepare 要求当前回合确实收到输入 Hook。
-  按 Hook 的精确 turnId 在最近 32 MiB 的完整行定位当前回合开始，单独校验首条 `session_meta`。
-  原生 `daemon_recovery` 可沿同会话 `turn_attribution/root_turn_id` 回溯原始输入；来源记录的 `inputTurnId`
-  与当前展示 `turnId` 分别保存。恢复回合已有原生输入时直接采用当前输入。
-  需要回溯时拒绝缺失、跨线程、自引用、循环或日志顺序错误的关联；普通恢复提示正文不构成输入证据。
-  同一回合及关联恢复链准备前的插话纳入基线，以最新可核验的原生 `UserMessage` 后的边界续读。旧回合正文、坏记录
-  和未知事件不参与准备。起点后的人工输入、回滚和失效回合仍可作废本次等待。原始最终展示只从该边界后核对。
-  唤醒使用原生 `thread/queue/add` / `thread/queue/delete`；稳定 Flower 请求标记与原生 UserMessage.client_id 须对应
-  当前请求。通知外壳、附加文字和内容分块不要求完整相等；人工粘贴仍须按其真实来源处理。
-  已核验日志中的其它线程及未知附加事件不参与当前证据。最终回复提取字符串或内容块文本，忽略附加块。
-  开始动作前复核当前回合的唤醒，实际冻结正文仍须完整展示。
+- Codex 的 UserPromptSubmit / Interrupt Hook 在输入进入模型前递增 `inputSeq` 并作废旧请求。
+  准备要求当前会话已接入原生 Hook，以本线程最新 task_started/turn_started 核对活动回合，单独校验首条 session_meta。
+  当前回合通过反向分块定位，单条解析保持 16 MiB 预算，总日志长度不设固定尾窗上限。
+  原生 daemon_recovery 直接采用当前恢复回合；准备不依赖旧人工输入或整条恢复祖先链。
+  建立当前完整行 checkpoint 后，仅核验新增的输入、回合变化、回滚及最终展示；半行保留到后续写完再消费。
+  唤醒使用原生 `thread/queue/add` / `thread/queue/delete`；Flower 请求标记与原生 UserMessage.client_id 对应当前请求。
+  通知外壳、附加文字和内容分块不要求完整相等；人工粘贴仍按真实输入处理。
+  其它线程及未知附加事件不参与当前证据；最终回复提取字符串或内容块文本。开始动作前复核当前回合的精确唤醒。
 - Claude 使用 SessionStart / UserPromptSubmit / Stop / SessionEnd Hook。Stop 绑定精确后台 task ID 和完整
   最终正文；按 argv token 核对项目 Python `wait` 入口、会话与请求。完成后结束后台命令，由原生通知唤醒。
   Windows 从 Hook 祖先链核对同用户的 `claude.exe` 原前台。第二个存活前台使旧请求失效；句柄跟踪原进程退出。
   Windows 支持精确的 `py.exe -3.x` 和带引号的本地路径；命令范围、会话及请求照常核对。
   领取时核对 transcript 的 human / task-notification 来源及当前 runId，不能仅凭通知文字批准。
-  准备只在最近 32 MiB 的完整行中按精确 promptId 定位当前回合；更早记录的来源和正文不参与判断。
-  当前回合缺少可核验来源时保持人工。等待、领取和开始动作使用同一个冻结起点，读取随后完成的记录，
-  不能直接从文件末尾起步而跳过准备期间的新输入。领取后同一个 Claude 唤醒回合才能开始动作。
-  Hook 先于该精确通知落盘时，claim 最多等待 1 秒补齐来源；期间持续核验人工输入与当前代次，
-  到期仍缺来源则使旧许可失效。
+  准备由当前 Hook 会话、runId、回合和输入序号建立完整行 checkpoint，允许 peer 回传后的主会话。
+  历史真实人工消息、当前回合输入记录的 promptId 均不是准备门槛。当前展示和领取通知仍核对原生回合身份。
+  等待、领取和 started 从同一冻结边界增量续读，不能跳过准备过程中的新输入。
+  Hook 先于精确通知落盘时，claim 最多等待 1 秒补齐该来源，期间持续核验输入序号和代次；仍缺来源则旧许可失效。
   两个宿主统一以结构化 `origin.kind` 为主来源，缺失时回退旧 `turnOrigin`；重复辅助字段不覆盖主来源。
   只提取明确的 human 和 task-notification/task_notification，未知附加记录与只写日志的通知不提供证据，
-  不因其新增字段、缺失字段、内容形状或元消息标记而作废整个流程。来源缺失在当前输入定位或本次领取时判断。
+  不因其新增字段、缺失字段、内容形状或元消息标记而作废整个流程。领取所需通知来源在实际领取处核验。
   通知从字符串/内容块中提取唯一 task ID，再与本项目拥有的任务对应；不依赖固定 XML 外壳或完整文案。
   原生日志路径来自 Hook，逐记录核对 sessionId；不限制文件名布局。Hook 通知仅比较必要身份字段。
 - 两端按文件身份和已消费位置增量读取完整 JSONL 行，单条解析上限 16 MiB，文件总大小不限。
@@ -225,7 +225,7 @@ src/lib/confirmation-lifecycle.js:
 | 三类材料的声明目标与准备时会话绑定不同 | 按材料目标准备，独立冻结会话绑定 |
 | Brief 会话损坏/陈旧、目标路径非法或目标已关闭 | 拒绝准备 |
 | Codex/Claude 环境变量共存 | 按最近宿主解析，显式上下文及平台保持优先 |
-| Codex 原生恢复关联有效，或恢复回合已有新的原生输入 | 在当前回合准备新确认，完整展示后重新计时 |
+| Codex 当前原生恢复回合有效 | 在当前回合准备新确认，完整展示后重新计时 |
 | Windows 路径与句柄仅 `st_ctime_ns` 不同 | 正常读取；文件身份、内容状态或同一打开句柄的 `st_ctime_ns` 变化仍拒绝 |
 | 单条 Git 命令或整轮快照超时 | 停止本次核验，返回命令或快照阶段；未完成的 Git 进程回收 |
 | 会话文件超过历史总量，记录身份与完整行可核验 | 照常读取；只对新增完整行更新观察证据 |
@@ -240,12 +240,14 @@ src/lib/confirmation-lifecycle.js:
 | 前台退出、PID 复用、服务重绑或归属歧义 | 不派发或拒绝领取，不借用其他窗口 |
 | Windows 额外的同映像 Codex 前台尚未监听，或 Claude 同会话出现第二个存活前台 | 旧等待失败或取消，保持人工 |
 | Claude 只有主来源、旧来源或重复辅助字段变化 | 统一提取主来源，缺失时回退旧字段 |
-| Claude 当前回合无法定位，或旧请求缺少冻结起点 | 保持人工 |
+| Claude 当前宿主回合不可用，或旧请求缺少冻结起点 | 返回具体阶段与原因；按当前宿主重新准备新许可 |
 | 同一通知回合连续 prepare 或 cancel 后重新 prepare | 复核独立来源后准备新请求，完整展示后重新计时 |
 | Claude 同 promptId 的未知附加记录，或 Codex 无关线程/内容块 | 跳过，不产生当前人工或通知证据 |
 | 通知文案/分块、原生 ID 格式、JSON 转义或日志文件名变化 | 按原生身份及解析后的记录匹配 |
 | 展示或领取超过旧 300 秒限制 | 继续核对当前有效性，保持用户原倒计时 |
-| Codex 首条会话身份无效、当前输入无法定位，或起点后的日志回滚 | 保持人工 |
+| Codex 首条会话身份无效、当前原生回合无效，或起点后日志回滚 | 拒绝本次准备或旧许可 |
+| 当前回合为 peer/原生恢复，或历史真实人工消息 ID 缺失 | 使用当前输入序号正常准备 |
+| 新输入与 claim/started 的写锁竞争 | 锁内复核输入序号，旧许可不能开始动作 |
 | Claude 旧历史含未知来源，或起点后出现其它明确来源 | 跳过，继续观察本次请求 |
 | 重复 worker、提醒、claim、started | 至多单次领取和单次业务开始 |
 | 旧提醒返回 not_current，当前已有活动请求 | 只读 status，保留当前等待；旧通知不领取当前请求 |
@@ -261,8 +263,7 @@ src/lib/confirmation-lifecycle.js:
 - Normal：用 `{"kind":"brief","task":".trellis/tasks/example"}` 准备 Brief，后台启动 wait，完整展示 display
   并结束回合；到期领取一次，started 成功后由原 owner 开工。
 - Normal：材料声明任务 B、会话绑定任务 A 时，按 B 的材料准备确认；等待期间 A 的绑定变化使旧快照失效。
-- Base：Codex 原生恢复回合沿 `root_turn_id` 找到原始输入，本次最终正文归属当前恢复回合。
-  该回合已有新的原生输入时，以当前输入作为基线。
+- Base：Codex 原生恢复回合直接以当前输入序号建立新确认，本次最终正文归属当前恢复回合。
 - Base：原生日志写入先公布修改时间时，短暂重读元数据，确认增长后继续处理完整行；
   同大小重写持续到重读预算结束时，旧观察失效。
 - Incorrect use：Codex 与 Claude 标识共存时按映射表先后次序选择。
@@ -284,8 +285,8 @@ src/lib/confirmation-lifecycle.js:
 - Incorrect use：Hook 已收到通知便把缺少 transcript 完整行视为有效来源。Correct handling：仅对当前精确
   通知等待有限落盘时间，获得真实来源后再原子领取；人工粘贴提醒仍使旧代次失效。
 - Incorrect use：从头核验历史来源，或从当前文件末尾直接跳过已追加的记录。
-  Correct handling：用 Hook 的当前回合定位起点，随后观察新输入和精确唤醒。
-- Normal：通知 A 领取后创建确认 B，取消并修改材料后创建确认 C；独立来源仍指向 A 的原生输入，
+  Correct handling：冻结准备时的输入序号和完整行边界，随后观察新输入与精确唤醒。
+- Normal：通知 A 领取后创建确认 B，取消并修改材料后创建确认 C；独立来源保存当前宿主与输入序号，
   C 必须完整展示并独立计时。A 和 B 的提醒不能领取或启动 C。
 - Incorrect use：将未知上下文当成来源损坏，或将来源记录当作当前请求已获许可。
   Correct handling：只提取必要的正向证据，按当前请求的精确通知与回执核验执行。
@@ -328,7 +329,8 @@ src/lib/confirmation-lifecycle.js:
   动态编译 Patch 片段继承目标模块的延迟注解语义，在 Python 3.8/3.12 中均可加载。
 - `test_task_progress.py`：隔离 CLI 夹具使用独立 `TRELLIS_CONTEXT_ID`，其子进程关闭字节码写入；
   外部工具的继承标识保持与进度查询用例独立。
-- `test_confirmation_native.py`：连续原生恢复、恢复链中插话、跨进程准备/等待/领取/started，以及缺失、跨线程、循环和文本伪造恢复关系。
+- `test_confirmation_native.py`：当前原生恢复回合无需历史人工输入，跨线程当前回合仍拒绝；跨进程准备/等待/领取/started 与准备后插话、回滚继续覆盖。
+- `test_confirmation_input_sequence.py`：无历史人工消息的两端准备、Claude peer 回合、无消息 ID 的新增输入、未完成行续读、claim/started 锁内竞争，以及旧 started 终态后新准备。
 - `test_confirmation_origin.py`：两端两个宿主分支的独立来源、取消与连续替换、请求缺失后的来源恢复、
   来源结构/范围损坏、日志漂移、新输入/运行变化、原窗口与准备竞态。未知记录不依赖固定元消息标记，
   原生非 UUID/长 ID、不同日志文件名和 JSON 转义、通知分块/文案及重复辅助字段均不阻断。

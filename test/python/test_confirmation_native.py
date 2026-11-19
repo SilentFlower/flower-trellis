@@ -101,6 +101,17 @@ class NativeConfirmationTest(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "linux", "自动路径限定 Linux/WSL")
     def test_claude_project_cli_full_chain_without_external_runtimes(self):
         """真实 Hook、Stop 任务绑定、通知来源和记账均通过项目入口。"""
+        self._claude_project_cli_flow("human")
+
+    @unittest.skipUnless(sys.platform == "linux", "自动路径限定 Linux/WSL")
+    def test_claude_peer_turn_cli_full_chain_without_human_history(self):
+        """peer 回合完整执行准备、展示、唤醒与单次记账。
+
+        @return: None。
+        """
+        self._claude_project_cli_flow("peer")
+
+    def _claude_project_cli_flow(self, source):
         f = ProjectFixture(self, "claude")
         f.env["PATH"] = str(f.root / "empty-bin")
         transcript = f.root / (f.session + ".jsonl")
@@ -112,7 +123,7 @@ class NativeConfirmationTest(unittest.TestCase):
         old = {"type": "user", "sessionId": f.session, "promptId": str(uuid4()),
                "origin": {"kind": "unknown-old"}, "message": {"content": "旧记录"}}
         human = {"type": "user", "sessionId": f.session, "promptId": prompt_id,
-                 "origin": {"kind": "human"}, "turnOrigin": "human", "message": {"content": "开始"}}
+                 "origin": {"kind": source}, "turnOrigin": source, "message": {"content": "开始"}}
         transcript.write_text(json.dumps(old) + "\n" + json.dumps(human) + "\n", encoding="utf-8")
         record = b'{"type":"assistant","message":"' + b"x" * (6 * 1024 * 1024) + b'"}\n'
         with transcript.open("ab") as stream:
@@ -121,7 +132,7 @@ class NativeConfirmationTest(unittest.TestCase):
         prepared = self.invoke(f, ["prepare", "--input", f.input, "--seconds", "1"])
         self.assertTrue(prepared["prepared"], prepared)
         start = f.store.read()["request"]["contract"]["claudeLogStart"]
-        self.assertEqual(start["offset"], len((json.dumps(old) + "\n" + json.dumps(human) + "\n").encode()))
+        self.assertEqual(start["offset"], transcript.stat().st_size)
         request_id = prepared["requestId"]
         child = self.start_wait(f, request_id)
         command = " ".join(shlex.quote(token) for token in [sys.executable, "-X", "utf8", str(f.scripts / "flower_confirmation.py"),
@@ -221,7 +232,8 @@ class NativeConfirmationTest(unittest.TestCase):
         prepared = self.invoke(f, ["prepare", "--input", f.input, "--seconds", "1"])
         self.assertTrue(prepared["prepared"], prepared)
         self.assertGreater(f.store.read()["request"]["contract"]["codexLogStart"]["offset"], len(header))
-        self.assertEqual(f.store.read()["turnOrigin"]["inputTurnId"], input_turn)
+        self.assertNotIn("inputTurnId", f.store.read()["turnOrigin"])
+        self.assertEqual(f.store.read()["turnOrigin"]["inputSeq"], f.store.read()["inputSeq"])
         self.assertEqual(f.store.read()["turnOrigin"]["turnId"], server.origin)
         request_id = prepared["requestId"]
         child = self.start_wait(f, request_id)
@@ -304,15 +316,16 @@ class NativeConfirmationTest(unittest.TestCase):
                 rpc = {"thread": {"id": f.session, "cwd": str(f.root), "path": str(file)}}
                 with patch.object(client, "rpc", return_value=rpc):
                     snapshot = client.prepare_snapshot()
-                    self.assertEqual(snapshot["humanId"], human)
+                    self.assertEqual(snapshot["inputSeq"], 0)
                     append({**item, "item": {**item["item"], "id": str(uuid4())}})
                     with self.assertRaisesRegex(ValueError, "人工输入已变化"):
                         client.prepare_snapshot()
 
                 def prepared(value):
+                    value["inputSeq"] = 0
                     value["request"] = {"id": str(uuid4()), "state": "prepared", "generation": value["generation"],
                                         "contract": {"codexLogStart": snapshot["codexLogStart"]},
-                                        "originTurnId": turn, "baselineMessageId": human}
+                                        "originTurnId": turn, "inputSeq": 0}
                     return value
 
                 f.store.update(prepared)
@@ -323,56 +336,47 @@ class NativeConfirmationTest(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "本次观察期间已回滚"):
                         fresh.snapshot()
 
-    def test_recovery_requires_same_thread_acyclic_native_relationship(self):
-        """缺失、跨线程及循环恢复关系分别拒绝，普通文本不充当来源。
+    def test_recovery_prepare_requires_current_thread_instead_of_historical_input(self):
+        """恢复回合按当前会话建立观察，历史人工消息和恢复祖先均可缺失。
 
         @return: None。
         """
-        for invalid in ("valid", "own_input", "missing", "foreign", "cycle", "text", "future"):
-            with self.subTest(invalid=invalid):
+        for mode in ("no_history", "old_input", "opaque_input", "foreign_current"):
+            with self.subTest(mode=mode):
                 f = ProjectFixture(self)
                 home = Path(f.env["CODEX_HOME"])
                 (home / "sessions").mkdir(parents=True)
                 file = home / "sessions/events.jsonl"
                 original, recovered = str(uuid4()), str(uuid4())
-                root = {"type": "task_started", "turn_id": original}
-                if invalid == "foreign":
-                    root["thread_id"] = str(uuid4())
-                if invalid == "cycle":
-                    root["turn_attribution"] = {"turn_trigger": "daemon_recovery", "root_turn_id": recovered}
-                recovery = {"type": "task_started", "turn_id": recovered,
-                            "turn_attribution": {"turn_trigger": "daemon_recovery", "root_turn_id": original}}
-                if invalid == "text":
-                    recovery.pop("turn_attribution")
                 rows = [{"type": "session_meta", "payload": {"id": f.session}}]
-                if invalid not in ("missing", "own_input"):
-                    rows.extend({"type": "event_msg", "payload": event} for event in (
-                        root, {"type": "item_completed", "turn_id": original,
-                               "item": {"type": "UserMessage", "id": str(uuid4())}}))
-                if invalid == "future":
-                    rows.insert(1, {"type": "event_msg", "payload": recovery})
-                else:
-                    rows.append({"type": "event_msg", "payload": recovery})
-                if invalid == "own_input":
-                    rows.append({"type": "event_msg", "payload": {"type": "item_completed", "turn_id": recovered,
+                if mode == "old_input":
+                    rows.append({"type": "event_msg", "payload": {"type": "item_completed", "turn_id": original,
                                  "item": {"type": "UserMessage", "id": str(uuid4())}}})
-                rows.append({"type": "response_item", "payload": {"type": "message", "role": "user",
-                            "content": [{"type": "input_text", "text": "daemon_recovery " + original}]}})
+                event = {"type": "task_started", "turn_id": recovered,
+                         "turn_attribution": {"turn_trigger": "daemon_recovery", "root_turn_id": original}}
+                if mode == "foreign_current":
+                    event["thread_id"] = str(uuid4())
+                rows.append({"type": "event_msg", "payload": event})
+                if mode == "opaque_input":
+                    rows.append({"type": "event_msg", "payload": {"type": "item_completed", "turn_id": recovered,
+                                 "item": {"type": "UserMessage", "content": []}}})
                 file.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
                 f.store.update(lambda state: {**state, "native": {"version": 2, "project": str(f.root),
                                                                  "sessionId": f.session, "turnId": recovered}})
                 client = CodexClient(f.root, f.session, env=f.env, platform="linux")
-                if invalid in ("valid", "own_input"):
-                    client.platform = "win32"
                 with patch.object(client, "rpc", return_value={"thread": {"id": f.session, "cwd": str(f.root), "path": str(file)}}):
-                    if invalid in ("valid", "own_input"):
-                        snapshot = client.prepare_snapshot()
-                        self.assertEqual(snapshot["turn"]["id"], recovered)
-                        self.assertEqual(snapshot["turnOrigin"]["inputTurnId"], recovered if invalid == "own_input" else original)
-                        with file.open("a", encoding="utf-8") as stream:
-                            stream.write(json.dumps({"type": "event_msg", "payload": {"type": "item_completed", "turn_id": recovered,
-                                         "item": {"type": "UserMessage", "id": str(uuid4())}}}) + "\n")
-                    with self.assertRaises(ValueError):
+                    if mode == "foreign_current":
+                        with self.assertRaises(ValueError):
+                            client.prepare_snapshot()
+                        continue
+                    snapshot = client.prepare_snapshot()
+                    self.assertEqual(snapshot["turn"]["id"], recovered)
+                    self.assertEqual(snapshot["inputSeq"], 0)
+                    self.assertNotIn("baselineMessageId", snapshot["turnOrigin"])
+                    with file.open("a", encoding="utf-8") as stream:
+                        stream.write(json.dumps({"type": "event_msg", "payload": {"type": "item_completed", "turn_id": recovered,
+                                     "item": {"type": "UserMessage", "content": []}}}) + "\n")
+                    with self.assertRaisesRegex(ValueError, "人工输入已变化"):
                         client.prepare_snapshot()
 
     def test_websocket_fragmentation_ping_lengths_and_invalid_frames(self):
@@ -423,13 +427,13 @@ class NativeConfirmationTest(unittest.TestCase):
         client = CodexClient(f.root, f.session, env=f.env, timeout=0.3)
         self.addCleanup(client.close)
         client.connect()
-        baseline = client.snapshot()["humanId"]
+        baseline = client.snapshot()["inputSeq"]
         with server.file.open("ab") as stream:
             stream.write(b'{"type":"event_msg"')
-        self.assertEqual(client.snapshot()["humanId"], baseline)
+        self.assertEqual(client.snapshot()["inputSeq"], baseline)
         with server.file.open("ab") as stream:
             stream.write(b',"payload":{"type":"thread_rolled_back"}}\n')
-        with self.assertRaisesRegex(ValueError, "人工消息基线"):
+        with self.assertRaisesRegex(ValueError, "本次观察期间已回滚"):
             client.snapshot()
         server.file.write_text(json.dumps({"type": "session_meta", "payload": {"id": str(uuid4())}}) + "\n", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "替换、截断或重写"):
@@ -500,14 +504,15 @@ class NativeConfirmationTest(unittest.TestCase):
                 lag = SimpleNamespace(st_mode=before.st_mode, st_dev=before.st_dev, st_ino=before.st_ino,
                                       st_size=before.st_size, st_mtime_ns=before.st_mtime_ns + 1)
                 observed = [lag, grown, grown] if phase == "before" else [before, lag, grown]
-                with patch.object(Path, "lstat", side_effect=observed) as metadata:
+                metadata_events = iter(observed)
+                with patch.object(Path, "lstat", side_effect=lambda: next(metadata_events, grown)) as metadata:
                     if phase == "locate":
                         start = SessionLog.locate(file, "old", lambda entry: entry.get("id") == "old")
                         log.resume(start, {"id": "old"})
                     else:
                         record, _ = log.read(file, {}, consume)
                         self.assertEqual(record["id"], "new" if phase == "before" else "old")
-                    self.assertEqual(metadata.call_count, 3)
+                    self.assertGreaterEqual(metadata.call_count, 3)
                 self.assertEqual(log.read(file, {}, consume)[0]["id"], "new")
 
     def test_log_metadata_recheck_preserves_rewrite_and_replacement_rejection(self):

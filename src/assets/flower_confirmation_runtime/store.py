@@ -111,16 +111,13 @@ def validate_turn_origin(origin, platform, session_id):
     """
     if origin is None:
         return None
-    if (not isinstance(origin, dict) or type(origin.get("version")) is not int or origin["version"] != 1
+    if (not isinstance(origin, dict) or type(origin.get("version")) is not int or origin["version"] != 2
             or origin.get("platform") != platform or origin.get("sessionId") != session_id
-            or origin.get("kind") not in ("human", "internal")):
+            or origin.get("kind") != "native"):
         raise ValueError("当前回合来源版本、平台或会话不符")
-    for key in ("turnId", "inputId", "baselineMessageId"):
-        native_id(origin.get(key))
-    if origin["kind"] == "internal":
-        confirmation_id(origin.get("wakeRequestId"))
-    elif origin.get("wakeRequestId") is not None:
-        raise ValueError("人工回合来源混入内部唤醒标识")
+    native_id(origin.get("turnId"))
+    if type(origin.get("inputSeq")) is not int or origin["inputSeq"] < 0:
+        raise ValueError("当前回合来源缺少有效输入序号")
     for key in ("logStart", "logObservation"):
         point = origin.get(key)
         if (not isinstance(point, dict) or not isinstance(point.get("identity"), list) or len(point["identity"]) != 3
@@ -131,8 +128,6 @@ def validate_turn_origin(origin, platform, session_id):
             raise ValueError("当前回合来源缺少有效日志边界")
     if platform == "claude":
         confirmation_id(origin.get("runId"))
-        if origin["kind"] == "internal":
-            native_id(origin.get("taskId"))
     elif not isinstance(origin.get("windowBinding"), dict):
         raise ValueError("当前回合来源缺少原始窗口身份")
     return origin
@@ -288,12 +283,17 @@ class ConfirmationStore:
                 or value.get("sessionId") != self.session_id or type(value.get("generation")) is not int
                 or not 0 <= value["generation"] <= 9007199254740991):
             raise ValueError("确认状态版本、会话或结构无效")
+        if "inputSeq" in value and (type(value["inputSeq"]) is not int or value["inputSeq"] < 0):
+            raise ValueError("确认状态输入序号无效")
         request = value.get("request")
         if request:
             if (not isinstance(request, dict) or request.get("state") not in STATES
                     or type(request.get("generation")) is not int or request["generation"] > value["generation"]):
                 raise ValueError("确认请求结构无效")
             confirmation_id(request.get("id"))
+            if "inputSeq" in request and (type(request["inputSeq"]) is not int or request["inputSeq"] < 0
+                    or type(value.get("inputSeq")) is not int or request["inputSeq"] > value["inputSeq"]):
+                raise ValueError("确认请求输入序号无效")
         elif not isinstance(value.get("native"), dict):
             raise ValueError("确认状态缺少原生来源")
         return value

@@ -92,7 +92,7 @@ class ConfirmationOriginTest(unittest.TestCase):
                         third = runtime.prepare(f.store, client(), f.input, "3")
                         self.assertNotEqual(second["requestId"], third["requestId"])
                         self.assertEqual(f.store.read()["turnOrigin"]["turnId"], origin["turnId"])
-                        self.assertEqual(f.store.read()["turnOrigin"]["wakeRequestId"], origin["wakeRequestId"])
+                        self.assertEqual(f.store.read()["turnOrigin"]["inputSeq"], origin["inputSeq"])
                         self.assertEqual(f.store.read()["request"]["seconds"], 3)
                         self.assertIsNone(f.store.read()["request"]["deadline"])
                         self.assertEqual(runtime.claim(f.store, client(), first["requestId"])["reason"], "not_current")
@@ -220,15 +220,15 @@ class ConfirmationOriginTest(unittest.TestCase):
                 with file.open("a", encoding="utf-8") as stream:
                     stream.write(json.dumps(metadata) + "\n")
                 self.assertTrue(runtime.prepare(f.store, client(), f.input, "1")["prepared"])
-                evidence = {"humanId": None, "notifications": {}}
+                evidence = {"inputCount": 0, "notifications": {}}
                 current = client()
                 current._consume_transcript(evidence, metadata)
-                self.assertEqual(evidence, {"humanId": None, "notifications": {}})
+                self.assertEqual(evidence, {"inputCount": 0, "notifications": {}})
                 for changed in ({"isMeta": False}, {"isMeta": "true"}, {"origin": {}}):
                     current._consume_transcript(evidence, {**metadata, **changed})
-                    self.assertEqual(evidence, {"humanId": None, "notifications": {}})
+                    self.assertEqual(evidence, {"inputCount": 0, "notifications": {}})
                 current._consume_transcript(evidence, {**metadata, "origin": {"kind": "human"}, "turnOrigin": "human"})
-                self.assertEqual(evidence["humanId"], prompt)
+                self.assertEqual(evidence["inputCount"], 1)
 
     def test_unknown_records_and_opaque_native_ids_allow_automatic_prepare(self):
         """新增附加记录与原生标识格式变化无需追加兼容条件。"""
@@ -251,7 +251,7 @@ class ConfirmationOriginTest(unittest.TestCase):
                 file.write_bytes(file.read_bytes().replace(b"/", b"\\/"))
                 self.assertTrue(runtime.prepare(f.store, client(), f.input, "1")["prepared"])
                 self.assertTrue(runtime.prepare(f.store, client(), f.input, "1")["prepared"])
-                self.assertEqual(f.store.read()["turnOrigin"]["baselineMessageId"], "message/β:2")
+                self.assertEqual(f.store.read()["turnOrigin"]["inputSeq"], 0)
 
     def test_claude_single_origin_field_and_notification_content_variants(self):
         """来源单字段、旧字段和通知分块统一适用于两个宿主。"""
@@ -289,8 +289,8 @@ class ConfirmationOriginTest(unittest.TestCase):
     def test_corrupt_or_foreign_origin_is_rejected(self):
         """未知版本、跨会话和坏边界均阻止来源复用。"""
         for platform in ("codex", "claude"):
-            for mutation in ({"version": 2}, {"sessionId": str(uuid4())}, {"platform": "other"},
-                             {"logStart": {}}, {"baselineMessageId": ""}):
+            for mutation in ({"version": 99}, {"sessionId": str(uuid4())}, {"platform": "other"},
+                             {"logStart": {}}, {"inputSeq": ""}):
                 with self.subTest(platform=platform, mutation=mutation):
                     f, client, _ = self.setup_origin(platform)
                     runtime.prepare(f.store, client(), f.input, "1")
