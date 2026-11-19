@@ -165,7 +165,10 @@
           "Once initial Brief approval exists, plan updates use `trellis-task-brief`'s incremental change rules.",
           "unresolved items are `- [ ]`",
           "Do not write bare placeholders",
-          "attempt its eligible background prepare/wait"
+          "attempt its eligible background prepare/wait",
+          "New or inherited blocking conditions have an explicit basis",
+          "necessary related entry points and recovery or upgrade handoffs",
+          "Follow `trellis-task-brief` for prominent limits, major decisions, their concrete user impact, and bold labels"
         ]
       },
       "owner": "trellis-brainstorm",
@@ -191,7 +194,10 @@
           "Once initial Brief approval exists, plan updates use `trellis-task-brief`'s incremental change rules.",
           "unresolved items are `- [ ]`",
           "Do not write bare placeholders",
-          "attempt its eligible background prepare/wait"
+          "attempt its eligible background prepare/wait",
+          "New or inherited blocking conditions have an explicit basis",
+          "necessary related entry points and recovery or upgrade handoffs",
+          "Follow `trellis-task-brief` for prominent limits, major decisions, their concrete user impact, and bold labels"
         ]
       },
       "owner": "trellis-brainstorm",

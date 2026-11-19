@@ -1302,6 +1302,12 @@ Context & Decisions 保留影响实施判断的既有事实、入口、硬约束
 可验证条件；负向范围声明仅在确需回归验证时保留。Brief 不计算或展示 Artifact Status。
 规划完整性、Open Questions、context manifest readiness 和 brief freshness 继续由各自既有 owner 负责。
 
+Brief 保持交接摘要定位，重要限制和重大决定以“具体条件或取舍 + 用户影响”表达，优先进入
+Context & Decisions；影响目标的排除项在 Non-Goals 写明后果，交付风险进入 Risks。默认使用
+`**【重要限制】……**`、`**【关键决定】……**`、`**【交付风险】……**` 标亮关键结论和影响；
+通常优先突出 3～5 处只是阅读建议，重要信息不按数量截断，也不为凑数制造限制。颜色仅作辅助。
+`【待决定】` 用于规划讨论或增量变化，保留未决状态；展示后仍须沿既有流程收敛决定。
+
 ### 3. Contracts
 
 - 普通交互首次实施批准前必须加载 `trellis-task-brief`，从最终 planning artifacts 刷新 `brief.md` 并在对话中
@@ -1311,6 +1317,14 @@ Context & Decisions 保留影响实施判断的既有事实、入口、硬约束
   普通实现意图或任务创建授权不能复用为 planning review，也不能解释为 Brief 预授权。
   Quality Bar 不把 Brief 已展示或已确认作为交接前提；planning contract、readiness、review 和
   handoff 统一引用 `trellis-task-brief` 的默认确认与明确预授权例外，不另写强制下一回合规则。
+- Brainstorm Quality Bar 对新增及沿用的阻断条件核对依据、保护对象、必要性、替代方案和用户影响。
+  旧实现只证明当前行为；排除正常使用、直接拒绝或转为人工处理的未决产品取舍沿原收敛门禁处理。
+  验收按用户完成操作的完整路径覆盖必要关联入口和恢复/升级衔接，核对局部修复及排除项是否留下
+  阻塞或相互等待。独立业务扩展继续服从范围管理，适用授权和资料保护合同继续有效。
+- Brief 从最新三件套提取具体影响，保留已决定、明确限制和待验证风险的区别。发现材料遗漏的重大
+  限制或未经决定的范围缩小、人工回退时，先返回规划补齐；展示标签不确立新边界或形成新授权。
+  Brainstorm summary-shape 委托 `trellis-task-brief` 统一处理标亮，auto-loop readiness 沿现有
+  Brainstorm Quality Bar 引用执行，不增加另一份审查规则或 runner 状态。
 - 普通交互预授权只取当前对话中仍明确适用于本任务的表达，不写 session runtime，也不扩展为跨会话、
   跨任务或永久偏好。范围扩大、存在未解决 Open Questions、新增高风险边界或用户撤回时失效。
 - Phase 1.4 负责首次完整展示与实施批准；其后方案变更由 `trellis-task-brief` 集中判断增量。
@@ -1359,6 +1373,10 @@ Context & Decisions 保留影响实施判断的既有事实、入口、硬约束
 | schema 2 manifest 后 handoff 文件无授权变化 | 当前项以 `artifact-drift` 阻塞，不能沿用旧授权 |
 | schema 1 brief 未确认或确认后 handoff 变化 | 等待/重新返回 `confirm_brief`，不得执行 `start_task` |
 | planning artifacts 未说明技术机制 | 省略 Technical Overview，不写猜测或“未明确”占位 |
+| 重要限制或决定会改变使用方式、范围、兼容性或交付 | 在摘要中写明具体条件与影响，使用加粗标签 |
+| 关键结论超过通常的 3～5 处 | 按重要信息完整性展示，数量建议不形成硬门槛 |
+| 原材料遗漏重大限制或仍有未决人工回退取舍 | 返回规划补齐依据与决定，沿原确认/增量规则处理 |
+| 局部修复后相关入口仍受阻，或恢复与升级相互等待 | Quality Bar 核对完整结果及取舍，局部成功不代表目标完成 |
 | 重复同步和 enhance-only apply | 第二次 Patch 修改数为 0，marker/provenance 不重复 |
 
 ### 5. Good/Base/Bad Cases
@@ -1374,6 +1392,10 @@ Context & Decisions 保留影响实施判断的既有事实、入口、硬约束
 - Base:轻量任务只有 `prd.md` 和更新后的 brief；校验通过，不机械要求不存在的 design/implement。
 - Base:轻量 PRD 只有目标与范围，没有技术机制；brief 保留 Context & Decisions，省略 Technical Overview。
 - Base:旧 `in_progress` 任务没有 brief；重新绑定成功，后续 workflow 建议回补。
+- Good:Brief 明示“同一会话双开时拒绝自动确认，需要人工处理”，让用户评审具体影响；表达示例
+  仅示范格式，不会自动进入其它任务需求。
+- Bad:以“保留现有语义”概括会阻断正常使用的旧门槛，或只修迁移入口却以此宣称全部准备流程可用；
+  应先核对相关路径、依据及取舍，再从材料中提炼关键影响。
 - Bad:只在 `workflow-state:planning` 增加提示。该状态可能要到下一次用户输入才注入，同一回合
   create -> plan -> start 仍可绕过。
 - Bad:schema 2 auto-loop 看到三件套/brief 文件存在就直接 start，或不生成 manifest 就把启动指令
@@ -1398,6 +1420,10 @@ Context & Decisions 保留影响实施判断的既有事实、入口、硬约束
   Open Questions 和高风险边界使预授权失效；同时断言没有新增 session helper 或 `task.py` 授权状态。
 - Brief 栏目断言覆盖一句话 Goal、仅列改动范围的 Scope、合并的 Context & Decisions、有依据时的
   Technical Overview、无依据或无具体风险时省略对应整节，以及旧独立栏目和 Deliverables 缺席。
+- `brief-preauthorization.test.js` 断言加粗标签、具体用户影响、3～5 处为软建议、示例不变成需求、
+  待决定展示不等于批准，以及原八段模板职责保留；snapshot 与 canonical 两端继续逐字节一致。
+- 同一专项遍历 compiled full 中全部已声明 Brainstorm 目标，断言沿用限制审查、未决选择沿原门禁、
+  完整用户路径及标亮 owner 委托恰当分发。conflict required-literal 同时保护两端 handoff 关键语义。
 - 断言 compiled workflow 两种 in_progress 状态均要求读取而非例行重述，保留规划评审、范围门禁和缺失回补。
 - Patch conflict policy 同时要求 handoff/readiness 两个 operation，并检查最终 workflow、skill、
   script 的唯一签名；selector/baseline 漂移继续保持全量预检零写入。

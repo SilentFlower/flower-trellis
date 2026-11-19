@@ -139,6 +139,56 @@ test("Brief 规划阶段展示确认，实现及恢复阶段读取执行", () =>
   }
 });
 
+test("Brief 用摘要中的加粗标签披露关键影响，展示建议不成为信息上限", () => {
+  const brief = read(sourceRoot, ".agents/skills/trellis-task-brief/SKILL.md");
+  const emphasis = brief.split("## 重点展示与影响复核\n")[1]?.split("\n## 确认模式")[0];
+  assert.ok(emphasis);
+  assert.match(brief, /Brief 保持交接摘要定位/);
+  assert.match(emphasis, /具体条件或取舍 \+ 用户影响/);
+  assert.match(emphasis, /3～5 处，这是阅读建议/);
+  assert.match(emphasis, /重要信息完整性优先，不按数量截断/);
+  assert.match(emphasis, /颜色仅作支持场景的辅助，加粗与文字标签独立表达含义/);
+  assert.match(emphasis, /示例仅演示表达，不作为新需求写入任务/);
+  assert.match(emphasis, /`【待决定】`.*展示不代表批准/);
+  assert.match(emphasis, /先返回规划补齐依据和决定/);
+
+  const template = brief.slice(brief.indexOf("## 模板"), brief.indexOf("## 展示格式"));
+  assert.deepEqual([...template.matchAll(/^## (.+)$/gm)].map(match => match[1]), [
+    "模板", "Goal", "Scope", "Non-Goals", "Technical Overview",
+    "Context & Decisions", "Risks", "Acceptance", "Next Step",
+  ]);
+  for (const label of ["重要限制", "关键决定", "交付风险"]) {
+    assert.ok(template.includes(`- **【${label}】`), label);
+  }
+  assert.doesNotMatch(template, /【待决定】/);
+  assert.match(template, /仅在存在时写具体限制及其使用影响；否则省略本项/);
+});
+
+test("Brainstorm 最终分发统一审查沿用限制、未决取舍与完整用户路径", () => {
+  const patchDir = "overrides/patches/skills/trellis-brainstorm/planning-handoff";
+  const patch = JSON.parse(read(sourceRoot, `${patchDir}/patch.json`));
+  const operation = patch.operations.find(item => item.id === "brainstorm-planning-handoff");
+  const trellisVersion = JSON.parse(fs.readFileSync("package.json", "utf8"))
+    .dependencies["@mindfoldhq/trellis"];
+  const compiledRoot = path.resolve("vendor/skill-garden/compiled-targets", trellisVersion, "full/targets");
+  const targets = operation.targets.filter(target => fs.existsSync(path.join(compiledRoot, target.path)));
+  assert.ok(targets.some(target => target.path.startsWith(".agents/")));
+  assert.ok(targets.some(target => target.path.startsWith(".claude/")));
+  for (const { path: target } of targets) {
+    const final = read(compiledRoot, target);
+    assert.equal(final.split("New or inherited blocking conditions").length - 1, 1, target);
+    assert.match(final, /Existing behavior is evidence of the current implementation, not approval of a product constraint/, target);
+    assert.match(final, /Unresolved choices follow the existing convergence gate/, target);
+    assert.match(final, /preserve applicable authorization and data-protection contracts/, target);
+    assert.match(final, /necessary related entry points and recovery or upgrade handoffs/, target);
+    assert.match(final, /remaining blockers or mutual waiting/, target);
+    assert.match(final, /independent business expansion still follows scope management/, target);
+    assert.match(final, /Follow `trellis-task-brief` for prominent limits, major decisions, their concrete user impact, and bold labels/, target);
+  }
+  const autoLoop = read(sourceRoot, ".agents/skills/trellis-auto-loop/SKILL.md");
+  assert.match(autoLoop, /review_planning_readiness.*Brainstorm Quality Bar/);
+});
+
 test("首次批准后的方案变化按已决和未决增量处理，不重复审批无关内容", () => {
   const brief = read(sourceRoot, ".agents/skills/trellis-task-brief/SKILL.md");
   const phase = read(sourceRoot, "overrides/patches/workflow/task-brief-review/phase-1-activate-content.md");
