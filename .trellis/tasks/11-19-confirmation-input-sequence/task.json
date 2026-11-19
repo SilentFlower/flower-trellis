@@ -1,0 +1,52 @@
+{
+  "id": "confirmation-input-sequence",
+  "name": "confirmation-input-sequence",
+  "title": "以输入事件序号统一 Claude 与 Codex 自动确认",
+  "description": "以当前会话输入事件序号替代历史真实人工消息 ID 基线，统一 Claude/Codex 的自动确认、peer 回合、恢复与取消处理。",
+  "status": "completed",
+  "dev_type": "backend",
+  "scope": "confirmation-runtime",
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-19",
+  "completedAt": "2026-11-19",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-19T07:53:57Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/assets/flower_confirmation_runtime/runtime.py",
+    "src/assets/flower_confirmation_runtime/store.py",
+    "src/assets/flower_confirmation_runtime/claude.py",
+    "src/assets/flower_confirmation_runtime/codex.py",
+    "vendor/skill-garden/.trellis/0.6/scripts/confirmation.md",
+    ".trellis/spec/flower-trellis/cli/confirmation-runtime.md"
+  ],
+  "notes": "",
+  "meta": {
+    "confirmationTimeoutDisabled": true
+  },
+  "progress": {
+    "completedSteps": [
+      "Claude/Codex 输入事件序号改造与旧状态兼容",
+      "Check-All 修复重检与规范复核",
+      "两仓业务提交推送及快照来源门禁",
+      "原生两端验收与匹配提交的跨平台 CI 全部通过"
+    ],
+    "partialStep": null,
+    "nextStep": "任务交付完成",
+    "notes": "CI run 44480901377 的 8 个 job 全部 success；任务记录按已确认精确范围独立提交。",
+    "updatedAt": "2026-11-19T07:53:57Z"
+  }
+}
