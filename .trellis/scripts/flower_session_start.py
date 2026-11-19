@@ -37,14 +37,14 @@ CONFIRMATION_HINT = """<trellis-confirmation>
 Before final Brief/Check-All/Push output, follow .trellis/scripts/confirmation.md: resolve --entry, attempt eligible prepare, background wait, full display, end turn. Manual fallback needs an exclusion or actual failure reason. Generic commit intent does not approve a later plan. Execute only on valid human/runner authorization or policy_timeout claim plus started receipt. Human decisions and host approvals stay manual.
 </trellis-confirmation>"""
 MODEL_WORKFLOW_HINT_BODY = """Applies only to active {model}. Keep ordinary replies brief; perform checks internally.
-When executing the current task:
-- Follow SKILL and WORKFLOW steps autonomously. Simplicity, redundant checks or fewer interruptions do not waive required steps, references, gates or templates.
-- Before a step, read its rules and required references. Reuse fully read, unchanged material; search matches are not full reads.
-- Preserve required template headings, order and conditional sections. Brevity does not waive structure.
-- Resolve conflicts by instruction hierarchy; follow the owner's phase transitions. Planning intent does not approve a final plan.
-- Generic work/Git intent does not approve a later plan. Follow the gate owner BEFORE ending the turn: eligible prepare, background wait, full display; exclusions or actual failures use manual confirmation. Act only on a verified user reply, valid runner authorization, or policy_timeout claim AND started receipt. Silence and display are not human approval; unresolved decisions and host approvals stay manual.
-- Verify actual tool records and artifacts before claiming read, checked or complete. Reading and compliance are separate facts.
-- When corrected, inspect applicable rules, records and results before repairing. State missing evidence; do not invent causes or substitute unrelated rules."""
+For the current task:
+- Follow SKILL/WORKFLOW steps, references, gates and templates autonomously; convenience never waives them.
+- Read step rules/references; reuse unchanged full reads. Search hits are not full reads.
+- Keep template headings/order/conditional sections, instruction hierarchy and owner phase transitions.
+- Planning/work/Git intent is not final-plan approval. Follow the gate owner BEFORE ending the turn: eligible prepare, background wait, full display; exclusions or actual failure use manual confirmation. Execute only on a verified user reply, valid runner authorization, or policy_timeout claim AND started receipt. Silence/display are not approval; unresolved decisions and host approvals stay manual.
+- Verify records/artifacts before claiming read, checked or complete. Reading is not compliance. On correction, inspect rules/evidence, state gaps, never invent causes.
+- Code: no speculative guards/caps or silent fallbacks. Justify new/inherited checks, fallbacks and timeouts by requirements, concrete evidence, measured resource budgets or dependency contracts; keep scope minimal. Prefer streaming/batching and progress-aware waits over larger caps.
+- Validate relevant inputs at trust/use boundaries; tolerate irrelevant metadata by contract. Surface errors and actionable recovery. Test valid large/long-running, version and recovery paths across related entry points alongside rejection. Preserve identity, authorization, integrity and single execution."""
 ASTRA_WORKFLOW_HINT = (f'<trellis-astra-workflow-hint model="{ASTRA_MODEL}" version="1">\n'
                        f'{MODEL_WORKFLOW_HINT_BODY.format(model=ASTRA_MODEL)}\n'
                        '</trellis-astra-workflow-hint>')

@@ -582,6 +582,26 @@ print(json.dumps({
             self.assertIn("unresolved decisions and host approvals stay manual", hint)
             self.assertNotIn("Otherwise, display the plan and wait for the user's confirmation", hint)
 
+    def test_model_hints_require_grounded_guards_and_usable_paths(self) -> None:
+        """核对各 GPT 的保护依据、正常通过性及必要安全保护要求。"""
+        models = (SESSION.ASTRA_MODEL, SESSION.SOL_MODEL, SESSION.SOL_6_1_MODEL,
+                  "gpt-5.6-sol", "gpt-future-preview")
+        for model in models:
+            with self.subTest(model=model):
+                hint = SESSION._gpt_workflow_hint(self.root, model)
+                self.assertIn("no speculative guards/caps or silent fallbacks", hint)
+                self.assertIn("Justify new/inherited checks, fallbacks and timeouts", hint)
+                self.assertIn("requirements, concrete evidence, measured resource budgets or dependency contracts", hint)
+                self.assertIn("keep scope minimal", hint)
+                self.assertIn("streaming/batching and progress-aware waits over larger caps", hint)
+                self.assertIn("Validate relevant inputs at trust/use boundaries", hint)
+                self.assertIn("tolerate irrelevant metadata by contract", hint)
+                self.assertIn("Surface errors and actionable recovery", hint)
+                self.assertIn("valid large/long-running, version and recovery paths", hint)
+                self.assertIn("related entry points alongside rejection", hint)
+                self.assertIn("Preserve identity, authorization, integrity and single execution", hint)
+                self.assertLessEqual(len(hint.encode("utf-8")), SESSION.MODEL_HINT_MAX_BYTES)
+
     def test_shared_rules_follow_platform_boundaries_independent_of_model(self) -> None:
         """代码设计原则跨平台共享，交互规则仅属 Codex，均不受模型开关影响。"""
         self.assertLessEqual(len(SESSION.CONFIRMATION_HINT.encode("utf-8")), 512)
@@ -622,7 +642,7 @@ print(json.dumps({
     def test_models_reuse_reviewed_workflow_body(self) -> None:
         """三个模型共用已审阅正文，仅替换模型标识和标签。"""
         self.assertEqual(sha256(SESSION.ASTRA_WORKFLOW_HINT.encode("utf-8")).hexdigest(),
-                         "d661c01ff842844df87367c1ffc7a34d616c63adb1bc08c3358242e8f1cde48c")
+                         "8aabe4e2f5f6c4a2a4a2021245c0d1d243cc3e5512618ee936eab06c1a721fcf")
         self.assertEqual(SESSION.SOL_WORKFLOW_HINT.replace("trellis-sol-workflow-hint", "trellis-astra-workflow-hint")
                          .replace(SESSION.SOL_MODEL, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
         self.assertEqual(SESSION.SOL_6_1_WORKFLOW_HINT.replace("trellis-sol-6-1-workflow-hint", "trellis-astra-workflow-hint")
