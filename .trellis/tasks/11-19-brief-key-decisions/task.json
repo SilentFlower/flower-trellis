@@ -1,0 +1,147 @@
+{
+  "id": "brief-key-decisions",
+  "name": "brief-key-decisions",
+  "title": "改进 Brief 关键取舍披露与规划边界审查",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "silentflower",
+  "assignee": "silentflower",
+  "createdAt": "2026-11-19",
+  "completedAt": "2026-11-19",
+  "closeout": {
+    "status": "closed",
+    "closedAt": "2026-11-19T00:54:13Z",
+    "blockers": []
+  },
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "intentRouting": {
+      "autoCreated": true,
+      "createdAt": "2026-11-19T00:38:12Z",
+      "contextKey": "codex_01a1f12e-c183-7b40-984f-1e776cccd843",
+      "implementationStarted": false,
+      "baseline": {
+        "head": "8b7d0f40a561ba46123a6b982f3fd15bbe3e56a8",
+        "status": [
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md"
+          },
+          {
+            "status": "??",
+            "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/11-11-confirmation-capacity/task.json"
+          },
+          {
+            "status": " M",
+            "path": ".trellis/tasks/11-11-confirmation-windows-native/task.json"
+          }
+        ],
+        "repositories": [
+          {
+            "root": ".",
+            "head": "8b7d0f40a561ba46123a6b982f3fd15bbe3e56a8",
+            "status": [
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md"
+              },
+              {
+                "status": "??",
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json"
+              },
+              {
+                "status": " M",
+                "path": ".trellis/tasks/11-11-confirmation-capacity/task.json"
+              },
+              {
+                "status": " M",
+                "path": ".trellis/tasks/11-11-confirmation-windows-native/task.json"
+              }
+            ],
+            "worktreeDiffSha256": "3cedbd5a919f276a5c3895949f22bba41ede6aefd815ab16d7dca03f029299bb",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/check.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/implement.jsonl",
+                "sha256": "40dabff4b3e0949c79f6dbbbec55ba4d8eb31ab989ba5c77786bf2c951c88b92"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/prd.md",
+                "sha256": "a5b026b082cabf4355695951b536b72eddd5cf1818c9a48bb36fe90c3872e1d2"
+              },
+              {
+                "path": ".trellis/tasks/11-11-confirmation-capacity-and-windows/task.json",
+                "sha256": "db0bd6e65dfc58f77d2185568fd176ac3fa35ab1f6fda4265dc1f6eef4a9b314"
+              }
+            ],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "322177b472f09342fe40763d9f7712097255e4e7599e43ccd955a406edb2db9b"
+          },
+          {
+            "root": "vendor/skill-garden",
+            "head": "ddc5b4b805e4d0c17f6fb91d779c61e231f775d6",
+            "status": [],
+            "worktreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "indexDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "untracked": [],
+            "conflicts": [],
+            "integration": [],
+            "fingerprint": "ae1dcc8c31831810118a9ef7e4d366cb14750da4dcda6372d5056a23874d74d6"
+          }
+        ],
+        "fingerprint": "a50a8585ae8130e03551a4e754cdc2a391be5a864f3fdd0c1b3a12a47fa3a359"
+      }
+    }
+  },
+  "progress": {
+    "completedSteps": [
+      "Brief 关键取舍提取与加粗展示已交付",
+      "规划限制必要性与完整用户路径审查已交付",
+      "规则专项、全平台产物、项目投影及 CI 验证通过",
+      "两仓业务提交推送与发布快照洁净检查完成",
+      "规范合同已同步"
+    ],
+    "partialStep": null,
+    "nextStep": "任务交付完成，后续任务沿新规则生成 Brief",
+    "notes": "193 项本地专项通过；当前项目投影与两端作者源一致；保留六个既有任务文件。",
+    "updatedAt": "2026-11-19T00:54:13Z"
+  }
+}
