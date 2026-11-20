@@ -17,7 +17,7 @@
 
 ## 准备与完整展示
 
-Codex 保持普通 `codex` / `codex resume` 与默认共享服务。通过当前根会话内置 codex_tui 的本机监听者绑定原前台；需要新输入 Hook 已实际加载。Windows 复用当前 Codex 映像的本机代理接入已有控制端点。缺少服务、出生身份或可靠退出能力时保持人工。Claude 保持原来的普通 TUI；Windows 同时核验原生 Hook 的前台进程。
+Codex 保持普通 `codex` / `codex resume` 并使用已有本机控制服务。共享会话通过 `codex_tui` 的本机监听者绑定原前台。Linux/WSL 的内置会话通过精确会话写锁及原监听者绑定前台，再由本机原生队列唤醒。需要输入 Hook 已实际加载；同会话双开、归属不明、缺少队列服务或无法观测原进程退出时保持人工。Windows 复用当前 Codex 映像的本机代理接入已有控制端点；Claude 使用普通 TUI 和原生后台通知。
 
 先从项目根执行 `python3 .trellis/scripts/flower_confirmation_hook.py --entry`，读取实际返回的 `entry` argv，后续在其后追加 `prepare`、`wait` 等子命令。入口固定为项目内 `.trellis/scripts/flower_confirmation.py`，内部复用当前 Python 解释器，仅依赖标准库和项目脚本。`entry=null` 或工具失败才报告实际原因；不能用无 stdout 的 `test -f` 推断入口不存在。确认阶段无需 Node、npm、全局 Flower 或额外 pip 安装。
 

@@ -224,8 +224,9 @@ class NativeConfirmationTest(unittest.TestCase):
         (f.scripts / "flower_tui_lifetime.py").write_text(
             "import os\nwriters = []\n"
             "def bind_origin(origin): return {'version': 1, 'origin': origin}\n"
+            "def bind_embedded(*args): raise AssertionError('共享夹具只能使用共享绑定')\n"
             "def check_binding(binding): pass\n"
-            "def check_frontend_coverage(origins): pass\n"
+            "def check_frontend_coverage(origins, **kwargs): pass\n"
             "def open_binding(binding):\n    read, write = os.pipe()\n    writers.append(write)\n    return read\n", encoding="utf-8")
         self.invoke(f, ["hook"], {"cwd": str(f.root), "session_id": f.session, "turn_id": server.origin,
                                   "hook_event_name": "UserPromptSubmit", "prompt": "开始"})
@@ -578,7 +579,8 @@ class NativeConfirmationTest(unittest.TestCase):
         with patch("flower_confirmation_runtime.codex.bind_origin", return_value={"origin": "http://127.0.0.1:1"}), \
                 patch("flower_confirmation_runtime.codex.check_frontend_coverage") as coverage:
             self.assertEqual(client.capture_window(server.origin)["origin"], "http://127.0.0.1:1")
-            coverage.assert_called_once_with(["http://127.0.0.1:1"])
+            coverage.assert_called_once_with(["http://127.0.0.1:1"], home=client.home, session_id=f.session,
+                                             control=client.transport.control_connection())
         for data in ([], [{"name": "codex_tui", "runtimeStatus": "failed", "httpOrigin": "http://127.0.0.1:1"}],
                      [{"name": "codex_tui", "runtimeStatus": "connected", "httpOrigin": "http://example.com:1"}]):
             with patch.object(client, "rpc", return_value={"data": data}), self.assertRaisesRegex(ValueError, "TUI 服务"):
@@ -589,6 +591,34 @@ class NativeConfirmationTest(unittest.TestCase):
             client.capture_window(server.origin)
         with patch.object(client, "_origin", return_value="http://127.0.0.1:2"), self.assertRaisesRegex(ValueError, "绑定已改变"):
             client.verify_window({"origin": "http://127.0.0.1:1"})
+
+
+    @unittest.skipUnless(sys.platform == "linux", "内置窗口使用 Linux 写锁")
+    def test_not_loaded_thread_rebinds_only_to_its_embedded_owner(self):
+        """空共享服务也能观察内置回合，线程或写锁漂移使旧绑定失效。"""
+        f = ProjectFixture(self)
+        server = CodexServer(self, f)
+        client = CodexClient(f.root, f.session, env=f.env)
+        self.addCleanup(client.close)
+        client.connect()
+        f.store.update(lambda value: {**value, "native": {"version": 2, "project": str(f.root),
+                                                          "sessionId": f.session, "turnId": server.origin}})
+        thread = {"status": {"type": "notLoaded"}}
+        binding = {"origin": "http://127.0.0.1:1", "writerLock": [8, 1, 3]}
+        with patch.object(client, "_thread", return_value=thread), \
+                patch.object(client, "rpc", return_value={"data": []}) as rpc, \
+                patch("flower_confirmation_runtime.codex.bind_embedded", return_value=binding) as bind, \
+                patch("flower_confirmation_runtime.codex.check_frontend_coverage") as coverage:
+            self.assertEqual(client.capture_window(server.origin), binding)
+            client.verify_window(binding)
+            self.assertEqual([call.args[0] for call in rpc.call_args_list], ["thread/loaded/list"] * 2)
+            self.assertEqual(coverage.call_count, 2)
+            bind.return_value = {**binding, "writerLock": [8, 1, 4]}
+            with self.assertRaisesRegex(ValueError, "会话写锁已改变"):
+                client.verify_window(binding)
+            thread["status"]["type"] = "active"
+            with self.assertRaisesRegex(ValueError, "会话写锁已改变"):
+                client.verify_window(binding)
 
 
 class CodexServer:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import select
+import socket
 import subprocess
 import sys
 import tempfile
@@ -12,6 +13,7 @@ import unittest
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from unittest.mock import patch
+from uuid import uuid4
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -81,6 +83,66 @@ class TuiLifetimeTest(unittest.TestCase):
                 with self.assertRaisesRegex(PermissionError, "无法核验进程身份"):
                     LIFETIME.check_frontend_coverage(["http://127.0.0.1:1"])
 
+    @unittest.skipUnless(HAS_PIDFD, "仅 Linux 核对原生写锁及 Unix 对端")
+    def test_embedded_writer_and_early_shared_connection(self):
+        """独立写锁识别额外会话，尚无监听的共享前台仍会被发现。"""
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            locks = home / "thread-writer-locks"
+            locks.mkdir()
+            session = str(uuid4())
+            path = locks / f"{session}.lock"
+            child, expected = self.listener(path, terminal=True, raw=True)
+            original_readlink = LIFETIME.os.readlink
+            original_iterdir = LIFETIME.Path.iterdir
+            visible = [child.pid]
+
+            def own_processes(directory):
+                """只枚举本用例的模拟 Codex 前台。"""
+                if directory == Path("/proc"):
+                    return iter(Path("/proc") / str(pid) for pid in visible)
+                return original_iterdir(directory)
+
+            def frontend_link(file):
+                """为本用例的前台提供可控的映像名。"""
+                if Path(file).name == "exe" and Path(file).parent.name in {str(pid) for pid in visible}:
+                    return "/test/codex"
+                return original_readlink(file)
+
+            left, right = socket.socketpair()
+            with left, right, socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as service:
+                endpoint = home / "test.sock"
+                service.bind(str(endpoint))
+                service.listen()
+                control = os.getpid(), str(os.fstat(left.fileno()).st_ino)
+                with patch.object(LIFETIME.Path, "iterdir", own_processes), \
+                        patch.object(LIFETIME.os, "readlink", side_effect=frontend_link):
+                    binding = LIFETIME.bind_embedded(home, session, control)
+                    self.assertEqual(binding["pid"], child.pid)
+                    self.assertEqual(binding["origin"], expected["origin"])
+                    self.assertEqual(binding["writerLock"][-1], path.stat().st_ino)
+                    LIFETIME.check_frontend_coverage(["http://127.0.0.1:1"], home=home,
+                                                      session_id=str(uuid4()), control=control)
+                    with self.assertRaisesRegex(ValueError, "未对应"):
+                        LIFETIME.check_frontend_coverage(["http://127.0.0.1:1"], home=home,
+                                                          session_id=session, control=control)
+                    headless_session = str(uuid4())
+                    headless, _ = self.listener(locks / f"{headless_session}.lock", terminal=True)
+                    visible.append(headless.pid)
+                    with self.assertRaisesRegex(ValueError, "本机前台监听者"):
+                        LIFETIME.bind_embedded(home, headless_session, control)
+                    visible.remove(headless.pid)
+                    early, unused = self.listener(endpoint=endpoint, announce=False, terminal=True)
+                    visible.append(early.pid)
+                    connected, _ = service.accept()
+                    with connected, self.assertRaisesRegex(ValueError, "可能同会话双开"):
+                        LIFETIME.check_frontend_coverage([expected["origin"]], home=home,
+                                                          session_id=session, control=control)
+                    child.terminate()
+                    child.wait(5)
+                    with self.assertRaisesRegex(ValueError, "独占写锁"):
+                        LIFETIME.bind_embedded(home, session, control)
+
     @unittest.skipUnless(HAS_PIDFD, "仅 Linux 具备 pidfd 时验证真实退出")
     def test_pid_reuse_and_socket_loss_are_rejected(self):
         """PID 出生标识改变或监听者消失时必须拒绝旧绑定。"""
@@ -129,16 +191,51 @@ class TuiLifetimeTest(unittest.TestCase):
         watcher.wait(5)
         self.assertEqual(watcher.returncode, 0)
 
-    def listener(self):
+    def listener(self, lock_path=None, endpoint=None, announce=True, terminal=False, raw=False):
         """创建属于本测试的监听进程并构造内核观察夹具。
 
+        @param lock_path: 进程持有的可选会话写锁。
+        @param endpoint: 模拟共享前台连接时使用的 Unix 地址。
+        @param announce: 是否创建本机 TUI 监听。
+        @param terminal: 是否使用真实的伪终端作为 stdin。
+        @param raw: 是否让测试进程接管终端输入。
         @return: 进程及冻结身份。
         """
-        code = "import socket,json,time; s=socket.socket(); s.bind(('127.0.0.1',0)); s.listen(); print(json.dumps(s.getsockname()),flush=True); time.sleep(60)"
-        child = subprocess.Popen([sys.executable, "-X", "utf8", "-c", code], stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE, text=True, encoding="utf-8", cwd=ROOT)
+        code = """import fcntl,json,socket,sys,time,tty
+if sys.argv[1]:
+    lock = open(sys.argv[1], 'w')
+    fcntl.flock(lock, fcntl.LOCK_EX)
+if sys.argv[2]:
+    connection = socket.socket(socket.AF_UNIX)
+    connection.connect(sys.argv[2])
+address = None
+if sys.argv[4] == 'True':
+    tty.setraw(0)
+if sys.argv[3] == 'True':
+    listener = socket.socket()
+    listener.bind(('127.0.0.1', 0))
+    listener.listen()
+    address = listener.getsockname()
+print(json.dumps(address), flush=True)
+time.sleep(60)
+"""
+        stdin = subprocess.DEVNULL
+        if terminal:
+            import pty
+            master, stdin = pty.openpty()
+            self.addCleanup(os.close, master)
+        try:
+            child = subprocess.Popen([sys.executable, "-X", "utf8", "-c", code, str(lock_path or ""),
+                                      str(endpoint or ""), str(announce), str(raw)], stdin=stdin, stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, text=True, encoding="utf-8", cwd=ROOT)
+        finally:
+            if terminal:
+                os.close(stdin)
         self.addCleanup(self.close_child, child)
-        host, port = json.loads(child.stdout.readline())
+        address = json.loads(child.stdout.readline())
+        if address is None:
+            return child, None
+        host, port = address
         origin = "http://{}:{}".format(host, port)
         binding = {"version": 1, "origin": origin, **LIFETIME.process_identity(child.pid),
                    "socketInodes": sorted(LIFETIME.listening_inodes(origin))}

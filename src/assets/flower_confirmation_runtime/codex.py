@@ -11,7 +11,7 @@ import time
 from collections import OrderedDict
 from pathlib import Path
 
-from flower_tui_lifetime import bind_origin, check_binding, check_frontend_coverage, open_binding
+from flower_tui_lifetime import bind_embedded, bind_origin, check_binding, check_frontend_coverage, open_binding
 from .session_log import DISPLAY_BYTES, RECORD_BYTES, SessionLog
 from .store import ACTIVE, ConfirmationStore, confirmation_id, native_id, now_ms, text_content, validate_turn_origin, wake_id, wake_message
 from .transport import CodexTransport, RpcError
@@ -150,6 +150,14 @@ class CodexClient:
         """
         return self._snapshot(preparing=False)
 
+    def _thread(self):
+        thread = self.rpc("thread/read", {"threadId": self.session_id, "includeTurns": False})["thread"]
+        if thread.get("id") != self.session_id or Path(thread["cwd"]).resolve(strict=True) != self.project:
+            raise ValueError("Codex 目标会话或项目目录不匹配")
+        if thread.get("archived") or (thread.get("status") or {}).get("type") == "systemError":
+            raise ValueError("Codex 目标线程处于错误状态")
+        return thread
+
     def _snapshot(self, preparing):
         if self.window_fd is not None:
             if self._frontend_exited():
@@ -160,11 +168,7 @@ class CodexClient:
                 else:
                     check_binding(self.window)
                 self.checked_at = time.monotonic()
-        thread = self.rpc("thread/read", {"threadId": self.session_id, "includeTurns": False})["thread"]
-        if thread.get("id") != self.session_id or Path(thread["cwd"]).resolve(strict=True) != self.project:
-            raise ValueError("Codex 目标会话或项目目录不匹配")
-        if thread.get("archived") or (thread.get("status") or {}).get("type") == "systemError":
-            raise ValueError("Codex 目标线程处于错误状态")
+        thread = self._thread()
         state = self.store.read() or {}
         request = state.get("request") or {}
         file = self._rollout_path(thread.get("path"))
@@ -360,12 +364,14 @@ class CodexClient:
             raise ValueError("当前会话缺少唯一可核验的原生 TUI 服务，保持人工确认")
         return servers[0]["httpOrigin"]
 
-    def _coverage(self):
+    def _coverage(self, binding):
         result = self.rpc("thread/loaded/list", {"limit": 1000})
         threads = result.get("data")
-        if result.get("nextCursor") or not isinstance(threads, list) or not 0 < len(threads) <= 1000:
+        embedded = "writerLock" in binding
+        if (result.get("nextCursor") or not isinstance(threads, list) or len(threads) > 1000
+                or (self.session_id in threads) == embedded):
             raise ValueError("无法核验全部已加载原生会话")
-        origins = set()
+        origins = {binding["origin"]} if embedded else set()
         for thread_id in threads:
             current = self.rpc("mcpServerStatus/list", {"threadId": thread_id, "serverName": "codex_tui", "detail": "toolsAndAuthOnly", "limit": 5})
             if current.get("nextCursor"):
@@ -379,7 +385,8 @@ class CodexClient:
                 raise ValueError("Windows Codex 前台归属不唯一")
             check_listener_coverage(owners, self.executable, {Path(item["exe"]) for item in identities})
         else:
-            check_frontend_coverage(list(origins))
+            check_frontend_coverage(list(origins), home=self.home, session_id=self.session_id,
+                                    control=self.transport.control_connection())
 
     def _windows_binding(self, origin):
         from flower_tui_lifetime import parse_origin
@@ -409,11 +416,15 @@ class CodexClient:
         if (native.get("version") != 2 or native.get("project") != str(self.project)
                 or native.get("sessionId") != self.session_id or not turn_id):
             raise ValueError("当前会话尚未收到确认输入 Hook，重开原生客户端后使用；本次保持人工确认")
+        if self.platform == "linux" and (self._thread().get("status") or {}).get("type") == "notLoaded":
+            binding = bind_embedded(self.home, self.session_id, self.transport.control_connection())
+            self._coverage(binding)
+            return binding
         origin = self._origin()
         binding = self._windows_binding(origin) if self.platform == "win32" else bind_origin(origin)
         if self._origin() != origin:
             raise ValueError("准备期间前台窗口绑定已改变")
-        self._coverage()
+        self._coverage(binding)
         return binding
 
     def verify_window(self, binding):
@@ -422,6 +433,12 @@ class CodexClient:
         @param binding: 原请求的窗口身份。
         @return: None；任何漂移均拒绝。
         """
+        if self.platform == "linux" and "writerLock" in binding:
+            if ((self._thread().get("status") or {}).get("type") != "notLoaded"
+                    or bind_embedded(self.home, self.session_id, self.transport.control_connection()) != binding):
+                raise ValueError("原内置 Codex 窗口或会话写锁已改变")
+            self._coverage(binding)
+            return
         if self._origin() != binding.get("origin"):
             raise ValueError("原前台窗口绑定已改变")
         if self.platform == "win32":
@@ -433,7 +450,7 @@ class CodexClient:
             os.close(fd)
         if self._origin() != binding["origin"]:
             raise ValueError("核验期间前台窗口绑定已改变")
-        self._coverage()
+        self._coverage(binding)
 
     def observe_window(self, binding):
         """为 worker 持有自己的内核退出句柄。

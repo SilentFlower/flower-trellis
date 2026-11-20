@@ -6,7 +6,7 @@
 
 - 修改项目 Python 确认入口、超时策略、状态机、宿主事件、窗口归属或确认 Hook 生命周期时适用。
 - Brief、Check-All、Push 共用一套策略与单次领取。到期提醒只唤醒，业务仍由各自 owner 执行。
-- Codex 保持普通启动和已有共享服务；Claude 使用原生后台任务通知。不增加启动包装、代理或 MCP。
+- Codex 保持普通启动并使用已有本机共享服务完成队列投递。Linux/WSL 支持在可核验的混用环境唤醒内置前台；Claude 使用原生后台任务通知。不增加启动包装、代理或 MCP。
 - 自动路径支持可核验的 Linux/WSL 和原生 Windows。Linux/WSL Codex 使用 `/proc` 与 Python `os.pidfd_open`；
   Windows 核对本机控制连接、同用户的进程身份与退出句柄。任何必需能力缺失时保持人工。
   通用 CLI/脚本继续遵守 Node 18.17+、Python 3.8+ 基线；基线可加载不等于自动路径可用。
@@ -50,6 +50,9 @@ flower_confirmation_runtime.session_log.SessionLog.read(file, initial, consume) 
 flower_confirmation_runtime.session_log.SessionLog.verify(frozen, current)
 CodexClient.capture_window(turn_id) / verify_window(binding) / observe_window(binding)
 flower_confirmation_runtime.transport.CodexTransport(path, timeout=5, notification=None, *, proxy=None, env=None)
+CodexTransport.control_connection() -> (service_pid, local_socket_inode)
+flower_tui_lifetime.bind_embedded(home, session_id, control, proc_root=Path("/proc")) -> binding
+flower_tui_lifetime.check_frontend_coverage(origins, *, home=None, session_id=None, control=None) -> None
 flower_confirmation_runtime.windows_process.ProcessHandle(pid)
 flower_confirmation_runtime.windows_process.open_identity(identity) -> ProcessHandle
 flower_confirmation_runtime.windows_process.hook_frontend(executable) -> identity
@@ -167,7 +170,14 @@ src/lib/confirmation-lifecycle.js:
   `exe`、`uid`、`bootId`、`socketInodes`；pidfd 不序列化。窗口失效后不绑定新窗口来恢复旧请求。
 - 用 `thread/loaded/list` 的会话来源与本机监听者核对覆盖；存在未对应会话的额外 Codex 前台时人工确认。
   同 thread 第二窗口不会接管原 MCP 服务，因此不能借第一窗口存活来证明第二窗口仍在。
-  Windows 用精确 TCP 监听地址核对 PID，以同用户身份、映像和进程创建时间冻结原前台；原生进程句柄监测退出。
+  Linux/WSL 仅在核实额外进程持有同一 Codex 用户目录中其他会话的独占写锁，且未通过本机 Unix 连接接入当前服务时排除。
+  已连接当前服务的额外终端进程即使尚未监听也保守拒绝。锁文件路径存在与历史 PID 均不能作为活跃证据。
+- Linux/WSL 的 `thread/read` 返回 `notLoaded` 时，内置窗口使用 `thread-writer-locks/<thread-id>.lock` 的设备和 inode
+  匹配 `/proc/locks` 的实际排他持有者，再核对同用户 Codex 进程、本机监听、已接管输入的终端与 `pidfd`。
+  共享控制连接通过 `SO_PEERCRED` 和内核 Unix socket 对端验证，内置窗口须独立于该连接的服务进程。
+  冻结会话写锁、窗口和队列服务的出生身份。写锁或运行方式切换后，旧许可不迁移。通过已连接的共享服务原生队列投递
+  `clientUserMessageId`，内置服务观察同一队列并在原线程消费；仍以原生日志与单次回执核对实际唤醒。
+- Windows 用精确 TCP 监听地址核对 PID，以同用户身份、映像和进程创建时间冻结原前台；原生进程句柄监测退出。
   同一发行的托管服务和前台可使用不同文件副本，须校验相同映像内容。
   已核验的前台映像出现额外进程时拒绝继续，覆盖第二窗口尚未建立监听的间隙。
 - 观察连接不得调用 `thread/resume` 建立额外订阅。被动 `thread/read(includeTurns=false)` 提供准确 rollout
@@ -238,6 +248,10 @@ src/lib/confirmation-lifecycle.js:
 | 正式状态 `fsync` 失败 | 保留旧状态、释放本进程的锁并传播原错误 |
 | 新输入、改材料、改策略、改任务或 Git 快照 | 旧许可失效 |
 | 前台退出、PID 复用、服务重绑或归属歧义 | 不派发或拒绝领取，不借用其他窗口 |
+| Linux/WSL 内置窗口仅由其本机会话写锁的实际持有者监听 | 绑定原窗口，可用已有队列服务唤醒并核验原生回合 |
+| 写锁持有者有本机监听，但终端仍处于普通行输入模式 | 缺少 TUI 身份证据，保留人工 |
+| 另一内置窗口持有不同会话的写锁，且可核验与共享服务独立 | 正常核验当前会话窗口，额外窗口不触发人工回退 |
+| 额外前台已连接共享服务但尚未可归属，或内置会话写锁/连接证据漂移 | 停止自动确认，保留人工 |
 | Windows 额外的同映像 Codex 前台尚未监听，或 Claude 同会话出现第二个存活前台 | 旧等待失败或取消，保持人工 |
 | Claude 只有主来源、旧来源或重复辅助字段变化 | 统一提取主来源，缺失时回退旧字段 |
 | Claude 当前宿主回合不可用，或旧请求缺少冻结起点 | 返回具体阶段与原因；按当前宿主重新准备新许可 |
@@ -271,6 +285,9 @@ src/lib/confirmation-lifecycle.js:
 - Base：关闭旧任务后会话绑定为空，新任务 Brief 可先准备、领取并 started，再由 `task.py start` 绑定目标。
   Incorrect use：为准备确认而提前绑定目标。Correct handling：先完成 Brief 确认；等待期间绑定变化须重新准备。
 - Base：Check 没有未处置项时不等待；总开关关闭或 Python 缺少 pidfd 时保持人工；查询空状态不创建目录。
+- Normal：同一 `CODEX_HOME` 下，内置会话与共享会话分别在各自的原终端完成倒计时和唤醒。
+- Incorrect use：把拥有写锁和本机监听的后台 App Server 当作内置前台。
+  Correct handling：同时核对该进程的输入终端已经由 TUI 接管，且共享队列服务具有独立的连接身份。
 - Incorrect use：恢复会话后重新找一个活窗口继续旧请求，或把相同提醒正文当成领取凭证。
   Correct handling：冻结原窗口身份，核对原生消息来源和当前代次；失效则停止旧动作，必要时重新准备。
 - Incorrect use：旧提醒返回 `not_current` 后结束当前工作流或要求用户重新确认。
@@ -315,6 +332,8 @@ src/lib/confirmation-lifecycle.js:
   覆盖定位、起读与读后核验的 mtime 先于 size 更新，以及重读期间的持续同大小重写、替换和截断拒绝。
 - `test_confirmation_native.py` / `test_flower_tui_lifetime.py`：本机 WebSocket、帧边界、只读观察、真实内部来源、
   出生身份、归属歧义、恢复拒绝、能力不足；不存在宿主 Codex home 和隔离 PATH 下完成两端真实 Python CLI 链路。
+  断言内置 `notLoaded` 会话走本机窗口绑定与共享会话覆盖，写锁变化或切到共享运行即拒绝旧绑定。
+  真实内核测试覆盖独立写锁放行、附着共享服务但尚未监听的额外前台，以及有写锁及监听但仍使用普通行输入的 App Server。
 - `test_confirmation_windows.py`：真实 Windows 监听者、同映像副本、PID 创建时间、退出句柄、第二个未监听前台；
   Claude 精确命令、双开作废、主来源优先、旧字段回退及未知上下文旁路。实际 Windows Codex/Claude 窗口分别验证正常唤醒、退出和双开。
 - `test_project_confirmation.py`：Claude 精确后台任务、原生通知与人工粘贴区分、输入取消、退出、runId 替换
