@@ -139,6 +139,7 @@ function measurePhaseSummary() {
 function measureSessionStart(compiledRoot) {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "flower-context-budget-"));
   try {
+    // 不复制 .developer，和 CI 干净检出一致；本地开发者名可能更短。
     copyIfExists(
       path.join(compiledRoot, ".trellis", "workflow.md"),
       path.join(fixture, ".trellis", "workflow.md"),
@@ -146,10 +147,6 @@ function measureSessionStart(compiledRoot) {
     copyIfExists(
       path.join(PKG_ROOT, ".trellis", "config.yaml"),
       path.join(fixture, ".trellis", "config.yaml"),
-    );
-    copyIfExists(
-      path.join(PKG_ROOT, ".trellis", ".developer"),
-      path.join(fixture, ".trellis", ".developer"),
     );
     copyIfExists(
       path.join(PKG_ROOT, ".trellis", "spec"),

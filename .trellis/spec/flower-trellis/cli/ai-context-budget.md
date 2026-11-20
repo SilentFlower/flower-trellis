@@ -56,6 +56,9 @@ UTF-8 bytes 是确定性指标，行数只用于诊断。模型 tokenizer 会变
 不能因本地配置关闭而漏测开启成本；匹配场景只有 state 的对应模型一块，其他输出零块，三种 source 的
 提示正文相同。数量或正文不一致是结构错误。
 
+SessionStart 预算 fixture 保持开发者未初始化，覆盖干净检出的 `Developer: (not initialized)` 状态。
+本地 `.trellis/.developer` 可能让开发者摘要比 CI 更短，因此不复制到 fixture。
+
 `codex-user-interaction-hint` 同样从实际输出提取：每个 Codex state 场景恰好一份，Claude 和
 rules/stages 零份；跨模型、模型开关和来源的正文必须一致。完整块单独计量，拼接换行计入总量。
 

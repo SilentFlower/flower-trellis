@@ -31,7 +31,9 @@ CODE_DESIGN_HINT = """<trellis-code-design>
 Prefer simple, clear code for confirmed needs (KISS, YAGNI). Apply SOLID and DRY when they reduce complexity or duplicated business knowledge; favor clarity if these principles conflict. Reuse project patterns. Avoid premature abstractions, extra layers, excessive splitting, and speculative config or dependencies. Preserve behavior, compatibility, required verification, workflows, review gates, and templates.
 </trellis-code-design>"""
 CODEX_USER_INTERACTION_HINT = """<trellis-codex-user-interaction>
-For questions, use synchronous request_user_input when allowed by the active tool instructions and schema; otherwise ask in the final reply and wait. Do not call request_user_input_async, send_user_message_async, or async equivalents. Show progress in commentary and results in final. Keep existing review/approval gates; never switch modes to unlock a tool or infer consent from silence.
+Ask via synchronous request_user_input when tool instructions and schema allow. Otherwise ask in final and wait.
+Do not call request_user_input_async, send_user_message_async or equivalents. Use commentary for progress and final for results.
+Preserve review and approval gates. Never switch modes to unlock tools or infer consent from silence.
 </trellis-codex-user-interaction>"""
 CONFIRMATION_HINT = """<trellis-confirmation>
 Before final Brief/Check-All/Push output, follow .trellis/scripts/confirmation.md: resolve --entry, attempt eligible prepare, background wait, full display, end turn. Manual fallback needs an exclusion or actual failure reason. Generic commit intent does not approve a later plan. Execute only on valid human/runner authorization or policy_timeout claim plus started receipt. Human decisions and host approvals stay manual.
