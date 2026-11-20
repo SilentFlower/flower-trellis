@@ -4,6 +4,14 @@
 
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/);提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范。
 
+## [0.6.13-beta.23](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.22...v0.6.13-beta.23) (2026-11-20)
+
+
+### 🐛 修复 Bug Fixes
+
+* **confirmation:** 修复 Codex 内置窗口定位与混用确认 ([cfc3ec2](https://github.com/SilentFlower/flower-trellis/commit/cfc3ec23dba421e3e07fe574ab929393ab51f7c4))
+* **gpt:** 统一 GPT 工作流提示 ([4a9c6ff](https://github.com/SilentFlower/flower-trellis/commit/4a9c6ffd781db831e3cdb23207912a5c82ca9071))
+
 ## [0.6.13-beta.22](https://github.com/SilentFlower/flower-trellis/compare/v0.6.13-beta.21...v0.6.13-beta.22) (2026-11-19)
 
 
