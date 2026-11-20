@@ -36,11 +36,9 @@ For questions, use synchronous request_user_input when allowed by the active too
 CONFIRMATION_HINT = """<trellis-confirmation>
 Before final Brief/Check-All/Push output, follow .trellis/scripts/confirmation.md: resolve --entry, attempt eligible prepare, background wait, full display, end turn. Manual fallback needs an exclusion or actual failure reason. Generic commit intent does not approve a later plan. Execute only on valid human/runner authorization or policy_timeout claim plus started receipt. Human decisions and host approvals stay manual.
 </trellis-confirmation>"""
-MODEL_WORKFLOW_HINT_BODY = """Applies only to active {model}. Keep ordinary replies brief; perform checks internally.
-For the current task:
-- Follow SKILL/WORKFLOW steps, references, gates and templates autonomously; convenience never waives them.
-- Read step rules/references; reuse unchanged full reads. Search hits are not full reads.
-- Keep template headings/order/conditional sections, instruction hierarchy and owner phase transitions.
+MODEL_WORKFLOW_HINT_BODY = """Applies only to active {model}. Keep free-form replies brief.
+- Read required references in full. Before acting or replying, check the actual command, diff or response against scope, exact text, format and evidence.
+- Fill the applicable template once. Copy the returned display verbatim on success. On failure reread and copy the prepared body verbatim. Change only the footer to manual confirmation with the actual reason.
 - Planning/work/Git intent is not final-plan approval. Follow the gate owner BEFORE ending the turn: eligible prepare, background wait, full display; exclusions or actual failure use manual confirmation. Execute only on a verified user reply, valid runner authorization, or policy_timeout claim AND started receipt. Silence/display are not approval; unresolved decisions and host approvals stay manual.
 - Verify records/artifacts before claiming read, checked or complete. Reading is not compliance. On correction, inspect rules/evidence, state gaps, never invent causes.
 - Code: no speculative guards/caps or silent fallbacks. Justify new/inherited checks, fallbacks and timeouts by requirements, concrete evidence, measured resource budgets or dependency contracts; keep scope minimal. Prefer streaming/batching and progress-aware waits over larger caps.
@@ -117,7 +115,7 @@ def _sol_6_1_workflow_hint(root: Path) -> str:
 
 
 def _gpt_workflow_hint(root: Path, model: str) -> str:
-    """为已校验的 GPT 模型生成共用工作流提示。
+    """为已校验的 GPT 模型生成对应工作流提示。
 
     @param root: 当前部署项目根目录。
     @param model: 已通过 GPT_MODEL 完整匹配的事件模型名称。

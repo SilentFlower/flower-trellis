@@ -755,7 +755,7 @@ python3 .trellis/scripts/flower_session_start.py --hook .claude/hooks/session-st
 - `_run_native_hook(root: Path, hook: str, hook_input: dict) -> dict | None`：在当前
   `sys.executable` 的独立解释器中执行白名单原生 Hook；空 stdout 表示原生跳过。
 - `_model_workflow_hint(root: Path, config_key: str, hint: str, label: str) -> str`：按模型读取项目开关、校验完整提示；`_astra_workflow_hint(root)`、`_sol_workflow_hint(root)` 与 `_sol_6_1_workflow_hint(root)` 分别返回对应英文提示或空串，非法配置与超限由 state 的可选增强分支处理。
-- `_gpt_workflow_hint(root: Path, model: str) -> str`：为已通过 `GPT_MODEL.fullmatch(model)` 的事件模型生成通用提示；`GPT_MODEL` 为 `gpt-[A-Za-z0-9][A-Za-z0-9._-]*`。
+- `_gpt_workflow_hint(root: Path, model: str) -> str`：为已通过 `GPT_MODEL.fullmatch(model)` 的事件模型生成对应提示；`GPT_MODEL` 为 `gpt-[A-Za-z0-9][A-Za-z0-9._-]*`。
 - `split_workflow(summary: str) -> dict[str, str]` 返回 `rules` / `stages`，拼接后等于原始摘要。
 - `json-hook-command` 的 `content.value.sessionParts` 只允许固定数组 `["state", "rules", "stages"]`，
   且仅用于 `event=SessionStart`、`commandResolver=codex-session-start|claude-session-start`。
@@ -826,6 +826,9 @@ subprocess.run(
   `source` 为 `startup | clear | compact` 时，在成功提取的原生状态后用一个换行追加对应模型的一块；rules/stages 零追加。
   不 trim、不读取配置默认模型，不使用 matcher 筛选模型；GPT 5.x、版本后缀及未来合法型号均覆盖，
   非 GPT、缺失或非法模型零追加。完整匹配同时拒绝空白、控制字符、引号及 XML 分隔符。
+- 共用正文要求自由答复保持简短。执行或回复前，按范围、精确文本、格式及证据要求核对实际命令、差异或回复。
+  适用模板只填写一次。后台等待启动成功后逐字展示 `prepare` 返回的 `display`。
+  `prepare` 或 `wait` 失败时重读并逐字复制原正文，只将尾注换成包含真实失败原因的人工确认尾注。
 - `.trellis/config.yaml` 的 `codex.gpt_workflow_hint` 为默认开启的总开关，`false` 优先停止所有 GPT 后续新增提示。
   `codex.astra_workflow_hint`、`codex.sol_workflow_hint` 与 `codex.sol_6_1_workflow_hint` 各自缺省开启，
   继续控制对应的精确型号；其余 GPT 型号仅受总开关控制。总开关关闭后不再读取独立开关。
@@ -901,6 +904,8 @@ python3 -m unittest discover -s test/python -p 'test_flower_session_start.py'
 和二次安装文件树不变。预算场景和汇总规则见 AI Context Budget，不得只测缺失 model 的旧路径。
 归属注释过滤覆盖两平台 × startup/clear/compact × LF/CRLF；用整段输出比对验证规则与其他注释
 逐字保留，并沿用刷新后首轮 UserPromptSubmit 静默的回归，确认状态指纹基线仍有效。
+GPT 共用正文覆盖旧标签、通用及后缀型号、三种 SessionStart 来源、实际命令和产物核对、逐字复用确认正文及
+UTF-8 字节预算，并断言总开关与旧独立开关边界。真实模型遵循度分别使用确认场景和普通项目对照，按产物、工具证据和最终文本评分。
 Python 回归必须使用 `sys.executable` 和显式 UTF-8，不依赖 Windows 的 `python3` 别名或系统代码页；事故夹具
 须让伪原生 `main()` 实际对捕获流调用 `detach()`，先证明旧同进程边界失败，再断言隔离 state 成功。
 同一专项测试必须在 GitHub Actions 的 `ubuntu-latest` / `windows-latest` 矩阵运行；本地或 CI 脚本结果

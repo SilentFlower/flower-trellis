@@ -547,7 +547,7 @@ print(json.dumps({
             (SESSION.ASTRA_MODEL, SESSION.ASTRA_WORKFLOW_HINT, "astra"),
             (SESSION.SOL_MODEL, SESSION.SOL_WORKFLOW_HINT, "sol"),
             (SESSION.SOL_6_1_MODEL, SESSION.SOL_6_1_WORKFLOW_HINT, "sol-6-1"),
-            ("gpt-5.5", SESSION._gpt_workflow_hint(self.root, "gpt-5.5"), "gpt"),
+            ("gpt-6.2-sol", SESSION._gpt_workflow_hint(self.root, "gpt-6.2-sol"), "gpt"),
         )
         for model, hint, name in models:
             for source in ("startup", "clear", "compact"):
@@ -567,6 +567,7 @@ print(json.dumps({
                                 original = baseline["hookSpecificOutput"]["additionalContext"]
                                 self.assertEqual(context.replace("\n" + hint, ""), original)
                                 self.assertLessEqual(len(hint.encode("utf-8")), 2048)
+                                self.assertLessEqual(len(context), 8000)
                             else:
                                 self.assertEqual(data, baseline)
                             self.assertNotIn("systemMessage", data)
@@ -640,16 +641,18 @@ print(json.dumps({
             self.assertNotIn("<trellis-codex-user-interaction>", output)
 
     def test_models_reuse_reviewed_workflow_body(self) -> None:
-        """三个模型共用已审阅正文，仅替换模型标识和标签。"""
+        """旧型号与通用路径逐字复用已验证正文。"""
         self.assertEqual(sha256(SESSION.ASTRA_WORKFLOW_HINT.encode("utf-8")).hexdigest(),
-                         "8aabe4e2f5f6c4a2a4a2021245c0d1d243cc3e5512618ee936eab06c1a721fcf")
+                         "765ed683eba97d10d5cd8a64706e08c0fe98aba197e72f9ae7871aa450428b13")
         self.assertEqual(SESSION.SOL_WORKFLOW_HINT.replace("trellis-sol-workflow-hint", "trellis-astra-workflow-hint")
                          .replace(SESSION.SOL_MODEL, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
         self.assertEqual(SESSION.SOL_6_1_WORKFLOW_HINT.replace("trellis-sol-6-1-workflow-hint", "trellis-astra-workflow-hint")
                          .replace(SESSION.SOL_6_1_MODEL, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
-        self.assertEqual(SESSION._gpt_workflow_hint(self.root, "gpt-5.5")
-                         .replace("trellis-gpt-workflow-hint", "trellis-astra-workflow-hint")
-                         .replace("gpt-5.5", SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
+        for model in ("gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.2-astra-preview", "gpt-99-next_1"):
+            with self.subTest(model=model):
+                hint = SESSION._gpt_workflow_hint(self.root, model)
+                self.assertEqual(hint.replace("trellis-gpt-workflow-hint", "trellis-astra-workflow-hint")
+                                 .replace(model, SESSION.ASTRA_MODEL), SESSION.ASTRA_WORKFLOW_HINT)
 
     def test_model_switch_and_unknown_values_use_event_input_only(self) -> None:
         """事件输入覆盖未来 GPT 型号，非法名称和非 GPT 值维持基线。"""
